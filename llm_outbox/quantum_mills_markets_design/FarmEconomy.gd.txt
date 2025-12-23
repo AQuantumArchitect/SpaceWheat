@@ -1,0 +1,392 @@
+extends Node
+
+## Farm Economy Singleton
+## Manages credits, inventory, and pricing
+
+signal credits_changed(new_amount: int)
+signal wheat_changed(new_amount: int)
+signal labor_changed(new_amount: int)  # 👥 Labor/people resource
+signal flour_changed(new_amount: int)
+signal flower_changed(new_amount: int)  # 🌻 Flower resource
+signal imperium_changed(new_amount: int)
+signal tribute_demanded(amount: int)
+signal tribute_paid(credits_paid: int, imperium_gained: int)
+signal tribute_failed(reason: String)
+signal purchase_failed(reason: String)
+signal sale_completed(wheat_sold: int, credits_earned: int)
+signal flour_processed(wheat_used: int, flour_gained: int)
+signal flour_sold(flour_used: int, credits_earned: int)
+
+# Economy state
+var credits: int = 20  # Starting credits (reduced to force core loop engagement)
+var wheat_inventory: int = 0
+var labor_inventory: int = 0  # 👥 Labor/people resource (from measuring 👥 state)
+var flour_inventory: int = 0  # 💨 Processed wheat (mill output)
+var flower_inventory: int = 0  # 🌻 Flower resource
+var imperium_resource: int = 0  # 🏰 Influence with the Imperium
+
+# Pricing
+const SEED_COST: int = 5  # Cost to plant one wheat plot
+const WHEAT_BASE_PRICE: int = 2  # Credits per wheat unit
+
+# Stats
+var total_credits_earned: int = 0
+var total_credits_spent: int = 0
+var total_wheat_sold: int = 0
+var total_wheat_harvested: int = 0  # For contract tracking
+
+# Imperium Icon reference (linked to conspiracy network)
+var imperium_icon = null  # Set by FarmView or whoever manages Icons
+
+
+func _ready():
+	set_process(true)  # Enable _process() for tribute timer
+	print("💰 Farm Economy initialized")
+	print("  Starting credits: %d" % credits)
+	print("  Seed cost: %d credits" % SEED_COST)
+	print("  Wheat price: %d credits per unit" % WHEAT_BASE_PRICE)
+	print("  🏰 Imperium tribute: %d credits every %.0f seconds" % [BASE_TRIBUTE_AMOUNT, BASE_TRIBUTE_INTERVAL])
+
+
+## Credits Management
+
+func can_afford(cost: int) -> bool:
+	"""Check if player can afford something"""
+	return credits >= cost
+
+
+func spend_credits(amount: int, reason: String = "purchase") -> bool:
+	"""Spend credits, returns true if successful"""
+	if not can_afford(amount):
+		purchase_failed.emit("Not enough credits (need %d, have %d)" % [amount, credits])
+		return false
+
+	credits -= amount
+	total_credits_spent += amount
+	credits_changed.emit(credits)
+	print("💸 Spent %d credits on %s (remaining: %d)" % [amount, reason, credits])
+	return true
+
+
+func earn_credits(amount: int, reason: String = "sale"):
+	"""Earn credits"""
+	credits += amount
+	total_credits_earned += amount
+	credits_changed.emit(credits)
+	print("💰 Earned %d credits from %s (total: %d)" % [amount, reason, credits])
+
+
+## Wheat Inventory
+
+func add_wheat(amount: int):
+	"""Add wheat to inventory"""
+	wheat_inventory += amount
+	wheat_changed.emit(wheat_inventory)
+	print("🌾 Added %d wheat to inventory (total: %d)" % [amount, wheat_inventory])
+
+
+func record_harvest(amount: int):
+	"""Record wheat harvest (for contract tracking)"""
+	total_wheat_harvested += amount
+	add_wheat(amount)
+	print("📊 Total wheat harvested: %d" % total_wheat_harvested)
+
+
+func remove_wheat(amount: int) -> bool:
+	"""Remove wheat from inventory"""
+	if wheat_inventory < amount:
+		return false
+
+	wheat_inventory -= amount
+	wheat_changed.emit(wheat_inventory)
+	return true
+
+
+## Labor Inventory (👥 People)
+
+func add_labor(amount: int):
+	"""Add labor/people to inventory (from measuring 👥 quantum state)"""
+	labor_inventory += amount
+	labor_changed.emit(labor_inventory)
+	print("👥 Added %d labor to inventory (total: %d)" % [amount, labor_inventory])
+
+
+func remove_labor(amount: int) -> bool:
+	"""Remove labor from inventory"""
+	if labor_inventory < amount:
+		return false
+
+	labor_inventory -= amount
+	labor_changed.emit(labor_inventory)
+	return true
+
+
+## Flour Inventory
+
+func add_flour(amount: int):
+	"""Add flour to inventory (mill output)"""
+	flour_inventory += amount
+	flour_changed.emit(flour_inventory)
+	print("💨 Added %d flour to inventory (total: %d)" % [amount, flour_inventory])
+
+
+func remove_flour(amount: int) -> bool:
+	"""Remove flour from inventory"""
+	if flour_inventory < amount:
+		return false
+
+	flour_inventory -= amount
+	flour_changed.emit(flour_inventory)
+	return true
+
+
+func process_wheat_to_flour(wheat_amount: int) -> bool:
+	"""Convert wheat to flour (mill processing)"""
+	if wheat_inventory < wheat_amount:
+		return false
+
+	# Remove wheat
+	if not remove_wheat(wheat_amount):
+		return false
+
+	# Add flour (1:1 conversion for now)
+	var flour_gained = wheat_amount
+	add_flour(flour_gained)
+	flour_processed.emit(wheat_amount, flour_gained)
+
+	print("🏭 Processed %d wheat → %d flour" % [wheat_amount, flour_gained])
+	return true
+
+
+## Transactions
+
+func buy_seed() -> bool:
+	"""Buy a seed to plant wheat"""
+	return spend_credits(SEED_COST, "wheat seed")
+
+
+func sell_wheat(amount: int) -> int:
+	"""Sell wheat for credits, returns credits earned"""
+	if wheat_inventory < amount:
+		purchase_failed.emit("Not enough wheat to sell")
+		return 0
+
+	var credits_earned = amount * WHEAT_BASE_PRICE
+	remove_wheat(amount)
+	earn_credits(credits_earned, "wheat sale")
+	total_wheat_sold += amount
+	sale_completed.emit(amount, credits_earned)
+	return credits_earned
+
+
+func sell_all_wheat() -> int:
+	"""Sell all wheat in inventory, returns credits earned"""
+	if wheat_inventory == 0:
+		purchase_failed.emit("No wheat to sell")
+		return 0
+
+	return sell_wheat(wheat_inventory)
+
+
+func sell_flour(amount: int, price_per_unit: int = 5) -> bool:
+	"""Sell flour for credits (market processing)"""
+	if flour_inventory < amount:
+		purchase_failed.emit("Not enough flour to sell")
+		return false
+
+	var credits_earned = amount * price_per_unit
+	remove_flour(amount)
+	earn_credits(credits_earned, "flour sale")
+	flour_sold.emit(amount, credits_earned)
+
+	print("💰 Sold %d flour → %d credits (price: %d/unit)" % [amount, credits_earned, price_per_unit])
+	return true
+
+
+func sell_all_flour(price_per_unit: int = 5) -> bool:
+	"""Sell all flour in inventory"""
+	if flour_inventory == 0:
+		purchase_failed.emit("No flour to sell")
+		return false
+
+	return sell_flour(flour_inventory, price_per_unit)
+
+
+## Flower Inventory
+
+func add_flower(amount: int):
+	"""Add flowers to inventory"""
+	flower_inventory += amount
+	flower_changed.emit(flower_inventory)
+	print("🌻 Added %d flowers to inventory (total: %d)" % [amount, flower_inventory])
+
+
+func remove_flower(amount: int) -> bool:
+	"""Remove flowers from inventory"""
+	if flower_inventory < amount:
+		return false
+
+	flower_inventory -= amount
+	flower_changed.emit(flower_inventory)
+	return true
+
+
+## Quota System (for Carrion Throne integration later)
+
+func can_fulfill_quota(wheat_required: int) -> bool:
+	"""Check if player can fulfill a quota"""
+	return wheat_inventory >= wheat_required
+
+
+func fulfill_quota(wheat_required: int) -> bool:
+	"""Fulfill a quota, removing wheat from inventory"""
+	if not can_fulfill_quota(wheat_required):
+		return false
+
+	return remove_wheat(wheat_required)
+
+
+## Imperium Tribute System 🏰
+
+# Imperium tribute configuration
+const BASE_TRIBUTE_AMOUNT: int = 10  # Credits demanded per tribute
+const BASE_TRIBUTE_INTERVAL: float = 30.0  # Seconds between tributes
+const IMPERIUM_PER_TRIBUTE: int = 1  # 🏰 gained per successful tribute
+
+var tribute_timer: float = 0.0
+var total_tributes_paid: int = 0
+var total_tributes_failed: int = 0
+
+
+func _process(dt: float):
+	"""Process Imperium tribute demands"""
+	tribute_timer += dt
+
+	if tribute_timer >= BASE_TRIBUTE_INTERVAL:
+		tribute_timer = 0.0
+		_demand_tribute()
+
+
+func _demand_tribute():
+	"""Imperium fortress demands credit tribute"""
+	var tribute_amount = _calculate_tribute_amount()
+
+	tribute_demanded.emit(tribute_amount)
+	print("🏰 IMPERIUM DEMANDS %d credits as tribute!" % tribute_amount)
+
+	# Auto-pay tribute if possible (player can't refuse the Imperium!)
+	if can_afford(tribute_amount):
+		_pay_tribute(tribute_amount)
+	else:
+		_tribute_failure(tribute_amount)
+
+
+func _calculate_tribute_amount() -> int:
+	"""Calculate tribute amount (scales with game progression)"""
+	# Base amount increases with total tributes paid (inflation!)
+	var scaling = 1.0 + (total_tributes_paid * 0.1)  # +10% per tribute
+	return int(BASE_TRIBUTE_AMOUNT * scaling)
+
+
+func _pay_tribute(amount: int):
+	"""Pay tribute to the Imperium"""
+	credits -= amount
+	total_credits_spent += amount
+	total_tributes_paid += 1
+
+	# Produce imperium resource! 🏰
+	var imperium_gained = IMPERIUM_PER_TRIBUTE
+	imperium_resource += imperium_gained
+
+	credits_changed.emit(credits)
+	imperium_changed.emit(imperium_resource)
+	tribute_paid.emit(amount, imperium_gained)
+
+	print("✅ Tribute paid: %d credits → +%d 🏰 imperium (total: %d)" % [amount, imperium_gained, imperium_resource])
+
+	# Successful tribute slightly reduces Imperium Icon activation (appeasement)
+	if imperium_icon and imperium_icon.active_strength > 0:
+		var appeasement = 0.05  # -5% activation per successful tribute
+		var new_activation = max(0.0, imperium_icon.active_strength - appeasement)
+		imperium_icon.set_activation(new_activation)
+		print("  🕊️ Imperium appeased: %.0f%% → %.0f%% activation" %
+			[(imperium_icon.active_strength + appeasement) * 100, new_activation * 100])
+
+
+func _tribute_failure(amount: int):
+	"""Failed to pay tribute - consequences!"""
+	total_tributes_failed += 1
+	tribute_failed.emit("Insufficient credits to pay %d tribute!" % amount)
+	print("❌ TRIBUTE FAILED! Imperium is displeased... (needed %d, have %d)" % [amount, credits])
+
+	# Consequences: Increase Imperium Icon activation!
+	# Failed tributes make the Imperium MORE aggressive → more energy drain
+	if imperium_icon:
+		var displeasure = 0.2  # +20% activation per failed tribute
+		var new_activation = clamp(imperium_icon.active_strength + displeasure, 0.0, 1.0)
+		imperium_icon.set_activation(new_activation)
+		print("  ⚡ Imperium activation increased: %.0f%% → %.0f%%" %
+			[(imperium_icon.active_strength - displeasure) * 100, new_activation * 100])
+
+
+func get_imperium() -> int:
+	"""Get current imperium resource"""
+	return imperium_resource
+
+
+func add_imperium(amount: int):
+	"""Add imperium (for special events)"""
+	imperium_resource += amount
+	imperium_changed.emit(imperium_resource)
+	print("🏰 Gained %d imperium (total: %d)" % [amount, imperium_resource])
+
+
+func remove_imperium(amount: int) -> bool:
+	"""Spend imperium resource"""
+	if imperium_resource < amount:
+		return false
+
+	imperium_resource -= amount
+	imperium_changed.emit(imperium_resource)
+	print("🏰 Spent %d imperium (remaining: %d)" % [amount, imperium_resource])
+	return true
+
+
+## Stats
+
+func get_stats() -> Dictionary:
+	"""Get economic statistics"""
+	return {
+		"credits": credits,
+		"wheat": wheat_inventory,
+		"labor": labor_inventory,
+		"flour": flour_inventory,
+		"flower": flower_inventory,
+		"imperium": imperium_resource,
+		"total_earned": total_credits_earned,
+		"total_spent": total_credits_spent,
+		"total_wheat_sold": total_wheat_sold,
+		"total_wheat_harvested": total_wheat_harvested,
+		"total_tributes_paid": total_tributes_paid,
+		"total_tributes_failed": total_tributes_failed,
+		"net_profit": total_credits_earned - total_credits_spent
+	}
+
+
+func reset_harvest_counter():
+	"""Reset harvest counter (called when contract completes)"""
+	total_wheat_harvested = 0
+	print("📊 Harvest counter reset")
+
+
+func print_stats():
+	"""Debug: Print economic stats"""
+	var stats = get_stats()
+	print("\n=== FARM ECONOMY ===")
+	print("Credits: %d" % stats["credits"])
+	print("Wheat: %d units" % stats["wheat"])
+	print("Total earned: %d credits" % stats["total_earned"])
+	print("Total spent: %d credits" % stats["total_spent"])
+	print("Net profit: %d credits" % stats["net_profit"])
+	print("Wheat sold: %d units" % stats["total_wheat_sold"])
+	print("====================\n")

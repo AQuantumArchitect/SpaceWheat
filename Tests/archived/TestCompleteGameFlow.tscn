@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://chwc3yrrct3yrrb"]
+
+[ext_resource type="Script" path="res://tests/test_complete_game_flow.gd" id="1_abc12"]
+
+[node name="CompleteGameFlowTest" type="Node"]
+script = ExtResource("1_abc12")

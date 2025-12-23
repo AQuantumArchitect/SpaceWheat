@@ -1,0 +1,135 @@
+class_name ActionPreviewRow
+extends HBoxContainer
+
+## Physical keyboard layout UI - Middle row with QER action preview buttons
+## Displays what Q/E/R actions will do based on selected tool
+## Buttons are touch-friendly and also show keyboard shortcuts
+
+# Tool actions (same as in FarmInputHandler)
+const TOOL_ACTIONS = {
+	1: {  # Plant Tool
+		"name": "Plant",
+		"Q": {"action": "plant_wheat", "label": "Wheat", "emoji": "🌾"},
+		"E": {"action": "plant_mushroom", "label": "Mushroom", "emoji": "🍄"},
+		"R": {"action": "plant_tomato", "label": "Tomato", "emoji": "🍅"},
+	},
+	2: {  # Quantum Operations Tool
+		"name": "Quantum Ops",
+		"Q": {"action": "entangle", "label": "Entangle", "emoji": "🔗"},
+		"E": {"action": "measure_plot", "label": "Measure", "emoji": "👁️"},
+		"R": {"action": "harvest_plot", "label": "Harvest", "emoji": "✂️"},
+	},
+	3: {  # Economy Tool
+		"name": "Economy",
+		"Q": {"action": "place_mill", "label": "Build Mill", "emoji": "🏭"},
+		"E": {"action": "place_market", "label": "Build Market", "emoji": "🏪"},
+		"R": {"action": "sell_all", "label": "Sell All", "emoji": "💰"},
+	},
+}
+
+# Action buttons
+var action_buttons: Dictionary = {}  # "Q", "E", "R" -> Button
+var current_tool: int = 1
+
+# Styling
+var button_color: Color = Color(0.3, 0.3, 0.3)
+var hover_color: Color = Color(0.5, 0.5, 0.5)
+var disabled_color: Color = Color(0.2, 0.2, 0.2)
+
+# Layout manager for scaling
+var layout_manager
+var scale_factor: float = 1.0
+
+# Signals
+signal action_pressed(action_key: String)
+
+
+func _ready():
+	# Container setup
+	# Note: Don't use anchors in container children - let parent handle layout
+	add_theme_constant_override("separation", 10)
+	alignment = BoxContainer.ALIGNMENT_CENTER
+
+	# Ensure container doesn't block keyboard input
+	mouse_filter = MOUSE_FILTER_IGNORE
+	size_flags_horizontal = Control.SIZE_EXPAND_FILL
+
+	# Create Q, E, R action buttons
+	for action_key in ["Q", "E", "R"]:
+		var button = Button.new()
+		button.text = "[%s]" % action_key
+		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		button.custom_minimum_size = Vector2(120 * scale_factor, 50 * scale_factor)
+		button.modulate = button_color
+
+		# Don't let buttons steal keyboard focus - keyboard is for input handler
+		button.focus_mode = Control.FOCUS_NONE
+
+		# Connect signal
+		button.pressed.connect(_on_action_button_pressed.bindv([action_key]))
+
+		# Add to container
+		add_child(button)
+		action_buttons[action_key] = button
+
+	# Update display for current tool
+	update_for_tool(1)
+	print("⚡ ActionPreviewRow initialized")
+
+
+func update_for_tool(tool_num: int) -> void:
+	"""Update action buttons to show actions for the selected tool"""
+	if tool_num < 1 or tool_num > 3:
+		return
+
+	current_tool = tool_num
+	var tool_info = TOOL_ACTIONS.get(tool_num, {})
+
+	# Update each action button
+	for action_key in ["Q", "E", "R"]:
+		if not action_buttons.has(action_key):
+			continue
+
+		var button = action_buttons[action_key]
+		var action_info = tool_info.get(action_key, {})
+		var label = action_info.get("label", "?")
+		var emoji = action_info.get("emoji", "")
+
+		# Update button text
+		button.text = "[%s] %s %s" % [action_key, emoji, label]
+
+	print("⚡ ActionPreviewRow updated for Tool %d: %s" % [tool_num, tool_info.get("name", "Unknown")])
+
+
+func set_action_enabled(action_key: String, enabled: bool) -> void:
+	"""Enable or disable a specific action button"""
+	if not action_buttons.has(action_key):
+		return
+
+	var button = action_buttons[action_key]
+	button.disabled = not enabled
+
+	if not enabled:
+		button.modulate = disabled_color
+	else:
+		button.modulate = button_color
+
+
+func set_layout_manager(mgr) -> void:
+	"""Set layout manager for responsive scaling"""
+	layout_manager = mgr
+	if layout_manager:
+		scale_factor = layout_manager.scale_factor
+
+
+# ============================================================================
+# PRIVATE METHODS
+# ============================================================================
+
+func _on_action_button_pressed(action_key: String) -> void:
+	"""Handle action button press"""
+	action_pressed.emit(action_key)
+	var tool_info = TOOL_ACTIONS.get(current_tool, {})
+	var action_info = tool_info.get(action_key, {})
+	var label = action_info.get("label", "action")
+	print("⚡ Action %s pressed: %s" % [action_key, label])

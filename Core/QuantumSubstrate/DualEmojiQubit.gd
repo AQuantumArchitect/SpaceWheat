@@ -1,0 +1,261 @@
+class_name DualEmojiQubit
+extends Resource
+
+## Dual-Emoji Qubit - Semantic Quantum State
+## Encodes meaning through position on Bloch sphere between two emoji poles
+
+# Emoji poles (semantic endpoints)
+@export var north_emoji: String = ""
+@export var south_emoji: String = ""
+
+# Quantum state (Bloch sphere coordinates)
+@export var theta: float = 1.5707963267948966  # PI/2
+@export var phi: float = 0.0
+@export var radius: float = 0.3
+
+# Decoherence system
+var coherence_time_T1: float = 100.0
+var coherence_time_T2: float = 50.0
+var environment_temperature: float = 20.0
+
+# Entanglement tracking
+var entangled_pair: Resource = null
+var is_qubit_a: bool = true
+var entangled_cluster: Resource = null
+var cluster_qubit_index: int = -1
+
+# Energy tracking
+var measured_energy: float = 0.0
+var energy: float = 0.3
+
+# Berry phase - accumulated quantum evolution "experience points"
+# Increases as the qubit undergoes complex quantum evolution
+# Used for progress/glow visualization
+var berry_phase: float = 0.0
+var berry_phase_rate: float = 1.0  # Rate of accumulation (tunable)
+
+# Entanglement Graph - Hamiltonian Components
+# Maps emoji relationships in pure topological form
+# Structure: { "relationship_emoji": [target_emoji_array] }
+#
+# Examples:
+#   🐺 → {"🍴": ["🐰", "🐭"], "💧": ["☀️"]}
+#      - Hunts (🍴): rabbits and mice
+#      - Produces (💧): water
+#
+#   🐰 → {"🏃": ["🐺", "🦅"], "🌱": ["🌿", "🌲"]}
+#      - Flees (🏃): from wolves and eagles
+#      - Feeds (🌱): on seedlings and saplings
+#
+# Pure Emoji Relationship Language:
+#   🍴 = Predation/hunting (A hunts B)
+#   🏃 = Escape/fleeing (A flees from B)
+#   🌱 = Consumption/feeding (A feeds on B)
+#   💧 = Production/output (A produces B)
+#   🔄 = Transformation/Markov (A can become B)
+#   ⚡ = Coherence strike (theta alignment)
+#   👶 = Reproduction (A creates offspring)
+#
+var entanglement_graph: Dictionary = {}
+
+func _init(north: String = "", south: String = "", initial_theta: float = 1.5707963267948966):
+	north_emoji = north
+	south_emoji = south
+	theta = initial_theta
+	phi = 0.0
+	radius = 0.3
+	energy = 0.3
+	berry_phase = 0.0
+
+func get_bloch_vector() -> Vector3:
+	var x = sin(theta) * cos(phi)
+	var y = sin(theta) * sin(phi)
+	var z = cos(theta)
+	return Vector3(x, y, z) * radius
+
+func set_bloch_vector(v: Vector3) -> void:
+	var length = v.length()
+	if length > 0.001:
+		radius = length
+		theta = acos(v.z / length)
+		phi = atan2(v.y, v.x)
+
+func get_semantic_state() -> String:
+	if theta < 0.7853981633974483:  # PI/4
+		return north_emoji
+	elif theta > 2.3561944901923448:  # 3*PI/4
+		return south_emoji
+	else:
+		return north_emoji + "↔" + south_emoji
+
+func get_north_amplitude() -> float:
+	return cos(theta / 2.0)
+
+func get_south_amplitude() -> float:
+	return sin(theta / 2.0)
+
+func get_north_probability() -> float:
+	return pow(cos(theta / 2.0), 2)
+
+func get_south_probability() -> float:
+	return pow(sin(theta / 2.0), 2)
+
+func get_coherence() -> float:
+	return min(1.0, radius)
+
+func apply_rotation(axis: Vector3, angle: float) -> void:
+	var half_angle = angle / 2.0
+	var quat = Quaternion(axis.normalized(), half_angle)
+	var bloch = get_bloch_vector()
+	var rotated = quat * bloch
+	set_bloch_vector(rotated)
+
+func apply_pauli_x() -> void:
+	theta = 3.1415926535897932 - theta  # PI - theta
+
+func apply_pauli_y() -> void:
+	apply_rotation(Vector3(0, 1, 0), 3.1415926535897932)  # PI
+
+func apply_pauli_z() -> void:
+	apply_rotation(Vector3(0, 0, 1), 3.1415926535897932)  # PI
+
+func apply_hadamard() -> void:
+	var axis = Vector3(1, 0, 1).normalized()
+	apply_rotation(axis, 3.1415926535897932)  # PI
+
+func apply_phase_shift(phase: float) -> void:
+	phi += phase
+
+func apply_hamiltonian_rotation(H: Dictionary, dt: float) -> void:
+	if not H:
+		return
+
+	var sigma_x = H.get("sigma_x", 0.0)
+	var sigma_y = H.get("sigma_y", 0.0)
+	var sigma_z = H.get("sigma_z", 0.0)
+
+	var magnitude = sqrt(sigma_x * sigma_x + sigma_y * sigma_y + sigma_z * sigma_z)
+	if magnitude < 0.00001:
+		return
+
+	var axis = Vector3(sigma_x, sigma_y, sigma_z).normalized()
+	apply_rotation(axis, magnitude * dt)
+
+func measure() -> String:
+	if randf() < get_north_probability():
+		theta = 0.0
+		return north_emoji
+	else:
+		theta = 3.1415926535897932  # PI
+		return south_emoji
+
+func apply_amplitude_damping(rate: float) -> void:
+	if rate <= 0.0:
+		return
+	var decay = exp(-rate)
+	radius *= decay
+	energy *= decay
+
+func apply_phase_damping(rate: float) -> void:
+	if rate <= 0.0:
+		return
+	phi *= exp(-rate)
+
+func grow_energy(strength: float, dt: float) -> void:
+	energy *= exp(strength * dt)
+	energy = min(energy, 1.0)
+
+func enable_berry_phase() -> void:
+	pass
+
+func disable_berry_phase() -> void:
+	pass
+
+func apply_dissipation(T1_rate: float, T2_rate: float, dt: float) -> void:
+	apply_amplitude_damping(T1_rate * dt)
+	apply_phase_damping(T2_rate * dt)
+
+func apply_semantic_coupling(other: DualEmojiQubit, coupling: float, dt: float) -> void:
+	pass
+
+func evolve(dt: float) -> void:
+	pass
+
+
+func accumulate_berry_phase(evolution_amount: float, dt: float = 1.0) -> void:
+	"""Accumulate berry phase based on quantum evolution
+
+	Args:
+		evolution_amount: How much quantum evolution occurred (0-1)
+		dt: Delta time for temporal scaling
+
+	Berry phase increases with:
+	- Complex rotations on Bloch sphere
+	- Entanglement interactions
+	- Environmental interactions
+
+	This serves as "experience points" showing quantum activity level
+	"""
+	berry_phase += evolution_amount * berry_phase_rate * dt
+	# Clamp to prevent overflow
+	berry_phase = clamp(berry_phase, 0.0, 10.0)
+
+
+func get_berry_phase() -> float:
+	"""Get accumulated berry phase (experience/progress)
+
+	Range: 0.0 to 10.0
+	- 0.0 = Fresh qubit, no evolution yet
+	- 5.0 = Moderate evolution history
+	- 10.0 = Highly evolved qubit (max)
+	"""
+	return berry_phase
+
+
+func get_berry_phase_normalized() -> float:
+	"""Get berry phase normalized to 0-1 range for glow visualization"""
+	return berry_phase / 10.0
+
+
+func add_graph_edge(relationship_emoji: String, target_emoji: String) -> void:
+	"""Add topological connection to another quantum state (pure emoji graph)"""
+	if not entanglement_graph.has(relationship_emoji):
+		entanglement_graph[relationship_emoji] = []
+	if not entanglement_graph[relationship_emoji].has(target_emoji):
+		entanglement_graph[relationship_emoji].append(target_emoji)
+
+
+func get_graph_targets(relationship_emoji: String) -> Array:
+	"""Get all targets for a given relationship type"""
+	return entanglement_graph.get(relationship_emoji, [])
+
+
+func has_graph_edge(relationship_emoji: String, target_emoji: String) -> bool:
+	"""Check if a specific topological connection exists"""
+	return entanglement_graph.get(relationship_emoji, []).has(target_emoji)
+
+
+func get_all_relationships() -> Array:
+	"""Get all relationship types (emoji keys) in the graph"""
+	return entanglement_graph.keys()
+
+
+func get_debug_string() -> String:
+	var state = get_semantic_state()
+	var graph_info = ""
+	if entanglement_graph.size() > 0:
+		graph_info = " | Graph: %d relationships" % entanglement_graph.size()
+	return "%s | θ=%.2f φ=%.2f | BP=%.2f%s" % [state, theta, phi, berry_phase, graph_info]
+
+
+# ============================================================================
+# Entanglement Status Helpers (for FarmGrid cluster/pair logic)
+# ============================================================================
+
+func is_in_pair() -> bool:
+	"""Check if this qubit is part of a 2-qubit entangled pair"""
+	return entangled_pair != null
+
+func is_in_cluster() -> bool:
+	"""Check if this qubit is part of an N-qubit entangled cluster"""
+	return entangled_cluster != null

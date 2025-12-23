@@ -1,0 +1,488 @@
+extends Resource
+
+## Dual-Emoji Qubit - Semantic Quantum State
+## Encodes meaning through position on Bloch sphere between two emoji poles
+
+# Emoji poles (semantic endpoints)
+@export var north_emoji: String = ""  # θ = 0 (north pole)
+@export var south_emoji: String = ""  # θ = π (south pole)
+
+# Quantum state (Bloch sphere coordinates)
+@export var theta: float = PI/2  # Polar angle [0, π] - probability ratio
+@export var phi: float = 0.0     # Azimuthal angle [-π, π] - phase
+@export var radius: float = 1.0  # Amplitude (usually 1.0 for pure states)
+
+# Berry phase tracking
+var berry_phase: float = 0.0
+var berry_phase_enabled: bool = false
+var last_bloch_vector: Vector3 = Vector3.ZERO
+
+# Decoherence system (upgraded to T₁/T₂)
+var coherence_time_T1: float = 100.0  # Amplitude damping time (seconds)
+var coherence_time_T2: float = 50.0   # Dephasing time (seconds)
+var environment_temperature: float = 20.0  # Temperature (Kelvin or relative units)
+
+# Entanglement tracking (2-qubit pairs)
+var entangled_pair: Resource = null  # Reference to EntangledPair if part of one
+var is_qubit_a: bool = true  # Which qubit in the pair (true = A, false = B)
+
+# Entanglement tracking (N-qubit clusters)
+var entangled_cluster: Resource = null  # Reference to EntangledCluster if part of one
+var cluster_qubit_index: int = -1  # Position in cluster (0, 1, 2, ..., N-1)
+
+
+func _init(north: String = "", south: String = "", initial_theta: float = PI/2):
+	north_emoji = north
+	south_emoji = south
+	theta = initial_theta
+	phi = 0.0
+	radius = 1.0
+
+
+## Bloch Sphere Operations
+
+func get_bloch_vector() -> Vector3:
+	"""Get Cartesian coordinates on Bloch sphere"""
+	return Vector3(
+		radius * sin(theta) * cos(phi),
+		radius * sin(theta) * sin(phi),
+		radius * cos(theta)
+	)
+
+
+func set_bloch_vector(v: Vector3) -> void:
+	"""Set state from Cartesian Bloch vector"""
+	v = v.normalized()
+	radius = v.length()
+	theta = acos(clamp(v.z, -1.0, 1.0))
+	if abs(sin(theta)) > 0.001:
+		phi = atan2(v.y, v.x)
+
+
+## Semantic State Queries
+
+func get_semantic_state() -> String:
+	"""Get emoji representation of current state"""
+	var north_weight = cos(theta/2.0) * cos(theta/2.0)  # Probability amplitude squared
+	var south_weight = sin(theta/2.0) * sin(theta/2.0)
+
+	# Pure north pole
+	if theta < PI/4:
+		return north_emoji
+
+	# Pure south pole
+	elif theta > 3*PI/4:
+		return south_emoji
+
+	# Superposition - show both
+	else:
+		return north_emoji + south_emoji
+
+
+func get_north_amplitude() -> float:
+	"""Get probability amplitude for north pole state"""
+	return cos(theta/2.0) * radius
+
+
+func get_south_amplitude() -> float:
+	"""Get probability amplitude for south pole state"""
+	return sin(theta/2.0) * radius
+
+
+func get_north_probability() -> float:
+	"""Get probability of measuring north pole"""
+	var amp = get_north_amplitude()
+	return amp * amp
+
+
+func get_south_probability() -> float:
+	"""Get probability of measuring south pole"""
+	var amp = get_south_amplitude()
+	return amp * amp
+
+
+func get_semantic_blend() -> float:
+	"""Get blend factor [0, 1] from north to south"""
+	return theta / PI
+
+
+## Quantum Operations
+
+func apply_rotation(axis: Vector3, angle: float) -> void:
+	"""Apply rotation on Bloch sphere (Rodrigues formula)"""
+	var v = get_bloch_vector()
+	axis = axis.normalized()
+
+	var cos_a = cos(angle)
+	var sin_a = sin(angle)
+	var dot_av = axis.dot(v)
+
+	var v_rot = v * cos_a + axis.cross(v) * sin_a + axis * dot_av * (1.0 - cos_a)
+
+	set_bloch_vector(v_rot)
+
+
+func apply_pauli_x() -> void:
+	"""Apply Pauli-X gate (bit flip around X axis)"""
+	apply_rotation(Vector3(1, 0, 0), PI)
+
+
+func apply_pauli_y() -> void:
+	"""Apply Pauli-Y gate (bit flip around Y axis)"""
+	apply_rotation(Vector3(0, 1, 0), PI)
+
+
+func apply_pauli_z() -> void:
+	"""Apply Pauli-Z gate (phase flip around Z axis)"""
+	apply_rotation(Vector3(0, 0, 1), PI)
+
+
+func apply_hadamard() -> void:
+	"""Apply Hadamard gate (creates superposition)"""
+	# Hadamard = rotation π around (X+Z)/√2 axis
+	var axis = Vector3(1, 0, 1).normalized()
+	apply_rotation(axis, PI)
+
+
+func apply_phase_shift(phase: float) -> void:
+	"""Apply phase shift to azimuthal angle"""
+	phi += phase
+	phi = fmod(phi + PI, TAU) - PI  # Keep in [-π, π]
+
+
+## Measurement
+
+func measure() -> String:
+	"""Measure qubit, collapsing to north or south pole
+
+	Note: For entangled qubits, measurement cascade is handled by EntangledPair
+	density matrix system, not here.
+	"""
+	var north_prob = get_north_probability()
+
+	# Random measurement outcome based on current probability distribution
+	var result: String
+	if randf() < north_prob:
+		result = north_emoji
+	else:
+		result = south_emoji
+
+	# NOTE: Measurement does NOT collapse theta or stop evolution!
+	# Theta continues to evolve - measurement just samples current probabilities
+
+	return result
+
+
+func partial_collapse(strength: float = 0.5) -> void:
+	"""Partial measurement/decoherence toward classical states"""
+	# Move toward nearest pole
+	if theta < PI/2:
+		theta *= (1.0 - strength)
+	else:
+		theta = PI - (PI - theta) * (1.0 - strength)
+
+
+## Berry Phase Tracking
+
+func enable_berry_phase() -> void:
+	"""Enable Berry phase accumulation"""
+	berry_phase_enabled = true
+	berry_phase = 0.0
+	last_bloch_vector = get_bloch_vector()
+
+
+func disable_berry_phase() -> void:
+	"""Disable Berry phase tracking"""
+	berry_phase_enabled = false
+	berry_phase = 0.0
+
+
+func evolve(dt: float, evolution_rate: float = 0.1) -> void:
+	"""Simple time evolution with Berry phase tracking
+
+	Quantum evolution continues always (even after measurement)
+	"""
+	if berry_phase_enabled:
+		var current = get_bloch_vector()
+		if last_bloch_vector != Vector3.ZERO:
+			var cross = last_bloch_vector.cross(current)
+			var v_mid = (last_bloch_vector + current).normalized()
+			var solid_angle = cross.length()
+			if cross.dot(v_mid) < 0:
+				solid_angle *= -1.0
+			berry_phase += solid_angle / 2.0
+		last_bloch_vector = current
+
+	# Simple precession (azimuthal angle evolution)
+	phi += evolution_rate * dt
+
+
+func get_berry_phase() -> float:
+	return berry_phase
+
+
+func get_berry_phase_abs() -> float:
+	"""Get absolute accumulated Berry phase"""
+	return abs(berry_phase)
+
+
+func get_cultural_stability() -> float:
+	"""Interpret Berry phase as cultural stability/institutional memory
+
+	Higher Berry phase = more "veteran" wheat with accumulated wisdom.
+	This is GEOMETRIC MEMORY - the wheat remembers its quantum journey.
+
+	Returns:
+		Stability factor (0.0 to 1.0+)
+		- 0.0: New wheat, no history
+		- 0.5: Established, some memory
+		- 1.0+: Veteran wheat, deep institutional memory
+	"""
+	# Normalize Berry phase to stability metric
+	# Berry phase accumulates ~0.1 per evolution cycle
+	# After 10 cycles, reaches "stable" (1.0)
+	return clamp(get_berry_phase_abs() / 10.0, 0.0, 2.0)
+
+
+func get_innovation_resistance() -> float:
+	"""High Berry phase = resistant to mutation (stable but inflexible)
+
+	Returns:
+		Resistance to change (0.0 to 1.0)
+	"""
+	var stability = get_cultural_stability()
+	return clamp(stability * 0.7, 0.0, 1.0)
+
+
+func get_reliability_bonus() -> float:
+	"""High Berry phase = more reliable, predictable yields
+
+	Returns:
+		Reliability multiplier (1.0 to 1.5)
+	"""
+	var stability = get_cultural_stability()
+	return 1.0 + (stability * 0.5)
+
+
+func reset_berry_phase() -> void:
+	berry_phase = 0.0
+
+
+## Density Matrix Conversion
+
+func to_density_matrix() -> Array:
+	"""Convert Bloch sphere state to 2×2 density matrix
+
+	For pure state |ψ⟩ = cos(θ/2)|0⟩ + e^(iφ) sin(θ/2)|1⟩:
+	ρ = |ψ⟩⟨ψ|
+
+	Returns: 2×2 array of Vector2(real, imag)
+	"""
+	var cos_half = cos(theta / 2.0) * radius
+	var sin_half = sin(theta / 2.0) * radius
+	var cos_phi = cos(phi)
+	var sin_phi = sin(phi)
+
+	# State vector: [α, β] where α = cos(θ/2), β = e^(iφ) sin(θ/2)
+	var alpha = Vector2(cos_half, 0.0)
+	var beta = Vector2(sin_half * cos_phi, sin_half * sin_phi)
+
+	# Density matrix: ρ = |ψ⟩⟨ψ| = [[|α|², αβ*], [α*β, |β|²]]
+	return [
+		[
+			Vector2(alpha.x * alpha.x + alpha.y * alpha.y, 0.0),  # |α|²
+			Vector2(alpha.x * beta.x + alpha.y * beta.y, alpha.x * beta.y - alpha.y * beta.x)  # αβ*
+		],
+		[
+			Vector2(alpha.x * beta.x + alpha.y * beta.y, alpha.y * beta.x - alpha.x * beta.y),  # α*β
+			Vector2(beta.x * beta.x + beta.y * beta.y, 0.0)  # |β|²
+		]
+	]
+
+
+func from_density_matrix(rho: Array) -> void:
+	"""Convert 2×2 density matrix back to Bloch sphere coordinates
+
+	Extracts Bloch vector from density matrix.
+	Works for both pure and mixed states.
+
+	Args:
+		rho: 2×2 density matrix (Array of Vector2)
+	"""
+	# Get diagonal elements (populations)
+	var rho_00 = rho[0][0].x  # Should be real
+	var rho_11 = rho[1][1].x
+
+	# Get off-diagonal (coherences)
+	var rho_01 = rho[0][1]  # Complex
+
+	# Bloch vector components:
+	# x = 2 Re(ρ₀₁)
+	# y = 2 Im(ρ₀₁)
+	# z = ρ₀₀ - ρ₁₁
+	var bloch_x = 2.0 * rho_01.x
+	var bloch_y = 2.0 * rho_01.y
+	var bloch_z = rho_00 - rho_11
+
+	var bloch = Vector3(bloch_x, bloch_y, bloch_z)
+
+	# Convert to spherical coordinates
+	radius = bloch.length()
+	if radius > 0.001:
+		theta = acos(clamp(bloch_z / radius, -1.0, 1.0))
+		phi = atan2(bloch_y, bloch_x)
+	else:
+		# Maximally mixed state (center of Bloch sphere)
+		theta = PI / 2.0
+		phi = 0.0
+		radius = 0.0
+
+
+## Serialization
+
+func to_dict() -> Dictionary:
+	return {
+		"north_emoji": north_emoji,
+		"south_emoji": south_emoji,
+		"theta": theta,
+		"phi": phi,
+		"radius": radius,
+		"berry_phase": berry_phase
+	}
+
+
+func from_dict(data: Dictionary) -> void:
+	north_emoji = data.get("north_emoji", "")
+	south_emoji = data.get("south_emoji", "")
+	theta = data.get("theta", PI/2)
+	phi = data.get("phi", 0.0)
+	radius = data.get("radius", 1.0)
+	berry_phase = data.get("berry_phase", 0.0)
+
+
+## Decoherence (Lindblad Framework)
+## NOTE: Entanglement is now handled by EntangledPair density matrix system
+
+func apply_realistic_decoherence(delta: float, temperature: float = -1.0) -> void:
+	"""Apply physically accurate T₁ + T₂ decoherence
+
+	Uses Lindblad master equation with temperature-dependent rates.
+	This is REAL quantum physics (open quantum systems).
+
+	Args:
+		delta: Time step (seconds)
+		temperature: Environment temperature (uses self.environment_temperature if < 0)
+	"""
+	# If part of entangled pair, decoherence handled at pair level
+	if entangled_pair != null:
+		return
+
+	# Use provided temperature or default
+	var temp = temperature if temperature >= 0.0 else environment_temperature
+
+	# Convert to density matrix
+	var rho = to_density_matrix()
+
+	# Apply Lindblad evolution
+	const Lindblad = preload("res://Core/QuantumSubstrate/LindbladEvolution.gd")
+	rho = Lindblad.apply_realistic_decoherence_2x2(rho, delta, temp, coherence_time_T1)
+
+	# Convert back to Bloch sphere
+	from_density_matrix(rho)
+
+
+func apply_decoherence(delta: float, environment_rate: float = 0.01) -> void:
+	"""Legacy decoherence method (for backward compatibility)
+
+	Calls apply_realistic_decoherence with scaled temperature.
+	"""
+	var effective_temp = environment_temperature * (1.0 + environment_rate)
+	apply_realistic_decoherence(delta, effective_temp)
+
+
+func get_coherence() -> float:
+	"""Return coherence level (0.0 = classical, 1.0 = pure quantum)
+
+	Coherence is maximized at equator (θ = π/2) and zero at poles.
+	Represents how "quantum" vs "classical" the state is.
+	"""
+	# Distance from equator (superposition)
+	var dist_from_equator = abs(theta - PI/2)
+	var max_dist = PI/2
+
+	return 1.0 - (dist_from_equator / max_dist)
+
+
+func is_decoherent(threshold: float = 0.2) -> bool:
+	"""Check if state is significantly decoherent
+
+	Args:
+		threshold: Coherence below this value is considered decoherent
+
+	Returns:
+		true if coherence < threshold
+	"""
+	return get_coherence() < threshold
+
+
+func set_coherence_time(time: float) -> void:
+	"""Set characteristic decoherence time (legacy method)
+
+	Sets T₁, T₂ follows automatically (T₂ ≤ 2T₁)
+
+	Args:
+		time: Time constant in seconds (higher = slower decoherence)
+	"""
+	coherence_time_T1 = max(1.0, time)
+	coherence_time_T2 = coherence_time_T1 / 2.0  # Maximum T₂
+
+
+func set_T1_T2_times(T1: float, T2: float) -> void:
+	"""Set T₁ and T₂ separately
+
+	Enforces physical constraint: T₂ ≤ 2T₁
+
+	Args:
+		T1: Amplitude damping time (seconds)
+		T2: Dephasing time (seconds)
+	"""
+	coherence_time_T1 = max(1.0, T1)
+	coherence_time_T2 = clamp(T2, 0.0, 2.0 * coherence_time_T1)
+
+
+func set_environment_temperature(temp: float) -> void:
+	"""Set environment temperature
+
+	Args:
+		temp: Temperature (Kelvin or relative units, 0 = cold, 100+ = hot)
+	"""
+	environment_temperature = max(0.0, temp)
+
+
+## Entanglement State Queries
+
+func is_in_cluster() -> bool:
+	"""Check if this qubit is part of an N-qubit cluster"""
+	return entangled_cluster != null
+
+
+func is_in_pair() -> bool:
+	"""Check if this qubit is part of a 2-qubit entangled pair"""
+	return entangled_pair != null
+
+
+func is_entangled() -> bool:
+	"""Check if this qubit is entangled (either in pair or cluster)"""
+	return is_in_cluster() or is_in_pair()
+
+
+## Debug
+
+func get_debug_string() -> String:
+	var state = get_semantic_state()
+	var base = "%s | θ=%.2f φ=%.2f | %s" % [state, theta, phi, get_bloch_vector()]
+	if berry_phase_enabled:
+		base += " | γ=%.3f" % berry_phase
+	if entangled_pair != null:
+		base += " | 🔗"
+	return base

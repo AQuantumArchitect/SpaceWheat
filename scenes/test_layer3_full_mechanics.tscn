@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://clmyj1wt9l7e"]
+
+[ext_resource type="Script" path="res://tests/test_layer3_full_mechanics.gd" id="1_layer3"]
+
+[node name="Layer3Test" type="Node"]
+script = ExtResource("1_layer3")

@@ -1,0 +1,15 @@
+[gd_scene load_steps=2 format=3 uid="uid://c5l4uq7vx7u86p5h"]
+
+[ext_resource type="Script" path="res://UI/FarmView.gd" id="1_farm"]
+[ext_resource type="Script" path="res://diagnostic_full.gd" id="2_diag"]
+
+[node name="DiagnosticOnly" type="Control"]
+layout_mode = 3
+anchors_left = 0.0
+anchors_top = 0.0
+anchors_right = 1.0
+anchors_bottom = 1.0
+script = ExtResource("1_farm")
+
+[node name="Diagnostic" type="Node" parent="."]
+script = ExtResource("2_diag")

@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://ctkdl6k6j0ndbvp"]
+
+[ext_resource type="Script" path="res://TestAutoplay.gd" id="1_abc123"]
+
+[node name="TestAutoplay" type="Node"]
+script = ExtResource("1_abc123")

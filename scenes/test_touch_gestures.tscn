@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://c6x2r0rkfpf9"]
+
+[ext_resource type="Script" path="res://tests/test_touch_gestures.gd" id="1_wg0d9"]
+
+[node name="TestTouchGestures" type="Node"]
+script = ExtResource("1_wg0d9")

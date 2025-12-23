@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://bpsf3j9g98m3"]
+
+[ext_resource type="Script" path="res://tests/test_biome_energy_growth.gd" id="1_lmn456"]
+
+[node name="TestBiomeEnergy" type="Node"]
+script = ExtResource("1_lmn456")

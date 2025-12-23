@@ -1,0 +1,270 @@
+# SpaceWheat Faction Classification: 32-Faction System
+
+## The 12 Q-Bit Classification System
+
+Each faction is classified using 12 binary dimensions:
+
+1. **🎲 ↔ 📚** (Random vs Deterministic) - 0=Random/unpredictable, 1=Deterministic/rule-based
+2. **🔧 ↔ 🔮** (Material vs Mystical) - 0=Physical/tool-based, 1=Ethereal/consciousness-based
+3. **🌾 ↔ 👑** (Common vs Elite) - 0=Working class/grassroots, 1=Aristocratic/ruling class
+4. **🏠 ↔ 🌌** (Local vs Cosmic) - 0=Community-focused/domestic, 1=Universal/galaxy-spanning
+5. **⚡ ↔ 🕰️** (Instant vs Eternal) - 0=Immediate action/results, 1=Long-term/patient process
+6. **💪 ↔ 🧠** (Physical vs Mental) - 0=Action/strength/embodiment, 1=Thought/planning/knowledge
+7. **💠 ↔ 🌊** (Crystalline vs Fluid) - 0=Rigid/permanent/structured, 1=Adaptive/flowing/changing
+8. **🗡️ ↔ 🎭** (Direct vs Subtle) - 0=Force/confrontation/obvious, 1=Influence/manipulation/hidden
+9. **🍽️ ↔ 🎁** (Consumptive vs Providing) - 0=Extractive/depleting/taking, 1=Generative/giving/providing
+10. **⬜ ↔ 🌈** (Monochrome vs Prismatic) - 0=Single-minded/uniform/focused, 1=Multi-faceted/diverse/colorful
+11. **🌱 ↔ 🏗️** (Emergent vs Imposed) - 0=Bottom-up/natural arising/organic, 1=Top-down/constructed/artificial
+12. **🌪️ ↔ 🎯** (Scattered vs Focused) - 0=Dispersed/multi-purpose/generalist, 1=Concentrated/specialized/targeted
+
+---
+
+## IMPERIAL POWER STRUCTURE
+
+### The Carrion Throne 👑💀🏛️
+Central imperial bureaucracy feeding endless bureaucrats with endless wars.
+**Axiom words**: Deterministic, Material, Elite, Cosmic, Eternal, Mental, Crystalline, Direct, Providing, Monochrome, Imposed, Focused
+**Pattern**: `110111001101`
+
+### House of Thorns 🌹🗡️👑
+Aristocratic assassins using poison and intrigue, their methods subtle but hierarchy rigid.
+**Axiom words**: Deterministic, Mystical, Elite, Cosmic, Eternal, Mental, Crystalline, Subtle, Consumptive, Monochrome, Imposed, Focused
+**Pattern**: `111111010101`
+
+### The Granary Guilds 🌾💰⚖️
+Food-control networks providing "bread and games" civic management, giving out grain to maintain order.
+**Axiom words**: Deterministic, Material, Elite, Cosmic, Eternal, Mental, Crystalline, Subtle, Providing, Monochrome, Imposed, Focused
+**Pattern**: `110111011101`
+
+### The Station Lords 🏢👑🌌
+Orbital city rulers with absolute authority over neutral space.
+**Axiom words**: Deterministic, Material, Elite, Cosmic, Eternal, Mental, Crystalline, Direct, Consumptive, Monochrome, Imposed, Focused
+**Pattern**: `110111000101`
+
+---
+
+## WORKING GUILDS & SERVICES
+
+### The Obsidian Will 🏭⚙️🔧
+Mechanical purists creating century-spanning works, despising computers but using them.
+**Axiom words**: Deterministic, Material, Elite, Cosmic, Eternal, Physical, Crystalline, Direct, Providing, Monochrome, Imposed, Focused
+**Pattern**: `110111000101`
+
+### The Millwright's Union 🌾⚙️🏭
+Grain processors who know cosmic rhythms through mill vibrations.
+**Axiom words**: Deterministic, Material, Common, Local, Instant, Physical, Crystalline, Direct, Providing, Monochrome, Emergent, Focused
+**Pattern**: `110100000001`
+
+### The Tinker Team 🔧🛠️🚐
+Traveling repairmen whose routes are scattered, fixing everything with adaptive methods.
+**Axiom words**: Random, Material, Common, Local, Instant, Physical, Fluid, Direct, Providing, Monochrome, Emergent, Scattered
+**Pattern**: `010100101000`
+
+### The Seamstress Syndicate 🪡👘📐
+Message-encoding tailors whose precise work communicates through clothing patterns.
+**Axiom words**: Deterministic, Material, Common, Local, Eternal, Mental, Crystalline, Subtle, Providing, Monochrome, Imposed, Focused
+**Pattern**: `110011010101`
+
+### The Gravedigger's Union ⚰️🪦🌙
+Death ritualists handling the burial of people, failed systems, and dead concepts in pure thought-space.
+**Axiom words**: Random, Material, Common, Local, Eternal, Physical, Crystalline, Direct, Providing, Monochrome, Imposed, Focused
+**Pattern**: `010011000101`
+
+### The Symphony Smiths 🎵🔨⚔️
+Working guild forging reality-tuning tools from crystallized sound, their creations perturb fundamental frequencies.
+**Axiom words**: Deterministic, Material, Common, Local, Instant, Mental, Crystalline, Direct, Providing, Prismatic, Imposed, Focused
+**Pattern**: `110100001111`
+
+---
+
+## MYSTIC ORDERS
+
+### The Keepers of Silence 🧘‍♂️⚔️🔇
+Monastic hunters of hyperspace anomalies, enforcing silence to protect sanity.
+**Axiom words**: Deterministic, Mystical, Elite, Cosmic, Eternal, Mental, Crystalline, Subtle, Providing, Monochrome, Imposed, Focused
+**Pattern**: `111111010101`
+
+### The Sacred Flame Keepers 🕯️🔥⛪
+Ritualists maintaining fires that burn true in vacuum through mystical tradition.
+**Axiom words**: Deterministic, Mystical, Elite, Local, Eternal, Mental, Crystalline, Subtle, Providing, Monochrome, Imposed, Focused
+**Pattern**: `111011010101`
+
+### The Iron Confessors 🤖⛪🔧
+Machine-soul priests bridging flesh and steel, granting final rites to dying AIs.
+**Axiom words**: Deterministic, Mystical, Elite, Local, Eternal, Mental, Crystalline, Subtle, Providing, Monochrome, Imposed, Focused
+**Pattern**: `111011010101`
+
+### The Yeast Prophets 🍞🧪⛪
+Fermentation mystics embedding small changes that propagate under right circumstances, their influence emerging organically.
+**Axiom words**: Random, Mystical, Elite, Local, Eternal, Mental, Fluid, Subtle, Providing, Prismatic, Emergent, Focused
+**Pattern**: `011011111101`
+
+---
+
+## MERCHANTS & TRADERS
+
+### The Syndicate of Glass 💎⚖️🛸
+Crystal trade oligarchy controlling hyperspace artifacts through rigid contracts.
+**Axiom words**: Deterministic, Material, Elite, Cosmic, Eternal, Mental, Crystalline, Subtle, Providing, Monochrome, Imposed, Focused
+**Pattern**: `110111010101`
+
+### The Memory Merchants 🧠💰📦
+Consciousness traders extracting and selling distilled experiences of entire civilizations.
+**Axiom words**: Deterministic, Mystical, Elite, Cosmic, Eternal, Mental, Crystalline, Subtle, Consumptive, Monochrome, Imposed, Focused
+**Pattern**: `111111010101`
+
+### The Bone Merchants 🦴💉🛒
+Black market bio-traders specializing in forbidden surgeries and genetic modifications.
+**Axiom words**: Random, Material, Common, Local, Instant, Physical, Fluid, Direct, Consumptive, Monochrome, Emergent, Scattered
+**Pattern**: `010100101000`
+
+### The Nexus Wardens 🍺🗝️🕯️
+Innkeeper-diplomats running neutral waystation taverns where enemies drink together.
+**Axiom words**: Deterministic, Mystical, Elite, Local, Eternal, Mental, Fluid, Subtle, Providing, Prismatic, Imposed, Scattered
+**Pattern**: `111011111110`
+
+---
+
+## MILITANT ORDERS
+
+### The Iron Shepherds 🛡️🐑🚀
+Feudal knights aboard living cathedral ships patrolling hyperspace valleys.
+**Axiom words**: Deterministic, Material, Elite, Cosmic, Eternal, Physical, Crystalline, Direct, Providing, Monochrome, Imposed, Focused
+**Pattern**: `110111000101`
+
+### Brotherhood of Ash ⚔️⚰️⚫️
+Honor-bound mercenaries whose contracts span personal disputes to galactic warfare.
+**Axiom words**: Deterministic, Material, Elite, Cosmic, Instant, Physical, Crystalline, Direct, Consumptive, Monochrome, Emergent, Focused
+**Pattern**: `110101000001`
+
+### Children of the Ember 🔥✊⚡️
+Revolutionary zealots with rigid ideology seeking liberation through forbidden energies.
+**Axiom words**: Deterministic, Material, Common, Local, Instant, Physical, Crystalline, Direct, Consumptive, Monochrome, Emergent, Focused
+**Pattern**: `110100000001`
+
+### Order of the Crimson Scale ⚖️🐉🩸
+Judicial protectors with immutable law codes, their harsh but fair justice maintaining cosmic order.
+**Axiom words**: Deterministic, Mystical, Elite, Cosmic, Instant, Mental, Crystalline, Direct, Providing, Monochrome, Imposed, Focused
+**Pattern**: `111101001101`
+
+---
+
+## SCAVENGER FACTIONS
+
+### The Rust Fleet 🚢🦴⚙️
+Necessary pariah salvagers, mechanical scavenger armadas following battles with ships as archaeological layers.
+**Axiom words**: Random, Material, Common, Cosmic, Eternal, Physical, Fluid, Direct, Consumptive, Monochrome, Emergent, Scattered
+**Pattern**: `010111100000`
+
+### The Locusts 🦗🍃💀
+Organic scavenger swarms consuming dead worlds, breaking down matter into reusable biological components.
+**Axiom words**: Random, Material, Common, Cosmic, Instant, Physical, Fluid, Direct, Consumptive, Monochrome, Emergent, Scattered
+**Pattern**: `010100100000`
+
+### The Cartographers 🗺️🔭🚢
+Nomadic explorer-mystics charting hyperspace routes and hunting lost histories.
+**Axiom words**: Random, Material, Elite, Cosmic, Eternal, Mental, Fluid, Subtle, Providing, Prismatic, Emergent, Scattered
+**Pattern**: `010111111100`
+
+---
+
+## HORROR CULTS
+
+### The Laughing Court 🎪💀🌀
+Viral memetic disease spreading through minds, their laughter echoing across dimensions.
+**Axiom words**: Random, Mystical, Elite, Cosmic, Eternal, Mental, Fluid, Subtle, Consumptive, Prismatic, Emergent, Scattered
+**Pattern**: `011111111100`
+
+### Cult of the Drowned Star 🌊⭐️👁️
+Cosmic horror worshippers driven mad by whispers from hyperspace entities.
+**Axiom words**: Random, Mystical, Common, Cosmic, Eternal, Mental, Fluid, Subtle, Consumptive, Prismatic, Emergent, Scattered
+**Pattern**: `011111111100`
+
+### The Chorus of Oblivion 🎶💀🌀
+Nihilistic death cult believing reality is suffering, actively seeking universal collapse.
+**Axiom words**: Random, Mystical, Common, Cosmic, Eternal, Mental, Fluid, Subtle, Consumptive, Prismatic, Emergent, Focused
+**Pattern**: `011111111101`
+
+### The Flesh Architects 🧬🏗️👥
+Biological horror sculptors reshaping life into living cities, their constructions house thousands of symbiotic consciousnesses.
+**Axiom words**: Random, Mystical, Elite, Cosmic, Eternal, Mental, Fluid, Subtle, Consumptive, Prismatic, Emergent, Focused
+**Pattern**: `011111110101`
+
+---
+
+## DEFENSIVE COMMUNITIES
+
+### The Void Serfs 🌾⛓️🌌
+Indentured bio-dome farmers kept docile through religious fervor, lives chaotic and controlled.
+**Axiom words**: Random, Material, Common, Local, Eternal, Physical, Crystalline, Direct, Consumptive, Monochrome, Imposed, Scattered
+**Pattern**: `010011000110`
+
+### Clan of the Hidden Root 🌱🏡🛡️
+Defensive agrarians preserving traditional values through communal cooperation.
+**Axiom words**: Deterministic, Material, Common, Local, Instant, Physical, Fluid, Direct, Providing, Monochrome, Emergent, Scattered
+**Pattern**: `110100101000`
+
+### The Veiled Sisters 🔮👤🌑
+Matriarchal shadow network wielding subtle influence through espionage and prophecy.
+**Axiom words**: Random, Mystical, Elite, Local, Eternal, Mental, Fluid, Subtle, Providing, Prismatic, Emergent, Scattered
+**Pattern**: `011011111100`
+
+### The Terrarium Collective 🌿🏠🔒
+Defensive biosphere builders constructing expanding zero-waste economies, heavily segregated but not hidden.
+**Axiom words**: Deterministic, Material, Common, Local, Eternal, Physical, Fluid, Direct, Providing, Prismatic, Imposed, Focused
+**Pattern**: `110011101111`
+
+---
+
+## COSMIC MANIPULATORS
+
+### The Resonance Dancers 💃🎼🌟
+Synchronized performers across space stations tuning psychic space - one misstep causes social strife and mental discord.
+**Axiom words**: Deterministic, Mystical, Elite, Cosmic, Instant, Mental, Fluid, Subtle, Providing, Prismatic, Imposed, Focused
+**Pattern**: `111101111111`
+
+### The Causal Shepherds 🐑🎲⚡
+Herding quantum uncertainties and guiding causality chains to shift outcomes through subtle manipulation.
+**Axiom words**: Deterministic, Mystical, Elite, Cosmic, Eternal, Mental, Fluid, Subtle, Providing, Monochrome, Imposed, Focused
+**Pattern**: `111111111101`
+
+### The Empire Shepherds 🐑🌍🤠
+Herd entire civilizations that graze continents down through exponential breeding and exploitation.
+**Axiom words**: Random, Material, Elite, Cosmic, Eternal, Physical, Fluid, Direct, Consumptive, Monochrome, Emergent, Scattered
+**Pattern**: `010111101000`
+
+---
+
+## ULTIMATE COSMIC ENTITIES
+
+### The Entropy Shepherds 🌌💀🌸
+Universal-decay gardeners ensuring beautiful endings, guiding heat death with grace.
+**Axiom words**: Deterministic, Mystical, Elite, Cosmic, Eternal, Mental, Fluid, Subtle, Providing, Prismatic, Imposed, Focused
+**Pattern**: `111111111111`
+
+### The Void Emperors 👑🌌⚫
+Nothingness rulers commanding armies of absence, their empire growing through erasure.
+**Axiom words**: Deterministic, Mystical, Elite, Cosmic, Eternal, Mental, Crystalline, Direct, Consumptive, Monochrome, Imposed, Focused
+**Pattern**: `111111000101`
+
+### The Reality Midwives 🌟💫🥚
+Universe-birth assistants helping cosmic eggs hatch, delivering impossibilities into reality, and singing new stars into existence.
+**Axiom words**: Deterministic, Mystical, Elite, Cosmic, Eternal, Mental, Fluid, Subtle, Providing, Prismatic, Imposed, Focused
+**Pattern**: `111111111111`
+
+---
+
+## FINAL FACTION COUNT: 32
+
+**Imperial Powers**: 4
+**Working Guilds**: 6  
+**Mystic Orders**: 4
+**Merchants & Traders**: 4
+**Militant Orders**: 4
+**Scavenger Factions**: 3
+**Horror Cults**: 4
+**Defensive Communities**: 4
+**Cosmic Manipulators**: 3
+**Ultimate Cosmic Entities**: 3
+
+Perfect 32-faction system with no duplicates, clear hierarchies, and meaningful q-bit differentiation!

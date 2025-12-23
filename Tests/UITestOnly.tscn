@@ -1,0 +1,30 @@
+[gd_scene load_steps=5 format=3 uid="uid://dl32aq0dfjcwg8"]
+
+[ext_resource type="Script" path="res://UI/FarmView.gd" id="1_8ixyz"]
+[ext_resource type="Script" path="res://UI/LayoutDebugTester.gd" id="2_debug"]
+[ext_resource type="Script" path="res://test_input_simple.gd" id="3_input"]
+[ext_resource type="Script" path="res://test_key_mashing.gd" id="4_mash"]
+
+[node name="UITestOnly" type="Control"]
+layout_mode = 3
+anchors_left = 0.0
+anchors_top = 0.0
+anchors_right = 1.0
+anchors_bottom = 1.0
+script = ExtResource("1_8ixyz")
+
+[node name="LayoutDebugTester" type="Control" parent="."]
+layout_mode = 1
+anchors_left = 0.0
+anchors_top = 0.0
+anchors_right = 1.0
+anchors_bottom = 1.0
+script = ExtResource("2_debug")
+
+[node name="InputTest" type="Node" parent="."]
+script = ExtResource("3_input")
+
+[node name="KeyMashTest" type="Node" parent="."]
+script = ExtResource("4_mash")
+
+[connection signal="resized" from="." to="." method="_on_viewport_resized"]

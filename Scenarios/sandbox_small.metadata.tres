@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="ScenarioMetadata" load_steps=2 format=3 uid="uid://c4jmy3mpt6h2r"]
+
+[ext_resource type="Script" path="res://Core/GameState/ScenarioMetadata.gd" id="1_a2b3c"]
+
+script = ExtResource("1_a2b3c")
+scenario_id = "sandbox_small"
+display_name = "Cozy Farm"
+description = "Experiment freely with quantum farming in a small, low-pressure environment."
+difficulty = "sandbox"
+grid_size = "4x2"
+starting_credits = 200
+estimated_time_minutes = 0
+tags = PackedStringArray(["sandbox", "freeplay", "experimentation"])
+prerequisites = PackedStringArray()
+unlocked_by_default = true

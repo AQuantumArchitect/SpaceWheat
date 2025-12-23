@@ -1,0 +1,364 @@
+extends Node
+
+## Keyboard-driven Farm UI - Minecraft-style tool/action system
+## Numbers 1-6 = Tool modes (Plant, Quantum, Economy, etc)
+## Q/E/R = Context-sensitive actions (depends on active tool)
+## WASD = Movement/cursor control
+## YUIOP = Quick-access location selectors
+
+var farm  # Will be injected with Farm instance (Farm.gd)
+var current_selection: Vector2i = Vector2i.ZERO
+var current_tool: int = 1  # Active tool (1-6)
+
+# Config
+var grid_width: int = 6
+var grid_height: int = 1
+
+# Tool action sets - each tool has 3 actions mapped to Q, E, R
+const TOOL_ACTIONS = {
+	1: {  # Plant Tool
+		"name": "Plant",
+		"Q": {"action": "plant_wheat", "label": "Wheat"},
+		"E": {"action": "plant_mushroom", "label": "Mushroom"},
+		"R": {"action": "plant_tomato", "label": "Tomato (Ultimate!)"},
+	},
+	2: {  # Quantum Operations Tool
+		"name": "Quantum Ops",
+		"Q": {"action": "entangle", "label": "Entangle"},
+		"E": {"action": "measure_plot", "label": "Measure"},
+		"R": {"action": "harvest_plot", "label": "Harvest"},
+	},
+	3: {  # Economy Tool
+		"name": "Economy",
+		"Q": {"action": "place_mill", "label": "Build Mill"},
+		"E": {"action": "place_market", "label": "Build Market"},
+		"R": {"action": "process_flour", "label": "Make Flour (1W→1F)"},
+	},
+}
+
+# LOCATION_KEYS removed - Phase 7: Replaced with InputMap actions (select_plot_t through select_plot_p)
+
+# Reverse mapping for display: position x -> key letter
+const LOCATION_LABELS = {
+	0: "T",
+	1: "Y",
+	2: "U",
+	3: "I",
+	4: "O",
+	5: "P",
+}
+
+# Signals
+signal action_performed(action: String, success: bool, message: String)
+signal selection_changed(new_pos: Vector2i)
+signal plot_selected(pos: Vector2i)  # Signal emitted when plot location is selected
+signal tool_changed(tool_num: int, tool_info: Dictionary)
+signal help_requested
+
+func _ready():
+	print("⌨️  FarmInputHandler initialized (Tool Mode System)")
+	print("📍 Starting position: %s" % current_selection)
+	print("🛠️  Current tool: %s" % TOOL_ACTIONS[current_tool]["name"])
+	set_process_input(true)
+	print("   ✓ Input processing enabled")
+	_print_help()
+
+
+func _input(event: InputEvent):
+	"""Handle input via InputMap actions (Phase 7)
+
+	Supports keyboard (WASD, QERT, numbers, etc) and gamepad (D-Pad, buttons, sticks)
+	via Godot's InputMap system.
+	"""
+	# Tool selection (1-6) - Phase 7: Use InputMap actions
+	for i in range(1, 7):
+		if event.is_action_pressed("tool_" + str(i)):
+			_select_tool(i)
+			get_tree().root.set_input_as_handled()
+			return
+
+	# Location quick-select (T/Y/U/I/O/P) - Phase 7: Use InputMap actions
+	var location_keys = {
+		"select_plot_t": Vector2i(0, 0),
+		"select_plot_y": Vector2i(1, 0),
+		"select_plot_u": Vector2i(2, 0),
+		"select_plot_i": Vector2i(3, 0),
+		"select_plot_o": Vector2i(4, 0),
+		"select_plot_p": Vector2i(5, 0),
+	}
+
+	for action in location_keys.keys():
+		if event.is_action_pressed(action):
+			_set_selection(location_keys[action])
+			get_tree().root.set_input_as_handled()
+			return
+
+	# Movement (WASD or D-Pad or Left Stick) - Phase 7: Use InputMap actions
+	if event.is_action_pressed("move_up"):
+		_move_selection(Vector2i.UP)
+		get_tree().root.set_input_as_handled()
+		return
+	elif event.is_action_pressed("move_down"):
+		_move_selection(Vector2i.DOWN)
+		get_tree().root.set_input_as_handled()
+		return
+	elif event.is_action_pressed("move_left"):
+		_move_selection(Vector2i.LEFT)
+		get_tree().root.set_input_as_handled()
+		return
+	elif event.is_action_pressed("move_right"):
+		_move_selection(Vector2i.RIGHT)
+		get_tree().root.set_input_as_handled()
+		return
+
+	# Action keys (Q/E/R or gamepad buttons A/B/X) - Phase 7: Use InputMap actions
+	# Debug: Check if actions are detected
+	if event is InputEventKey and event.pressed:
+		var key = event.keycode
+		if key == KEY_Q or key == KEY_E or key == KEY_R:
+			print("🐛 DEBUG: Pressed key: %s" % event.keycode)
+			print("   is_action_pressed('action_q'): %s" % event.is_action_pressed("action_q"))
+			print("   is_action_pressed('action_e'): %s" % event.is_action_pressed("action_e"))
+			print("   is_action_pressed('action_r'): %s" % event.is_action_pressed("action_r"))
+
+	# NOTE: Q/E/R actions are now primarily routed through InputController
+	# Only process if input hasn't already been handled (by menu system)
+	if not get_tree().root.is_input_handled():
+		if event.is_action_pressed("action_q"):
+			print("⚡ action_q detected")
+			_execute_tool_action("Q")
+			get_tree().root.set_input_as_handled()
+			return
+		elif event.is_action_pressed("action_e"):
+			print("⚡ action_e detected")
+			_execute_tool_action("E")
+			get_tree().root.set_input_as_handled()
+			return
+		elif event.is_action_pressed("action_r"):
+			print("⚡ action_r detected")
+			_execute_tool_action("R")
+			get_tree().root.set_input_as_handled()
+			return
+
+	# Debug/Help - Phase 7: Use InputMap action
+	if event.is_action_pressed("toggle_help"):
+		_print_help()
+		get_tree().root.set_input_as_handled()
+		return
+
+	# NOTE: K key for keyboard help is now handled by InputController
+	# Removed backward compatibility handlers to avoid conflicts with menu system
+
+
+## Tool System
+
+func _select_tool(tool_num: int):
+	"""Select active tool (1-6)"""
+	if not TOOL_ACTIONS.has(tool_num):
+		print("⚠️  Tool %d not available" % tool_num)
+		return
+
+	current_tool = tool_num
+	var tool_info = TOOL_ACTIONS[tool_num]
+	print("🛠️  Tool switched to: %s" % tool_info["name"])
+	print("   Q = %s" % tool_info["Q"]["label"])
+	print("   E = %s" % tool_info["E"]["label"])
+	print("   R = %s" % tool_info["R"]["label"])
+
+	tool_changed.emit(tool_num, tool_info)
+
+
+func _execute_tool_action(action_key: String):
+	"""Execute the action mapped to Q/E/R for current tool"""
+	if not farm:
+		push_error("Farm not set on FarmInputHandler!")
+		return
+
+	if not TOOL_ACTIONS.has(current_tool):
+		print("⚠️  Current tool not found")
+		return
+
+	var tool = TOOL_ACTIONS[current_tool]
+	if not tool.has(action_key):
+		print("⚠️  Action %s not available for tool %d (%s)" % [action_key, current_tool, tool.get("name", "unknown")])
+		return
+
+	var action_info = tool[action_key]
+	var action = action_info["action"]
+	var label = action_info["label"]
+
+	print("⚡ Tool %d (%s) | Key %s | Action: %s at %s" % [current_tool, tool.get("name", "?"), action_key, label, current_selection])
+
+	# Execute the action based on type
+	match action:
+		"plant_wheat":
+			_action_plant("wheat")
+		"plant_tomato":
+			_action_plant("tomato")
+		"plant_mushroom":
+			_action_plant("mushroom")
+		"measure_plot":
+			_action_measure()
+		"harvest_plot":
+			_action_harvest()
+		"entangle":
+			_action_entangle()
+		"place_mill":
+			_action_build("mill")
+		"place_market":
+			_action_build("market")
+		"process_flour":
+			_action_process_flour()
+		_:
+			print("⚠️  Unknown action: %s" % action)
+
+
+## Selection Management
+
+func _set_selection(pos: Vector2i):
+	"""Set selection to specific position (YUIOP quick-select)"""
+	if _is_valid_position(pos):
+		current_selection = pos
+		selection_changed.emit(current_selection)
+		plot_selected.emit(current_selection)  # Also emit plot_selected for UI updates
+		print("📍 Selected: %s (Location %d)" % [current_selection, current_selection.x + 1])
+	else:
+		print("⚠️  Invalid position: %s" % pos)
+
+
+func _move_selection(direction: Vector2i):
+	"""Move selection in given direction (WASD)"""
+	var new_pos = current_selection + direction
+	if _is_valid_position(new_pos):
+		current_selection = new_pos
+		selection_changed.emit(current_selection)
+		print("📍 Moved to: %s" % current_selection)
+	else:
+		print("⚠️  Cannot move to: %s (out of bounds)" % new_pos)
+
+
+func _is_valid_position(pos: Vector2i) -> bool:
+	"""Check if position is within grid bounds"""
+	return pos.x >= 0 and pos.x < grid_width and \
+	       pos.y >= 0 and pos.y < grid_height
+
+
+## Action Implementations
+
+func _action_plant(plant_type: String):
+	"""Plant at current selection"""
+	if not farm:
+		action_performed.emit("plant_%s" % plant_type, false, "⚠️  Farm not loaded yet")
+		print("❌ PLANT FAILED: Farm not loaded")
+		return
+
+	print("🌱 _action_plant('%s') called at %s" % [plant_type, current_selection])
+	print("   Farm reference: %s" % farm)
+	print("   Farm.build exists: %s" % farm.has_method("build"))
+
+	var success = farm.build(current_selection, plant_type)
+	var emoji = "🌾" if plant_type == "wheat" else ("🍄" if plant_type == "mushroom" else "🍅")
+
+	print("   Result: %s" % ("✅ SUCCESS" if success else "❌ FAILED"))
+
+	action_performed.emit("plant_%s" % plant_type, success,
+		"%s Planting %s at %s" % ["✅" if success else "❌", plant_type, current_selection])
+
+
+func _action_measure():
+	"""Measure plot at current selection"""
+	if not farm:
+		action_performed.emit("measure", false, "⚠️  Farm not loaded yet")
+		return
+	var outcome = farm.measure_plot(current_selection)
+	if outcome:
+		action_performed.emit("measure", true, "👁️ Measured at %s → %s" % [current_selection, outcome])
+	else:
+		action_performed.emit("measure", false, "⚠️  Cannot measure at %s" % current_selection)
+
+
+func _action_harvest():
+	"""Harvest plot at current selection"""
+	if not farm:
+		action_performed.emit("harvest", false, "⚠️  Farm not loaded yet")
+		return
+	var result = farm.harvest_plot(current_selection)
+	var success = result.get("success", false)
+	if success:
+		var emoji = result.get("outcome", "?")
+		var yield_amount = result.get("yield", 0)
+		action_performed.emit("harvest", true, "✂️ Harvested %d × %s at %s" %
+			[yield_amount, emoji, current_selection])
+	else:
+		action_performed.emit("harvest", false, "⚠️  Cannot harvest at %s" % current_selection)
+
+
+func _action_entangle():
+	"""Start entanglement at current selection (requires second selection)"""
+	print("🔗 Entangle mode: Select second location or press R again")
+	action_performed.emit("entangle_start", true, "Select target plot to entangle with")
+
+
+func _action_build(build_type: String):
+	"""Build structure (mill, market) at current selection"""
+	if not farm:
+		action_performed.emit("build_%s" % build_type, false, "⚠️  Farm not loaded yet")
+		print("❌ BUILD FAILED: Farm not loaded")
+		return
+
+	print("🏗️  _action_build('%s') called at %s" % [build_type, current_selection])
+	var success = farm.build(current_selection, build_type)
+	print("   Result: %s" % ("✅ SUCCESS" if success else "❌ FAILED"))
+
+	action_performed.emit("build_%s" % build_type, success,
+		"%s Built %s at %s" % ["✅" if success else "❌", build_type, current_selection])
+
+
+func _action_process_flour():
+	"""Process wheat into flour (1 wheat → 1 flour)"""
+	if not farm or not farm.economy:
+		action_performed.emit("process_flour", false, "⚠️  Farm not loaded yet")
+		return
+
+	var success = farm.economy.process_wheat_to_flour(1)
+	if success:
+		action_performed.emit("process_flour", true, "💨 Processed 1 wheat → 1 flour")
+	else:
+		action_performed.emit("process_flour", false, "⚠️  Not enough wheat to process")
+
+
+## Help System
+
+func _print_help():
+	"""Print keyboard help to console"""
+	var line = ""
+	for i in range(60):
+		line += "="
+
+	print("\n" + line)
+	print("⌨️  FARM KEYBOARD CONTROLS (Tool Mode System)")
+	print(line)
+
+	print("\n🛠️  TOOL SELECTION (Numbers 1-3):")
+	for tool_num in range(1, 4):
+		if TOOL_ACTIONS.has(tool_num):
+			var tool = TOOL_ACTIONS[tool_num]
+			print("  %d = %s" % [tool_num, tool["name"]])
+
+	print("\n⚡ ACTIONS (Q/E/R - Context-sensitive):")
+	var tool = TOOL_ACTIONS[current_tool]
+	print("  Current Tool: %s" % tool["name"])
+	print("  Q = %s" % tool["Q"]["label"])
+	print("  E = %s" % tool["E"]["label"])
+	print("  R = %s" % tool["R"]["label"])
+
+	print("\n📍 LOCATION SELECTION:")
+	print("  WASD = Move cursor (up/left/down/right)")
+	print("  T/Y/U/I/O/P = Quick-select locations 1-6")
+	print("  Current: %s" % current_selection)
+
+	print("\n📋 DEBUG:")
+	print("  ? = Show this help")
+	print("  I = Toggle info panel")
+
+	print(line + "\n")

@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://c7a8b4nxz7c9"]
+
+[ext_resource type="Script" path="res://tests/test_berry_phase.gd" id="1_berph"]
+
+[node name="BerryPhaseTest" type="Node"]
+script = ExtResource("1_berph")

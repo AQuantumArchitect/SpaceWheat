@@ -1,0 +1,171 @@
+Godot Engine v4.5.stable.official.876b29033 - https://godotengine.org
+WARNING: Could not set V-Sync mode, as changing V-Sync mode is not supported by the graphics driver.
+     at: set_use_vsync (platform/linuxbsd/x11/gl_manager_x11.cpp:364)
+OpenGL API 4.1 (Core Profile) Mesa 23.2.1-1ubuntu3.1~22.04.3 - Compatibility - Using Device: Microsoft - D3D12 (Intel(R) HD Graphics 620)
+libpulse.so.0: cannot open shared object file: No such file or directory
+libpulse.so.0: cannot open shared object file: No such file or directory
+ALSA lib confmisc.c:855:(parse_card) cannot find card '0'
+ALSA lib conf.c:5178:(_snd_config_evaluate) function snd_func_card_inum returned error: No such file or directory
+ALSA lib confmisc.c:422:(snd_func_concat) error evaluating strings
+ALSA lib conf.c:5178:(_snd_config_evaluate) function snd_func_concat returned error: No such file or directory
+ALSA lib confmisc.c:1334:(snd_func_refer) error evaluating name
+ALSA lib conf.c:5178:(_snd_config_evaluate) function snd_func_refer returned error: No such file or directory
+ALSA lib conf.c:5701:(snd_config_expand) Evaluate error: No such file or directory
+ALSA lib pcm.c:2664:(snd_pcm_open_noupdate) Unknown PCM default
+ERROR: Condition "status < 0" is true. Returning: ERR_CANT_OPEN
+   at: init_output_device (drivers/alsa/audio_driver_alsa.cpp:90)
+WARNING: All audio drivers failed, falling back to the dummy driver.
+     at: initialize (servers/audio_server.cpp:244)
+
+🎮 FarmView initializing...
+💰 Farm Economy initialized
+  Starting credits: 100
+  Seed cost: 5 credits
+  Wheat price: 2 credits per unit
+🌾 FarmGrid initialized: 5x5 = 25 plots
+🎯 Goals System initialized with 6 goals
+🍅 TomatoConspiracyNetwork initialized with 12 nodes and 15 connections
+🌾 Biotic Flux Icon initialized with 8 node couplings
+🍅 Chaos Icon initialized with 9 node couplings
+🏰 Imperium Icon initialized with 7 node couplings
+✨ Added Icon: [🌾 Biotic Flux] Strength: 0.00 | Influenced nodes: 8
+✨ Added Icon: [🍅 Chaos Vortex] Strength: 0.00 | Influenced nodes: 9
+✨ Added Icon: [🏰 Carrion Throne] Strength: 0.00 | Influenced nodes: 7
+⚛️ QuantumForceGraph initialized
+📐 Farm area size: (700.0, 700.0), center_pos: (350.0, 350.0), graph_radius: 240.0
+📐 Farm area actual size: (700.0, 700.0)
+⚛️ QuantumForceGraph setup - Center: (350.0, 350.0), Radius: 240.0
+
+⚛️ ===== CREATING QUANTUM NODES =====
+⚛️ Center position: (350.0, 350.0)
+⚛️ Graph radius: 240.0
+⚛️ Classical positions count: 25
+⚛️ Node 0: grid=(0, 0), classical_pos=(100.0, 100.0), initial_pos=(347.6357, 330.3962)
+⚛️ Node 1: grid=(1, 0), classical_pos=(220.0, 100.0), initial_pos=(394.2684, 318.2253)
+⚛️ Node 2: grid=(2, 0), classical_pos=(340.0, 100.0), initial_pos=(350.8452, 398.8601)
+⚛️ Created 25 quantum nodes
+⚛️ ===================================
+
+✅ FarmView ready!
+🔴 CONSPIRACY ACTIVATED: growth_acceleration
+🔴 CONSPIRACY ACTIVATED: observer_effect
+🔴 CONSPIRACY ACTIVATED: data_harvesting
+🔴 CONSPIRACY ACTIVATED: mycelial_internet
+🔴 CONSPIRACY ACTIVATED: tomato_hive_mind
+🔴 CONSPIRACY ACTIVATED: RNA_memory
+🔴 CONSPIRACY ACTIVATED: genetic_quantum_computation
+🔴 CONSPIRACY ACTIVATED: retroactive_ripening
+🔴 CONSPIRACY ACTIVATED: temporal_freshness
+🔴 CONSPIRACY ACTIVATED: tomato_standard
+🔴 CONSPIRACY ACTIVATED: umami_quantum
+🔴 CONSPIRACY ACTIVATED: flavor_entanglement
+🔴 CONSPIRACY ACTIVATED: fruit_vegetable_duality
+🔴 CONSPIRACY ACTIVATED: solar_panel_tomatoes
+🔴 CONSPIRACY ACTIVATED: photon_harvesting
+🔴 CONSPIRACY ACTIVATED: water_memory
+🔴 CONSPIRACY ACTIVATED: irrigation_intelligence
+🔴 CONSPIRACY ACTIVATED: tomato_wisdom
+🔴 CONSPIRACY ACTIVATED: agricultural_enlightenment
+🔴 CONSPIRACY ACTIVATED: tomato_simulating_tomatoes
+🔴 CONSPIRACY ACTIVATED: recursive_agriculture
+🟢 Conspiracy deactivated: growth_acceleration
+🟢 Conspiracy deactivated: tomato_standard
+🟢 Conspiracy deactivated: photon_harvesting
+🟢 Conspiracy deactivated: solar_panel_tomatoes
+🟢 Conspiracy deactivated: genetic_quantum_computation
+🔴 CONSPIRACY ACTIVATED: botanical_legal_paradox
+💸 Spent 5 credits on wheat seed (remaining: 95)
+🌱 Planted wheat at plot_1_4
+Plot planted at (1, 4)
+
+⚛️ ===== QUANTUM GRAPH SNAPSHOT =====
+⚛️ Reason: Wheat planted at (1, 4)
+⚛️ Total nodes: 25
+⚛️ Active (planted): 1
+⚛️ Entanglements: 0
+⚛️ ===================================
+
+🔴 CONSPIRACY ACTIVATED: tomato_standard
+🔴 CONSPIRACY ACTIVATED: genetic_quantum_computation
+🔴 CONSPIRACY ACTIVATED: ketchup_economy
+💸 Spent 5 credits on wheat seed (remaining: 90)
+🌱 Planted wheat at plot_2_1
+Plot planted at (2, 1)
+
+⚛️ ===== QUANTUM GRAPH SNAPSHOT =====
+⚛️ Reason: Wheat planted at (2, 1)
+⚛️ Total nodes: 25
+⚛️ Active (planted): 2
+⚛️ Entanglements: 0
+⚛️ ===================================
+
+🟢 Conspiracy deactivated: tomato_simulating_tomatoes
+🔴 CONSPIRACY ACTIVATED: tomato_simulating_tomatoes
+🟢 Conspiracy deactivated: tomato_simulating_tomatoes
+🌾 Wheat mature at plot_1_4
+🔗 Created Bell state |Φ+⟩ for plot_2_1 ↔ plot_1_4
+🔗 Entangled plot_2_1 ↔ plot_1_4 (strength: 1.00)
+🔗 Entangled plot_1_4 ↔ plot_2_1 (strength: 1.00)
+🔗 Created phi_plus Bell pair between plot_2_1 ↔ plot_1_4
+🎉 Goal completed: Quantum Farmer
+   Reward: +15 credits
+💰 Earned 15 credits from goal reward (total: 105)
+
+⚛️ ===== QUANTUM GRAPH SNAPSHOT =====
+⚛️ Reason: Entanglement created: (2, 1) ↔ (1, 4)
+⚛️ Total nodes: 25
+⚛️ Active (planted): 2
+⚛️ Entanglements: 0
+⚛️ ===================================
+
+🌾 Wheat mature at plot_2_1
+💸 Spent 5 credits on wheat seed (remaining: 100)
+🌱 Planted wheat at plot_4_1
+Plot planted at (4, 1)
+🍅 Planted tomato at plot_4_1 connected to node: underground
+
+⚛️ ===== QUANTUM GRAPH SNAPSHOT =====
+⚛️ Reason: Tomato planted at (4, 1)
+⚛️ Total nodes: 25
+⚛️ Active (planted): 3
+⚛️ Entanglements: 0
+⚛️ ===================================
+
+🍅 plot_4_1 growing with conspiracy node [underground] energy 2.00 (bonus: +10.0%)
+🍅 plot_4_1 growing with conspiracy node [underground] energy 2.00 (bonus: +10.0%)
+🍅 plot_4_1 growing with conspiracy node [underground] energy 2.00 (bonus: +10.0%)
+🍅 plot_4_1 growing with conspiracy node [underground] energy 2.00 (bonus: +10.0%)
+🍅 plot_4_1 growing with conspiracy node [underground] energy 2.00 (bonus: +10.0%)
+🍅 plot_4_1 growing with conspiracy node [underground] energy 2.00 (bonus: +10.0%)
+🍅 plot_4_1 growing with conspiracy node [underground] energy 2.00 (bonus: +10.0%)
+💸 Spent 5 credits on wheat seed (remaining: 95)
+🌱 Planted wheat at plot_1_3
+Plot planted at (1, 3)
+🍅 Planted tomato at plot_1_3 connected to node: genetic
+
+⚛️ ===== QUANTUM GRAPH SNAPSHOT =====
+⚛️ Reason: Tomato planted at (1, 3)
+⚛️ Total nodes: 25
+⚛️ Active (planted): 4
+⚛️ Entanglements: 0
+⚛️ ===================================
+
+🍅 plot_1_3 growing with conspiracy node [genetic] energy 1.92 (bonus: +9.6%)
+🍅 plot_1_3 growing with conspiracy node [genetic] energy 1.92 (bonus: +9.6%)
+🍅 plot_4_1 growing with conspiracy node [underground] energy 2.00 (bonus: +10.0%)
+🍅 plot_4_1 growing with conspiracy node [underground] energy 2.00 (bonus: +10.0%)
+🍅 plot_1_3 growing with conspiracy node [genetic] energy 1.96 (bonus: +9.8%)
+🍅 plot_1_3 growing with conspiracy node [genetic] energy 1.96 (bonus: +9.8%)
+🍅 plot_1_3 growing with conspiracy node [genetic] energy 1.96 (bonus: +9.8%)
+🍅 plot_4_1 growing with conspiracy node [underground] energy 2.00 (bonus: +10.0%)
+🍅 plot_4_1 growing with conspiracy node [underground] energy 2.00 (bonus: +10.0%)
+🍅 plot_1_3 growing with conspiracy node [genetic] energy 1.98 (bonus: +9.9%)
+🍅 plot_1_3 growing with conspiracy node [genetic] energy 1.98 (bonus: +9.9%)
+🍅 plot_1_3 growing with conspiracy node [genetic] energy 1.98 (bonus: +9.9%)
+🌾 Wheat mature at plot_4_1
+🍅 plot_1_3 growing with conspiracy node [genetic] energy 2.00 (bonus: +10.0%)
+🍅 plot_1_3 growing with conspiracy node [genetic] energy 2.00 (bonus: +10.0%)
+🍅 plot_1_3 growing with conspiracy node [genetic] energy 2.00 (bonus: +10.0%)
+🍅 plot_1_3 growing with conspiracy node [genetic] energy 2.00 (bonus: +10.0%)
+🍅 plot_1_3 growing with conspiracy node [genetic] energy 2.00 (bonus: +10.0%)
+🌾 Wheat mature at plot_1_3

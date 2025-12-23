@@ -1,0 +1,29 @@
+[gd_resource type="Resource" script_class="GameState" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://Core/GameState/GameState.gd" id="1_default"]
+
+[resource]
+script = ExtResource("1_default")
+scenario_id = "default"
+save_timestamp = 0
+game_time = 0.0
+grid_width = 6
+grid_height = 1
+credits = 20
+wheat_inventory = 0
+labor_inventory = 0
+flour_inventory = 0
+flower_inventory = 0
+mushroom_inventory = 0
+detritus_inventory = 0
+imperium_resource = 0
+tributes_paid = 0
+tributes_failed = 0
+plots = [{ "position": Vector2i(0, 0), "type": 0, "is_planted": false, "has_been_measured": false, "theta_frozen": false, "entangled_with": [] }, { "position": Vector2i(1, 0), "type": 0, "is_planted": false, "has_been_measured": false, "theta_frozen": false, "entangled_with": [] }, { "position": Vector2i(2, 0), "type": 0, "is_planted": false, "has_been_measured": false, "theta_frozen": false, "entangled_with": [] }, { "position": Vector2i(3, 0), "type": 0, "is_planted": false, "has_been_measured": false, "theta_frozen": false, "entangled_with": [] }, { "position": Vector2i(4, 0), "type": 0, "is_planted": false, "has_been_measured": false, "theta_frozen": false, "entangled_with": [] }, { "position": Vector2i(5, 0), "type": 0, "is_planted": false, "has_been_measured": false, "theta_frozen": false, "entangled_with": [] }]
+current_goal_index = 0
+completed_goals = []
+biotic_activation = 0.0
+chaos_activation = 0.0
+imperium_activation = 0.0
+active_contracts = []
+sun_moon_phase = 0.0

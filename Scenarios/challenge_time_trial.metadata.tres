@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="ScenarioMetadata" load_steps=2 format=3 uid="uid://c4jmy3mpt6h2q"]
+
+[ext_resource type="Script" path="res://Core/GameState/ScenarioMetadata.gd" id="1_a2b3c"]
+
+script = ExtResource("1_a2b3c")
+scenario_id = "challenge_time_trial"
+display_name = "Speed Farmer"
+description = "Harvest 30 wheat before tributes drain your resources. Time pressure mode!"
+difficulty = "hard"
+grid_size = "6x1"
+starting_credits = 20
+estimated_time_minutes = 10
+tags = PackedStringArray(["challenge", "economy", "time-pressure"])
+prerequisites = PackedStringArray(["tutorial_basics"])
+unlocked_by_default = false

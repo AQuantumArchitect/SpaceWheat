@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://clmyj1wt9l7e"]
+
+[ext_resource type="Script" path="res://tests/test_layer2_wheatplot.gd" id="1_layer2"]
+
+[node name="Layer2Test" type="Node"]
+script = ExtResource("1_layer2")

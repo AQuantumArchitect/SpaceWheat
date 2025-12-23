@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://visualizer_quantum"]
+
+[ext_resource type="Script" path="res://Core/Tests/QuantumNetworkVisualizer.gd" id="1"]
+
+[node name="QuantumNetworkVisualizer" type="Node2D"]
+script = ExtResource("1")

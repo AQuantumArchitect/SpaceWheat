@@ -1,0 +1,85 @@
+extends Node
+
+## Base class for Icon Hamiltonian systems
+## Icons modulate the evolution of the quantum conspiracy network
+
+signal activation_changed(icon_name: String, new_strength: float)
+
+# Identity
+@export var icon_name: String = ""
+@export var icon_emoji: String = ""
+
+# Influence parameters
+@export var active_strength: float = 0.0  # 0.0 to 1.0, controls overall influence
+@export var spatial_extent: float = 500.0  # How far influence reaches (for future use)
+
+# Evolution biases applied to nodes
+var evolution_bias: Vector3 = Vector3.ZERO  # (theta_rate, phi_rate, damping_rate)
+
+# Sparse coupling to conspiracy nodes (node_id -> coupling_strength)
+var node_couplings: Dictionary = {}
+
+
+func _ready():
+	_initialize_couplings()
+
+
+## Override in subclasses to define node couplings
+func _initialize_couplings():
+	pass
+
+
+## Apply Icon modulation to a conspiracy node
+func modulate_node_evolution(node, dt: float) -> void:
+	if active_strength <= 0.0:
+		return
+
+	var coupling = node_couplings.get(node.node_id, 0.0)
+	if abs(coupling) < 0.01:
+		return  # No significant coupling
+
+	var effective_strength = coupling * active_strength
+
+	# Apply evolution bias
+	node.theta += evolution_bias.x * effective_strength * dt
+	node.theta = clamp(node.theta, 0.0, PI)
+
+	node.phi += evolution_bias.y * effective_strength * dt
+	node.phi = fmod(node.phi + PI, TAU) - PI
+
+	# Apply damping/anti-damping to Gaussian state
+	var damping_factor = 1.0 - evolution_bias.z * effective_strength * dt
+	node.q *= damping_factor
+	node.p *= damping_factor
+
+	node.update_energy()
+
+
+## Set activation strength (0.0 to 1.0)
+func set_activation(strength: float) -> void:
+	var new_strength = clamp(strength, 0.0, 1.0)
+	if abs(new_strength - active_strength) > 0.01:
+		active_strength = new_strength
+		activation_changed.emit(icon_name, active_strength)
+
+
+## Get current activation level
+func get_activation() -> float:
+	return active_strength
+
+
+## Check if Icon influences a specific node
+func influences_node(node_id: String) -> bool:
+	return node_couplings.has(node_id) and abs(node_couplings[node_id]) > 0.01
+
+
+## Get coupling strength for a node
+func get_coupling_strength(node_id: String) -> float:
+	return node_couplings.get(node_id, 0.0)
+
+
+## Debug output
+func get_debug_string() -> String:
+	return "[%s %s] Strength: %.2f | Influenced nodes: %d" % [
+		icon_emoji, icon_name, active_strength, node_couplings.size()
+	]

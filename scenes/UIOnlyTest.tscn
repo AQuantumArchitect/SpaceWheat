@@ -1,0 +1,18 @@
+[gd_scene load_steps=2 format=3 uid="uid://drvffvvfcsqvmq41drwda"]
+
+[ext_resource type="Script" path="res://UI/FarmView.gd" id="1_7j5ka"]
+
+[node name="UIOnlyTest" type="Control"]
+layout_mode = 3
+anchors_left = 0.0
+anchors_top = 0.0
+anchors_right = 1.0
+anchors_bottom = 1.0
+script = ExtResource("1_7j5ka")
+
+[node name="FarmView" type="Control" parent="."]
+layout_mode = 1
+anchors_left = 0.0
+anchors_top = 0.0
+anchors_right = 1.0
+anchors_bottom = 1.0

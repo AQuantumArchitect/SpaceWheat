@@ -1,0 +1,44 @@
+# Godot project files
+.godot/
+*.translation
+
+# Editor-specific files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Build and export
+bin/
+build/
+export/
+*.exe
+*.dll
+*.so
+
+# User-specific
+*.cfg
+user_settings/
+local_settings.json
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Temporary files
+*.tmp
+*.bak
+*.log
+
+# Keep tracked: Source code, scenes, and documentation
+# Do not ignore:
+# - project.godot
+# - .gd files
+# - .tscn files
+# - .tres files
+# - .md files
+# - .sh files
+# - .py files (except __pycache__)

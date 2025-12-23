@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://test_icon_system"]
+
+[ext_resource type="Script" path="res://Core/Tests/test_icon_system.gd" id="1"]
+
+[node name="IconSystemTest" type="Node"]
+script = ExtResource("1")

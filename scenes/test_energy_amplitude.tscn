@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://dwsqrqmwjkmkm8d4"]
+
+[ext_resource type="Script" path="res://tests/test_energy_amplitude_system.gd" id="1_abc123"]
+
+[node name="TestEnergyAmplitude" type="Node"]
+script = ExtResource("1_abc123")

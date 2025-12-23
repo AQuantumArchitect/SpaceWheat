@@ -1,0 +1,115 @@
+💾 GameStateManager ready - Save dir: user://saves/
+🎮 FarmView initializing...
+WARNING: Nodes with non-equal opposite anchors will have their size overridden after _ready().
+If you want to set size, change the anchors or consider using set_deferred().
+     at: _set_size (scene/gui/control.cpp:1476)
+     GDScript backtrace (most recent call first):
+         [0] _ready (res://UI/FarmView.gd:35)
+📐 FarmView sized to viewport: (1280.0, 720.0)
+🎮 FarmUIController initializing...
+🎨 FarmUILayoutManager initializing... size=(1280.0, 720.0)
+UILayoutManager: Input mode detected - MOUSE
+UILayoutManager: Viewport=(1280.0, 720.0), Scale=0.75×, Breakpoint=HD
+📐 Layout breakdown (parametric):
+  Top bar: 43.2px (0% to 6%)
+  Play area: 478.8px (6% to 72%)
+  Plots row: 108.0px (72% to 87%)
+  Actions row: 90.0px (87% to 100%)
+  Total: 720.0px (should equal viewport height: 720.0px)
+📐 Layout Manager created
+✅ UI Structure created
+📋 OverlayManager initialized
+📜 Contract panel created (press C to toggle)
+📖 Vocabulary overlay created (press V to toggle)
+📋 OverlayManager created
+⌨️  KeyboardHintButton initialized
+🌾 PlotGridDisplay._ready() called (Instance: 48335160995, child_count before: 0)
+  📍 Plot tile created at position (0, 0) (T)
+  📍 Plot tile created at position (1, 0) (Y)
+  📍 Plot tile created at position (2, 0) (U)
+  📍 Plot tile created at position (3, 0) (I)
+  📍 Plot tile created at position (4, 0) (O)
+  📍 Plot tile created at position (5, 0) (P)
+✅ PlotGridDisplay created with 6 tiles (child_count after: 6)
+⚡ ActionPreviewRow updated for Tool 1: Plant
+⚡ ActionPreviewRow initialized
+🛠️  ToolSelectionRow initialized with 6 tools - beveled touch-friendly buttons
+🎨 UI components created and positioned
+⚛️ QuantumForceGraph initialized (input enabled)
+✨ Visualization systems created and anchored
+💉 Dependencies injected into FarmUILayoutManager
+⌨️  FarmUIControlsManager initializing...
+⌨️  FarmInputHandler initialized (Tool Mode System)
+📍 Starting position: (0, 0)
+🛠️  Current tool: Plant
+   ✓ Input processing enabled
+
+============================================================
+⌨️  FARM KEYBOARD CONTROLS (Tool Mode System)
+============================================================
+
+🛠️  TOOL SELECTION (Numbers 1-3):
+  1 = Plant
+  2 = Quantum Ops
+  3 = Economy
+
+⚡ ACTIONS (Q/E/R - Context-sensitive):
+  Current Tool: Plant
+  Q = Wheat
+  E = Mushroom
+  R = Tomato (Ultimate!)
+
+📍 LOCATION SELECTION:
+  WASD = Move cursor (up/left/down/right)
+  T/Y/U/I/O/P = Quick-select locations 1-6
+  Current: (0, 0)
+
+📋 DEBUG:
+  ? = Show this help
+  I = Toggle info panel
+============================================================
+
+⌨️  FarmInputHandler created
+🎮 InputController created
+📡 Controls manager connected to UI controller
+✅ FarmUIController ready (boundary established)
+📝 No farm provided - creating default UIOP farm (6x1)...
+🌾 Farm simulation manager initializing...
+🌾 Farm Economy initialized
+  Quantum resources - Wheat: 100 (harvest currency)
+  Classical resources - Credits: 50 (processed currency)
+   💰 FarmEconomy created
+🌍 Biome initialized - Temperature: 300K, Period: 20.0s
+  ☀️ Sun/Moon qubit initialized (immutable celestial)
+  🌾 Wheat energy influence: 0.017 (cos²(165°/2))
+  🍄 Mushroom energy influence: 0.040 (cos²(163°/2))
+  DEBUG: wheat_icon=true, mushroom_icon=true
+   🌍 Biome (environment) created
+🌾 FarmGrid initialized: 6x1 = 6 plots
+   📊 FarmGrid created (6x1)
+🎯 Goals System initialized with 6 goals
+   🎯 GoalsSystem created
+   🎨 FarmUIState created
+✅ Farm simulation ready!
+✅ Farm added to scene tree
+📡 ControlsInterface signal bridge connected
+✅ Simulation controls injected into controls manager
+💉 Farm injected into FarmUIController
+💉 UIState injected into FarmUIController
+   📡 Connected to economy_updated signal
+   📡 Connected to plot_updated signal
+   📡 UIState auto-injected from farm
+💉 Farm injected into FarmInputHandler
+⚠️  Farm does not implement ControlsInterface - backward compatibility mode
+📡 Controls manager signals connected
+SCRIPT ERROR: Invalid type in function 'inject_ui_state' in base 'HBoxContainer (PlotGridDisplay)'. The Object-derived class of argument 1 (RefCounted (FarmUIState)) is not a subclass of the expected argument class.
+          at: FarmUIController.inject_farm (res://UI/FarmUIController.gd:116)
+          GDScript backtrace (most recent call first):
+              [0] inject_farm (res://UI/FarmUIController.gd:116)
+              [1] _ready (res://UI/FarmView.gd:75)
+✅ Default farm created with FarmControlsAdapter
+✅ FarmView ready - delegating to FarmUIController
+🐛 DEBUG LAYOUT DISABLED - checking for button duplication
+✅ FarmUILayoutManager ready!
+🌍 Biome | Temp: 300K | ☀️2.6° | 🌾0.0° | Energy: 1.0 | Qubits: 1
+⌨️ KEY PRESSED: 89

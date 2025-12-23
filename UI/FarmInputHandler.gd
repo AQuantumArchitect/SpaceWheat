@@ -1,0 +1,482 @@
+class_name FarmInputHandler
+extends Node
+
+## Keyboard-driven Farm UI - Minecraft-style tool/action system
+## Numbers 1-6 = Tool modes (Plant, Quantum, Economy, etc)
+## Q/E/R = Context-sensitive actions (depends on active tool)
+## WASD = Movement/cursor control
+## YUIOP = Quick-access location selectors
+
+var farm  # Will be injected with Farm instance (Farm.gd)
+var plot_grid_display: Node = null  # NEW: Will be injected with PlotGridDisplay instance
+var current_selection: Vector2i = Vector2i.ZERO
+var current_tool: int = 1  # Active tool (1-6)
+
+# Config
+var grid_width: int = 6
+var grid_height: int = 1
+
+# Tool action sets - each tool has 3 actions mapped to Q, E, R
+const TOOL_ACTIONS = {
+	1: {  # Plant Tool
+		"name": "Plant",
+		"Q": {"action": "plant_wheat", "label": "Wheat"},
+		"E": {"action": "plant_mushroom", "label": "Mushroom"},
+		"R": {"action": "plant_tomato", "label": "Tomato (Ultimate!)"},
+	},
+	2: {  # Quantum Operations Tool
+		"name": "Quantum Ops",
+		"Q": {"action": "entangle", "label": "Entangle"},
+		"E": {"action": "measure_plot", "label": "Measure"},
+		"R": {"action": "harvest_plot", "label": "Harvest"},
+	},
+	3: {  # Economy Tool
+		"name": "Economy",
+		"Q": {"action": "place_mill", "label": "Build Mill"},
+		"E": {"action": "place_market", "label": "Build Market"},
+		"R": {"action": "process_flour", "label": "Make Flour (1W→1F)"},
+	},
+}
+
+# LOCATION_KEYS removed - Phase 7: Replaced with InputMap actions (select_plot_t through select_plot_p)
+
+# Reverse mapping for display: position x -> key letter
+const LOCATION_LABELS = {
+	0: "T",
+	1: "Y",
+	2: "U",
+	3: "I",
+	4: "O",
+	5: "P",
+}
+
+# Signals
+signal action_performed(action: String, success: bool, message: String)
+signal selection_changed(new_pos: Vector2i)
+signal plot_selected(pos: Vector2i)  # Signal emitted when plot location is selected
+signal tool_changed(tool_num: int, tool_info: Dictionary)
+signal help_requested
+
+func _ready():
+	print("⌨️  FarmInputHandler initialized (Tool Mode System)")
+	print("📍 Starting position: %s" % current_selection)
+	print("🛠️  Current tool: %s" % TOOL_ACTIONS[current_tool]["name"])
+	set_process_input(true)
+	print("   ✓ Input processing enabled")
+	_print_help()
+
+
+func _input(event: InputEvent):
+	"""Handle input via InputMap actions (Phase 7)
+
+	Supports keyboard (WASD, QERT, numbers, etc) and gamepad (D-Pad, buttons, sticks)
+	via Godot's InputMap system.
+	"""
+	# Tool selection (1-6) - Phase 7: Use InputMap actions
+	for i in range(1, 7):
+		if event.is_action_pressed("tool_" + str(i)):
+			_select_tool(i)
+			get_tree().root.set_input_as_handled()
+			return
+
+	# Location quick-select (T/Y/U/I/O/P) - MULTI-SELECT: Toggle plots with checkboxes
+	var location_keys = {
+		"select_plot_t": Vector2i(0, 0),
+		"select_plot_y": Vector2i(1, 0),
+		"select_plot_u": Vector2i(2, 0),
+		"select_plot_i": Vector2i(3, 0),
+		"select_plot_o": Vector2i(4, 0),
+		"select_plot_p": Vector2i(5, 0),
+	}
+
+	for action in location_keys.keys():
+		if event.is_action_pressed(action):
+			_toggle_plot_selection(location_keys[action])
+			get_tree().root.set_input_as_handled()
+			return
+
+	# Selection management: [ = clear all, ] = restore previous
+	# Check for raw keyboard events since InputMap actions don't exist for these keys
+	if event is InputEventKey and event.pressed:
+		if event.keycode == KEY_BRACKETLEFT:  # [ key
+			_clear_all_selection()
+			get_tree().root.set_input_as_handled()
+			return
+		elif event.keycode == KEY_BRACKETRIGHT:  # ] key
+			_restore_previous_selection()
+			get_tree().root.set_input_as_handled()
+			return
+
+	# Movement (WASD or D-Pad or Left Stick) - Phase 7: Use InputMap actions
+	if event.is_action_pressed("move_up"):
+		_move_selection(Vector2i.UP)
+		get_tree().root.set_input_as_handled()
+		return
+	elif event.is_action_pressed("move_down"):
+		_move_selection(Vector2i.DOWN)
+		get_tree().root.set_input_as_handled()
+		return
+	elif event.is_action_pressed("move_left"):
+		_move_selection(Vector2i.LEFT)
+		get_tree().root.set_input_as_handled()
+		return
+	elif event.is_action_pressed("move_right"):
+		_move_selection(Vector2i.RIGHT)
+		get_tree().root.set_input_as_handled()
+		return
+
+	# Action keys (Q/E/R or gamepad buttons A/B/X) - Phase 7: Use InputMap actions
+	# Debug: Check if actions are detected
+	if event is InputEventKey and event.pressed:
+		var key = event.keycode
+		if key == KEY_Q or key == KEY_E or key == KEY_R:
+			print("🐛 DEBUG: Pressed key: %s" % event.keycode)
+			print("   is_action_pressed('action_q'): %s" % event.is_action_pressed("action_q"))
+			print("   is_action_pressed('action_e'): %s" % event.is_action_pressed("action_e"))
+			print("   is_action_pressed('action_r'): %s" % event.is_action_pressed("action_r"))
+
+	# NOTE: Q/E/R actions are now primarily routed through InputController
+	# Only process if input hasn't already been handled (by menu system)
+	if not get_tree().root.is_input_handled():
+		if event.is_action_pressed("action_q"):
+			print("⚡ action_q detected")
+			_execute_tool_action("Q")
+			get_tree().root.set_input_as_handled()
+			return
+		elif event.is_action_pressed("action_e"):
+			print("⚡ action_e detected")
+			_execute_tool_action("E")
+			get_tree().root.set_input_as_handled()
+			return
+		elif event.is_action_pressed("action_r"):
+			print("⚡ action_r detected")
+			_execute_tool_action("R")
+			get_tree().root.set_input_as_handled()
+			return
+
+	# Debug/Help - Phase 7: Use InputMap action
+	if event.is_action_pressed("toggle_help"):
+		_print_help()
+		get_tree().root.set_input_as_handled()
+		return
+
+	# NOTE: K key for keyboard help is now handled by InputController
+	# Removed backward compatibility handlers to avoid conflicts with menu system
+
+
+## Tool System
+
+func _select_tool(tool_num: int):
+	"""Select active tool (1-6)"""
+	if not TOOL_ACTIONS.has(tool_num):
+		print("⚠️  Tool %d not available" % tool_num)
+		return
+
+	current_tool = tool_num
+	var tool_info = TOOL_ACTIONS[tool_num]
+	print("🛠️  Tool switched to: %s" % tool_info["name"])
+	print("   Q = %s" % tool_info["Q"]["label"])
+	print("   E = %s" % tool_info["E"]["label"])
+	print("   R = %s" % tool_info["R"]["label"])
+
+	tool_changed.emit(tool_num, tool_info)
+
+
+func _execute_tool_action(action_key: String):
+	"""Execute the action mapped to Q/E/R for current tool
+
+	NEW: Applies to ALL selected plots (multi-select support)
+	"""
+	if not farm:
+		push_error("Farm not set on FarmInputHandler!")
+		return
+
+	if not TOOL_ACTIONS.has(current_tool):
+		print("⚠️  Current tool not found")
+		return
+
+	var tool = TOOL_ACTIONS[current_tool]
+	if not tool.has(action_key):
+		print("⚠️  Action %s not available for tool %d (%s)" % [action_key, current_tool, tool.get("name", "unknown")])
+		return
+
+	var action_info = tool[action_key]
+	var action = action_info["action"]
+	var label = action_info["label"]
+
+	# Get currently selected plots
+	var selected_plots: Array[Vector2i] = []
+	if plot_grid_display and plot_grid_display.has_method("get_selected_plots"):
+		selected_plots = plot_grid_display.get_selected_plots()
+
+	# Check if any plots are selected
+	if selected_plots.is_empty():
+		print("⚠️  No plots selected! Use T/Y/U/I/O/P to toggle selections.")
+		action_performed.emit(action, false, "⚠️  No plots selected")
+		return
+
+	print("⚡ Tool %d (%s) | Key %s | Action: %s | Plots: %d selected" % [current_tool, tool.get("name", "?"), action_key, label, selected_plots.size()])
+
+	# Execute the action based on type (now with multi-select support)
+	match action:
+		"plant_wheat":
+			_action_batch_plant("wheat", selected_plots)
+		"plant_tomato":
+			_action_batch_plant("tomato", selected_plots)
+		"plant_mushroom":
+			_action_batch_plant("mushroom", selected_plots)
+		"measure_plot":
+			_action_batch_measure(selected_plots)
+		"harvest_plot":
+			_action_batch_harvest(selected_plots)
+		"entangle":
+			_action_entangle()  # Entanglement logic needs rethinking for multi-select
+		"place_mill":
+			_action_batch_build("mill", selected_plots)
+		"place_market":
+			_action_batch_build("market", selected_plots)
+		"process_flour":
+			_action_process_flour()  # Economy action - global, not per-plot
+		_:
+			print("⚠️  Unknown action: %s" % action)
+
+
+## Selection Management
+
+func _set_selection(pos: Vector2i):
+	"""Set selection to specific position (YUIOP quick-select)"""
+	if _is_valid_position(pos):
+		current_selection = pos
+		selection_changed.emit(current_selection)
+		plot_selected.emit(current_selection)  # Also emit plot_selected for UI updates
+		print("📍 Selected: %s (Location %d)" % [current_selection, current_selection.x + 1])
+	else:
+		print("⚠️  Invalid position: %s" % pos)
+
+
+func _move_selection(direction: Vector2i):
+	"""Move selection in given direction (WASD)"""
+	var new_pos = current_selection + direction
+	if _is_valid_position(new_pos):
+		current_selection = new_pos
+		selection_changed.emit(current_selection)
+		print("📍 Moved to: %s" % current_selection)
+	else:
+		print("⚠️  Cannot move to: %s (out of bounds)" % new_pos)
+
+
+func _is_valid_position(pos: Vector2i) -> bool:
+	"""Check if position is within grid bounds"""
+	return pos.x >= 0 and pos.x < grid_width and \
+	       pos.y >= 0 and pos.y < grid_height
+
+
+## Multi-Select Management (NEW)
+
+func _toggle_plot_selection(pos: Vector2i):
+	"""Toggle a plot's selection state (for T/Y/U/I/O/P keys)"""
+	if not plot_grid_display:
+		print("❌ ERROR: PlotGridDisplay not wired to FarmInputHandler!")
+		print("   Refactor incomplete or wiring failed")
+		return
+
+	if not _is_valid_position(pos):
+		print("⚠️  Invalid position: %s" % pos)
+		return
+
+	print("⌨️  Toggle plot %s" % pos)
+	plot_grid_display.toggle_plot_selection(pos)
+
+
+func _clear_all_selection():
+	"""Clear all selected plots ([ key)"""
+	if not plot_grid_display:
+		print("❌ ERROR: PlotGridDisplay not wired to FarmInputHandler!")
+		return
+
+	plot_grid_display.clear_all_selection()
+
+
+func _restore_previous_selection():
+	"""Restore previous selection state (] key)"""
+	if not plot_grid_display:
+		print("❌ ERROR: PlotGridDisplay not wired to FarmInputHandler!")
+		return
+
+	plot_grid_display.restore_previous_selection()
+
+
+## Action Implementations - Batch Operations (NEW)
+
+func _action_batch_plant(plant_type: String, positions: Array[Vector2i]):
+	"""Plant multiple plots with the given plant type"""
+	if not farm:
+		action_performed.emit("plant_%s" % plant_type, false, "⚠️  Farm not loaded yet")
+		print("❌ PLANT FAILED: Farm not loaded")
+		return
+
+	var emoji = "🌾" if plant_type == "wheat" else ("🍄" if plant_type == "mushroom" else "🍅")
+	print("🌱 Batch planting %s at %d plots: %s" % [plant_type, positions.size(), positions])
+
+	# Check if farm has batch method, otherwise execute individually
+	if farm.has_method("batch_plant"):
+		var result = farm.batch_plant(positions, plant_type)
+		var success = result.get("success", false)
+		var count = result.get("count", 0)
+		var message = result.get("message", "")
+		action_performed.emit("plant_%s" % plant_type, success,
+			"%s Planted %d %s plots | %s" % ["✅" if success else "❌", count, plant_type, message])
+	else:
+		# Fallback: execute individually
+		var success_count = 0
+		for pos in positions:
+			if farm.build(pos, plant_type):
+				success_count += 1
+		var success = success_count > 0
+		action_performed.emit("plant_%s" % plant_type, success,
+			"%s Planted %d/%d %s plots" % ["✅" if success else "❌", success_count, positions.size(), plant_type])
+
+
+func _action_batch_measure(positions: Array[Vector2i]):
+	"""Measure quantum state of multiple plots"""
+	if not farm:
+		action_performed.emit("measure", false, "⚠️  Farm not loaded yet")
+		return
+
+	print("👁️  Batch measuring %d plots: %s" % [positions.size(), positions])
+
+	# Check if farm has batch method
+	if farm.has_method("batch_measure"):
+		var result = farm.batch_measure(positions)
+		var success = result.get("success", false)
+		var count = result.get("count", 0)
+		action_performed.emit("measure", success,
+			"%s Measured %d plots" % ["✅" if success else "❌", count])
+	else:
+		# Fallback: execute individually
+		var success_count = 0
+		for pos in positions:
+			if farm.measure_plot(pos):
+				success_count += 1
+		var success = success_count > 0
+		action_performed.emit("measure", success,
+			"%s Measured %d/%d plots" % ["✅" if success else "❌", success_count, positions.size()])
+
+
+func _action_batch_harvest(positions: Array[Vector2i]):
+	"""Harvest multiple plots (measure then harvest each)"""
+	if not farm:
+		action_performed.emit("harvest", false, "⚠️  Farm not loaded yet")
+		return
+
+	print("✂️  Batch harvesting %d plots: %s" % [positions.size(), positions])
+
+	# Check if farm has batch method
+	if farm.has_method("batch_harvest"):
+		var result = farm.batch_harvest(positions)
+		var success = result.get("success", false)
+		var count = result.get("count", 0)
+		var total_yield = result.get("total_yield", 0)
+		action_performed.emit("harvest", success,
+			"%s Harvested %d/%d plots | Yield: %d" % ["✅" if success else "❌", count, positions.size(), total_yield])
+	else:
+		# Fallback: execute individually
+		var success_count = 0
+		var total_yield = 0
+		for pos in positions:
+			# Measure first, then harvest
+			farm.measure_plot(pos)
+			var result = farm.harvest_plot(pos)
+			if result.get("success", false):
+				success_count += 1
+				total_yield += result.get("yield", 0)
+		var success = success_count > 0
+		action_performed.emit("harvest", success,
+			"%s Harvested %d/%d plots | Yield: %d" % ["✅" if success else "❌", success_count, positions.size(), total_yield])
+
+
+func _action_batch_build(build_type: String, positions: Array[Vector2i]):
+	"""Build structures (mill, market) on multiple plots"""
+	if not farm:
+		action_performed.emit("build_%s" % build_type, false, "⚠️  Farm not loaded yet")
+		print("❌ BUILD FAILED: Farm not loaded")
+		return
+
+	print("🏗️  Batch building %s at %d plots: %s" % [build_type, positions.size(), positions])
+
+	# Check if farm has batch method
+	if farm.has_method("batch_build"):
+		var result = farm.batch_build(positions, build_type)
+		var success = result.get("success", false)
+		var count = result.get("count", 0)
+		action_performed.emit("build_%s" % build_type, success,
+			"%s Built %d %s structures" % ["✅" if success else "❌", count, build_type])
+	else:
+		# Fallback: execute individually
+		var success_count = 0
+		for pos in positions:
+			if farm.build(pos, build_type):
+				success_count += 1
+		var success = success_count > 0
+		action_performed.emit("build_%s" % build_type, success,
+			"%s Built %d/%d %s structures" % ["✅" if success else "❌", success_count, positions.size(), build_type])
+
+
+func _action_entangle():
+	"""Start entanglement at current selection (requires second selection)"""
+	print("🔗 Entangle mode: Select second location or press R again")
+	action_performed.emit("entangle_start", true, "Select target plot to entangle with")
+
+
+func _action_process_flour():
+	"""Process wheat into flour (1 wheat → 1 flour)"""
+	if not farm or not farm.economy:
+		action_performed.emit("process_flour", false, "⚠️  Farm not loaded yet")
+		return
+
+	var success = farm.economy.process_wheat_to_flour(1)
+	if success:
+		action_performed.emit("process_flour", true, "💨 Processed 1 wheat → 1 flour")
+	else:
+		action_performed.emit("process_flour", false, "⚠️  Not enough wheat to process")
+
+
+## Help System
+
+func _print_help():
+	"""Print keyboard help to console"""
+	var line = ""
+	for i in range(60):
+		line += "="
+
+	print("\n" + line)
+	print("⌨️  FARM KEYBOARD CONTROLS (Tool Mode System)")
+	print(line)
+
+	print("\n🛠️  TOOL SELECTION (Numbers 1-3):")
+	for tool_num in range(1, 4):
+		if TOOL_ACTIONS.has(tool_num):
+			var tool = TOOL_ACTIONS[tool_num]
+			print("  %d = %s" % [tool_num, tool["name"]])
+
+	print("\n⚡ ACTIONS (Q/E/R - Context-sensitive):")
+	var tool = TOOL_ACTIONS[current_tool]
+	print("  Current Tool: %s" % tool["name"])
+	print("  Q = %s" % tool["Q"]["label"])
+	print("  E = %s" % tool["E"]["label"])
+	print("  R = %s" % tool["R"]["label"])
+
+	print("\n📍 MULTI-SELECT PLOTS (NEW):")
+	print("  T/Y/U/I/O/P = Toggle checkbox on plots 1-6")
+	print("  [ = Deselect all plots")
+	print("  ] = Restore previous selection state")
+	print("  Q/E/R = Apply current tool action to ALL selected plots")
+
+	print("\n🎮 MOVEMENT (Legacy - for focus/cursor):")
+	print("  WASD = Move cursor (up/left/down/right)")
+
+	print("\n📋 DEBUG:")
+	print("  ? = Show this help")
+	print("  I = Toggle info panel")
+
+	print(line + "\n")
