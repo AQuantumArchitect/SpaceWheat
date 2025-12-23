@@ -26,7 +26,7 @@ var imperium_icon = null  # Reference to Imperium Icon (order/extraction)
 # Alignment averages to 0.5 over a full day-night cycle
 var base_energy_rate: float = 2.45
 var wheat_energy_influence: float = 0.017  # cos²(165°/2) - weak (wheat grows minimally alone)
-var mushroom_energy_influence: float = 0.983  # cos²(15°/2) - strong (mushrooms grow well)
+var mushroom_energy_influence: float = 0.025  # Balanced with wheat, not dominant
 
 # Plot type system: Biome owns ALL qubits regardless of type
 enum PlotType { CELESTIAL, NATIVE, FARM }
@@ -96,9 +96,8 @@ func _ready():
 
 	print("🌍 Biome initialized - Temperature: %.0fK, Period: %.1fs" % [base_temperature, sun_moon_period])
 	print("  ☀️ Sun/Moon qubit initialized (immutable celestial)")
-	print("  🌾 Wheat energy influence: %.3f (cos²(165°/2))" % wheat_energy_influence)
-	print("  🍄 Mushroom energy influence: %.3f (cos²(163°/2))" % mushroom_energy_influence)
-	print("  DEBUG: wheat_icon=%s, mushroom_icon=%s" % [wheat_icon != null, mushroom_icon != null])
+	print("  🌾 Wheat icon initialized (spring: %.1f, stable: π/4)" % wheat_icon.spring_constant)
+	print("  🍄 Mushroom icon initialized (spring: %.1f, stable: π)" % mushroom_icon.spring_constant)
 
 
 func _process(dt: float):
@@ -543,8 +542,14 @@ func _apply_spring_attraction(dt: float) -> void:
 			else:
 				icon = wheat_icon
 
+			if position == Vector2i(0, 0):  # DEBUG
+				var icon_name = "wheat" if icon == wheat_icon else ("mushroom" if icon == mushroom_icon else "NULL")
+				print("[SPRING CALC] pos=%s north=%s icon=%s (wheat_icon=%s mushroom_icon=%s)" % [position, qubit.north_emoji, icon_name, wheat_icon == null, mushroom_icon == null])
+
 			if icon:
 				var spring = icon["spring_constant"] if icon is Dictionary else icon.spring_constant
+				if position == Vector2i(0, 0):  # DEBUG
+					print("[SPRING CHECK] icon is_dict=%s spring=%.4f (check: >0?%s)" % [icon is Dictionary, spring, spring > 0.0])
 				if spring > 0.0:
 					var stable = icon["stable_theta"] if icon is Dictionary else icon.stable_theta
 					var angle_diff = qubit.theta - stable
@@ -555,9 +560,16 @@ func _apply_spring_attraction(dt: float) -> void:
 						angle_diff += TAU
 
 					total_spring_torque = -spring * sin(angle_diff / 2.0)
+					if position == Vector2i(0, 0):  # DEBUG
+						print("[SPRING CALC] stable=%.4f angle_diff=%.4f spring=%.4f -> torque=%.6f" % [stable, angle_diff, spring, total_spring_torque])
 
 		# Apply rotation to theta
+		var old_theta = qubit.theta
 		qubit.theta += total_spring_torque * dt
+		if position == Vector2i(0, 0):  # DEBUG: only for first plot
+			print("[SPRING] pos=%s θ_before=%.4f torque=%.6f *dt=%.6f θ_after=%.4f" % [
+				position, old_theta, total_spring_torque, total_spring_torque * dt, qubit.theta
+			])
 
 
 func _get_icon_influence_for_crop(position: Vector2i) -> float:
@@ -607,6 +619,10 @@ func _apply_energy_transfer(dt: float) -> void:
 
 		# Skip celestial (sun/moon don't transfer energy)
 		if position in plot_types and plot_types[position] == PlotType.CELESTIAL:
+			continue
+
+		# Sanity check: ensure sun_qubit exists
+		if not sun_qubit:
 			continue
 
 		# Detect hybrid crops (both wheat AND mushroom emojis)

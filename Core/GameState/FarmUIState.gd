@@ -101,11 +101,11 @@ func update_plot(position: Vector2i, plot) -> void:
 	# Transform quantum state (if exists)
 	if plot.quantum_state:
 		var emojis = plot.get_plot_emojis()
-		ui_data.north_emoji = emojis[0]
-		ui_data.south_emoji = emojis[1]
+		ui_data.north_emoji = emojis["north"]
+		ui_data.south_emoji = emojis["south"]
 		ui_data.north_probability = plot.quantum_state.get_north_probability()
 		ui_data.south_probability = plot.quantum_state.get_south_probability()
-		ui_data.energy_level = plot.quantum_state.energy if plot.quantum_state.has("energy") else 0.0
+		ui_data.energy_level = plot.quantum_state.energy
 
 	ui_data.has_been_measured = plot.has_been_measured
 

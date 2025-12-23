@@ -98,10 +98,35 @@ func _ready():
 
 
 func initialize(grid: FarmGrid, center_pos: Vector2, radius: float):
-	"""Initialize the quantum force graph"""
+	"""Initialize the quantum force graph and create quantum nodes for all plots"""
 	farm_grid = grid
 	center_position = center_pos
 	graph_radius = radius
+
+	# Create quantum nodes if we have a valid grid
+	if grid:
+		# Build classical plot positions dictionary from grid
+		var classical_plot_positions: Dictionary = {}
+
+		# Iterate through all grid positions and get their plots
+		for y in range(grid.grid_height):
+			for x in range(grid.grid_width):
+				var grid_pos = Vector2i(x, y)
+				var plot = grid.get_plot(grid_pos)
+				if plot:
+					# Calculate screen position for this plot
+					# Distribute plots in a circle around center_position
+					var angle = TAU * (x / float(grid.grid_width))
+					var distance = graph_radius
+					var screen_pos = center_position + Vector2(cos(angle), sin(angle)) * distance
+					classical_plot_positions[grid_pos] = screen_pos
+
+		# Create quantum nodes for all plots
+		if classical_plot_positions.size() > 0:
+			create_quantum_nodes(classical_plot_positions)
+			print("⚛️ QuantumForceGraph initialized with %d quantum nodes" % quantum_nodes.size())
+		else:
+			print("⚠️ QuantumForceGraph: No plots found to create quantum nodes")
 
 
 func _input(event: InputEvent):
@@ -901,103 +926,173 @@ func _draw_icon_particles():
 		draw_circle(particle.position, ICON_PARTICLE_SIZE, core_color)
 
 
+## UNIFIED QUANTUM BUBBLE RENDERING
+## All quantum entities (plot qubits, celestial qubits) are peer-level
+## Rendered with consistent bubble visualization
+
+func _draw_quantum_bubble(node: QuantumNode, is_celestial: bool = false) -> void:
+	"""Unified bubble rendering for any quantum entity (peer-level)
+
+	Renders a quantum bubble with:
+	- Multi-layer glow (complementary colors or golden)
+	- Dark background for emoji contrast
+	- Main colored bubble
+	- Glossy center highlight
+	- State-aware outline (measured vs unmeasured)
+	- Dual emoji overlay with superposition opacity
+
+	Args:
+		node: QuantumNode to render
+		is_celestial: If true, use golden tint for celestial appearance
+	"""
+	# Animation scale and alpha
+	var anim_scale = node.visual_scale
+	var anim_alpha = node.visual_alpha
+
+	if anim_scale <= 0.0:
+		return  # Don't draw if not visible
+
+	# Determine if node has been measured (quantum collapse)
+	var is_measured = node.plot != null and node.plot.has_been_measured
+
+	# ====================================================================
+	# COLOR SCHEME: Celestial vs Standard
+	# ====================================================================
+	var base_color: Color
+	var glow_tint: Color
+	var is_celestial_render = is_celestial
+
+	if is_celestial_render:
+		# Celestial: Golden/amber glow
+		base_color = Color(1.0, 0.8, 0.2)  # Golden
+		glow_tint = base_color
+	else:
+		# Standard: Use node's quantum-derived color
+		base_color = node.color
+		# Complementary color for outer glow (true contrasting hue)
+		glow_tint = Color.from_hsv(
+			fmod(node.color.h + 0.5, 1.0),  # Opposite hue
+			min(node.color.s * 1.3, 1.0),    # Boost saturation
+			max(node.color.v * 0.8, 0.4)     # Slightly darker for halo
+		)
+
+	# ====================================================================
+	# LAYER 1 & 2: OUTER GLOWS (complementary/golden)
+	# ====================================================================
+	var glow_alpha = (node.get_glow_alpha() + 0.4) * anim_alpha
+
+	if is_measured and not is_celestial_render:
+		# Measured nodes: Bright static cyan glow (ready to harvest!)
+		var measured_glow = Color(0.2, 0.95, 1.0)
+		measured_glow.a = 0.7 * anim_alpha
+		draw_circle(node.position, node.radius * 1.8 * anim_scale, measured_glow)
+
+		measured_glow.a = 0.9 * anim_alpha
+		draw_circle(node.position, node.radius * 1.4 * anim_scale, measured_glow)
+	else:
+		# Unmeasured or celestial: Complementary/golden glow layers
+		var outer_glow = glow_tint
+		outer_glow.a = glow_alpha * 0.4
+
+		# Outer layer: larger radius for celestial
+		var outer_radius = 2.2 if is_celestial_render else 1.6
+		draw_circle(node.position, node.radius * outer_radius * anim_scale, outer_glow)
+
+		# Middle glow layer
+		var mid_glow = glow_tint
+		mid_glow.a = glow_alpha * 0.6
+		var mid_radius = 1.8 if is_celestial_render else 1.3
+		draw_circle(node.position, node.radius * mid_radius * anim_scale, mid_glow)
+
+	# Inner glow (celestial only - adds warmth)
+	if is_celestial_render and glow_alpha > 0:
+		var inner_glow = glow_tint.lightened(0.2)
+		inner_glow.a = glow_alpha * 0.8
+		draw_circle(node.position, node.radius * 1.4 * anim_scale, inner_glow)
+
+	# ====================================================================
+	# LAYER 3: Dark background circle (emoji contrast)
+	# ====================================================================
+	var dark_bg = Color(0.1, 0.1, 0.15, 0.85)
+	var bg_radius = 1.12 if is_celestial_render else 1.08
+	draw_circle(node.position, node.radius * bg_radius * anim_scale, dark_bg)
+
+	# ====================================================================
+	# LAYER 4: Main quantum bubble circle
+	# ====================================================================
+	var main_color = base_color.lightened(0.15 if not is_celestial_render else 0.1)
+	main_color.s = min(main_color.s * 1.2, 1.0)  # More saturated
+	main_color.a = 0.75 * anim_alpha
+	draw_circle(node.position, node.radius * anim_scale, main_color)
+
+	# ====================================================================
+	# LAYER 5: Bright glossy center spot
+	# ====================================================================
+	var bright_center = base_color.lightened(0.6)
+	bright_center.a = 0.8 * anim_alpha
+	var spot_size = 0.4 if is_celestial_render else 0.5
+	draw_circle(
+		node.position + Vector2(-node.radius * 0.25, -node.radius * 0.25) * anim_scale,
+		node.radius * spot_size * anim_scale,
+		bright_center
+	)
+
+	# ====================================================================
+	# LAYER 6: Outline (state-aware)
+	# ====================================================================
+	if is_measured and not is_celestial_render:
+		# Measured unmeasured plot: Thick bright cyan outline (collapsed state)
+		var measured_outline = Color(0.4, 1.0, 1.0)
+		measured_outline.a = 0.98 * anim_alpha
+		draw_arc(node.position, node.radius * 1.05 * anim_scale, 0, TAU, 64, measured_outline, 4.0, true)
+
+		# Inner outline for emphasis
+		var inner_outline = Color.WHITE
+		inner_outline.a = 0.8 * anim_alpha
+		draw_arc(node.position, node.radius * 0.98 * anim_scale, 0, TAU, 64, inner_outline, 2.0, true)
+	else:
+		# Unmeasured or celestial: Subtle outline
+		var outline_color: Color
+		var outline_width: float
+
+		if is_celestial_render:
+			outline_color = Color(1.0, 0.9, 0.3)  # Bright golden
+			outline_width = 3.0
+		else:
+			outline_color = Color.WHITE
+			outline_width = 2.5
+
+		outline_color.a = 0.95 * anim_alpha
+		draw_arc(node.position, node.radius * 1.02 * anim_scale, 0, TAU, 64, outline_color, outline_width, true)
+
+	# ====================================================================
+	# LAYER 7: DUAL EMOJI SYSTEM (quantum superposition visualization)
+	# ====================================================================
+	var font = ThemeDB.fallback_font
+	var font_size = int(node.radius * (1.1 if is_celestial_render else 1.0))
+	var text_pos = node.position - Vector2(font_size * 0.4, -font_size * 0.25)
+
+	# Draw south emoji first (behind north)
+	if node.emoji_south != "" and node.emoji_south_opacity > 0.01:
+		var south_opacity = node.emoji_south_opacity * (0.9 if is_celestial_render else 1.0)
+		_draw_emoji_with_opacity(font, text_pos, node.emoji_south, font_size, south_opacity)
+
+	# Draw north emoji on top (brighter)
+	if node.emoji_north != "" and node.emoji_north_opacity > 0.01:
+		_draw_emoji_with_opacity(font, text_pos, node.emoji_north, font_size, node.emoji_north_opacity)
+
+
 func _draw_quantum_nodes():
-	"""Draw quantum nodes with energy halos and colors"""
+	"""Draw all plot quantum nodes with unified peer-level rendering"""
 	var nodes_drawn = 0
 	for node in quantum_nodes:
 		# Skip classical plots (mills/markets) - only show quantum states
 		if not node.plot or not node.plot.quantum_state:
 			continue
 
-		# Show even if not planted yet (as placeholders in superposition)
+		# Use unified bubble rendering (is_celestial=false for plot nodes)
+		_draw_quantum_bubble(node, false)
 		nodes_drawn += 1
-
-		# Apply spawn animation scale and alpha
-		var anim_scale = node.visual_scale
-		var anim_alpha = node.visual_alpha
-
-		if anim_scale <= 0.0:
-			continue  # Don't draw if not visible
-
-		# Check if node has been measured (collapsed state)
-		var is_measured = node.plot.has_been_measured
-
-		# Calculate complementary color for better contrast
-		# Use HSV to rotate hue by 180 degrees for true complementary
-		var comp_color = Color.from_hsv(
-			fmod(node.color.h + 0.5, 1.0),  # Opposite hue
-			min(node.color.s * 1.3, 1.0),    # Boost saturation slightly
-			max(node.color.v * 0.8, 0.4)     # Slightly darker for halo
-		)
-
-		# 1. Complementary color outer glow (creates vibrant contrast)
-		# MEASURED NODES: Static glow (no pulsing), brighter and more defined
-		var glow_alpha = (node.get_glow_alpha() + 0.4) * anim_alpha  # Brighter base glow
-
-		if is_measured:
-			# Measured nodes: BRIGHT STATIC CYAN GLOW (ready to harvest!)
-			var measured_glow = Color(0.2, 0.95, 1.0)  # Bright cyan
-			measured_glow.a = 0.7 * anim_alpha  # Static, bright
-			draw_circle(node.position, node.radius * 1.8 * anim_scale, measured_glow)
-
-			measured_glow.a = 0.9 * anim_alpha
-			draw_circle(node.position, node.radius * 1.4 * anim_scale, measured_glow)
-		elif glow_alpha > 0:
-			# Unmeasured nodes: Complementary color glow (quantum superposition)
-			# Vibrant complementary outer halo
-			var outer_glow = comp_color
-			outer_glow.a = glow_alpha * 0.4
-			draw_circle(node.position, node.radius * 1.6 * anim_scale, outer_glow)
-
-			# Middle complementary glow
-			var mid_glow = comp_color
-			mid_glow.a = glow_alpha * 0.6
-			draw_circle(node.position, node.radius * 1.3 * anim_scale, mid_glow)
-
-		# 2. Dark background circle behind emoji (for contrast)
-		var dark_bg = Color(0.1, 0.1, 0.15, 0.85)  # Dark, nearly opaque
-		draw_circle(node.position, node.radius * 1.08 * anim_scale, dark_bg)
-
-		# 3. Main quantum node circle (brighter, more saturated)
-		var main_color = node.color.lightened(0.15)  # Slightly brighter
-		main_color.s = min(main_color.s * 1.2, 1.0)  # More saturated
-		main_color.a = 0.75 * anim_alpha
-		draw_circle(node.position, node.radius * anim_scale, main_color)
-
-		# Bright center spot for glossy effect (bigger, brighter)
-		var bright_center = node.color.lightened(0.6)
-		bright_center.a = 0.8 * anim_alpha
-		draw_circle(node.position + Vector2(-node.radius * 0.25, -node.radius * 0.25) * anim_scale, node.radius * 0.5 * anim_scale, bright_center)
-
-		# 4. Outline - different for measured vs unmeasured
-		if is_measured:
-			# MEASURED: Thick bright cyan outline (collapsed state indicator)
-			var measured_outline = Color(0.4, 1.0, 1.0)  # Bright cyan-white
-			measured_outline.a = 0.98 * anim_alpha
-			draw_arc(node.position, node.radius * 1.05 * anim_scale, 0, TAU, 64, measured_outline, 4.0, true)
-
-			# Inner outline for extra emphasis
-			var inner_outline = Color.WHITE
-			inner_outline.a = 0.8 * anim_alpha
-			draw_arc(node.position, node.radius * 0.98 * anim_scale, 0, TAU, 64, inner_outline, 2.0, true)
-		else:
-			# UNMEASURED: Subtle white outline (quantum superposition)
-			var outline_color = Color.WHITE
-			outline_color.a = 0.95 * anim_alpha
-			draw_arc(node.position, node.radius * 1.02 * anim_scale, 0, TAU, 64, outline_color, 2.5, true)
-
-		# 5. DUAL EMOJI SYSTEM: Draw both emojis with probability-weighted opacity
-		var font = ThemeDB.fallback_font
-		var font_size = int(node.radius * 1.0)  # Slightly bigger
-		var text_pos = node.position - Vector2(font_size * 0.4, -font_size * 0.25)
-
-		# Draw south emoji first (behind north)
-		if node.emoji_south != "" and node.emoji_south_opacity > 0.01:
-			_draw_emoji_with_opacity(font, text_pos, node.emoji_south, font_size, node.emoji_south_opacity)
-
-		# Draw north emoji on top
-		if node.emoji_north != "" and node.emoji_north_opacity > 0.01:
-			_draw_emoji_with_opacity(font, text_pos, node.emoji_north, font_size, node.emoji_north_opacity)
 
 	# Log if DEBUG_MODE or if no nodes were drawn (potential issue)
 	if DEBUG_MODE and frame_count % 120 == 0:  # Log every 2 seconds at 60fps
@@ -1032,74 +1127,31 @@ func _draw_emoji_with_opacity(font, text_pos: Vector2, emoji: String, font_size:
 
 
 func _draw_sun_qubit_node():
-	"""Draw the sun/moon qubit as a special celestial quantum node
+	"""Draw the sun/moon qubit using unified peer-level quantum bubble rendering
 
-	The sun is always visible at the top of the force graph, showing:
-	- Day/night cycle through theta angle (visual rotation)
+	The sun is rendered as a peer-level quantum entity with:
+	- Day/night cycle through theta angle (emoji superposition)
 	- Dual emoji representation (☀️ north, 🌙 south)
-	- Golden/amber glow to indicate celestial nature
+	- Golden/amber glow to indicate celestial nature (is_celestial=true)
+	- Celestial label below the bubble
+
+	The sun/moon qubit is now treated as a quantum entity equal to plot qubits,
+	just with a celestial visual tint applied.
 	"""
 	if not sun_qubit_node:
 		return
 
-	var node = sun_qubit_node
-	var is_measured = false  # Sun is never "measured" - always pure state
-	var anim_scale = 1.0  # Always full size
-	var anim_alpha = 1.0  # Always fully opaque
+	# Ensure sun qubit renders with full animation properties
+	sun_qubit_node.visual_scale = 1.0  # Always full size
+	sun_qubit_node.visual_alpha = 1.0  # Always fully opaque
 
-	# Golden/amber color for celestial nature
-	var celestial_color = Color(1.0, 0.8, 0.2)  # Golden
+	# Use unified bubble rendering with is_celestial=true for golden appearance
+	_draw_quantum_bubble(sun_qubit_node, true)
 
-	# 1. BRIGHT GOLDEN OUTER GLOW (celestial effect)
-	var glow_alpha = 0.6 * anim_alpha
-	var outer_glow = celestial_color
-	outer_glow.a = glow_alpha * 0.4
-	draw_circle(node.position, node.radius * 2.2 * anim_scale, outer_glow)
-
-	var mid_glow = celestial_color
-	mid_glow.a = glow_alpha * 0.6
-	draw_circle(node.position, node.radius * 1.8 * anim_scale, mid_glow)
-
-	# 2. INNER GLOW (warm, energetic)
-	var inner_glow = celestial_color.lightened(0.2)
-	inner_glow.a = glow_alpha * 0.8
-	draw_circle(node.position, node.radius * 1.4 * anim_scale, inner_glow)
-
-	# 3. Dark background circle (for emoji contrast)
-	var dark_bg = Color(0.1, 0.1, 0.15, 0.9)  # Nearly opaque dark
-	draw_circle(node.position, node.radius * 1.12 * anim_scale, dark_bg)
-
-	# 4. Main celestial circle (bright golden)
-	var main_color = celestial_color.lightened(0.1)
-	main_color.a = 0.85 * anim_alpha
-	draw_circle(node.position, node.radius * anim_scale, main_color)
-
-	# 5. Bright glossy spot (sun shine effect)
-	var bright_spot = Color.WHITE
-	bright_spot.a = 0.7 * anim_alpha
-	draw_circle(node.position + Vector2(-node.radius * 0.3, -node.radius * 0.3) * anim_scale, node.radius * 0.4 * anim_scale, bright_spot)
-
-	# 6. Thick golden outline (celestial marker)
-	var outline_color = Color(1.0, 0.9, 0.3)  # Bright golden
-	outline_color.a = 1.0 * anim_alpha
-	draw_arc(node.position, node.radius * 1.08 * anim_scale, 0, TAU, 64, outline_color, 3.0, true)
-
-	# 7. DUAL EMOJI SYSTEM (day/night cycle)
+	# Draw celestial label below sun bubble (identifying label)
 	var font = ThemeDB.fallback_font
-	var font_size = int(node.radius * 1.1)  # Slightly bigger for visibility
-	var text_pos = node.position - Vector2(font_size * 0.4, -font_size * 0.25)
-
-	# Draw moon emoji first (behind sun)
-	if node.emoji_south != "" and node.emoji_south_opacity > 0.01:
-		_draw_emoji_with_opacity(font, text_pos, node.emoji_south, font_size, node.emoji_south_opacity * 0.9)
-
-	# Draw sun emoji on top (brighter)
-	if node.emoji_north != "" and node.emoji_north_opacity > 0.01:
-		_draw_emoji_with_opacity(font, text_pos, node.emoji_north, font_size, node.emoji_north_opacity)
-
-	# Draw celestial label below sun
 	var label_color = Color(1.0, 0.85, 0.3, 0.7)
-	var label_pos = node.position + Vector2(0, node.radius + 25)
+	var label_pos = sun_qubit_node.position + Vector2(0, sun_qubit_node.radius + 25)
 	draw_string(font, label_pos, "Celestial", HORIZONTAL_ALIGNMENT_CENTER, -1, 10, label_color)
 
 

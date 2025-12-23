@@ -186,6 +186,14 @@ func _wire_multi_select_components() -> void:
 	else:
 		print("❌ FAILED: Multi-select wiring did not work!")
 
+	# Wire selection changes to button highlighting
+	if plot_grid_display.has_signal("selection_count_changed") and layout_manager.action_preview_row:
+		plot_grid_display.selection_count_changed.connect(_on_selection_count_changed)
+		print("   • PlotGridDisplay → ActionPreviewRow (button highlighting)")
+		# Initial state: update buttons based on current selection
+		var current_count = plot_grid_display.get_selected_plot_count()
+		_on_selection_count_changed(current_count)
+
 
 func inject_ui_state(ui_state_ref) -> void:
 	"""Inject FarmUIState - the abstraction layer (Phase 3)"""
@@ -419,3 +427,17 @@ func _on_plot_updated(position: Vector2i, plot_data) -> void:
 		# Plot grid display will respond to UIState signals directly
 		# This handler can be used for other plot-related UI updates
 		print("🌱 Plot updated at %s via UIState signal" % position)
+
+
+func _on_selection_count_changed(count: int) -> void:
+	"""Handle selection count changes - update action button highlights"""
+	if not layout_manager or not layout_manager.action_preview_row:
+		return
+
+	var has_selection = count > 0
+	layout_manager.action_preview_row.update_button_highlights(has_selection)
+
+	if has_selection:
+		print("🎯 Action buttons highlighted (plots selected: %d)" % count)
+	else:
+		print("🎯 Action buttons disabled (no plots selected)")

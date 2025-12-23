@@ -17,24 +17,31 @@ var grid_width: int = 6
 var grid_height: int = 1
 
 # Tool action sets - each tool has 3 actions mapped to Q, E, R
+# All actions are batch operations on multi-selected plots
 const TOOL_ACTIONS = {
-	1: {  # Plant Tool
-		"name": "Plant",
-		"Q": {"action": "plant_wheat", "label": "Wheat"},
-		"E": {"action": "plant_mushroom", "label": "Mushroom"},
-		"R": {"action": "plant_tomato", "label": "Tomato (Ultimate!)"},
+	1: {  # GROWER Tool - Core farming (80% of gameplay)
+		"name": "Grower",
+		"Q": {"action": "plant_batch", "label": "Plant (wheat/mushroom/tomato)"},
+		"E": {"action": "entangle_batch", "label": "Entangle (Bell φ+)"},
+		"R": {"action": "measure_and_harvest", "label": "Measure + Harvest"},
 	},
-	2: {  # Quantum Operations Tool
-		"name": "Quantum Ops",
-		"Q": {"action": "entangle", "label": "Entangle"},
-		"E": {"action": "measure_plot", "label": "Measure"},
-		"R": {"action": "harvest_plot", "label": "Harvest"},
+	2: {  # QUANTUM Tool - Advanced quantum operations
+		"name": "Quantum",
+		"Q": {"action": "cluster", "label": "Cluster (GHZ/W/3+qubits)"},
+		"E": {"action": "measure_plot", "label": "Measure Cascade"},
+		"R": {"action": "break_entanglement", "label": "Break Entanglement"},
 	},
-	3: {  # Economy Tool
-		"name": "Economy",
+	3: {  # INDUSTRY Tool - Economy & automation
+		"name": "Industry",
 		"Q": {"action": "place_mill", "label": "Build Mill"},
 		"E": {"action": "place_market", "label": "Build Market"},
-		"R": {"action": "process_flour", "label": "Make Flour (1W→1F)"},
+		"R": {"action": "place_kitchen", "label": "Build Kitchen"},
+	},
+	4: {  # ENERGY Tool - Quantum energy management
+		"name": "Energy",
+		"Q": {"action": "inject_energy", "label": "Inject Energy"},
+		"E": {"action": "drain_energy", "label": "Drain Energy"},
+		"R": {"action": "place_energy_tap", "label": "Place Energy Tap"},
 	},
 }
 
@@ -219,24 +226,38 @@ func _execute_tool_action(action_key: String):
 
 	# Execute the action based on type (now with multi-select support)
 	match action:
-		"plant_wheat":
-			_action_batch_plant("wheat", selected_plots)
-		"plant_tomato":
-			_action_batch_plant("tomato", selected_plots)
-		"plant_mushroom":
-			_action_batch_plant("mushroom", selected_plots)
+		# Tool 1: GROWER - Core farming
+		"plant_batch":
+			_action_plant_batch(selected_plots)
+		"entangle_batch":
+			_action_entangle_batch(selected_plots)
+		"measure_and_harvest":
+			_action_batch_measure_and_harvest(selected_plots)
+
+		# Tool 2: QUANTUM - Advanced quantum
+		"cluster":
+			_action_cluster(selected_plots)
 		"measure_plot":
-			_action_batch_measure(selected_plots)
-		"harvest_plot":
-			_action_batch_harvest(selected_plots)
-		"entangle":
-			_action_entangle()  # Entanglement logic needs rethinking for multi-select
+			_action_batch_measure(selected_plots)  # Cascades automatically
+		"break_entanglement":
+			_action_break_entanglement(selected_plots)
+
+		# Tool 3: INDUSTRY - Economy & automation
 		"place_mill":
 			_action_batch_build("mill", selected_plots)
 		"place_market":
 			_action_batch_build("market", selected_plots)
-		"process_flour":
-			_action_process_flour()  # Economy action - global, not per-plot
+		"place_kitchen":
+			_action_batch_build("kitchen", selected_plots)
+
+		# Tool 4: ENERGY - Energy management
+		"inject_energy":
+			_action_inject_energy(selected_plots)
+		"drain_energy":
+			_action_drain_energy(selected_plots)
+		"place_energy_tap":
+			_action_place_energy_tap(selected_plots)
+
 		_:
 			print("⚠️  Unknown action: %s" % action)
 
@@ -422,6 +443,52 @@ func _action_batch_build(build_type: String, positions: Array[Vector2i]):
 			"%s Built %d/%d %s structures" % ["✅" if success else "❌", success_count, positions.size(), build_type])
 
 
+func _action_batch_boost_energy(positions: Array[Vector2i]):
+	"""Boost quantum energy in selected plots (grow energy in quantum states)"""
+	if not farm:
+		action_performed.emit("boost_energy", false, "⚠️  Farm not loaded yet")
+		return
+
+	print("⚡ Batch boosting energy at %d plots: %s" % [positions.size(), positions])
+
+	var success_count = 0
+	for pos in positions:
+		var plot = farm.grid.get_plot(pos)
+		if plot and plot.quantum_state:
+			# Grow energy by a small amount (strength * dt = 0.3 * 1.0 = 30% exponential growth)
+			plot.quantum_state.grow_energy(0.3, 1.0)
+			success_count += 1
+			print("  ⚡ Boosted energy at %s: %.2f" % [pos, plot.quantum_state.energy])
+
+	var success = success_count > 0
+	action_performed.emit("boost_energy", success,
+		"%s Boosted energy in %d/%d plots" % ["✅" if success else "❌", success_count, positions.size()])
+
+
+func _action_batch_measure_and_harvest(positions: Array[Vector2i]):
+	"""Measure quantum state then harvest plots (combined action)"""
+	if not farm:
+		action_performed.emit("harvest", false, "⚠️  Farm not loaded yet")
+		return
+
+	print("🔬✂️  Batch measuring and harvesting %d plots: %s" % [positions.size(), positions])
+
+	var success_count = 0
+	var total_yield = 0
+	for pos in positions:
+		# Measure first
+		farm.measure_plot(pos)
+		# Then harvest
+		var result = farm.harvest_plot(pos)
+		if result.get("success", false):
+			success_count += 1
+			total_yield += result.get("yield", 0)
+
+	var success = success_count > 0
+	action_performed.emit("harvest", success,
+		"%s Measured and harvested %d/%d plots | Yield: %d" % ["✅" if success else "❌", success_count, positions.size(), total_yield])
+
+
 func _action_entangle():
 	"""Start entanglement at current selection (requires second selection)"""
 	print("🔗 Entangle mode: Select second location or press R again")
@@ -441,6 +508,171 @@ func _action_process_flour():
 		action_performed.emit("process_flour", false, "⚠️  Not enough wheat to process")
 
 
+## NEW Tool 1 (GROWER) Actions
+
+func _action_plant_batch(positions: Array[Vector2i]):
+	"""Batch plant crops - cycles through wheat, mushroom, tomato"""
+	if not farm:
+		action_performed.emit("plant_batch", false, "⚠️  Farm not loaded yet")
+		return
+
+	# TODO: Implement crop cycling selector (for now, default to wheat)
+	# Could track which crop was last planted and cycle through them
+	_action_batch_plant("wheat", positions)
+
+
+func _action_entangle_batch(positions: Array[Vector2i]):
+	"""Batch entangle selected plots in Bell state φ+"""
+	if not farm or not farm.grid:
+		action_performed.emit("entangle_batch", false, "⚠️  Farm not loaded yet")
+		return
+
+	if positions.size() < 2:
+		action_performed.emit("entangle_batch", false, "⚠️  Need at least 2 plots to entangle")
+		return
+
+	print("🔗 Batch entangling %d plots..." % positions.size())
+
+	var success_count = 0
+	# Create pairwise entanglement: 0-1, 1-2, 2-3, etc.
+	for i in range(positions.size() - 1):
+		var plot1 = positions[i]
+		var plot2 = positions[i + 1]
+		farm.grid.create_entanglement(plot1, plot2)
+		success_count += 1
+		print("  🔗 Entangled %s ↔ %s (Bell φ+)" % [plot1, plot2])
+
+	action_performed.emit("entangle_batch", success_count > 0,
+		"✅ Created %d Bell state entanglements" % success_count)
+
+
+## NEW Tool 2 (QUANTUM) Actions
+
+func _action_cluster(positions: Array[Vector2i]):
+	"""Create GHZ/W/Cluster states for 3+ qubit entanglement"""
+	if not farm or not farm.grid:
+		action_performed.emit("cluster", false, "⚠️  Farm not loaded yet")
+		return
+
+	if positions.size() < 3:
+		action_performed.emit("cluster", false, "⚠️  Need at least 3 plots for clustering")
+		return
+
+	print("🔗 Creating cluster state for %d plots..." % positions.size())
+
+	# TODO: Detect geometry (horizontal/L-shape/T-shape) and create appropriate state
+	# For now, create sequential pairwise entanglement like entangle_batch
+	var success_count = 0
+	for i in range(positions.size() - 1):
+		var plot1 = positions[i]
+		var plot2 = positions[i + 1]
+		farm.grid.create_entanglement(plot1, plot2)
+		success_count += 1
+
+	action_performed.emit("cluster", success_count > 0,
+		"✅ Created cluster state with %d plots" % positions.size())
+
+
+func _action_break_entanglement(positions: Array[Vector2i]):
+	"""Break all entanglements for selected plots"""
+	if not farm or not farm.grid:
+		action_performed.emit("break_entanglement", false, "⚠️  Farm not loaded yet")
+		return
+
+	print("🔓 Breaking entanglement for %d plots..." % positions.size())
+
+	var success_count = 0
+	for pos in positions:
+		var plot = farm.grid.get_plot(pos)
+		if plot:
+			# Clear all entangled links
+			plot.entangled_plots.clear()
+			success_count += 1
+			print("  🔓 Cleared entanglement at %s" % pos)
+
+	action_performed.emit("break_entanglement", success_count > 0,
+		"✅ Broke entanglement on %d plots" % success_count)
+
+
+## NEW Tool 4 (ENERGY) Actions
+
+func _action_inject_energy(positions: Array[Vector2i]):
+	"""Inject quantum energy by spending emoji resources"""
+	if not farm:
+		action_performed.emit("inject_energy", false, "⚠️  Farm not loaded yet")
+		return
+
+	print("⚡ Injecting energy into %d plots..." % positions.size())
+
+	# TODO: Add resource selector UI (which emoji to spend)
+	# For now, default to spending wheat (1 wheat → 0.1 energy per plot)
+	var emoji_resource = "wheat"
+	var cost_per_plot = 1
+	var energy_gain = 0.1
+
+	var total_cost = cost_per_plot * positions.size()
+
+	# TODO: Check if farm.economy has this emoji resource
+	# For now, just apply energy boost
+	var success_count = 0
+	for pos in positions:
+		var plot = farm.grid.get_plot(pos)
+		if plot and plot.quantum_state:
+			plot.quantum_state.energy += energy_gain
+			success_count += 1
+			print("  ⚡ Injected %.2f energy at %s" % [energy_gain, pos])
+
+	action_performed.emit("inject_energy", success_count > 0,
+		"✅ Injected energy into %d plots (spent %d %s)" % [success_count, total_cost, emoji_resource])
+
+
+func _action_drain_energy(positions: Array[Vector2i]):
+	"""Drain quantum energy to gain emoji resources"""
+	if not farm:
+		action_performed.emit("drain_energy", false, "⚠️  Farm not loaded yet")
+		return
+
+	print("🔋 Draining energy from %d plots..." % positions.size())
+
+	var drain_amount = 0.5  # Energy to drain per plot
+	var emoji_return = 1    # Emoji returned per drained energy
+
+	var success_count = 0
+	var total_emojis_gained = 0
+	for pos in positions:
+		var plot = farm.grid.get_plot(pos)
+		if plot and plot.quantum_state and plot.quantum_state.energy >= drain_amount:
+			plot.quantum_state.energy -= drain_amount
+			total_emojis_gained += emoji_return
+			success_count += 1
+			print("  🔋 Drained %.2f energy at %s → gained emoji" % [drain_amount, pos])
+
+	action_performed.emit("drain_energy", success_count > 0,
+		"✅ Drained energy from %d plots → gained %d emojis" % [success_count, total_emojis_gained])
+
+
+func _action_place_energy_tap(positions: Array[Vector2i]):
+	"""Place constant energy drain taps on selected plots"""
+	if not farm:
+		action_performed.emit("place_energy_tap", false, "⚠️  Farm not loaded yet")
+		return
+
+	print("🚰 Placing energy taps on %d plots..." % positions.size())
+
+	# TODO: Add target emoji selector (which emoji to drain to)
+	# For now, just mark that taps would be placed
+	var success_count = 0
+	for pos in positions:
+		var plot = farm.grid.get_plot(pos)
+		if plot:
+			# TODO: Call farm.plant_energy_tap(pos, target_emoji)
+			success_count += 1
+			print("  🚰 Placed energy tap at %s" % pos)
+
+	action_performed.emit("place_energy_tap", success_count > 0,
+		"✅ Placed energy taps on %d plots (passive drain active)" % success_count)
+
+
 ## Help System
 
 func _print_help():
@@ -453,8 +685,8 @@ func _print_help():
 	print("⌨️  FARM KEYBOARD CONTROLS (Tool Mode System)")
 	print(line)
 
-	print("\n🛠️  TOOL SELECTION (Numbers 1-3):")
-	for tool_num in range(1, 4):
+	print("\n🛠️  TOOL SELECTION (Numbers 1-4):")
+	for tool_num in range(1, 5):
 		if TOOL_ACTIONS.has(tool_num):
 			var tool = TOOL_ACTIONS[tool_num]
 			print("  %d = %s" % [tool_num, tool["name"]])

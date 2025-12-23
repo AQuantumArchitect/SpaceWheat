@@ -380,7 +380,8 @@ func harvest() -> Dictionary:
 				outcome_type = "wheat"
 
 		# Yield = frozen energy converted to integer units
-		final_yield = int(frozen_energy * 10.0)  # Scale energy to resource units
+		# Zero-loss economy: cost to plant is 1, harvest return is 1 (chaotic type)
+		final_yield = roundi(frozen_energy * 3.33)  # 0.3 * 3.33 ≈ 1
 		print("✂️ Harvested %d %s from %s (frozen energy: %.2f)" %
 			[final_yield, outcome_type, plot_id, frozen_energy])
 
@@ -397,7 +398,8 @@ func harvest() -> Dictionary:
 				outcome_type = "labor"
 
 		# Yield = frozen energy converted to resource units
-		final_yield = int(frozen_energy * 10.0)
+		# Zero-loss economy: cost to plant is 1, harvest return is 1 (chaotic type)
+		final_yield = roundi(frozen_energy * 3.33)  # 0.3 * 3.33 ≈ 1
 		print("⚙️ Harvested %d %s from %s (frozen energy: %.2f)" %
 			[final_yield, outcome_type, plot_id, frozen_energy])
 

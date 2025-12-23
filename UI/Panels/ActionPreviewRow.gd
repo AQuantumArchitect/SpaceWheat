@@ -9,9 +9,9 @@ extends HBoxContainer
 const TOOL_ACTIONS = {
 	1: {  # Plant Tool
 		"name": "Plant",
-		"Q": {"action": "plant_wheat", "label": "Wheat", "emoji": "🌾"},
-		"E": {"action": "plant_mushroom", "label": "Mushroom", "emoji": "🍄"},
-		"R": {"action": "plant_tomato", "label": "Tomato", "emoji": "🍅"},
+		"Q": {"action": "plant_wheat", "label": "Plant Wheat", "emoji": "🌾"},
+		"E": {"action": "boost_energy", "label": "Boost Energy", "emoji": "⚡"},
+		"R": {"action": "measure_and_harvest", "label": "Measure + Harvest", "emoji": "🔬✂️"},
 	},
 	2: {  # Quantum Operations Tool
 		"name": "Quantum Ops",
@@ -35,6 +35,7 @@ var current_tool: int = 1
 var button_color: Color = Color(0.3, 0.3, 0.3)
 var hover_color: Color = Color(0.5, 0.5, 0.5)
 var disabled_color: Color = Color(0.2, 0.2, 0.2)
+var enabled_color: Color = Color(0.2, 0.6, 0.2)  # Green highlight for available actions
 
 # Layout manager for scaling
 var layout_manager
@@ -113,6 +114,24 @@ func set_action_enabled(action_key: String, enabled: bool) -> void:
 		button.modulate = disabled_color
 	else:
 		button.modulate = button_color
+
+
+func update_button_highlights(has_selection: bool) -> void:
+	"""Highlight buttons based on whether plots are selected (required for actions)"""
+	for action_key in ["Q", "E", "R"]:
+		if not action_buttons.has(action_key):
+			continue
+
+		var button = action_buttons[action_key]
+
+		if has_selection:
+			# Actions available - highlight in green
+			button.modulate = enabled_color
+			button.disabled = false
+		else:
+			# No selection - disable buttons
+			button.modulate = disabled_color
+			button.disabled = true
 
 
 func set_layout_manager(mgr) -> void:

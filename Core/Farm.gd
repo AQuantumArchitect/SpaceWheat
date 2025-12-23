@@ -96,6 +96,8 @@ func _ready():
 			else:
 				print("   🌍 Biome (environment) created")
 			add_child(biome)
+			# Manually call _ready() since Farm may not be in the scene tree
+			biome._ready()
 			biome_enabled = true
 		else:
 			print("   ⚠️  Biome creation failed - running in simple mode (no growth)")
@@ -114,6 +116,12 @@ func _ready():
 
 	add_child(grid)
 	print("   📊 FarmGrid created (%dx%d)" % [grid_width, grid_height])
+
+	# Register grid and biome as metadata for UI systems (QuantumForceGraph visualization)
+	set_meta("grid", grid)
+	if biome_enabled:
+		set_meta("biome", biome)
+	print("   📡 Farm metadata registered (grid + biome for visualization)")
 
 	# Get persistent vocabulary evolution from GameStateManager
 	# The vocabulary persists across farms/biomes and travels with the player

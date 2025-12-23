@@ -33,6 +33,9 @@ var selection_manager: PlotSelectionManager = null
 # Backward compatibility: also track last single-click for operations
 var current_selection: Vector2i = Vector2i.ZERO
 
+# Signals for selection state changes
+signal selection_count_changed(count: int)
+
 
 func _ready():
 	"""Initialize plot grid display"""
@@ -150,9 +153,17 @@ func update_tile_from_farm(pos: Vector2i) -> void:
 	Transforms farm plot state into PlotUIData inline (no FarmUIState layer).
 	"""
 	if not tiles.has(pos):
+		print("   ✗ update_tile_from_farm(%s): tile not found!" % pos)
 		return
 
-	if not farm or not farm.has_method("grid"):
+	if not farm:
+		print("   ✗ update_tile_from_farm(%s): farm is null!" % pos)
+		var tile = tiles[pos]
+		tile.set_plot_data(null, pos, -1)
+		return
+
+	if not farm.grid:
+		print("   ✗ update_tile_from_farm(%s): farm.grid is null!" % pos)
 		var tile = tiles[pos]
 		tile.set_plot_data(null, pos, -1)
 		return
@@ -160,11 +171,13 @@ func update_tile_from_farm(pos: Vector2i) -> void:
 	var plot = farm.grid.get_plot(pos)
 	if not plot:
 		# Empty plot
+		print("   ⚠️  update_tile_from_farm(%s): plot is null/empty" % pos)
 		var tile = tiles[pos]
 		tile.set_plot_data(null, pos, -1)
 		return
 
 	# Transform plot → PlotUIData inline
+	print("   ✓ update_tile_from_farm(%s): found plot, transforming data..." % pos)
 	var ui_data = _transform_plot_to_ui_data(pos, plot)
 	var tile = tiles[pos]
 	tile.set_plot_data(ui_data, pos, -1)
@@ -205,11 +218,11 @@ func _transform_plot_to_ui_data(pos: Vector2i, plot) -> FarmUIState.PlotUIData:
 	# Transform quantum state (if exists)
 	if plot.quantum_state:
 		var emojis = plot.get_plot_emojis()
-		ui_data.north_emoji = emojis[0]
-		ui_data.south_emoji = emojis[1]
+		ui_data.north_emoji = emojis["north"]
+		ui_data.south_emoji = emojis["south"]
 		ui_data.north_probability = plot.quantum_state.get_north_probability()
 		ui_data.south_probability = plot.quantum_state.get_south_probability()
-		ui_data.energy_level = plot.quantum_state.energy if plot.quantum_state.has("energy") else 0.0
+		ui_data.energy_level = plot.quantum_state.energy
 
 	ui_data.has_been_measured = plot.has_been_measured
 
@@ -346,6 +359,9 @@ func _on_selection_changed(selected_plots: Array[Vector2i], count: int) -> void:
 		print("📍 Selection changed: %d plots selected" % count)
 	else:
 		print("📍 Selection cleared")
+
+	# Emit signal for UI systems to update button highlights
+	selection_count_changed.emit(count)
 
 
 func get_selected_plot() -> Vector2i:

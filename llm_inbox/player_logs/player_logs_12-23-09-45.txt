@@ -1,0 +1,359 @@
+tehcr33d@DESKTOP-B7NQRHN:~/ws/SpaceWheat$ godot
+Godot Engine v4.5.stable.official.876b29033 - https://godotengine.org
+WARNING: Could not set V-Sync mode, as changing V-Sync mode is not supported by the graphics driver.
+     at: set_use_vsync (platform/linuxbsd/x11/gl_manager_x11.cpp:364)
+OpenGL API 4.1 (Core Profile) Mesa 23.2.1-1ubuntu3.1~22.04.3 - Compatibility - Using Device: Microsoft - D3D12 (Intel(R) HD Graphics 620)
+libpulse.so.0: cannot open shared object file: No such file or directory
+libpulse.so.0: cannot open shared object file: No such file or directory
+ALSA lib confmisc.c:855:(parse_card) cannot find card '0'
+ALSA lib conf.c:5178:(_snd_config_evaluate) function snd_func_card_inum returned error: No such file or directory
+ALSA lib confmisc.c:422:(snd_func_concat) error evaluating strings
+ALSA lib conf.c:5178:(_snd_config_evaluate) function snd_func_concat returned error: No such file or directory
+ALSA lib confmisc.c:1334:(snd_func_refer) error evaluating name
+ALSA lib conf.c:5178:(_snd_config_evaluate) function snd_func_refer returned error: No such file or directory
+ALSA lib conf.c:5701:(snd_config_expand) Evaluate error: No such file or directory
+ALSA lib pcm.c:2664:(snd_pcm_open_noupdate) Unknown PCM default
+ERROR: Condition "status < 0" is true. Returning: ERR_CANT_OPEN
+   at: init_output_device (drivers/alsa/audio_driver_alsa.cpp:90)
+WARNING: All audio drivers failed, falling back to the dummy driver.
+     at: initialize (servers/audio_server.cpp:244)
+
+💾 GameStateManager ready - Save dir: user://saves/
+🧬 Vocabulary Evolution initialized with 5 seed concepts
+🧬 Vocabulary Evolution initialized with 10 seed concepts
+   📚 Persistent VocabularyEvolution initialized
+🎮 FarmView initializing...
+WARNING: Nodes with non-equal opposite anchors will have their size overridden after _ready().
+If you want to set size, change the anchors or consider using set_deferred().
+     at: _set_size (scene/gui/control.cpp:1476)
+     GDScript backtrace (most recent call first):
+         [0] _ready (res://UI/FarmView.gd:35)
+📐 FarmView sized to viewport: (1280.0, 720.0)
+🎮 FarmUIController initializing...
+🎨 FarmUILayoutManager initializing... size=(1280.0, 720.0)
+UILayoutManager: Input mode detected - MOUSE
+UILayoutManager: Viewport=(1280.0, 720.0), Scale=0.75×, Breakpoint=HD
+📐 Layout breakdown (parametric):
+  Top bar: 43.2px (0% to 6%)
+  Play area: 478.8px (6% to 72%)
+  Plots row: 108.0px (72% to 87%)
+  Actions row: 90.0px (87% to 100%)
+  Total: 720.0px (should equal viewport height: 720.0px)
+📐 Layout Manager created
+✅ UI Structure created
+📋 OverlayManager initialized
+📜 Contract panel created (press C to toggle)
+📖 Vocabulary overlay created (press V to toggle)
+💾 Creating Save/Load menu...
+💾 Save/Load menu instantiated, setting properties...
+📋 Save/Load menu closed
+💾 Adding Save/Load menu to parent...
+💾 Save/Load menu created
+💾 Connecting save/load menu signals...
+💾 Save/Load menu signals connected
+📋 OverlayManager created
+⌨️  KeyboardHintButton initialized
+🌾 PlotGridDisplay._ready() called (Instance: 52982449956, child_count before: 0)
+WARNING: Nodes with non-equal opposite anchors will have their size overridden after _ready().
+If you want to set size, change the anchors or consider using set_deferred().
+     at: _set_size (scene/gui/control.cpp:1476)
+     GDScript backtrace (most recent call first):
+         [0] _layout_elements (res://UI/PlotTile.gd:413)
+         [1] _notification (res://UI/PlotTile.gd:388)
+         [2] _ready (res://UI/PlotTile.gd:75)
+         [3] _ready (res://UI/PlotGridDisplay.gd:67)
+         [4] _create_ui_components (res://UI/FarmUILayoutManager.gd:227)
+         [5] _ready (res://UI/FarmUILayoutManager.gd:75)
+         [6] _ready (res://UI/FarmUIController.gd:59)
+         [7] _ready (res://UI/FarmView.gd:43)
+WARNING: Nodes with non-equal opposite anchors will have their size overridden after _ready().
+If you want to set size, change the anchors or consider using set_deferred().
+     at: _set_size (scene/gui/control.cpp:1476)
+     GDScript backtrace (most recent call first):
+         [0] _layout_elements (res://UI/PlotTile.gd:415)
+         [1] _notification (res://UI/PlotTile.gd:388)
+         [2] _ready (res://UI/PlotTile.gd:75)
+         [3] _ready (res://UI/PlotGridDisplay.gd:67)
+         [4] _create_ui_components (res://UI/FarmUILayoutManager.gd:227)
+         [5] _ready (res://UI/FarmUILayoutManager.gd:75)
+         [6] _ready (res://UI/FarmUIController.gd:59)
+         [7] _ready (res://UI/FarmView.gd:43)
+  📍 Plot tile created at position (0, 0) (T)
+WARNING: Nodes with non-equal opposite anchors will have their size overridden after _ready().
+If you want to set size, change the anchors or consider using set_deferred().
+     at: _set_size (scene/gui/control.cpp:1476)
+     GDScript backtrace (most recent call first):
+         [0] _layout_elements (res://UI/PlotTile.gd:413)
+         [1] _notification (res://UI/PlotTile.gd:388)
+         [2] _ready (res://UI/PlotTile.gd:75)
+         [3] _ready (res://UI/PlotGridDisplay.gd:67)
+         [4] _create_ui_components (res://UI/FarmUILayoutManager.gd:227)
+         [5] _ready (res://UI/FarmUILayoutManager.gd:75)
+         [6] _ready (res://UI/FarmUIController.gd:59)
+         [7] _ready (res://UI/FarmView.gd:43)
+WARNING: Nodes with non-equal opposite anchors will have their size overridden after _ready().
+If you want to set size, change the anchors or consider using set_deferred().
+     at: _set_size (scene/gui/control.cpp:1476)
+     GDScript backtrace (most recent call first):
+         [0] _layout_elements (res://UI/PlotTile.gd:415)
+         [1] _notification (res://UI/PlotTile.gd:388)
+         [2] _ready (res://UI/PlotTile.gd:75)
+         [3] _ready (res://UI/PlotGridDisplay.gd:67)
+         [4] _create_ui_components (res://UI/FarmUILayoutManager.gd:227)
+         [5] _ready (res://UI/FarmUILayoutManager.gd:75)
+         [6] _ready (res://UI/FarmUIController.gd:59)
+         [7] _ready (res://UI/FarmView.gd:43)
+  📍 Plot tile created at position (1, 0) (Y)
+WARNING: Nodes with non-equal opposite anchors will have their size overridden after _ready().
+If you want to set size, change the anchors or consider using set_deferred().
+     at: _set_size (scene/gui/control.cpp:1476)
+     GDScript backtrace (most recent call first):
+         [0] _layout_elements (res://UI/PlotTile.gd:413)
+         [1] _notification (res://UI/PlotTile.gd:388)
+         [2] _ready (res://UI/PlotTile.gd:75)
+         [3] _ready (res://UI/PlotGridDisplay.gd:67)
+         [4] _create_ui_components (res://UI/FarmUILayoutManager.gd:227)
+         [5] _ready (res://UI/FarmUILayoutManager.gd:75)
+         [6] _ready (res://UI/FarmUIController.gd:59)
+         [7] _ready (res://UI/FarmView.gd:43)
+WARNING: Nodes with non-equal opposite anchors will have their size overridden after _ready().
+If you want to set size, change the anchors or consider using set_deferred().
+     at: _set_size (scene/gui/control.cpp:1476)
+     GDScript backtrace (most recent call first):
+         [0] _layout_elements (res://UI/PlotTile.gd:415)
+         [1] _notification (res://UI/PlotTile.gd:388)
+         [2] _ready (res://UI/PlotTile.gd:75)
+         [3] _ready (res://UI/PlotGridDisplay.gd:67)
+         [4] _create_ui_components (res://UI/FarmUILayoutManager.gd:227)
+         [5] _ready (res://UI/FarmUILayoutManager.gd:75)
+         [6] _ready (res://UI/FarmUIController.gd:59)
+         [7] _ready (res://UI/FarmView.gd:43)
+  📍 Plot tile created at position (2, 0) (U)
+WARNING: Nodes with non-equal opposite anchors will have their size overridden after _ready().
+If you want to set size, change the anchors or consider using set_deferred().
+     at: _set_size (scene/gui/control.cpp:1476)
+     GDScript backtrace (most recent call first):
+         [0] _layout_elements (res://UI/PlotTile.gd:413)
+         [1] _notification (res://UI/PlotTile.gd:388)
+         [2] _ready (res://UI/PlotTile.gd:75)
+         [3] _ready (res://UI/PlotGridDisplay.gd:67)
+         [4] _create_ui_components (res://UI/FarmUILayoutManager.gd:227)
+         [5] _ready (res://UI/FarmUILayoutManager.gd:75)
+         [6] _ready (res://UI/FarmUIController.gd:59)
+         [7] _ready (res://UI/FarmView.gd:43)
+WARNING: Nodes with non-equal opposite anchors will have their size overridden after _ready().
+If you want to set size, change the anchors or consider using set_deferred().
+     at: _set_size (scene/gui/control.cpp:1476)
+     GDScript backtrace (most recent call first):
+         [0] _layout_elements (res://UI/PlotTile.gd:415)
+         [1] _notification (res://UI/PlotTile.gd:388)
+         [2] _ready (res://UI/PlotTile.gd:75)
+         [3] _ready (res://UI/PlotGridDisplay.gd:67)
+         [4] _create_ui_components (res://UI/FarmUILayoutManager.gd:227)
+         [5] _ready (res://UI/FarmUILayoutManager.gd:75)
+         [6] _ready (res://UI/FarmUIController.gd:59)
+         [7] _ready (res://UI/FarmView.gd:43)
+  📍 Plot tile created at position (3, 0) (I)
+WARNING: Nodes with non-equal opposite anchors will have their size overridden after _ready().
+If you want to set size, change the anchors or consider using set_deferred().
+     at: _set_size (scene/gui/control.cpp:1476)
+     GDScript backtrace (most recent call first):
+         [0] _layout_elements (res://UI/PlotTile.gd:413)
+         [1] _notification (res://UI/PlotTile.gd:388)
+         [2] _ready (res://UI/PlotTile.gd:75)
+         [3] _ready (res://UI/PlotGridDisplay.gd:67)
+         [4] _create_ui_components (res://UI/FarmUILayoutManager.gd:227)
+         [5] _ready (res://UI/FarmUILayoutManager.gd:75)
+         [6] _ready (res://UI/FarmUIController.gd:59)
+         [7] _ready (res://UI/FarmView.gd:43)
+WARNING: Nodes with non-equal opposite anchors will have their size overridden after _ready().
+If you want to set size, change the anchors or consider using set_deferred().
+     at: _set_size (scene/gui/control.cpp:1476)
+     GDScript backtrace (most recent call first):
+         [0] _layout_elements (res://UI/PlotTile.gd:415)
+         [1] _notification (res://UI/PlotTile.gd:388)
+         [2] _ready (res://UI/PlotTile.gd:75)
+         [3] _ready (res://UI/PlotGridDisplay.gd:67)
+         [4] _create_ui_components (res://UI/FarmUILayoutManager.gd:227)
+         [5] _ready (res://UI/FarmUILayoutManager.gd:75)
+         [6] _ready (res://UI/FarmUIController.gd:59)
+         [7] _ready (res://UI/FarmView.gd:43)
+  📍 Plot tile created at position (4, 0) (O)
+WARNING: Nodes with non-equal opposite anchors will have their size overridden after _ready().
+If you want to set size, change the anchors or consider using set_deferred().
+     at: _set_size (scene/gui/control.cpp:1476)
+     GDScript backtrace (most recent call first):
+         [0] _layout_elements (res://UI/PlotTile.gd:413)
+         [1] _notification (res://UI/PlotTile.gd:388)
+         [2] _ready (res://UI/PlotTile.gd:75)
+         [3] _ready (res://UI/PlotGridDisplay.gd:67)
+         [4] _create_ui_components (res://UI/FarmUILayoutManager.gd:227)
+         [5] _ready (res://UI/FarmUILayoutManager.gd:75)
+         [6] _ready (res://UI/FarmUIController.gd:59)
+         [7] _ready (res://UI/FarmView.gd:43)
+WARNING: Nodes with non-equal opposite anchors will have their size overridden after _ready().
+If you want to set size, change the anchors or consider using set_deferred().
+     at: _set_size (scene/gui/control.cpp:1476)
+     GDScript backtrace (most recent call first):
+         [0] _layout_elements (res://UI/PlotTile.gd:415)
+         [1] _notification (res://UI/PlotTile.gd:388)
+         [2] _ready (res://UI/PlotTile.gd:75)
+         [3] _ready (res://UI/PlotGridDisplay.gd:67)
+         [4] _create_ui_components (res://UI/FarmUILayoutManager.gd:227)
+         [5] _ready (res://UI/FarmUILayoutManager.gd:75)
+         [6] _ready (res://UI/FarmUIController.gd:59)
+         [7] _ready (res://UI/FarmView.gd:43)
+  📍 Plot tile created at position (5, 0) (P)
+  🔄 PlotSelectionManager created
+✅ PlotGridDisplay created with 6 tiles (child_count after: 6)
+⚡ ActionPreviewRow updated for Tool 1: Plant
+⚡ ActionPreviewRow initialized
+🛠️  ToolSelectionRow initialized with 6 tools - beveled touch-friendly buttons
+🎨 UI components created and positioned
+⚛️ QuantumForceGraph initialized (input enabled)
+✨ Visualization systems created and anchored
+💉 Dependencies injected into FarmUILayoutManager
+⌨️  FarmUIControlsManager initializing...
+🎮 InputController created
+⌨️  FarmInputHandler initialized (Tool Mode System)
+📍 Starting position: (0, 0)
+🛠️  Current tool: Plant
+   ✓ Input processing enabled
+
+============================================================
+⌨️  FARM KEYBOARD CONTROLS (Tool Mode System)
+============================================================
+
+🛠️  TOOL SELECTION (Numbers 1-3):
+  1 = Plant
+  2 = Quantum Ops
+  3 = Economy
+
+⚡ ACTIONS (Q/E/R - Context-sensitive):
+  Current Tool: Plant
+  Q = Wheat
+  E = Mushroom
+  R = Tomato (Ultimate!)
+
+📍 MULTI-SELECT PLOTS (NEW):
+  T/Y/U/I/O/P = Toggle checkbox on plots 1-6
+  [ = Deselect all plots
+  ] = Restore previous selection state
+  Q/E/R = Apply current tool action to ALL selected plots
+
+🎮 MOVEMENT (Legacy - for focus/cursor):
+  WASD = Move cursor (up/left/down/right)
+
+📋 DEBUG:
+  ? = Show this help
+  I = Toggle info panel
+============================================================
+
+⌨️  FarmInputHandler created
+📡 Controls manager connected to UI controller
+   💉 PlotGridDisplay wired to FarmInputHandler
+✅ Multi-select components wired successfully
+   • FarmInputHandler → PlotGridDisplay
+   • PlotGridDisplay → SelectionManager → PlotTiles
+✅ FarmUIController ready (boundary established)
+📝 No farm provided - creating default UIOP farm (6x1)...
+🌾 Farm simulation manager initializing...
+🌾 Farm Economy initialized
+  Quantum resources - Wheat: 100 (harvest currency)
+  Classical resources - Credits: 50 (processed currency)
+   💰 FarmEconomy created
+   🌍 Biome (environment) created
+🌍 Biome initialized - Temperature: 300K, Period: 20.0s
+  ☀️ Sun/Moon qubit initialized (immutable celestial)
+  🌾 Wheat energy influence: 0.017 (cos²(165°/2))
+  🍄 Mushroom energy influence: 0.040 (cos²(163°/2))
+  DEBUG: wheat_icon=true, mushroom_icon=true
+🌾 FarmGrid initialized: 6x1 = 6 plots
+   📊 FarmGrid created (6x1)
+   📚 Persistent VocabularyEvolution injected
+🎯 Goals System initialized with 6 goals
+   🎯 GoalsSystem created
+   🎨 FarmUIState created
+✅ Farm simulation ready!
+✅ Farm added to scene tree
+   🌍 Biome set to static mode (quantum states created, no evolution)
+📡 ControlsInterface signal bridge connected
+✅ Simulation controls injected into controls manager
+💉 Farm injected into FarmUIController
+   📡 Connected to farm.plot_planted
+   📡 Connected to farm.plot_harvested
+💉 Farm injected into PlotGridDisplay
+📡 UI controller injected into PlotGridDisplay
+💉 Farm injected into PlotGridDisplay
+   📡 Farm injected into PlotGridDisplay via layout_manager
+💉 UIState injected into FarmUIController
+   📡 Connected to economy_updated signal
+   📡 Connected to credits_changed signal
+   📡 Connected to flour_changed signal
+   📡 UIState auto-injected from farm
+💉 Farm injected into FarmInputHandler
+⚠️  Farm does not implement ControlsInterface - backward compatibility mode
+📡 Controls manager signals connected
+💉 UIState injected into PlotGridDisplay
+   📡 Connected to grid_refreshed signal
+🔄 Grid refreshed via UIState - updating all tiles
+  🔄 Updated tile at (0, 0): empty
+  🔄 Updated tile at (1, 0): empty
+  🔄 Updated tile at (2, 0): empty
+  🔄 Updated tile at (3, 0): empty
+  🔄 Updated tile at (4, 0): empty
+  🔄 Updated tile at (5, 0): empty
+   📡 UIState injected into PlotGridDisplay
+✅ Default farm created with FarmControlsAdapter
+✅ FarmView ready - delegating to FarmUIController
+🐛 DEBUG LAYOUT DISABLED - checking for button duplication
+✅ FarmUILayoutManager ready!
+🌍 Biome | Temp: 300K | ☀️0.0° | 🌾0.0° | Energy: 1.0 | Qubits: 1
+🖱️ No node found at pos (1075.0, 80.0) (checked 0 nodes)
+🖱️ QuantumForceGraph._input() received LEFT PRESS
+🖱️   Local mouse pos: (1075.0, 80.0)
+🖱️   No quantum node at press position
+🖱️ No node found at pos (1075.0, 80.0) (checked 0 nodes)
+🖱️ QuantumForceGraph._input() received LEFT RELEASE
+🖱️   Local mouse pos: (1075.0, 80.0)
+⌨️  Toggle plot (0, 0)
+💾 Selection saved: 0 plots
+📍 Selection changed: 1 plots selected
+☑️  Plot (0, 0) selected (total selected: 1)
+⌨️ KEY PRESSED: 4194328
+🌍 Biome | Temp: 300K | ☀️0.0° | 🌾0.0° | Energy: 1.0 | Qubits: 1
+🐛 DEBUG: Pressed key: 81
+   is_action_pressed('action_q'): true
+   is_action_pressed('action_e'): false
+   is_action_pressed('action_r'): false
+⚡ action_q detected
+⚡ Tool 1 (Plant) | Key Q | Action: Wheat | Plots: 1 selected
+🌱 Batch planting wheat at 1 plots: [(0, 0)]
+💰 ResourcePanel updated via UIState signal
+💸 Spent 1 wheat on wheat (remaining: 99)
+🌱 Planted (legacy) at plot_0_0
+🌱 Plot planted at (0, 0)
+🌱 Plot planted visual updated: (0, 0)
+🌱 Farm.plot_planted received at PlotGridDisplay
+🌱 Plot planted at (0, 0)
+🌱 Plot planted visual updated: (0, 0)
+⚡ Action performed: plant_wheat (success: true)
+   Message: ✅ Planted 1 wheat plots | Planted 1/1 plots
+💬 Action feedback: ✅ Planted 1 wheat plots | Planted 1/1 plots
+⌨️ KEY PRESSED: 4194328
+🌍 Biome | Temp: 300K | ☀️0.0° | 🌾0.0° | Energy: 1.0 | Qubits: 2
+⌨️ KEY PRESSED: 4194305
+  → ESC: Opening menu
+📋 Menu opened - Game PAUSED
+🎮 ESC: Toggling escape menu
+  → Menu is visible - blocking game input
+⌨️ KEY PRESSED: 81
+  → Q: Quitting game
+🚪 Quit pressed from menu
+🚪 Q: Quitting game
+  → Menu is visible - blocking game input
+WARNING: ObjectDB instances leaked at exit (run with --verbose for details).
+     at: cleanup (core/object/object.cpp:2514)
+ERROR: 2 resources still in use at exit (run with --verbose for details).
+   at: clear (core/io/resource.cpp:795)
+tehcr33d@DESKTOP-B7NQRHN:~/ws/SpaceWheat$
