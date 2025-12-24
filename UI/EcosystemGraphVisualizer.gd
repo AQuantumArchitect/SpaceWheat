@@ -12,10 +12,8 @@ extends Control
 ## This demonstrates force-directed graph principles suitable for
 ## transferring to QuantumForceGraph in main game.
 
-const ForestBiomeV3 = preload("res://Core/Environment/ForestEcosystem_Biome_v3_quantum_field.gd")
-
 ## Node structure for graph layout
-class GraphNode:
+class EcosystemGraphNode:
 	var icon: String
 	var position: Vector2
 	var velocity: Vector2 = Vector2.ZERO
@@ -27,7 +25,7 @@ class GraphNode:
 		icon = icon_str
 
 ## Edge structure for couplings
-class GraphEdge:
+class EcosystemGraphEdge:
 	var from_icon: String
 	var to_icon: String
 	var coupling_strength: float
@@ -39,11 +37,11 @@ class GraphEdge:
 		coupling_strength = strength
 
 ## Graph data
-var nodes: Dictionary = {}  # icon → GraphNode
-var edges: Array[GraphEdge] = []
+var nodes: Dictionary = {}  # icon → EcosystemGraphNode
+var edges: Array[EcosystemGraphEdge] = []
 
-## Forest reference
-var forest: ForestEcosystemBiomeV3
+## Forest reference (will be initialized in _ready)
+var forest: Node = null
 var patch_position: Vector2i = Vector2i(0, 0)
 
 ## Display parameters
@@ -81,8 +79,8 @@ func _ready() -> void:
 	size = get_viewport_rect().size
 	center = size / 2.0
 
-	# Create forest
-	forest = ForestBiomeV3.new(1, 1)
+	# Create forest (use class name directly)
+	forest = ForestEcosystemBiomeV3.new(1, 1)
 	forest._ready()
 
 	# Initialize graph nodes and edges
@@ -113,26 +111,26 @@ func _setup_graph() -> void:
 
 	# Create nodes
 	for icon in node_layout.keys():
-		var node = GraphNode.new(icon)
+		var node = EcosystemGraphNode.new(icon)
 		node.position = node_layout[icon] + center
 		nodes[icon] = node
 
 	# Define edges (couplings from Hamiltonian)
 	var hamiltonian_couplings = [
 		# Core food chain
-		GraphEdge.new("plant", "herbivore", 0.15),
-		GraphEdge.new("herbivore", "predator", 0.12),
-		GraphEdge.new("predator", "apex", 0.10),
-		GraphEdge.new("herbivore", "apex", 0.08),
+		EcosystemGraphEdge.new("plant", "herbivore", 0.15),
+		EcosystemGraphEdge.new("herbivore", "predator", 0.12),
+		EcosystemGraphEdge.new("predator", "apex", 0.10),
+		EcosystemGraphEdge.new("herbivore", "apex", 0.08),
 
 		# Ecosystem services
-		GraphEdge.new("plant", "pollinator", 0.10),
-		GraphEdge.new("herbivore", "parasite", 0.06),  # Negative coupling
-		GraphEdge.new("decomposer", "plant", 0.08),
-		GraphEdge.new("decomposer", "herbivore", 0.05),
-		GraphEdge.new("decomposer", "predator", 0.04),
-		GraphEdge.new("mycorrhizal", "plant", 0.07),
-		GraphEdge.new("nitrogen_fixer", "decomposer", 0.05),
+		EcosystemGraphEdge.new("plant", "pollinator", 0.10),
+		EcosystemGraphEdge.new("herbivore", "parasite", 0.06),  # Negative coupling
+		EcosystemGraphEdge.new("decomposer", "plant", 0.08),
+		EcosystemGraphEdge.new("decomposer", "herbivore", 0.05),
+		EcosystemGraphEdge.new("decomposer", "predator", 0.04),
+		EcosystemGraphEdge.new("mycorrhizal", "plant", 0.07),
+		EcosystemGraphEdge.new("nitrogen_fixer", "decomposer", 0.05),
 	]
 
 	edges = hamiltonian_couplings

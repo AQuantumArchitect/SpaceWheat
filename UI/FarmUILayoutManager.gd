@@ -259,12 +259,15 @@ func _create_ui_components() -> void:
 	info_panel.set_layout_manager(layout_manager)
 	add_child(info_panel)
 
-	# ========== PLOTS ROW COMPONENTS ==========
+	# ========== PLOTS IN PLAY AREA ==========
+	# PHASE 8: PlotGridDisplay with parametric positioning
+	# Plots are positioned parametrically around biomes in the play area (not in separate row)
+	# This allows tiles to spread across the field visualization alongside QuantumForceGraph
 	plot_grid_display = PlotGridDisplay.new()
 	plot_grid_display.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	plot_grid_display.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	plots_row.add_child(plot_grid_display)
-	# Show PlotGridDisplay for now (QuantumForceGraph initialization needs work)
+	play_area.add_child(plot_grid_display)
+	# Show PlotGridDisplay for visualization
 	plot_grid_display.show()
 
 	# ========== ACTIONS ROW COMPONENTS ==========

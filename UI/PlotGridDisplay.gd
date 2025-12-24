@@ -52,7 +52,7 @@ func _ready():
 	# Configure this Control for absolute positioning
 	size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	size_flags_vertical = Control.SIZE_EXPAND_FILL
-	clip_contents = true  # Prevent tiles from extending beyond container
+	clip_contents = false  # Allow tiles to extend beyond container (they're spread around field)
 
 	# Create selection manager early (doesn't need positions)
 	_create_selection_manager()

@@ -65,8 +65,22 @@ func _ready():
 	if VERBOSE:
 		print("📍 Starting position: %s" % current_selection)
 		print("🛠️  Current tool: %s" % TOOL_ACTIONS[current_tool]["name"])
-	set_process_input(true)
+	# CRITICAL: Don't process input until PlotGridDisplay is ready with tiles
+	# This prevents race conditions where input arrives before UI initialization
+	set_process_input(false)
+	call_deferred("_enable_input_processing")
 	_print_help()
+
+
+func _enable_input_processing() -> void:
+	"""Enable input processing after UI is initialized - prevents race conditions"""
+	# Check if tiles are actually created yet
+	if plot_grid_display and plot_grid_display.tiles and plot_grid_display.tiles.size() > 0:
+		set_process_input(true)
+		print("✅ Input processing enabled (UI ready with %d tiles)" % plot_grid_display.tiles.size())
+	else:
+		# Wait another frame and try again
+		call_deferred("_enable_input_processing")
 
 
 func inject_grid_config(config: GridConfig) -> void:

@@ -1453,18 +1453,14 @@ func _draw_quantum_bubble(node: QuantumNode, is_celestial: bool = false) -> void
 	var base_node_radius = 25.0
 	var size_range = 55.0  # Additional radius at maximum coherence
 
-	# Calculate dynamic radius from qubit coherence
-	var dynamic_radius = node.radius
+	# Calculate visual radius from qubit coherence (don't modify node.radius!)
+	var visual_radius = node.radius  # Default to node's radius
 	if node.plot and node.plot.quantum_state:
 		var qubit = node.plot.quantum_state
-		if qubit.has_meta("radius") or "radius" in qubit:
-			dynamic_radius = base_node_radius + qubit.radius * size_range
-		else:
-			# Fallback: use default size if radius not available
-			dynamic_radius = base_node_radius + 0.5 * size_range
+		visual_radius = base_node_radius + qubit.radius * size_range
 
-	# Use dynamic radius for all subsequent calculations
-	node.radius = dynamic_radius
+	# Store visual radius for use in all subsequent rendering (don't modify node.radius)
+	# node.radius stays constant for force calculations and other systems
 
 	# ====================================================================
 	# COLOR SCHEME: Celestial vs Standard

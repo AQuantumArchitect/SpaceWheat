@@ -141,12 +141,14 @@ func inject_farm(farm_ref: Node, faction_mgr: Node = null, vocab_sys: Node = nul
 	print("💉 Farm injected into FarmUIController")
 
 	# Phase 7: Extract and inject GridConfig from farm
-	if farm_ref and farm_ref.has_meta("grid_config") or (farm_ref and "grid_config" in farm_ref):
-		var farm_grid_config = farm_ref.grid_config if "grid_config" in farm_ref else farm_ref.get_meta("grid_config")
-		if farm_grid_config:
-			grid_config = farm_grid_config
+	if farm_ref:
+		# Try to access grid_config - it's created in Farm._ready()
+		if farm_ref.grid_config:
+			grid_config = farm_ref.grid_config
 			_inject_grid_config_to_components()
 			print("   📡 GridConfig extracted and injected into components")
+		else:
+			print("⚠️  farm.grid_config is null - FarmInputHandler will use fallback keyboard layout")
 
 	# PHASE 4: Inject farm into layout_manager (for PlotGridDisplay direct signal connections)
 	if layout_manager and farm_ref:
