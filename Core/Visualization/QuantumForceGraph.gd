@@ -918,8 +918,16 @@ func _draw_biome_regions():
 
 		# Calculate biome center from offset
 		var biome_center = center_position + config.center_offset * graph_radius
-		var oval_width = config.get("oval_width", config.circle_radius)
-		var oval_height = config.get("oval_height", config.circle_radius)
+
+		# Scale oval dimensions based on graph radius
+		# Default 350×216 at full resolution, scale proportionally to graph_radius
+		var base_oval_width = config.get("oval_width", config.circle_radius)
+		var base_oval_height = config.get("oval_height", config.circle_radius)
+
+		# Scale: graph_radius / 300 (assuming 300 is "normal" graph radius)
+		var scale_factor = graph_radius / 300.0
+		var oval_width = base_oval_width * scale_factor
+		var oval_height = base_oval_height * scale_factor
 		var biome_radius = (oval_width + oval_height) / 2.0  # Average for radius parameter
 
 		# Draw filled oval using polygon approximation
