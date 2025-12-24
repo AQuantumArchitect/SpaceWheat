@@ -164,7 +164,10 @@ func _process(delta: float) -> void:
 func _draw() -> void:
 	"""Render all glyphs and optional detail panel"""
 
-	# Draw edges first (behind glyphs)
+	# Draw temperature gradient field background
+	_draw_temperature_field()
+
+	# Draw edges (behind glyphs)
 	for edge in edges:
 		edge.draw(self, emoji_font)
 
@@ -278,3 +281,51 @@ func deselect() -> void:
 	"""Clear selection"""
 	selected_glyph = null
 	queue_redraw()
+
+
+func _draw_temperature_field() -> void:
+	"""Draw temperature gradient field background (visual context for quantum evolution)"""
+	var viewport_rect = get_viewport_rect()
+	var width = viewport_rect.size.x
+	var height = viewport_rect.size.y
+	var cell_size = 40.0  # Size of each gradient cell
+
+	# Create temperature map based on position
+	var x = 0.0
+	while x < width:
+		var y = 0.0
+		while y < height:
+			# Temperature based on position (left = cool, right = hot, top = cool, bottom = hot)
+			var temp_x = (x / width) * 2.0 - 1.0  # -1 to 1
+			var temp_y = (y / height) * 2.0 - 1.0  # -1 to 1
+			var temperature = (temp_x + temp_y) * 0.5  # Average: -1 to 1
+
+			# Map temperature to color (cool blue to hot red)
+			var field_color: Color
+			if temperature < 0:
+				# Cool region (blue)
+				field_color = Color.from_hsv(0.6 + temperature * 0.1, 0.5, 0.3 + abs(temperature) * 0.15, 0.15)
+			else:
+				# Hot region (red)
+				field_color = Color.from_hsv(0.0 + temperature * 0.05, 0.6, 0.3 + temperature * 0.2, 0.15)
+
+			# Draw cell
+			draw_rect(Rect2(Vector2(x, y), Vector2(cell_size, cell_size)), field_color)
+
+			y += cell_size
+
+		x += cell_size
+
+	# Add subtle diagonal gradient overlay (reinforces direction)
+	var corner_tl = Color(0.2, 0.4, 0.6, 0.05)  # Cool blue
+	var corner_br = Color(0.8, 0.3, 0.2, 0.05)  # Warm red
+
+	var points = PackedVector2Array()
+	var colors = PackedColorArray()
+
+	# Create a subtle 2-point gradient by drawing with many small rectangles
+	for i in range(10):
+		var progress = float(i) / 10.0
+		var blend_color = corner_tl.lerp(corner_br, progress)
+		var rect_height = height / 10.0
+		draw_rect(Rect2(0, i * rect_height, width, rect_height), blend_color)

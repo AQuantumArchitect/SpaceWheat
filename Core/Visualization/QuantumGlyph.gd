@@ -21,6 +21,14 @@ var pulse_phase: float = 0.0
 # Animation state
 var time_accumulated: float = 0.0
 
+# Decoherence dust particles
+var dust_particles: Array = []  # Array of {pos, vel, age, max_age, color}
+var last_coherence: float = 1.0
+
+# Measurement flash effect
+var measurement_flash = null  # {start_time, outcome_color} or null
+var MEASUREMENT_FLASH_DURATION: float = 0.3
+
 # Visual constants
 const BASE_RADIUS: float = 25.0
 const EMOJI_OFFSET: float = 25.0
@@ -76,6 +84,16 @@ func update_from_qubit(dt: float) -> void:
 	# Faster pulse = more incoherent
 	pulse_rate = 0.2 + (1.0 - coherence) * 1.8  # 0.2 Hz (stable) to 2.0 Hz (chaotic)
 	pulse_phase = sin(time_accumulated * pulse_rate * TAU) * 0.5 + 0.5
+
+	# === SPAWN DECOHERENCE DUST (when coherence drops) ===
+	_update_dust_particles(dt)
+	_spawn_dust_if_decohering(dt)
+
+	# === MEASUREMENT FLASH CLEANUP ===
+	if measurement_flash:
+		var flash_age = time_accumulated - measurement_flash.start_time
+		if flash_age > MEASUREMENT_FLASH_DURATION:
+			measurement_flash = null
 
 
 func draw(canvas: CanvasItem, emoji_font: Font) -> void:
@@ -146,6 +164,12 @@ func draw(canvas: CanvasItem, emoji_font: Font) -> void:
 	var bar_pos = position + Vector2(-BERRY_BAR_WIDTH / 2.0, BASE_RADIUS + 15)
 	_draw_berry_bar(canvas, bar_pos)
 
+	# === LAYER 6.3: MEASUREMENT FLASH (wavefunction collapse) ===
+	_draw_measurement_flash(canvas)
+
+	# === LAYER 6.5: DECOHERENCE DUST PARTICLES ===
+	_draw_dust_particles(canvas)
+
 	# === LAYER 7: PULSE OVERLAY (decoherence warning) ===
 	if pulse_rate > 0.5 and not is_measured:
 		var pulse_alpha = pulse_phase * 0.2 * (pulse_rate / 2.0)
@@ -163,8 +187,12 @@ func apply_measurement(outcome: String) -> void:
 	else:
 		qubit.theta = PI   # Snap to south pole
 
-	# Could emit particle effect here
-	# particles.spawn_measurement_flash(position, outcome_color)
+	# Create measurement flash
+	var flash_color = Color(0.9, 0.9, 0.95, 0.9) if outcome == "north" else Color(0.3, 0.3, 0.35, 0.9)
+	measurement_flash = {
+		"start_time": time_accumulated,
+		"outcome_color": flash_color
+	}
 
 
 func _get_coherence() -> float:
@@ -203,3 +231,84 @@ func _get_emoji_color(emoji: String) -> Color:
 		"🍴": return Color(0.8, 0.4, 0.4)  # Red (predation)
 		"🌍": return Color(0.4, 0.6, 0.5)  # Earth tone
 		_: return Color(0.7, 0.7, 0.7)  # Default gray
+
+
+func _update_dust_particles(dt: float) -> void:
+	"""Update dust particle positions and remove aged particles"""
+	var to_remove = []
+
+	for i in range(dust_particles.size()):
+		var particle = dust_particles[i]
+		particle.age += dt
+
+		# Move particle outward with velocity
+		particle.pos += particle.vel * dt
+
+		# Apply drag
+		particle.vel *= 0.95
+
+		# Mark for removal if too old
+		if particle.age >= particle.max_age:
+			to_remove.append(i)
+
+	# Remove aged particles (in reverse order to preserve indices)
+	for i in range(to_remove.size() - 1, -1, -1):
+		dust_particles.remove_at(to_remove[i])
+
+
+func _spawn_dust_if_decohering(dt: float) -> void:
+	"""Spawn dust particles when coherence is dropping"""
+	# Only spawn if coherence is low
+	if coherence < 0.6 and coherence < last_coherence:
+		# Spawn 1-3 particles per frame when decohering
+		var spawn_count = int((last_coherence - coherence) * 5.0)
+		spawn_count = clampi(spawn_count, 1, 3)
+
+		for _i in range(spawn_count):
+			var angle = randf() * TAU
+			var speed = randf() * 40.0 + 20.0  # 20-60 pixels/sec
+			var vel = Vector2(cos(angle), sin(angle)) * speed
+
+			# Dust color is reddish (indicating decoherence)
+			var dust_color = Color(1.0, 0.4 + randf() * 0.3, 0.3, 0.8)
+
+			dust_particles.append({
+				"pos": Vector2(position.x, position.y),
+				"vel": vel,
+				"age": 0.0,
+				"max_age": 0.5 + randf() * 0.5,  # 0.5-1.0 seconds
+				"color": dust_color,
+				"size": 2.0 + randf() * 2.0  # 2-4 pixel radius
+			})
+
+	last_coherence = coherence
+
+
+func _draw_measurement_flash(canvas: CanvasItem) -> void:
+	"""Render measurement collapse flash"""
+	if not measurement_flash:
+		return
+
+	var flash_age = time_accumulated - measurement_flash.start_time
+	var progress = flash_age / MEASUREMENT_FLASH_DURATION  # 0.0 to 1.0
+	var alpha = (1.0 - progress) * 0.6  # Fade out
+
+	# Expand outward
+	var flash_radius = BASE_RADIUS + progress * 50.0  # Expands from core to 75px away
+	var flash_color = measurement_flash.outcome_color
+	flash_color.a = alpha
+
+	# Draw expanding rings
+	canvas.draw_circle(position, flash_radius, flash_color)
+
+
+func _draw_dust_particles(canvas: CanvasItem) -> void:
+	"""Render decoherence dust particles"""
+	for particle in dust_particles:
+		# Fade out as particle ages
+		var alpha = 1.0 - (particle.age / particle.max_age)
+		var color = particle.color
+		color.a = alpha * 0.8
+
+		# Draw as small circle
+		canvas.draw_circle(particle.pos, particle.size, color)
