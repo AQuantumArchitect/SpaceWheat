@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://d02nlh1n2b6j"]
+
+[ext_resource type="Script" path="res://Tests/BioticFluxEnergyTapTest.gd" id="1_test"]
+
+[node name="BioticFluxEnergyTapTest" type="Node"]
+script = ExtResource("1_test")
