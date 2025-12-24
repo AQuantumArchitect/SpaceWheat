@@ -23,7 +23,10 @@ func _ready():
 	print("⚛️  QuantumForceGraph Test Scene initializing...")
 
 	# Create a simple farm grid (5x3 = 15 plots)
-	farm_grid = FarmGridScript.new(5, 3)
+	farm_grid = FarmGridScript.new()
+	farm_grid.grid_width = 5
+	farm_grid.grid_height = 3
+	farm_grid.plots = {}
 
 	# Create sample qubits in plots
 	_create_sample_qubits()
@@ -58,7 +61,7 @@ func _create_sample_qubits():
 			var plot = farm_grid.get_plot(grid_pos)
 
 			if plot == null:
-				plot = WheatPlotScript.new(WheatPlotScript.BiomePlotType.STANDARD)
+				plot = WheatPlotScript.new()
 				plot.plot_id = "test_plot_%d_%d" % [x, y]
 				plot.grid_position = grid_pos
 				farm_grid.set_plot(grid_pos, plot)

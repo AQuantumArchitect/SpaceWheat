@@ -57,10 +57,16 @@ func _ready():
 	# Create selection manager early (doesn't need positions)
 	_create_selection_manager()
 
-	# DEFER tile creation until after biomes are injected
-	# _create_tiles() will be called from inject_biomes() once positions are calculated
-	print("⏳ PlotGridDisplay ready (tiles will be created once biomes are injected)")
-	print("✅ PlotGridDisplay ready with parametric positioning (child_count after: %d)" % get_child_count())
+	# REFACTORING: Create tiles immediately in _ready()
+	# Dependencies (grid_config, biomes) are injected BEFORE add_child(), so they're available now
+	assert(grid_config != null, "PlotGridDisplay requires grid_config before _ready()")
+	assert(not biomes.is_empty(), "PlotGridDisplay requires biomes before _ready()")
+
+	# Calculate positions and create tiles SYNCHRONOUSLY
+	_calculate_parametric_positions()
+	_create_tiles()
+
+	print("✅ PlotGridDisplay ready - %d tiles created synchronously (child_count after: %d)" % [tiles.size(), get_child_count()])
 
 
 func inject_grid_config(config: GridConfig) -> void:
