@@ -159,12 +159,15 @@ func inject_farm(farm_ref: Node) -> void:
 		update_tile_from_farm(pos)
 
 	# PHASE 4: Connect directly to farm signals (bypass FarmUIState transformation)
+	# CRITICAL: Check if signals are already connected before connecting
 	if farm.has_signal("plot_planted"):
-		farm.plot_planted.connect(_on_farm_plot_planted)
-		print("   📡 Connected to farm.plot_planted")
+		if not farm.plot_planted.is_connected(_on_farm_plot_planted):
+			farm.plot_planted.connect(_on_farm_plot_planted)
+			print("   📡 Connected to farm.plot_planted")
 	if farm.has_signal("plot_harvested"):
-		farm.plot_harvested.connect(_on_farm_plot_harvested)
-		print("   📡 Connected to farm.plot_harvested")
+		if not farm.plot_harvested.is_connected(_on_farm_plot_harvested):
+			farm.plot_harvested.connect(_on_farm_plot_harvested)
+			print("   📡 Connected to farm.plot_harvested")
 
 	print("💉 Farm injected into PlotGridDisplay")
 
