@@ -26,9 +26,21 @@ func _ready() -> void:
 	farm_ui_container = get_node("FarmUIContainer")
 	var overlay_layer = get_node("OverlayLayer")
 
+	# Create and initialize UILayoutManager (needs to be in scene tree for _ready())
+	const UILayoutManager = preload("res://UI/Managers/UILayoutManager.gd")
+	var layout_manager = UILayoutManager.new()
+	add_child(layout_manager)
+	# _ready() will be called automatically by the engine
+
 	# Create overlay manager and add to overlay layer
 	overlay_manager = OverlayManager.new()
 	overlay_layer.add_child(overlay_manager)
+
+	# Setup overlay manager with proper dependencies
+	overlay_manager.setup(layout_manager, null, null, null)
+
+	# Initialize overlays (C/V/N/K/ESC menus)
+	overlay_manager.create_overlays(overlay_layer)
 
 	print("   ✅ Overlay manager created")
 	print("✅ PlayerShell ready")
@@ -67,47 +79,69 @@ func _input(event: InputEvent) -> void:
 	if not event is InputEventKey or not event.pressed:
 		return
 
+	print("🎯 PlayerShell received key input: %s (%d)" % [event.keycode, event.keycode])
+
 	match event.keycode:
 		KEY_ESCAPE:
+			print("  → ESC pressed: toggling escape menu")
 			_toggle_escape_menu()
 		KEY_V:
+			print("  → V pressed: toggling vocabulary")
 			_toggle_vocabulary()
 		KEY_C:
+			print("  → C pressed: toggling contracts")
 			_toggle_contracts()
 		KEY_N:
+			print("  → N pressed: toggling network")
 			_toggle_network()
 		KEY_K:
+			print("  → K pressed: toggling keyboard help")
 			_toggle_keyboard_help()
 
 
 func _toggle_escape_menu() -> void:
 	"""Toggle ESC menu"""
 	if overlay_manager:
+		print("    ✅ Calling overlay_manager.toggle_escape_menu()")
 		overlay_manager.toggle_escape_menu()
+	else:
+		print("    ❌ ERROR: overlay_manager is null!")
 
 
 func _toggle_vocabulary() -> void:
 	"""Toggle vocabulary overlay"""
 	if overlay_manager:
+		print("    ✅ Calling overlay_manager.toggle_vocabulary_overlay()")
 		overlay_manager.toggle_vocabulary_overlay()
+	else:
+		print("    ❌ ERROR: overlay_manager is null!")
 
 
 func _toggle_contracts() -> void:
 	"""Toggle contracts overlay"""
 	if overlay_manager:
+		print("    ✅ Calling overlay_manager.toggle_overlay('contracts')")
 		overlay_manager.toggle_overlay("contracts")
+	else:
+		print("    ❌ ERROR: overlay_manager is null!")
 
 
 func _toggle_network() -> void:
 	"""Toggle network overlay"""
 	if overlay_manager:
+		print("    ✅ Calling overlay_manager.toggle_network_overlay()")
 		overlay_manager.toggle_network_overlay()
+	else:
+		print("    ❌ ERROR: overlay_manager is null!")
 
 
 func _toggle_keyboard_help() -> void:
 	"""Toggle keyboard help overlay"""
 	if overlay_manager:
+		print("    ✅ Calling overlay_manager.toggle_keyboard_help()")
 		overlay_manager.toggle_keyboard_help()
+	else:
+		print("    ❌ ERROR: overlay_manager is null!")
 
 
 ## OVERLAY SYSTEM INITIALIZATION
