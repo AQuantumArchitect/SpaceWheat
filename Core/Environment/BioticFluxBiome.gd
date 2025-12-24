@@ -68,13 +68,23 @@ func _ready():
 	# Initialize wheat and mushroom icons with stable points and spring constants
 	# Fallback: Create icon objects directly if script loading fails
 
-	# WHEAT ICON - Create fallback directly to avoid script loading issues
+	# WHEAT ICON - Create fallback directly with internal qubit for coupling
+	var wheat_internal = DualEmojiQubit.new()
+	wheat_internal.north_emoji = "🌾"
+	wheat_internal.south_emoji = "🏰"
+	wheat_internal.theta = PI / 4.0  # Start at stable point
+	wheat_internal.phi = 0.0
+	wheat_internal.radius = 1.0
+	wheat_internal.energy = 1.0
+
 	wheat_icon = {
 		"hamiltonian_terms": {"sigma_x": 0.0, "sigma_y": 0.0, "sigma_z": 0.1},
 		"stable_theta": PI / 4.0,
-		"spring_constant": 0.5
+		"spring_constant": 0.5,
+		"internal_qubit": wheat_internal
 	}
-	wheat_energy_influence = 0.017
+	# Boost wheat influence so icon-aligned wheat grows visibly
+	wheat_energy_influence = 0.15  # 8x boost to show icon effect
 
 	# MUSHROOM ICON - Create fallback directly
 	mushroom_icon = {
@@ -97,8 +107,8 @@ func _ready():
 	visual_color = Color(0.4, 0.6, 0.8, 0.3)  # Blue
 	visual_label = "🌿 Biotic Flux"
 	visual_center_offset = Vector2(0, 0.5)    # BOTTOM-CENTER (moved down from center)
-	visual_oval_width = 450.0   # Larger oval (increased from 350)
-	visual_oval_height = 278.0  # Golden ratio: 450/1.618
+	visual_oval_width = 400.0   # Spread UIOP plots out
+	visual_oval_height = 247.0  # Golden ratio: 400/1.618
 
 
 func get_biome_type() -> String:

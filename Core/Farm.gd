@@ -215,16 +215,15 @@ func _create_grid_config() -> GridConfig:
 	# Create keyboard layout configuration
 	var keyboard = KeyboardLayoutConfig.new()
 
-	# Row 0: T/Y/U/I/O/P (6 plots, all active)
-	var row0_keys = ["t", "y", "u", "i", "o", "p"]
+	# Row 0: Swap first two to fix TY order (visual positions are reversed)
+	var row0_keys = ["y", "t", "u", "i", "o", "p"]
 	for i in range(6):
 		var pos = Vector2i(i, 0)
 		keyboard.action_to_position["select_plot_" + row0_keys[i]] = pos
 		keyboard.position_to_label[pos] = row0_keys[i].to_upper()
 
-	# Row 1: 7/8/9/0 (reordered for better visual layout - 7 at left, 0 at right)
-	# (was: 0/9/8/7 - now: 7/8/9/0 for visual left-to-right numerical order)
-	var row1_keys = ["7", "8", "9", "0"]
+	# Row 1: Reverse to fix 7890 order
+	var row1_keys = ["0", "9", "8", "7"]
 	for i in range(4):
 		var pos = Vector2i(i, 1)
 		keyboard.action_to_position["select_plot_" + row1_keys[i]] = pos
@@ -239,7 +238,7 @@ func _create_grid_config() -> GridConfig:
 		plot.is_active = true
 		plot.keyboard_label = row0_keys[i].to_upper()
 		plot.input_action = "select_plot_" + row0_keys[i]
-		# Biome assignment: Market (T,Y), BioticFlux (U,I,O,P)
+		# Biome assignment: Market (first 2 plots), BioticFlux (last 4 plots)
 		plot.biome_name = "Market" if i < 2 else "BioticFlux"
 		config.plots.append(plot)
 

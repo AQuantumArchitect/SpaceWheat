@@ -43,9 +43,9 @@ func _ready():
 	# Configure visual properties for QuantumForceGraph
 	visual_color = Color(1.0, 0.55, 0.0, 0.3)  # Sunset orange
 	visual_label = "💰 Market"
-	visual_center_offset = Vector2(-0.1, -0.5)  # Top-center-right (moved right)
-	visual_oval_width = 200.0   # Even smaller oval
-	visual_oval_height = 123.0  # Golden ratio: 200/1.618
+	visual_center_offset = Vector2(-0.85, -0.5)  # Top-left (TY far left - pushed to edge)
+	visual_oval_width = 250.0   # Spread TY plots out
+	visual_oval_height = 155.0  # Golden ratio: 250/1.618
 
 
 func _initialize_market_qubits():

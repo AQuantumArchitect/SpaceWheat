@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://b8kpq3c5tvd9f"]
+
+[ext_resource type="Script" path="res://Tests/BioticFluxWheatTest.gd" id="1_test"]
+
+[node name="BioticFluxWheatTest" type="Node"]
+script = ExtResource("1_test")
