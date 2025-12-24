@@ -17,6 +17,7 @@ config/features=PackedStringArray("4.5")
 
 [autoload]
 
+VerboseConfig="*res://Core/Config/VerboseConfig.gd"
 GameStateManager="*res://Core/GameState/GameStateManager.gd"
 
 [display]

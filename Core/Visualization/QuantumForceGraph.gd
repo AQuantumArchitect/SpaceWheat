@@ -857,6 +857,29 @@ func _draw():
 	# Track frame for debug logging
 	frame_count += 1
 
+	# PARAMETRIC SIZING: Recalculate graph_radius based on current viewport size
+	# This ensures ovals and nodes scale responsively when resolution changes
+	var current_viewport_rect = get_viewport().get_visible_rect()
+	var new_radius = current_viewport_rect.size.length() * 0.3
+	if new_radius != graph_radius:
+		# Viewport size changed - scale all node positions proportionally
+		var radius_scale = new_radius / graph_radius
+		var old_center = center_position
+		var new_center = current_viewport_rect.get_center()
+
+		# Scale all node positions around the center
+		for node in quantum_nodes:
+			if node:
+				# Scale position relative to old center, then translate to new center
+				var offset = node.position - old_center
+				node.position = new_center + (offset * radius_scale)
+				node.classical_anchor = node.classical_anchor.lerp(new_center + ((node.classical_anchor - old_center) * radius_scale), 0.5)
+
+		graph_radius = new_radius
+		center_position = new_center
+		if DEBUG_MODE and frame_count % 120 == 0:
+			print("📐 QuantumForceGraph: radius updated to %.1f, scaled %d nodes (parametric sizing)" % [graph_radius, quantum_nodes.size()])
+
 	# Draw quantum graph background - very subtle, low contrast
 	var bg_gradient_outer = Color(0.08, 0.08, 0.12, 0.12)  # Very dark, much more transparent
 	var bg_gradient_inner = Color(0.1, 0.1, 0.14, 0.18)    # Slightly lighter center, still subtle

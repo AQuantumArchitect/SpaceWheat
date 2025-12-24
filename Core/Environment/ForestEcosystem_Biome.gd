@@ -77,7 +77,8 @@ func _ready():
 
 	# HAUNTED UI FIX: Guard against double-initialization
 	if weather_qubit != null:
-		print("⚠️  ForestEcosystem_Biome._ready() called multiple times, skipping re-initialization")
+		if VerboseConfig.is_verbose("forest"):
+			print("⚠️  ForestEcosystem_Biome._ready() called multiple times, skipping re-initialization")
 		return
 
 	# Create weather qubits
@@ -99,7 +100,8 @@ func _ready():
 			var pos = Vector2i(x, y)
 			patches[pos] = _create_patch(pos)
 
-	print("🌲 Forest Ecosystem initialized (%dx%d)" % [grid_width, grid_height])
+	if VerboseConfig.is_verbose("forest"):
+		print("🌲 Forest Ecosystem initialized (%dx%d)" % [grid_width, grid_height])
 
 	# Configure visual properties for QuantumForceGraph
 	visual_color = Color(0.3, 0.7, 0.3, 0.3)  # Green
@@ -152,21 +154,19 @@ func _initialize_forest_icons():
 	var ForestWeatherIcon = load("res://Core/Icons/ForestWeatherIcon.gd")
 
 	if not ForestEcosystemIcon or not ForestWeatherIcon:
-		print("❌ Failed to load forest icon classes!")
+		push_error("Failed to load forest icon classes!")
 		return
 
 	# Create and register Ecosystem Icon
 	var ecosystem_icon = ForestEcosystemIcon.new()
 	ecosystem_icon.set_activation(0.8)
 	grid.add_scoped_icon(ecosystem_icon, ["Forest"])
-	print("  🌲 Forest Ecosystem Icon → scoped to Forest biome")
 
 	# Create and register Weather Icon
 	var weather_icon = ForestWeatherIcon.new()
 	weather_icon.weather_type = "wind"
 	weather_icon.set_activation(0.6)
 	grid.add_scoped_icon(weather_icon, ["Forest"])
-	print("  🌬️ Forest Weather Icon → scoped to Forest biome")
 
 
 func _update_weather():
@@ -284,7 +284,8 @@ func _apply_ecological_transition(patch: BiomePlot):
 			if randf() < transition_prob:
 				patch.set_meta("ecological_state", EcologicalState.SEEDLING)
 				patch.set_meta("time_in_state", 0.0)
-				print("🏜️ → 🌱 Seedling sprouted at %s" % patch.grid_position)
+				if VerboseConfig.is_verbose("forest"):
+					print("🏜️ → 🌱 Seedling sprouted at %s" % patch.grid_position)
 
 		EcologicalState.SEEDLING:
 			# Seedling → Sapling requires survival + growth
@@ -300,13 +301,15 @@ func _apply_ecological_transition(patch: BiomePlot):
 			if randf() < transition_prob:
 				patch.set_meta("ecological_state", EcologicalState.SAPLING)
 				patch.set_meta("time_in_state", 0.0)
-				print("🌱 → 🌿 Sapling grown at %s" % patch.grid_position)
+				if VerboseConfig.is_verbose("forest"):
+					print("🌱 → 🌿 Sapling grown at %s" % patch.grid_position)
 
 			# Could also die from herbivores
 			if organisms.has("🐰") and randf() < 0.1:
 				patch.set_meta("ecological_state", EcologicalState.BARE_GROUND)
 				patch.set_meta("time_in_state", 0.0)
-				print("🌱 → 🏜️ Eaten by rabbits at %s" % patch.grid_position)
+				if VerboseConfig.is_verbose("forest"):
+					print("🌱 → 🏜️ Eaten by rabbits at %s" % patch.grid_position)
 
 		EcologicalState.SAPLING:
 			# Sapling → Mature Forest
@@ -314,7 +317,8 @@ func _apply_ecological_transition(patch: BiomePlot):
 			if randf() < transition_prob:
 				patch.set_meta("ecological_state", EcologicalState.MATURE_FOREST)
 				patch.set_meta("time_in_state", 0.0)
-				print("🌿 → 🌲 Mature forest at %s" % patch.grid_position)
+				if VerboseConfig.is_verbose("forest"):
+					print("🌿 → 🌲 Mature forest at %s" % patch.grid_position)
 
 		EcologicalState.MATURE_FOREST:
 			# Forest can die (rare)
@@ -324,7 +328,8 @@ func _apply_ecological_transition(patch: BiomePlot):
 			if randf() < transition_prob:
 				patch.set_meta("ecological_state", EcologicalState.BARE_GROUND)
 				patch.set_meta("time_in_state", 0.0)
-				print("🌲 → 🏜️ Forest died at %s" % patch.grid_position)
+				if VerboseConfig.is_verbose("forest"):
+					print("🌲 → 🏜️ Forest died at %s" % patch.grid_position)
 
 	# Update Markov transition graph to reflect new state
 	_update_patch_transition_graph(patch)
@@ -391,7 +396,8 @@ func add_organism(position: Vector2i, organism_icon: String) -> bool:
 
 	organisms[organism_icon] = organism
 	patch.set_meta("organisms", organisms)
-	print("➕ Added %s at %s" % [organism_icon, position])
+	if VerboseConfig.is_verbose("forest"):
+		print("➕ Added %s at %s" % [organism_icon, position])
 	return true
 
 
@@ -433,7 +439,8 @@ func harvest_water(position: Vector2i = Vector2i(-1, -1)) -> DualEmojiQubit:
 
 	total_water_harvested += water_amount
 
-	print("💧 Harvested %.2f water from wolf at %s" % [water_amount, target_patch.grid_position])
+	if VerboseConfig.is_verbose("forest"):
+		print("💧 Harvested %.2f water from wolf at %s" % [water_amount, target_patch.grid_position])
 	return water_qubit
 
 
@@ -501,7 +508,8 @@ func _reset_custom() -> void:
 			var pos = Vector2i(x, y)
 			patches[pos] = _create_patch(pos)
 
-	print("🌲 Forest Ecosystem reset (BiomePlot refactor)")
+	if VerboseConfig.is_verbose("forest"):
+		print("🌲 Forest Ecosystem reset")
 
 func render_biome_content(graph: Node2D, center: Vector2, radius: float) -> void:
 	"""Render forest ecosystem state + weather/season qubits inside forest circle"""
