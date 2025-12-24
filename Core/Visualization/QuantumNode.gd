@@ -95,6 +95,8 @@ func update_animation(current_time: float, delta: float):
 
 func update_from_quantum_state():
 	"""Update visual properties from quantum state"""
+	var is_transitioning_planted = (radius == MAX_RADIUS)  # Check if this was previously planted
+
 	if not plot or not plot.quantum_state:
 		# Default values for empty/unplanted plot
 		energy = 0.0
@@ -102,15 +104,29 @@ func update_from_quantum_state():
 		radius = MIN_RADIUS
 		color = Color(0.5, 0.5, 0.5, 0.3)  # Gray, semi-transparent
 
-		# Show plot emojis even if unplanted - just with zero opacity
+		# Show plot emojis even if unplanted - with LOW opacity for ghost markers
 		var emojis = plot.get_plot_emojis() if plot else {"north": "?", "south": "?"}
 		emoji_north = emojis["north"]
 		emoji_south = emojis["south"]
-		emoji_north_opacity = 0.0  # Invisible until planted
+		# Ghost marker: show faint emoji so players know where plots are
+		emoji_north_opacity = 0.15  # Low opacity for unplanted plots (visible but ghosty)
 		emoji_south_opacity = 0.0
+
+		# DEBUG: Log state transitions
+		if is_transitioning_planted:
+			print("⚠️  Node %s: state changed from PLANTED → UNPLANTED" % grid_position)
 		return
 
+	# PLANTED PLOT PATH
 	var quantum_state = plot.quantum_state
+
+	# DEBUG: Log when plot becomes planted (only once)
+	if radius == MIN_RADIUS and plot.is_planted and quantum_state:
+		print("✅ Node %s: PLANTED - quantum_state exists" % grid_position)
+		var emojis = plot.get_plot_emojis()
+		print("   emoji_north='%s', emoji_south='%s'" % [emojis["north"], emojis["south"]])
+	elif radius == MIN_RADIUS and plot.is_planted and not quantum_state:
+		print("⚠️  Node %s: is_planted=true but quantum_state=null!" % grid_position)
 
 	# Energy: Instant full size for planted plots (quantum-only mechanics)
 	# No classical growth - plants appear at full size immediately
@@ -177,6 +193,10 @@ func update_from_quantum_state():
 		var theta = quantum_state.theta
 		emoji_north_opacity = pow(sin(theta / 2.0), 2.0)  # Peaks at north pole (θ=0)
 		emoji_south_opacity = pow(cos(theta / 2.0), 2.0)  # Peaks at south pole (θ=π)
+
+		# DEBUG: Log emoji opacity when planted
+		if radius == MAX_RADIUS:  # First update after becoming planted
+			print("   theta=%f, emoji_north_opacity=%.2f" % [theta, emoji_north_opacity])
 
 
 func get_entangled_partner_ids() -> Array:

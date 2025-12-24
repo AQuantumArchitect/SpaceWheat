@@ -85,9 +85,13 @@ func _input(event: InputEvent):
 	Supports keyboard (WASD, QERT, numbers, etc) and gamepad (D-Pad, buttons, sticks)
 	via Godot's InputMap system.
 	"""
+	if event is InputEventKey and event.pressed:
+		print("🔑 FarmInputHandler._input() received KEY: %s" % event.keycode)
+
 	# Tool selection (1-6) - Phase 7: Use InputMap actions
 	for i in range(1, 7):
 		if event.is_action_pressed("tool_" + str(i)):
+			print("🛠️  Tool key pressed: %d" % i)
 			_select_tool(i)
 			get_tree().root.set_input_as_handled()
 			return
@@ -96,12 +100,14 @@ func _input(event: InputEvent):
 	if grid_config:
 		for action in grid_config.keyboard_layout.get_all_actions():
 			if event.is_action_pressed(action):
+				print("📍 GridConfig action detected: %s" % action)
 				var pos = grid_config.keyboard_layout.get_position_for_action(action)
 				if pos != Vector2i(-1, -1) and grid_config.is_position_valid(pos):
 					_toggle_plot_selection(pos)
 					get_tree().root.set_input_as_handled()
 					return
 	else:
+		print("⚠️  grid_config is NULL at input time - falling back to hardcoded actions")
 		# Fallback: default 6x2 keyboard layout (T/Y/U/I/O/P for row 0, 0/9/8/7 for row 1)
 		var default_keys = {
 			"select_plot_t": Vector2i(0, 0),
@@ -117,6 +123,7 @@ func _input(event: InputEvent):
 		}
 		for action in default_keys.keys():
 			if event.is_action_pressed(action):
+				print("📍 Fallback action detected: %s → %s" % [action, default_keys[action]])
 				_toggle_plot_selection(default_keys[action])
 				get_tree().root.set_input_as_handled()
 				return

@@ -165,8 +165,9 @@ func _sync_sun_qubit(dt: float):
 	var phase = (cycle_time / sun_moon_period) * TAU  # 0→2π over period
 
 	# Use sine to create smooth, natural-looking progression
-	# sin(phase) ranges -1→1, mapping to a full cycle
-	sun_qubit.theta = PI + PI * sin(phase)  # Results in 0→2π smoothly
+	# For day-night cycle: θ should go 0→π→0 in one period
+	# sin(phase/2) ranges -1→0→1 as phase goes 0→π→2π
+	sun_qubit.theta = PI * sin(phase / 2.0)  # Results in 0→π smoothly, avoiding 2π wraparound
 
 	# Keep sun locked to north pole (phi doesn't matter for σ_z coupling, but keep constant)
 	sun_qubit.phi = 0.0

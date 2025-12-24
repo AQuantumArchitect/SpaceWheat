@@ -192,8 +192,23 @@ func initialize(grid: FarmGrid, center_pos: Vector2, radius: float):
 
 		# Create quantum nodes for all plots
 		if classical_plot_positions.size() > 0:
+			print("\n📍 Classical plot positions:")
+			for grid_pos in classical_plot_positions.keys().slice(0, 3):
+				var pos = classical_plot_positions[grid_pos]
+				print("   Grid %s → Position (%.1f, %.1f)" % [grid_pos, pos.x, pos.y])
+			if classical_plot_positions.size() > 3:
+				print("   ... and %d more" % (classical_plot_positions.size() - 3))
+
 			create_quantum_nodes(classical_plot_positions)
 			print("⚛️ QuantumForceGraph initialized with %d quantum nodes (parametric ring layout)" % quantum_nodes.size())
+
+			# Verify nodes were created with positions
+			if quantum_nodes.size() > 0:
+				var node = quantum_nodes[0]
+				print("   First node: pos=(%.1f, %.1f), anchor=(%.1f, %.1f)" % [
+					node.position.x, node.position.y,
+					node.classical_anchor.x, node.classical_anchor.y
+				])
 		else:
 			print("⚠️ QuantumForceGraph: No plots found to create quantum nodes")
 
@@ -310,31 +325,30 @@ func wire_to_farm(farm: Node) -> void:
 	# Create sun qubit node (will use biotic_flux_biome)
 	create_sun_qubit_node()
 
-	# Connect to farm signals to update nodes when plots change
-	if farm.has_signal("plot_planted"):
-		farm.plot_planted.connect(_on_plot_planted)
-	if farm.has_signal("plot_harvested"):
-		farm.plot_harvested.connect(_on_plot_harvested)
+	# REFACTOR: No signal connections - visualization reads Farm state directly
+	# This eliminates the signal cascade that caused "haunted" behavior
+	# Nodes will be updated during _draw() by checking current Farm state
 
-	print("⚛️ QuantumForceGraph wired to farm with multi-biome support")
+	print("⚛️ QuantumForceGraph wired to farm with multi-biome support (no signals - direct state reading)")
 
 
-func _on_plot_planted(grid_pos: Vector2i) -> void:
-	"""Signal handler: Plot was planted - update corresponding quantum node"""
-	if grid_pos in quantum_nodes_by_grid_pos:
-		var node = quantum_nodes_by_grid_pos[grid_pos]
-		if node:
-			node.update_from_quantum_state()
-			print("🌾 QuantumNode updated: plot at %s planted" % grid_pos)
+# REFACTOR: Signal handlers removed - no longer needed
+# Nodes are updated directly during _draw() by reading current Farm state
+# This removes the signal coupling that caused the "haunted" behavior
 
-
-func _on_plot_harvested(grid_pos: Vector2i) -> void:
-	"""Signal handler: Plot was harvested - update corresponding quantum node"""
-	if grid_pos in quantum_nodes_by_grid_pos:
-		var node = quantum_nodes_by_grid_pos[grid_pos]
-		if node:
-			node.update_from_quantum_state()
-			print("🌾 QuantumNode updated: plot at %s harvested" % grid_pos)
+#func _on_plot_planted(grid_pos: Vector2i) -> void:
+#	"""DISABLED: Signal handler - nodes now update during _draw()"""
+#	if grid_pos in quantum_nodes_by_grid_pos:
+#		var node = quantum_nodes_by_grid_pos[grid_pos]
+#		if node:
+#			node.update_from_quantum_state()
+#
+#func _on_plot_harvested(grid_pos: Vector2i) -> void:
+#	"""DISABLED: Signal handler - nodes now update during _draw()"""
+#	if grid_pos in quantum_nodes_by_grid_pos:
+#		var node = quantum_nodes_by_grid_pos[grid_pos]
+#		if node:
+#			node.update_from_quantum_state()
 
 
 func set_plot_tether_colors(colors: Dictionary):
@@ -1503,24 +1517,82 @@ func _draw_quantum_bubble(node: QuantumNode, is_celestial: bool = false) -> void
 	# Draw north emoji on top (brighter)
 	if node.emoji_north != "" and node.emoji_north_opacity > 0.01:
 		_draw_emoji_with_opacity(font, text_pos, node.emoji_north, font_size, node.emoji_north_opacity)
+	elif node.emoji_north != "" and node.emoji_north_opacity <= 0.01 and node.plot and node.plot.is_planted:
+		# DEBUG: Log when a planted plot has zero opacity (shouldn't happen)
+		if frame_count % 120 == 0:
+			print("⚠️  PLANTED plot with zero opacity: grid=%s, emoji='%s', opacity=%.3f" % [
+				node.grid_position, node.emoji_north, node.emoji_north_opacity
+			])
 
 
 func _draw_quantum_nodes():
-	"""Draw all plot quantum nodes with unified peer-level rendering"""
+	"""Draw all plot quantum nodes with unified peer-level rendering
+
+	REFACTOR: Nodes update from current Farm state during rendering
+	This eliminates signal coupling and ensures visualization is always in sync
+	"""
 	var nodes_drawn = 0
+	var debug_first_3 = []
+	var planted_plots = []
+
 	for node in quantum_nodes:
 		# Draw all nodes regardless of quantum state
 		# (they'll show as question marks if no quantum state exists)
 		if not node.plot:
 			continue
 
+		# REFACTOR: Update node from current Farm state before drawing
+		# This replaces the signal-based update system
+		node.update_from_quantum_state()
+
+		# Track planted plots for debugging
+		if node.plot.is_planted:
+			planted_plots.append({
+				"grid_pos": node.grid_position,
+				"emoji": node.emoji_north,
+				"opacity": node.emoji_north_opacity,
+				"quantum_state": node.plot.quantum_state != null
+			})
+
+		# Collect debug info for first 3 nodes
+		if debug_first_3.size() < 3:
+			debug_first_3.append({
+				"grid_pos": node.grid_position,
+				"pos": node.position,
+				"radius": node.radius,
+				"opacity": node.emoji_north_opacity,
+				"scale": node.visual_scale,
+				"planted": node.plot.is_planted if node.plot else false
+			})
+
 		# Use unified bubble rendering (is_celestial=false for plot nodes)
 		_draw_quantum_bubble(node, false)
 		nodes_drawn += 1
 
-	# Log if DEBUG_MODE or if no nodes were drawn (potential issue)
-	if DEBUG_MODE and frame_count % 120 == 0:  # Log every 2 seconds at 60fps
-		print("⚛️ Drew %d quantum nodes" % nodes_drawn)
+	# Log detailed info on every frame (high spam but useful for debugging)
+	if frame_count % 30 == 0:  # Log every 0.5 seconds at 60fps
+		print("\n⚛️ Frame %d: %d nodes drawn, %d planted" % [frame_count, nodes_drawn, planted_plots.size()])
+		for debug_info in debug_first_3:
+			var planted_str = "PLANTED" if debug_info["planted"] else "EMPTY"
+			print("   Grid %s: pos=(%.1f, %.1f) r=%.0f opacity=%.2f scale=%.2f [%s]" % [
+				debug_info["grid_pos"],
+				debug_info["pos"].x,
+				debug_info["pos"].y,
+				debug_info["radius"],
+				debug_info["opacity"],
+				debug_info["scale"],
+				planted_str
+			])
+		# Show all planted plots
+		if planted_plots.size() > 0:
+			print("\n   🌱 PLANTED PLOTS:")
+			for p in planted_plots:
+				print("      Grid %s: emoji='%s' opacity=%.2f quantum_state=%s" % [
+					p["grid_pos"],
+					p["emoji"],
+					p["opacity"],
+					p["quantum_state"]
+				])
 
 
 func _draw_emoji_with_opacity(font, text_pos: Vector2, emoji: String, font_size: int, opacity: float):

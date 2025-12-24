@@ -57,9 +57,11 @@ func inject_controls(controls_interface: Node) -> void:
 	"""Inject any simulation machinery that implements ControlsInterface contract"""
 	controls = controls_interface
 
-	if not signals_connected:
-		_connect_controls_signals()
-		signals_connected = true
+	# REFACTOR: Disabled signal cascade to eliminate haunted behavior
+	# Visualization systems now read from Farm directly instead of listening to signals
+	#if not signals_connected:
+	#	_connect_controls_signals()
+	#	signals_connected = true
 
 
 func inject_farm(farm_ref: Node) -> void:
@@ -134,50 +136,33 @@ func set_plot_grid_display(plot_grid_display: Node) -> void:
 
 
 func _connect_all_signals() -> void:
-	"""Establish all signal connections between systems (legacy mode)"""
+	"""DISABLED: Establish all signal connections between systems (legacy mode)
+
+	REFACTOR NOTE: This caused the "haunted" signal cascade. Instead:
+	- Visualization systems read Farm state directly
+	- No signal feedback loops
+	- Farm is single source of truth
+	"""
 	if not farm:
 		return
 
-	print("🔗 Connecting farm input signals (legacy)...")
-
-	_connect_farm_signals()
-	_connect_input_signals()
-	_connect_plot_signals()
-	_connect_measurement_signals()
-	_connect_harvest_signals()
-	_connect_entanglement_signals()
-	_connect_tool_signals()
-
-	print("✅ All input signals connected (legacy)")
+	print("🔗 Signal cascade DISABLED - using direct state reading instead")
+	return  # EARLY EXIT - don't connect any signals
 
 
 func _connect_controls_signals() -> void:
-	"""Establish signal connections using ControlsInterface (modern architecture)"""
+	"""DISABLED: Establish signal connections using ControlsInterface
+
+	REFACTOR NOTE: Removed signal coupling. Visualization systems now:
+	- Read Farm/ControlsInterface state directly during _draw()/_process()
+	- Don't subscribe to cascading signals
+	- Eliminate race conditions and double-processing
+	"""
 	if not controls:
 		return
 
-	# Connect input handler → controls interface
-	_connect_input_signals()
-
-	# Connect controls interface → UI updates
-	if controls.has_signal("tool_selected"):
-		controls.tool_selected.connect(_on_controls_tool_selected)
-	if controls.has_signal("wheat_changed"):
-		controls.wheat_changed.connect(_on_wheat_changed)
-	if controls.has_signal("inventory_changed"):
-		controls.inventory_changed.connect(_on_inventory_changed)
-	if controls.has_signal("plot_state_changed"):
-		controls.plot_state_changed.connect(_on_plot_state_changed)
-	if controls.has_signal("plot_planted"):
-		controls.plot_planted.connect(_on_plot_planted)
-	if controls.has_signal("plot_harvested"):
-		controls.plot_harvested.connect(_on_plot_harvested)
-	if controls.has_signal("qubit_measured"):
-		controls.qubit_measured.connect(_on_qubit_measured)
-	if controls.has_signal("plots_entangled"):
-		controls.plots_entangled.connect(_on_plots_entangled)
-
-	print("📡 ControlsInterface signal bridge connected")
+	print("📡 ControlsInterface signals NOT connected - using direct state reading")
+	return  # EARLY EXIT - no signal connections
 
 
 func _connect_farm_signals() -> void:

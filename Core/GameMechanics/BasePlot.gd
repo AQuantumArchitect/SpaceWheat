@@ -59,6 +59,95 @@ func get_dominant_emoji() -> String:
 	return quantum_state.get_semantic_state()
 
 
+func plant(quantum_state_or_labor = null, wheat_cost: float = 0.0, biome = null) -> void:
+	"""Plant this plot with a quantum state
+
+	Overloaded method supports both:
+	1. plant(quantum_state: DualEmojiQubit) - direct quantum state injection
+	2. plant(labor: float, wheat: float, biome: BiomeBase) - biome resource-based planting
+	"""
+	# Handle both calling conventions
+	if quantum_state_or_labor is Resource:
+		# Direct quantum state injection (Resource type check)
+		quantum_state = quantum_state_or_labor
+		print("🌱 Plot.plant(): injected quantum state at %s" % grid_position)
+	elif biome != null:
+		# Resource-based planting: biome will handle quantum state creation
+		# For now, create a default quantum state
+		# (Biome can override this if needed)
+		quantum_state = DualEmojiQubit.new("?", "?", PI/2)
+		print("🌱 Plot.plant(): created default quantum state at %s" % grid_position)
+	else:
+		# Fallback: create minimal quantum state
+		quantum_state = DualEmojiQubit.new("?", "?", PI/2)
+		print("🌱 Plot.plant(): fallback quantum state at %s" % grid_position)
+
+	# Mark as planted
+	is_planted = true
+	print("   ✅ Plot %s now planted=%s, quantum_state exists=%s" % [grid_position, is_planted, quantum_state != null])
+
+
+func measure(icon_network = null) -> String:
+	"""Measure (collapse) quantum state at this plot
+
+	Args:
+		icon_network: Optional icon network for measurement bias (from Imperium)
+
+	Returns: The measurement outcome emoji (e.g., "🌾", "👥")
+	Sets: has_been_measured = true on success
+	"""
+	if not quantum_state:
+		return ""
+
+	# Call the quantum state's measure method
+	var outcome = quantum_state.measure()
+
+	# Mark as measured
+	has_been_measured = true
+	theta_frozen = true
+	print("🔬 Plot %s measured: outcome=%s" % [grid_position, outcome])
+
+	return outcome
+
+
+func harvest() -> Dictionary:
+	"""Harvest this plot - collect yield and clear quantum state
+
+	Returns: Dictionary with {success: bool, yield: int, outcome: String}
+	"""
+	if not is_planted:
+		return {"success": false, "yield": 0}
+
+	if not has_been_measured:
+		return {"success": false, "yield": 0}
+
+	# Get the outcome emoji from the measurement
+	var outcome = quantum_state.get_semantic_state() if quantum_state else "?"
+
+	# Calculate yield (quantum-only: depends on Berry phase and entanglement)
+	var yield_amount = 1
+	if quantum_state:
+		# Base yield from energy
+		yield_amount = max(1, int(quantum_state.energy * 10))
+		# Bonus from Berry phase (entanglement memory)
+		yield_amount += int(berry_phase)
+
+	# Clear the plot
+	is_planted = false
+	quantum_state = null
+	has_been_measured = false
+	theta_frozen = false
+	replant_cycles += 1
+
+	print("✂️  Plot %s harvested: yield=%d, outcome=%s" % [grid_position, yield_amount, outcome])
+
+	return {
+		"success": true,
+		"yield": yield_amount,
+		"outcome": outcome
+	}
+
+
 func collapse_to_measurement(outcome: String) -> void:
 	"""Collapse quantum state based on measurement outcome"""
 	if quantum_state:
