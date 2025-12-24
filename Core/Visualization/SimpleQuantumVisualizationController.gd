@@ -223,12 +223,44 @@ func _update_forces(delta: float) -> void:
 		var damping_factor = exp(-DAMPING_COEFFICIENT * delta)
 		node.velocity *= damping_factor
 
+	# 4. SUN NODE ALSO EXPERIENCES REPULSION (acts like a regular node)
+	if sun_node:
+		var sun_total_force = Vector2.ZERO
+
+		# TETHER: Spring force back to anchor (celestial position)
+		var sun_displacement = sun_node.anchor - sun_node.position
+		sun_total_force += sun_displacement * TETHER_SPRING
+
+		# REPULSION FROM ALL NODES: Sun repels from crops
+		for grid_pos in nodes.keys():
+			var node = nodes[grid_pos]
+			var delta_pos = sun_node.position - node.position
+			var distance = delta_pos.length()
+
+			if distance < MIN_DISTANCE:
+				distance = MIN_DISTANCE
+
+			# Sun repels from all qubits
+			var repulsion_mag = REPULSION_STRENGTH / (distance * distance)
+			sun_total_force += delta_pos.normalized() * repulsion_mag
+
+		# Apply force to sun velocity
+		sun_node.velocity += sun_total_force * delta
+
+		# Apply exponential damping to sun
+		var sun_damping = exp(-DAMPING_COEFFICIENT * delta)
+		sun_node.velocity *= sun_damping
+
 
 func _update_positions(delta: float) -> void:
 	"""Update node positions from velocities"""
 	for grid_pos in nodes.keys():
 		var node = nodes[grid_pos]
 		node.position += node.velocity * delta
+
+	# Update sun node position
+	if sun_node:
+		sun_node.position += sun_node.velocity * delta
 
 
 func _update_particles(delta: float) -> void:

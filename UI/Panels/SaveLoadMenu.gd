@@ -475,12 +475,29 @@ func show_menu(mode: Mode):
 
 	visible = true
 	set_process_input(true)  # Enable keyboard input when menu is shown
+
+	# Disable EscapeMenu's input while SaveLoadMenu is open
+	var parent = get_parent()
+	if parent:
+		for child in parent.get_children():
+			if child.name == "EscapeMenu":
+				child.set_process_input(false)
+				break
+
 	print("📋 Save/Load menu opened - Mode: " + ("SAVE" if mode == Mode.SAVE else "LOAD"))
 
 
 func hide_menu():
 	visible = false
 	set_process_input(false)  # Disable keyboard input when menu is hidden
+
+	# Re-enable EscapeMenu's input when SaveLoadMenu closes
+	var parent = get_parent()
+	if parent:
+		for child in parent.get_children():
+			if child.name == "EscapeMenu":
+				child.set_process_input(true)
+				break
 
 	# CRITICAL: Re-enable InputController when menu closes
 	if input_controller:
