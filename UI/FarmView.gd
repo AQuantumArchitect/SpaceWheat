@@ -66,7 +66,28 @@ func _ready() -> void:
 		input_controller.keyboard_help_requested.connect(shell._toggle_keyboard_help)
 		print("   ✅ K key (keyboard help) connected")
 
+	# Connect quit/restart signals
+	if input_controller.has_signal("quit_requested"):
+		input_controller.quit_requested.connect(_on_quit_requested)
+		print("   ✅ Q key (quit) connected")
+
+	if input_controller.has_signal("restart_requested"):
+		input_controller.restart_requested.connect(_on_restart_requested)
+		print("   ✅ R key (restart) connected")
+
 	print("✅ FarmView ready - game started!")
+
+
+func _on_quit_requested() -> void:
+	"""Handle quit request"""
+	print("🛑 Quit requested - exiting game")
+	get_tree().quit()
+
+
+func _on_restart_requested() -> void:
+	"""Handle restart request"""
+	print("🔄 Restart requested - reloading scene")
+	get_tree().reload_current_scene()
 
 
 func get_farm() -> Node:
