@@ -43,7 +43,7 @@ func _ready():
 	# Configure visual properties for QuantumForceGraph
 	visual_color = Color(1.0, 0.55, 0.0, 0.3)  # Sunset orange
 	visual_label = "💰 Market"
-	visual_center_offset = Vector2(-0.6, -0.5)  # Top-left (offset from center)
+	visual_center_offset = Vector2(-0.1, -0.5)  # Top-center-right (moved right)
 	visual_oval_width = 200.0   # Even smaller oval
 	visual_oval_height = 123.0  # Golden ratio: 200/1.618
 

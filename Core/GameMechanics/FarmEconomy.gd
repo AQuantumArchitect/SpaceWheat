@@ -20,7 +20,7 @@ signal emoji_resource_changed(emoji: String, new_amount: int)   # Generic emoji 
 
 # Quantum Energy Currency System - Each emoji represents one type of quantum energy
 # Starting with VERY LITTLE forces strategic choices and makes growth meaningful
-var wheat_inventory: int = 2          # 🌾 Quantum energy (primary harvest)
+var wheat_inventory: int = 50         # 🌾 Quantum energy (primary harvest)
 var labor_inventory: int = 1          # 👥 Quantum energy (from 👥 measurements)
 var flour_inventory: int = 0          # 🍞 Quantum energy (from mill processing)
 var flower_inventory: int = 0         # 🌻 Quantum energy (rare yields)

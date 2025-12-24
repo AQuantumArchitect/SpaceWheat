@@ -128,9 +128,13 @@ func _process(delta: float) -> void:
 			var new_theta = (occ_value / max_occ) * PI
 			var new_phi = (biome.get_energy_conservation_check(patch_pos) * TAU) if biome.has_method("get_energy_conservation_check") else glyph.qubit.phi
 
-			# Smoothly transition to new state
-			glyph.qubit.theta = lerp(glyph.qubit.theta, new_theta, 0.1)
-			glyph.qubit.phi += 0.05  # Continuous phase rotation
+			# Update theta directly (faster response to evolution)
+			# Store old theta to detect change
+			var old_theta = glyph.qubit.theta
+			glyph.qubit.theta = new_theta
+
+			# Continuous phase rotation (animated)
+			glyph.qubit.phi += 0.05
 			if glyph.qubit.phi > TAU:
 				glyph.qubit.phi -= TAU
 
