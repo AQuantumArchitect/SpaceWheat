@@ -1,5 +1,5 @@
 class_name FarmPlot
-extends BasePlot
+extends "res://Core/GameMechanics/BasePlot.gd"
 
 ## FarmPlot - Player-interactive plots in the farm grid
 ## Base class for all plots the player can apply tools to

@@ -6,6 +6,12 @@ class_name SaveDataAdapter
 ## This is the clean interface between save/load system and visualizer
 ## Handles all the reconstruction logic so SaveLoadMenu stays simple
 
+# Preload dependencies
+const GameState = preload("res://Core/GameState/GameState.gd")
+const Biome = preload("res://Core/Environment/BiomeBase.gd")
+const FarmGrid = preload("res://Core/GameMechanics/FarmGrid.gd")
+const DualEmojiQubit = preload("res://Core/QuantumSubstrate/DualEmojiQubit.gd")
+
 ## Display data packet
 class DisplayData:
 	var biome_data: Dictionary  # Raw biome state from save

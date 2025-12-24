@@ -1,5 +1,5 @@
 class_name BiomePlot
-extends BasePlot
+extends "res://Core/GameMechanics/BasePlot.gd"
 
 ## BiomePlot - Internal biome entities
 ## Used for items managed by the biome system

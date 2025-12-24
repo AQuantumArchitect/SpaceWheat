@@ -1,5 +1,5 @@
 class_name MarketBiome
-extends BiomeBase
+extends "res://Core/Environment/BiomeBase.gd"
 
 ## Market Biome: Parallel quantum system for trading/economics
 ## Represents supply/demand dynamics controlled by Granary Guilds
@@ -39,6 +39,12 @@ func _ready():
 
 	_initialize_market_qubits()
 	print("💰 MarketBiome initialized")
+
+	# Configure visual properties for QuantumForceGraph
+	visual_color = Color(0.7, 0.6, 0.3, 0.3)  # Gold
+	visual_label = "💰 Market"
+	visual_center_offset = Vector2(-0.6, 0.0)  # Middle-left
+	visual_circle_radius = 150.0
 
 
 func _initialize_market_qubits():

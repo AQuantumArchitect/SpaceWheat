@@ -69,32 +69,15 @@ const ICON_PARTICLE_SIZE = 3.0
 const MAX_ICON_PARTICLES = 150  # Limit total particles
 var icon_particle_spawn_accumulator: float = 0.0
 
-# MULTI-BIOME REGIONS (Phase 3a) - Visual layout for Venn diagram
-const BIOME_REGIONS = {
-	"Forest": {
-		"center_offset": Vector2(-0.6, -0.6),  # Top-left
-		"color": Color(0.3, 0.7, 0.3, 0.3),   # Green
-		"label": "🌲 Forest"
-	},
-	"Market": {
-		"center_offset": Vector2(-0.6, 0.0),   # Middle-left
-		"color": Color(0.7, 0.6, 0.3, 0.3),   # Gold
-		"label": "💰 Market"
-	},
-	"BioticFlux": {
-		"center_offset": Vector2(-0.6, 0.6),   # Bottom-left
-		"color": Color(0.4, 0.6, 0.8, 0.3),   # Blue
-		"label": "🌿 Biotic Flux"
-	}
-}
-const BIOME_CIRCLE_RADIUS = 150.0  # Radius of each biome region circle
-
 # Reference to farm grid and biomes
 var farm_grid: FarmGrid = null
 var biome = null  # Legacy: Reference to Biome for backward compatibility
-var biotic_flux_biome = null  # BioticFlux biome (contains sun_qubit)
-var market_biome = null  # Market biome
-var forest_biome = null  # Forest ecosystem biome
+
+# Generic biome registry (name -> BiomeBase instance)
+var biomes: Dictionary = {}  # String biome_name -> BiomeBase
+
+# Shorthand references for common biomes (for backward compatibility with sun_qubit access)
+var biotic_flux_biome = null  # BioticFlux biome (contains sun_qubit) - populated from biomes dict
 
 # Icon references (for visual effects)
 var biotic_icon = null
@@ -139,17 +122,24 @@ func initialize(grid: FarmGrid, center_pos: Vector2, radius: float):
 				if plot:
 					# Phase 3b: Calculate position based on biome assignment (not circular)
 					var plot_biome = grid.get_biome_for_plot(grid_pos)
-					var biome_name = grid.plot_biome_assignments.get(grid_pos, "BioticFlux")
-					var biome_config = BIOME_REGIONS.get(biome_name)
+					var biome_name = grid.plot_biome_assignments.get(grid_pos, "")
+					if biome_name == "" and biomes.size() > 0:
+						biome_name = biomes.keys()[0]  # Use first registered biome as default
+
+					# Get biome visual config
+					var biome_config = null
+					if biome_name != "" and biome_name in biomes:
+						biome_config = biomes[biome_name].get_visual_config()
 
 					var screen_pos = center_position  # Default fallback
 					if biome_config:
 						# Calculate biome region center
 						var biome_center = center_position + biome_config.center_offset * graph_radius
+						var biome_radius = biome_config.circle_radius
 
 						# Random position within biome circle (scattered, not grid-based)
 						var angle = randf() * TAU
-						var local_radius = randf_range(30, BIOME_CIRCLE_RADIUS * 0.8)
+						var local_radius = randf_range(30, biome_radius * 0.8)
 						screen_pos = biome_center + Vector2(cos(angle), sin(angle)) * local_radius
 
 					# Offset anchor position UPWARD (negative Y) so bubbles float above like balloons
@@ -254,16 +244,17 @@ func wire_to_farm(farm: Node) -> void:
 	# Initialize quantum graph with farm data
 	initialize(farm.grid, center, radius)
 
-	# Get all three biome references (Phase 3d)
-	if farm.has_meta("biotic_flux_biome"):
-		biotic_flux_biome = farm.get_meta("biotic_flux_biome")
-		print("⚛️ QuantumForceGraph connected to BioticFlux biome")
-	if farm.has_meta("market_biome"):
-		market_biome = farm.get_meta("market_biome")
-		print("⚛️ QuantumForceGraph connected to Market biome")
-	if farm.has_meta("forest_biome"):
-		forest_biome = farm.get_meta("forest_biome")
-		print("⚛️ QuantumForceGraph connected to Forest biome")
+	# Generic biome registration from FarmGrid
+	if farm_grid:
+		var registered_biomes = farm_grid.biomes  # Access FarmGrid.biomes Dictionary
+		for biome_name in registered_biomes:
+			var biome_obj = registered_biomes[biome_name]
+			biomes[biome_name] = biome_obj
+			print("⚛️ QuantumForceGraph registered biome: %s" % biome_name)
+
+			# Store BioticFlux reference for backward compatibility (sun_qubit access)
+			if biome_name == "BioticFlux":
+				biotic_flux_biome = biome_obj
 
 	# Legacy: Set biome for backward compatibility
 	if farm.has_meta("biome"):
@@ -358,19 +349,20 @@ func create_sun_qubit_node():
 	The sun appears in the BioticFlux biome region as a special immutable
 	celestial object. It shows day/night cycle and is always visible.
 	"""
-	# Phase 3d: Use biotic_flux_biome specifically for sun qubit
+	# Use biotic_flux_biome specifically for sun qubit
 	if not biotic_flux_biome or not biotic_flux_biome.sun_qubit:
 		print("⚠️ Cannot create sun node: biotic_flux_biome or sun_qubit not available")
 		return
 
 	# Position sun in BioticFlux biome region (bottom-left area)
-	var biome_config = BIOME_REGIONS.get("BioticFlux")
+	var biome_config = biotic_flux_biome.get_visual_config()
 	if not biome_config:
 		print("⚠️ Cannot create sun node: BioticFlux biome config not found")
 		return
 
 	var biome_center = center_position + biome_config.center_offset * graph_radius
-	var sun_classical_pos = biome_center + Vector2(0, -BIOME_CIRCLE_RADIUS * 0.7)
+	var biome_radius = biome_config.circle_radius
+	var sun_classical_pos = biome_center + Vector2(0, -biome_radius * 0.7)
 	var sun_grid_pos = Vector2i(-1, -1)  # Special celestial position
 
 	# Create QuantumNode with null plot (will set properties manually)
@@ -879,122 +871,37 @@ func _draw():
 
 
 func _draw_biome_regions():
-	"""Phase 3c: Draw colored circles showing biome regions (Venn diagram style)
+	"""Draw colored circles showing biome regions (generic, data-driven)
 
-	Forest biome has specialized content (ecosystem state, weather, season qubits)
+	Iterates over all registered biomes and renders them using their visual config.
+	Biomes can provide custom rendering via render_biome_content() callback.
 	"""
-	for biome_name in BIOME_REGIONS:
-		var config = BIOME_REGIONS[biome_name]
+	for biome_name in biomes:
+		var biome_obj = biomes[biome_name]
+		var config = biome_obj.get_visual_config()
+
+		# Skip if disabled
+		if not config.get("enabled", true):
+			continue
+
+		# Calculate biome center from offset
 		var biome_center = center_position + config.center_offset * graph_radius
+		var biome_radius = config.circle_radius
 
 		# Draw filled circle
-		draw_circle(biome_center, BIOME_CIRCLE_RADIUS, config.color)
+		draw_circle(biome_center, biome_radius, config.color)
 
 		# Draw border
-		draw_arc(biome_center, BIOME_CIRCLE_RADIUS, 0, TAU, 64, Color(1, 1, 1, 0.2), 2.0)
+		draw_arc(biome_center, biome_radius, 0, TAU, 64, Color(1, 1, 1, 0.2), 2.0)
 
-		# Specialized content for forest biome
-		if biome_name == "Forest":
-			_draw_forest_biome_content(biome_center)
+		# Call biome's custom rendering callback
+		biome_obj.render_biome_content(self, biome_center, biome_radius)
 
 		# Draw label above circle
 		var font = ThemeDB.fallback_font
-		var label_pos = biome_center + Vector2(0, -BIOME_CIRCLE_RADIUS - 15)
+		var label_pos = biome_center + Vector2(0, -biome_radius - 15)
 		draw_string(font, label_pos, config.label, HORIZONTAL_ALIGNMENT_CENTER, -1, 16, Color(1, 1, 1, 0.6))
 
-
-func _draw_forest_biome_content(center: Vector2):
-	"""Draw forest ecosystem state + weather/season qubits inside forest circle"""
-	if not forest_biome:
-		return
-
-	var font = ThemeDB.fallback_font
-
-	# 1. DOMINANT ECOSYSTEM STATE (center, large emoji)
-	var dominant_state = _get_forest_dominant_state()
-	var state_emoji = _get_ecosystem_emoji(dominant_state)
-
-	# Shadow for visibility against green background
-	var emoji_pos = center + Vector2(0, 5)
-	for dx in [-1, 0, 1]:
-		for dy in [-1, 0, 1]:
-			if dx != 0 or dy != 0:
-				draw_string(font, emoji_pos + Vector2(dx, dy), state_emoji,
-						   HORIZONTAL_ALIGNMENT_CENTER, -1, 48, Color(0, 0, 0, 0.8))
-	draw_string(font, emoji_pos, state_emoji, HORIZONTAL_ALIGNMENT_CENTER, -1, 48, Color.WHITE)
-
-	# 2. WEATHER QUBIT (top-left mini Bloch sphere)
-	if forest_biome.weather_qubit:
-		_draw_mini_bloch_sphere(center + Vector2(-50, -BIOME_CIRCLE_RADIUS + 50),
-							   forest_biome.weather_qubit, 15.0)
-
-	# 3. SEASON QUBIT (top-right mini Bloch sphere)
-	if forest_biome.season_qubit:
-		_draw_mini_bloch_sphere(center + Vector2(50, -BIOME_CIRCLE_RADIUS + 50),
-							   forest_biome.season_qubit, 15.0)
-
-	# 4. ORGANISM COUNT (bottom)
-	var count = _count_forest_organisms()
-	var count_pos = center + Vector2(0, BIOME_CIRCLE_RADIUS - 30)
-	draw_string(font, count_pos, "%d 🐾" % count, HORIZONTAL_ALIGNMENT_CENTER, -1, 12,
-			   Color(0.9, 0.9, 0.9, 0.8))
-
-
-func _get_forest_dominant_state() -> int:
-	"""Get the dominant ecological state across all forest patches"""
-	var state_counts = {}
-	for pos in forest_biome.patches.keys():
-		var patch = forest_biome.patches[pos]
-		var state = patch.get_meta("ecological_state") if patch.has_meta("ecological_state") else 0
-		state_counts[state] = state_counts.get(state, 0) + 1
-
-	var max_count = 0
-	var dominant = 0
-	for state in state_counts.keys():
-		if state_counts[state] > max_count:
-			max_count = state_counts[state]
-			dominant = state
-	return dominant
-
-
-func _get_ecosystem_emoji(state: int) -> String:
-	"""Convert ecological state to emoji"""
-	match state:
-		0: return "🏜️"  # BARE_GROUND
-		1: return "🌱"  # SEEDLING
-		2: return "🌿"  # SAPLING
-		3: return "🌲"  # MATURE_FOREST
-		4: return "☠️"  # DEAD_FOREST
-		_: return "?"
-
-
-func _count_forest_organisms() -> int:
-	"""Count total organisms across all forest patches"""
-	var total = 0
-	for pos in forest_biome.patches.keys():
-		var patch = forest_biome.patches[pos]
-		if patch.has_meta("organisms"):
-			total += patch.get_meta("organisms").size()
-	return total
-
-
-func _draw_mini_bloch_sphere(center: Vector2, qubit: DualEmojiQubit, radius: float):
-	"""Draw a mini Bloch sphere representation for a qubit"""
-	var font = ThemeDB.fallback_font
-
-	# Circle outline
-	draw_arc(center, radius, 0, TAU, 32, Color(1, 1, 1, 0.3), 1.0)
-
-	# North/south emojis (poles)
-	draw_string(font, center + Vector2(0, -radius - 8), qubit.north_emoji,
-			   HORIZONTAL_ALIGNMENT_CENTER, -1, 9, Color(1, 1, 1, 0.7))
-	draw_string(font, center + Vector2(0, radius + 8), qubit.south_emoji,
-			   HORIZONTAL_ALIGNMENT_CENTER, -1, 9, Color(1, 1, 1, 0.7))
-
-	# State pointer (from center towards state angle)
-	var pointer_end = center + Vector2(0, -radius * 0.7).rotated(qubit.theta - PI/2)
-	draw_line(center, pointer_end, Color(1, 1, 1, 0.9), 1.5, true)
-	draw_circle(pointer_end, 2.0, Color(1, 1, 1, 0.9))
 
 
 func _draw_tether_lines():

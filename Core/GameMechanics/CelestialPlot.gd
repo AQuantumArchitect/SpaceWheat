@@ -1,5 +1,5 @@
 class_name CelestialPlot
-extends BasePlot
+extends "res://Core/GameMechanics/BasePlot.gd"
 
 ## CelestialPlot - Immutable celestial objects
 ## Used for sun/moon qubits that cannot be modified by player

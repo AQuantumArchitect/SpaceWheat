@@ -1,5 +1,5 @@
 class_name WheatPlot
-extends FarmPlot
+extends "res://Core/GameMechanics/FarmPlot.gd"
 
 ## WheatPlot - Wheat crop with quantum constraints
 ## Specialized FarmPlot that adds wheat-specific quantum evolution

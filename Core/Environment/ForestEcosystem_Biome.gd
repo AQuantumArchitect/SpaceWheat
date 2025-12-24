@@ -1,5 +1,5 @@
 class_name ForestEcosystem_Biome
-extends BiomeBase
+extends "res://Core/Environment/BiomeBase.gd"
 
 const BiomePlot = preload("res://Core/GameMechanics/BiomePlot.gd")
 
@@ -99,6 +99,12 @@ func _ready():
 			patches[pos] = _create_patch(pos)
 
 	print("🌲 Forest Ecosystem initialized (%dx%d)" % [grid_width, grid_height])
+
+	# Configure visual properties for QuantumForceGraph
+	visual_color = Color(0.3, 0.7, 0.3, 0.3)  # Green
+	visual_label = "🌲 Forest"
+	visual_center_offset = Vector2(-0.6, -0.6)  # Top-left
+	visual_circle_radius = 150.0
 
 	# Initialize forest icons (if grid available)
 	if grid:
@@ -494,3 +500,93 @@ func _reset_custom() -> void:
 			patches[pos] = _create_patch(pos)
 
 	print("🌲 Forest Ecosystem reset (BiomePlot refactor)")
+
+func render_biome_content(graph: Node2D, center: Vector2, radius: float) -> void:
+	"""Render forest ecosystem state + weather/season qubits inside forest circle"""
+	var font = ThemeDB.fallback_font
+
+	# 1. DOMINANT ECOSYSTEM STATE (center, large emoji)
+	var dominant_state = _get_dominant_state()
+	var state_emoji = _get_ecosystem_emoji(dominant_state)
+
+	# Shadow for visibility against green background
+	var emoji_pos = center + Vector2(0, 5)
+	for dx in [-1, 0, 1]:
+		for dy in [-1, 0, 1]:
+			if dx != 0 or dy != 0:
+				graph.draw_string(font, emoji_pos + Vector2(dx, dy), state_emoji,
+						   HORIZONTAL_ALIGNMENT_CENTER, -1, 48, Color(0, 0, 0, 0.8))
+	graph.draw_string(font, emoji_pos, state_emoji, HORIZONTAL_ALIGNMENT_CENTER, -1, 48, Color.WHITE)
+
+	# 2. WEATHER QUBIT (top-left mini Bloch sphere)
+	if weather_qubit:
+		_draw_mini_bloch_sphere(graph, center + Vector2(-50, -radius + 50),
+							   weather_qubit, 15.0)
+
+	# 3. SEASON QUBIT (top-right mini Bloch sphere)
+	if season_qubit:
+		_draw_mini_bloch_sphere(graph, center + Vector2(50, -radius + 50),
+							   season_qubit, 15.0)
+
+	# 4. ORGANISM COUNT (bottom)
+	var count = _count_organisms()
+	var count_pos = center + Vector2(0, radius - 30)
+	graph.draw_string(font, count_pos, "%d 🐾" % count, HORIZONTAL_ALIGNMENT_CENTER, -1, 12,
+			   Color(0.9, 0.9, 0.9, 0.8))
+
+
+func _get_dominant_state() -> int:
+	"""Get the dominant ecological state across all forest patches"""
+	var state_counts = {}
+	for pos in patches.keys():
+		var patch = patches[pos]
+		var state = patch.get_meta("ecological_state") if patch.has_meta("ecological_state") else 0
+		state_counts[state] = state_counts.get(state, 0) + 1
+
+	var max_count = 0
+	var dominant = 0
+	for state in state_counts.keys():
+		if state_counts[state] > max_count:
+			max_count = state_counts[state]
+			dominant = state
+	return dominant
+
+
+func _get_ecosystem_emoji(state: int) -> String:
+	"""Convert ecological state to emoji"""
+	match state:
+		0: return "🏜️"  # BARE_GROUND
+		1: return "🌱"  # SEEDLING
+		2: return "🌿"  # SAPLING
+		3: return "🌲"  # MATURE_FOREST
+		4: return "☠️"  # DEAD_FOREST
+		_: return "?"
+
+
+func _count_organisms() -> int:
+	"""Count total organisms across all forest patches"""
+	var total = 0
+	for pos in patches.keys():
+		var patch = patches[pos]
+		if patch.has_meta("organisms"):
+			total += patch.get_meta("organisms").size()
+	return total
+
+
+func _draw_mini_bloch_sphere(graph: Node2D, center: Vector2, qubit: DualEmojiQubit, radius: float) -> void:
+	"""Draw a mini Bloch sphere representation for a qubit"""
+	var font = ThemeDB.fallback_font
+
+	# Circle outline
+	graph.draw_arc(center, radius, 0, TAU, 32, Color(1, 1, 1, 0.3), 1.0)
+
+	# North/south emojis (poles)
+	graph.draw_string(font, center + Vector2(0, -radius - 8), qubit.north_emoji,
+			   HORIZONTAL_ALIGNMENT_CENTER, -1, 9, Color(1, 1, 1, 0.7))
+	graph.draw_string(font, center + Vector2(0, radius + 8), qubit.south_emoji,
+			   HORIZONTAL_ALIGNMENT_CENTER, -1, 9, Color(1, 1, 1, 0.7))
+
+	# State pointer (from center towards state angle)
+	var pointer_end = center + Vector2(0, -radius * 0.7).rotated(qubit.theta - PI/2)
+	graph.draw_line(center, pointer_end, Color(1, 1, 1, 0.9), 1.5, true)
+	graph.draw_circle(pointer_end, 2.0, Color(1, 1, 1, 0.9))

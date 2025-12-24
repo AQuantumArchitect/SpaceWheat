@@ -1,5 +1,5 @@
 class_name BioticFluxBiome
-extends BiomeBase
+extends "res://Core/Environment/BiomeBase.gd"
 
 ## BioticFlux Biome - Environmental quantum ecosystem with sun/moon cycling
 ## Manages all quantum objects: celestial (sun/moon), native (biome-specific), farm (plantable)
@@ -92,6 +92,12 @@ func _ready():
 	print("  🌾 Wheat energy influence: %.3f (cos²(165°/2))" % wheat_energy_influence)
 	print("  🍄 Mushroom energy influence: %.3f (cos²(163°/2))" % mushroom_energy_influence)
 	print("  DEBUG: wheat_icon=%s, mushroom_icon=%s" % [wheat_icon != null, mushroom_icon != null])
+
+	# Configure visual properties for QuantumForceGraph
+	visual_color = Color(0.4, 0.6, 0.8, 0.3)  # Blue
+	visual_label = "🌿 Biotic Flux"
+	visual_center_offset = Vector2(-0.6, 0.6)  # Bottom-left
+	visual_circle_radius = 150.0
 
 
 func get_biome_type() -> String:
