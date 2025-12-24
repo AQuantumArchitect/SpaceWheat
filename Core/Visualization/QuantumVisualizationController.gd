@@ -86,9 +86,51 @@ func connect_to_biome(biome_ref, plot_positions_dict: Dictionary = {}) -> void:
 
 
 func _process(delta: float) -> void:
-	"""Update glyphs each frame"""
-	for glyph in glyphs:
-		glyph.update_from_qubit(delta)
+	"""Update glyphs from evolved biome state each frame"""
+	if not biome or glyphs.is_empty():
+		return
+
+	# Rebuild glyphs from current biome occupation numbers
+	# Map trophic levels to emoji pairs (must match connect_to_biome)
+	var trophic_pairs = [
+		{"north": "🌾", "south": "💧", "level": "plant"},
+		{"north": "🐰", "south": "🌾", "level": "herbivore"},
+		{"north": "🐺", "south": "🦅", "level": "predator"},
+		{"north": "🍄", "south": "🌍", "level": "decomposer"},
+	]
+
+	var glyph_idx = 0
+	for patch_pos in biome.patches.keys():
+		var occupation_numbers = biome.get_occupation_numbers(patch_pos)
+
+		if occupation_numbers.is_empty():
+			continue
+
+		# Update each trophic glyph
+		for trophic_idx in range(min(trophic_pairs.size(), 4)):
+			if glyph_idx >= glyphs.size():
+				break
+
+			var pair = trophic_pairs[trophic_idx]
+			var glyph = glyphs[glyph_idx]
+
+			# Update qubit state from current occupation
+			var max_occ = 10.0
+			var occ_value = occupation_numbers.get(pair.level, 0.0)
+			var new_theta = (occ_value / max_occ) * PI
+			var new_phi = (biome.get_energy_conservation_check(patch_pos) * TAU) if biome.has_method("get_energy_conservation_check") else glyph.qubit.phi
+
+			# Smoothly transition to new state
+			glyph.qubit.theta = lerp(glyph.qubit.theta, new_theta, 0.1)
+			glyph.qubit.phi += 0.05  # Continuous phase rotation
+			if glyph.qubit.phi > TAU:
+				glyph.qubit.phi -= TAU
+
+			glyph.update_from_qubit(delta)
+			glyph_idx += 1
+
+		if glyph_idx >= glyphs.size():
+			break
 
 	queue_redraw()
 

@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://d3p6x5nfmxb4"]
+
+[ext_resource type="Script" path="res://Tests/QuantumFarmUITest.gd" id="1_test"]
+
+[node name="QuantumFarmUITest" type="Node"]
+script = ExtResource("1_test")

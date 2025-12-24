@@ -61,12 +61,6 @@ func _ready() -> void:
 
 	print("   ✅ ResourcePanel created")
 
-	# ========== ACTION PREVIEW ROW (Below Resources) ==========
-	action_preview_row = ActionPreviewRow.new()
-	action_preview_row.custom_minimum_size = Vector2(0, 60)
-	main_container.add_child(action_preview_row)
-	print("   ✅ ActionPreviewRow created")
-
 	# ========== PLOT GRID DISPLAY (Middle - expand) ==========
 	plot_grid_display = PlotGridDisplay.new()
 	plot_grid_display.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -96,6 +90,12 @@ func _ready() -> void:
 			break  # Only connect to first biome for MVP
 
 	print("   ✅ Quantum visualization overlay created")
+
+	# ========== ACTION PREVIEW ROW (Below grid, above tools) ==========
+	action_preview_row = ActionPreviewRow.new()
+	action_preview_row.custom_minimum_size = Vector2(0, 60)
+	main_container.add_child(action_preview_row)
+	print("   ✅ ActionPreviewRow created (stacked above tools)")
 
 	# ========== TOOL SELECTION ROW (Bottom) ==========
 	tool_selection_row = ToolSelectionRow.new()

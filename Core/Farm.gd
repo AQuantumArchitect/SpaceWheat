@@ -222,8 +222,9 @@ func _create_grid_config() -> GridConfig:
 		keyboard.action_to_position["select_plot_" + row0_keys[i]] = pos
 		keyboard.position_to_label[pos] = row0_keys[i].to_upper()
 
-	# Row 1: 0/9/8/7 (first 4 active, last 2 inactive/deactivated)
-	var row1_keys = ["0", "9", "8", "7"]
+	# Row 1: 7/8/9/0 (reordered for better visual layout - 7 at left, 0 at right)
+	# (was: 0/9/8/7 - now: 7/8/9/0 for visual left-to-right numerical order)
+	var row1_keys = ["7", "8", "9", "0"]
 	for i in range(4):
 		var pos = Vector2i(i, 1)
 		keyboard.action_to_position["select_plot_" + row1_keys[i]] = pos
@@ -243,6 +244,7 @@ func _create_grid_config() -> GridConfig:
 		config.plots.append(plot)
 
 	# Create plot configurations for Row 1 (first 4 active, last 2 inactive)
+	# Row 1 now uses: 7/8/9/0 (reordered for better visual left-to-right order)
 	for i in range(4):
 		var plot = PlotConfig.new()
 		plot.position = Vector2i(i, 1)
