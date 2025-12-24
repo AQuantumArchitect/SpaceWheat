@@ -121,7 +121,7 @@ func _setup_graph() -> void:
 		nodes[icon] = node
 
 	# Define edges (couplings from Hamiltonian)
-	var hamiltonian_couplings = [
+	var hamiltonian_couplings: Array[EcosystemGraphEdge] = [
 		# Core food chain
 		EcosystemGraphEdge.new("plant", "herbivore", 0.15),
 		EcosystemGraphEdge.new("herbivore", "predator", 0.12),
