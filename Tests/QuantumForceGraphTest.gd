@@ -5,6 +5,7 @@ extends Control
 
 const QuantumForceGraphScript = preload("res://Core/Visualization/QuantumForceGraph.gd")
 const QuantumNodeScript = preload("res://Core/Visualization/QuantumNode.gd")
+const FarmPlotScript = preload("res://Core/GameMechanics/FarmPlot.gd")
 const DualEmojiQubitScript = preload("res://Core/QuantumSubstrate/DualEmojiQubit.gd")
 
 @onready var graph_node = $QuantumForceGraph
@@ -28,10 +29,16 @@ func _ready():
 	# Create sample qubits directly (without full farm grid)
 	_create_sample_qubits()
 
+	# Don't assign quantum_nodes directly - instead, manually add them one by one
+	# This respects the Array[QuantumNode] type constraint
+	for quantum_node in qubits:
+		graph.quantum_nodes.append(quantum_node)
+		if quantum_node.plot_id:
+			graph.node_by_plot_id[quantum_node.plot_id] = quantum_node
+
 	# Manually initialize the graph's visual properties
 	graph.center_position = Vector2(640, 360)
 	graph.graph_radius = 250.0
-	graph.quantum_nodes = qubits
 
 	# Tell graph to set up for rendering
 	graph.set_process(true)
@@ -49,24 +56,28 @@ func _create_sample_qubits():
 	var radius = 250.0
 
 	for i in range(emojis.size()):
+		# Create a plot with quantum state
+		var plot = FarmPlotScript.new()
+		plot.plot_id = "test_plot_%d" % i
+		plot.grid_position = Vector2i(i % 5, i / 5)
+
 		# Create a qubit
 		var qubit = DualEmojiQubitScript.new(emojis[i], emojis[(i + 1) % emojis.size()])
 		qubit.theta = randf_range(0.0, PI)
 		qubit.phi = randf_range(0.0, TAU)
 		qubit.radius = randf_range(0.4, 1.0)
 
-		# Create a QuantumNode object
-		var quantum_node = QuantumNodeScript.new()
-		quantum_node.plot_id = "test_plot_%d" % i
-		quantum_node.plot = null  # No actual plot
-		quantum_node.position = center + Vector2(cos(i * TAU / emojis.size()) * radius, sin(i * TAU / emojis.size()) * radius)
-		quantum_node.velocity = Vector2.ZERO
-		quantum_node.radius = 30.0
-		quantum_node.color = Color.from_hsv(float(i) / emojis.size(), 0.8, 0.9)
+		plot.quantum_state = qubit
 
-		# Set the quantum state on the node (if it has this property)
-		if quantum_node.has_meta("quantum_state"):
-			quantum_node.set_meta("quantum_state", qubit)
+		# Calculate positions
+		var grid_pos = Vector2i(i % 5, i / 5)
+		var anchor_pos = center + Vector2(cos(i * TAU / emojis.size()) * radius, sin(i * TAU / emojis.size()) * radius)
+
+		# Create a QuantumNode object (requires FarmPlot, anchor_pos, grid_pos, center_pos)
+		var quantum_node = QuantumNodeScript.new(plot, anchor_pos, grid_pos, center)
+		quantum_node.color = Color.from_hsv(float(i) / emojis.size(), 0.8, 0.9)
+		quantum_node.emoji_north = emojis[i]
+		quantum_node.emoji_south = emojis[(i + 1) % emojis.size()]
 
 		qubits.append(quantum_node)
 
@@ -95,11 +106,12 @@ func _update_metrics():
 
 	for quantum_node in qubits:
 		# Count entanglements if plot exists
-		if quantum_node.plot and quantum_node.plot.has_method("get_entanglement_count"):
+		if quantum_node.plot and "entangled_plots" in quantum_node.plot:
 			entangled_count += quantum_node.plot.entangled_plots.size()
 
-		# Get coherence from qubit radius
-		total_coherence += quantum_node.radius  # Use node.radius as proxy for coherence
+		# Get coherence from the actual qubit
+		if quantum_node.plot and "quantum_state" in quantum_node.plot and quantum_node.plot.quantum_state:
+			total_coherence += quantum_node.plot.quantum_state.radius
 
 	# Update labels
 	qubit_count_label.text = "Qubits: %d" % qubit_count
@@ -107,6 +119,6 @@ func _update_metrics():
 
 	if qubit_count > 0:
 		var avg_coherence = total_coherence / qubit_count
-		coherence_label.text = "Avg Coherence: %.2f" % (avg_coherence / 30.0)  # Normalize from radius scale
+		coherence_label.text = "Avg Coherence: %.2f" % avg_coherence
 	else:
 		coherence_label.text = "Avg Coherence: ────"
