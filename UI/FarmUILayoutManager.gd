@@ -107,31 +107,11 @@ func inject_dependencies(faction_mgr: Node = null, vocab_sys: Node = null, consp
 
 
 func inject_farm(farm: Node, ui_controller: Node) -> void:
-	"""Inject farm and ui_controller into plot grid display and quantum visualization"""
+	"""Inject farm and ui_controller into plot grid display"""
 	if plot_grid_display:
 		plot_grid_display.inject_farm(farm)
 		plot_grid_display.inject_ui_controller(ui_controller)
 		print("💉 Farm injected into PlotGridDisplay")
-
-	# Initialize QuantumForceGraph with farm's grid
-	if quantum_graph and farm:
-		# Get the FarmGrid from farm (farm should have a grid property or method)
-		var farm_grid = null
-		if farm.has_method("get_grid"):
-			farm_grid = farm.get_grid()
-		elif farm.has_property("grid"):
-			farm_grid = farm.grid
-
-		if farm_grid:
-			# Calculate center position and radius for quantum visualization
-			# Center is middle of play_area, radius scales with container size
-			var center_pos = play_area.global_position + play_area.size / 2.0
-			var radius = minf(play_area.size.x, play_area.size.y) / 3.0  # Reasonable radius
-
-			quantum_graph.initialize(farm_grid, center_pos, radius)
-			print("⚛️ QuantumForceGraph initialized with farm grid (center: %s, radius: %.1f)" % [center_pos, radius])
-		else:
-			print("⚠️  Could not get farm grid for QuantumForceGraph initialization")
 
 
 func inject_grid_config(config: GridConfig) -> void:
@@ -278,8 +258,8 @@ func _create_ui_components() -> void:
 	plot_grid_display.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	plot_grid_display.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	plots_row.add_child(plot_grid_display)
-	# Hide PlotGridDisplay - using QuantumForceGraph visualization instead
-	plot_grid_display.hide()
+	# Show PlotGridDisplay for now (QuantumForceGraph initialization needs work)
+	plot_grid_display.show()
 
 	# ========== ACTIONS ROW COMPONENTS ==========
 	action_preview_row = ActionPreviewRow.new()
