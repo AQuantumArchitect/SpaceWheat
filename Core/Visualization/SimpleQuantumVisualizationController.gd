@@ -87,13 +87,19 @@ func connect_biome(biome_ref, plot_pos_dict: Dictionary = {}) -> void:
 		else:
 			pos = get_viewport_rect().size / 2.0
 
+		# Determine if this node is celestial (from Biome's plot_types)
+		var is_celestial = false
+		if biome and "plot_types" in biome and grid_pos in biome.plot_types:
+			is_celestial = biome.plot_types[grid_pos] == biome.PlotType.CELESTIAL
+
 		nodes[grid_pos] = {
 			"glyph": glyph,
 			"qubit": qubit,
 			"position": pos,
 			"velocity": Vector2.ZERO,
 			"anchor": pos,  # Classical anchor position
-			"grid_pos": grid_pos
+			"grid_pos": grid_pos,
+			"is_celestial": is_celestial  # Read from Biome, not hardcoded
 		}
 
 		idx += 1
@@ -170,9 +176,17 @@ func _process(delta: float) -> void:
 
 
 func _update_forces(delta: float) -> void:
-	"""Calculate forces on all nodes (Hamiltonian + dissipation)"""
+	"""Calculate forces on all nodes (Hamiltonian + dissipation)
+
+	CELESTIAL BODIES: Nodes marked as celestial by the Biome are unaffected by forces
+	"""
 	for grid_pos in nodes.keys():
 		var node = nodes[grid_pos]
+
+		# Skip forces for celestial bodies (Biome determines what is celestial)
+		if node.get("is_celestial", false):
+			continue
+
 		var total_force = Vector2.ZERO
 
 		# 1. TETHER: Spring force pulling toward classical anchor (Hooke's law)
@@ -223,8 +237,6 @@ func _update_forces(delta: float) -> void:
 		var damping_factor = exp(-DAMPING_COEFFICIENT * delta)
 		node.velocity *= damping_factor
 
-	# NOTE: Sun/Moon is IMMOBILE (celestial reference frame, not subject to forces)
-
 
 func _update_positions(delta: float) -> void:
 	"""Update node positions from velocities"""
@@ -232,7 +244,7 @@ func _update_positions(delta: float) -> void:
 		var node = nodes[grid_pos]
 		node.position += node.velocity * delta
 
-	# Sun/Moon position is FIXED (not updated - immobile celestial body)
+	# Celestial bodies marked by Biome won't reach here (skipped in _update_forces)
 
 
 func _update_particles(delta: float) -> void:

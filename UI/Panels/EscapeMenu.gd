@@ -20,6 +20,9 @@ var selected_button_index: int = 0
 
 
 func _init():
+	# Set name for reference by SaveLoadMenu
+	name = "EscapeMenu"
+
 	# Full screen overlay - fill entire screen
 	anchor_left = 0.0
 	anchor_top = 0.0
@@ -147,14 +150,15 @@ func _input(event):
 	if not visible or not event is InputEventKey or not event.pressed or event.echo:
 		return
 
-	# Check if SaveLoadMenu is visible - if so, don't process ESC (let SaveLoadMenu handle it)
+	# Check if SaveLoadMenu is visible - if so, don't process ANY input
 	var parent = get_parent()
 	if parent:
 		for child in parent.get_children():
 			if child.name == "SaveLoadMenu" and child.visible:
-				# SaveLoadMenu is open, don't process input here
+				# SaveLoadMenu is open - don't process any keyboard input in this menu
 				return
 
+	# Only process input if SaveLoadMenu is NOT visible
 	match event.keycode:
 		KEY_ESCAPE:
 			# ESC closes menu (activates Resume)

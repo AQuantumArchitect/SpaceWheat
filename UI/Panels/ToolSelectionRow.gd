@@ -41,7 +41,7 @@ func _ready():
 	add_theme_constant_override("margin_right", 15)  # Right padding
 	add_theme_constant_override("margin_top", 8)  # Top padding
 	add_theme_constant_override("margin_bottom", 8)  # Bottom padding
-	alignment = BoxContainer.ALIGNMENT_BEGIN
+	# CRITICAL: Don't set alignment here - let buttons' size_flags_horizontal handle distribution
 
 	# Ensure buttons don't block keyboard input
 	mouse_filter = MOUSE_FILTER_IGNORE
