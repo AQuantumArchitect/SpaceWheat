@@ -258,8 +258,8 @@ func _create_ui_components() -> void:
 	plot_grid_display.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	plot_grid_display.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	plots_row.add_child(plot_grid_display)
-	# Hide PlotGridDisplay - using QuantumForceGraph visualization instead
-	plot_grid_display.hide()
+	# SHOW PlotGridDisplay - QuantumForceGraph not wired to farm, so use grid display
+	plot_grid_display.show()
 
 	# ========== ACTIONS ROW COMPONENTS ==========
 	action_preview_row = ActionPreviewRow.new()
