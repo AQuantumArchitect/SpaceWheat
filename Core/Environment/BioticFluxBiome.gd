@@ -145,23 +145,37 @@ func _update_quantum_substrate(dt: float) -> void:
 
 
 func _sync_sun_qubit(dt: float):
-	"""Advance sun qubit through day-night cycle
+	"""Advance sun qubit through day-night cycle using sinusoidal progression
 
-	Sun's theta cycles from 0→2π over sun_moon_period seconds.
-	Phi and radius stay constant (sun never decoheres).
+	Sun's theta cycles smoothly: starts at 0 (noon, ☀️), peaks intensity at 0 and π,
+	minimum intensity at π/2 and 3π/2 (twilight transitions).
+
+	Uses sine wave: theta(t) = π + π*sin(2π*t/period)
+	This gives: theta=0 (noon) → π/2 (afternoon) → 2π (midnight) → 3π/2 (early morning) → 0 (noon)
+	With intensity peaking at 0 and π (noon and midnight).
 	"""
 	if not sun_qubit:
 		return
 
 	time_tracker.update(dt)
 
-	# Cycle theta through full period
-	var cycle_progress = fmod(time_tracker.time_elapsed, sun_moon_period) / sun_moon_period
-	sun_qubit.theta = cycle_progress * TAU
+	# Smooth sinusoidal cycling using sine wave
+	# This creates: noon (theta≈0) → midnight (theta≈π) → noon
+	var cycle_time = fmod(time_tracker.time_elapsed, sun_moon_period)
+	var phase = (cycle_time / sun_moon_period) * TAU  # 0→2π over period
+
+	# Use sine to create smooth, natural-looking progression
+	# sin(phase) ranges -1→1, mapping to a full cycle
+	sun_qubit.theta = PI + PI * sin(phase)  # Results in 0→2π smoothly
 
 	# Keep sun locked to north pole (phi doesn't matter for σ_z coupling, but keep constant)
 	sun_qubit.phi = 0.0
-	sun_qubit.radius = 1.0  # Always pure
+
+	# Radius varies with intensity for visual aura effect (pulsing)
+	# Peaks at noon (theta=0) and midnight (theta=π)
+	var intensity = (1.0 + cos(2.0 * sun_qubit.theta)) / 2.0
+	sun_qubit.radius = 0.8 + 0.2 * intensity  # Ranges 0.8→1.0, always pure but pulsing visually
+	sun_qubit.energy = intensity  # Energy also reflects intensity (for force graph effects)
 
 
 func _evolve_sun_moon_cycle(dt: float):
@@ -171,17 +185,24 @@ func _evolve_sun_moon_cycle(dt: float):
 
 
 func _update_temperature_from_cycle():
-	"""Temperature varies with sun cycle
+	"""Temperature varies with sun/moon cycle - intensity peaks at BOTH noon and midnight
 
 	Physics model:
-	- Peak temperature during sun phase (θ near 0 or π, but cos(θ) peaks at θ=0)
-	- Minimum temperature during transition phases
-	- Temperature = base + 50 * (1 - cos(sun.theta))
+	- Peak intensity at θ=0 (noon, ☀️ sun at maximum)
+	- Peak intensity at θ=π (midnight, 🌙 moon at maximum)
+	- Minimum intensity at θ=π/2 and 3π/2 (twilight transitions)
+
+	Formula: intensity = (1 + cos(2*θ)) / 2
+	This is a Rabi-like oscillation giving double peaks per cycle.
 	"""
 	if not sun_qubit:
 		return
 
-	var heat_factor = (1.0 - cos(sun_qubit.theta)) * 50.0
+	# Rabi oscillation: peaks at both 0 and π (noon and midnight)
+	var intensity = (1.0 + cos(2.0 * sun_qubit.theta)) / 2.0
+
+	# Temperature ranges from 300K (twilight) to 400K (noon/midnight)
+	var heat_factor = intensity * 100.0
 	base_temperature = 300.0 + heat_factor
 
 
