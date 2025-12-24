@@ -1,0 +1,7 @@
+[gd_scene load_steps=2 format=3 uid="uid://cdxfwm3p04laq"]
+
+[ext_resource type="Script" path="res://UI/FarmUI.gd" id="1_o7r2q"]
+
+[node name="FarmUI" type="Control" node_unique_name="true"]
+script = ExtResource("1_o7r2q")
+layout_mode = 2

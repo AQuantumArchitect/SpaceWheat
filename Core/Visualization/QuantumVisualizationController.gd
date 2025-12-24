@@ -101,11 +101,12 @@ func connect_to_biome(biome_ref, plot_positions_dict: Dictionary = {}) -> void:
 	for patch_pos in qubit_positions:
 		# Get qubit directly for BioticFlux, or occupation numbers for ForestEcosystem
 		var qubit = null
+		var occupation_numbers = {}
 		if "quantum_states" in biome_ref:
 			qubit = biome_ref.quantum_states.get(patch_pos)
 		else:
 			# ForestEcosystem - need to extract from occupation numbers
-			var occupation_numbers = biome_ref.get_occupation_numbers(patch_pos)
+			occupation_numbers = biome_ref.get_occupation_numbers(patch_pos)
 			if occupation_numbers.is_empty():
 				continue
 
@@ -117,19 +118,19 @@ func connect_to_biome(biome_ref, plot_positions_dict: Dictionary = {}) -> void:
 			var pair = trophic_pairs[idx]
 
 			# Create qubit from occupation data
-			var qubit = DualEmojiQubit.new()
-			qubit.north_emoji = pair.north
-			qubit.south_emoji = pair.south
+			var new_qubit = DualEmojiQubit.new()
+			new_qubit.north_emoji = pair.north
+			new_qubit.south_emoji = pair.south
 
 			# Map occupation to quantum state
 			var max_occ = 10.0
 			var occ_value = occupation_numbers.get(pair.level, 0.0)
-			qubit.theta = (occ_value / max_occ) * PI
-			qubit.phi = randf() * TAU
+			new_qubit.theta = (occ_value / max_occ) * PI
+			new_qubit.phi = randf() * TAU
 
 			# Create glyph
 			var glyph = QuantumGlyph.new()
-			glyph.qubit = qubit
+			glyph.qubit = new_qubit
 
 			# Position the glyph
 			if plot_positions.has(patch_pos):
@@ -143,7 +144,7 @@ func connect_to_biome(biome_ref, plot_positions_dict: Dictionary = {}) -> void:
 
 			glyphs.append(glyph)
 			# Map qubit to glyph for edge lookup
-			glyph_map[qubit] = glyph
+			glyph_map[new_qubit] = glyph
 
 	# Build semantic edges from entanglement relationships
 	_build_edges()
@@ -385,4 +386,5 @@ func _draw_temperature_field() -> void:
 		var blend_color = corner_tl.lerp(corner_br, progress)
 		var rect_height = height / 10.0
 		draw_rect(Rect2(0, i * rect_height, width, rect_height), blend_color)
-
+	}
+}

@@ -29,8 +29,8 @@ var quantum_visualization: QuantumVisualizationController
 var current_tool: int = 1
 
 
-func _init(farm_ref: Node) -> void:
-	"""Initialize with the farm (passed in constructor)"""
+func setup_farm(farm_ref: Node) -> void:
+	"""Initialize with the farm"""
 	farm = farm_ref
 	grid_config = farm.grid_config if farm else null
 

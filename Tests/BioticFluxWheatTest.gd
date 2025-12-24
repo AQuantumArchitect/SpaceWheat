@@ -3,12 +3,12 @@ extends Node
 ## Test: Load wheat in BioticFluxBiome and visualize energy transfer
 ## Shows real-time quantum evolution with sun/moon cycling and energy growth
 
-const QuantumVisualizationController = preload("res://Core/Visualization/QuantumVisualizationController.gd")
+const SimpleQuantumVisualizationController = preload("res://Core/Visualization/SimpleQuantumVisualizationController.gd")
 const BioticFluxBiome = preload("res://Core/Environment/BioticFluxBiome.gd")
 const DualEmojiQubit = preload("res://Core/QuantumSubstrate/DualEmojiQubit.gd")
 
 var biome = null
-var visualization: QuantumVisualizationController = null
+var visualization: SimpleQuantumVisualizationController = null
 var frame_count: int = 0
 var wheat_positions: Array = []  # Track wheat positions for debugging
 
@@ -43,13 +43,13 @@ func _ready() -> void:
 
 	# Create visualization overlay
 	print("\n📊 Creating quantum visualization...")
-	visualization = QuantumVisualizationController.new()
+	visualization = SimpleQuantumVisualizationController.new()
 	visualization.set_anchors_preset(Control.PRESET_FULL_RECT)
 	container.add_child(visualization)
 
 	# Connect biome to visualization
 	var plot_positions = _get_plot_positions()
-	visualization.connect_to_biome_simple(biome, plot_positions)
+	visualization.connect_biome(biome, plot_positions)
 	print("   ✓ Visualization connected to biome")
 	print("   ✓ Glyphs created: %d" % visualization.glyphs.size())
 

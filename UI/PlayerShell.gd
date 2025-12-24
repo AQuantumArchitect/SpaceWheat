@@ -13,7 +13,7 @@ extends Control
 const FarmUI = preload("res://UI/FarmUI.gd")
 const OverlayManager = preload("res://UI/Managers/OverlayManager.gd")
 
-var current_farm_ui: FarmUI = null
+var current_farm_ui = null  # FarmUI instance (loaded from scene)
 var overlay_manager: OverlayManager = null
 var farm: Node = null
 
@@ -52,9 +52,16 @@ func load_farm(farm_ref: Node) -> void:
 	farm = farm_ref
 
 	# Create fresh FarmUI for this farm
-	current_farm_ui = FarmUI.new()
-	current_farm_ui._init(farm_ref)
-	add_child(current_farm_ui)
+	# Note: FarmUI extends Control and can't be instantiated with .new() in Godot 4
+	# Instead, load it as a scene
+	var farm_ui_scene = load("res://UI/FarmUI.tscn")
+	if farm_ui_scene:
+		current_farm_ui = farm_ui_scene.instantiate()
+		add_child(current_farm_ui)
+		# Call setup_farm after the node enters the scene tree
+		current_farm_ui.call_deferred("setup_farm", farm_ref)
+	else:
+		print("❌ FarmUI.tscn not found - cannot load farm UI")
 
 	print("   ✅ FarmUI created and added")
 
