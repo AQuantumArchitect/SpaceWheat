@@ -104,91 +104,108 @@ func _ready():
 	print("⚛️ QuantumForceGraph initialized (input enabled)")
 
 
-func initialize(grid: FarmGrid, center_pos: Vector2, radius: float):
-	"""Initialize the quantum force graph and create quantum nodes for all plots"""
+func initialize(grid: FarmGrid, center_pos: Vector2, radius: float, provided_positions: Dictionary = {}):
+	"""Initialize the quantum force graph and create quantum nodes for all plots
+
+	Args:
+		grid: FarmGrid with plots and biome assignments
+		center_pos: Center position for graph layout
+		radius: Radius of graph for scaling
+		provided_positions: Optional pre-calculated positions from PlotGridDisplay
+			If provided, uses these instead of calculating positions internally.
+			Maps Vector2i (grid position) → Vector2 (screen position)
+	"""
 	farm_grid = grid
 	center_position = center_pos
 	graph_radius = radius
 
 	# Create quantum nodes if we have a valid grid
 	if grid:
-		# Build classical plot positions dictionary from grid
+		# Use provided positions or calculate them from grid
 		var classical_plot_positions: Dictionary = {}
 
-		# Calculate viewport scaling factor for consistent oval sizing
-		# graph_radius of 300 is "normal" - scale proportionally for other sizes
-		var viewport_scale = graph_radius / 300.0
+		# If positions were provided by PlotGridDisplay, use those (plots are foundation)
+		if not provided_positions.is_empty():
+			print("⚛️ QuantumForceGraph: Using provided plot positions from PlotGridDisplay")
+			classical_plot_positions = provided_positions.duplicate()
+		else:
+			# Fall back to calculating positions internally
+			classical_plot_positions = {}
 
-		# Group plots by biome for parametric ring distribution
-		var plots_by_biome: Dictionary = {}  # biome_name -> Array[Vector2i]
+			# Calculate viewport scaling factor for consistent oval sizing
+			# graph_radius of 300 is "normal" - scale proportionally for other sizes
+			var viewport_scale = graph_radius / 300.0
 
-		# First pass: group all plots by their assigned biome
-		print("🔍 Grouping plots by biome (grid size: %dx%d, scale=%.2f)" % [grid.grid_width, grid.grid_height, viewport_scale])
-		print("   plot_biome_assignments has %d entries" % grid.plot_biome_assignments.size())
+			# Group plots by biome for parametric ring distribution
+			var plots_by_biome: Dictionary = {}  # biome_name -> Array[Vector2i]
 
-		for y in range(grid.grid_height):
-			for x in range(grid.grid_width):
-				var grid_pos = Vector2i(x, y)
-				var plot = grid.get_plot(grid_pos)
-				if plot:
-					var biome_name = grid.plot_biome_assignments.get(grid_pos, "")
-					if biome_name == "":
-						if biomes.size() > 0:
-							biome_name = biomes.keys()[0]  # Use first registered biome as default
-							print("   ⚠️  [%s] No assignment, using default biome '%s'" % [grid_pos, biome_name])
-						else:
-							print("   ❌ [%s] No assignment and no biomes registered!" % grid_pos)
+			# First pass: group all plots by their assigned biome
+			print("🔍 Grouping plots by biome (grid size: %dx%d, scale=%.2f)" % [grid.grid_width, grid.grid_height, viewport_scale])
+			print("   plot_biome_assignments has %d entries" % grid.plot_biome_assignments.size())
 
-					if biome_name != "":
-						if not plots_by_biome.has(biome_name):
-							plots_by_biome[biome_name] = []
-						plots_by_biome[biome_name].append(grid_pos)
+			for y in range(grid.grid_height):
+				for x in range(grid.grid_width):
+					var grid_pos = Vector2i(x, y)
+					var plot = grid.get_plot(grid_pos)
+					if plot:
+						var biome_name = grid.plot_biome_assignments.get(grid_pos, "")
+						if biome_name == "":
+							if biomes.size() > 0:
+								biome_name = biomes.keys()[0]  # Use first registered biome as default
+								print("   ⚠️  [%s] No assignment, using default biome '%s'" % [grid_pos, biome_name])
+							else:
+								print("   ❌ [%s] No assignment and no biomes registered!" % grid_pos)
 
-		var total_plots_grouped = 0
-		for biome_name in plots_by_biome:
-			total_plots_grouped += plots_by_biome[biome_name].size()
-			print("     - %s: %d plots" % [biome_name, plots_by_biome[biome_name].size()])
+						if biome_name != "":
+							if not plots_by_biome.has(biome_name):
+								plots_by_biome[biome_name] = []
+							plots_by_biome[biome_name].append(grid_pos)
 
-		print("   Total: %d biomes with %d plots" % [plots_by_biome.keys().size(), total_plots_grouped])
+			var total_plots_grouped = 0
+			for biome_name in plots_by_biome:
+				total_plots_grouped += plots_by_biome[biome_name].size()
+				print("     - %s: %d plots" % [biome_name, plots_by_biome[biome_name].size()])
 
-		# Second pass: calculate parametric positions for each biome's plots
-		for biome_name in plots_by_biome:
-			if not biomes.has(biome_name):
-				print("⚠️ Biome '%s' not found in registry!" % biome_name)
-				continue
+			print("   Total: %d biomes with %d plots" % [plots_by_biome.keys().size(), total_plots_grouped])
 
-			var biome_obj = biomes[biome_name]
-			var biome_config = biome_obj.get_visual_config()
-			var biome_center = center_position + biome_config.center_offset * graph_radius
+			# Second pass: calculate parametric positions for each biome's plots
+			for biome_name in plots_by_biome:
+				if not biomes.has(biome_name):
+					print("⚠️ Biome '%s' not found in registry!" % biome_name)
+					continue
 
-			# Create nodes for ALL plots (planted and unplanted)
-			# QuantumNode handles visibility based on quantum_state
-			var all_plots = plots_by_biome[biome_name]
+				var biome_obj = biomes[biome_name]
+				var biome_config = biome_obj.get_visual_config()
+				var biome_center = center_position + biome_config.center_offset * graph_radius
 
-			# Get parametric ring positions from biome (with viewport scaling for consistency)
-			var plot_positions = biome_obj.get_plot_positions_in_oval(
-				all_plots.size(),
-				biome_center,
-				viewport_scale
-			)
+				# Create nodes for ALL plots (planted and unplanted)
+				# QuantumNode handles visibility based on quantum_state
+				var all_plots = plots_by_biome[biome_name]
 
-			print("🔵 Biome '%s': %d plots → %d total → %d positions" % [
-				biome_name,
-				plots_by_biome[biome_name].size(),
-				all_plots.size(),
-				plot_positions.size()
-			])
+				# Get parametric ring positions from biome (with viewport scaling for consistency)
+				var plot_positions = biome_obj.get_plot_positions_in_oval(
+					all_plots.size(),
+					biome_center,
+					viewport_scale
+				)
 
-			# Assign positions to ALL plots (in grid order for consistency)
-			var plot_idx = 0
-			for grid_pos in all_plots:
-				if plot_idx < plot_positions.size():
-					var screen_pos = plot_positions[plot_idx]
+				print("🔵 Biome '%s': %d plots → %d total → %d positions" % [
+					biome_name,
+					plots_by_biome[biome_name].size(),
+					all_plots.size(),
+					plot_positions.size()
+				])
 
-					# Offset anchor position UPWARD (negative Y) so bubbles float above like balloons
-					var home_pos = screen_pos + Vector2(0, -60)
-					classical_plot_positions[grid_pos] = home_pos
-					plot_idx += 1
+				# Assign positions to ALL plots (in grid order for consistency)
+				var plot_idx = 0
+				for grid_pos in all_plots:
+					if plot_idx < plot_positions.size():
+						var screen_pos = plot_positions[plot_idx]
+
+						# Offset anchor position UPWARD (negative Y) so bubbles float above like balloons
+						var home_pos = screen_pos + Vector2(0, -60)
+						classical_plot_positions[grid_pos] = home_pos
+						plot_idx += 1
 
 		# Create quantum nodes for all plots
 		if classical_plot_positions.size() > 0:
@@ -1092,9 +1109,17 @@ func _draw_tether_lines():
 
 
 func _draw_entanglement_lines():
-	"""Draw entanglement connections between quantum nodes"""
+	"""Draw entanglement connections between quantum nodes
+
+	WIDTH ENCODING: Edge width ∝ entanglement strength
+	PULSING ANIMATION: Pulse ∝ |√(Nᵢ × Nⱼ)| (interaction strength)
+	"""
 	var drawn_pairs = {}  # Track to avoid drawing twice
 	var entanglement_count = 0
+
+	# Define base width and parameters for width encoding
+	var base_width = 1.0
+	var max_width = 5.0
 
 	for node in quantum_nodes:
 		if not node.plot:
@@ -1116,35 +1141,63 @@ func _draw_entanglement_lines():
 
 			drawn_pairs[pair_key] = true
 
-			# Animated alpha (gentle pulsing)
-			var phase = time_accumulator * 1.5
+			# ====================================================================
+			# WIDTH ENCODING: Edge width ∝ entanglement strength
+			# ====================================================================
+			var entanglement_strength = 0.5  # Default/fallback
+			if "entanglement_strength" in node.plot.entangled_plots[partner_id]:
+				entanglement_strength = node.plot.entangled_plots[partner_id]["entanglement_strength"]
+
+			var base_line_width = base_width + entanglement_strength * max_width
+
+			# ====================================================================
+			# PULSING ANIMATION: Proportional to interaction strength
+			# ====================================================================
+			# Calculate interaction strength from node amplitudes
+			var interaction_strength = 0.5  # Fallback
+			if node.plot.quantum_state and partner_node.plot and partner_node.plot.quantum_state:
+				var node_radius = node.plot.quantum_state.radius if "radius" in node.plot.quantum_state else 1.0
+				var partner_radius = partner_node.plot.quantum_state.radius if "radius" in partner_node.plot.quantum_state else 1.0
+				interaction_strength = sqrt(node_radius * partner_radius)  # Geometric mean
+
+			# Animated pulse based on interaction strength
+			var phase = time_accumulator * 2.0 * (1.0 + interaction_strength)  # Faster pulse for stronger interactions
 			var pulse = (sin(phase) + 1.0) / 2.0  # 0.0 to 1.0
-			var alpha = 0.6 + pulse * 0.4  # Brighter base alpha
+			var pulse_factor = 0.5 + pulse * 0.5  # 0.5 to 1.0
+
+			# Dynamic alpha based on entanglement strength
+			var alpha = 0.5 + entanglement_strength * 0.5  # 0.5 to 1.0 based on strength
+			alpha = alpha * pulse_factor  # Modulate by pulse
 
 			# Vibrant cyan/electric blue - high contrast against dark background
 			var base_color = Color(0.2, 0.9, 1.0)  # Bright cyan/electric blue
 
+			# Calculate pulsed width
+			var pulsed_width = base_line_width * pulse_factor
+
 			# Outer glow (widest, creates contrast)
 			var glow_outer = base_color
 			glow_outer.a = alpha * 0.25
-			draw_line(node.position, partner_node.position, glow_outer, ENTANGLEMENT_WIDTH * 3.5, true)
+			draw_line(node.position, partner_node.position, glow_outer, pulsed_width * 3.5, true)
 
 			# Mid glow (brighter)
 			var glow_mid = base_color
 			glow_mid.a = alpha * 0.5
-			draw_line(node.position, partner_node.position, glow_mid, ENTANGLEMENT_WIDTH * 2.0, true)
+			draw_line(node.position, partner_node.position, glow_mid, pulsed_width * 2.0, true)
 
 			# Core line (very bright, electric)
 			var core_color = Color(0.6, 1.0, 1.0)  # Bright cyan-white core
 			core_color.a = alpha * 0.95
-			draw_line(node.position, partner_node.position, core_color, ENTANGLEMENT_WIDTH, true)
+			draw_line(node.position, partner_node.position, core_color, pulsed_width, true)
 
 			# Draw flowing energy indicator at midpoint
+			# SIZE SCALES WITH INTERACTION STRENGTH
 			var mid_point = (node.position + partner_node.position) / 2
 
-			# Pulsing glow at midpoint (brighter, more visible)
+			# Pulsing glow at midpoint (brighter, more visible) - scales with interaction
 			var indicator_pulse = 0.6 + pulse * 0.4
-			var indicator_size = 10.0 + pulse * 5.0
+			var base_indicator_size = 8.0 + interaction_strength * 4.0  # Scales with interaction
+			var indicator_size = base_indicator_size * pulse_factor
 
 			# Outer glow (cyan halo)
 			var glow_color = base_color
@@ -1156,9 +1209,9 @@ func _draw_entanglement_lines():
 			core_indicator.a = alpha * 0.95
 			draw_circle(mid_point, indicator_size * 0.8, core_indicator)
 
-			# Inner bright spot (pure white pulse)
+			# Inner bright spot (pure white pulse) - more prominent for strong interactions
 			var bright_spot = Color.WHITE
-			bright_spot.a = indicator_pulse
+			bright_spot.a = indicator_pulse * (0.5 + interaction_strength * 0.5)
 			draw_circle(mid_point, indicator_size * 0.4, bright_spot)
 
 			entanglement_count += 1
@@ -1377,6 +1430,7 @@ func _draw_quantum_bubble(node: QuantumNode, is_celestial: bool = false) -> void
 	- Glossy center highlight
 	- State-aware outline (measured vs unmeasured)
 	- Dual emoji overlay with superposition opacity
+	- SIZE ENCODING: Node size ∝ qubit.radius (coherence)
 
 	Args:
 		node: QuantumNode to render
@@ -1393,24 +1447,46 @@ func _draw_quantum_bubble(node: QuantumNode, is_celestial: bool = false) -> void
 	var is_measured = node.plot != null and node.plot.has_been_measured
 
 	# ====================================================================
+	# SIZE ENCODING: Node size ∝ qubit.radius (quantum coherence)
+	# ====================================================================
+	# Base size (minimum radius when coherence is low)
+	var base_node_radius = 25.0
+	var size_range = 55.0  # Additional radius at maximum coherence
+
+	# Calculate dynamic radius from qubit coherence
+	var dynamic_radius = node.radius
+	if node.plot and node.plot.quantum_state and "radius" in node.plot.quantum_state:
+		var qubit_coherence = node.plot.quantum_state.radius  # Range [0, 1]
+		dynamic_radius = base_node_radius + qubit_coherence * size_range
+
+	# Use dynamic radius for all subsequent calculations
+	node.radius = dynamic_radius
+
+	# ====================================================================
 	# COLOR SCHEME: Celestial vs Standard
 	# ====================================================================
 	var base_color: Color
 	var glow_tint: Color
 	var is_celestial_render = is_celestial
 
+	# COLOR BRIGHTNESS ENCODING: brightness ∝ qubit.radius (coherence)
+	var brightness_factor = 0.3
+	if node.plot and node.plot.quantum_state and "radius" in node.plot.quantum_state:
+		var qubit_radius = node.plot.quantum_state.radius  # [0, 1]
+		brightness_factor = 0.3 + qubit_radius * 0.7  # Range [0.3, 1.0]
+
 	if is_celestial_render:
 		# Celestial: Golden/amber glow
 		base_color = Color(1.0, 0.8, 0.2)  # Golden
 		glow_tint = base_color
 	else:
-		# Standard: Use node's quantum-derived color
-		base_color = node.color
+		# Standard: Use node's quantum-derived color with brightness encoding
+		base_color = node.color * Color(brightness_factor, brightness_factor, brightness_factor, 1.0)
 		# Complementary color for outer glow (true contrasting hue)
 		glow_tint = Color.from_hsv(
 			fmod(node.color.h + 0.5, 1.0),  # Opposite hue
 			min(node.color.s * 1.3, 1.0),    # Boost saturation
-			max(node.color.v * 0.8, 0.4)     # Slightly darker for halo
+			max(node.color.v * 0.8 * brightness_factor, 0.3)     # Darker for halo, scaled by coherence
 		)
 
 	# ====================================================================
