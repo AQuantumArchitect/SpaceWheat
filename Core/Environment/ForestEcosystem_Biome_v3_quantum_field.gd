@@ -51,12 +51,12 @@ var hamiltonian_params = {
 	"g_herbivore_parasite": -0.06,  # Parasites decrease herbivores
 	"g_decomposer_all": 0.08,       # Decomposers recycle all trophic levels
 	"g_mycorrhizal_plant": 0.07,    # Fungal network helps plants
-	"g_nitrogen_decomposer": 0.05   # Nitrogen fixers couple to decomposers
+	"g_nitrogen_decomposer": 0.05,  # Nitrogen fixers couple to decomposers
 
 	# Environmental modulation
 	"water_coupling": 0.1,        # Water modulates plant production
 	"sun_coupling": 0.12,         # Sun modulates plant production
-	"seasonal_frequency": 0.02,   # Slow seasonal variation
+	"seasonal_frequency": 0.02    # Slow seasonal variation
 }
 
 ## Occupation numbers (amplitudes) for each trophic level
