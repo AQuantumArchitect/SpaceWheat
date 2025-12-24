@@ -1441,8 +1441,9 @@ func _draw_quantum_nodes():
 	"""Draw all plot quantum nodes with unified peer-level rendering"""
 	var nodes_drawn = 0
 	for node in quantum_nodes:
-		# Skip classical plots (mills/markets) - only show quantum states
-		if not node.plot or not node.plot.quantum_state:
+		# Draw all nodes regardless of quantum state
+		# (they'll show as question marks if no quantum state exists)
+		if not node.plot:
 			continue
 
 		# Use unified bubble rendering (is_celestial=false for plot nodes)
