@@ -1,690 +1,115 @@
 class_name WheatPlot
-extends Resource
+extends FarmPlot
 
-## Farm Plot - Dual-Emoji Qubit System
-## Represents a single farm plot with different plant types
-## All plants are dual-emoji qubits (50/50 superposition when planted):
-## Wheat: 🌾 (Natural Growth) ↔ 👥 (Labor)
-## Tomato: 🍅 (Tomato) ↔ 🍝 (Sauce)
-## Mushroom: 🍄 (Mushroom) ↔ 🍂 (Detritus)
+## WheatPlot - Wheat crop with quantum constraints
+## Specialized FarmPlot that adds wheat-specific quantum evolution
+## Only handles: 🌾 (Natural Growth) ↔ 👥 (Labor) states
 
-# Preload DualEmojiQubit to ensure it's available
-const DualEmojiQubit = preload("res://Core/QuantumSubstrate/DualEmojiQubit.gd")
-const PhaseConstraint = preload("res://Core/GameMechanics/PhaseConstraint.gd")
+# Wheat-specific quantum parameters
+var wheat_theta_stable: float = PI / 4.0  # Stable point for wheat growth
+var wheat_spring_constant: float = 0.5    # Spring attraction strength
 
-signal growth_complete
-signal state_collapsed(final_state: String)
-
-# Plot type
-enum PlotType { WHEAT, TOMATO, MUSHROOM, MILL, MARKET, ENERGY_TAP }
-@export var plot_type: PlotType = PlotType.WHEAT
-
-# Plot identification
-@export var plot_id: String = ""
-@export var grid_position: Vector2i = Vector2i.ZERO
-
-# Conspiracy network connection
-@export var conspiracy_node_id: String = ""  # Which node this plot is entangled with
-@export var conspiracy_bond_strength: float = 0.0  # Bond strength (increased by measurement)
-
-# Dual-emoji qubit states (plot-type-specific)
-# Global fallback for wheat
-const EMOJI_NORTH = "🌾"  # Natural growth (theta = 0)
-const EMOJI_SOUTH = "👥"  # Labor intensive (theta = PI)
-
-# Quantum state (upgraded to use DualEmojiQubit!)
-var quantum_state = null  # Injected DualEmojiQubit instance from Biome
-
-# Phase constraint (for plot types like Imperium that restrict Bloch sphere movement)
-var phase_constraint: PhaseConstraint = null
-
-# Legacy accessors for compatibility
-@export var theta: float:
-	get: return quantum_state.theta if quantum_state else PI/2.0
-	set(value): if quantum_state: quantum_state.theta = value
-
-@export var phi: float:
-	get: return quantum_state.phi if quantum_state else 0.0
-	set(value): if quantum_state: quantum_state.phi = value
-
-# Quantum state
-@export var is_planted: bool = false
-@export var has_been_measured: bool = false
-@export var theta_frozen: bool = false  # True after measurement - stops theta drift
-
-# PHYSICS MODEL (Quantum-Only, No Classical Growth):
-# - NO growth_progress - plants appear instantly at full size
-# - NO maturity threshold - can measure/harvest immediately
-# - theta = Probability ratio P(🌾)/P(👥) - manipulated via entanglement
-# - Gameplay: Plant → Manipulate theta → Measure → Harvest
-
-# Berry phase accumulator (plot memory)
-@export var replant_cycles: int = 0
-@export var berry_phase: float = 0.0
-
-# Energy tap configuration (only used if plot_type == ENERGY_TAP)
-var tap_target_emoji: String = ""        # What emoji to tap (🌾, 💧, etc.)
-var tap_theta: float = 3.0 * PI / 4.0   # Tap position: near south pole
-var tap_phi: float = PI / 4.0            # Tap position: 45° off axis
-var tap_accumulated_resource: float = 0.0  # Energy accumulated (convertible to resource)
-var tap_base_rate: float = 0.5           # Base drain rate
-
-# Entanglement
-var entangled_plots: Dictionary = {}  # plot_id -> strength (quantum state entanglement, temporary)
-var plot_infrastructure_entanglements: Array[Vector2i] = []  # PERSISTENT plot-level entanglement gates
-const MAX_ENTANGLEMENTS = 3
-
-# Quantum evolution parameters
-const THETA_DRIFT_RATE = 0.1  # How fast theta drifts toward target
-const THETA_ENTANGLED_TARGET = PI / 2.0  # Target for entangled (superposition)
-const THETA_ISOLATED_TARGET = 0.0  # Target for isolated (certain wheat)
-
-# Harvest bonuses
-const ENTANGLEMENT_BONUS = 0.20  # +20% yield per entangled neighbor
-const BERRY_PHASE_BONUS = 0.05  # +5% yield per replant cycle
-const OBSERVER_PENALTY = 0.10  # -10% final yield if measured
+# Icon network references (for spring attraction)
+var wheat_icon = null  # Icon that wheat is attracted to
+var mushroom_icon = null  # Icon that competes with wheat
+var icon_network = null  # Reference to icon network
 
 
 func _init():
-	plot_id = "plot_%d" % randi()
+	super._init()
+	plot_type = PlotType.WHEAT  # Always wheat
+	theta_drift_rate = 0.1
+	theta_entangled_target = PI / 2.0  # Entangled qubits stay uncertain
+	theta_isolated_target = PI / 4.0   # Isolated wheat drifts toward growth
 
 
-## Helper Functions
-
-func get_plot_emojis() -> Dictionary:
-	"""Get the dual-emoji pair for this plot type"""
-	match plot_type:
-		PlotType.WHEAT:
-			return {"north": "🌾", "south": "👥"}  # Wheat ↔ Labor
-		PlotType.TOMATO:
-			return {"north": "🍅", "south": "🍝"}  # Tomato ↔ Sauce
-		PlotType.MUSHROOM:
-			return {"north": "🍄", "south": "🍂"}  # Mushroom ↔ Detritus
-		_:
-			return {"north": "🌾", "south": "👥"}  # Default to wheat
+## Wheat-Specific Growth
 
 
-## Planting
-
-func plant(labor_input = 0.0, wheat_input = 0.0, target_biome = null):
-	"""Plant crop using resource injection into target biome
-
-	NEW SYSTEM:
-	- Input: 0.08👥 (labor) + 0.22🌾 (wheat) per planting
-	- These are injected into target biome (FarmingBiome or MarketBiome)
-	- Different biomes convert inputs differently:
-		- FarmingBiome: wheat evolves as 🌾/👥 superposition
-		- MarketBiome: wheat converts to 💰 (coin energy)
-
-	Args:
-		labor_input: Labor resource amount (0.08 default) OR injected quantum state (legacy)
-		wheat_input: Wheat resource amount (0.22 default)
-		target_biome: Biome instance to inject into (farming or market)
-
-	Legacy compatibility: If called with Resource param, forwards to old system
-	"""
-	if is_planted:
-		print("⚠️ Plot already planted: %s" % plot_id)
-		return
-
-	# LEGACY COMPATIBILITY: Handle old API (injected_quantum_state)
-	# If labor_input is a Resource, treat as old API
-	if labor_input is Resource:
-		var injected_quantum_state = labor_input
-		# Old system: use Biome-managed quantum state directly
-		quantum_state = injected_quantum_state
-		is_planted = true
-		has_been_measured = false
-		theta_frozen = false
-		print("🌱 Planted (legacy) at %s" % plot_id)
-		return
-
-	# NEW SYSTEM: Resource injection into target biome
-	if target_biome == null:
-		push_error("NEW PLANT SYSTEM: Must provide target_biome (FarmingBiome or MarketBiome)")
-		return
-
-	# Use default inputs if not specified
-	if labor_input == 0.0:
-		labor_input = 0.08  # Default labor input
-	if wheat_input == 0.0:
-		wheat_input = 0.22  # Default wheat input
-
-	print("🌱 Planting into %s: %.2f👥 (labor) + %.2f🌾 (wheat)" %
-		[target_biome.get_class(), labor_input, wheat_input])
-
-	# Inject resources into target biome
-	# Biome will create quantum state representing this injection
-	if target_biome.has_method("inject_planting"):
-		quantum_state = target_biome.inject_planting(
-			grid_position,
-			wheat_input,
-			labor_input,
-			plot_type
-		)
-	else:
-		print("⚠️ Target biome doesn't support inject_planting()")
-		return
-
-	is_planted = true
-	has_been_measured = false
-	theta_frozen = false
-
-	# Entangle with biome if needed
-	if plot_type == PlotType.WHEAT:
-		conspiracy_node_id = "solar"
-	elif plot_type == PlotType.MUSHROOM:
-		conspiracy_node_id = "solar"
-
-	print("✓ Planted at %s with %.2f🌾 / %.2f👥" % [plot_id, wheat_input, labor_input])
-
-
-## Growth
-
-func grow(delta: float, biome = null, territory_manager = null, icon_network = null, conspiracy_network = null) -> float:
-	"""Evolve quantum state with energy growth from biome
-
-	Quantum evolution order:
-	1. Energy growth (from sun/biome, exponential with coherence)
-	2. Sun/moon Hamiltonian bias (σ_z term pushing toward 🌾)
-	3. Standard quantum evolution (theta drift, phi precession)
-	4. Decoherence (applied separately in FarmGrid update cycle)
-
-	Args:
-		delta: Time step
-		biome: Environmental layer (for sun/moon checks, temperature, energy growth)
-		territory_manager: Faction territory effects
-		icon_network: Icon modifiers (growth, entanglement)
-		conspiracy_network: Legacy - kept for compatibility
-	"""
+func grow_wheat(delta: float, biome = null, icon_network_ref = null) -> float:
+	"""Quantum evolution specific to wheat crops with spring attraction"""
 	if not is_planted or not quantum_state:
 		return 0.0
 
-	# Note: Quantum evolution is now handled by Biome._evolve_quantum_substrate()
-	# which applies energy growth, sun/wheat coupling, and decoherence in correct order.
-	# This method kept for compatibility but no longer does quantum evolution.
-	# (Sun/wheat coupling now handled via Biome's σ_z coupling system)
+	# Update icon references if provided
+	if icon_network_ref:
+		icon_network = icon_network_ref
 
-	# Legacy quantum state evolution (moved to Biome)
-	# _evolve_quantum_state(delta, biome, icon_network, conspiracy_network)
+	# Apply spring attraction toward stable point (wheat growth)
+	if icon_network and icon_network.has_method("get_icon"):
+		wheat_icon = icon_network.get_icon("wheat")
+		mushroom_icon = icon_network.get_icon("mushroom")
 
-	return 0.0  # Energy is tracked internally in quantum_state
+	# Spring attraction: pull theta toward stable point
+	if wheat_icon:
+		var spring_torque = wheat_spring_constant * (wheat_theta_stable - quantum_state.theta)
+		quantum_state.theta += spring_torque * delta
 
+	# Clamp theta to [0, PI]
+	quantum_state.theta = clampf(quantum_state.theta, 0.0, PI)
 
-func _evolve_quantum_state(delta: float, biome = null, icon_network = null, conspiracy_network = null):
-	"""Quantum evolution using DualEmojiQubit.evolve() with Berry phase tracking
+	# Energy growth (biome evolution)
+	if biome and biome.has_method("_evolve_quantum_substrate"):
+		biome._evolve_quantum_substrate(delta)
 
-	NOTE: Icon quantum effects (Hamiltonian modulation) are applied centrally
-	by FarmGrid._apply_icon_effects() to avoid duplication.
+	# Apply phase constraints
+	if phase_constraint:
+		phase_constraint.apply(quantum_state)
 
-	PHYSICS: Theta (probability ratio) drifts based on entanglement and environment
-	- Entangled: drift toward π/2 (equal superposition, uncertain outcome)
-	- Not entangled: drift toward 0 (north emoji, certain outcome)
-	- Mushrooms + Sun: drift toward π (🍂 detritus) - sun regresses mushrooms
-	- Measurement FREEZES theta (stops drift but phi continues)
-	"""
-	if not quantum_state:
-		return
-
-	# Azimuthal precession (phi evolution) - ALWAYS continues
-	quantum_state.evolve(delta)
-
-	# Theta drift based on entanglement and environment - UNLESS MEASURED (frozen)
-	if not theta_frozen:
-		var target_theta = THETA_ISOLATED_TARGET if entangled_plots.is_empty() else THETA_ENTANGLED_TARGET
-
-		# SPECIAL CASE: Mushrooms during sun phase regress to detritus
-		# Sun pushes mushroom theta toward π (🍂 detritus) - sun regresses mushrooms
-		if plot_type == PlotType.MUSHROOM and biome:
-			if biome.is_currently_sun():
-				target_theta = PI  # Sun regresses mushrooms → detritus
-
-		var drift_rate = THETA_DRIFT_RATE * delta
-
-		# Apply Icon growth modifiers (Biotic Flux accelerates, Imperium decelerates)
-		if icon_network:
-			if icon_network.has("biotic") and icon_network["biotic"]:
-				var growth_modifier = icon_network["biotic"].get_growth_modifier()
-				drift_rate *= growth_modifier
-				# Debug: Print first time we see growth modifier
-				#print("🌾 %s: Growth %.2fx (Biotic: %.1f, Imperium: %.1f)" %
-				#	[plot_id, growth_modifier,
-				#	 icon_network["biotic"].active_strength,
-				#	 icon_network["biotic"].imperium_icon.active_strength if icon_network["biotic"].imperium_icon else 0.0])
-
-		quantum_state.theta = lerp(quantum_state.theta, target_theta, drift_rate)
+	return 0.0
 
 
+## Wheat Harvest with Bonuses
 
 
-## Measurement (Observer Effect)
-
-func measure(icon_network = null) -> String:
-	"""Measure the quantum state, collapses superposition
-
-	Icon effects on measurement:
-	- Imperium: Biases measurement toward classical states (ordered collapse)
-	"""
-	if has_been_measured or not quantum_state:
-		return get_dominant_emoji()
-
-	has_been_measured = true
-
-	# Apply Imperium collapse bias BEFORE measurement (QUANTUM LAYER)
-	if icon_network and icon_network.has("imperium") and icon_network.imperium:
-		icon_network.imperium.apply_collapse_bias(quantum_state)
-
-	# Measurement: collapse to north or south based on probability
-	# P(north) = cos²(θ/2), P(south) = sin²(θ/2)
-	# Calculate probability inline to avoid Resource access issues
-	var north_prob = pow(cos(quantum_state.theta / 2.0), 2)
-	var final_state: String
-
-	if randf() < north_prob:
-		# Collapsed to north state
-		quantum_state.theta = 0.0
-		final_state = quantum_state.north_emoji
-	else:
-		# Collapsed to south state
-		quantum_state.theta = PI
-		final_state = quantum_state.south_emoji
-
-	# Store collapsed energy in qubit for later harvest use
-	quantum_state.measured_energy = quantum_state.radius
-
-	state_collapsed.emit(final_state)
-
-	# PHYSICS: Measurement has THREE effects:
-
-	# 1. FREEZES theta drift - probability ratio locked in
-	theta_frozen = true
-	var north_prob_display = pow(cos(quantum_state.theta / 2.0), 2) * 100
-	var south_prob_display = pow(sin(quantum_state.theta / 2.0), 2) * 100
-	print("❄️ Theta frozen at %.2f rad (P(🌾)=%.0f%%, P(👥)=%.0f%%)" %
-		[quantum_state.theta, north_prob_display, south_prob_display])
-
-	# 2. DETANGLES from other plots - pulls out of quantum space
-	var num_entanglements = entangled_plots.size()
-	if num_entanglements > 0:
-		entangled_plots.clear()
-		print("🔓 Detangled from %d plots (removed from quantum network)" % num_entanglements)
-
-	# 3. CREATES conspiracy bond - classical correlation persists
-	if conspiracy_node_id != "":
-		conspiracy_bond_strength += 1.0
-		print("🔗 Measurement created bond: %s ↔ [%s] (strength: %.1f)" %
-			[plot_id, conspiracy_node_id, conspiracy_bond_strength])
-
-	print("👁️ Measured %s -> %s" % [plot_id, final_state])
-	return final_state
-
-
-func get_dominant_emoji() -> String:
-	"""Get the current dominant emoji based on quantum state"""
-	if not quantum_state:
-		var emojis = get_plot_emojis()
-		return emojis["north"]  # Default to north emoji for plot type
-
-	# Use quantum state's semantic representation
-	return quantum_state.get_semantic_state()
-
-
-func get_emoji() -> String:
-	"""Alias for get_dominant_emoji() - used by Farm.gd state snapshots"""
-	return get_dominant_emoji()
-
-
-func get_semantic_blend() -> float:
-	"""Returns 0.0 (natural) to 1.0 (labor)"""
-	if not quantum_state:
-		return 0.5
-
-	return quantum_state.get_semantic_blend()
-
-
-## Harvesting
-
-func harvest() -> Dictionary:
-	"""Harvest measured plot - MUST measure first!
-
-	Yields frozen energy amount of collapsed emoji:
-	- 🌾 measured → yield measured_energy × 🌾 (wheat/tomato/mushroom)
-	- 👥 measured → yield measured_energy × 👥 (labor/sauce/detritus)
-	"""
+func harvest_wheat() -> Dictionary:
+	"""Harvest wheat with crop-specific bonuses"""
 	if not is_planted or not quantum_state:
-		return {"success": false, "yield": 0, "quality": 0.0, "outcome": ""}
+		return {"success": false}
 
-	# MUST measure before harvest
-	if not has_been_measured:
-		print("⚠️ Cannot harvest unmeasured plot! Measure first to observe quantum state.")
-		return {"success": false, "yield": 0, "quality": 0.0, "outcome": ""}
+	# Measure quantum state
+	var outcome = quantum_state.measure()
+	has_been_measured = true
+	theta_frozen = true
 
-	# Get measurement outcome and frozen energy
-	var measured_state = get_dominant_emoji()
-	var frozen_energy = quantum_state.measured_energy
-	var emojis = get_plot_emojis()
+	# Base yield for wheat
+	var base_yield = 1
 
-	var final_yield = 0
-	var outcome_type = ""
+	# Wheat-specific bonuses
+	var bonus = 0.0
 
-	if measured_state == emojis["north"]:  # North emoji (🌾, 🍅, 🍄)
-		# Collapsed to north state - yield that emoji resource
-		match plot_type:
-			PlotType.WHEAT:
-				outcome_type = "wheat"  # 🌾
-			PlotType.TOMATO:
-				outcome_type = "tomato"  # 🍅
-			PlotType.MUSHROOM:
-				outcome_type = "mushroom"  # 🍄
-			_:
-				outcome_type = "wheat"
+	# Entanglement bonus (each entangled plot adds 20%)
+	if not entangled_plots.is_empty():
+		bonus += entanglement_bonus * entangled_plots.size()
 
-		# Yield = frozen energy converted to integer units
-		# Zero-loss economy: cost to plant is 1, harvest return is 1 (chaotic type)
-		final_yield = roundi(frozen_energy * 3.33)  # 0.3 * 3.33 ≈ 1
-		print("✂️ Harvested %d %s from %s (frozen energy: %.2f)" %
-			[final_yield, outcome_type, plot_id, frozen_energy])
+	# Berry phase bonus (5% per replant cycle)
+	bonus += berry_phase_bonus * replant_cycles
 
-	else:  # South emoji (👥, 🍝, 🍂)
-		# Collapsed to south state - yield that emoji resource
-		match plot_type:
-			PlotType.WHEAT:
-				outcome_type = "labor"  # 👥
-			PlotType.TOMATO:
-				outcome_type = "sauce"  # 🍝
-			PlotType.MUSHROOM:
-				outcome_type = "detritus"  # 🍂
-			_:
-				outcome_type = "labor"
+	# Outcome factor (measuring in north state favors crop)
+	if outcome == "north":  # Measured in 🌾 state = good
+		bonus += 0.1  # Extra 10% bonus
+	elif outcome == "south":  # Measured in 👥 state = reduced
+		bonus -= observer_penalty
 
-		# Yield = frozen energy converted to resource units
-		# Zero-loss economy: cost to plant is 1, harvest return is 1 (chaotic type)
-		final_yield = roundi(frozen_energy * 3.33)  # 0.3 * 3.33 ≈ 1
-		print("⚙️ Harvested %d %s from %s (frozen energy: %.2f)" %
-			[final_yield, outcome_type, plot_id, frozen_energy])
+	var final_yield = max(0, base_yield + bonus)
 
-	# Increment replant counter
-	replant_cycles += 1
-
-	# Reset plot for next cycle
+	# Clear for next cycle
 	is_planted = false
-	has_been_measured = false
-	theta_frozen = false  # Un-freeze for next planting
-	quantum_state = null  # Will be recreated on next plant()
+	replant_cycles += 1
+	entangled_plots.clear()
 
 	return {
 		"success": true,
 		"yield": final_yield,
-		"quality": 1.0,
-		"outcome": outcome_type,
-		"frozen_energy": frozen_energy
+		"outcome": outcome,
+		"bonus": bonus,
+		"crop_type": "wheat"
 	}
 
 
-func reset():
-	"""Reset plot to empty state (called after harvest)"""
-	is_planted = false
-	has_been_measured = false
-	theta_frozen = false
-	quantum_state = null  # Will be recreated on next plant()
-	# Note: replant_cycles and berry_phase persist for stats
+## Override to ensure wheat-specific emojis
 
 
-func clear():
-	"""Alias for reset() - clear plot state after harvest"""
-	reset()
-
-
-## Entanglement
-
-func create_entanglement(other_plot_id: String, strength: float = 0.8):
-	"""Create entanglement connection to another plot"""
-	if entangled_plots.size() >= MAX_ENTANGLEMENTS:
-		print("⚠️ Max entanglements reached for %s" % plot_id)
-		return false
-
-	if entangled_plots.has(other_plot_id):
-		print("⚠️ Already entangled with %s" % other_plot_id)
-		return false
-
-	entangled_plots[other_plot_id] = strength
-	print("🔗 Entangled %s ↔ %s (strength: %.2f)" % [plot_id, other_plot_id, strength])
-	return true
-
-
-func remove_entanglement(other_plot_id: String):
-	"""Remove entanglement connection"""
-	if entangled_plots.has(other_plot_id):
-		entangled_plots.erase(other_plot_id)
-		print("🔓 Disentangled %s ↔ %s" % [plot_id, other_plot_id])
-
-
-func get_entanglement_count() -> int:
-	return entangled_plots.size()
-
-
-## Quantum State Info
-
-func get_bloch_vector() -> Vector3:
-	"""Get Bloch sphere representation"""
-	if not quantum_state:
-		return Vector3(0, 0, 1)  # Default to north pole
-
-	return quantum_state.get_bloch_vector()
-
-
-func get_state_description() -> String:
-	"""Get human-readable state description with dual emoji display"""
-	if not is_planted:
-		return "Empty"
-
-	var stage = ""
-
-	if has_been_measured:
-		stage = "Measured"
-		var emoji = get_dominant_emoji()
-		return "%s %s" % [emoji, stage]
-	elif theta_frozen:
-		stage = "Frozen"
-	elif abs(theta - PI/2.0) < 0.3:
-		stage = "Superposed"
-	elif theta < PI/4:
-		stage = "Wheat-likely"
-	else:
-		stage = "Uncertain"
-
-	# DUAL EMOJI DISPLAY: Show both states with probabilities for unmeasured plots
-	if quantum_state:
-		var emojis = get_plot_emojis()
-		var north_emoji = emojis["north"]
-		var south_emoji = emojis["south"]
-		var north_prob = pow(cos(quantum_state.theta / 2.0), 2) * 100
-		var south_prob = pow(sin(quantum_state.theta / 2.0), 2) * 100
-		return "%s %.0f%% | %s %.0f%% - %s" % [north_emoji, north_prob, south_emoji, south_prob, stage]
-	else:
-		var emoji = get_dominant_emoji()
-		return "%s %s" % [emoji, stage]
-
-
-func get_cluster_size() -> int:
-	"""Get number of qubits in cluster (0 if not in cluster)"""
-	if quantum_state and quantum_state.is_in_cluster():
-		return quantum_state.entangled_cluster.get_qubit_count()
-	return 0
-
-
-func get_cluster_state_type() -> String:
-	"""Get cluster state type (GHZ, W, Cluster, or empty)"""
-	if not quantum_state or not quantum_state.is_in_cluster():
-		return ""
-
-	var cluster = quantum_state.entangled_cluster
-	if cluster.is_ghz_type():
-		return "GHZ"
-	elif cluster.is_w_type():
-		return "W"
-	elif cluster.is_cluster_type():
-		return "Cluster"
-	else:
-		return "Custom"
-
-
-func get_entanglement_description() -> String:
-	"""Get human-readable entanglement description"""
-	if quantum_state and quantum_state.is_in_cluster():
-		var size = get_cluster_size()
-		var state_type = get_cluster_state_type()
-		return "%d-qubit %s cluster" % [size, state_type]
-	elif quantum_state and quantum_state.is_in_pair():
-		return "Bell pair (2-qubit)"
-	else:
-		return "Not entangled"
-
-
-## Mill/Market Processing (Buildings)
-
-# Mill processing state
-var mill_processing_timer: float = 0.0
-const MILL_PROCESS_INTERVAL: float = 5.0  # Process wheat every 5 seconds
-
-# Market processing state
-var market_processing_timer: float = 0.0
-const MARKET_PROCESS_INTERVAL: float = 3.0  # Sell flour every 3 seconds
-
-
-func process_mill(dt: float, farm_grid, farm_economy, conspiracy_network):
-	"""Mill: Measure adjacent wheat and auto-harvest those with >90% probability of wheat"""
-	if plot_type != PlotType.MILL:
-		return
-
-	mill_processing_timer += dt
-
-	if mill_processing_timer >= MILL_PROCESS_INTERVAL:
-		mill_processing_timer = 0.0
-
-		# Find all adjacent wheat plots (4 cardinal directions)
-		var adjacent_positions = [
-			grid_position + Vector2i.UP,
-			grid_position + Vector2i.DOWN,
-			grid_position + Vector2i.LEFT,
-			grid_position + Vector2i.RIGHT
-		]
-
-		# Process each adjacent plot
-		for adj_pos in adjacent_positions:
-			var adj_plot = farm_grid.get_plot(adj_pos)
-			if adj_plot == null or adj_plot.plot_type != PlotType.WHEAT or not adj_plot.is_planted:
-				continue
-
-			# Measure if not already measured
-			if not adj_plot.has_been_measured:
-				# Build icon network for measurement bias
-				var icon_network = {}  # Empty for now - can add Imperium effects later
-				adj_plot.measure(icon_network)
-				print("🏭 Mill measured adjacent wheat at %s" % adj_pos)
-
-			# Check if wheat has >90% probability of being wheat (north emoji)
-			if adj_plot.quantum_state:
-				var wheat_prob = pow(cos(adj_plot.quantum_state.theta / 2.0), 2)
-				if wheat_prob > 0.9:
-					# Auto-harvest this wheat
-					var harvest_result = adj_plot.harvest()
-					if harvest_result["success"]:
-						farm_economy.record_harvest(harvest_result["yield"])
-						print("🏭 Mill auto-harvested wheat from %s: %d 🌾 (P=%.0f%%)" %
-							[adj_pos, harvest_result["yield"], wheat_prob * 100])
-
-
-func process_market(dt: float, farm_economy, conspiracy_network):
-	"""Market: Auto-sell flour for credits with fluctuating prices"""
-	if plot_type != PlotType.MARKET:
-		return
-
-	market_processing_timer += dt
-
-	if market_processing_timer >= MARKET_PROCESS_INTERVAL:
-		market_processing_timer = 0.0
-
-		# Check if we have flour to sell
-		if farm_economy.flour_inventory > 0:
-			# Sell flour at constant market price
-			var base_price = 5  # Base price per flour
-			var price_multiplier = 1.5  # Constant mid-range multiplier (DISABLED: conspiracy-based fluctuation)
-
-			var market_price = int(base_price * price_multiplier)
-
-			# Sell 1 flour for market price
-			var flour_to_sell = min(1, farm_economy.flour_inventory)
-			farm_economy.sell_flour(flour_to_sell, market_price)
-
-
-## Debug
-
-func get_debug_info() -> String:
-	var stability_str = ""
-	if quantum_state and quantum_state.berry_phase_enabled:
-		var stability = quantum_state.get_cultural_stability()
-		var berry = quantum_state.get_berry_phase_abs()
-		stability_str = " | 📜%.2f (γ=%.2f)" % [stability, berry]
-
-	var prob_wheat = pow(cos(quantum_state.theta / 2.0), 2) * 100 if quantum_state else 50.0
-	return "[%s] %s | θ=%.2f φ=%.2f | P(🌾)=%.0f%% | Entangled: %d%s" % [
-		plot_id,
-		get_dominant_emoji(),
-		theta,
-		phi,
-		prob_wheat,
-		entangled_plots.size(),
-		stability_str
-	]
-
-
-## Chaos Territory Events
-
-func _trigger_chaos_bonus():
-	"""Trigger a random Chaos bonus event (quantum mechanics)"""
-	if not quantum_state:
-		return
-
-	var event_roll = randf()
-
-	if event_roll < 0.33:
-		# Shift theta toward wheat (increase certainty of good outcome)
-		var old_theta = quantum_state.theta
-		quantum_state.theta = max(0.0, quantum_state.theta - PI/4)
-		print("🍅✨ Chaos bonus: %s theta shifted toward wheat! (%.2f → %.2f rad)" %
-			[plot_id, old_theta, quantum_state.theta])
-
-	elif event_roll < 0.66:
-		# Supercharge entanglement (shift to superposition for interesting outcomes)
-		quantum_state.theta = PI / 2.0
-		print("🍅⚡ Chaos bonus: %s forced into superposition! (θ = π/2)" % plot_id)
-
-	else:
-		# Free conspiracy activation (if tomato)
-		if plot_type == PlotType.TOMATO:
-			print("🍅🌀 Chaos bonus: Conspiracy energy surge!" % plot_id)
-			# Conspiracy network will handle this
-
-
-func _trigger_chaos_disaster():
-	"""Trigger a random Chaos disaster event (quantum mechanics)"""
-	if not quantum_state:
-		return
-
-	var event_roll = randf()
-
-	if event_roll < 0.5:
-		# Shift theta toward labor (increase chance of bad outcome)
-		var old_theta = quantum_state.theta
-		quantum_state.theta = min(PI, quantum_state.theta + PI/3)
-		print("🍅💀 Chaos disaster: %s theta shifted toward labor! (%.2f → %.2f rad)" %
-			[plot_id, old_theta, quantum_state.theta])
-
-	else:
-		# Entanglement collapse
-		if not entangled_plots.is_empty():
-			print("🍅💥 Chaos disaster: %s entanglements collapse!" % plot_id)
-			entangled_plots.clear()
-			if quantum_state and quantum_state.entangled_pair:
-				quantum_state.entangled_pair = null
+func get_plot_emojis() -> Dictionary:
+	"""Wheat always has 🌾 ↔ 👥"""
+	return {"north": "🌾", "south": "👥"}

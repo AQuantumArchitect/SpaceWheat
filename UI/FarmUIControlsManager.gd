@@ -16,6 +16,9 @@ const FarmInputHandler = preload("res://UI/FarmInputHandler.gd")
 const InputController = preload("res://UI/Controllers/InputController.gd")
 const ControlsInterface = preload("res://UI/ControlsInterface.gd")
 
+# Preload GridConfig (Phase 7)
+const GridConfig = preload("res://Core/GameState/GridConfig.gd")
+
 # Input handlers
 var input_handler: FarmInputHandler = null
 var input_controller: InputController = null
@@ -28,6 +31,9 @@ var controls: Node = null
 
 # Fallback: reference to Farm for backward compatibility / adapter creation
 var farm: Node = null
+
+# Grid configuration (Phase 7)
+var grid_config: GridConfig = null
 
 # For lazy-init pattern (connect signals when simulation is injected)
 var signals_connected: bool = false
@@ -78,6 +84,21 @@ func inject_farm(farm_ref: Node) -> void:
 			_connect_all_signals()
 			signals_connected = true
 			print("📡 Farm signals connected to controls (legacy mode)")
+
+
+func inject_grid_config(config: GridConfig) -> void:
+	"""Inject GridConfig into FarmInputHandler (Phase 7)"""
+	if not config:
+		push_error("FarmUIControlsManager: Attempted to inject null GridConfig!")
+		return
+
+	grid_config = config
+	print("💉 GridConfig injected into FarmUIControlsManager")
+
+	# Pass to FarmInputHandler
+	if input_handler and input_handler.has_method("inject_grid_config"):
+		input_handler.inject_grid_config(config)
+		print("   📡 GridConfig → FarmInputHandler")
 
 
 func _create_input_handlers() -> void:

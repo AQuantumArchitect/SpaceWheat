@@ -1,5 +1,5 @@
 class_name PlotGridDisplay
-extends HBoxContainer
+extends GridContainer
 
 ## PlotGridDisplay - Visual representation of the 6x1 farm grid
 ## Creates and manages PlotTile instances for each plot
@@ -7,22 +7,15 @@ extends HBoxContainer
 
 const PlotTile = preload("res://UI/PlotTile.gd")
 const PlotSelectionManager = preload("res://UI/PlotSelectionManager.gd")
-
-# Keyboard shortcut labels for each plot location
-const LOCATION_LABELS = {
-	0: "T",
-	1: "Y",
-	2: "U",
-	3: "I",
-	4: "O",
-	5: "P",
-}
+const GridConfig = preload("res://Core/GameState/GridConfig.gd")
+const FarmUIState = preload("res://Core/GameState/FarmUIState.gd")
 
 # References
 var farm: Node = null
 var ui_state = null  # FarmUIState - abstraction layer (Phase 5, RefCounted not Node)
 var ui_controller: Node = null
 var layout_manager: Node = null
+var grid_config: GridConfig = null  # Grid configuration (Phase 7)
 
 # Plot tiles (Vector2i -> PlotTile)
 var tiles: Dictionary = {}
@@ -47,42 +40,112 @@ func _ready():
 		print("   This suggests _ready() was called multiple times on the same instance!")
 		return
 
-	# Configure container layout
-	add_theme_constant_override("separation", 8)
+	# Create tiles immediately with or without GridConfig
+	# If GridConfig injected, use it; otherwise use default 6x2 layout
+	_initialize_container()
+	_create_tiles()
+	_create_selection_manager()
+
+	print("✅ PlotGridDisplay ready with GridContainer (child_count after: %d)" % get_child_count())
+
+
+func inject_grid_config(config: GridConfig) -> void:
+	"""Inject grid configuration and create tiles (Phase 7)"""
+	if not config:
+		push_error("PlotGridDisplay: Attempted to inject null GridConfig!")
+		return
+
+	grid_config = config
+
+	# Validate configuration
+	var validation = config.validate()
+	if not validation.success:
+		push_error("PlotGridDisplay: GridConfig validation failed:")
+		for error in validation.errors:
+			push_error("  - %s" % error)
+		return
+
+	print("💉 GridConfig injected into PlotGridDisplay")
+
+	# Only create tiles if _ready() already ran
+	if is_node_ready():
+		if tiles.size() == 0:
+			_initialize_container()
+			_create_tiles()
+			_create_selection_manager()
+			print("✅ Tiles created from injected GridConfig (child_count: %d)" % get_child_count())
+
+
+func _initialize_container() -> void:
+	"""Initialize GridContainer with grid dimensions from GridConfig"""
+	# Use GridConfig if available, otherwise use default 6x2 layout
+	var width = grid_config.grid_width if grid_config else 6
+
+	columns = width
+	add_theme_constant_override("h_separation", 8)
+	add_theme_constant_override("v_separation", 8)
 	size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	size_flags_vertical = Control.SIZE_EXPAND_FILL
-	alignment = BoxContainer.ALIGNMENT_END  # Align tiles to right side
 
-	# Create 6 plot tiles for 6x1 grid
-	for x in range(6):
-		var pos = Vector2i(x, 0)
-		var tile = PlotTile.new()
-		tile.grid_position = pos  # CRITICAL: Set the tile's grid position so it emits correctly
-		tile.custom_minimum_size = Vector2(90, 90)
-		# For HBoxContainer with ALIGNMENT_CENTER, let tiles be their minimum size
-		# The container will center them horizontally
-		# Only set explicit size for vertical (fill available height)
-		tile.size_flags_vertical = Control.SIZE_FILL
+	var height = grid_config.grid_height if grid_config else 2
+	print("📐 GridContainer initialized: %dx%d" % [width, height])
 
-		# Connect tile signals - signal already emits grid_position, no need for bindv
-		tile.clicked.connect(_on_tile_clicked)
 
-		add_child(tile)
-		tiles[pos] = tile
+func _create_tiles() -> void:
+	"""Create plot tiles in grid order (row-major, top to bottom, left to right)"""
+	# Use GridConfig if available, otherwise use default 6x2 layout
+	var width = grid_config.grid_width if grid_config else 6
+	var height = grid_config.grid_height if grid_config else 2
 
-		# Set keyboard label (T/Y/U/I/O/P) on the tile AFTER _ready() completes
-		# Use call_deferred to ensure it happens after PlotTile's async _ready()
-		if LOCATION_LABELS.has(x):
-			tile.call_deferred("set_label_text", LOCATION_LABELS[x])
+	# Create in row-major order (y first, then x)
+	for y in range(height):
+		for x in range(width):
+			var pos = Vector2i(x, y)
+			var plot_config = grid_config.get_plot_at(pos) if grid_config else null
+			var is_active = plot_config == null or plot_config.is_active  # Treat null as active when no GridConfig
 
-		print("  📍 Plot tile created at position %s (%s)" % [pos, LOCATION_LABELS.get(x, "?")])
+			# Inactive plots → spacer (invisible placeholder)
+			if not is_active:
+				var spacer = Control.new()
+				spacer.custom_minimum_size = Vector2(90, 90)
+				add_child(spacer)
+				print("  ⬜ Spacer created at position %s" % pos)
+				continue
 
-	# Create multi-select manager (NEW)
+			# Active plots → tile
+			var tile = PlotTile.new()
+			tile.grid_position = pos  # CRITICAL: Set the tile's grid position so it emits correctly
+			tile.custom_minimum_size = Vector2(90, 90)
+			tile.size_flags_vertical = Control.SIZE_FILL
+			tile.clicked.connect(_on_tile_clicked)
+
+			add_child(tile)
+			tiles[pos] = tile
+
+			# Set keyboard label from grid config (if available)
+			var label = ""
+			if plot_config and plot_config.keyboard_label:
+				label = plot_config.keyboard_label
+			else:
+				# Default labels for 6x2 grid
+				if y == 0:
+					label = ["T", "Y", "U", "I", "O", "P"][x]
+				elif y == 1:
+					label = ["0", "9", "8", "7", "", ""][x]
+
+			if label:
+				tile.call_deferred("set_label_text", label)
+
+			print("  📍 Plot tile created at position %s (%s)" % [pos, label])
+
+	print("✅ Created %d active plot tiles" % tiles.size())
+
+
+func _create_selection_manager() -> void:
+	"""Create multi-select manager"""
 	selection_manager = PlotSelectionManager.new()
 	selection_manager.selection_changed.connect(_on_selection_changed)
 	print("  🔄 PlotSelectionManager created")
-
-	print("✅ PlotGridDisplay created with 6 tiles (child_count after: %d)" % get_child_count())
 
 
 func inject_farm(farm_ref: Node) -> void:
@@ -289,17 +352,24 @@ func _on_grid_refreshed() -> void:
 
 ## KEYBOARD SELECTION SUPPORT
 
-func select_plot_by_key(key_position: int) -> void:
-	"""Select plot by keyboard (Y=0, U=1, I=2, O=3, P=4, etc)"""
-	var x = key_position % 6
-	var pos = Vector2i(x, 0)
+func select_plot_by_key(action: String) -> void:
+	"""Select plot by input action name (e.g., 'select_plot_t' for T key)"""
+	if not grid_config:
+		push_error("PlotGridDisplay: GridConfig not injected!")
+		return
+
+	var pos = grid_config.keyboard_layout.get_position_for_action(action)
+	if pos == Vector2i(-1, -1):
+		push_error("PlotGridDisplay: Unknown keyboard action: %s" % action)
+		return
+
 	set_selected_plot(pos)
 
 	# Notify controllers
 	if ui_controller and ui_controller.has_method("on_plot_selected"):
 		ui_controller.on_plot_selected(pos)
 
-	print("⌨️  Selected plot %s via keyboard" % pos)
+	print("⌨️  Selected plot %s via keyboard action %s" % [pos, action])
 
 
 ## MULTI-SELECT SUPPORT (NEW)

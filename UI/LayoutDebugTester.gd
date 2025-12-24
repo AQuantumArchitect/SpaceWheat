@@ -1,5 +1,5 @@
-extends Control
 class_name LayoutDebugTester
+extends Control
 
 ## Comprehensive layout debugging and testing tool
 ## Shows actual vs expected positions and sizes

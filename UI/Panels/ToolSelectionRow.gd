@@ -4,12 +4,12 @@ extends HBoxContainer
 ## Physical keyboard layout UI - Bottom row with tool selection buttons [1-6]
 ## Each button shows the keyboard shortcut and highlights when selected
 
-# Tool definitions (same as in FarmInputHandler)
+# Tool definitions (synced from FarmInputHandler)
 const TOOL_ACTIONS = {
-	1: {"name": "Plant", "emoji": "🌱"},
+	1: {"name": "Grower", "emoji": "🌱"},
 	2: {"name": "Quantum", "emoji": "⚛️"},
-	3: {"name": "Economy", "emoji": "💰"},
-	4: {"name": "Future 4", "emoji": "4️⃣"},
+	3: {"name": "Industry", "emoji": "🏭"},
+	4: {"name": "Energy", "emoji": "⚡"},
 	5: {"name": "Future 5", "emoji": "5️⃣"},
 	6: {"name": "Future 6", "emoji": "6️⃣"},
 }

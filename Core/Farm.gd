@@ -6,10 +6,17 @@ extends Node
 ## Emits signals when state changes (no UI dependencies)
 
 # System preloads
+# Grid configuration (Phase 2)
+const GridConfig = preload("res://Core/GameState/GridConfig.gd")
+const PlotConfig = preload("res://Core/GameState/PlotConfig.gd")
+const KeyboardLayoutConfig = preload("res://Core/GameState/KeyboardLayoutConfig.gd")
+
 const FarmGrid = preload("res://Core/GameMechanics/FarmGrid.gd")
 const FarmEconomy = preload("res://Core/GameMechanics/FarmEconomy.gd")
 const GoalsSystem = preload("res://Core/GameMechanics/GoalsSystem.gd")
-const Biome = preload("res://Core/Environment/Biome.gd")
+const BioticFluxBiome = preload("res://Core/Environment/BioticFluxBiome.gd")
+const MarketBiome = preload("res://Core/Environment/MarketBiome.gd")
+const ForestBiome = preload("res://Core/Environment/ForestEcosystem_Biome.gd")
 const FarmUIState = preload("res://Core/GameState/FarmUIState.gd")
 const VocabularyEvolution = preload("res://Core/QuantumSubstrate/VocabularyEvolution.gd")
 
@@ -17,13 +24,16 @@ const VocabularyEvolution = preload("res://Core/QuantumSubstrate/VocabularyEvolu
 var grid: FarmGrid
 var economy: FarmEconomy
 var goals: GoalsSystem
-var biome: Biome
+var biotic_flux_biome: BioticFluxBiome
+var market_biome: MarketBiome
+var forest_biome: ForestBiome
 var vocabulary_evolution: VocabularyEvolution  # Vocabulary evolution system
 var ui_state: FarmUIState  # UI State abstraction layer
+var grid_config: GridConfig = null  # Single source of truth for grid layout
 
 # Configuration
 var grid_width: int = 6
-var grid_height: int = 1
+var grid_height: int = 2  # Expanded from 1 to 2 rows for multi-biome support
 var use_neutral_biome: bool = false  # Use static NeutralBiome (no quantum evolution) for testing
 
 # Biome availability (may fail to load if icon dependencies are missing)
@@ -75,53 +85,101 @@ signal economy_changed(state: Dictionary)
 func _ready():
 	print("🌾 Farm simulation manager initializing...")
 
+	# Create grid configuration (single source of truth for grid layout)
+	grid_config = _create_grid_config()
+	var validation = grid_config.validate()
+	if not validation.success:
+		push_error("GridConfig validation failed:")
+		for error in validation.errors:
+			push_error("  - %s" % error)
+	grid_config.print_summary()
+
 	# Create core systems
 	economy = FarmEconomy.new()
 	add_child(economy)
 	print("   💰 FarmEconomy created")
 
-	# Create environmental simulation (Biome - optional, may fail if icon dependencies missing)
-	biome = null
+	# Create environmental simulations (three biomes for multi-biome support)
 	biome_enabled = false
 
-	# Try to create Biome
-	var BiomeClass = preload("res://Core/Environment/Biome.gd")
-	if BiomeClass:
-		biome = BiomeClass.new()
-		if biome:
-			# Enable static mode if requested (no quantum evolution)
-			if use_neutral_biome:
-				biome.is_static = true
-				print("   🌍 Biome created in static mode (no quantum evolution)")
-			else:
-				print("   🌍 Biome (environment) created")
-			add_child(biome)
-			# Manually call _ready() since Farm may not be in the scene tree
-			biome._ready()
-			biome_enabled = true
-		else:
-			print("   ⚠️  Biome creation failed - running in simple mode (no growth)")
-	else:
-		print("   ⚠️  Biome not available - running in simple mode (no growth)")
+	# Instantiate BioticFlux Biome
+	biotic_flux_biome = BioticFluxBiome.new()
+	biotic_flux_biome.is_static = false
+	add_child(biotic_flux_biome)
+	# HAUNTED UI FIX: Removed manual ._ready() call - add_child() triggers _ready() automatically
+	# biotic_flux_biome._ready()  # Removed - causes double initialization
+	print("   🌾 BioticFlux Biome created")
+
+	# Instantiate Market Biome
+	market_biome = MarketBiome.new()
+	market_biome.is_static = false
+	add_child(market_biome)
+	# HAUNTED UI FIX: Removed manual ._ready() call - add_child() triggers _ready() automatically
+	# market_biome._ready()  # Removed - causes double initialization
+	print("   💰 Market Biome created")
+
+	# Instantiate Forest Ecosystem Biome
+	forest_biome = ForestBiome.new()
+	forest_biome.is_static = false
+	add_child(forest_biome)
+	# HAUNTED UI FIX: Removed manual ._ready() call - add_child() triggers _ready() automatically
+	# forest_biome._ready()  # Removed - causes double initialization
+	print("   🌲 Forest Ecosystem Biome created")
+
+	# All three biomes successfully instantiated
+	biome_enabled = true
 
 	# Create grid AFTER biome (or fallback)
 	grid = FarmGrid.new()
-	grid.grid_width = grid_width
-	grid.grid_height = grid_height
+	grid.grid_width = grid_config.grid_width
+	grid.grid_height = grid_config.grid_height
 
-	# Only inject biome if it was created successfully
-	if biome_enabled and biome:
-		grid.biome = biome  # Pass biome reference to grid
-		biome.grid = grid  # Pass grid reference to biome (for phase constraints)
+	# Wire all three biomes to the grid
+	if biome_enabled:
+		grid.register_biome("BioticFlux", biotic_flux_biome)
+		biotic_flux_biome.grid = grid
+
+		grid.register_biome("Market", market_biome)
+		market_biome.grid = grid
+
+		grid.register_biome("Forest", forest_biome)
+		forest_biome.grid = grid
+		print("   📡 All three biomes registered with grid")
 
 	add_child(grid)
 	print("   📊 FarmGrid created (%dx%d)" % [grid_width, grid_height])
 
-	# Register grid and biome as metadata for UI systems (QuantumForceGraph visualization)
+	# Register all three biomes as metadata for UI systems (QuantumForceGraph visualization)
 	set_meta("grid", grid)
 	if biome_enabled:
-		set_meta("biome", biome)
-	print("   📡 Farm metadata registered (grid + biome for visualization)")
+		set_meta("biotic_flux_biome", biotic_flux_biome)
+		set_meta("market_biome", market_biome)
+		set_meta("forest_biome", forest_biome)
+	print("   📡 Farm metadata registered (grid + three biomes for visualization)")
+
+	# Configure plot-to-biome assignments (Phase 1d)
+	if biome_enabled and grid and grid.has_method("assign_plot_to_biome"):
+		# Market biome: T,Y (positions 0,1 in row 0)
+		grid.assign_plot_to_biome(Vector2i(0, 0), "Market")   # T
+		grid.assign_plot_to_biome(Vector2i(1, 0), "Market")   # Y
+		print("   📍 Market biome assigned to plots T,Y")
+
+		# BioticFlux biome: U,I,O,P (positions 2,3,4,5 in row 0)
+		grid.assign_plot_to_biome(Vector2i(2, 0), "BioticFlux")  # U
+		grid.assign_plot_to_biome(Vector2i(3, 0), "BioticFlux")  # I
+		grid.assign_plot_to_biome(Vector2i(4, 0), "BioticFlux")  # O
+		grid.assign_plot_to_biome(Vector2i(5, 0), "BioticFlux")  # P
+		print("   📍 BioticFlux biome assigned to plots U,I,O,P")
+
+		# Forest biome: 0,9,8,7 (positions 0,1,2,3 in row 1)
+		grid.assign_plot_to_biome(Vector2i(0, 1), "Forest")   # 0
+		grid.assign_plot_to_biome(Vector2i(1, 1), "Forest")   # 9
+		grid.assign_plot_to_biome(Vector2i(2, 1), "Forest")   # 8
+		grid.assign_plot_to_biome(Vector2i(3, 1), "Forest")   # 7
+		print("   📍 Forest biome assigned to plots 0,9,8,7")
+
+		# Plots at (4,1) and (5,1) are deactivated (no biome assignment)
+		print("   📍 Plots 4,5 (row 1) deactivated")
 
 	# Get persistent vocabulary evolution from GameStateManager
 	# The vocabulary persists across farms/biomes and travels with the player
@@ -133,7 +191,8 @@ func _ready():
 		# This happens in test/standalone scenarios
 		var VocabularyEvolution = preload("res://Core/QuantumSubstrate/VocabularyEvolution.gd")
 		vocabulary_evolution = VocabularyEvolution.new()
-		vocabulary_evolution._ready()
+		# HAUNTED UI FIX: Removed manual ._ready() call - add_child() triggers _ready() automatically
+		# vocabulary_evolution._ready()  # Removed - causes double initialization
 		add_child(vocabulary_evolution)
 
 	# Inject vocabulary reference into grid for tap validation
@@ -179,6 +238,72 @@ func _ready():
 	print("✅ Farm simulation ready!")
 
 
+## GRID CONFIGURATION (Phase 2)
+
+func _create_grid_config() -> GridConfig:
+	"""Create grid configuration - single source of truth for layout"""
+	var config = GridConfig.new()
+	config.grid_width = 6
+	config.grid_height = 2
+
+	# Create keyboard layout configuration
+	var keyboard = KeyboardLayoutConfig.new()
+
+	# Row 0: T/Y/U/I/O/P (6 plots, all active)
+	var row0_keys = ["t", "y", "u", "i", "o", "p"]
+	for i in range(6):
+		var pos = Vector2i(i, 0)
+		keyboard.action_to_position["select_plot_" + row0_keys[i]] = pos
+		keyboard.position_to_label[pos] = row0_keys[i].to_upper()
+
+	# Row 1: 0/9/8/7 (first 4 active, last 2 inactive/deactivated)
+	var row1_keys = ["0", "9", "8", "7"]
+	for i in range(4):
+		var pos = Vector2i(i, 1)
+		keyboard.action_to_position["select_plot_" + row1_keys[i]] = pos
+		keyboard.position_to_label[pos] = row1_keys[i]
+
+	config.keyboard_layout = keyboard
+
+	# Create plot configurations for Row 0 (all active)
+	for i in range(6):
+		var plot = PlotConfig.new()
+		plot.position = Vector2i(i, 0)
+		plot.is_active = true
+		plot.keyboard_label = row0_keys[i].to_upper()
+		plot.input_action = "select_plot_" + row0_keys[i]
+		# Biome assignment: Market (T,Y), BioticFlux (U,I,O,P)
+		plot.biome_name = "Market" if i < 2 else "BioticFlux"
+		config.plots.append(plot)
+
+	# Create plot configurations for Row 1 (first 4 active, last 2 inactive)
+	for i in range(4):
+		var plot = PlotConfig.new()
+		plot.position = Vector2i(i, 1)
+		plot.is_active = true
+		plot.keyboard_label = row1_keys[i]
+		plot.input_action = "select_plot_" + row1_keys[i]
+		plot.biome_name = "Forest"
+		config.plots.append(plot)
+
+	# Last 2 plots in Row 1 are inactive (deactivated spacers)
+	for i in range(4, 6):
+		var plot = PlotConfig.new()
+		plot.position = Vector2i(i, 1)
+		plot.is_active = false
+		config.plots.append(plot)
+
+	# Set up biome assignments
+	for i in range(2):
+		config.biome_assignments[Vector2i(i, 0)] = "Market"
+	for i in range(2, 6):
+		config.biome_assignments[Vector2i(i, 0)] = "BioticFlux"
+	for i in range(4):
+		config.biome_assignments[Vector2i(i, 1)] = "Forest"
+
+	return config
+
+
 ## Public API - Game Operations
 
 func build(pos: Vector2i, build_type: String) -> bool:
@@ -216,10 +341,14 @@ func build(pos: Vector2i, build_type: String) -> bool:
 		"plant":
 			# Request quantum state from Biome (or create local if no biome)
 			var qubit = null
-			if biome_enabled and biome:
-				qubit = biome.create_quantum_state(pos, config["north_emoji"], config["south_emoji"])
-			else:
-				# No biome mode: create local quantum state that won't evolve
+			if biome_enabled and grid:
+				# Get the biome assigned to this plot
+				var plot_biome = grid.get_biome_for_plot(pos)
+				if plot_biome:
+					qubit = plot_biome.create_quantum_state(pos, config["north_emoji"], config["south_emoji"])
+
+			# Fallback: if no biome, create local quantum state
+			if not qubit:
 				const DualEmojiQubit = preload("res://Core/QuantumSubstrate/DualEmojiQubit.gd")
 				qubit = DualEmojiQubit.new(config["north_emoji"], config["south_emoji"], PI/2)
 				qubit.energy = 0.3  # Stays at minimum without biome evolution
@@ -241,8 +370,10 @@ func build(pos: Vector2i, build_type: String) -> bool:
 		return true
 	else:
 		# Refund if operation failed, and clean up quantum state if created
-		if config["type"] == "plant" and biome_enabled and biome:
-			biome.clear_qubit(pos)
+		if config["type"] == "plant" and biome_enabled and grid:
+			var plot_biome = grid.get_biome_for_plot(pos)
+			if plot_biome and plot_biome.has_method("clear_qubit"):
+				plot_biome.clear_qubit(pos)
 		_refund_resources(cost)
 		action_result.emit("build_%s" % build_type, false, "Failed to place %s" % build_type)
 		return false
@@ -510,7 +641,7 @@ func batch_build(positions: Array[Vector2i], build_type: String) -> Dictionary:
 
 
 func get_plot(position: Vector2i):
-	"""Get plot at given grid position (returns WheatPlot)"""
+	"""Get plot at given grid position (returns FarmPlot or subclass)"""
 	if grid:
 		return grid.get_plot(position)
 	return null
@@ -594,7 +725,7 @@ func apply_game_state(state: Resource) -> void:
 		push_error("Cannot apply null game state")
 		return
 
-	if not (grid and economy and biome):
+	if not (grid and economy and biome_enabled):
 		push_error("Farm systems not initialized")
 		return
 
@@ -618,15 +749,17 @@ func apply_game_state(state: Resource) -> void:
 			plot.theta_frozen = plot_data.get("theta_frozen") if plot_data.has("theta_frozen") else false
 
 			# Regenerate quantum state if planted
-			if plot.is_planted and not biome.quantum_states.has(pos):
-				var qubit = biome.create_quantum_state(pos, "🌾", "🌱", PI/2)
+			if plot.is_planted:
+				var plot_biome = grid.get_biome_for_plot(pos)
+				if plot_biome and not plot_biome.quantum_states.has(pos):
+					var qubit = plot_biome.create_quantum_state(pos, "🌾", "🌱", PI/2)
 
-	# Apply environment (sun & icons)
-	if biome.sun_qubit:
-		biome.sun_qubit.theta = state.get("sun_theta") if state.has("sun_theta") else 0.0
-		biome.sun_qubit.phi = state.get("sun_phi") if state.has("sun_phi") else 0.0
-	if biome.wheat_icon:
-		biome.wheat_icon.theta = state.get("wheat_icon_theta") if state.has("wheat_icon_theta") else PI/12
+	# Apply environment (sun & icons) - BioticFlux specific
+	if biotic_flux_biome and biotic_flux_biome.sun_qubit:
+		biotic_flux_biome.sun_qubit.theta = state.get("sun_theta") if state.has("sun_theta") else 0.0
+		biotic_flux_biome.sun_qubit.phi = state.get("sun_phi") if state.has("sun_phi") else 0.0
+	if biotic_flux_biome and biotic_flux_biome.wheat_icon:
+		biotic_flux_biome.wheat_icon.theta = state.get("wheat_icon_theta") if state.has("wheat_icon_theta") else PI/12
 
 	_emit_state_changed()
 
@@ -648,7 +781,7 @@ func capture_game_state(state: Resource) -> Resource:
 		push_error("Cannot capture to null game state")
 		return state
 
-	if not (grid and economy and biome):
+	if not (grid and economy and biome_enabled):
 		push_error("Farm systems not initialized")
 		return state
 
@@ -675,12 +808,12 @@ func capture_game_state(state: Resource) -> Resource:
 
 	state["plots"] = plots_array
 
-	# Capture environment (sun & icons)
-	if biome.sun_qubit:
-		state["sun_theta"] = biome.sun_qubit.theta
-		state["sun_phi"] = biome.sun_qubit.phi
-	if biome.wheat_icon:
-		state["wheat_icon_theta"] = biome.wheat_icon.theta
+	# Capture environment (sun & icons) - BioticFlux specific
+	if biotic_flux_biome and biotic_flux_biome.sun_qubit:
+		state["sun_theta"] = biotic_flux_biome.sun_qubit.theta
+		state["sun_phi"] = biotic_flux_biome.sun_qubit.phi
+	if biotic_flux_biome and biotic_flux_biome.wheat_icon:
+		state["wheat_icon_theta"] = biotic_flux_biome.wheat_icon.theta
 
 	return state
 

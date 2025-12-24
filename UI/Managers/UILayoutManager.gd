@@ -1,9 +1,12 @@
-extends Node
 class_name UILayoutManager
+extends Node
 
 ## UILayoutManager - Parametric layout system for responsive UI scaling
 ## Central source of truth for all position, size, and scaling calculations
 ## Handles viewport resizing, breakpoints, and touch vs mouse adaptation
+
+# Preload GridConfig (Phase 5)
+const GridConfig = preload("res://Core/GameState/GridConfig.gd")
 
 # Base resolution for design (all proportions calculated from this)
 const BASE_RESOLUTION = Vector2(1920, 1080)
@@ -11,7 +14,7 @@ const BASE_RESOLUTION = Vector2(1920, 1080)
 # Layout proportions (percentages of viewport)
 const TOP_BAR_HEIGHT_PERCENT = 0.06       # 6% of viewport height
 const PLAY_AREA_PERCENT = 0.665           # 66.5% of viewport height (quantum graph center)
-const PLOTS_ROW_HEIGHT_PERCENT = 0.15     # 15% PCB-style component placement row
+var plots_row_height_percent: float = 0.15  # Dynamic: 15% base (recalculated from GridConfig grid height)
 const ACTIONS_ROW_HEIGHT_PERCENT = 0.125  # 12.5% action buttons row
 
 # Margins and spacing (as percentages)
@@ -22,6 +25,7 @@ const PANEL_SPACING_PERCENT = 0.01      # 1% spacing between panels
 var viewport_size: Vector2
 var scale_factor: float = 1.0
 var is_touch_device: bool = false
+var grid_config: GridConfig = null  # Grid configuration (Phase 5)
 
 # Calculated layout dimensions (updated when viewport resizes)
 var top_bar_height: float
@@ -73,6 +77,34 @@ func _detect_mobile_browser() -> bool:
 	return false
 
 
+func inject_grid_config(config: GridConfig) -> void:
+	"""Inject GridConfig for dynamic layout sizing (Phase 5)"""
+	if not config:
+		push_error("UILayoutManager: Attempted to inject null GridConfig!")
+		return
+
+	grid_config = config
+	_recalculate_layout_percentages()
+	print("💉 GridConfig injected into UILayoutManager")
+
+
+func _recalculate_layout_percentages() -> void:
+	"""Recalculate layout percentages based on grid height (Phase 5)"""
+	if not grid_config:
+		return
+
+	# Base: 15% per row, with 10% spacing multiplier
+	var base_per_row = 0.15
+	var spacing_multiplier = 1.1
+	plots_row_height_percent = base_per_row * grid_config.grid_height * spacing_multiplier
+
+	# Cap at 35% max (don't let plots dominate screen)
+	plots_row_height_percent = min(plots_row_height_percent, 0.35)
+
+	print("📐 Plots row height recalculated: %.1f%% (grid: %d rows)" %
+		[plots_row_height_percent * 100, grid_config.grid_height])
+
+
 func _on_viewport_resize():
 	"""Called when viewport size changes"""
 	viewport_size = get_viewport().size
@@ -115,6 +147,10 @@ func _calculate_scale_factor():
 
 func _calculate_layout_dimensions():
 	"""Calculate all layout dimensions based on current viewport and scale factor"""
+	# Recalculate if grid config changed
+	if grid_config:
+		_recalculate_layout_percentages()
+
 	# Top bar (anchored to top, full width)
 	top_bar_height = viewport_size.y * TOP_BAR_HEIGHT_PERCENT
 
@@ -130,8 +166,8 @@ func _calculate_layout_dimensions():
 		play_area_rect.size - Vector2(margin * 2, margin * 2)
 	)
 
-	# Plots row (PCB-style component placement) - below play area
-	var plots_row_height = viewport_size.y * PLOTS_ROW_HEIGHT_PERCENT
+	# Plots row (PCB-style component placement) - below play area - DYNAMIC HEIGHT
+	var plots_row_height = viewport_size.y * plots_row_height_percent
 	var plots_row_y = play_area_y + play_area_height
 	plots_row_rect = Rect2(0, plots_row_y, viewport_size.x, plots_row_height)
 
@@ -144,8 +180,8 @@ func _calculate_layout_dimensions():
 	print("📐 Layout breakdown (parametric):")
 	print("  Top bar: %.1fpx (0%% to %d%%)" % [top_bar_height, int(TOP_BAR_HEIGHT_PERCENT * 100)])
 	print("  Play area: %.1fpx (%d%% to %d%%)" % [play_area_height, int(TOP_BAR_HEIGHT_PERCENT * 100), int((TOP_BAR_HEIGHT_PERCENT + PLAY_AREA_PERCENT) * 100)])
-	print("  Plots row: %.1fpx (%d%% to %d%%)" % [plots_row_height, int((TOP_BAR_HEIGHT_PERCENT + PLAY_AREA_PERCENT) * 100), int((TOP_BAR_HEIGHT_PERCENT + PLAY_AREA_PERCENT + PLOTS_ROW_HEIGHT_PERCENT) * 100)])
-	print("  Actions row: %.1fpx (%d%% to 100%%)" % [actions_row_height, int((TOP_BAR_HEIGHT_PERCENT + PLAY_AREA_PERCENT + PLOTS_ROW_HEIGHT_PERCENT) * 100)])
+	print("  Plots row: %.1fpx (%d%% to %d%%)" % [plots_row_height, int((TOP_BAR_HEIGHT_PERCENT + PLAY_AREA_PERCENT) * 100), int((TOP_BAR_HEIGHT_PERCENT + PLAY_AREA_PERCENT + plots_row_height_percent) * 100)])
+	print("  Actions row: %.1fpx (%d%% to 100%%)" % [actions_row_height, int((TOP_BAR_HEIGHT_PERCENT + PLAY_AREA_PERCENT + plots_row_height_percent) * 100)])
 	print("  Total: %.1fpx (should equal viewport height: %.1fpx)" % [top_bar_height + play_area_height + plots_row_height + actions_row_height, viewport_size.y])
 
 

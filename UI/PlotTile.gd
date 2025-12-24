@@ -1,5 +1,5 @@
-extends Control
 class_name PlotTile
+extends Control
 
 ## PlotTile - Visual representation of a single farm plot
 ## Part of the emoji lattice grid

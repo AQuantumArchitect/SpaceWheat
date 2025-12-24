@@ -44,6 +44,9 @@ signal quit_requested()
 signal menu_resumed()
 signal debug_scenario_requested(name: String)
 
+# HAUNTED UI FIX: Prevent duplicate overlay creation
+var _overlays_created: bool = false
+
 
 func setup(layout_mgr, vocab_sys, faction_mgr, conspiracy_net) -> void:
 	"""Initialize OverlayManager with required dependencies"""
@@ -56,6 +59,12 @@ func setup(layout_mgr, vocab_sys, faction_mgr, conspiracy_net) -> void:
 
 func create_overlays(parent: Control) -> void:
 	"""Create all overlay panels and add them to parent"""
+	# HAUNTED UI FIX: Guard against duplicate overlay creation
+	if _overlays_created:
+		print("⚠️  OverlayManager.create_overlays() called multiple times, skipping duplicate creation")
+		return
+	_overlays_created = true
+
 	if not layout_manager:
 		push_error("OverlayManager: layout_manager not set before create_overlays()")
 		return

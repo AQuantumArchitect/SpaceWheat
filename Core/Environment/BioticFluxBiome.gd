@@ -44,10 +44,19 @@ var temperature_grid: Dictionary = {}  # Vector2i(x,y) -> local_temperature
 var T1_base_rate: float = 0.001  # Amplitude damping
 var T2_base_rate: float = 0.002  # Phase damping
 
+# Visualization - Celestial object colors and positions
+var sun_color: Color = Color.YELLOW  # Updated each frame based on sun.theta
+var sun_display_theta: float = 0.0  # Sun theta for UI (0=☀️ yellow, π=🌑 purple)
+
 
 func _ready():
 	"""Initialize biome with sun/moon qubit and icon states"""
 	super._ready()
+
+	# HAUNTED UI FIX: Guard against double-initialization
+	if sun_qubit != null:
+		print("⚠️  BioticFluxBiome._ready() called multiple times, skipping re-initialization")
+		return
 
 	# Initialize celestial sun/moon qubit (immutable, eternal)
 	sun_qubit = BiomeUtilities.create_qubit("☀️", "🌙", 0.0)  # Start at north (☀️ = full day)
@@ -90,6 +99,29 @@ func get_biome_type() -> String:
 	return "BioticFlux"
 
 
+func _update_sun_visualization() -> void:
+	"""Update sun color based on quantum state - yellow (day) to deep blue/purple (night)"""
+	if not sun_qubit:
+		return
+
+	sun_display_theta = sun_qubit.theta
+
+	# Color transition: θ=0 (yellow ☀️) → θ=π (deep purple/blue 🌙)
+	# Using HSV interpolation for smooth color shift
+	var day_night_progress = sun_display_theta / PI  # 0.0 (day) to 1.0 (night)
+
+	# Yellow (day): HSV(60°, 1.0, 1.0)
+	# Deep purple (night): HSV(270°, 0.8, 0.3)
+	var day_hue = 60.0 / 360.0  # Yellow
+	var night_hue = 270.0 / 360.0  # Deep purple
+
+	var hue = lerp(day_hue, night_hue, day_night_progress)
+	var saturation = lerp(1.0, 0.8, day_night_progress)
+	var brightness = lerp(1.0, 0.3, day_night_progress)
+
+	sun_color = Color.from_hsv(hue, saturation, brightness, 1.0)
+
+
 func _update_quantum_substrate(dt: float) -> void:
 	"""Override parent: Update biome each frame with quantum evolution"""
 	# Skip all evolution if in static mode (for testing)
@@ -102,6 +134,7 @@ func _update_quantum_substrate(dt: float) -> void:
 	_update_temperature_from_cycle()
 	_update_energy_taps(dt)
 	_evolve_quantum_substrate(dt)
+	_update_sun_visualization()  # Update visualization colors based on sun state
 
 
 func _sync_sun_qubit(dt: float):
@@ -305,6 +338,25 @@ func get_energy_strength() -> float:
 	if not sun_qubit:
 		return 0.0
 	return abs(cos(sun_qubit.theta))
+
+
+func get_sun_visualization() -> Dictionary:
+	"""Get sun/moon celestial visualization data
+
+	Returns:
+		{
+			"color": Color,  # Yellow (day) to deep purple (night)
+			"theta": float,  # Sun qubit theta (0=day, π=night)
+			"emoji": String  # ☀️ (day) or 🌙 (night)
+		}
+	"""
+	var emoji = "☀️" if sun_display_theta < PI/2.0 else "🌙"
+	return {
+		"color": sun_color,
+		"theta": sun_display_theta,
+		"emoji": emoji,
+		"time_remaining": get_sun_moon_time_remaining()
+	}
 
 
 ## Temperature Queries
@@ -700,6 +752,12 @@ func _evolve_quantum_substrate(dt: float) -> void:
 	1. Icons (Hamiltonian): Pure rotations - θ/φ only
 	2. Biome (Lindblad): Energy transfer + dissipation - radius/energy only
 	3. Gates (Discrete): Player actions - entanglement, measurement
+
+	CELESTIAL PLOTS ARE IMMUTABLE ANCHORS:
+	- Sun/Moon qubits (CelestialPlot) do NOT evolve
+	- They are skipped in all evolution layers (Hamiltonian, spring, energy transfer, dissipation)
+	- They remain fixed to drive all other qubits via coupling terms
+	- Immune to forces in force-directed graph visualization
 	"""
 	# Layer 1: Apply Hamiltonian evolution from all icons (pure rotations)
 	_apply_hamiltonian_evolution(dt)

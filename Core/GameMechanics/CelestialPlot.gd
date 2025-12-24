@@ -1,61 +1,69 @@
 class_name CelestialPlot
-extends PlotBase
+extends BasePlot
 
-## Celestial Plot Wrapper - Immutable Quantum State Container
+## CelestialPlot - Immutable celestial objects
+## Used for sun/moon qubits that cannot be modified by player
+## Not selectable in farm grid
 ##
-## Represents fixed quantum states (sun/moon) that drive the farming system.
-## These plots are completely fixed in position with no movement.
-## They are part of the quantum system but subject to no forces or animation.
-##
-## ARCHITECTURE RATIONALE:
-## - QuantumBehavior.FIXED: Completely immobile celestial bodies
-## - Sun/moon qubits are immutable anchors that drive other quantum evolution
-## - No force-directed movement or interactive forces
-## - Could be extended with visual representation
-##
-## CURRENT STATE: Fixed representation of celestial quantum states
-## FUTURE STATE: Could add rotation animation matching sun/moon cycle
-## FUTURE STATE: Could add gravitational influence on floating plots
+## PROPERTIES:
+## - Do NOT evolve under biome physics (Hamiltonian, spring, energy transfer, dissipation)
+## - Do NOT participate in force-directed graph forces
+## - Act as anchors/drivers for all other quantum states
+## - Immune to player actions (plant/harvest/entangle)
 
-const WheatPlot = preload("res://Core/GameMechanics/WheatPlot.gd")
+# Celestial type
+enum CelestialType { SUN, MOON }
+@export var celestial_type: CelestialType = CelestialType.SUN
 
-# Reference to the celestial body quantum state
-var wheat_plot: WheatPlot = null
-
-# Celestial type indicators
-var is_sun: bool = true
-
-# Reference to biome for phase data
-var biome: Node = null
+# Immutability enforcement
+var is_immutable: bool = true
+var is_force_immune: bool = true  # Skip in force-directed graph visualization
 
 
-func _init(wheat_plot_ref: WheatPlot, id: String, pos: Vector2i, sun_type: bool = true):
-	super._init(id, pos)
-	wheat_plot = wheat_plot_ref
-	is_sun = sun_type
-	plot_type = 2  # PlotType.CELESTIAL
-	quantum_behavior = 2  # QuantumBehavior.FIXED
+func _init(type: CelestialType = CelestialType.SUN):
+	super._init()
+	celestial_type = type
+	is_immutable = true
 
 
-func set_biome(biome_ref: Node):
-	"""Set reference to biome for phase synchronization"""
-	biome = biome_ref
+## Celestial Behavior
 
 
-func get_plot_emojis() -> Dictionary:
-	"""Return sun or moon emojis"""
-	var celestial_emoji = "☀️" if is_sun else "🌙"
-	return {"north": celestial_emoji, "south": celestial_emoji}
+func get_celestial_emoji() -> String:
+	"""Get emoji for this celestial object"""
+	match celestial_type:
+		CelestialType.SUN:
+			return "☀️"
+		CelestialType.MOON:
+			return "🌙"
+		_:
+			return "?"
 
 
-func get_dominant_emoji() -> String:
-	"""Get the celestial emoji"""
-	return "☀️" if is_sun else "🌙"
+func get_celestial_name() -> String:
+	"""Get name of this celestial object"""
+	match celestial_type:
+		CelestialType.SUN:
+			return "Sun"
+		CelestialType.MOON:
+			return "Moon"
+		_:
+			return "Celestial"
 
 
-func get_state_description() -> String:
-	"""Return readable description of celestial state"""
-	var body_name = "Sun" if is_sun else "Moon"
-	if wheat_plot:
-		return "%s (Quantum Locked, Energy: %.2f)" % [body_name, wheat_plot.energy]
-	return "%s (Fixed Celestial Body)" % body_name
+## Prevent modification
+
+
+func plant(labor_input = 0.0, wheat_input = 0.0, target_biome = null):
+	"""Celestial objects cannot be planted"""
+	print("⚠️ Cannot plant on celestial object: %s" % get_celestial_name())
+
+
+func harvest() -> Dictionary:
+	"""Celestial objects cannot be harvested"""
+	return {"success": false, "reason": "Cannot harvest celestial object"}
+
+
+func add_entanglement(other_plot_id: String, strength: float) -> void:
+	"""Celestial objects cannot be entangled"""
+	pass  # Silently ignore

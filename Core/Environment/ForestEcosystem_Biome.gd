@@ -1,6 +1,8 @@
 class_name ForestEcosystem_Biome
 extends BiomeBase
 
+const BiomePlot = preload("res://Core/GameMechanics/BiomePlot.gd")
+
 ## Quantum Forest Ecosystem Biome
 ##
 ## A complete predator-prey ecosystem modeled as quantum state transitions.
@@ -71,6 +73,12 @@ func _init(width: int = 6, height: int = 1):
 func _ready():
 	"""Initialize forest ecosystem with grid of patches"""
 	super._ready()
+
+	# HAUNTED UI FIX: Guard against double-initialization
+	if weather_qubit != null:
+		print("⚠️  ForestEcosystem_Biome._ready() called multiple times, skipping re-initialization")
+		return
+
 	# Create weather qubits
 	weather_qubit = BiomeUtilities.create_qubit("🌬️", "💧", PI / 2.0)
 	weather_qubit.radius = 1.0
@@ -92,6 +100,10 @@ func _ready():
 
 	print("🌲 Forest Ecosystem initialized (%dx%d)" % [grid_width, grid_height])
 
+	# Initialize forest icons (if grid available)
+	if grid:
+		_initialize_forest_icons()
+
 
 func _update_quantum_substrate(dt: float) -> void:
 	"""Override parent: Update weather and all patches"""
@@ -103,24 +115,50 @@ func _update_quantum_substrate(dt: float) -> void:
 		_update_patch(pos, dt)
 
 
-func _create_patch(position: Vector2i) -> Dictionary:
+func _create_patch(position: Vector2i) -> BiomePlot:
 	"""Create ecosystem patch with Markov transition graph"""
-	var patch = {
-		"position": position,
-		"state": EcologicalState.BARE_GROUND,
-		"state_qubit": DualEmojiQubit.new("🏜️", "🌱", PI / 2.0),
-		"organisms": {},  # icon → QuantumOrganism
-		"time_in_state": 0.0
-	}
-	patch["state_qubit"].radius = 0.1  # Bare ground has low energy
-	patch["state_qubit"].phi = 0.0
+	var plot = BiomePlot.new(BiomePlot.BiomePlotType.ENVIRONMENT)
+	plot.plot_id = "forest_patch_%d_%d" % [position.x, position.y]
+	plot.grid_position = position
+	plot.parent_biome = self
 
-	# Initialize Markov transition graph (🔄 = can transition to)
-	patch["state_qubit"].add_graph_edge("🔄", "🌱")  # Bare → Seedling
+	# Ecosystem state qubit (succession: 🏜️→🌱→🌿→🌲)
+	var state_qubit = DualEmojiQubit.new("🏜️", "🌱", PI / 2.0)
+	state_qubit.radius = 0.1  # Bare ground has low energy
+	state_qubit.phi = 0.0
+	state_qubit.add_graph_edge("🔄", "🌱")  # Bare → Seedling
+	plot.quantum_state = state_qubit
 
-	return patch
+	# Store ecosystem metadata
+	plot.set_meta("ecological_state", EcologicalState.BARE_GROUND)
+	plot.set_meta("organisms", {})  # icon → QuantumOrganism
+	plot.set_meta("time_in_state", 0.0)
+
+	return plot
 
 
+func _initialize_forest_icons():
+	"""Initialize forest icons and register them with the grid (scoped to Forest biome)"""
+	# Load icon classes
+	var ForestEcosystemIcon = load("res://Core/Icons/ForestEcosystemIcon.gd")
+	var ForestWeatherIcon = load("res://Core/Icons/ForestWeatherIcon.gd")
+
+	if not ForestEcosystemIcon or not ForestWeatherIcon:
+		print("❌ Failed to load forest icon classes!")
+		return
+
+	# Create and register Ecosystem Icon
+	var ecosystem_icon = ForestEcosystemIcon.new()
+	ecosystem_icon.set_activation(0.8)
+	grid.add_scoped_icon(ecosystem_icon, ["Forest"])
+	print("  🌲 Forest Ecosystem Icon → scoped to Forest biome")
+
+	# Create and register Weather Icon
+	var weather_icon = ForestWeatherIcon.new()
+	weather_icon.weather_type = "wind"
+	weather_icon.set_activation(0.6)
+	grid.add_scoped_icon(weather_icon, ["Forest"])
+	print("  🌬️ Forest Weather Icon → scoped to Forest biome")
 
 
 func _update_weather():
@@ -140,7 +178,8 @@ func _update_patch(position: Vector2i, delta: float):
 	"""Update a single patch: ecology + quantum organisms"""
 	var patch = patches[position]
 
-	patch["time_in_state"] += delta
+	var time_in_state = patch.get_meta("time_in_state") if patch.has_meta("time_in_state") else 0.0
+	patch.set_meta("time_in_state", time_in_state + delta)
 
 	# Step 1: Apply ecological succession (Markov transition)
 	_apply_ecological_transition(patch)
@@ -152,14 +191,15 @@ func _update_patch(position: Vector2i, delta: float):
 	_update_patch_qubit(patch)
 
 
-func _update_quantum_organisms(patch: Dictionary, delta: float):
+func _update_quantum_organisms(patch: BiomePlot, delta: float):
 	"""Update all organisms in patch using quantum mechanics and graph topology"""
+	var organisms_dict = patch.get_meta("organisms") if patch.has_meta("organisms") else {}
 	var organisms_list = []
 	var predators_list = []
 
 	# Collect organisms and identify predators
-	for icon in patch["organisms"].keys():
-		var org = patch["organisms"][icon]
+	for icon in organisms_dict.keys():
+		var org = organisms_dict[icon]
 		if org.alive:
 			organisms_list.append(org)
 			# Check if this organism hunts others (has 🍴 edges)
@@ -189,21 +229,25 @@ func _update_quantum_organisms(patch: Dictionary, delta: float):
 				baby.qubit.radius = spec["health"]
 				# Use unique key for multiple organisms of same type
 				var unique_key = spec["icon"] + "_" + str(randi())
-				patch["organisms"][unique_key] = baby
+				organisms_dict[unique_key] = baby
 			org.offspring_created = 0
 
 	# Remove dead organisms
 	var dead_icons = []
-	for icon in patch["organisms"].keys():
-		if not patch["organisms"][icon].alive:
+	for icon in organisms_dict.keys():
+		if not organisms_dict[icon].alive:
 			dead_icons.append(icon)
 	for icon in dead_icons:
-		patch["organisms"].erase(icon)
+		organisms_dict.erase(icon)
+
+	# Update patch metadata
+	patch.set_meta("organisms", organisms_dict)
 
 
-func _get_patch_food_energy(patch: Dictionary) -> float:
+func _get_patch_food_energy(patch: BiomePlot) -> float:
 	"""Calculate available food energy based on ecological state"""
-	match patch["state"]:
+	var state = patch.get_meta("ecological_state") if patch.has_meta("ecological_state") else EcologicalState.BARE_GROUND
+	match state:
 		EcologicalState.SEEDLING:
 			return 2.0
 		EcologicalState.SAPLING:
@@ -214,10 +258,10 @@ func _get_patch_food_energy(patch: Dictionary) -> float:
 			return 0.0
 
 
-func _apply_ecological_transition(patch: Dictionary):
+func _apply_ecological_transition(patch: BiomePlot):
 	"""Markov chain transition based on current state"""
-	var current_state = patch["state"]
-	var organisms = patch["organisms"]
+	var current_state = patch.get_meta("ecological_state") if patch.has_meta("ecological_state") else EcologicalState.BARE_GROUND
+	var organisms = patch.get_meta("organisms") if patch.has_meta("organisms") else {}
 	var wind_prob = sin(weather_qubit.theta / 2.0) ** 2
 	var water_prob = cos(weather_qubit.theta / 2.0) ** 2
 	var sun_prob = sin(season_qubit.theta / 2.0) ** 2
@@ -230,9 +274,9 @@ func _apply_ecological_transition(patch: Dictionary):
 			# Bare → Seedling requires wind + water
 			transition_prob = wind_prob * water_prob * 0.7
 			if randf() < transition_prob:
-				patch["state"] = EcologicalState.SEEDLING
-				patch["time_in_state"] = 0.0
-				print("🏜️ → 🌱 Seedling sprouted at %s" % patch["position"])
+				patch.set_meta("ecological_state", EcologicalState.SEEDLING)
+				patch.set_meta("time_in_state", 0.0)
+				print("🏜️ → 🌱 Seedling sprouted at %s" % patch.grid_position)
 
 		EcologicalState.SEEDLING:
 			# Seedling → Sapling requires survival + growth
@@ -246,23 +290,23 @@ func _apply_ecological_transition(patch: Dictionary):
 
 			transition_prob = base_prob
 			if randf() < transition_prob:
-				patch["state"] = EcologicalState.SAPLING
-				patch["time_in_state"] = 0.0
-				print("🌱 → 🌿 Sapling grown at %s" % patch["position"])
+				patch.set_meta("ecological_state", EcologicalState.SAPLING)
+				patch.set_meta("time_in_state", 0.0)
+				print("🌱 → 🌿 Sapling grown at %s" % patch.grid_position)
 
 			# Could also die from herbivores
 			if organisms.has("🐰") and randf() < 0.1:
-				patch["state"] = EcologicalState.BARE_GROUND
-				patch["time_in_state"] = 0.0
-				print("🌱 → 🏜️ Eaten by rabbits at %s" % patch["position"])
+				patch.set_meta("ecological_state", EcologicalState.BARE_GROUND)
+				patch.set_meta("time_in_state", 0.0)
+				print("🌱 → 🏜️ Eaten by rabbits at %s" % patch.grid_position)
 
 		EcologicalState.SAPLING:
 			# Sapling → Mature Forest
 			transition_prob = 0.2 + (water_prob * 0.1) + (sun_prob * 0.05)
 			if randf() < transition_prob:
-				patch["state"] = EcologicalState.MATURE_FOREST
-				patch["time_in_state"] = 0.0
-				print("🌿 → 🌲 Mature forest at %s" % patch["position"])
+				patch.set_meta("ecological_state", EcologicalState.MATURE_FOREST)
+				patch.set_meta("time_in_state", 0.0)
+				print("🌿 → 🌲 Mature forest at %s" % patch.grid_position)
 
 		EcologicalState.MATURE_FOREST:
 			# Forest can die (rare)
@@ -270,9 +314,9 @@ func _apply_ecological_transition(patch: Dictionary):
 			if (1.0 - water_prob) > 0.8:  # Drought
 				transition_prob = 0.1
 			if randf() < transition_prob:
-				patch["state"] = EcologicalState.BARE_GROUND
-				patch["time_in_state"] = 0.0
-				print("🌲 → 🏜️ Forest died at %s" % patch["position"])
+				patch.set_meta("ecological_state", EcologicalState.BARE_GROUND)
+				patch.set_meta("time_in_state", 0.0)
+				print("🌲 → 🏜️ Forest died at %s" % patch.grid_position)
 
 	# Update Markov transition graph to reflect new state
 	_update_patch_transition_graph(patch)
@@ -280,14 +324,17 @@ func _apply_ecological_transition(patch: Dictionary):
 
 
 
-func _update_patch_transition_graph(patch: Dictionary):
+func _update_patch_transition_graph(patch: BiomePlot):
 	"""Update Markov transition graph based on current ecological state (pure emoji topology)"""
-	var state_qubit = patch["state_qubit"]
+	var state_qubit = patch.quantum_state
+	if not state_qubit:
+		return
 	# Clear old transitions
 	state_qubit.entanglement_graph.clear()
 
 	# Build transition graph based on current state (🔄 = can transition to)
-	match patch["state"]:
+	var current_state = patch.get_meta("ecological_state") if patch.has_meta("ecological_state") else EcologicalState.BARE_GROUND
+	match current_state:
 		EcologicalState.BARE_GROUND:
 			state_qubit.add_graph_edge("🔄", "🌱")  # Can become seedling
 
@@ -305,19 +352,20 @@ func _update_patch_transition_graph(patch: Dictionary):
 			state_qubit.add_graph_edge("💧", "☀️")  # Produces energy
 
 
-func _update_patch_qubit(patch: Dictionary):
+func _update_patch_qubit(patch: BiomePlot):
 	"""Update the patch's state qubit to reflect ecological state"""
-	match patch["state"]:
+	var state = patch.get_meta("ecological_state") if patch.has_meta("ecological_state") else EcologicalState.BARE_GROUND
+	match state:
 		EcologicalState.BARE_GROUND:
-			patch["state_qubit"].radius = 0.1
+			patch.quantum_state.radius = 0.1
 		EcologicalState.SEEDLING:
-			patch["state_qubit"].radius = 0.3
+			patch.quantum_state.radius = 0.3
 		EcologicalState.SAPLING:
-			patch["state_qubit"].radius = 0.6
+			patch.quantum_state.radius = 0.6
 		EcologicalState.MATURE_FOREST:
-			patch["state_qubit"].radius = 0.9
+			patch.quantum_state.radius = 0.9
 		EcologicalState.DEAD_FOREST:
-			patch["state_qubit"].radius = 0.0
+			patch.quantum_state.radius = 0.0
 
 
 func add_organism(position: Vector2i, organism_icon: String) -> bool:
@@ -326,13 +374,15 @@ func add_organism(position: Vector2i, organism_icon: String) -> bool:
 		return false
 
 	var patch = patches[position]
+	var organisms = patch.get_meta("organisms") if patch.has_meta("organisms") else {}
 
 	# Create QuantumOrganism instead of bare qubit
 	# This gives us full behavioral instincts and graph topology
 	var organism = QuantumOrganism.new(organism_icon, "")  # Auto-detects type
 	organism.qubit.radius = 0.5  # Start at medium strength
 
-	patch["organisms"][organism_icon] = organism
+	organisms[organism_icon] = organism
+	patch.set_meta("organisms", organisms)
 	print("➕ Added %s at %s" % [organism_icon, position])
 	return true
 
@@ -354,14 +404,20 @@ func harvest_water(position: Vector2i = Vector2i(-1, -1)) -> DualEmojiQubit:
 	else:
 		# Find patch with wolves
 		for pos in patches.keys():
-			if patches[pos]["organisms"].has("🐺"):
-				target_patch = patches[pos]
+			var patch = patches[pos]
+			var organisms = patch.get_meta("organisms") if patch.has_meta("organisms") else {}
+			if organisms.has("🐺"):
+				target_patch = patch
 				break
 
-	if not target_patch or not target_patch["organisms"].has("🐺"):
+	if not target_patch:
 		return null
 
-	var wolf = target_patch["organisms"]["🐺"]
+	var organisms = target_patch.get_meta("organisms") if target_patch.has_meta("organisms") else {}
+	if not organisms.has("🐺"):
+		return null
+
+	var wolf = organisms["🐺"]
 	var water_amount = wolf.radius * 0.3
 
 	var water_qubit = BiomeUtilities.create_qubit("💧", "☀️", PI / 2.0)
@@ -369,7 +425,7 @@ func harvest_water(position: Vector2i = Vector2i(-1, -1)) -> DualEmojiQubit:
 
 	total_water_harvested += water_amount
 
-	print("💧 Harvested %.2f water from wolf at %s" % [water_amount, target_patch["position"]])
+	print("💧 Harvested %.2f water from wolf at %s" % [water_amount, target_patch.grid_position])
 	return water_qubit
 
 
@@ -389,16 +445,18 @@ func get_ecosystem_status() -> Dictionary:
 
 	for pos in patches.keys():
 		var patch = patches[pos]
+		var organisms = patch.get_meta("organisms") if patch.has_meta("organisms") else {}
+		var patch_state = patch.get_meta("ecological_state") if patch.has_meta("ecological_state") else EcologicalState.BARE_GROUND
 		var organism_list = []
-		for icon in patch["organisms"].keys():
+		for icon in organisms.keys():
 			organism_list.append({
 				"icon": icon,
-				"strength": patch["organisms"][icon].radius
+				"strength": organisms[icon].radius
 			})
 
 		status["patches"].append({
 			"position": pos,
-			"state": EcologicalState.keys()[patch["state"]],
+			"state": EcologicalState.keys()[patch_state],
 			"organisms": organism_list
 		})
 		status["organisms_count"] += organism_list.size()
@@ -435,4 +493,4 @@ func _reset_custom() -> void:
 			var pos = Vector2i(x, y)
 			patches[pos] = _create_patch(pos)
 
-	print("🌲 Forest Ecosystem reset")
+	print("🌲 Forest Ecosystem reset (BiomePlot refactor)")

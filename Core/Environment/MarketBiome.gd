@@ -31,6 +31,12 @@ var price_per_supply_theta: float = 50.0  # Price modifier based on θ
 
 func _ready():
 	super._ready()
+
+	# HAUNTED UI FIX: Guard against double-initialization
+	if market_qubit != null:
+		print("⚠️  MarketBiome._ready() called multiple times, skipping re-initialization")
+		return
+
 	_initialize_market_qubits()
 	print("💰 MarketBiome initialized")
 

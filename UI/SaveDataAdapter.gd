@@ -1,10 +1,10 @@
+class_name SaveDataAdapter
+
 ## SaveDataAdapter.gd
 ## Converts GameState (from saves) into UI-displayable data
 ##
 ## This is the clean interface between save/load system and visualizer
 ## Handles all the reconstruction logic so SaveLoadMenu stays simple
-
-class_name SaveDataAdapter
 
 ## Display data packet
 class DisplayData:

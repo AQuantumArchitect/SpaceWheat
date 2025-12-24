@@ -24,12 +24,16 @@ extends Control
 const FarmUILayoutManager = preload("res://UI/FarmUILayoutManager.gd")
 const FarmUIControlsManager = preload("res://UI/FarmUIControlsManager.gd")
 
+# Preload GridConfig (Phase 7)
+const GridConfig = preload("res://Core/GameState/GridConfig.gd")
+
 # Dependencies (injected from parent)
 var farm: Node = null
 var ui_state = null  # FarmUIState - abstraction layer (Phase 3, RefCounted not Node)
 var faction_manager: Node = null
 var vocabulary_evolution: Node = null
 var conspiracy_network: Node = null
+var grid_config: GridConfig = null  # Grid configuration (Phase 7)
 
 # Subsystems
 var layout_manager: FarmUILayoutManager = null
@@ -123,6 +127,14 @@ func inject_farm(farm_ref: Node, faction_mgr: Node = null, vocab_sys: Node = nul
 	conspiracy_network = conspiracy_net
 	print("💉 Farm injected into FarmUIController")
 
+	# Phase 7: Extract and inject GridConfig from farm
+	if farm_ref and farm_ref.has_meta("grid_config") or (farm_ref and "grid_config" in farm_ref):
+		var farm_grid_config = farm_ref.grid_config if "grid_config" in farm_ref else farm_ref.get_meta("grid_config")
+		if farm_grid_config:
+			grid_config = farm_grid_config
+			_inject_grid_config_to_components()
+			print("   📡 GridConfig extracted and injected into components")
+
 	# PHASE 4: Inject farm into layout_manager (for PlotGridDisplay direct signal connections)
 	if layout_manager and farm_ref:
 		layout_manager.inject_farm(farm_ref, self)
@@ -174,6 +186,23 @@ func inject_farm_late(farm_ref: Node) -> void:
 			layout_manager.quantum_graph.create_sun_qubit_node()
 
 	print("✅ Farm systems reinitialized")
+
+
+func _inject_grid_config_to_components() -> void:
+	"""Inject GridConfig to all components that need it (Phase 7)"""
+	if not grid_config:
+		print("⚠️  GridConfig not available for injection")
+		return
+
+	# Inject to layout manager
+	if layout_manager and layout_manager.has_method("inject_grid_config"):
+		layout_manager.inject_grid_config(grid_config)
+		print("💉 GridConfig → FarmUILayoutManager")
+
+	# Inject to controls manager
+	if controls_manager and controls_manager.has_method("inject_grid_config"):
+		controls_manager.inject_grid_config(grid_config)
+		print("💉 GridConfig → FarmUIControlsManager")
 
 
 func _wire_components_to_farm(farm_ref: Node) -> void:

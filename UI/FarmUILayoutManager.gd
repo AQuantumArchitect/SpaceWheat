@@ -16,6 +16,9 @@ extends Control
 # Preload UI components
 const UILayoutManager = preload("res://UI/Managers/UILayoutManager.gd")
 const OverlayManager = preload("res://UI/Managers/OverlayManager.gd")
+
+# Preload GridConfig (Phase 7)
+const GridConfig = preload("res://Core/GameState/GridConfig.gd")
 const PlotGridDisplay = preload("res://UI/PlotGridDisplay.gd")
 const ResourcePanel = preload("res://UI/Panels/ResourcePanel.gd")
 const BiomeInfoDisplay = preload("res://UI/Panels/BiomeInfoDisplay.gd")
@@ -35,6 +38,7 @@ var overlay_manager: OverlayManager
 var faction_manager: Node = null
 var vocabulary_evolution: Node = null
 var conspiracy_network: Node = null
+var grid_config: GridConfig = null  # Grid configuration (Phase 7)
 
 ## UI Components
 var plot_grid_display: PlotGridDisplay
@@ -60,8 +64,17 @@ var bottom_bar: Control
 
 ## INITIALIZATION
 
+# HAUNTED UI FIX: Prevent double-initialization
+var _is_initialized: bool = false
+
 func _ready() -> void:
 	"""Initialize visual layout structure"""
+	# HAUNTED UI FIX: Guard against double-initialization
+	if _is_initialized:
+		print("⚠️  FarmUILayoutManager._ready() called multiple times, skipping re-initialization")
+		return
+	_is_initialized = true
+
 	print("🎨 FarmUILayoutManager initializing... size=%s" % size)
 
 	# Create layout manager (must be first - needed by other components)
@@ -99,6 +112,26 @@ func inject_farm(farm: Node, ui_controller: Node) -> void:
 		plot_grid_display.inject_farm(farm)
 		plot_grid_display.inject_ui_controller(ui_controller)
 		print("💉 Farm injected into PlotGridDisplay")
+
+
+func inject_grid_config(config: GridConfig) -> void:
+	"""Inject GridConfig into PlotGridDisplay (Phase 7)"""
+	if not config:
+		push_error("FarmUILayoutManager: Attempted to inject null GridConfig!")
+		return
+
+	grid_config = config
+	print("💉 GridConfig injected into FarmUILayoutManager")
+
+	# Pass to PlotGridDisplay
+	if plot_grid_display and plot_grid_display.has_method("inject_grid_config"):
+		plot_grid_display.inject_grid_config(config)
+		print("   📡 GridConfig → PlotGridDisplay")
+
+	# Pass to layout manager for dynamic sizing
+	if layout_manager and layout_manager.has_method("inject_grid_config"):
+		layout_manager.inject_grid_config(config)
+		print("   📡 GridConfig → UILayoutManager")
 
 
 func _create_layout_manager() -> void:

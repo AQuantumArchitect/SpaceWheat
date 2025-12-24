@@ -14,6 +14,13 @@ var time_tracker: BiomeTimeTracker = BiomeTimeTracker.new()
 var quantum_states: Dictionary = {}  # Vector2i -> DualEmojiQubit
 var grid = null  # Injected FarmGrid reference
 
+# Visual Properties for QuantumForceGraph rendering
+var visual_color: Color = Color(0.5, 0.5, 0.5, 0.3)  # Default gray
+var visual_label: String = ""  # Display name with emoji (defaults to get_biome_type())
+var visual_center_offset: Vector2 = Vector2.ZERO  # Position offset in graph
+var visual_circle_radius: float = 150.0  # Circle radius override
+var visual_enabled: bool = true  # Whether to show in force graph
+
 # Bell Gates: Historical entanglement relationships
 # Tracks which plots have been entangled together in the past
 # Structure: Array of [pos1, pos2, pos3] triplets (for kitchen) or [pos1, pos2] pairs (for 2-qubit)
@@ -25,9 +32,16 @@ signal qubit_measured(position: Vector2i, outcome: String)
 signal qubit_evolved(position: Vector2i)
 signal bell_gate_created(positions: Array)  # New: emitted when plots are entangled
 
+# HAUNTED UI FIX: Prevent double-initialization when _ready() called multiple times
+var _is_initialized: bool = false
+
 
 func _ready() -> void:
 	"""Initialize biome - called by Godot when node enters scene tree"""
+	# Guard: Only initialize once (prevents double-init from manual calls)
+	if _is_initialized:
+		return
+	_is_initialized = true
 	set_process(true)
 
 
@@ -164,6 +178,38 @@ func get_status() -> Dictionary:
 func get_biome_type() -> String:
 	"""Override in subclasses to return biome type name"""
 	return "Base"
+
+
+func get_visual_config() -> Dictionary:
+	"""Get visual configuration for QuantumForceGraph rendering
+
+	Override to customize appearance (or set visual_* properties in _ready())
+
+	Returns: {color, label, center_offset, circle_radius, enabled}
+	"""
+	return {
+		"color": visual_color,
+		"label": visual_label if visual_label != "" else get_biome_type(),
+		"center_offset": visual_center_offset,
+		"circle_radius": visual_circle_radius,
+		"enabled": visual_enabled
+	}
+
+
+func render_biome_content(graph: Node2D, center: Vector2, radius: float) -> void:
+	"""Render custom biome-specific content inside biome region circle
+
+	Override in subclasses to draw custom visualizations.
+	Called during QuantumForceGraph._draw() for each biome.
+
+	Args:
+		graph: QuantumForceGraph instance (access to draw_* methods)
+		center: Screen position of biome circle center
+		radius: Radius of the biome circle
+
+	Default: does nothing (generic biomes have no custom rendering)
+	"""
+	pass  # Subclasses override to add custom drawing
 
 
 # ============================================================================

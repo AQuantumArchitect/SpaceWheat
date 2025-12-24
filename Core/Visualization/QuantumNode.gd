@@ -5,7 +5,7 @@ extends RefCounted
 ## Represents a single quantum state in the central force-directed visualization
 
 # Import dependencies
-const WheatPlot = preload("res://Core/GameMechanics/WheatPlot.gd")
+const FarmPlot = preload("res://Core/GameMechanics/FarmPlot.gd")
 
 # Physics state
 var position: Vector2 = Vector2.ZERO
@@ -13,7 +13,7 @@ var velocity: Vector2 = Vector2.ZERO
 var classical_anchor: Vector2 = Vector2.ZERO  # Position of classical plot (tether target)
 
 # Quantum state reference
-var plot: WheatPlot = null  # Reference to the actual quantum plot
+var plot: FarmPlot = null  # Reference to the actual quantum plot
 var plot_id: String = ""
 var grid_position: Vector2i = Vector2i.ZERO
 
@@ -42,7 +42,7 @@ const MAX_RADIUS = 40.0
 const SPAWN_DURATION = 0.5  # Fade-in duration in seconds
 
 
-func _init(wheat_plot: WheatPlot, anchor_pos: Vector2, grid_pos: Vector2i, center_pos: Vector2 = Vector2.ZERO):
+func _init(wheat_plot: FarmPlot, anchor_pos: Vector2, grid_pos: Vector2i, center_pos: Vector2 = Vector2.ZERO):
 	plot = wheat_plot
 	classical_anchor = anchor_pos
 	grid_position = grid_pos
@@ -144,10 +144,10 @@ func update_from_quantum_state():
 		color = Color.from_hsv(hue, saturation, brightness, alpha)
 
 	# Add subtle variation based on plot type
-	if plot.plot_type == WheatPlot.PlotType.TOMATO:
+	if plot.plot_type == FarmPlot.PlotType.TOMATO:
 		# Tomatoes lean toward red/orange
 		color = color.lerp(Color(1.0, 0.3, 0.2), 0.2)
-	elif plot.plot_type == WheatPlot.PlotType.MUSHROOM:
+	elif plot.plot_type == FarmPlot.PlotType.MUSHROOM:
 		# Mushrooms lean toward purple/blue (moon colors)
 		color = color.lerp(Color(0.6, 0.4, 0.9), 0.25)
 	else:

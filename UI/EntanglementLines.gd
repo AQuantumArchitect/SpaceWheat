@@ -1,5 +1,5 @@
-extends Node2D
 class_name EntanglementLines
+extends Node2D
 
 ## EntanglementLines - Draws quantum connection lines between entangled plots
 ## Visualizes the spooky action at a distance ✨

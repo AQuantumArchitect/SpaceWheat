@@ -1,60 +1,70 @@
 class_name BiomePlot
-extends PlotBase
+extends BasePlot
 
-## Biome Plot Wrapper - Environmental Measurement Container
-##
-## Represents measurement points in the quantum farm that measure local environmental
-## properties (temperature, energy, phase). These plots don't have floating balloons,
-## instead they hover directly over the measurement location.
-##
-## ARCHITECTURE RATIONALE:
-## - QuantumBehavior.HOVERING: Fixed hover over measurement location
-## - Measures biome properties at specific grid points
-## - No movement or force-directed behavior
-## - Could be extended with visualization feedback
-##
-## CURRENT STATE: Wrapper that reads biome state and displays measurements
-## FUTURE STATE: Could add hover animation and measurement field visualization
-## FUTURE STATE: Could visualize gradients between measurement points
+## BiomePlot - Internal biome entities
+## Used for items managed by the biome system
+## Not selectable by player, not in farm grid
+## Examples: transformation nodes, market qubits, guild resources
 
-# Reference to the biome environment
-var biome: Node = null
+# Biome plot type
+enum BiomePlotType { TRANSFORMATION_NODE, MARKET_QUBIT, GUILD_RESOURCE, ENVIRONMENT }
+@export var biome_plot_type: BiomePlotType = BiomePlotType.TRANSFORMATION_NODE
 
-# Measurement data
-var temperature: float = 300.0
-var energy: float = 0.0
-var phase: float = 0.0
+# Biome reference
+var parent_biome = null  # Reference to the biome that owns this plot
 
 
-func _init(biome_ref: Node, id: String, pos: Vector2i):
-	super._init(id, pos)
-	biome = biome_ref
-	plot_type = 1  # PlotType.BIOME
-	quantum_behavior = 1  # QuantumBehavior.HOVERING
+func _init(type: BiomePlotType = BiomePlotType.TRANSFORMATION_NODE):
+	super._init()
+	biome_plot_type = type
 
 
-func get_plot_emojis() -> Dictionary:
-	"""Return measurement emojis for this biome"""
-	if biome:
-		var is_sun = biome.is_currently_sun() if biome.has_method("is_currently_sun") else false
-		return {
-			"north": "☀️" if is_sun else "🌙",
-			"south": "🌡️"
-		}
-	return {"north": "❓", "south": "❓"}
+## Biome-Specific Behavior
 
 
-func get_dominant_emoji() -> String:
-	"""Get the dominant emoji for this biome measurement"""
-	if biome:
-		var is_sun = biome.is_currently_sun() if biome.has_method("is_currently_sun") else false
-		return "☀️" if is_sun else "🌙"
-	return "❓"
+func get_biome_plot_type_name() -> String:
+	"""Get name of this biome plot type"""
+	match biome_plot_type:
+		BiomePlotType.TRANSFORMATION_NODE:
+			return "Transformation Node"
+		BiomePlotType.MARKET_QUBIT:
+			return "Market Qubit"
+		BiomePlotType.GUILD_RESOURCE:
+			return "Guild Resource"
+		BiomePlotType.ENVIRONMENT:
+			return "Environment"
+		_:
+			return "Biome Plot"
 
 
-func get_state_description() -> String:
-	"""Return readable description of biome state"""
-	if not biome:
-		return "Disconnected biome"
-	var temp_str = "%.0fK" % temperature
-	return "Biome: %s | Energy: %.2f" % [temp_str, energy]
+func get_biome_emoji() -> String:
+	"""Get emoji for this biome plot"""
+	match biome_plot_type:
+		BiomePlotType.TRANSFORMATION_NODE:
+			return "⚗️"  # Alchemy/transformation
+		BiomePlotType.MARKET_QUBIT:
+			return "💰"  # Market/trading
+		BiomePlotType.GUILD_RESOURCE:
+			return "👥"  # People/guild
+		BiomePlotType.ENVIRONMENT:
+			return "🌍"  # Environment
+		_:
+			return "?"
+
+
+## Prevent player interaction
+
+
+func plant(labor_input = 0.0, wheat_input = 0.0, target_biome = null):
+	"""Biome plots are not planted by players"""
+	print("⚠️ Cannot plant on biome plot: %s" % get_biome_plot_type_name())
+
+
+func harvest() -> Dictionary:
+	"""Biome plots are not harvested by players"""
+	return {"success": false, "reason": "Cannot harvest biome plot"}
+
+
+func add_entanglement(other_plot_id: String, strength: float) -> void:
+	"""Biome plots handle entanglement internally"""
+	pass  # Let biome handle this

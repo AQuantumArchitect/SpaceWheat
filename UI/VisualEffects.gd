@@ -1,5 +1,5 @@
-extends Node2D
 class_name VisualEffects
+extends Node2D
 
 ## VisualEffects - Handles particle effects and animations
 ## Harvest sparkles, planting animations, quantum collapse effects

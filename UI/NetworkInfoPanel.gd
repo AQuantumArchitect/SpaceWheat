@@ -1,4 +1,6 @@
+class_name NetworkInfoPanel
 extends PanelContainer
+
 ## Network Info Panel
 ## Displays conspiracy network statistics when overlay is visible
 

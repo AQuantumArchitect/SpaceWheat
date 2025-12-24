@@ -37,7 +37,7 @@ signal node_swiped_to(from_grid_pos: Vector2i, to_grid_pos: Vector2i)  # Swipe g
 var selected_node_for_entangle: QuantumNode = null
 
 # Force parameters (tuned for visible force-directed behavior)
-const TETHER_SPRING_CONSTANT = 0.015  # Very weak - let nodes spread far
+const TETHER_SPRING_CONSTANT = 0.08  # Strong - pulls bubbles back to home position (Hooke's law)
 const MEASURED_TETHER_STRENGTH = 0.3  # MUCH stronger - measured nodes snap to classical position
 const REPULSION_STRENGTH = 7000.0  # Strong - push nodes apart vigorously
 const ENTANGLE_ATTRACTION = 3.0  # Very strong - pull entangled partners together
@@ -47,8 +47,8 @@ const MIN_DISTANCE = 5.0  # Minimum distance between nodes
 const IDEAL_ENTANGLEMENT_DISTANCE = 60.0  # Target distance for entangled nodes (closer)
 
 # Visual parameters
-const TETHER_COLOR = Color(0.5, 0.5, 0.5, 0.15)  # Gray, very faint
-const TETHER_WIDTH = 1.0
+const TETHER_COLOR = Color(0.8, 0.8, 0.8, 0.6)  # Bright gray, much more visible
+const TETHER_WIDTH = 2.5  # Thicker lines for better visibility
 const ENTANGLEMENT_COLOR_BASE = Color(1.0, 0.8, 0.2)  # Golden
 const ENTANGLEMENT_WIDTH = 3.0
 
@@ -69,9 +69,32 @@ const ICON_PARTICLE_SIZE = 3.0
 const MAX_ICON_PARTICLES = 150  # Limit total particles
 var icon_particle_spawn_accumulator: float = 0.0
 
-# Reference to farm grid and biome
+# MULTI-BIOME REGIONS (Phase 3a) - Visual layout for Venn diagram
+const BIOME_REGIONS = {
+	"Forest": {
+		"center_offset": Vector2(-0.6, -0.6),  # Top-left
+		"color": Color(0.3, 0.7, 0.3, 0.3),   # Green
+		"label": "🌲 Forest"
+	},
+	"Market": {
+		"center_offset": Vector2(-0.6, 0.0),   # Middle-left
+		"color": Color(0.7, 0.6, 0.3, 0.3),   # Gold
+		"label": "💰 Market"
+	},
+	"BioticFlux": {
+		"center_offset": Vector2(-0.6, 0.6),   # Bottom-left
+		"color": Color(0.4, 0.6, 0.8, 0.3),   # Blue
+		"label": "🌿 Biotic Flux"
+	}
+}
+const BIOME_CIRCLE_RADIUS = 150.0  # Radius of each biome region circle
+
+# Reference to farm grid and biomes
 var farm_grid: FarmGrid = null
-var biome = null  # Reference to Biome for sun_qubit access
+var biome = null  # Legacy: Reference to Biome for backward compatibility
+var biotic_flux_biome = null  # BioticFlux biome (contains sun_qubit)
+var market_biome = null  # Market biome
+var forest_biome = null  # Forest ecosystem biome
 
 # Icon references (for visual effects)
 var biotic_icon = null
@@ -114,11 +137,20 @@ func initialize(grid: FarmGrid, center_pos: Vector2, radius: float):
 				var grid_pos = Vector2i(x, y)
 				var plot = grid.get_plot(grid_pos)
 				if plot:
-					# Calculate screen position for this plot
-					# Distribute plots in a circle around center_position
-					var angle = TAU * (x / float(grid.grid_width))
-					var distance = graph_radius
-					var screen_pos = center_position + Vector2(cos(angle), sin(angle)) * distance
+					# Phase 3b: Calculate position based on biome assignment (not circular)
+					var plot_biome = grid.get_biome_for_plot(grid_pos)
+					var biome_name = grid.plot_biome_assignments.get(grid_pos, "BioticFlux")
+					var biome_config = BIOME_REGIONS.get(biome_name)
+
+					var screen_pos = center_position  # Default fallback
+					if biome_config:
+						# Calculate biome region center
+						var biome_center = center_position + biome_config.center_offset * graph_radius
+
+						# Random position within biome circle (scattered, not grid-based)
+						var angle = randf() * TAU
+						var local_radius = randf_range(30, BIOME_CIRCLE_RADIUS * 0.8)
+						screen_pos = biome_center + Vector2(cos(angle), sin(angle)) * local_radius
 
 					# Offset anchor position UPWARD (negative Y) so bubbles float above like balloons
 					# Home position is 2 bubble diameters above the base plot (60 pixels)
@@ -222,12 +254,25 @@ func wire_to_farm(farm: Node) -> void:
 	# Initialize quantum graph with farm data
 	initialize(farm.grid, center, radius)
 
-	# Set up biome for sun qubit rendering
+	# Get all three biome references (Phase 3d)
+	if farm.has_meta("biotic_flux_biome"):
+		biotic_flux_biome = farm.get_meta("biotic_flux_biome")
+		print("⚛️ QuantumForceGraph connected to BioticFlux biome")
+	if farm.has_meta("market_biome"):
+		market_biome = farm.get_meta("market_biome")
+		print("⚛️ QuantumForceGraph connected to Market biome")
+	if farm.has_meta("forest_biome"):
+		forest_biome = farm.get_meta("forest_biome")
+		print("⚛️ QuantumForceGraph connected to Forest biome")
+
+	# Legacy: Set biome for backward compatibility
 	if farm.has_meta("biome"):
 		set_biome(farm.get_meta("biome"))
-		create_sun_qubit_node()
 
-	print("⚛️ QuantumForceGraph wired to farm")
+	# Create sun qubit node (will use biotic_flux_biome)
+	create_sun_qubit_node()
+
+	print("⚛️ QuantumForceGraph wired to farm with multi-biome support")
 
 
 func set_plot_tether_colors(colors: Dictionary):
@@ -310,15 +355,22 @@ func create_quantum_nodes(classical_plot_positions: Dictionary):
 func create_sun_qubit_node():
 	"""Create a special celestial quantum node for the sun/moon qubit
 
-	The sun appears at the top center of the force graph as a special immutable
+	The sun appears in the BioticFlux biome region as a special immutable
 	celestial object. It shows day/night cycle and is always visible.
 	"""
-	if not biome or not biome.sun_qubit:
-		print("⚠️ Cannot create sun node: biome or sun_qubit not available")
+	# Phase 3d: Use biotic_flux_biome specifically for sun qubit
+	if not biotic_flux_biome or not biotic_flux_biome.sun_qubit:
+		print("⚠️ Cannot create sun node: biotic_flux_biome or sun_qubit not available")
 		return
 
-	# Position sun at top center of graph (fixed position, never moves)
-	var sun_classical_pos = center_position + Vector2(0, -graph_radius * 0.7)
+	# Position sun in BioticFlux biome region (bottom-left area)
+	var biome_config = BIOME_REGIONS.get("BioticFlux")
+	if not biome_config:
+		print("⚠️ Cannot create sun node: BioticFlux biome config not found")
+		return
+
+	var biome_center = center_position + biome_config.center_offset * graph_radius
+	var sun_classical_pos = biome_center + Vector2(0, -BIOME_CIRCLE_RADIUS * 0.7)
 	var sun_grid_pos = Vector2i(-1, -1)  # Special celestial position
 
 	# Create QuantumNode with null plot (will set properties manually)
@@ -326,19 +378,23 @@ func create_sun_qubit_node():
 	sun_qubit_node = QuantumNode.new(null, sun_classical_pos, sun_grid_pos, center_position)
 
 	# Store the sun_qubit reference separately (not in plot field)
-	sun_qubit_node.set_meta("sun_qubit", biome.sun_qubit)
+	sun_qubit_node.set_meta("sun_qubit", biotic_flux_biome.sun_qubit)
 
 	# Set visual properties for celestial appearance
 	sun_qubit_node.grid_position = sun_grid_pos
 	sun_qubit_node.plot_id = "celestial_sun"
-	sun_qubit_node.emoji_north = biome.sun_qubit.north_emoji
-	sun_qubit_node.emoji_south = biome.sun_qubit.south_emoji
+	sun_qubit_node.emoji_north = biotic_flux_biome.sun_qubit.north_emoji
+	sun_qubit_node.emoji_south = biotic_flux_biome.sun_qubit.south_emoji
 	sun_qubit_node.radius = 30.0  # Sun is bigger than regular nodes
 	sun_qubit_node.color = Color(1.0, 0.8, 0.2)  # Golden
 	sun_qubit_node.visual_scale = 1.0
 	sun_qubit_node.visual_alpha = 1.0
 
-	print("Created sun qubit node at position: %s" % sun_classical_pos)
+	# FORCE-IMMUNE: Sun/Moon celestial objects do NOT move in force-directed graph
+	# quantum_behavior = 2 (FIXED) means no forces applied
+	sun_qubit_node.set_meta("quantum_behavior", 2)
+
+	print("Created sun qubit node at position: %s in BioticFlux region (FORCE-IMMUNE)" % sun_classical_pos)
 
 
 func _process(delta):
@@ -385,9 +441,10 @@ func _update_node_visuals():
 			node.start_spawn_animation(time_accumulator)
 
 	# Update sun qubit node (always visible, no spawn animation needed)
-	if sun_qubit_node and biome and biome.sun_qubit:
+	# Phase 3d: Use biotic_flux_biome specifically
+	if sun_qubit_node and biotic_flux_biome and biotic_flux_biome.sun_qubit:
 		# Sun node stores the qubit in metadata, update emojis
-		var sun = biome.sun_qubit
+		var sun = biotic_flux_biome.sun_qubit
 		sun_qubit_node.emoji_north = sun.north_emoji
 		sun_qubit_node.emoji_south = sun.south_emoji
 
@@ -395,6 +452,10 @@ func _update_node_visuals():
 		var north_prob = pow(cos(sun.theta / 2.0), 2)
 		sun_qubit_node.emoji_north_opacity = north_prob
 		sun_qubit_node.emoji_south_opacity = 1.0 - north_prob
+
+		# Update color from biome visualization (yellow day → deep purple night)
+		var sun_vis = biotic_flux_biome.get_sun_visualization()
+		sun_qubit_node.color = sun_vis["color"]
 
 		# Force full visibility for sun
 		sun_qubit_node.visual_scale = 1.0
@@ -790,12 +851,18 @@ func _draw():
 	# Draw Icon auras (environmental effects)
 	_draw_icon_auras()
 
+	# Draw biome regions (Venn diagram background) - Phase 3c
+	_draw_biome_regions()
+
 	# Draw in layers (back to front)
 
 	# 1. Tether lines (background)
 	_draw_tether_lines()
 
-	# 2. Entanglement lines (midground)
+	# 2. Energy transfer forces (Lindbladian evolution visualization)
+	_draw_energy_transfer_forces()
+
+	# 3. Entanglement lines (midground)
 	_draw_entanglement_lines()
 
 	# 3. Entanglement particles (above lines, below nodes)
@@ -809,6 +876,125 @@ func _draw():
 
 	# 6. Sun qubit node (always on top, celestial)
 	_draw_sun_qubit_node()
+
+
+func _draw_biome_regions():
+	"""Phase 3c: Draw colored circles showing biome regions (Venn diagram style)
+
+	Forest biome has specialized content (ecosystem state, weather, season qubits)
+	"""
+	for biome_name in BIOME_REGIONS:
+		var config = BIOME_REGIONS[biome_name]
+		var biome_center = center_position + config.center_offset * graph_radius
+
+		# Draw filled circle
+		draw_circle(biome_center, BIOME_CIRCLE_RADIUS, config.color)
+
+		# Draw border
+		draw_arc(biome_center, BIOME_CIRCLE_RADIUS, 0, TAU, 64, Color(1, 1, 1, 0.2), 2.0)
+
+		# Specialized content for forest biome
+		if biome_name == "Forest":
+			_draw_forest_biome_content(biome_center)
+
+		# Draw label above circle
+		var font = ThemeDB.fallback_font
+		var label_pos = biome_center + Vector2(0, -BIOME_CIRCLE_RADIUS - 15)
+		draw_string(font, label_pos, config.label, HORIZONTAL_ALIGNMENT_CENTER, -1, 16, Color(1, 1, 1, 0.6))
+
+
+func _draw_forest_biome_content(center: Vector2):
+	"""Draw forest ecosystem state + weather/season qubits inside forest circle"""
+	if not forest_biome:
+		return
+
+	var font = ThemeDB.fallback_font
+
+	# 1. DOMINANT ECOSYSTEM STATE (center, large emoji)
+	var dominant_state = _get_forest_dominant_state()
+	var state_emoji = _get_ecosystem_emoji(dominant_state)
+
+	# Shadow for visibility against green background
+	var emoji_pos = center + Vector2(0, 5)
+	for dx in [-1, 0, 1]:
+		for dy in [-1, 0, 1]:
+			if dx != 0 or dy != 0:
+				draw_string(font, emoji_pos + Vector2(dx, dy), state_emoji,
+						   HORIZONTAL_ALIGNMENT_CENTER, -1, 48, Color(0, 0, 0, 0.8))
+	draw_string(font, emoji_pos, state_emoji, HORIZONTAL_ALIGNMENT_CENTER, -1, 48, Color.WHITE)
+
+	# 2. WEATHER QUBIT (top-left mini Bloch sphere)
+	if forest_biome.weather_qubit:
+		_draw_mini_bloch_sphere(center + Vector2(-50, -BIOME_CIRCLE_RADIUS + 50),
+							   forest_biome.weather_qubit, 15.0)
+
+	# 3. SEASON QUBIT (top-right mini Bloch sphere)
+	if forest_biome.season_qubit:
+		_draw_mini_bloch_sphere(center + Vector2(50, -BIOME_CIRCLE_RADIUS + 50),
+							   forest_biome.season_qubit, 15.0)
+
+	# 4. ORGANISM COUNT (bottom)
+	var count = _count_forest_organisms()
+	var count_pos = center + Vector2(0, BIOME_CIRCLE_RADIUS - 30)
+	draw_string(font, count_pos, "%d 🐾" % count, HORIZONTAL_ALIGNMENT_CENTER, -1, 12,
+			   Color(0.9, 0.9, 0.9, 0.8))
+
+
+func _get_forest_dominant_state() -> int:
+	"""Get the dominant ecological state across all forest patches"""
+	var state_counts = {}
+	for pos in forest_biome.patches.keys():
+		var patch = forest_biome.patches[pos]
+		var state = patch.get_meta("ecological_state") if patch.has_meta("ecological_state") else 0
+		state_counts[state] = state_counts.get(state, 0) + 1
+
+	var max_count = 0
+	var dominant = 0
+	for state in state_counts.keys():
+		if state_counts[state] > max_count:
+			max_count = state_counts[state]
+			dominant = state
+	return dominant
+
+
+func _get_ecosystem_emoji(state: int) -> String:
+	"""Convert ecological state to emoji"""
+	match state:
+		0: return "🏜️"  # BARE_GROUND
+		1: return "🌱"  # SEEDLING
+		2: return "🌿"  # SAPLING
+		3: return "🌲"  # MATURE_FOREST
+		4: return "☠️"  # DEAD_FOREST
+		_: return "?"
+
+
+func _count_forest_organisms() -> int:
+	"""Count total organisms across all forest patches"""
+	var total = 0
+	for pos in forest_biome.patches.keys():
+		var patch = forest_biome.patches[pos]
+		if patch.has_meta("organisms"):
+			total += patch.get_meta("organisms").size()
+	return total
+
+
+func _draw_mini_bloch_sphere(center: Vector2, qubit: DualEmojiQubit, radius: float):
+	"""Draw a mini Bloch sphere representation for a qubit"""
+	var font = ThemeDB.fallback_font
+
+	# Circle outline
+	draw_arc(center, radius, 0, TAU, 32, Color(1, 1, 1, 0.3), 1.0)
+
+	# North/south emojis (poles)
+	draw_string(font, center + Vector2(0, -radius - 8), qubit.north_emoji,
+			   HORIZONTAL_ALIGNMENT_CENTER, -1, 9, Color(1, 1, 1, 0.7))
+	draw_string(font, center + Vector2(0, radius + 8), qubit.south_emoji,
+			   HORIZONTAL_ALIGNMENT_CENTER, -1, 9, Color(1, 1, 1, 0.7))
+
+	# State pointer (from center towards state angle)
+	var pointer_end = center + Vector2(0, -radius * 0.7).rotated(qubit.theta - PI/2)
+	draw_line(center, pointer_end, Color(1, 1, 1, 0.9), 1.5, true)
+	draw_circle(pointer_end, 2.0, Color(1, 1, 1, 0.9))
 
 
 func _draw_tether_lines():
@@ -918,6 +1104,166 @@ func _draw_entanglement_lines():
 
 	if DEBUG_MODE and entanglement_count > 0:
 		print("🔗 Drew %d entanglement lines" % entanglement_count)
+
+
+func _draw_energy_transfer_forces():
+	"""Draw energy transfer forces from sun to plots (Lindbladian evolution visualization)
+
+	Shows how quantum states gain energy from sun coupling and icon influences.
+	Arrow opacity/thickness represents energy transfer rate.
+	"""
+	if not sun_qubit_node or not biotic_flux_biome:
+		return
+
+	var sun_color_vis = biotic_flux_biome.get_sun_visualization()
+	var sun_theta = sun_color_vis["theta"]
+
+	# Only draw forces if sun is above horizon (has energy to transfer)
+	# Energy strength = |cos(sun.theta)| peaks at θ=0 (noon) and θ=π (midnight)
+	var energy_strength = abs(cos(sun_theta))
+
+	if energy_strength < 0.1:
+		return  # Skip when sun near horizon (θ=π/2, 3π/2) - minimal energy transfer
+
+	var force_arrows_drawn = 0
+
+	for node in quantum_nodes:
+		if not node.plot or not node.plot.is_planted or not node.plot.quantum_state:
+			continue
+
+		# Skip celestial objects (they don't receive forces)
+		if node.plot_id == "celestial_sun" or node.plot_id == "celestial_moon":
+			continue
+
+		# Calculate energy transfer rate based on quantum state alignment with sun
+		var qubit = node.plot.quantum_state
+		if not qubit:
+			continue
+
+		# Energy coupling: cos²(θ_plot/2) × cos²((θ_plot - θ_sun)/2)
+		var alignment = cos((qubit.theta - sun_theta) / 2.0)
+		var plot_alignment = cos(qubit.theta / 2.0)
+		var energy_transfer_rate = plot_alignment * plot_alignment * alignment * alignment * energy_strength
+
+		# Skip if no meaningful energy transfer
+		if energy_transfer_rate < 0.05:
+			continue
+
+		# Draw energy transfer arrow from sun to plot
+		# Arrow thickness = energy transfer rate
+		var arrow_thickness = clamp(energy_transfer_rate * 3.0, 0.5, 2.5)
+
+		# Arrow color = sun color (yellow day → purple night)
+		var arrow_color = sun_color_vis["color"]
+		arrow_color.a = clamp(energy_transfer_rate * 0.8, 0.2, 0.7)  # Opacity based on transfer rate
+
+		# Draw arrow from sun toward plot
+		var from = sun_qubit_node.position
+		var to = node.position
+		draw_line(from, to, arrow_color, arrow_thickness, true)
+
+		# Draw arrow head (small triangle at plot end)
+		var direction = (to - from).normalized()
+		var arrow_size = arrow_thickness * 3.0
+		var arrow_left = to - direction * arrow_size + direction.rotated(PI/2) * arrow_size * 0.5
+		var arrow_right = to - direction * arrow_size - direction.rotated(PI/2) * arrow_size * 0.5
+
+		# Draw small arrow head triangle
+		var arrow_head_color = arrow_color
+		arrow_head_color.a = arrow_color.a * 0.8
+		draw_colored_polygon([to, arrow_left, arrow_right], arrow_head_color)
+
+		force_arrows_drawn += 1
+
+	if DEBUG_MODE and force_arrows_drawn > 0:
+		print("⚡ Drew %d energy transfer force arrows (sun coupling)" % force_arrows_drawn)
+
+	# Draw icon influence forces (spring attraction to stable points)
+	_draw_icon_influence_forces()
+
+
+func _draw_icon_influence_forces():
+	"""Draw spring attraction forces toward icon stable points (Hamiltonian evolution)
+
+	Shows how wheat icon and mushroom icon pull qubits toward their stable points.
+	- Wheat icon: θ_stable = π/4 (wheat growth state)
+	- Mushroom icon: θ_stable = π (mushroom growth state)
+	"""
+	if not biotic_flux_biome:
+		return
+
+	var icon_influence_arrows_drawn = 0
+
+	for node in quantum_nodes:
+		if not node.plot or not node.plot.is_planted or not node.plot.quantum_state:
+			continue
+
+		# Skip celestial objects
+		if node.plot_id == "celestial_sun" or node.plot_id == "celestial_moon":
+			continue
+
+		var qubit = node.plot.quantum_state
+		if not qubit:
+			continue
+
+		# Determine which icon(s) influence this plot
+		# Wheat icon: strong coupling if plot_type is WHEAT or hybrid
+		# Mushroom icon: strong coupling if plot_type is MUSHROOM or hybrid
+
+		var wheat_stable = PI / 4.0  # Wheat growth state
+		var mushroom_stable = PI  # Mushroom growth state
+
+		# Calculate deviation from each stable point
+		var wheat_deviation = abs(qubit.theta - wheat_stable)
+		var mushroom_deviation = abs(qubit.theta - mushroom_stable)
+
+		# Normalize angles to [0, π]
+		if wheat_deviation > PI:
+			wheat_deviation = TAU - wheat_deviation
+		if mushroom_deviation > PI:
+			mushroom_deviation = TAU - mushroom_deviation
+
+		# Draw force toward wheat icon if plot type is wheat-aligned
+		if biotic_flux_biome.wheat_icon and wheat_deviation > 0.1:
+			var spring_strength = (1.0 - wheat_deviation / PI) * 0.6  # Stronger near stable point
+			if spring_strength > 0.1:
+				# Wheat icon forces: golden/green color
+				var wheat_color = Color(1.0, 0.9, 0.3, spring_strength * 0.5)  # Golden
+				var force_magnitude = spring_strength * 15.0  # Arrow length
+				var force_direction = (wheat_stable - qubit.theta)
+				if force_direction > PI:
+					force_direction -= TAU
+				force_direction = sign(force_direction)  # Normalize to -1 or +1
+
+				# Draw small indicator line showing attraction
+				var indicator_center = node.position
+				var indicator_direction = Vector2(cos(qubit.theta), sin(qubit.theta))
+				var indicator_end = indicator_center + indicator_direction * force_magnitude * sign(force_direction)
+				draw_line(indicator_center, indicator_end, wheat_color, 1.0, true)
+
+				icon_influence_arrows_drawn += 1
+
+		# Draw force toward mushroom icon if plot type is mushroom-aligned
+		if biotic_flux_biome.mushroom_icon and mushroom_deviation > 0.1:
+			var spring_strength = (1.0 - mushroom_deviation / PI) * 0.6
+			if spring_strength > 0.1:
+				# Mushroom icon forces: purple/blue color
+				var mushroom_color = Color(0.8, 0.4, 0.9, spring_strength * 0.5)  # Purple
+				var force_magnitude = spring_strength * 15.0
+				var force_direction = (mushroom_stable - qubit.theta)
+				if force_direction > PI:
+					force_direction -= TAU
+				force_direction = sign(force_direction)
+
+				var indicator_center = node.position
+				var indicator_direction = Vector2(cos(qubit.theta), sin(qubit.theta))
+				var indicator_end = indicator_center + indicator_direction * force_magnitude * sign(force_direction) * 1.5
+				draw_line(indicator_center, indicator_end, mushroom_color, 1.0, true)
+
+				icon_influence_arrows_drawn += 1
+
+	if DEBUG_MODE and icon_influence_arrows_drawn > 0:
+		print("🎯 Drew %d icon influence force indicators" % icon_influence_arrows_drawn)
 
 
 func _draw_particles():
@@ -1157,6 +1503,7 @@ func _draw_emoji_with_opacity(font, text_pos: Vector2, emoji: String, font_size:
 
 
 func _draw_sun_qubit_node():
+	"""Draw the sun qubit node with pulsing energy aura"""
 	"""Draw the sun/moon qubit using unified peer-level quantum bubble rendering
 
 	The sun is rendered as a peer-level quantum entity with:
@@ -1174,6 +1521,27 @@ func _draw_sun_qubit_node():
 	# Ensure sun qubit renders with full animation properties
 	sun_qubit_node.visual_scale = 1.0  # Always full size
 	sun_qubit_node.visual_alpha = 1.0  # Always fully opaque
+
+	# Draw pulsing energy aura (Rabi-like oscillation of intensity)
+	if biotic_flux_biome:
+		var sun_vis = biotic_flux_biome.get_sun_visualization()
+		var energy_strength = abs(cos(sun_vis["theta"]))  # Peaks at noon and midnight
+
+		# Aura expands/contracts with energy strength
+		var aura_radius = sun_qubit_node.radius * (1.5 + energy_strength * 0.5)  # 1.5x to 2.0x
+		var aura_color = sun_vis["color"]
+		aura_color.a = energy_strength * 0.3  # Opacity follows energy
+		draw_circle(sun_qubit_node.position, aura_radius, aura_color)
+
+		# Sun rays pulse with energy (only during day/night, not dawn/dusk)
+		if energy_strength > 0.3:
+			for i in range(8):
+				var angle = (TAU / 8.0) * i
+				var ray_start = sun_qubit_node.position + Vector2(cos(angle), sin(angle)) * sun_qubit_node.radius
+				var ray_end = sun_qubit_node.position + Vector2(cos(angle), sin(angle)) * (sun_qubit_node.radius + 15.0 * energy_strength)
+				var ray_color = aura_color
+				ray_color.a = energy_strength * 0.6
+				draw_line(ray_start, ray_end, ray_color, 1.5, true)
 
 	# Use unified bubble rendering with is_celestial=true for golden appearance
 	_draw_quantum_bubble(sun_qubit_node, true)

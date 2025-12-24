@@ -7,14 +7,18 @@ extends Node
 ## WASD = Movement/cursor control
 ## YUIOP = Quick-access location selectors
 
+# Preload GridConfig (Phase 7)
+const GridConfig = preload("res://Core/GameState/GridConfig.gd")
+
 var farm  # Will be injected with Farm instance (Farm.gd)
 var plot_grid_display: Node = null  # NEW: Will be injected with PlotGridDisplay instance
 var current_selection: Vector2i = Vector2i.ZERO
 var current_tool: int = 1  # Active tool (1-6)
+var grid_config: GridConfig = null  # Grid configuration (Phase 7)
 
-# Config
+# Config (deprecated - now read from GridConfig)
 var grid_width: int = 6
-var grid_height: int = 1
+var grid_height: int = 2
 
 # Tool action sets - each tool has 3 actions mapped to Q, E, R
 # All actions are batch operations on multi-selected plots
@@ -45,17 +49,6 @@ const TOOL_ACTIONS = {
 	},
 }
 
-# LOCATION_KEYS removed - Phase 7: Replaced with InputMap actions (select_plot_t through select_plot_p)
-
-# Reverse mapping for display: position x -> key letter
-const LOCATION_LABELS = {
-	0: "T",
-	1: "Y",
-	2: "U",
-	3: "I",
-	4: "O",
-	5: "P",
-}
 
 # Signals
 signal action_performed(action: String, success: bool, message: String)
@@ -73,6 +66,19 @@ func _ready():
 	_print_help()
 
 
+func inject_grid_config(config: GridConfig) -> void:
+	"""Inject GridConfig for dynamic grid-aware input handling (Phase 7)"""
+	if not config:
+		push_error("FarmInputHandler: Attempted to inject null GridConfig!")
+		return
+
+	grid_config = config
+	# Update dimensions from config
+	grid_width = config.grid_width
+	grid_height = config.grid_height
+	print("💉 GridConfig injected into FarmInputHandler (%dx%d grid)" % [grid_width, grid_height])
+
+
 func _input(event: InputEvent):
 	"""Handle input via InputMap actions (Phase 7)
 
@@ -86,21 +92,34 @@ func _input(event: InputEvent):
 			get_tree().root.set_input_as_handled()
 			return
 
-	# Location quick-select (T/Y/U/I/O/P) - MULTI-SELECT: Toggle plots with checkboxes
-	var location_keys = {
-		"select_plot_t": Vector2i(0, 0),
-		"select_plot_y": Vector2i(1, 0),
-		"select_plot_u": Vector2i(2, 0),
-		"select_plot_i": Vector2i(3, 0),
-		"select_plot_o": Vector2i(4, 0),
-		"select_plot_p": Vector2i(5, 0),
-	}
-
-	for action in location_keys.keys():
-		if event.is_action_pressed(action):
-			_toggle_plot_selection(location_keys[action])
-			get_tree().root.set_input_as_handled()
-			return
+	# Location quick-select (dynamic from GridConfig, or default mapping) - MULTI-SELECT: Toggle plots with checkboxes
+	if grid_config:
+		for action in grid_config.keyboard_layout.get_all_actions():
+			if event.is_action_pressed(action):
+				var pos = grid_config.keyboard_layout.get_position_for_action(action)
+				if pos != Vector2i(-1, -1) and grid_config.is_position_valid(pos):
+					_toggle_plot_selection(pos)
+					get_tree().root.set_input_as_handled()
+					return
+	else:
+		# Fallback: default 6x2 keyboard layout (T/Y/U/I/O/P for row 0, 0/9/8/7 for row 1)
+		var default_keys = {
+			"select_plot_t": Vector2i(0, 0),
+			"select_plot_y": Vector2i(1, 0),
+			"select_plot_u": Vector2i(2, 0),
+			"select_plot_i": Vector2i(3, 0),
+			"select_plot_o": Vector2i(4, 0),
+			"select_plot_p": Vector2i(5, 0),
+			"select_plot_0": Vector2i(0, 1),
+			"select_plot_9": Vector2i(1, 1),
+			"select_plot_8": Vector2i(2, 1),
+			"select_plot_7": Vector2i(3, 1),
+		}
+		for action in default_keys.keys():
+			if event.is_action_pressed(action):
+				_toggle_plot_selection(default_keys[action])
+				get_tree().root.set_input_as_handled()
+				return
 
 	# Selection management: [ = clear all, ] = restore previous
 	# Check for raw keyboard events since InputMap actions don't exist for these keys
@@ -288,6 +307,9 @@ func _move_selection(direction: Vector2i):
 
 func _is_valid_position(pos: Vector2i) -> bool:
 	"""Check if position is within grid bounds"""
+	if grid_config:
+		return grid_config.is_position_valid(pos)
+	# Fallback for backward compatibility
 	return pos.x >= 0 and pos.x < grid_width and \
 	       pos.y >= 0 and pos.y < grid_height
 
@@ -597,23 +619,30 @@ func _action_break_entanglement(positions: Array[Vector2i]):
 ## NEW Tool 4 (ENERGY) Actions
 
 func _action_inject_energy(positions: Array[Vector2i]):
-	"""Inject quantum energy by spending emoji resources"""
-	if not farm:
+	"""Inject quantum energy by spending wheat resources"""
+	if not farm or not farm.grid or not farm.economy:
 		action_performed.emit("inject_energy", false, "⚠️  Farm not loaded yet")
 		return
 
 	print("⚡ Injecting energy into %d plots..." % positions.size())
 
-	# TODO: Add resource selector UI (which emoji to spend)
-	# For now, default to spending wheat (1 wheat → 0.1 energy per plot)
+	# Spending wheat (1 wheat → 0.1 energy per plot)
 	var emoji_resource = "wheat"
 	var cost_per_plot = 1
 	var energy_gain = 0.1
 
 	var total_cost = cost_per_plot * positions.size()
 
-	# TODO: Check if farm.economy has this emoji resource
-	# For now, just apply energy boost
+	# Check if we have enough wheat
+	if farm.economy.wheat_inventory < total_cost:
+		action_performed.emit("inject_energy", false, "⚠️  Not enough wheat! Need %d, have %d" % [total_cost, farm.economy.wheat_inventory])
+		return
+
+	# Deduct cost from economy first
+	farm.economy.wheat_inventory -= total_cost
+	print("  💸 Spent %d wheat on energy injection" % total_cost)
+
+	# Apply energy boost to valid plots
 	var success_count = 0
 	for pos in positions:
 		var plot = farm.grid.get_plot(pos)
@@ -627,33 +656,38 @@ func _action_inject_energy(positions: Array[Vector2i]):
 
 
 func _action_drain_energy(positions: Array[Vector2i]):
-	"""Drain quantum energy to gain emoji resources"""
-	if not farm:
+	"""Drain quantum energy to gain wheat resources"""
+	if not farm or not farm.grid or not farm.economy:
 		action_performed.emit("drain_energy", false, "⚠️  Farm not loaded yet")
 		return
 
 	print("🔋 Draining energy from %d plots..." % positions.size())
 
 	var drain_amount = 0.5  # Energy to drain per plot
-	var emoji_return = 1    # Emoji returned per drained energy
+	var wheat_return = 1    # Wheat returned per drained energy
 
 	var success_count = 0
-	var total_emojis_gained = 0
+	var total_wheat_gained = 0
 	for pos in positions:
 		var plot = farm.grid.get_plot(pos)
 		if plot and plot.quantum_state and plot.quantum_state.energy >= drain_amount:
 			plot.quantum_state.energy -= drain_amount
-			total_emojis_gained += emoji_return
+			total_wheat_gained += wheat_return
 			success_count += 1
-			print("  🔋 Drained %.2f energy at %s → gained emoji" % [drain_amount, pos])
+			print("  🔋 Drained %.2f energy at %s → gained %d wheat" % [drain_amount, pos, wheat_return])
+
+	# Add gained wheat to economy
+	if success_count > 0 and farm.economy:
+		farm.economy.wheat_inventory += total_wheat_gained
+		print("  💰 Added %d wheat to inventory" % total_wheat_gained)
 
 	action_performed.emit("drain_energy", success_count > 0,
-		"✅ Drained energy from %d plots → gained %d emojis" % [success_count, total_emojis_gained])
+		"✅ Drained energy from %d plots → gained %d wheat" % [success_count, total_wheat_gained])
 
 
 func _action_place_energy_tap(positions: Array[Vector2i]):
 	"""Place constant energy drain taps on selected plots"""
-	if not farm:
+	if not farm or not farm.grid:
 		action_performed.emit("place_energy_tap", false, "⚠️  Farm not loaded yet")
 		return
 

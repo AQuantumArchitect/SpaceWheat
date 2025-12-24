@@ -13,6 +13,7 @@ signal entanglement_created(from: Vector2i, to: Vector2i)
 signal entanglement_removed(from: Vector2i, to: Vector2i)
 
 # Preload classes
+const FarmPlot = preload("res://Core/GameMechanics/FarmPlot.gd")
 const WheatPlot = preload("res://Core/GameMechanics/WheatPlot.gd")
 const BioticFluxBiome = preload("res://Core/Environment/BioticFluxBiome.gd")
 const Biome = preload("res://Core/Environment/Biome.gd")  # Legacy - for backward compatibility
@@ -28,7 +29,7 @@ const EntangledCluster = preload("res://Core/QuantumSubstrate/EntangledCluster.g
 @export var grid_height: int = 5
 
 # Plot storage
-var plots: Dictionary = {}  # Vector2i -> WheatPlot
+var plots: Dictionary = {}  # Vector2i -> FarmPlot (or subclasses: WheatPlot, etc.)
 
 # Entangled pairs (NEW - density matrix representation)
 var entangled_pairs: Array = []  # Array of EntangledPair objects
@@ -53,7 +54,11 @@ var topology_analyzer: TopologyAnalyzer
 
 # BIOME - Environmental layer (sun/moon, temperature, decoherence)
 # Can be Biome or NullBiome (or any compatible biome implementation)
-var biome = null
+var biome = null  # Legacy: kept for backward compatibility
+
+# MULTI-BIOME SUPPORT (Phase 2)
+var biomes: Dictionary = {}  # String → BiomeBase (registry of all biomes)
+var plot_biome_assignments: Dictionary = {}  # Vector2i → String (plot position → biome name)
 
 # VOCABULARY EVOLUTION - Quantum concept discovery system (injected by Farm)
 var vocabulary_evolution = null  # Reference to VocabularyEvolution
@@ -61,6 +66,7 @@ var vocabulary_evolution = null  # Reference to VocabularyEvolution
 # Environmental parameters
 var base_temperature: float = 20.0  # Base farm temperature (Kelvin or relative)
 var active_icons: Array = []  # Array of LindbladIcon affecting the farm
+var icon_scopes: Dictionary = {}  # Icon → Array[String] (biome names the icon affects)
 
 # Stats
 var total_plots_planted: int = 0
@@ -102,7 +108,8 @@ func _process(delta):
 	for position in plots.keys():
 		var plot = plots[position]
 		if plot.is_planted:
-			plot.grow(delta, biome, faction_territory_manager, icon_network, conspiracy_network)
+			var plot_biome = get_biome_for_plot(position)  # Phase 2c: Route to correct biome
+			plot.grow(delta, plot_biome, faction_territory_manager, icon_network, conspiracy_network)
 
 	# Update vocabulary mutation pressure from active energy taps
 	if vocabulary_evolution:
@@ -118,10 +125,63 @@ func _process(delta):
 	if farm_economy:
 		for position in plots.keys():
 			var plot = plots[position]
-			if plot.plot_type == WheatPlot.PlotType.MILL:
+			if plot.plot_type == FarmPlot.PlotType.MILL:
 				plot.process_mill(delta, self, farm_economy, conspiracy_network)
-			elif plot.plot_type == WheatPlot.PlotType.MARKET:
+			elif plot.plot_type == FarmPlot.PlotType.MARKET:
 				plot.process_market(delta, farm_economy, conspiracy_network)
+
+
+## MULTI-BIOME REGISTRY (Phase 2b) - Methods for biome management and routing
+
+func register_biome(biome_name: String, biome_instance) -> void:
+	"""Register a biome in the grid's biome registry
+
+	Called by Farm._ready() during initialization.
+	Enables the grid to route plot operations to the correct biome.
+	"""
+	if not biome_name or not biome_instance:
+		push_error("Cannot register biome: invalid name or instance")
+		return
+
+	biomes[biome_name] = biome_instance
+	print("   📍 Biome registered: %s" % biome_name)
+
+
+func assign_plot_to_biome(position: Vector2i, biome_name: String) -> void:
+	"""Assign a specific plot to a biome
+
+	Called by Farm._ready() during initialization.
+	Configures which biome manages each plot's quantum evolution.
+	"""
+	if not is_valid_position(position):
+		push_error("Cannot assign plot at invalid position: %s" % position)
+		return
+
+	if not biomes.has(biome_name):
+		push_error("Cannot assign to unregistered biome: %s" % biome_name)
+		return
+
+	plot_biome_assignments[position] = biome_name
+
+
+func get_biome_for_plot(position: Vector2i):
+	"""Get the biome responsible for a specific plot
+
+	Returns the biome instance for the given plot position.
+	If no assignment exists, returns the BioticFlux biome (default).
+	"""
+	# Check if plot has explicit assignment
+	if plot_biome_assignments.has(position):
+		var biome_name = plot_biome_assignments[position]
+		if biomes.has(biome_name):
+			return biomes[biome_name]
+
+	# Fallback to BioticFlux (default biome)
+	if biomes.has("BioticFlux"):
+		return biomes["BioticFlux"]
+
+	# Final fallback to legacy biome variable (for backward compatibility)
+	return biome
 
 
 func _apply_icon_effects(delta: float):
@@ -131,6 +191,8 @@ func _apply_icon_effects(delta: float):
 
 	Icons are PURE - they provide Hamiltonian terms
 	Dissipation is handled by Biome based on temperature
+
+	Icon scoping: If an icon has scopes defined, it only affects plots in those biomes
 	"""
 	# Apply to all planted plots with quantum states
 	for position in plots.keys():
@@ -138,13 +200,23 @@ func _apply_icon_effects(delta: float):
 		if not plot.is_planted or not plot.quantum_state:
 			continue
 
+		var plot_biome_name = plot_biome_assignments.get(position, "BioticFlux")
+
 		# STEP 1: Apply Icon Hamiltonians (unitary evolution)
 		for icon in active_icons:
+			# Check if icon has scope restrictions
+			if icon_scopes.has(icon):
+				var allowed_biomes = icon_scopes[icon]
+				if not allowed_biomes.has(plot_biome_name):
+					continue  # Skip this icon for this plot (not in allowed biome)
+
+			# Apply Hamiltonian
 			icon.apply_hamiltonian_evolution(plot.quantum_state, delta)
 
 		# STEP 2: Apply Biome dissipation (Lindblad: T1 + T2)
-		if biome:
-			biome.apply_dissipation(plot.quantum_state, position, delta)
+		var plot_biome = get_biome_for_plot(position)  # Phase 2c: Route to correct biome
+		if plot_biome:
+			plot_biome.apply_dissipation(plot.quantum_state, position, delta)
 	# Entangled pairs automatically evolve via Lindblad operators on each qubit
 	# No separate apply_to_entangled_pair() method needed
 
@@ -156,8 +228,21 @@ func _apply_icon_effects(delta: float):
 				var plot_id = cluster.qubit_ids[i]
 				var plot = _get_plot_by_id(plot_id)
 				if plot and plot.quantum_state:
-					# Apply Icon effects to each qubit individually
+					# Find plot position for biome lookup
+					var plot_pos = _find_plot_by_id(plot_id)
+					if plot_pos == Vector2i(-1, -1):
+						continue
+
+					var plot_biome_name = plot_biome_assignments.get(plot_pos, "BioticFlux")
+
+					# Apply Icon effects to each qubit individually (with scoping)
 					for icon in active_icons:
+						# Check if icon has scope restrictions
+						if icon_scopes.has(icon):
+							var allowed_biomes = icon_scopes[icon]
+							if not allowed_biomes.has(plot_biome_name):
+								continue  # Skip this icon for this qubit (not in allowed biome)
+
 						icon.apply_to_qubit(plot.quantum_state, delta * 6)
 
 
@@ -205,13 +290,13 @@ func _build_icon_network() -> Dictionary:
 
 ## Plot Management
 
-func get_plot(position: Vector2i) -> WheatPlot:
-	"""Get or create plot at position"""
+func get_plot(position: Vector2i) -> FarmPlot:
+	"""Get or create plot at position (returns FarmPlot or subclass)"""
 	if not is_valid_position(position):
 		return null
 
 	if not plots.has(position):
-		var plot = WheatPlot.new()
+		var plot = FarmPlot.new()
 		plot.plot_id = "plot_%d_%d" % [position.x, position.y]
 		plot.grid_position = position
 		plots[position] = plot
@@ -257,7 +342,7 @@ func _find_plot_by_id(plot_id: String) -> Vector2i:
 	return Vector2i(-1, -1)
 
 
-func _get_plot_by_id(plot_id: String) -> WheatPlot:
+func _get_plot_by_id(plot_id: String) -> FarmPlot:
 	"""Get plot directly by ID (convenience wrapper for cluster operations)"""
 	var pos = _find_plot_by_id(plot_id)
 	if pos != Vector2i(-1, -1):
@@ -295,9 +380,9 @@ func plant(position: Vector2i, plant_type: String, quantum_state: Resource = nul
 
 	# Set plot type
 	var plot_type_map = {
-		"wheat": WheatPlot.PlotType.WHEAT,
-		"tomato": WheatPlot.PlotType.TOMATO,
-		"mushroom": WheatPlot.PlotType.MUSHROOM
+		"wheat": FarmPlot.PlotType.WHEAT,
+		"tomato": FarmPlot.PlotType.TOMATO,
+		"mushroom": FarmPlot.PlotType.MUSHROOM
 	}
 
 	if not plot_type_map.has(plant_type):
@@ -375,7 +460,7 @@ func plant_energy_tap(position: Vector2i, target_emoji: String) -> bool:
 		return false
 
 	# Configure as energy tap
-	plot.plot_type = WheatPlot.PlotType.ENERGY_TAP
+	plot.plot_type = FarmPlot.PlotType.ENERGY_TAP
 	plot.tap_target_emoji = target_emoji
 	plot.tap_theta = 3.0 * PI / 4.0  # Near south pole
 	plot.tap_phi = PI / 4.0           # 45° off axis
@@ -401,7 +486,7 @@ func place_mill(position: Vector2i) -> bool:
 		return false
 
 	# Mark as occupied (buildings are instantly "mature")
-	plot.plot_type = WheatPlot.PlotType.MILL
+	plot.plot_type = FarmPlot.PlotType.MILL
 	plot.conspiracy_node_id = "sauce"  # Entangle with transformation node
 	plot.is_planted = true
 
@@ -440,7 +525,7 @@ func _get_adjacent_wheat(position: Vector2i) -> Array:
 		var adj_pos = position + direction
 		if is_valid_position(adj_pos):
 			var adj_plot = get_plot(adj_pos)
-			if adj_plot and adj_plot.is_planted and adj_plot.plot_type == WheatPlot.PlotType.WHEAT:
+			if adj_plot and adj_plot.is_planted and adj_plot.plot_type == FarmPlot.PlotType.WHEAT:
 				adjacent.append(adj_plot)
 
 	return adjacent
@@ -453,7 +538,7 @@ func place_market(position: Vector2i) -> bool:
 		return false
 
 	# Mark as occupied (buildings are instantly "mature")
-	plot.plot_type = WheatPlot.PlotType.MARKET
+	plot.plot_type = FarmPlot.PlotType.MARKET
 	plot.conspiracy_node_id = "market"  # Entangle with market node
 	plot.is_planted = true
 	# Quantum-only: No is_mature property (instant full size)
@@ -501,7 +586,7 @@ func harvest_energy_tap(position: Vector2i) -> Dictionary:
 	if plot == null or not plot.is_planted:
 		return {"success": false, "error": "Plot not planted"}
 
-	if plot.plot_type != WheatPlot.PlotType.ENERGY_TAP:
+	if plot.plot_type != FarmPlot.PlotType.ENERGY_TAP:
 		return {"success": false, "error": "Not an energy tap"}
 
 	var accumulated = plot.tap_accumulated_resource
@@ -584,7 +669,7 @@ func _count_active_energy_taps() -> Dictionary:
 
 	for position in plots.keys():
 		var plot = plots[position]
-		if plot.plot_type == WheatPlot.PlotType.ENERGY_TAP and plot.is_planted:
+		if plot.plot_type == FarmPlot.PlotType.ENERGY_TAP and plot.is_planted:
 			active_count += 1
 			total_energy += plot.tap_accumulated_resource
 
@@ -620,7 +705,7 @@ func get_tap_mutation_pressure_boost() -> float:
 	return count_boost + energy_boost
 
 
-func get_local_network(center_plot: WheatPlot, radius: int = 2) -> Array:
+func get_local_network(center_plot: FarmPlot, radius: int = 2) -> Array:
 	"""Get plots within entanglement distance from center plot
 
 	Args:
@@ -660,7 +745,7 @@ func get_local_network(center_plot: WheatPlot, radius: int = 2) -> Array:
 	return local
 
 
-func _find_plot_by_qubit(qubit) -> WheatPlot:
+func _find_plot_by_qubit(qubit) -> FarmPlot:
 	"""Find plot containing a specific qubit"""
 	for plot in plots.values():
 		if plot.quantum_state == qubit:
@@ -1174,8 +1259,9 @@ func create_entanglement(pos_a: Vector2i, pos_b: Vector2i, bell_type: String = "
 		plot_b.plot_infrastructure_entanglements.append(pos_a)
 
 	# Mark Bell gate in biome layer (historical entanglement record)
-	if biome and biome.has_method("mark_bell_gate"):
-		biome.mark_bell_gate([pos_a, pos_b])
+	var biome_a = get_biome_for_plot(pos_a)  # Phase 2c: Use first plot's biome
+	if biome_a and biome_a.has_method("mark_bell_gate"):
+		biome_a.mark_bell_gate([pos_a, pos_b])
 
 	# If both plots are NOT planted, just set up infrastructure and return
 	if not plot_a.is_planted or not plot_b.is_planted:
@@ -1220,8 +1306,9 @@ func create_triplet_entanglement(pos_a: Vector2i, pos_b: Vector2i, pos_c: Vector
 		return false
 
 	# Mark as triplet Bell gate in biome (kitchen can query these)
-	if biome and biome.has_method("mark_bell_gate"):
-		biome.mark_bell_gate([pos_a, pos_b, pos_c])
+	var biome_a = get_biome_for_plot(pos_a)  # Phase 2c: Use first plot's biome
+	if biome_a and biome_a.has_method("mark_bell_gate"):
+		biome_a.mark_bell_gate([pos_a, pos_b, pos_c])
 		print("🔔 Triple entanglement marked: %s, %s, %s (kitchen ready)" % [pos_a, pos_b, pos_c])
 
 	# Emit signal for UI feedback
@@ -1274,6 +1361,23 @@ func add_icon(icon) -> void:
 	if icon not in active_icons:
 		active_icons.append(icon)
 		print("✨ Added Icon to farm: %s" % icon.icon_name)
+
+
+func add_scoped_icon(icon, biome_names: Array[String]) -> void:
+	"""Add Icon that only affects plots in specific biomes
+
+	Args:
+		icon: The icon instance to add
+		biome_names: Array of biome names this icon affects (e.g., ["Forest"])
+	"""
+	if icon not in active_icons:
+		active_icons.append(icon)
+		icon_scopes[icon] = biome_names
+		print("✨ Scoped Icon added to farm: %s → %s" % [icon.icon_name, biome_names])
+	else:
+		# Icon already active - just update scope
+		icon_scopes[icon] = biome_names
+		print("   📍 Updated scope for %s → %s" % [icon.icon_name, biome_names])
 
 
 func remove_icon(icon) -> void:

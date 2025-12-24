@@ -1,3 +1,4 @@
+class_name FarmEconomy
 extends Node
 
 ## Farm Economy Singleton

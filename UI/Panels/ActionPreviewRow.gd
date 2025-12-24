@@ -5,25 +5,31 @@ extends HBoxContainer
 ## Displays what Q/E/R actions will do based on selected tool
 ## Buttons are touch-friendly and also show keyboard shortcuts
 
-# Tool actions (same as in FarmInputHandler)
+# Tool actions - synced from FarmInputHandler.TOOL_ACTIONS
 const TOOL_ACTIONS = {
-	1: {  # Plant Tool
-		"name": "Plant",
-		"Q": {"action": "plant_wheat", "label": "Plant Wheat", "emoji": "🌾"},
-		"E": {"action": "boost_energy", "label": "Boost Energy", "emoji": "⚡"},
-		"R": {"action": "measure_and_harvest", "label": "Measure + Harvest", "emoji": "🔬✂️"},
+	1: {  # GROWER Tool - Core farming
+		"name": "Grower",
+		"Q": {"action": "plant_batch", "label": "Plant", "emoji": "🌾"},
+		"E": {"action": "entangle_batch", "label": "Entangle (Bell φ+)", "emoji": "🔗"},
+		"R": {"action": "measure_and_harvest", "label": "Measure + Harvest", "emoji": "✂️"},
 	},
-	2: {  # Quantum Operations Tool
-		"name": "Quantum Ops",
-		"Q": {"action": "entangle", "label": "Entangle", "emoji": "🔗"},
-		"E": {"action": "measure_plot", "label": "Measure", "emoji": "👁️"},
-		"R": {"action": "harvest_plot", "label": "Harvest", "emoji": "✂️"},
+	2: {  # QUANTUM Tool - Advanced quantum operations
+		"name": "Quantum",
+		"Q": {"action": "cluster", "label": "Cluster (GHZ/W/3+)", "emoji": "🎯"},
+		"E": {"action": "measure_plot", "label": "Measure Cascade", "emoji": "👁️"},
+		"R": {"action": "break_entanglement", "label": "Break Entanglement", "emoji": "💔"},
 	},
-	3: {  # Economy Tool
-		"name": "Economy",
+	3: {  # INDUSTRY Tool - Economy & automation
+		"name": "Industry",
 		"Q": {"action": "place_mill", "label": "Build Mill", "emoji": "🏭"},
 		"E": {"action": "place_market", "label": "Build Market", "emoji": "🏪"},
-		"R": {"action": "sell_all", "label": "Sell All", "emoji": "💰"},
+		"R": {"action": "place_kitchen", "label": "Build Kitchen", "emoji": "🍳"},
+	},
+	4: {  # ENERGY Tool - Quantum energy management
+		"name": "Energy",
+		"Q": {"action": "inject_energy", "label": "Inject Energy", "emoji": "⚡"},
+		"E": {"action": "drain_energy", "label": "Drain Energy", "emoji": "🌀"},
+		"R": {"action": "place_energy_tap", "label": "Place Energy Tap", "emoji": "🚰"},
 	},
 }
 
@@ -80,7 +86,7 @@ func _ready():
 
 func update_for_tool(tool_num: int) -> void:
 	"""Update action buttons to show actions for the selected tool"""
-	if tool_num < 1 or tool_num > 3:
+	if tool_num < 1 or tool_num > 4:
 		return
 
 	current_tool = tool_num

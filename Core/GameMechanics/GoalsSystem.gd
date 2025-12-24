@@ -1,5 +1,5 @@
-extends Node
 class_name GoalsSystem
+extends Node
 
 ## Goals System - Tracks player progression and objectives
 ## Provides clear goals for the first few "levels" + active contracts
