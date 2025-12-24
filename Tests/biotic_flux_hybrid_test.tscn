@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://cr9r4w5y74kx"]
+
+[ext_resource type="Script" path="res://Tests/BioticFluxHybridTest.gd" id="1_test"]
+
+[node name="BioticFluxHybridTest" type="Node"]
+script = ExtResource("1_test")
