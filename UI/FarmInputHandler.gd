@@ -75,9 +75,10 @@ func _ready():
 
 func _enable_input_processing() -> void:
 	"""Enable input processing after UI is initialized - prevents race conditions"""
-	# Simple approach: wait 10 frames to ensure all initialization is done
+	# Simple approach: wait 1 frame to ensure all initialization is done
+	# (Reduced from 10 - modern Godot initialization is fast, UI is ready by frame 1)
 	set_process(true)  # Enable _process() to count frames
-	input_enable_frame_count = 10
+	input_enable_frame_count = 1
 
 
 func _process(_delta: float) -> void:

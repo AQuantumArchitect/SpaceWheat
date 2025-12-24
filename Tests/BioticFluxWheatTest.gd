@@ -49,7 +49,7 @@ func _ready() -> void:
 
 	# Connect biome to visualization
 	var plot_positions = _get_plot_positions()
-	visualization.connect_to_biome(biome, plot_positions)
+	visualization.connect_to_biome_simple(biome, plot_positions)
 	print("   ✓ Visualization connected to biome")
 	print("   ✓ Glyphs created: %d" % visualization.glyphs.size())
 
@@ -95,7 +95,8 @@ func _get_plot_positions() -> Dictionary:
 	"""Get screen positions for each plot (grid layout)"""
 	var positions = {}
 	var spacing = 80.0
-	var viewport_size = get_tree().get_root().get_viewport_rect().size
+	# Use fixed viewport size if can't get actual size
+	var viewport_size = Vector2(1920, 1080)
 	var center = viewport_size / 2.0
 
 	for pos in wheat_positions:

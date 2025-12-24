@@ -21,11 +21,48 @@ var glyph_map: Dictionary = {}  # Qubit → Glyph for edge lookup
 
 
 func _ready() -> void:
-	emoji_font = load("res://Assets/Fonts/NotoColorEmoji.ttf")
+	# Try to load emoji font, but use fallback if it doesn't exist
+	var font_path = "res://Assets/Fonts/NotoColorEmoji.ttf"
+	if ResourceLoader.exists(font_path):
+		emoji_font = load(font_path)
+	else:
+		emoji_font = ThemeDB.fallback_font
+
 	if not emoji_font:
 		emoji_font = ThemeDB.fallback_font
+
 	detail_panel = DetailPanel.new()
 	mouse_filter = Control.MOUSE_FILTER_STOP
+
+
+func connect_to_biome_simple(biome_ref, plot_positions_dict: Dictionary = {}) -> void:
+	"""Simplified version: Create glyphs directly from BioticFlux qubits"""
+	glyphs.clear()
+	biome = biome_ref
+	plot_positions = plot_positions_dict
+
+	if not biome_ref or not ("quantum_states" in biome_ref):
+		print("⚠️  QuantumVisualizationController: No quantum_states in biome")
+		return
+
+	# Create one glyph per qubit
+	for pos in biome_ref.quantum_states.keys():
+		var qubit = biome_ref.quantum_states[pos]
+		if not qubit:
+			continue
+
+		var glyph = QuantumGlyph.new()
+		glyph.qubit = qubit
+
+		if plot_positions.has(pos):
+			glyph.position = plot_positions[pos]
+		else:
+			glyph.position = _grid_to_screen(pos)
+
+		glyphs.append(glyph)
+		glyph_map[qubit] = glyph
+
+	_build_edges()
 
 
 func connect_to_biome(biome_ref, plot_positions_dict: Dictionary = {}) -> void:
@@ -37,8 +74,19 @@ func connect_to_biome(biome_ref, plot_positions_dict: Dictionary = {}) -> void:
 	if not biome_ref:
 		return
 
-	if not biome_ref.patches:
-		print("⚠️  QuantumVisualizationController: No patches in biome")
+	# Handle both ForestEcosystem (patches) and BioticFlux (quantum_states) biomes
+	var qubit_positions = []
+	if biome_ref.has_method("get_occupation_numbers") and biome_ref.has_meta("patches"):
+		# ForestEcosystem style with patches
+		if not biome_ref.patches:
+			print("⚠️  QuantumVisualizationController: No patches in biome")
+			return
+		qubit_positions = biome_ref.patches.keys()
+	elif "quantum_states" in biome_ref:
+		# BioticFlux style with quantum_states
+		qubit_positions = biome_ref.quantum_states.keys()
+	else:
+		print("⚠️  QuantumVisualizationController: Biome has no patches or quantum_states")
 		return
 
 	# Map trophic levels to emoji pairs
@@ -49,11 +97,19 @@ func connect_to_biome(biome_ref, plot_positions_dict: Dictionary = {}) -> void:
 		{"north": "🍄", "south": "🌍", "level": "decomposer"},      # Fungi ↔ Soil
 	]
 
-	# Create glyphs for each patch position
-	for patch_pos in biome_ref.patches.keys():
-		var occupation_numbers = biome_ref.get_occupation_numbers(patch_pos)
+	# Create glyphs for each qubit position
+	for patch_pos in qubit_positions:
+		# Get qubit directly for BioticFlux, or occupation numbers for ForestEcosystem
+		var qubit = null
+		if "quantum_states" in biome_ref:
+			qubit = biome_ref.quantum_states.get(patch_pos)
+		else:
+			# ForestEcosystem - need to extract from occupation numbers
+			var occupation_numbers = biome_ref.get_occupation_numbers(patch_pos)
+			if occupation_numbers.is_empty():
+				continue
 
-		if occupation_numbers.is_empty():
+		if not qubit and ("quantum_states" in biome_ref):
 			continue
 
 		# Create glyphs from trophic pairs

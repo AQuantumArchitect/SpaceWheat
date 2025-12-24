@@ -215,38 +215,72 @@ func _create_grid_config() -> GridConfig:
 	# Create keyboard layout configuration
 	var keyboard = KeyboardLayoutConfig.new()
 
-	# Row 0: Swap first two to fix TY order (visual positions are reversed)
-	var row0_keys = ["y", "t", "u", "i", "o", "p"]
+	# Row 0: Straightforward logical order TYUIOP
+	var row0_keys = ["t", "y", "u", "i", "o", "p"]
 	for i in range(6):
 		var pos = Vector2i(i, 0)
 		keyboard.action_to_position["select_plot_" + row0_keys[i]] = pos
 		keyboard.position_to_label[pos] = row0_keys[i].to_upper()
 
-	# Row 1: Reverse to fix 7890 order
-	var row1_keys = ["0", "9", "8", "7"]
+	# Row 1: Straightforward logical order 7890
+	var row1_keys = ["7", "8", "9", "0"]
 	for i in range(4):
 		var pos = Vector2i(i, 1)
 		keyboard.action_to_position["select_plot_" + row1_keys[i]] = pos
 		keyboard.position_to_label[pos] = row1_keys[i]
 
+	# CRITICAL FIX: Override keyboard mappings to match ACTUAL plot positions
+	# The sequential setup above doesn't match the parametric plot positions defined below
+	# Market (TY): positions are reversed - T at (1,0), Y at (0,0)
+	keyboard.action_to_position["select_plot_t"] = Vector2i(1, 0)
+	keyboard.action_to_position["select_plot_y"] = Vector2i(0, 0)
+
+	# BioticFlux (UIOP): positions follow parametric order - U at (5,0), I at (3,0), O at (2,0), P at (4,0)
+	keyboard.action_to_position["select_plot_u"] = Vector2i(5, 0)
+	keyboard.action_to_position["select_plot_i"] = Vector2i(3, 0)
+	keyboard.action_to_position["select_plot_o"] = Vector2i(2, 0)
+	keyboard.action_to_position["select_plot_p"] = Vector2i(4, 0)
+
+	# Forest (7890): positions follow parametric order - 7 at (3,1), 8 at (1,1), 9 at (0,1), 0 at (2,1)
+	keyboard.action_to_position["select_plot_7"] = Vector2i(3, 1)
+	keyboard.action_to_position["select_plot_8"] = Vector2i(1, 1)
+	keyboard.action_to_position["select_plot_9"] = Vector2i(0, 1)
+	keyboard.action_to_position["select_plot_0"] = Vector2i(2, 1)
+
 	config.keyboard_layout = keyboard
 
 	# Create plot configurations for Row 0 (all active)
-	for i in range(6):
+	# Grid positions are REVERSED within each biome to compensate for parametric positioning
+	# Market (TY) positions: (1,0), (0,0) instead of (0,0), (1,0) → displays as "TY" not "YT"
+	# BioticFlux (UIOP) positions: (5,0), (4,0), (3,0), (2,0) → displays as "UIOP" not "PIUO"
+
+	# Market (TY) - reversed positions
+	for i in range(2):
 		var plot = PlotConfig.new()
-		plot.position = Vector2i(i, 0)
+		plot.position = Vector2i(1 - i, 0)  # (1,0), (0,0)
 		plot.is_active = true
 		plot.keyboard_label = row0_keys[i].to_upper()
 		plot.input_action = "select_plot_" + row0_keys[i]
-		# Biome assignment: Market (first 2 plots), BioticFlux (last 4 plots)
-		plot.biome_name = "Market" if i < 2 else "BioticFlux"
+		plot.biome_name = "Market"
+		config.plots.append(plot)
+
+	# BioticFlux (UIOP) - parametric visual order compensation
+	var biome_flux_positions = [Vector2i(5, 0), Vector2i(3, 0), Vector2i(2, 0), Vector2i(4, 0)]
+	for i in range(4):
+		var plot = PlotConfig.new()
+		plot.position = biome_flux_positions[i]
+		plot.is_active = true
+		plot.keyboard_label = row0_keys[2 + i].to_upper()
+		plot.input_action = "select_plot_" + row0_keys[2 + i]
+		plot.biome_name = "BioticFlux"
 		config.plots.append(plot)
 
 	# Create plot configurations for Row 1 (first 4 active, last 2 inactive)
-	# Row 1 now uses: 7/8/9/0 (reordered for better visual left-to-right order)
+	# Forest (7890) - parametric visual order compensation
+	var forest_positions = [Vector2i(3, 1), Vector2i(1, 1), Vector2i(0, 1), Vector2i(2, 1)]
 	for i in range(4):
 		var plot = PlotConfig.new()
-		plot.position = Vector2i(i, 1)
+		plot.position = forest_positions[i]
 		plot.is_active = true
 		plot.keyboard_label = row1_keys[i]
 		plot.input_action = "select_plot_" + row1_keys[i]

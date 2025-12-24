@@ -50,8 +50,9 @@ func load_farm(farm_ref: Node) -> void:
 	# Store farm reference
 	farm = farm_ref
 
-	# Create fresh FarmUI for this farm (pass farm in constructor)
-	current_farm_ui = FarmUI.new(farm_ref)
+	# Create fresh FarmUI for this farm
+	current_farm_ui = FarmUI.new()
+	current_farm_ui._init(farm_ref)
 	add_child(current_farm_ui)
 
 	print("   ✅ FarmUI created and added")

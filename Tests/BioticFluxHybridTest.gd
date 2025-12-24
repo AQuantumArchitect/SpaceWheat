@@ -51,7 +51,7 @@ func _ready() -> void:
 	container.add_child(visualization)
 
 	var plot_positions = _get_plot_positions()
-	visualization.connect_to_biome(biome, plot_positions)
+	visualization.connect_to_biome_simple(biome, plot_positions)
 	print("   ✓ Visualization connected")
 
 	print("\n⚡ HYBRID CROP ENERGY FORMULA")
@@ -128,7 +128,7 @@ func _plant_pure_mushroom(pos: Vector2i) -> void:
 func _get_plot_positions() -> Dictionary:
 	"""Get screen positions for crops"""
 	var positions = {}
-	var viewport_size = get_tree().get_root().get_viewport_rect().size
+	var viewport_size = Vector2(1920, 1080)  # Fixed viewport size
 	var center = viewport_size / 2.0
 	var spacing = 150.0
 

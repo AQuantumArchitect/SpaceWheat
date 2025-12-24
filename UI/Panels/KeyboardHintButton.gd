@@ -64,7 +64,9 @@ func _create_hints_panel() -> PanelContainer:
 	# Main panel container
 	var panel = PanelContainer.new()
 	panel.custom_minimum_size = Vector2(500 * scale_factor, 400 * scale_factor)
-	panel.position = Vector2(50 * scale_factor, 150 * scale_factor)
+	# Position on left side at 1/3 vertical (no longer blocking resources)
+	var viewport_height = get_viewport().size.y if get_viewport() else 1080.0
+	panel.position = Vector2(20 * scale_factor, viewport_height * 0.333 - (400 * scale_factor * 0.5))
 	panel.z_index = 1000
 	panel.visible = false
 
