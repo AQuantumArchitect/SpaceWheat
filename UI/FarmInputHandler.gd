@@ -20,6 +20,9 @@ var grid_config: GridConfig = null  # Grid configuration (Phase 7)
 var grid_width: int = 6
 var grid_height: int = 2
 
+# Debug: Set to true to enable verbose logging (keystroke-by-keystroke, location info, etc)
+const VERBOSE = false
+
 # Tool action sets - each tool has 3 actions mapped to Q, E, R
 # All actions are batch operations on multi-selected plots
 const TOOL_ACTIONS = {
@@ -59,10 +62,10 @@ signal help_requested
 
 func _ready():
 	print("⌨️  FarmInputHandler initialized (Tool Mode System)")
-	print("📍 Starting position: %s" % current_selection)
-	print("🛠️  Current tool: %s" % TOOL_ACTIONS[current_tool]["name"])
+	if VERBOSE:
+		print("📍 Starting position: %s" % current_selection)
+		print("🛠️  Current tool: %s" % TOOL_ACTIONS[current_tool]["name"])
 	set_process_input(true)
-	print("   ✓ Input processing enabled")
 	_print_help()
 
 
@@ -85,13 +88,14 @@ func _input(event: InputEvent):
 	Supports keyboard (WASD, QERT, numbers, etc) and gamepad (D-Pad, buttons, sticks)
 	via Godot's InputMap system.
 	"""
-	if event is InputEventKey and event.pressed:
+	if VERBOSE and event is InputEventKey and event.pressed:
 		print("🔑 FarmInputHandler._input() received KEY: %s" % event.keycode)
 
 	# Tool selection (1-6) - Phase 7: Use InputMap actions
 	for i in range(1, 7):
 		if event.is_action_pressed("tool_" + str(i)):
-			print("🛠️  Tool key pressed: %d" % i)
+			if VERBOSE:
+				print("🛠️  Tool key pressed: %d" % i)
 			_select_tool(i)
 			get_tree().root.set_input_as_handled()
 			return
@@ -100,7 +104,8 @@ func _input(event: InputEvent):
 	if grid_config:
 		for action in grid_config.keyboard_layout.get_all_actions():
 			if event.is_action_pressed(action):
-				print("📍 GridConfig action detected: %s" % action)
+				if VERBOSE:
+					print("📍 GridConfig action detected: %s" % action)
 				var pos = grid_config.keyboard_layout.get_position_for_action(action)
 				if pos != Vector2i(-1, -1) and grid_config.is_position_valid(pos):
 					_toggle_plot_selection(pos)
@@ -123,7 +128,8 @@ func _input(event: InputEvent):
 		}
 		for action in default_keys.keys():
 			if event.is_action_pressed(action):
-				print("📍 Fallback action detected: %s → %s" % [action, default_keys[action]])
+				if VERBOSE:
+					print("📍 Fallback action detected: %s → %s" % [action, default_keys[action]])
 				_toggle_plot_selection(default_keys[action])
 				get_tree().root.set_input_as_handled()
 				return
@@ -160,7 +166,7 @@ func _input(event: InputEvent):
 
 	# Action keys (Q/E/R or gamepad buttons A/B/X) - Phase 7: Use InputMap actions
 	# Debug: Check if actions are detected
-	if event is InputEventKey and event.pressed:
+	if VERBOSE and event is InputEventKey and event.pressed:
 		var key = event.keycode
 		if key == KEY_Q or key == KEY_E or key == KEY_R:
 			print("🐛 DEBUG: Pressed key: %s" % event.keycode)
@@ -172,17 +178,20 @@ func _input(event: InputEvent):
 	# Only process if input hasn't already been handled (by menu system)
 	if not get_tree().root.is_input_handled():
 		if event.is_action_pressed("action_q"):
-			print("⚡ action_q detected")
+			if VERBOSE:
+				print("⚡ action_q detected")
 			_execute_tool_action("Q")
 			get_tree().root.set_input_as_handled()
 			return
 		elif event.is_action_pressed("action_e"):
-			print("⚡ action_e detected")
+			if VERBOSE:
+				print("⚡ action_e detected")
 			_execute_tool_action("E")
 			get_tree().root.set_input_as_handled()
 			return
 		elif event.is_action_pressed("action_r"):
-			print("⚡ action_r detected")
+			if VERBOSE:
+				print("⚡ action_r detected")
 			_execute_tool_action("R")
 			get_tree().root.set_input_as_handled()
 			return
@@ -208,9 +217,10 @@ func _select_tool(tool_num: int):
 	current_tool = tool_num
 	var tool_info = TOOL_ACTIONS[tool_num]
 	print("🛠️  Tool switched to: %s" % tool_info["name"])
-	print("   Q = %s" % tool_info["Q"]["label"])
-	print("   E = %s" % tool_info["E"]["label"])
-	print("   R = %s" % tool_info["R"]["label"])
+	if VERBOSE:
+		print("   Q = %s" % tool_info["Q"]["label"])
+		print("   E = %s" % tool_info["E"]["label"])
+		print("   R = %s" % tool_info["R"]["label"])
 
 	tool_changed.emit(tool_num, tool_info)
 
@@ -246,7 +256,8 @@ func _execute_tool_action(action_key: String):
 	if selected_plots.is_empty():
 		if _is_valid_position(current_selection):
 			selected_plots = [current_selection]
-			print("📍 No multi-select; using current selection: %s" % current_selection)
+			if VERBOSE:
+				print("📍 No multi-select; using current selection: %s" % current_selection)
 		else:
 			print("⚠️  No plots selected! Use T/Y/U/I/O/P to toggle selections.")
 			action_performed.emit(action, false, "⚠️  No plots selected")
@@ -300,9 +311,11 @@ func _set_selection(pos: Vector2i):
 		current_selection = pos
 		selection_changed.emit(current_selection)
 		plot_selected.emit(current_selection)  # Also emit plot_selected for UI updates
-		print("📍 Selected: %s (Location %d)" % [current_selection, current_selection.x + 1])
+		if VERBOSE:
+			print("📍 Selected: %s (Location %d)" % [current_selection, current_selection.x + 1])
 	else:
-		print("⚠️  Invalid position: %s" % pos)
+		if VERBOSE:
+			print("⚠️  Invalid position: %s" % pos)
 
 
 func _move_selection(direction: Vector2i):
@@ -311,9 +324,11 @@ func _move_selection(direction: Vector2i):
 	if _is_valid_position(new_pos):
 		current_selection = new_pos
 		selection_changed.emit(current_selection)
-		print("📍 Moved to: %s" % current_selection)
+		if VERBOSE:
+			print("📍 Moved to: %s" % current_selection)
 	else:
-		print("⚠️  Cannot move to: %s (out of bounds)" % new_pos)
+		if VERBOSE:
+			print("⚠️  Cannot move to: %s (out of bounds)" % new_pos)
 
 
 func _is_valid_position(pos: Vector2i) -> bool:
