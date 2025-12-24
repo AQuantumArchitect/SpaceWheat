@@ -79,9 +79,14 @@ func _ready() -> void:
 	size = get_viewport_rect().size
 	center = size / 2.0
 
-	# Create forest (use class name directly)
-	forest = ForestEcosystemBiomeV3.new(1, 1)
-	forest._ready()
+	# Create forest (load script dynamically)
+	var ForestScript = load("res://Core/Environment/ForestEcosystem_Biome_v3_quantum_field.gd")
+	if ForestScript:
+		forest = ForestScript.new(1, 1)
+		forest._ready()
+	else:
+		print("ERROR: Could not load ForestEcosystemBiomeV3 script")
+		return
 
 	# Initialize graph nodes and edges
 	_setup_graph()
