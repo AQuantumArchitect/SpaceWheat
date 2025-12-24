@@ -43,7 +43,25 @@ func _ready() -> void:
 	input_controller = InputController.new()
 	add_child(input_controller)
 
-	# Wire keyboard help signal to shell
+	# Wire input controller signals to overlay manager
+	print("🔗 Connecting overlay signals...")
+
+	if input_controller.has_signal("menu_toggled"):
+		input_controller.menu_toggled.connect(shell._toggle_escape_menu)
+		print("   ✅ ESC key (escape menu) connected")
+
+	if input_controller.has_signal("vocabulary_requested"):
+		input_controller.vocabulary_requested.connect(shell._toggle_vocabulary)
+		print("   ✅ V key (vocabulary) connected")
+
+	if input_controller.has_signal("contracts_toggled"):
+		input_controller.contracts_toggled.connect(shell._toggle_contracts)
+		print("   ✅ C key (contracts) connected")
+
+	if input_controller.has_signal("network_toggled"):
+		input_controller.network_toggled.connect(shell._toggle_network)
+		print("   ✅ N key (network) connected")
+
 	if input_controller.has_signal("keyboard_help_requested"):
 		input_controller.keyboard_help_requested.connect(shell._toggle_keyboard_help)
 		print("   ✅ K key (keyboard help) connected")
