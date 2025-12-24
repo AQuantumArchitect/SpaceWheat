@@ -93,17 +93,52 @@ func trigger_action(action_key: String, position: Vector2i = Vector2i.ZERO) -> b
 		"plant_mushroom":
 			success = farm.build(position, "mushroom")
 
+		# Batch plant actions
+		"plant_batch":
+			if farm.has_method("batch_plant"):
+				var result = farm.batch_plant([position], "wheat")
+				success = result.get("count", 0) > 0
+			else:
+				success = farm.build(position, "wheat")
+
 		# Quantum operations
 		"measure_plot":
 			var outcome = farm.measure_plot(position)
 			success = outcome != ""
 
+		"batch_measure":
+			if farm.has_method("batch_measure"):
+				var result = farm.batch_measure([position])
+				success = result.get("count", 0) > 0
+			else:
+				var outcome = farm.measure_plot(position)
+				success = outcome != ""
+
 		"harvest_plot":
 			var result = farm.harvest_plot(position)
 			success = result.get("success", false)
 
+		"batch_harvest":
+			if farm.has_method("batch_harvest"):
+				var result = farm.batch_harvest([position])
+				success = result.get("count", 0) > 0
+			else:
+				var result = farm.harvest_plot(position)
+				success = result.get("success", false)
+
 		"entangle":
-			# TODO: Implement entanglement
+			# For single entanglement - would need two positions
+			success = false
+
+		"entangle_batch":
+			if farm.has_method("entangle_plots"):
+				# Try to entangle the selected position with an adjacent plot
+				success = farm.entangle_plots(position, position + Vector2i(1, 0))
+			else:
+				success = false
+
+		"break_entanglement":
+			# TODO: Implement break entanglement
 			success = false
 
 		# Building actions

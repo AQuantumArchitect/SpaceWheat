@@ -235,11 +235,15 @@ func _execute_tool_action(action_key: String):
 	if plot_grid_display and plot_grid_display.has_method("get_selected_plots"):
 		selected_plots = plot_grid_display.get_selected_plots()
 
-	# Check if any plots are selected
+	# FALLBACK: If no plots selected in UI, use current selection (for auto-play/testing)
 	if selected_plots.is_empty():
-		print("⚠️  No plots selected! Use T/Y/U/I/O/P to toggle selections.")
-		action_performed.emit(action, false, "⚠️  No plots selected")
-		return
+		if _is_valid_position(current_selection):
+			selected_plots = [current_selection]
+			print("📍 No multi-select; using current selection: %s" % current_selection)
+		else:
+			print("⚠️  No plots selected! Use T/Y/U/I/O/P to toggle selections.")
+			action_performed.emit(action, false, "⚠️  No plots selected")
+			return
 
 	print("⚡ Tool %d (%s) | Key %s | Action: %s | Plots: %d selected" % [current_tool, tool.get("name", "?"), action_key, label, selected_plots.size()])
 

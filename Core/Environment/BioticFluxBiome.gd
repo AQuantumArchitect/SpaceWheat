@@ -96,8 +96,9 @@ func _ready():
 	# Configure visual properties for QuantumForceGraph
 	visual_color = Color(0.4, 0.6, 0.8, 0.3)  # Blue
 	visual_label = "🌿 Biotic Flux"
-	visual_center_offset = Vector2(-0.6, 0.6)  # Bottom-left
-	visual_circle_radius = 150.0
+	visual_center_offset = Vector2(0.5, 0.5)    # Bottom-right quadrant
+	visual_oval_width = 350.0   # Larger oval
+	visual_oval_height = 216.0  # Golden ratio: 350/1.618
 
 
 func get_biome_type() -> String:

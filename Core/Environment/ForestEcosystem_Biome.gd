@@ -104,8 +104,9 @@ func _ready():
 	# Configure visual properties for QuantumForceGraph
 	visual_color = Color(0.3, 0.7, 0.3, 0.3)  # Green
 	visual_label = "🌲 Forest"
-	visual_center_offset = Vector2(-0.6, -0.6)  # Top-left
-	visual_circle_radius = 150.0
+	visual_center_offset = Vector2(0.5, -0.5)   # Top-right quadrant
+	visual_oval_width = 350.0   # Larger oval
+	visual_oval_height = 216.0  # Golden ratio: 350/1.618
 
 	# Initialize forest icons (if grid available)
 	if grid:

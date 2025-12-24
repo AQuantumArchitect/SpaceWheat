@@ -114,43 +114,54 @@ func initialize(grid: FarmGrid, center_pos: Vector2, radius: float):
 		# Build classical plot positions dictionary from grid
 		var classical_plot_positions: Dictionary = {}
 
-		# Iterate through all grid positions and get their plots
+		# Group plots by biome for parametric ring distribution
+		var plots_by_biome: Dictionary = {}  # biome_name -> Array[Vector2i]
+
+		# First pass: group all plots by their assigned biome
 		for y in range(grid.grid_height):
 			for x in range(grid.grid_width):
 				var grid_pos = Vector2i(x, y)
 				var plot = grid.get_plot(grid_pos)
 				if plot:
-					# Phase 3b: Calculate position based on biome assignment (not circular)
-					var plot_biome = grid.get_biome_for_plot(grid_pos)
 					var biome_name = grid.plot_biome_assignments.get(grid_pos, "")
 					if biome_name == "" and biomes.size() > 0:
 						biome_name = biomes.keys()[0]  # Use first registered biome as default
 
-					# Get biome visual config
-					var biome_config = null
-					if biome_name != "" and biome_name in biomes:
-						biome_config = biomes[biome_name].get_visual_config()
+					if biome_name != "":
+						if not plots_by_biome.has(biome_name):
+							plots_by_biome[biome_name] = []
+						plots_by_biome[biome_name].append(grid_pos)
 
-					var screen_pos = center_position  # Default fallback
-					if biome_config:
-						# Calculate biome region center
-						var biome_center = center_position + biome_config.center_offset * graph_radius
-						var biome_radius = biome_config.circle_radius
+		# Second pass: calculate parametric positions for each biome's plots
+		for biome_name in plots_by_biome:
+			if not biomes.has(biome_name):
+				continue
 
-						# Random position within biome circle (scattered, not grid-based)
-						var angle = randf() * TAU
-						var local_radius = randf_range(30, biome_radius * 0.8)
-						screen_pos = biome_center + Vector2(cos(angle), sin(angle)) * local_radius
+			var biome_obj = biomes[biome_name]
+			var biome_config = biome_obj.get_visual_config()
+			var biome_center = center_position + biome_config.center_offset * graph_radius
+
+			# Get parametric ring positions from biome
+			var plot_positions = biome_obj.get_plot_positions_in_oval(
+				plots_by_biome[biome_name].size(),
+				biome_center
+			)
+
+			# Assign positions to plots (in grid order for consistency)
+			var plot_idx = 0
+			for grid_pos in plots_by_biome[biome_name]:
+				if plot_idx < plot_positions.size():
+					var screen_pos = plot_positions[plot_idx]
 
 					# Offset anchor position UPWARD (negative Y) so bubbles float above like balloons
-					# Home position is 2 bubble diameters above the base plot (60 pixels)
 					var home_pos = screen_pos + Vector2(0, -60)
 					classical_plot_positions[grid_pos] = home_pos
+					plot_idx += 1
 
 		# Create quantum nodes for all plots
 		if classical_plot_positions.size() > 0:
 			create_quantum_nodes(classical_plot_positions)
-			print("⚛️ QuantumForceGraph initialized with %d quantum nodes (tethered above plots)" % quantum_nodes.size())
+			print("⚛️ QuantumForceGraph initialized with %d quantum nodes (parametric ring layout)" % quantum_nodes.size())
 		else:
 			print("⚠️ QuantumForceGraph: No plots found to create quantum nodes")
 
@@ -241,9 +252,10 @@ func wire_to_farm(farm: Node) -> void:
 	var center = play_rect.get_center()
 	var radius = play_rect.size.length() * 0.3
 
-	# Initialize quantum graph with farm data
-	initialize(farm.grid, center, radius)
+	# Store the grid first (needed for biome registration)
+	farm_grid = farm.grid
 
+	# IMPORTANT: Register biomes BEFORE initialize() so plots can find their biomes
 	# Generic biome registration from FarmGrid
 	if farm_grid:
 		var registered_biomes = farm_grid.biomes  # Access FarmGrid.biomes Dictionary
@@ -255,6 +267,9 @@ func wire_to_farm(farm: Node) -> void:
 			# Store BioticFlux reference for backward compatibility (sun_qubit access)
 			if biome_name == "BioticFlux":
 				biotic_flux_biome = biome_obj
+
+	# NOW initialize quantum graph with farm data (biomes are now registered)
+	initialize(farm.grid, center, radius)
 
 	# Legacy: Set biome for backward compatibility
 	if farm.has_meta("biome"):
@@ -871,9 +886,9 @@ func _draw():
 
 
 func _draw_biome_regions():
-	"""Draw colored circles showing biome regions (generic, data-driven)
+	"""Draw oval biome regions (generic, data-driven)
 
-	Iterates over all registered biomes and renders them using their visual config.
+	Iterates over all registered biomes and renders them as ovals.
 	Biomes can provide custom rendering via render_biome_content() callback.
 	"""
 	for biome_name in biomes:
@@ -886,21 +901,53 @@ func _draw_biome_regions():
 
 		# Calculate biome center from offset
 		var biome_center = center_position + config.center_offset * graph_radius
-		var biome_radius = config.circle_radius
+		var oval_width = config.get("oval_width", config.circle_radius)
+		var oval_height = config.get("oval_height", config.circle_radius)
+		var biome_radius = (oval_width + oval_height) / 2.0  # Average for radius parameter
 
-		# Draw filled circle
-		draw_circle(biome_center, biome_radius, config.color)
+		# Draw filled oval using polygon approximation
+		_draw_filled_oval(biome_center, oval_width, oval_height, config.color)
 
-		# Draw border
-		draw_arc(biome_center, biome_radius, 0, TAU, 64, Color(1, 1, 1, 0.2), 2.0)
+		# Draw oval border
+		_draw_oval_outline(biome_center, oval_width, oval_height, Color(1, 1, 1, 0.2), 2.0)
 
-		# Call biome's custom rendering callback
+		# Call biome's custom rendering callback (pass average radius for compatibility)
 		biome_obj.render_biome_content(self, biome_center, biome_radius)
 
-		# Draw label above circle
+		# Draw label above oval
 		var font = ThemeDB.fallback_font
-		var label_pos = biome_center + Vector2(0, -biome_radius - 15)
+		var label_pos = biome_center + Vector2(0, -oval_height - 15)
 		draw_string(font, label_pos, config.label, HORIZONTAL_ALIGNMENT_CENTER, -1, 16, Color(1, 1, 1, 0.6))
+
+
+func _draw_filled_oval(center: Vector2, width: float, height: float, color: Color):
+	"""Draw filled oval using polygon approximation"""
+	var points: PackedVector2Array = []
+	var segments = 64  # Smoothness
+
+	for i in range(segments):
+		var t = (float(i) / float(segments)) * TAU
+		var x = center.x + width * cos(t)
+		var y = center.y + height * sin(t)
+		points.append(Vector2(x, y))
+
+	draw_colored_polygon(points, color)
+
+
+func _draw_oval_outline(center: Vector2, width: float, height: float, color: Color, line_width: float):
+	"""Draw oval outline using connected line segments"""
+	var segments = 64
+	var prev_point = Vector2.ZERO
+
+	for i in range(segments + 1):
+		var t = (float(i) / float(segments)) * TAU
+		var x = center.x + width * cos(t)
+		var y = center.y + height * sin(t)
+		var point = Vector2(x, y)
+
+		if i > 0:
+			draw_line(prev_point, point, color, line_width, true)
+		prev_point = point
 
 
 

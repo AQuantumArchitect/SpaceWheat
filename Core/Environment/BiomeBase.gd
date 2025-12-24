@@ -21,6 +21,10 @@ var visual_center_offset: Vector2 = Vector2.ZERO  # Position offset in graph
 var visual_circle_radius: float = 150.0  # Circle radius override
 var visual_enabled: bool = true  # Whether to show in force graph
 
+# Oval shape properties for QuantumForceGraph rendering
+var visual_oval_width: float = 300.0   # Horizontal semi-axis (a)
+var visual_oval_height: float = 185.0  # Vertical semi-axis (b) - golden ratio: 300/1.618
+
 # Bell Gates: Historical entanglement relationships
 # Tracks which plots have been entangled together in the past
 # Structure: Array of [pos1, pos2, pos3] triplets (for kitchen) or [pos1, pos2] pairs (for 2-qubit)
@@ -185,13 +189,15 @@ func get_visual_config() -> Dictionary:
 
 	Override to customize appearance (or set visual_* properties in _ready())
 
-	Returns: {color, label, center_offset, circle_radius, enabled}
+	Returns: {color, label, center_offset, circle_radius, oval_width, oval_height, enabled}
 	"""
 	return {
 		"color": visual_color,
 		"label": visual_label if visual_label != "" else get_biome_type(),
 		"center_offset": visual_center_offset,
-		"circle_radius": visual_circle_radius,
+		"circle_radius": visual_circle_radius,  # LEGACY - kept for compatibility
+		"oval_width": visual_oval_width,
+		"oval_height": visual_oval_height,
 		"enabled": visual_enabled
 	}
 
@@ -210,6 +216,53 @@ func render_biome_content(graph: Node2D, center: Vector2, radius: float) -> void
 	Default: does nothing (generic biomes have no custom rendering)
 	"""
 	pass  # Subclasses override to add custom drawing
+
+
+func get_plot_positions_in_oval(plot_count: int, center: Vector2) -> Array[Vector2]:
+	"""Calculate parametric ring pattern positions for plots within this biome's oval
+
+	Returns Array[Vector2] of screen positions arranged in concentric oval rings.
+	Uses golden ratio proportions (visual_oval_width : visual_oval_height)
+
+	Args:
+		plot_count: Number of plots to position
+		center: Center point of the biome oval
+
+	Returns: Array of screen positions for each plot
+	"""
+	var positions: Array[Vector2] = []
+
+	if plot_count == 0:
+		return positions
+
+	# Calculate number of rings needed (inner to outer)
+	# Rule: innermost ring has 1-3 plots, each ring adds ~6 plots
+	var rings = max(1, ceil(sqrt(float(plot_count) / 3.0)))
+	var plots_per_ring = []
+	var remaining = plot_count
+
+	# Distribute plots across rings (outer rings have more plots)
+	for ring_idx in range(rings):
+		var plots_in_ring = int(ceil(float(remaining) / float(rings - ring_idx)))
+		plots_per_ring.append(plots_in_ring)
+		remaining -= plots_in_ring
+
+	# Generate positions for each ring
+	var ring_idx = 0
+	for num_plots in plots_per_ring:
+		# Ring scale factor (0.3 for innermost, 0.9 for outermost)
+		var scale = 0.3 + (0.6 * float(ring_idx) / float(max(1, rings - 1)))
+
+		# Parametric oval equation: x = a*cos(t), y = b*sin(t)
+		for plot_in_ring in range(num_plots):
+			var t = (float(plot_in_ring) / float(num_plots)) * TAU
+			var x = center.x + visual_oval_width * cos(t) * scale
+			var y = center.y + visual_oval_height * sin(t) * scale
+			positions.append(Vector2(x, y))
+
+		ring_idx += 1
+
+	return positions
 
 
 # ============================================================================
