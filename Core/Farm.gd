@@ -365,7 +365,8 @@ func measure_plot(pos: Vector2i) -> String:
 	# No biome mode: use random outcome for testing (no quantum evolution happened)
 	if not outcome and not biome_enabled:
 		outcome = "🌾" if randf() > 0.5 else "👥"
-		print("   📊 No-biome mode: random outcome %s at %s" % [outcome, pos])
+		if VerboseConfig.is_verbose("farm"):
+			print("No-biome mode: random outcome %s at %s" % [outcome, pos])
 
 	plot_measured.emit(pos, outcome)
 	_emit_state_changed()

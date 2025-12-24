@@ -66,7 +66,8 @@ func add_qubit(qubit, plot_id: String):
 	# Resize density matrix: N → N+1 qubits
 	_expand_density_matrix_product()
 
-	print("➕ Added qubit %s to cluster (size: %d)" % [plot_id, qubits.size()])
+	if VerboseConfig.is_verbose("quantum"):
+		print("➕ Added qubit %s to cluster (size: %d)" % [plot_id, qubits.size()])
 
 
 func _expand_density_matrix_product():
@@ -146,7 +147,8 @@ func create_ghz_state():
 
 	cluster_type = ClusterType.GHZ
 
-	print("🌟 Created %d-qubit GHZ state: (|0...0⟩ + |1...1⟩)/√2" % N)
+	if VerboseConfig.is_verbose("quantum"):
+		print("🌟 Created %d-qubit GHZ state: (|0...0⟩ + |1...1⟩)/√2" % N)
 
 
 func create_w_state():
