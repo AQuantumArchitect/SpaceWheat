@@ -15,6 +15,7 @@ var plot_grid_display: Node = null  # NEW: Will be injected with PlotGridDisplay
 var current_selection: Vector2i = Vector2i.ZERO
 var current_tool: int = 1  # Active tool (1-6)
 var grid_config: GridConfig = null  # Grid configuration (Phase 7)
+var input_enable_frame_count: int = 0  # Counter to enable input after N frames
 
 # Config (deprecated - now read from GridConfig)
 var grid_width: int = 6
@@ -74,13 +75,22 @@ func _ready():
 
 func _enable_input_processing() -> void:
 	"""Enable input processing after UI is initialized - prevents race conditions"""
-	# Check if tiles are actually created yet
-	if plot_grid_display and plot_grid_display.tiles and plot_grid_display.tiles.size() > 0:
-		set_process_input(true)
-		print("✅ Input processing enabled (UI ready with %d tiles)" % plot_grid_display.tiles.size())
-	else:
-		# Wait another frame and try again
-		call_deferred("_enable_input_processing")
+	# Simple approach: wait 10 frames to ensure all initialization is done
+	set_process(true)  # Enable _process() to count frames
+	input_enable_frame_count = 10
+
+
+func _process(_delta: float) -> void:
+	"""Count down frames until input processing can be safely enabled"""
+	if not get_tree().root.is_input_handled():
+		input_enable_frame_count -= 1
+		if input_enable_frame_count <= 0:
+			set_process(false)  # Stop processing frames
+			set_process_input(true)  # Enable input
+			print("✅ Input processing enabled (UI ready)")
+			# Verify tiles exist
+			if plot_grid_display and plot_grid_display.tiles:
+				print("   📊 PlotGridDisplay has %d tiles ready" % plot_grid_display.tiles.size())
 
 
 func inject_grid_config(config: GridConfig) -> void:
