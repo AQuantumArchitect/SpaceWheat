@@ -36,9 +36,15 @@ var debug_environments = {
 
 
 func _init():
-	# Full screen overlay
+	# Full screen overlay - fill entire screen
+	anchor_left = 0.0
+	anchor_top = 0.0
 	anchor_right = 1.0
 	anchor_bottom = 1.0
+	offset_left = 0
+	offset_top = 0
+	offset_right = 0
+	offset_bottom = 0
 	mouse_filter = Control.MOUSE_FILTER_STOP
 
 	# Process even when game is paused
@@ -47,12 +53,16 @@ func _init():
 	# Semi-transparent dark background
 	background = ColorRect.new()
 	background.color = Color(0.0, 0.0, 0.0, 0.7)
+	background.anchor_left = 0.0
+	background.anchor_top = 0.0
 	background.anchor_right = 1.0
 	background.anchor_bottom = 1.0
 	add_child(background)
 
 	# Center container
 	var center = CenterContainer.new()
+	center.anchor_left = 0.0
+	center.anchor_top = 0.0
 	center.anchor_right = 1.0
 	center.anchor_bottom = 1.0
 	background.add_child(center)

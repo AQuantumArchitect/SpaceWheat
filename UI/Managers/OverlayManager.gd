@@ -547,11 +547,10 @@ func _on_debug_environment_selected(env_name: String) -> void:
 
 
 func _on_save_load_menu_closed() -> void:
-	"""Handle save/load menu closed"""
-	# Menu is being hidden by SaveLoadMenu
-	# Resume escape menu if it's still open
-	if escape_menu and escape_menu.visible:
+	"""Handle save/load menu closed - return to escape menu"""
+	print("📋 Returning from save/load menu to escape menu")
+	# When user presses ESC in save/load menu, return to main escape menu (don't close it)
+	if escape_menu:
 		escape_menu.show_menu()
 	else:
-		# Close the escape menu too if user cancelled from save/load menu
-		hide_overlay("escape_menu")
+		print("⚠️  Escape menu not available to return to")
