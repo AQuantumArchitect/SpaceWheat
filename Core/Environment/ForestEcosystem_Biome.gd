@@ -464,9 +464,11 @@ func get_ecosystem_status() -> Dictionary:
 		var patch_state = patch.get_meta("ecological_state") if patch.has_meta("ecological_state") else EcologicalState.BARE_GROUND
 		var organism_list = []
 		for icon in organisms.keys():
+			var org = organisms[icon]
+			var strength = org.qubit.radius if org and org.qubit else 0.0
 			organism_list.append({
 				"icon": icon,
-				"strength": organisms[icon].radius
+				"strength": strength
 			})
 
 		status["patches"].append({
