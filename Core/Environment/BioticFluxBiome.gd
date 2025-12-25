@@ -104,8 +104,8 @@ func _ready():
 		"hamiltonian_terms": {"sigma_x": 0.0, "sigma_y": 0.0, "sigma_z": 0.0},  # Removed sigma_z
 		"stable_theta": PI / 2.0,     # Current target: MOON position
 		"stable_phi": PI,             # Current target: MOON's φ
-		"spring_constant": 0.5,       # Attraction to sun/moon (for crops)
-		"icon_spring_constant": 2.5,  # Attraction to preferred rest point (5x moon attraction)
+		"spring_constant": 0.5,       # Attraction to moon (for crops)
+		"icon_spring_constant": 0.5,  # Attraction to preferred rest point (equal to moon, allows drift)
 		"preferred_theta": PI,        # Mushroom Icon's preferred rest: π (midnight, south pole)
 		"preferred_phi": PI / 2.0,    # Mushroom Icon's preferred rest: φ = 90° (pointing up)
 		"target_qubit_pos": Vector2i(-1, -1)
