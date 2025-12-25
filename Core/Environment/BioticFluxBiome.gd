@@ -93,7 +93,7 @@ func _ready():
 		"spring_constant": 0.5,       # Attraction to sun/moon (for crops)
 		"icon_spring_constant": 2.5,  # Attraction to preferred rest point (balanced)
 		"preferred_theta": PI / 4.0,  # Wheat Icon's preferred rest: 45° (morning on sun's tilt)
-		"preferred_phi": PI / 2.0,    # Wheat Icon's preferred rest: afternoon quadrant (φ ≈ 90°, 3 PM equivalent)
+		"preferred_phi": 1.31,        # Wheat Icon's preferred rest: sun's φ at 2:30 PM (~75°, 1.31 rad)
 		"internal_qubit": wheat_internal,
 		"target_qubit_pos": Vector2i(-1, -1)
 	}
@@ -663,12 +663,15 @@ func _apply_spring_attraction(dt: float) -> void:
 			# HYBRID: Apply TWO separate torques from celestial targets AND preferred rests
 			# Wheat follows sun + weak pull toward icon rest location
 			if wheat_icon and sun_qubit:
-				# PRIMARY: Strong spring toward sun's current position
+				# Get alignment modulation from energy transfer calculation
+				var sun_align = qubit.entanglement_graph.get("sun_alignment", 0.5)
+
+				# PRIMARY: Spring toward sun's current position (modulated by alignment)
 				var sun_target = _bloch_vector(sun_qubit.theta, sun_qubit.phi)
 				var wheat_spring = wheat_icon["spring_constant"] if wheat_icon is Dictionary else wheat_icon.spring_constant
-				_apply_bloch_torque(qubit, sun_target, wheat_spring * 0.5, dt)  # 0.5 weight for hybrid
+				_apply_bloch_torque(qubit, sun_target, wheat_spring * sun_align * 0.5, dt)
 
-				# SECONDARY: Weak spring toward icon's preferred rest location
+				# SECONDARY: Weak spring toward icon's preferred rest location (constant)
 				var pref_target = _bloch_vector(wheat_icon["preferred_theta"], wheat_icon["preferred_phi"])
 				_apply_bloch_torque(qubit, pref_target, wheat_icon["icon_spring_constant"] * 0.5, dt)
 
@@ -677,16 +680,19 @@ func _apply_spring_attraction(dt: float) -> void:
 				wheat_icon["stable_phi"] = wheat_icon["preferred_phi"]
 
 			if mushroom_icon and sun_qubit:
+				# Get alignment modulation from energy transfer calculation
+				var moon_align = qubit.entanglement_graph.get("moon_alignment", 0.5)
+
 				# Moon is opposite to sun (θ → π - θ, φ → φ + π)
 				var moon_theta = PI - sun_qubit.theta
 				var moon_phi = sun_qubit.phi + PI
 
-				# PRIMARY: Strong spring toward moon's current position
+				# PRIMARY: Spring toward moon's current position (modulated by alignment)
 				var moon_target = _bloch_vector(moon_theta, moon_phi)
 				var mushroom_spring = mushroom_icon["spring_constant"] if mushroom_icon is Dictionary else mushroom_icon.spring_constant
-				_apply_bloch_torque(qubit, moon_target, mushroom_spring * 0.5, dt)  # 0.5 weight for hybrid
+				_apply_bloch_torque(qubit, moon_target, mushroom_spring * moon_align * 0.5, dt)
 
-				# SECONDARY: Weak spring toward icon's preferred rest location
+				# SECONDARY: Weak spring toward icon's preferred rest location (constant)
 				var pref_target = _bloch_vector(mushroom_icon["preferred_theta"], mushroom_icon["preferred_phi"])
 				_apply_bloch_torque(qubit, pref_target, mushroom_icon["icon_spring_constant"] * 0.5, dt)
 
@@ -871,6 +877,10 @@ func _apply_energy_transfer(dt: float) -> void:
 
 			# Mushroom exposure for sun damage weighting
 			mushroom_exposure = mushroom_prob
+
+				# Spring modulation stored for use in _apply_spring_attraction
+			qubit.entanglement_graph["sun_alignment"] = sun_alignment
+			qubit.entanglement_graph["moon_alignment"] = moon_alignment
 		else:
 			# SPECIALIST: Apply only appropriate icon
 			var icon_influence = _get_icon_influence_for_crop(position)
@@ -897,12 +907,12 @@ func _apply_energy_transfer(dt: float) -> void:
 		if is_mushroom or is_hybrid:
 			# Damage based on sun brightness AND alignment with sun
 			# Only strong damage when sun is bright AND aligned with crop
-			# At noon with sun-aligned mushroom: max damage (~0.20/sec)
-			# At noon with sun-opposite mushroom: negligible damage
+			# At day with sun-aligned mushroom: strong damage
+			# At night with sun-opposite mushroom: negligible damage
 			var sun_brightness_damage = pow(sun_qubit.radius, 2)  # Damage scales with brightness squared
 			var sun_damage_modulation = sun_alignment  # Damage strongest when aligned with sun
-			# Significantly increased damage coefficient to make mushrooms wilt more during day
-			var damage_rate = 0.20 * sun_brightness_damage * sun_damage_modulation * mushroom_exposure
+			# High damage coefficient: mushrooms must seek shade at night
+			var damage_rate = 0.50 * sun_brightness_damage * sun_damage_modulation * mushroom_exposure
 			qubit.grow_energy(-damage_rate, dt)  # Negative energy = damage
 
 		# Sync radius with energy
