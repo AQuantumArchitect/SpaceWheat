@@ -105,12 +105,12 @@ func _ready():
 		"stable_theta": PI / 2.0,     # Current target: MOON position
 		"stable_phi": PI,             # Current target: MOON's φ
 		"spring_constant": 0.5,       # Attraction to sun/moon (for crops)
-		"icon_spring_constant": 2.5,  # Attraction to preferred rest point (balanced)
+		"icon_spring_constant": 2.5,  # Attraction to preferred rest point (5x moon attraction)
 		"preferred_theta": PI,        # Mushroom Icon's preferred rest: π (midnight, south pole)
 		"preferred_phi": PI / 2.0,    # Mushroom Icon's preferred rest: φ = 90° (pointing up)
 		"target_qubit_pos": Vector2i(-1, -1)
 	}
-	mushroom_energy_influence = 0.40  # Increased: mushrooms spring up stronger at night
+	mushroom_energy_influence = 0.20  # Moderate: mushrooms spring up at night but not overwhelming
 
 	# TODO: Initialize biotic flux icon when script parsing issues are resolved
 	# For now, sun damage to fungi is applied directly in _apply_energy_transfer()
