@@ -61,9 +61,11 @@ func _ready() -> void:
 	print("   ✓ Nodes: %d (wheat + mushrooms with forces + sun celestial)" % visualization.nodes.size())
 
 	print("\n⚡ ENERGY TRANSFER DYNAMICS")
-	print("   Energy formula: rate = base × cos²(θ/2) × cos²((θ-θ_sun)/2) × icon_influence")
+	print("   Energy formula: rate = base × cos²(θ/2) × cos²(bloch_angle/2) × icon_influence")
 	print("   Wheat amplitude: cos²(θ/2) - grows at θ=0 (🌾 state)")
-	print("   Alignment: cos²((θ-θ_sun)/2) - synchronized with sun's phase")
+	print("   Alignment: cos²(bloch_angle/2) - uses full 3D angle between Bloch vectors")
+	print("   Spring attraction: Torque via cross product τ = v × v_target (affects both θ and φ)")
+	print("   Hamiltonian: Quaternion rotations on Bloch sphere (affects both θ and φ)")
 	print("   Wheat influence: %.3f (weak without icon/mushroom)" % biome.wheat_energy_influence)
 	print("\n   Watch for:")
 	print("   ✓ Emoji glyph opacity changing as energy changes")
@@ -196,9 +198,25 @@ func _print_energy_state() -> void:
 	if not sample_qubit:
 		return
 
-	# Calculate energy components
+	# Calculate energy components using full Bloch sphere
 	var amplitude = pow(cos(sample_qubit.theta / 2.0), 2)
-	var alignment = pow(cos((sample_qubit.theta - biome.sun_qubit.theta) / 2.0), 2)
+
+	# Proper 3D alignment calculation
+	var sample_vector = Vector3(
+		sin(sample_qubit.theta) * cos(sample_qubit.phi),
+		sin(sample_qubit.theta) * sin(sample_qubit.phi),
+		cos(sample_qubit.theta)
+	)
+	var sun_vector = Vector3(
+		sin(biome.sun_qubit.theta) * cos(biome.sun_qubit.phi),
+		sin(biome.sun_qubit.theta) * sin(biome.sun_qubit.phi),
+		cos(biome.sun_qubit.theta)
+	)
+	var dot_product = sample_vector.dot(sun_vector)
+	dot_product = clamp(dot_product, -1.0, 1.0)
+	var bloch_angle = acos(dot_product)
+	var alignment = pow(cos(bloch_angle / 2.0), 2)
+
 	var sun_phase = "☀️" if biome.is_currently_sun() else "🌙"
 
 	print("⏱️  [%.1fs] %s" % [elapsed, sun_phase])
@@ -210,7 +228,7 @@ func _print_energy_state() -> void:
 	])
 	print("      Energy: %.3f | Radius: %.3f" % [sample_qubit.energy, sample_qubit.radius])
 	print("      Amplitude (cos²(θ/2)): %.3f" % amplitude)
-	print("      Alignment (cos²((θ-θ_sun)/2)): %.3f" % alignment)
+	print("      Bloch angle to sun: %.3f rad | Alignment (cos²(angle/2)): %.3f" % [bloch_angle, alignment])
 
 	# Sun/Moon state
 	print("   ☀️ Sun/Moon:")

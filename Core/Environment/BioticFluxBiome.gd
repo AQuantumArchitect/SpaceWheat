@@ -58,12 +58,21 @@ func _ready():
 		print("⚠️  BioticFluxBiome._ready() called multiple times, skipping re-initialization")
 		return
 
-	# Initialize celestial sun/moon qubit (immutable, eternal)
-	sun_qubit = BiomeUtilities.create_qubit("☀️", "🌑", 0.0)  # Start at north (☀️ = full day, 🌑 = full night)
-	sun_qubit.radius = 1.0  # Always pure, never decoheres
-	plots_by_type[PlotType.CELESTIAL].append(Vector2i(-1, -1))  # Special position
-	plot_types[Vector2i(-1, -1)] = PlotType.CELESTIAL
+	# Initialize sun/moon qubit as DYNAMIC celestial oscillator
+	# Sun/moon oscillates around equator with tilted axis (avoids pole singularities)
+	# Path: θ(t) = π/2 + A*sin(ωt), φ(t) = B*sin(ωt) where ω = 2π/period
+	sun_qubit = BiomeUtilities.create_qubit("☀️", "🌑", PI / 2.0)  # Start at equator
+	sun_qubit.phi = 0.0
+	sun_qubit.radius = 1.0  # Brightness (will modulate with oscillation)
+
+	# Register sun/moon as normal FARM plot (not CELESTIAL - let it move!)
+	plots_by_type[PlotType.FARM].append(Vector2i(-1, -1))
+	plot_types[Vector2i(-1, -1)] = PlotType.FARM
 	quantum_states[Vector2i(-1, -1)] = sun_qubit
+
+	# Set up emoji relationships: sun broadcasts its presence
+	sun_qubit.entanglement_graph["☀️→"] = ["🌾"]  # Sun influences wheat
+	sun_qubit.entanglement_graph["🌑→"] = ["🍄"]  # Moon influences mushroom
 
 	# Initialize wheat and mushroom icons with stable points and spring constants
 	# Fallback: Create icon objects directly if script loading fails
@@ -79,17 +88,21 @@ func _ready():
 
 	wheat_icon = {
 		"hamiltonian_terms": {"sigma_x": 0.0, "sigma_y": 0.0, "sigma_z": 0.1},
-		"stable_theta": PI / 4.0,
+		"stable_theta": PI / 2.0,     # Target: SUN position (oscillates, no longer fixed!)
+		"stable_phi": 0.0,            # Will follow sun's φ dynamically
 		"spring_constant": 0.5,
-		"internal_qubit": wheat_internal
+		"internal_qubit": wheat_internal,
+		"target_qubit_pos": Vector2i(-1, -1)  # TARGET THE SUN/MOON POSITION
 	}
 	# Keep wheat_energy_influence at tuned 0.017 for 3-day 30%→90% growth (don't override)
 
 	# MUSHROOM ICON - Create fallback directly
 	mushroom_icon = {
 		"hamiltonian_terms": {"sigma_x": 0.0, "sigma_y": 0.0, "sigma_z": 0.023},
-		"stable_theta": PI,
-		"spring_constant": 0.5
+		"stable_theta": PI / 2.0,     # Target: MOON position (oscillates opposite to sun!)
+		"stable_phi": PI,             # 180° offset in φ from sun
+		"spring_constant": 0.5,
+		"target_qubit_pos": Vector2i(-1, -1)  # TARGET THE SUN/MOON POSITION
 	}
 	mushroom_energy_influence = 0.04
 
@@ -97,7 +110,7 @@ func _ready():
 	# For now, sun damage to fungi is applied directly in _apply_energy_transfer()
 
 	print("🌍 BioticFlux Biome initialized - Temperature: %.0fK, Period: %.1fs" % [base_temperature, sun_moon_period])
-	print("  ☀️ Sun/Moon qubit initialized (immutable celestial)")
+	print("  ☀️ Sun/Moon oscillating around equator with tilted axis (dynamic celestial)")
 	print("  🌾 Wheat energy influence: %.3f (cos²(165°/2))" % wheat_energy_influence)
 	print("  🍄 Mushroom energy influence: %.3f (cos²(163°/2))" % mushroom_energy_influence)
 	print("  DEBUG: wheat_icon=%s, mushroom_icon=%s" % [wheat_icon != null, mushroom_icon != null])
@@ -505,6 +518,36 @@ func _compose_total_hamiltonian() -> Dictionary:
 	return H_total
 
 
+func _apply_celestial_oscillation(dt: float) -> void:
+	"""Drive sun/moon qubit around equator with tilted axis
+
+	Path: Tilted oscillator that avoids pole singularities
+	- θ(t) = π/2 + A*sin(ωt) oscillates around equator
+	- φ(t) = B*sin(ωt) creates axial tilt (like Earth's 23.5°)
+	- ω = 2π / sun_moon_period
+
+	This is deterministic - not quantum evolution, but classical driving force
+	"""
+	if not sun_qubit:
+		return
+
+	# Time-based oscillation
+	var cycle_time = fmod(time_tracker.time_elapsed, sun_moon_period)
+	var phase = (cycle_time / sun_moon_period) * TAU  # 0 → 2π
+
+	# Amplitude: controls how far sun swings from equator
+	var theta_amplitude = PI / 6.0  # ±30° swing around equator
+	var phi_amplitude = PI / 8.0    # ±22.5° tilt (similar to Earth's axial tilt)
+
+	# Oscillate sun/moon position
+	sun_qubit.theta = PI / 2.0 + theta_amplitude * sin(phase)
+	sun_qubit.phi = phi_amplitude * sin(phase + PI / 4.0)  # Offset phase for interesting pattern
+
+	# Modulate brightness with cycle (full brightness at equator, dimmer at extremes)
+	var phase_brightness = pow(cos(phase / 2.0), 2)  # 0→1→0 over cycle
+	sun_qubit.radius = 0.7 + 0.3 * phase_brightness  # Ranges 0.7 to 1.0
+
+
 func _apply_hamiltonian_evolution(dt: float) -> void:
 	"""Layer 1: Apply composed Hamiltonian evolution (pure rotations)
 
@@ -527,81 +570,112 @@ func _apply_hamiltonian_evolution(dt: float) -> void:
 		qubit.apply_hamiltonian_rotation(H_total, dt)
 
 
-func _apply_spring_attraction(dt: float) -> void:
-	"""Apply Hooke's law rotational attraction to icon stable points
+func _bloch_vector(theta: float, phi: float) -> Vector3:
+	"""Convert Bloch sphere angles (θ, φ) to 3D vector
 
-	Each crop is attracted toward its icon's stable theta on the Bloch sphere
-	Hybrid crops are attracted to BOTH stable points (flexible equilibrium)
-	Torque τ ∝ sin(θ - θ_stable), implemented as dθ/dt = -k × sin(angle_diff)/2
+	Point on Bloch sphere: v = (sin(θ)cos(φ), sin(θ)sin(φ), cos(θ))
+	"""
+	return Vector3(
+		sin(theta) * cos(phi),
+		sin(theta) * sin(phi),
+		cos(theta)
+	)
+
+
+func _bloch_angle_between(v1: Vector3, v2: Vector3) -> float:
+	"""Calculate angle between two Bloch vectors
+
+	cos(angle) = v1 · v2 / (|v1| |v2|)
+	Returns angle in [0, π]
+	"""
+	var dot_product = v1.dot(v2)
+	# Clamp to avoid numerical errors
+	dot_product = clamp(dot_product, -1.0, 1.0)
+	return acos(dot_product)
+
+
+func _apply_bloch_torque(qubit: DualEmojiQubit, target_v: Vector3, spring_constant: float, dt: float) -> void:
+	"""Apply torque to qubit to rotate toward target Bloch vector
+
+	Uses cross product: τ = k × (v_target × v)
+	Rotating FROM v TOWARD v_target requires torque in direction of target × v
+	This naturally affects both θ and φ
+	"""
+	var v = _bloch_vector(qubit.theta, qubit.phi)
+	var torque_vec = target_v.cross(v)  # v_target × v (direction to rotate around)
+
+	# Scale by spring constant (negate to produce attraction toward target)
+	torque_vec *= -spring_constant
+
+	# Apply torque as infinitesimal rotation
+	# dθ/dt ≈ |τ × e_z| component
+	# dφ/dt ≈ |τ| / sin(θ) component
+
+	# Rotation around torque axis by angle |τ| * dt
+	var torque_mag = torque_vec.length()
+	if torque_mag > 0.001:  # Only apply if significant torque
+		var torque_axis = torque_vec.normalized()
+		var rotation_angle = torque_mag * dt
+
+		# Apply infinitesimal rotation to Bloch vector
+		var v_new = v.rotated(torque_axis, rotation_angle)
+
+		# Extract new angles from rotated vector
+		# θ = acos(z)
+		# φ = atan2(y, x)
+		qubit.theta = acos(clamp(v_new.z, -1.0, 1.0))
+		qubit.phi = atan2(v_new.y, v_new.x)
+
+
+func _apply_spring_attraction(dt: float) -> void:
+	"""Apply spring attraction in full Bloch sphere space
+
+	Crops are attracted toward icon stable points (θ_s, φ_s)
+	Uses cross product τ = v × v_target for proper 3D rotation
+	Affects both θ and φ naturally
 	"""
 	for position in quantum_states.keys():
 		var qubit = quantum_states[position]
 		if not qubit:
 			continue
 
-		# Skip celestial (immutable)
-		if position in plot_types and plot_types[position] == PlotType.CELESTIAL:
+		# Skip sun/moon itself (it's being driven separately)
+		if position == Vector2i(-1, -1):
 			continue
 
-		# Detect hybrid crops (wheat + mushroom emojis together)
+		# Detect crop type (wheat or mushroom)
 		var is_wheat = qubit.north_emoji == "🌾" or qubit.south_emoji == "🌾" or qubit.north_emoji == "💧" or qubit.south_emoji == "💧"
 		var is_mushroom = qubit.north_emoji == "🍄" or qubit.south_emoji == "🍄" or qubit.north_emoji == "🍂" or qubit.south_emoji == "🍂"
 		var is_hybrid = is_wheat and is_mushroom
 
-		# Calculate total spring torque (can come from both icons for hybrids)
-		var total_spring_torque = 0.0
-
 		if is_hybrid:
-			# HYBRID: Attracted to BOTH stable points
-			# Wheat: θ = π/4
-			if wheat_icon:
+			# HYBRID: Apply torque from BOTH celestial targets simultaneously
+			# Wheat follows SUN, Mushroom follows MOON (opposite side of sun's oscillation)
+			if wheat_icon and sun_qubit:
+				var sun_target = _bloch_vector(sun_qubit.theta, sun_qubit.phi)
 				var wheat_spring = wheat_icon["spring_constant"] if wheat_icon is Dictionary else wheat_icon.spring_constant
-				if wheat_spring > 0.0:
-					var wheat_stable = wheat_icon["stable_theta"] if wheat_icon is Dictionary else wheat_icon.stable_theta
-					var wheat_diff = qubit.theta - wheat_stable
-					while wheat_diff > PI:
-						wheat_diff -= TAU
-					while wheat_diff < -PI:
-						wheat_diff += TAU
-					var wheat_torque = -wheat_spring * sin(wheat_diff / 2.0)
-					total_spring_torque += wheat_torque
+				_apply_bloch_torque(qubit, sun_target, wheat_spring * 0.5, dt)  # 0.5 weight for hybrid
 
-			# Mushroom: θ = π
-			if mushroom_icon:
+			if mushroom_icon and sun_qubit:
+				# Moon is opposite to sun (θ → π - θ, φ → φ + π)
+				var moon_theta = PI - sun_qubit.theta
+				var moon_phi = sun_qubit.phi + PI
+				var moon_target = _bloch_vector(moon_theta, moon_phi)
 				var mushroom_spring = mushroom_icon["spring_constant"] if mushroom_icon is Dictionary else mushroom_icon.spring_constant
-				if mushroom_spring > 0.0:
-					var mushroom_stable = mushroom_icon["stable_theta"] if mushroom_icon is Dictionary else mushroom_icon.stable_theta
-					var mushroom_diff = qubit.theta - mushroom_stable
-					while mushroom_diff > PI:
-						mushroom_diff -= TAU
-					while mushroom_diff < -PI:
-						mushroom_diff += TAU
-					var mushroom_torque = -mushroom_spring * sin(mushroom_diff / 2.0)
-					total_spring_torque += mushroom_torque
+				_apply_bloch_torque(qubit, moon_target, mushroom_spring * 0.5, dt)  # 0.5 weight for hybrid
 		else:
-			# SPECIALIST: Attracted to single stable point
-			var icon = null
-			# Check if this is a mushroom (🍄 or 🍂 emojis)
-			if qubit.north_emoji == "🍄" or qubit.north_emoji == "🍂" or qubit.south_emoji == "🍄" or qubit.south_emoji == "🍂":
-				icon = mushroom_icon
-			else:
-				icon = wheat_icon
-
-			if icon:
-				var spring = icon["spring_constant"] if icon is Dictionary else icon.spring_constant
-				if spring > 0.0:
-					var stable = icon["stable_theta"] if icon is Dictionary else icon.stable_theta
-					var angle_diff = qubit.theta - stable
-					# Wrap to [-π, π]
-					while angle_diff > PI:
-						angle_diff -= TAU
-					while angle_diff < -PI:
-						angle_diff += TAU
-
-					total_spring_torque = -spring * sin(angle_diff / 2.0)
-
-		# Apply rotation to theta
-		qubit.theta += total_spring_torque * dt
+			# SPECIALIST: Apply torque toward appropriate celestial body
+			if is_wheat and wheat_icon and sun_qubit:
+				var sun_target = _bloch_vector(sun_qubit.theta, sun_qubit.phi)
+				var spring = wheat_icon["spring_constant"] if wheat_icon is Dictionary else wheat_icon.spring_constant
+				_apply_bloch_torque(qubit, sun_target, spring, dt)
+			elif is_mushroom and mushroom_icon and sun_qubit:
+				# Mushroom follows moon (opposite of sun)
+				var moon_theta = PI - sun_qubit.theta
+				var moon_phi = sun_qubit.phi + PI
+				var moon_target = _bloch_vector(moon_theta, moon_phi)
+				var spring = mushroom_icon["spring_constant"] if mushroom_icon is Dictionary else mushroom_icon.spring_constant
+				_apply_bloch_torque(qubit, moon_target, spring, dt)
 
 
 func _get_icon_influence_for_crop(position: Vector2i) -> float:
@@ -639,8 +713,10 @@ func _is_mushroom_plot(position: Vector2i) -> bool:
 func _apply_energy_transfer(dt: float) -> void:
 	"""Layer 2: Non-Hamiltonian energy growth (radius changes only)
 
-	Energy transfer: continuous cos² formula (no categorical phase gates)
-	energy_rate = base_rate × cos²(θ_qubit/2) × cos²((θ_qubit - θ_sun)/2) × cos²(θ_icon/2)
+	DYNAMIC CELESTIAL ENERGY: Sun/moon radius modulates available energy
+	- Sun brightness (radius) drives energy availability
+	- Alignment shows how well crop couples to celestial body
+	- Formula: energy_rate = base_rate × amplitude × sun_radius × alignment × influence
 
 	Affects radius/energy, NOT θ/φ
 	"""
@@ -649,8 +725,8 @@ func _apply_energy_transfer(dt: float) -> void:
 		if not qubit:
 			continue
 
-		# Skip celestial (sun/moon don't transfer energy)
-		if position in plot_types and plot_types[position] == PlotType.CELESTIAL:
+		# Skip sun/moon itself
+		if position == Vector2i(-1, -1):
 			continue
 
 		# Detect hybrid crops (both wheat AND mushroom emojis)
@@ -658,8 +734,15 @@ func _apply_energy_transfer(dt: float) -> void:
 		                (qubit.north_emoji == "🍄" and qubit.south_emoji == "🌾")
 		var is_mushroom = _is_mushroom_plot(position)
 
-		# Alignment: phase matching with sun
-		var alignment = pow(cos((qubit.theta - sun_qubit.theta) / 2.0), 2)
+		# Alignment: 3D Bloch sphere angle between crop and sun
+		# This emerges naturally from spring forces pulling toward sun
+		var qubit_vector = _bloch_vector(qubit.theta, qubit.phi)
+		var sun_vector = _bloch_vector(sun_qubit.theta, sun_qubit.phi)
+		var bloch_angle = _bloch_angle_between(qubit_vector, sun_vector)
+		var alignment = pow(cos(bloch_angle / 2.0), 2)
+
+		# Sun brightness (radius) is primary energy source
+		var sun_brightness = sun_qubit.radius
 
 		# Calculate total energy rate from applicable icons
 		var energy_rate = 0.0
@@ -674,16 +757,16 @@ func _apply_energy_transfer(dt: float) -> void:
 
 			# Wheat component: energy scales with probability of wheat state
 			var wheat_amplitude = wheat_prob
-			var wheat_rate = base_energy_rate * wheat_amplitude * alignment * wheat_energy_influence
+			var wheat_rate = base_energy_rate * wheat_amplitude * sun_brightness * alignment * wheat_energy_influence
 
 			# Mushroom component: energy scales with probability of mushroom state
 			var mushroom_amplitude = mushroom_prob
-			var mushroom_rate = base_energy_rate * mushroom_amplitude * alignment * mushroom_energy_influence
+			var mushroom_rate = base_energy_rate * mushroom_amplitude * sun_brightness * alignment * mushroom_energy_influence
 
 			# Total: smoothly transitions between wheat and mushroom effects
 			# At θ=0: 100% wheat, 0% mushroom (wheat shields mushroom from damage)
 			# At θ=π/2: 50% wheat, 50% mushroom (balanced)
-			# At θ=π: 0% wheat, 100% mushroom (mushroom exposed but sun weak at night)
+			# At θ=π: 0% wheat, 100% mushroom (mushroom exposed to sun)
 			energy_rate = wheat_rate + mushroom_rate
 
 			# Mushroom exposure for sun damage weighting
@@ -703,19 +786,19 @@ func _apply_energy_transfer(dt: float) -> void:
 				amplitude_self = pow(cos(qubit.theta / 2.0), 2)
 				mushroom_exposure = 0.0  # Wheat doesn't take sun damage
 
-			energy_rate = base_energy_rate * amplitude_self * alignment * icon_influence
+			energy_rate = base_energy_rate * amplitude_self * sun_brightness * alignment * icon_influence
 
 		# Apply exponential growth
 		qubit.grow_energy(energy_rate, dt)
 
 		# Apply sun damage (to mushrooms and hybrid crops)
 		if is_mushroom or is_hybrid:
-			# Damage based on sun strength (cos² of sun's day-phase)
-			var sun_strength = pow(cos(sun_qubit.theta / 2.0), 2)
-			# Max damage when sun strong: 0.01/sec (weighted by mushroom exposure probability)
+			# Damage based on sun brightness (radius modulates damage intensity too)
+			var sun_brightness_damage = pow(sun_qubit.radius, 2)  # Damage scales with brightness squared
+			# Max damage when sun bright: 0.01/sec (weighted by mushroom exposure probability)
 			# For hybrids: damage only applies when mushroom component is exposed
 			# For specialists: always exposed
-			var damage_rate = 0.01 * sun_strength * mushroom_exposure
+			var damage_rate = 0.01 * sun_brightness_damage * mushroom_exposure
 			qubit.grow_energy(-damage_rate, dt)  # Negative energy = damage
 
 		# Sync radius with energy
@@ -799,6 +882,10 @@ func _evolve_quantum_substrate(dt: float) -> void:
 	- They remain fixed to drive all other qubits via coupling terms
 	- Immune to forces in force-directed graph visualization
 	"""
+	# CELESTIAL LAYER: Oscillate sun/moon around equator with tilted axis
+	# This MUST run first so crops see the updated celestial position
+	_apply_celestial_oscillation(dt)
+
 	# Layer 1: Apply Hamiltonian evolution from all icons (pure rotations)
 	_apply_hamiltonian_evolution(dt)
 

@@ -36,27 +36,41 @@ var debug_environments = {
 
 
 func _init():
+	# Set name for reference by EscapeMenu
 	name = "SaveLoadMenu"
 
-	# Fill entire screen - proper Godot 4 anchors-based design
-	set_anchors_preset(Control.PRESET_FULL_RECT)
-	layout_mode = 1
+	# Full screen overlay - fill entire screen
+	anchor_left = 0.0
+	anchor_top = 0.0
+	anchor_right = 1.0
+	anchor_bottom = 1.0
+	offset_left = 0
+	offset_top = 0
+	offset_right = 0
+	offset_bottom = 0
+	layout_mode = 1  # LAYOUT_MODE_FULLRECT - ensures we fill viewport
 	mouse_filter = Control.MOUSE_FILTER_STOP
+
+	# Process even when game is paused
 	process_mode = Node.PROCESS_MODE_ALWAYS
 
-	# Background - fill screen
+	# Semi-transparent dark background
 	background = ColorRect.new()
 	background.color = Color(0.0, 0.0, 0.0, 0.7)
-	background.set_anchors_preset(Control.PRESET_FULL_RECT)
-	background.layout_mode = 1
+	background.anchor_left = 0.0
+	background.anchor_top = 0.0
+	background.anchor_right = 1.0
+	background.anchor_bottom = 1.0
+	background.layout_mode = 1  # LAYOUT_MODE_FULLRECT
 	add_child(background)
 
-	# Center container - use size_flags for proper centering
+	# Center container - child of THIS node for proper centering
 	var center = CenterContainer.new()
-	center.set_anchors_preset(Control.PRESET_FULL_RECT)
-	center.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	center.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	center.layout_mode = 1
+	center.anchor_left = 0.0
+	center.anchor_top = 0.0
+	center.anchor_right = 1.0
+	center.anchor_bottom = 1.0
+	center.layout_mode = 1  # LAYOUT_MODE_FULLRECT
 	add_child(center)
 
 	# Menu panel - will be sized parametrically when shown
@@ -215,60 +229,62 @@ func _create_menu_button(text: String, color: Color) -> Button:
 	return btn
 
 
-func _unhandled_key_input(event):
-	"""Handle keyboard navigation - ONLY if not already handled by children
-
-	Using _unhandled_key_input() instead of _input() ensures that:
-	1. This is called AFTER children have had a chance to handle input
-	2. set_process_input(false) on parent actually prevents input
-	3. Input can be properly consumed with set_input_as_handled()
-	"""
-	# If menu is not visible, don't handle input
+func _input(event):
+	"""Handle keyboard navigation - CONSUME ALL INPUT when menu is visible"""
+	# If menu is visible, consume ALL input to prevent other handlers from seeing it
 	if not visible:
 		return
 
-	# Only handle key events
-	if not (event is InputEventKey and event.pressed and not event.echo):
-		return
+	# CRITICAL: Consume ALL input events (KeyEventKey, InputEventAction, etc.)
+	# This prevents InputController and other handlers from seeing any input
+	# when SaveLoadMenu is open
+	if event is InputEventKey and event.pressed and not event.echo:
+		# Handle raw key events
+		match event.keycode:
+			# Arrow keys: Navigate between slots and debug environments
+			KEY_UP:
+				_select_previous_slot()
+				get_viewport().set_input_as_handled()
+				return
+			KEY_DOWN:
+				_select_next_slot()
+				get_viewport().set_input_as_handled()
+				return
 
-	# Handle raw key events
-	match event.keycode:
-		# Escape: Cancel and return to pause menu (not quit)
-		# CRITICAL: Handle ESC first and immediately mark as handled
-		KEY_ESCAPE:
-			get_viewport().set_input_as_handled()  # Mark handled IMMEDIATELY
-			_on_cancel_pressed()
-			return
+			# Number keys: Select slot directly
+			KEY_1:
+				_select_slot(0)
+				get_viewport().set_input_as_handled()
+				return
+			KEY_2:
+				_select_slot(1)
+				get_viewport().set_input_as_handled()
+				return
+			KEY_3:
+				_select_slot(2)
+				get_viewport().set_input_as_handled()
+				return
 
-		# Arrow keys: Navigate between slots and debug environments
-		KEY_UP:
-			_select_previous_slot()
-			get_viewport().set_input_as_handled()
-			return
-		KEY_DOWN:
-			_select_next_slot()
-			get_viewport().set_input_as_handled()
-			return
+			# Enter or Space: Confirm selection
+			KEY_ENTER, KEY_KP_ENTER, KEY_SPACE:
+				_confirm_selection()
+				get_viewport().set_input_as_handled()
+				return
 
-		# Number keys: Select slot directly
-		KEY_1:
-			_select_slot(0)
-			get_viewport().set_input_as_handled()
-			return
-		KEY_2:
-			_select_slot(1)
-			get_viewport().set_input_as_handled()
-			return
-		KEY_3:
-			_select_slot(2)
-			get_viewport().set_input_as_handled()
-			return
+			# Escape: Cancel and return to pause menu (not quit)
+			KEY_ESCAPE:
+				_on_cancel_pressed()
+				get_viewport().set_input_as_handled()
+				return
 
-		# Enter or Space: Confirm selection
-		KEY_ENTER, KEY_KP_ENTER, KEY_SPACE:
-			_confirm_selection()
-			get_viewport().set_input_as_handled()
-			return
+		# For any other key event, consume it (prevents unmapped keys from bubbling)
+		get_viewport().set_input_as_handled()
+
+	elif event is InputEventAction and event.pressed:
+		# CRITICAL: Also consume InputEventAction events (for mapped actions like Q, E, R, etc.)
+		# This prevents InputController from handling quit, restart, etc.
+		print("🔒 SaveLoadMenu blocking action: " + event.action)
+		get_viewport().set_input_as_handled()
 
 
 func _select_slot(slot_index: int):

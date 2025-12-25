@@ -74,6 +74,74 @@ func load_farm(farm_ref: Node) -> void:
 	print("✅ Farm loaded into PlayerShell")
 
 
+func _input(event: InputEvent) -> void:
+	"""Handle overlay/menu shortcuts (ESC, V, C, N, K, Q, R)"""
+	if not event is InputEventKey or not event.pressed:
+		return
+
+	print("🎯 PlayerShell received key input: %s (%d)" % [event.keycode, event.keycode])
+
+	match event.keycode:
+		KEY_ESCAPE:
+			print("  → ESC pressed: toggling escape menu")
+			_toggle_escape_menu()
+		KEY_V:
+			print("  → V pressed: toggling vocabulary")
+			_toggle_vocabulary()
+		KEY_C:
+			print("  → C pressed: toggling contracts")
+			_toggle_contracts()
+		KEY_N:
+			print("  → N pressed: toggling network")
+			_toggle_network()
+		KEY_K:
+			print("  → K pressed: toggling keyboard help")
+			_toggle_keyboard_help()
+
+
+func _toggle_escape_menu() -> void:
+	"""Toggle ESC menu"""
+	if overlay_manager:
+		print("    ✅ Calling overlay_manager.toggle_escape_menu()")
+		overlay_manager.toggle_escape_menu()
+	else:
+		print("    ❌ ERROR: overlay_manager is null!")
+
+
+func _toggle_vocabulary() -> void:
+	"""Toggle vocabulary overlay"""
+	if overlay_manager:
+		print("    ✅ Calling overlay_manager.toggle_vocabulary_overlay()")
+		overlay_manager.toggle_vocabulary_overlay()
+	else:
+		print("    ❌ ERROR: overlay_manager is null!")
+
+
+func _toggle_contracts() -> void:
+	"""Toggle contracts overlay"""
+	if overlay_manager:
+		print("    ✅ Calling overlay_manager.toggle_overlay('contracts')")
+		overlay_manager.toggle_overlay("contracts")
+	else:
+		print("    ❌ ERROR: overlay_manager is null!")
+
+
+func _toggle_network() -> void:
+	"""Toggle network overlay"""
+	if overlay_manager:
+		print("    ✅ Calling overlay_manager.toggle_network_overlay()")
+		overlay_manager.toggle_network_overlay()
+	else:
+		print("    ❌ ERROR: overlay_manager is null!")
+
+
+func _toggle_keyboard_help() -> void:
+	"""Toggle keyboard help overlay"""
+	if overlay_manager:
+		print("    ✅ Calling overlay_manager.toggle_keyboard_help()")
+		overlay_manager.toggle_keyboard_help()
+	else:
+		print("    ❌ ERROR: overlay_manager is null!")
 
 
 ## OVERLAY SYSTEM INITIALIZATION

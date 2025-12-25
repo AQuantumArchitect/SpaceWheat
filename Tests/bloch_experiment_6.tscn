@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://bloch_exp_6"]
+
+[ext_resource type="Script" path="res://Tests/BlochSphereExperiment6_CelestialImmobility.gd" id="1_test"]
+
+[node name="BlochExperiment6" type="Node"]
+script = ExtResource("1_test")

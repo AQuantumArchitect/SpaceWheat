@@ -54,11 +54,8 @@ func _ready():
 
 		# Button label with keyboard shortcut
 		button.text = "[%d] %s" % [tool_num, tool_name]
-		# Use SIZE_EXPAND_FILL to make buttons expand to fill available space
 		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		button.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-		# 0 width = full expansion, let layout system handle equal distribution
-		button.custom_minimum_size = Vector2(0, 55 * scale_factor)
+		button.custom_minimum_size = Vector2(90 * scale_factor, 55 * scale_factor)
 
 		# Don't let buttons steal keyboard focus - keyboard is for input handler
 		button.focus_mode = Control.FOCUS_NONE
@@ -97,11 +94,6 @@ func _ready():
 
 	# Select first tool by default
 	select_tool(1)
-
-	# CRITICAL FIX: Force layout recalculation for dynamically-created buttons
-	# Defer the queue_sort() call to ensure it happens after layout is set up
-	call_deferred("queue_sort")
-
 	print("🛠️  ToolSelectionRow initialized with 6 tools - beveled touch-friendly buttons")
 
 

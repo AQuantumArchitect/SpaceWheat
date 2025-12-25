@@ -61,31 +61,26 @@ func _ready():
 	mouse_filter = MOUSE_FILTER_IGNORE
 	size_flags_horizontal = Control.SIZE_EXPAND_FILL
 
-	# Create Q, E, R action buttons with proper size_flags
+	# Create Q, E, R action buttons
 	for action_key in ["Q", "E", "R"]:
 		var button = Button.new()
 		button.text = "[%s]" % action_key
-		# Use SIZE_EXPAND_FILL (3) to make buttons expand to fill available space
 		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		button.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-		# Don't set stretch_ratio - let equal spacing happen naturally
-		button.custom_minimum_size = Vector2(0, 50 * scale_factor)  # 0 width = full expansion
-
+		button.custom_minimum_size = Vector2(120 * scale_factor, 50 * scale_factor)
 		button.modulate = button_color
 
-		# Don't let buttons steal keyboard focus
+		# Don't let buttons steal keyboard focus - keyboard is for input handler
 		button.focus_mode = Control.FOCUS_NONE
 
 		# Connect signal
 		button.pressed.connect(_on_action_button_pressed.bindv([action_key]))
 
-		# Add to container - layout system will handle size automatically
+		# Add to container
 		add_child(button)
 		action_buttons[action_key] = button
 
 	# Update display for current tool
 	update_for_tool(1)
-
 	print("⚡ ActionPreviewRow initialized")
 
 

@@ -29,11 +29,8 @@ var current_tool: int = 1
 
 
 func _ready() -> void:
-	"""FarmUI scene is ready - get references to child nodes"""
+	"""FarmUI scene is ready - get references to child nodes from scene definition"""
 	print("🎮 FarmUI initializing from scene...")
-
-	# Ensure FarmUI fills its parent for proper layout cascade
-	set_anchors_preset(Control.PRESET_FULL_RECT)
 
 	# Get references to scene-defined child nodes
 	resource_panel = get_node("MainContainer/ResourcePanel")

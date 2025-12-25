@@ -20,27 +20,41 @@ var selected_button_index: int = 0
 
 
 func _init():
+	# Set name for reference by SaveLoadMenu
 	name = "EscapeMenu"
 
-	# Fill entire screen - proper Godot 4 anchors-based design
-	set_anchors_preset(Control.PRESET_FULL_RECT)
-	layout_mode = 1
-	mouse_filter = Control.MOUSE_FILTER_STOP
+	# Full screen overlay - fill entire screen
+	anchor_left = 0.0
+	anchor_top = 0.0
+	anchor_right = 1.0
+	anchor_bottom = 1.0
+	offset_left = 0
+	offset_top = 0
+	offset_right = 0
+	offset_bottom = 0
+	layout_mode = 1  # LAYOUT_MODE_FULLRECT - ensures we fill viewport
+	mouse_filter = Control.MOUSE_FILTER_STOP  # Block input to game
+
+	# Process even when game is paused (so menu still works)
 	process_mode = Node.PROCESS_MODE_ALWAYS
 
-	# Background - fill screen
+	# Semi-transparent dark background
 	background = ColorRect.new()
 	background.color = Color(0.0, 0.0, 0.0, 0.7)
-	background.set_anchors_preset(Control.PRESET_FULL_RECT)
-	background.layout_mode = 1
+	background.anchor_left = 0.0
+	background.anchor_top = 0.0
+	background.anchor_right = 1.0
+	background.anchor_bottom = 1.0
+	background.layout_mode = 1  # LAYOUT_MODE_FULLRECT
 	add_child(background)
 
-	# Center container - use size_flags for proper centering
+	# Center container for menu - child of THIS node for proper centering
 	var center = CenterContainer.new()
-	center.set_anchors_preset(Control.PRESET_FULL_RECT)
-	center.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	center.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	center.layout_mode = 1
+	center.anchor_left = 0.0
+	center.anchor_top = 0.0
+	center.anchor_right = 1.0
+	center.anchor_bottom = 1.0
+	center.layout_mode = 1  # LAYOUT_MODE_FULLRECT
 	add_child(center)
 
 	# Menu box - will be sized parametrically when shown
@@ -131,26 +145,20 @@ func _create_menu_button(text: String, color: Color) -> Button:
 	return btn
 
 
-func _unhandled_key_input(event):
-	"""Handle keyboard navigation in menu - only if not already handled
-
-	Using _unhandled_key_input() instead of _input() ensures proper input order:
-	1. SaveLoadMenu (child) gets first chance to handle input
-	2. Then EscapeMenu (parent) handles unhandled input
-	3. Visibility check is automatic - SaveLoadMenu visible = input handled there
-	"""
+func _input(event):
+	"""Handle keyboard navigation in menu"""
 	if not visible or not event is InputEventKey or not event.pressed or event.echo:
 		return
 
-	# Only process if SaveLoadMenu is NOT visible
-	# (SaveLoadMenu will have already handled input if it's visible)
+	# Check if SaveLoadMenu is visible - if so, don't process ANY input
 	var parent = get_parent()
 	if parent:
 		for child in parent.get_children():
 			if child.name == "SaveLoadMenu" and child.visible:
-				# SaveLoadMenu is visible and handling input - don't process
+				# SaveLoadMenu is open - don't process any keyboard input in this menu
 				return
 
+	# Only process input if SaveLoadMenu is NOT visible
 	match event.keycode:
 		KEY_ESCAPE:
 			# ESC closes menu (activates Resume)

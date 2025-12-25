@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://bloch_exp_1"]
+
+[ext_resource type="Script" path="res://Tests/BlochSphereExperiment1_PhiEvolution.gd" id="1_test"]
+
+[node name="BlochExperiment1" type="Node"]
+script = ExtResource("1_test")
