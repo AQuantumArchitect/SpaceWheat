@@ -45,6 +45,8 @@ func _ready():
 
 	# Ensure buttons don't block keyboard input
 	mouse_filter = MOUSE_FILTER_IGNORE
+	# Toolbar stretches to fill full width
+	size_flags_horizontal = Control.SIZE_EXPAND_FILL
 
 	# Create buttons for tools 1-6
 	for tool_num in range(1, 7):
