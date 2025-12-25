@@ -18,6 +18,11 @@ func _ready() -> void:
 	"""Initialize: create farm and shell, wire them together"""
 	print("🌾 FarmView starting...")
 
+	# DEBUG: Check if FarmView is properly sized
+	print("📏 FarmView size: %.0f × %.0f" % [size.x, size.y])
+	print("   FarmView anchors: L%.1f T%.1f R%.1f B%.1f" % [anchor_left, anchor_top, anchor_right, anchor_bottom])
+	print("   Viewport: %.0f × %.0f" % [get_viewport_rect().size.x, get_viewport_rect().size.y])
+
 	# Load PlayerShell scene
 	print("🎪 Loading player shell scene...")
 	var shell_scene = load("res://UI/PlayerShell.tscn")

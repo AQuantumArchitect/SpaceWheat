@@ -110,6 +110,9 @@ func _ready():
 
 	print("🛠️  ToolSelectionRow initialized with 6 tools - beveled touch-friendly buttons")
 
+	# DEBUG: Print corner positions after layout engine runs
+	call_deferred("_print_corners")
+
 
 func select_tool(tool_num: int) -> void:
 	"""Select a tool and update button styling (internal - use for UI sync without emitting signal)"""
@@ -164,6 +167,23 @@ func _on_tool_button_pressed(tool_num: int) -> void:
 	_update_tool_visual(tool_num)
 	tool_selected.emit(tool_num)  # Explicitly emit signal after visual update
 	print("⌨️  Tool %d selected [%s button]" % [tool_num, TOOL_ACTIONS[tool_num]["name"]])
+
+
+func _print_corners() -> void:
+	"""DEBUG: Print actual corner positions of toolbar"""
+	var tl = position
+	var tr = position + Vector2(size.x, 0)
+	var bl = position + Vector2(0, size.y)
+	var br = position + size
+
+	print("\n🎯 ToolSelectionRow CORNERS:")
+	print("  Top-Left:     (%.1f, %.1f)" % [tl.x, tl.y])
+	print("  Top-Right:    (%.1f, %.1f)" % [tr.x, tr.y])
+	print("  Bottom-Left:  (%.1f, %.1f)" % [bl.x, bl.y])
+	print("  Bottom-Right: (%.1f, %.1f)" % [br.x, br.y])
+	print("  Size: %.1f × %.1f" % [size.x, size.y])
+	print("  Parent size: %.1f × %.1f" % [get_parent().size.x, get_parent().size.y])
+	print()
 
 
 func debug_layout() -> String:

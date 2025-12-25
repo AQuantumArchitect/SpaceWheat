@@ -95,6 +95,9 @@ func _ready():
 
 	print("⚡ ActionPreviewRow initialized")
 
+	# DEBUG: Print corner positions after layout engine runs
+	call_deferred("_print_corners")
+
 
 func update_for_tool(tool_num: int) -> void:
 	"""Update action buttons to show actions for the selected tool"""
@@ -170,6 +173,23 @@ func _on_action_button_pressed(action_key: String) -> void:
 	var action_info = tool_info.get(action_key, {})
 	var label = action_info.get("label", "action")
 	print("⚡ Action %s pressed: %s" % [action_key, label])
+
+
+func _print_corners() -> void:
+	"""DEBUG: Print actual corner positions of toolbar"""
+	var tl = position
+	var tr = position + Vector2(size.x, 0)
+	var bl = position + Vector2(0, size.y)
+	var br = position + size
+
+	print("\n🎯 ActionPreviewRow CORNERS:")
+	print("  Top-Left:     (%.1f, %.1f)" % [tl.x, tl.y])
+	print("  Top-Right:    (%.1f, %.1f)" % [tr.x, tr.y])
+	print("  Bottom-Left:  (%.1f, %.1f)" % [bl.x, bl.y])
+	print("  Bottom-Right: (%.1f, %.1f)" % [br.x, br.y])
+	print("  Size: %.1f × %.1f" % [size.x, size.y])
+	print("  Parent size: %.1f × %.1f" % [get_parent().size.x, get_parent().size.y])
+	print()
 
 
 func debug_layout() -> String:
