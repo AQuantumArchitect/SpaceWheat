@@ -86,6 +86,14 @@ func _ready() -> void:
 		shell.overlay_manager.overlay_toggled.connect(_on_overlay_state_changed)
 		print("   ✅ Overlay state sync connected")
 
+	# CRITICAL: Inject InputController into SaveLoadMenu so it can manage input
+	# SaveLoadMenu needs to disable InputController when it opens to prevent conflicts
+	if shell.overlay_manager.save_load_menu:
+		shell.overlay_manager.save_load_menu.inject_input_controller(input_controller)
+		print("   ✅ InputController injected into SaveLoadMenu")
+	else:
+		print("   ⚠️  SaveLoadMenu not available for input controller injection")
+
 	print("✅ FarmView ready - game started!")
 
 
