@@ -98,10 +98,6 @@ func _ready():
 	# Select first tool by default
 	select_tool(1)
 
-	# CRITICAL FIX: Force layout recalculation for dynamically-created buttons
-	# Defer the queue_sort() call to ensure it happens after layout is set up
-	call_deferred("queue_sort")
-
 	print("🛠️  ToolSelectionRow initialized with 6 tools - beveled touch-friendly buttons")
 
 
