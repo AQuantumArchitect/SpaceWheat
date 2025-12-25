@@ -545,8 +545,11 @@ func _apply_celestial_oscillation(dt: float) -> void:
 	var cycle_time = fmod(time_tracker.time_elapsed, sun_moon_period)
 	var phase = cycle_time / sun_moon_period  # 0 → 1 over one period
 
-	# Position: traverse from north pole (θ=0) to south pole (θ=π)
-	sun_qubit.theta = phase * PI
+	# Position: traverse from near north pole (day) to near south pole (night)
+	# Avoid exact poles (θ=0 or θ=π) where φ becomes degenerate
+	# Use small epsilon to keep path numerically stable: ~0.05 rad offset
+	var pole_offset = 0.05  # radians (~2.9°) - avoids singularities
+	sun_qubit.theta = pole_offset + phase * (PI - 2.0 * pole_offset)
 	sun_qubit.phi = phase * TAU  # Continuous azimuthal rotation
 
 	# Radius (magnitude) stays constant for quantum state
