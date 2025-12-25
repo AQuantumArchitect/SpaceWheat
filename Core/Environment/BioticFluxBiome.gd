@@ -672,9 +672,11 @@ func _apply_spring_attraction(dt: float) -> void:
 				var sun_target = _bloch_vector(sun_qubit.theta, sun_qubit.phi)
 				var wheat_spring = wheat_icon["spring_constant"] if wheat_icon is Dictionary else wheat_icon.spring_constant
 				_apply_bloch_torque(qubit, sun_target, wheat_spring * 0.5, dt)  # 0.5 weight for hybrid
-				# Update wheat_icon's preferred rest to track sun
-				wheat_icon["stable_theta"] = sun_qubit.theta
-				wheat_icon["stable_phi"] = sun_qubit.phi
+				# Blend toward sun (90%) + preferred rest (10%)
+				var pref_theta = wheat_icon["preferred_theta"]
+				var pref_phi = wheat_icon["preferred_phi"]
+				wheat_icon["stable_theta"] = lerp(pref_theta, sun_qubit.theta, 0.5)
+				wheat_icon["stable_phi"] = lerp(pref_phi, sun_qubit.phi, 0.5)
 
 			if mushroom_icon and sun_qubit:
 				# Moon is opposite to sun (θ → π - θ, φ → φ + π)
@@ -683,18 +685,22 @@ func _apply_spring_attraction(dt: float) -> void:
 				var moon_target = _bloch_vector(moon_theta, moon_phi)
 				var mushroom_spring = mushroom_icon["spring_constant"] if mushroom_icon is Dictionary else mushroom_icon.spring_constant
 				_apply_bloch_torque(qubit, moon_target, mushroom_spring * 0.5, dt)  # 0.5 weight for hybrid
-				# Update mushroom_icon's preferred rest to track moon
-				mushroom_icon["stable_theta"] = moon_theta
-				mushroom_icon["stable_phi"] = moon_phi
+				# Blend toward moon (90%) + preferred rest (10%)
+				var pref_theta = mushroom_icon["preferred_theta"]
+				var pref_phi = mushroom_icon["preferred_phi"]
+				mushroom_icon["stable_theta"] = lerp(pref_theta, moon_theta, 0.5)
+				mushroom_icon["stable_phi"] = lerp(pref_phi, moon_phi, 0.5)
 		else:
 			# SPECIALIST: Apply torque toward appropriate celestial body
 			if is_wheat and wheat_icon and sun_qubit:
 				var sun_target = _bloch_vector(sun_qubit.theta, sun_qubit.phi)
 				var spring = wheat_icon["spring_constant"] if wheat_icon is Dictionary else wheat_icon.spring_constant
 				_apply_bloch_torque(qubit, sun_target, spring, dt)
-				# Update wheat_icon's preferred rest to track sun
-				wheat_icon["stable_theta"] = sun_qubit.theta
-				wheat_icon["stable_phi"] = sun_qubit.phi
+				# Blend toward sun (90%) + preferred rest (10%)
+				var pref_theta = wheat_icon["preferred_theta"]
+				var pref_phi = wheat_icon["preferred_phi"]
+				wheat_icon["stable_theta"] = lerp(pref_theta, sun_qubit.theta, 0.5)
+				wheat_icon["stable_phi"] = lerp(pref_phi, sun_qubit.phi, 0.5)
 			elif is_mushroom and mushroom_icon and sun_qubit:
 				# Mushroom's preferred rest location = MOON's current position
 				var moon_theta = PI - sun_qubit.theta
@@ -702,9 +708,11 @@ func _apply_spring_attraction(dt: float) -> void:
 				var moon_target = _bloch_vector(moon_theta, moon_phi)
 				var spring = mushroom_icon["spring_constant"] if mushroom_icon is Dictionary else mushroom_icon.spring_constant
 				_apply_bloch_torque(qubit, moon_target, spring, dt)
-				# Update mushroom_icon's preferred rest to track moon
-				mushroom_icon["stable_theta"] = moon_theta
-				mushroom_icon["stable_phi"] = moon_phi
+				# Blend toward moon (90%) + preferred rest (10%)
+				var pref_theta = mushroom_icon["preferred_theta"]
+				var pref_phi = mushroom_icon["preferred_phi"]
+				mushroom_icon["stable_theta"] = lerp(pref_theta, moon_theta, 0.5)
+				mushroom_icon["stable_phi"] = lerp(pref_phi, moon_phi, 0.5)
 
 
 func _apply_icon_rest_attraction(dt: float) -> void:
@@ -951,8 +959,7 @@ func _evolve_quantum_substrate(dt: float) -> void:
 	# Layer 1b: Apply spring attraction to icon stable points (Hooke's law for rotation)
 	_apply_spring_attraction(dt)
 
-	# Layer 1c: Apply weak spring attraction pulling Icons toward their preferred rest locations
-	_apply_icon_rest_attraction(dt)
+	# Layer 1c: Icon rest attraction (now blended into spring_attraction, so skip)
 
 	# Layer 2: Apply Biome non-Hamiltonian effects (open system dynamics)
 	_apply_energy_transfer(dt)

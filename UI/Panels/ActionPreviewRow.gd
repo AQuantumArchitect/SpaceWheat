@@ -170,7 +170,7 @@ func _on_action_button_pressed(action_key: String) -> void:
 
 
 func _add_corner_markers() -> void:
-	"""Add colored markers at all four corners to visualize toolbar bounds"""
+	"""Add corner markers and output detailed layout debug info"""
 	var marker_size = 10
 	var colors = {
 		"TL": Color.RED,      # Top-left
@@ -219,4 +219,12 @@ func _add_corner_markers() -> void:
 	br.offset_top = -marker_size
 	add_child(br)
 
-	print("📍 ActionPreviewRow corner markers added: TL=RED, TR=GREEN, BL=BLUE, BR=YELLOW")
+	# DEBUG OUTPUT
+	print("═══════════════════════════════════════════════════════════════")
+	print("DEBUG: ActionPreviewRow (Q/E/R toolbar)")
+	print("═══════════════════════════════════════════════════════════════")
+	print("  Name: ActionPreviewRow")
+	print("  Parent: %s" % get_parent().name)
+	print("  Size flags H: %d (3=SIZE_EXPAND_FILL)" % size_flags_horizontal)
+	print("  Custom minimum size: %s" % custom_minimum_size)
+	print("═══════════════════════════════════════════════════════════════")

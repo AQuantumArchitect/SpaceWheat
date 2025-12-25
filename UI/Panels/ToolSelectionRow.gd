@@ -164,7 +164,7 @@ func _on_tool_button_pressed(tool_num: int) -> void:
 
 
 func _add_corner_markers() -> void:
-	"""Add colored markers at all four corners to visualize toolbar bounds"""
+	"""Add corner markers and output detailed layout debug info"""
 	var marker_size = 10
 	var colors = {
 		"TL": Color.RED,      # Top-left
@@ -213,4 +213,12 @@ func _add_corner_markers() -> void:
 	br.offset_top = -marker_size
 	add_child(br)
 
-	print("📍 ToolSelectionRow corner markers added: TL=RED, TR=GREEN, BL=BLUE, BR=YELLOW")
+	# DEBUG OUTPUT
+	print("═══════════════════════════════════════════════════════════════")
+	print("DEBUG: ToolSelectionRow (1-6 toolbar)")
+	print("═══════════════════════════════════════════════════════════════")
+	print("  Name: ToolSelectionRow")
+	print("  Parent: %s" % get_parent().name)
+	print("  Size flags H: %d (3=SIZE_EXPAND_FILL)" % size_flags_horizontal)
+	print("  Custom minimum size: %s" % custom_minimum_size)
+	print("═══════════════════════════════════════════════════════════════")
