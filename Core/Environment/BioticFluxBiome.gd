@@ -92,8 +92,8 @@ func _ready():
 		"stable_phi": 0.0,            # Current target: SUN's φ
 		"spring_constant": 0.5,       # Attraction to sun/moon (for crops)
 		"icon_spring_constant": 2.5,  # Attraction to preferred rest point (balanced)
-		"preferred_theta": PI / 4.0,  # Wheat Icon's preferred rest: 45° (morning)
-		"preferred_phi": 3.0 * PI / 2.0,  # Wheat Icon's preferred rest: fall quadrant (φ ≈ 270°)
+		"preferred_theta": PI / 4.0,  # Wheat Icon's preferred rest: 45° (morning on sun's tilt)
+		"preferred_phi": PI / 2.0,    # Wheat Icon's preferred rest: afternoon quadrant (φ ≈ 90°, 3 PM equivalent)
 		"internal_qubit": wheat_internal,
 		"target_qubit_pos": Vector2i(-1, -1)
 	}
@@ -525,32 +525,33 @@ func _compose_total_hamiltonian() -> Dictionary:
 
 
 func _apply_celestial_oscillation(dt: float) -> void:
-	"""Drive sun/moon qubit through day-night cycle on Bloch sphere
+	"""Drive sun/moon qubit on tilted ecliptic path (like Earth's orbit)
 
-	Path: Sun traverses from north pole (day) to south pole (night)
-	- θ(t) = (t/period) * π - goes from 0° (north/day) to 180° (south/night)
-	- φ(t) = (t/period) * 2π - continuous azimuthal rotation
+	Path: Sun traces a great circle tilted 23.5° from equator (Earth's axial tilt)
+	- θ(φ) = π/2 + tilt·sin(φ) keeps sun on the tilted ecliptic
+	- φ(t) = (t/period) * 2π rotates continuously around the ecliptic
+	- tilt = 23.5° = 0.41 radians (Earth's axial tilt angle)
 
-	This is a true day-night cycle with continuous Bloch sphere dynamics:
-	- At θ=0: Daytime (north pole), sun_brightness=1.0, moon_brightness=0.0
-	- At θ=π/2: Twilight (equator), sun_brightness=0.5, moon_brightness=0.5
-	- At θ=π: Nighttime (south pole), sun_brightness=0.0, moon_brightness=1.0
+	Brightness is based on which pole sun's θ points toward (not position on ecliptic):
+	- sun_brightness = cos²(θ/2) - peaks when θ near 0 (north/day)
+	- moon_brightness = sin²(θ/2) - peaks when θ near π (south/night)
 
-	This is deterministic - not quantum evolution, but classical driving force
+	Wheat positioned in afternoon quadrant of sun's tilt for dynamic play.
 	"""
 	if not sun_qubit:
 		return
 
-	# Time-based progression from day to night
+	# Time-based continuous rotation around ecliptic great circle
 	var cycle_time = fmod(time_tracker.time_elapsed, sun_moon_period)
-	var phase = cycle_time / sun_moon_period  # 0 → 1 over one period
+	var phi = (cycle_time / sun_moon_period) * TAU  # 0 → 2π full rotation
 
-	# Position: traverse from near north pole (day) to near south pole (night)
-	# Avoid exact poles (θ=0 or θ=π) where φ becomes degenerate
-	# Use small epsilon to keep path numerically stable: ~0.05 rad offset
-	var pole_offset = 0.05  # radians (~2.9°) - avoids singularities
-	sun_qubit.theta = pole_offset + phase * (PI - 2.0 * pole_offset)
-	sun_qubit.phi = phase * TAU  # Continuous azimuthal rotation
+	# Ecliptic tilt (23.5° - Earth's axial tilt)
+	var ecliptic_tilt = 23.5 * PI / 180.0  # ~0.41 radians
+
+	# Position on tilted great circle
+	# θ(φ) = π/2 + tilt·sin(φ) keeps sun on the tilted ecliptic path
+	sun_qubit.phi = phi
+	sun_qubit.theta = PI / 2.0 + ecliptic_tilt * sin(phi)
 
 	# Radius (magnitude) stays constant for quantum state
 	sun_qubit.radius = 1.0
