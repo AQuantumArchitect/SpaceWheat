@@ -22,6 +22,17 @@ func _ready() -> void:
 	"""Initialize player shell UI - children defined in scene"""
 	print("🎪 PlayerShell initializing...")
 
+	# CRITICAL: Ensure PlayerShell fills its parent (FarmView)
+	# This is the top of the delegation cascade - everything below depends on this sizing
+	set_anchors_preset(Control.PRESET_FULL_RECT)
+
+	# Explicitly match parent size (in case anchors don't work due to layout_mode mismatch)
+	if get_parent():
+		size = get_parent().size
+		print("✅ PlayerShell sized to fill parent: %.0f × %.0f" % [size.x, size.y])
+	else:
+		print("✅ PlayerShell anchored to fill parent")
+
 	# Get reference to containers from scene
 	farm_ui_container = get_node("FarmUIContainer")
 	var overlay_layer = get_node("OverlayLayer")

@@ -107,7 +107,7 @@ func _ready():
 		"spring_constant": 0.5,       # Attraction to sun/moon (for crops)
 		"icon_spring_constant": 2.5,  # Attraction to preferred rest point (balanced)
 		"preferred_theta": PI,        # Mushroom Icon's preferred rest: π (midnight, south pole)
-		"preferred_phi": 0.0,         # Mushroom Icon's preferred rest: φ = 0
+		"preferred_phi": PI / 2.0,    # Mushroom Icon's preferred rest: φ = 90° (pointing up)
 		"target_qubit_pos": Vector2i(-1, -1)
 	}
 	mushroom_energy_influence = 0.28  # Balance: allow some night growth, but sun damage dominates day
@@ -525,33 +525,34 @@ func _compose_total_hamiltonian() -> Dictionary:
 
 
 func _apply_celestial_oscillation(dt: float) -> void:
-	"""Drive sun/moon qubit on tilted circular orbit (Bloch sphere great circle)
+	"""Drive sun/moon qubit on circular orbit centered at north
 
-	Path: Sun traces a circular great circle tilted 10° from equator
-	- θ(φ) = π/2 + tilt·sin(φ) keeps sun on the tilted great circle
+	Path: Sun traces a circular great circle with brightest point at θ = 10°
+	- θ(φ) = center_theta + amplitude·sin(φ) oscillates around 10° from north
 	- φ(t) = (t/period) * 2π rotates continuously around the orbit
-	- tilt = 10° = 0.175 radians
+	- center = 10° from north pole, amplitude = 10° → θ ranges 0°-20°
 
-	Brightness is based on which pole sun's θ points toward (not position on ecliptic):
+	Brightness is based on which pole sun's θ points toward:
 	- sun_brightness = cos²(θ/2) - peaks when θ near 0 (north/day)
 	- moon_brightness = sin²(θ/2) - peaks when θ near π (south/night)
-
-	Wheat positioned in afternoon quadrant of sun's tilt for dynamic play.
 	"""
 	if not sun_qubit:
 		return
 
-	# Time-based continuous rotation around ecliptic great circle
+	# Time-based continuous rotation around sun's orbit
 	var cycle_time = fmod(time_tracker.time_elapsed, sun_moon_period)
 	var phi = (cycle_time / sun_moon_period) * TAU  # 0 → 2π full rotation
 
-	# Circular orbit tilt (10° - softer tilt for gameplay)
-	var ecliptic_tilt = 10.0 * PI / 180.0  # ~0.175 radians
+	# Great circle with zenith 10° from north pole
+	# θ ranges from 10° (zenith/brightest day) to 170° (opposite/brightest night)
+	var zenith_theta = 10.0 * PI / 180.0  # 10° from north pole
 
-	# Position on tilted great circle
-	# θ(φ) = π/2 + tilt·sin(φ) keeps sun on the tilted ecliptic path
+	# Great circle parametrization: θ = arccos(cos(zenith) * cos(φ))
+	# - At φ=0: θ = zenith (brightest day)
+	# - At φ=π: θ = 180° - zenith (brightest night)
+	# - At φ=π/2, 3π/2: θ = 90° (equator)
 	sun_qubit.phi = phi
-	sun_qubit.theta = PI / 2.0 + ecliptic_tilt * sin(phi)
+	sun_qubit.theta = acos(cos(zenith_theta) * cos(phi))
 
 	# Radius (magnitude) stays constant for quantum state
 	sun_qubit.radius = 1.0
@@ -867,7 +868,7 @@ func _apply_energy_transfer(dt: float) -> void:
 
 			# Mushroom component: absorbs energy from NIGHT (opposite to sun = away from ☀️)
 			var mushroom_amplitude = mushroom_prob
-			var mushroom_rate = base_energy_rate * mushroom_amplitude * (1.0 - sun_brightness) * (1.0 - sun_alignment) * mushroom_energy_influence
+			var mushroom_rate = base_energy_rate * mushroom_amplitude * (1.0 - sun_brightness) * mushroom_energy_influence
 
 			# Total: smoothly transitions between wheat and mushroom effects
 			# At θ=0: 100% wheat (day), 0% mushroom (wheat shields mushroom from sun damage)
@@ -888,10 +889,10 @@ func _apply_energy_transfer(dt: float) -> void:
 			# Amplitude: relative to crop's native phase
 			var amplitude_self: float
 			if is_mushroom:
-				# Mushroom: absorbs energy from NIGHT (opposite to sun = away from ☀️)
+				# Mushroom: absorbs energy from NIGHT (brightness-based only, no alignment modulation)
 				# Native phase is θ=π (midnight), amplitude peaks when opposite to sun
 				amplitude_self = pow(cos((qubit.theta - PI) / 2.0), 2)
-				energy_rate = base_energy_rate * amplitude_self * (1.0 - sun_brightness) * (1.0 - sun_alignment) * icon_influence
+				energy_rate = base_energy_rate * amplitude_self * (1.0 - sun_brightness) * icon_influence
 				mushroom_exposure = 1.0  # Specialist mushroom is fully exposed to sun damage (still takes damage during day)
 			else:
 				# Wheat: absorbs energy from DAY (aligned with sun)
@@ -910,7 +911,7 @@ func _apply_energy_transfer(dt: float) -> void:
 			# At day with sun-aligned mushroom: strong damage
 			# At night with sun-opposite mushroom: negligible damage
 			var sun_brightness_damage = pow(sun_qubit.radius, 2)  # Damage scales with brightness squared
-			var sun_damage_modulation = sun_alignment  # Damage strongest when aligned with sun
+			var sun_damage_modulation = sun_brightness  # Damage strongest when sun is bright (not alignment-dependent)
 			# Moderate damage coefficient: mushrooms drop to ~40% during day, harvest before wilting completely
 			var damage_rate = 0.40 * sun_brightness_damage * sun_damage_modulation * mushroom_exposure
 			qubit.grow_energy(-damage_rate, dt)  # Negative energy = damage

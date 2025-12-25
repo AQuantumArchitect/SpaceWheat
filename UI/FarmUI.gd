@@ -48,19 +48,23 @@ func _ready() -> void:
 
 	print("   ✅ All child nodes referenced")
 
-	# Trust the layout engine to size this properly
-	# FarmUI anchors (0-1) are already set in scene, so it should fill parent
+	# CRITICAL: Ensure FarmUI fills its parent (FarmUIContainer)
+	# This continues the delegation cascade: FarmView → PlayerShell → FarmUIContainer → FarmUI
+	set_anchors_preset(Control.PRESET_FULL_RECT)
 
-	# DEBUG: Log parent chain to understand sizing issue
+	# Wait one frame for layout engine to calculate parent sizes
+	# After this, the cascade should be: PlayerShell (sized) → FarmUIContainer (fills PlayerShell) → FarmUI (fills FarmUIContainer)
 	await get_tree().process_frame
+
+	# Verify the cascade is working
 	var parent = get_parent()
 	var grandparent = parent.get_parent() if parent else null
 	var great_grandparent = grandparent.get_parent() if grandparent else null
 
-	print("\n📏 PARENT CHAIN SIZES:")
-	print("  Great-grandparent (%s): %.0f × %.0f" % [great_grandparent.name if great_grandparent else "null", great_grandparent.size.x if great_grandparent else 0, great_grandparent.size.y if great_grandparent else 0])
-	print("  Grandparent (%s): %.0f × %.0f" % [grandparent.name if grandparent else "null", grandparent.size.x if grandparent else 0, grandparent.size.y if grandparent else 0])
-	print("  Parent (%s): %.0f × %.0f" % [parent.name if parent else "null", parent.size.x if parent else 0, parent.size.y if parent else 0])
+	print("\n📏 SIZE CASCADE (should flow down from FarmView):")
+	print("  FarmView (root): %.0f × %.0f" % [great_grandparent.size.x if great_grandparent else 0, great_grandparent.size.y if great_grandparent else 0])
+	print("  PlayerShell: %.0f × %.0f" % [grandparent.size.x if grandparent else 0, grandparent.size.y if grandparent else 0])
+	print("  FarmUIContainer: %.0f × %.0f" % [parent.size.x if parent else 0, parent.size.y if parent else 0])
 	print("  FarmUI: %.0f × %.0f" % [size.x, size.y])
 	var main_container = get_node_or_null("MainContainer")
 	if main_container:
