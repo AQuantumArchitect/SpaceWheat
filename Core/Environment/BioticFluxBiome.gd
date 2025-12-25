@@ -87,22 +87,28 @@ func _ready():
 	wheat_internal.energy = 1.0
 
 	wheat_icon = {
-		"hamiltonian_terms": {"sigma_x": 0.0, "sigma_y": 0.0, "sigma_z": 0.1},
-		"stable_theta": PI / 2.0,     # Target: SUN position (oscillates, no longer fixed!)
-		"stable_phi": 0.0,            # Will follow sun's φ dynamically
-		"spring_constant": 0.5,
+		"hamiltonian_terms": {"sigma_x": 0.0, "sigma_y": 0.0, "sigma_z": 0.0},  # Removed sigma_z
+		"stable_theta": PI / 2.0,     # Current target: SUN position (moves with sun)
+		"stable_phi": 0.0,            # Current target: SUN's φ
+		"spring_constant": 0.5,       # Attraction to sun/moon (for crops)
+		"icon_spring_constant": 0.1,  # WEAK attraction to preferred rest point
+		"preferred_theta": PI / 4.0,  # Wheat Icon's preferred rest: 45° (morning)
+		"preferred_phi": 3.0 * PI / 2.0,  # Wheat Icon's preferred rest: fall quadrant (φ ≈ 270°)
 		"internal_qubit": wheat_internal,
-		"target_qubit_pos": Vector2i(-1, -1)  # TARGET THE SUN/MOON POSITION
+		"target_qubit_pos": Vector2i(-1, -1)
 	}
 	# Keep wheat_energy_influence at tuned 0.017 for 3-day 30%→90% growth (don't override)
 
 	# MUSHROOM ICON - Create fallback directly
 	mushroom_icon = {
-		"hamiltonian_terms": {"sigma_x": 0.0, "sigma_y": 0.0, "sigma_z": 0.023},
-		"stable_theta": PI / 2.0,     # Target: MOON position (oscillates opposite to sun!)
-		"stable_phi": PI,             # 180° offset in φ from sun
-		"spring_constant": 0.5,
-		"target_qubit_pos": Vector2i(-1, -1)  # TARGET THE SUN/MOON POSITION
+		"hamiltonian_terms": {"sigma_x": 0.0, "sigma_y": 0.0, "sigma_z": 0.0},  # Removed sigma_z
+		"stable_theta": PI / 2.0,     # Current target: MOON position
+		"stable_phi": PI,             # Current target: MOON's φ
+		"spring_constant": 0.5,       # Attraction to sun/moon (for crops)
+		"icon_spring_constant": 0.1,  # WEAK attraction to preferred rest point
+		"preferred_theta": PI,        # Mushroom Icon's preferred rest: π (midnight, south pole)
+		"preferred_phi": 0.0,         # Mushroom Icon's preferred rest: φ = 0
+		"target_qubit_pos": Vector2i(-1, -1)
 	}
 	mushroom_energy_influence = 0.04
 
@@ -701,6 +707,36 @@ func _apply_spring_attraction(dt: float) -> void:
 				mushroom_icon["stable_phi"] = moon_phi
 
 
+func _apply_icon_rest_attraction(dt: float) -> void:
+	"""Apply weak spring attraction pulling Icons toward their preferred rest locations
+
+	Icons have preferred "home" positions:
+	- Wheat Icon: (θ=π/4, φ=3π/2) - Morning in fall season
+	- Mushroom Icon: (θ=π, φ=0) - Perfect midnight
+
+	These are much weaker than crop attraction (0.1 vs 0.5) so icons mostly follow
+	the sun/moon but slowly drift back toward their preferred resting points.
+	"""
+	if not wheat_icon or not wheat_icon.get("internal_qubit"):
+		return
+	if not mushroom_icon or not mushroom_icon.get("internal_qubit"):
+		return
+
+	# WHEAT ICON: Spring toward (π/4, fall quadrant)
+	var wheat_rest_theta = wheat_icon["preferred_theta"]
+	var wheat_rest_phi = wheat_icon["preferred_phi"]
+	var wheat_rest_vector = _bloch_vector(wheat_rest_theta, wheat_rest_phi)
+	var wheat_spring = wheat_icon["icon_spring_constant"]
+	_apply_bloch_torque(wheat_icon["internal_qubit"], wheat_rest_vector, wheat_spring, dt)
+
+	# MUSHROOM ICON: Spring toward (π, 0) - midnight
+	var mushroom_rest_theta = mushroom_icon["preferred_theta"]
+	var mushroom_rest_phi = mushroom_icon["preferred_phi"]
+	var mushroom_rest_vector = _bloch_vector(mushroom_rest_theta, mushroom_rest_phi)
+	var mushroom_spring = mushroom_icon["icon_spring_constant"]
+	_apply_bloch_torque(mushroom_icon["internal_qubit"], mushroom_rest_vector, mushroom_spring, dt)
+
+
 func _get_icon_influence_for_crop(position: Vector2i) -> float:
 	"""Get energy influence for crop at position based on crop type"""
 	if not grid:
@@ -914,6 +950,9 @@ func _evolve_quantum_substrate(dt: float) -> void:
 
 	# Layer 1b: Apply spring attraction to icon stable points (Hooke's law for rotation)
 	_apply_spring_attraction(dt)
+
+	# Layer 1c: Apply weak spring attraction pulling Icons toward their preferred rest locations
+	_apply_icon_rest_attraction(dt)
 
 	# Layer 2: Apply Biome non-Hamiltonian effects (open system dynamics)
 	_apply_energy_transfer(dt)

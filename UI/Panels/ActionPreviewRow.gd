@@ -68,7 +68,8 @@ func _ready():
 		# Use SIZE_EXPAND_FILL (3) to make buttons expand to fill available space
 		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		button.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-		# Don't set stretch_ratio - let equal spacing happen naturally
+		# Set stretch_ratio to 1.0 to distribute width equally among all buttons
+		button.size_flags_stretch_ratio = 1.0
 		button.custom_minimum_size = Vector2(0, 50 * scale_factor)  # 0 width = full expansion
 
 		button.modulate = button_color
