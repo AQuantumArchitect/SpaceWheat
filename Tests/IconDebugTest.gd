@@ -11,10 +11,11 @@ var mushroom: DualEmojiQubit
 var measurement_count = 0
 
 func _ready() -> void:
-	print("\n" + "═" * 100)
+	var sep = "════════════════════════════════════════════════════════════════════════════════════════════════════"
+	print("\n" + sep)
 	print("ICON DEBUG TEST")
 	print("Check if stable_theta/stable_phi blending is actually being applied")
-	print("═" * 100)
+	print(sep)
 
 	# Create biome
 	biome = BioticFluxBiome.new()
@@ -59,7 +60,7 @@ func _ready() -> void:
 
 	print("\n📊 STABLE THETA/PHI VALUES OVER TIME:")
 	print("Time | Sun θ  | Sun φ  | Wheat stable_θ | Wheat stable_φ | Mushroom stable_θ | Mushroom stable_φ")
-	print("─" * 100)
+	print("─────────────────────────────────────────────────────────────────────────────────────────────────────")
 
 	# Run for 10 seconds, sampling every 0.5 seconds
 	var total_time = 0.0
@@ -78,9 +79,9 @@ func _ready() -> void:
 			_print_icon_status(total_time)
 			next_sample += 0.5
 
-	print("\n" + "═" * 100)
+	print("\n════════════════════════════════════════════════════════════════════════════════════════════════════")
 	print("ANALYSIS:")
-	print("═" * 100)
+	print("════════════════════════════════════════════════════════════════════════════════════════════════════")
 	print("\nIf blending is working (50% rest + 50% sun/moon):")
 	print("  - Wheat stable_φ should be: 50% * 270° + 50% * sun_φ")
 	print("  - Should trend toward 270° but mostly follow sun")
@@ -88,7 +89,7 @@ func _ready() -> void:
 	print("  - Should blend but mostly follow moon")
 	print("\nIf blending is NOT working:")
 	print("  - Icons will ONLY follow sun/moon with no drift toward preferred rests")
-	print("\n" + "═" * 100 + "\n")
+	print("\n════════════════════════════════════════════════════════════════════════════════════════════════════\n")
 	get_tree().quit()
 
 

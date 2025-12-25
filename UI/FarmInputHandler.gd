@@ -66,10 +66,10 @@ func _ready():
 	if VERBOSE:
 		print("📍 Starting position: %s" % current_selection)
 		print("🛠️  Current tool: %s" % TOOL_ACTIONS[current_tool]["name"])
-	# CRITICAL: Don't process input until PlotGridDisplay is ready with tiles
-	# This prevents race conditions where input arrives before UI initialization
-	set_process_input(false)
-	call_deferred("_enable_input_processing")
+	# Input is ready immediately - PlotGridDisplay is initialized before this
+	# No deferred calls needed
+	set_process_input(true)
+	print("✅ Input processing enabled (no deferred delays)")
 	_print_help()
 
 
