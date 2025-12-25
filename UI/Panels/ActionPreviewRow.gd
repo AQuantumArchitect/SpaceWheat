@@ -228,3 +228,14 @@ func _add_corner_markers() -> void:
 	print("  Size flags H: %d (3=SIZE_EXPAND_FILL)" % size_flags_horizontal)
 	print("  Custom minimum size: %s" % custom_minimum_size)
 	print("═══════════════════════════════════════════════════════════════")
+
+
+func _debug_actual_size() -> void:
+	"""Debug output showing actual layout size after layout completes"""
+	print("ACTUAL_SIZE: ActionPreviewRow")
+	print("  Position: (%.0f, %.0f)" % [position.x, position.y])
+	print("  Size: %.0f × %.0f" % [size.x, size.y])
+	var parent = get_parent()
+	if parent:
+		print("  Parent size: %.0f × %.0f" % [parent.size.x, parent.size.y])
+	print("  Is stretched? %s" % ("YES" if size.x > custom_minimum_size.x * 1.5 else "NO"))
