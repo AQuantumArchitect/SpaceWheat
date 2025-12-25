@@ -110,7 +110,7 @@ func _ready():
 		"preferred_phi": PI / 2.0,    # Mushroom Icon's preferred rest: φ = 90° (pointing up)
 		"target_qubit_pos": Vector2i(-1, -1)
 	}
-	mushroom_energy_influence = 0.28  # Balance: allow some night growth, but sun damage dominates day
+	mushroom_energy_influence = 0.40  # Increased: mushrooms spring up stronger at night
 
 	# TODO: Initialize biotic flux icon when script parsing issues are resolved
 	# For now, sun damage to fungi is applied directly in _apply_energy_transfer()
@@ -911,7 +911,7 @@ func _apply_energy_transfer(dt: float) -> void:
 			var sun_brightness_damage = pow(sun_qubit.radius, 2)  # Damage scales with brightness squared
 			var sun_damage_modulation = sun_brightness  # Damage strongest when sun is bright (not alignment-dependent)
 			# Moderate damage coefficient: mushrooms drop to ~40% during day, harvest before wilting completely
-			var damage_rate = 0.40 * sun_brightness_damage * sun_damage_modulation * mushroom_exposure
+			var damage_rate = 0.20 * sun_brightness_damage * sun_damage_modulation * mushroom_exposure
 			qubit.grow_energy(-damage_rate, dt)  # Negative energy = damage
 
 		# Sync radius with energy
