@@ -35,6 +35,11 @@ func _ready() -> void:
 
 	# Get reference to containers from scene
 	farm_ui_container = get_node("FarmUIContainer")
+
+	# Also size FarmUIContainer to fill this PlayerShell
+	if farm_ui_container:
+		farm_ui_container.size = size
+		print("✅ FarmUIContainer sized to fill PlayerShell: %.0f × %.0f" % [farm_ui_container.size.x, farm_ui_container.size.y])
 	var overlay_layer = get_node("OverlayLayer")
 
 	# Create and initialize UILayoutManager (needs to be in scene tree for _ready())

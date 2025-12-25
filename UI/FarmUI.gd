@@ -52,8 +52,23 @@ func _ready() -> void:
 	# This continues the delegation cascade: FarmView → PlayerShell → FarmUIContainer → FarmUI
 	set_anchors_preset(Control.PRESET_FULL_RECT)
 
-	# Wait one frame for layout engine to calculate parent sizes
-	# After this, the cascade should be: PlayerShell (sized) → FarmUIContainer (fills PlayerShell) → FarmUI (fills FarmUIContainer)
+	# Explicitly match parent size (in case anchors don't work due to layout_mode mismatch)
+	if get_parent():
+		size = get_parent().size
+		print("✅ FarmUI sized to fill FarmUIContainer: %.0f × %.0f" % [size.x, size.y])
+	else:
+		print("✅ FarmUI anchored to fill parent")
+
+	# Also size MainContainer to fill FarmUI (it has layout_mode=1 which has the same issue)
+	# Use set_deferred to avoid being overridden by layout engine
+	var main_container = get_node_or_null("MainContainer")
+	if main_container:
+		main_container.set_deferred("size", size)
+
+	# Apply responsive sizing BEFORE layout engine runs (critical - must happen in _ready)
+	_apply_parametric_sizing()
+
+	# Wait one frame for layout engine to calculate subsequent sizes
 	await get_tree().process_frame
 
 	# Verify the cascade is working
@@ -66,7 +81,6 @@ func _ready() -> void:
 	print("  PlayerShell: %.0f × %.0f" % [grandparent.size.x if grandparent else 0, grandparent.size.y if grandparent else 0])
 	print("  FarmUIContainer: %.0f × %.0f" % [parent.size.x if parent else 0, parent.size.y if parent else 0])
 	print("  FarmUI: %.0f × %.0f" % [size.x, size.y])
-	var main_container = get_node_or_null("MainContainer")
 	if main_container:
 		print("  MainContainer: %.0f × %.0f" % [main_container.size.x, main_container.size.y])
 
