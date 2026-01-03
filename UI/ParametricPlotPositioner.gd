@@ -7,6 +7,9 @@ class_name ParametricPlotPositioner
 ##
 ## Architecture: Plots are FOUNDATION (fixed positions), QuantumForceGraph tethers to them
 
+# CRITICAL: MUST match BiomeLayoutCalculator.BASE_REFERENCE_RADIUS!
+const BASE_REFERENCE_RADIUS = 300.0
+
 const GridConfig = preload("res://Core/GameState/GridConfig.gd")
 
 var grid_config: GridConfig = null
@@ -44,6 +47,11 @@ func get_classical_plot_positions() -> Dictionary:
 		print("⚠️  ParametricPlotPositioner: GridConfig not set!")
 		return classical_positions
 
+	# Fallback: If no biomes available, use simple grid layout
+	if biomes.is_empty():
+		print("⚠️  No biomes available - using fallback grid layout")
+		return _get_fallback_grid_positions()
+
 	# Group plots by biome (same logic as QuantumForceGraph)
 	var plots_by_biome: Dictionary = {}
 	var total_plots = 0
@@ -64,7 +72,8 @@ func get_classical_plot_positions() -> Dictionary:
 		print("     - %s: %d plots" % [biome_name, plots_by_biome[biome_name].size()])
 
 	# Calculate viewport scaling for oval sizing
-	var viewport_scale = graph_radius / 500.0  # Scale based on graph size
+	# CRITICAL: Must use same BASE_REFERENCE_RADIUS as BiomeLayoutCalculator!
+	var viewport_scale = graph_radius / BASE_REFERENCE_RADIUS
 
 	# Calculate parametric positions for each biome's plots
 	for biome_name in plots_by_biome:
@@ -75,6 +84,13 @@ func get_classical_plot_positions() -> Dictionary:
 		var biome_obj = biomes[biome_name]
 		var biome_config = biome_obj.get_visual_config()
 		var biome_center = graph_center + biome_config.center_offset * graph_radius
+
+		# DEBUG: Show biome positioning calculation
+		print("🔵 Biome '%s': center_offset=%s, oval_width=%.1f, viewport_scale=%.3f" % [
+			biome_name, biome_config.center_offset, biome_config.oval_width, viewport_scale
+		])
+		print("   Calculated biome_center: (%.1f, %.1f)" % [biome_center.x, biome_center.y])
+		print("   graph_center=%s, graph_radius=%.1f" % [graph_center, graph_radius])
 
 		# Get parametric ring positions from biome
 		var all_plots = plots_by_biome[biome_name]
@@ -118,3 +134,21 @@ func get_plot_position(grid_pos: Vector2i) -> Vector2:
 	"""
 	var positions = get_classical_plot_positions()
 	return positions.get(grid_pos, Vector2.ZERO)
+
+
+func _get_fallback_grid_positions() -> Dictionary:
+	"""Simple 6×2 grid layout when no biomes available
+
+	Returns: Dictionary mapping Vector2i (grid position) → Vector2 (screen position)
+	"""
+	var positions: Dictionary = {}
+	var spacing = 100
+	var offset = Vector2(50, 50)
+
+	for plot_config in grid_config.get_all_active_plots():
+		var pos = plot_config.position
+		var screen_pos = offset + Vector2(pos.x * spacing, pos.y * spacing)
+		positions[pos] = screen_pos
+
+	print("   Fallback grid: %d plots positioned" % positions.size())
+	return positions

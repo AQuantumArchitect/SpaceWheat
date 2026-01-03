@@ -1,0 +1,163 @@
+================================================================================
+FACTION DISTRIBUTION SUMMARY - 32 FACTIONS
+================================================================================
+
+Current split: 12 Material (37.5%) / 20 Mystical (62.5%)
+
+================================================================================
+MATERIAL FACTIONS (12) - Physical/Mechanical/Bureaucratic
+================================================================================
+
+IMPERIAL POWERS (3):
+  👑💀🏛️ Carrion Throne         - Bureaucracy → AMPLITUDE
+  🌾💰⚖️ Granary Guilds          - Food control → RATIO (has Subtle bit!)
+  🏢👑🌌 Station Lords           - City control → AMPLITUDE
+
+WORKING GUILDS (2):
+  🏭⚙️🔧 Obsidian Will           - Mechanical purists → AMPLITUDE
+  🔧🛠️🚐 Tinker Team             - Repair work → AMPLITUDE
+
+MERCHANTS (1):
+  🦴💉🛒 Bone Merchants           - Physical surgeries → AMPLITUDE
+
+MILITANT ORDERS (2):
+  ⚔️⚰️⚫️ Brotherhood of Ash      - Physical mercenaries → AMPLITUDE
+  🔥✊⚡️ Children of the Ember    - Physical revolution → AMPLITUDE
+
+SCAVENGERS (2):
+  🚢🦴⚙️ Rust Fleet              - Mechanical scavenging → AMPLITUDE
+  🦗🍃💀 Locusts                  - Physical consumption → AMPLITUDE
+
+DEFENSIVE COMMUNITIES (2):
+  🌱🏡🛡️ Clan of the Hidden Root - Physical farming → AMPLITUDE
+  🌿🏠🔒 Terrarium Collective     - Physical construction → AMPLITUDE
+
+================================================================================
+MYSTICAL FACTIONS (20) - Consciousness/Ethereal/Supernatural
+================================================================================
+
+IMPERIAL POWERS (1):
+  🌹🗡️👑 House of Thorns         - Poison/alchemy → RATIO (Mystical + Subtle!)
+
+WORKING GUILDS (4):
+  🌾⚙️🏭 Millwright's Union      - Cosmic rhythms sensing → COHERENCE
+  🪡👘📐 Seamstress Syndicate     - Message encoding → RATIO (Subtle!)
+  ⚰️🪦🌙 Gravedigger's Union     - Death ritualists → COHERENCE
+  🎵🔨⚔️ Symphony Smiths          - Reality-tuning tools → MULTI (Prismatic!)
+
+MYSTIC ORDERS (4):
+  🧘‍♂️⚔️🔇 Keepers of Silence     - Hunting anomalies → RATIO (Subtle!)
+  🕯️🔥⛪ Sacred Flame Keepers    - Vacuum fires → RATIO (Subtle!)
+  🤖⛪🔧 Iron Confessors         - Machine-soul priests → RATIO (Subtle!)
+  🍞🧪⛪ Yeast Prophets          - Fermentation mystics → RATIO (Subtle!)
+
+MERCHANTS & TRADERS (3):
+  💎⚖️🛸 Syndicate of Glass      - Hyperspace artifacts → RATIO (Subtle!)
+  🧠💰📦 Memory Merchants         - Consciousness traders → RATIO (Subtle!)
+  🍺🗝️🕯️ Nexus Wardens           - Diplomatic mysticism → RATIO (Subtle!)
+
+MILITANT ORDERS (2):
+  🛡️🐑🚀 Iron Shepherds          - Living cathedral ships → COHERENCE
+  ⚖️🐉🩸 Order of Crimson Scale  - Judicial mysticism → COHERENCE
+
+SCAVENGERS (1):
+  🗺️🔭🚢 Cartographers           - Explorer-mystics → RATIO (Subtle!)
+
+HORROR CULTS (4):
+  🎪💀🌀 Laughing Court          - Memetic disease → RATIO (Subtle!)
+  🌊⭐️👁️ Cult of Drowned Star   - Cosmic horror → RATIO (Subtle!)
+  🎶💀🌀 Chorus of Oblivion      - Nihilistic cult → RATIO (Subtle + Focused!)
+  🧬🏗️👥 Flesh Architects        - Biological sculptors → RATIO (Subtle!)
+
+DEFENSIVE COMMUNITIES (2):
+  🌾⛓️🌌 Void Serfs              - Religious fervor → COHERENCE
+  🔮👤🌑 Veiled Sisters          - Shadow network → RATIO (Subtle!)
+
+COSMIC MANIPULATORS (3):
+  💃🎼🌟 Resonance Dancers       - Psychic tuning → MULTI (Prismatic!)
+  🐑🎲⚡ Causal Shepherds        - Causality chains → RATIO (Subtle!)
+  🐑🌍🤠 Empire Shepherds        - Civilization herders → COHERENCE
+
+ULTIMATE COSMIC ENTITIES (3):
+  🌌💀🌸 Entropy Shepherds       - Universal decay → UNIFORM (all bits=1!)
+  👑🌌⚫ Void Emperors           - Nothingness rulers → COHERENCE
+  🌟💫🥚 Reality Midwives        - Universe birth → UNIFORM (all bits=1!)
+
+================================================================================
+QUEST TYPE DISTRIBUTION ANALYSIS
+================================================================================
+
+AMPLITUDE quests (12 factions):
+  - All Material + Direct + Monochrome factions
+  - Example: "Cultivate 🌾 to 80% probability"
+  - Measures: Single emoji population (diagonal ρᵢᵢ)
+
+COHERENCE quests (7 factions):
+  - Mystical + Direct + Monochrome factions
+  - Example: "Create entanglement between 🌾 and 🍄"
+  - Measures: Quantum coherence (off-diagonal |ρᵢⱼ|²)
+
+RATIO quests (11 factions):
+  - ANY faction with Subtle bit (Material OR Mystical)
+  - Example: "Make 🌾 probability twice 🍄 probability"
+  - Measures: Population ratio ρᵢᵢ/ρⱼⱼ
+
+MULTI quests (2 factions):
+  - Prismatic bit (Symphony Smiths, Resonance Dancers)
+  - Example: "Balance 🌾, 🍄, and 💨 equally"
+  - Measures: Multiple populations simultaneously
+
+UNIFORM distribution (2 factions):
+  - All bits = 1 (Entropy Shepherds, Reality Midwives)
+  - Get 25% of each quest type (maximum complexity)
+
+================================================================================
+KEY PATTERNS
+================================================================================
+
+SUBTLE bit is DOMINANT:
+  - 11 out of 20 Mystical factions have Subtle bit
+  - This creates heavy bias toward RATIO quests
+  - Makes sense: mystical factions care about relationships, not absolutes
+
+PRISMATIC bit is RARE:
+  - Only 2 factions have Prismatic (Symphony Smiths, Resonance Dancers)
+  - Creates scarcity of MULTI quests (good for progression!)
+
+Material factions are mostly DIRECT:
+  - 11 out of 12 Material factions → AMPLITUDE quests
+  - Exception: Granary Guilds (Subtle → ratio quests for food distribution)
+
+All ULTIMATE COSMIC ENTITIES have interesting patterns:
+  - Entropy Shepherds: ALL 1s → uniform distribution
+  - Void Emperors: Mostly 1s but Direct → COHERENCE
+  - Reality Midwives: ALL 1s → uniform distribution
+
+================================================================================
+POTENTIAL ISSUES / QUESTIONS
+================================================================================
+
+1. Too many RATIO quests?
+   - 11 factions generate ratio quests (34% of total)
+   - Maybe some Subtle factions should be Direct?
+
+2. Too few MULTI quests?
+   - Only 2 factions (6% of total)
+   - Could add Prismatic bit to more factions?
+
+3. Granary Guilds anomaly:
+   - Only Material faction with RATIO quests
+   - Is this intentional? (food price ratios make sense!)
+   - Or should they be Direct for absolute quantities?
+
+4. Missing faction personality matches:
+   - Should Syndicate of Glass be Material? (physical crystals)
+   - Should Symphony Smiths be Material? (physical forging)
+   - Should Iron Shepherds be Material? (knights in ships)
+
+5. Horror Cults all have Subtle:
+   - Makes thematic sense (subtle corruption)
+   - But creates uniformity (all ratio quests)
+   - Could some be Direct for variety?
+
+================================================================================

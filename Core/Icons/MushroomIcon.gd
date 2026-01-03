@@ -3,6 +3,16 @@ class_name MushroomIcon extends IconHamiltonian
 ##
 ## Defines Hamiltonian coupling to sun's quantum state (moon phase is opposite)
 ## Icon influence (energy transfer scaling) is derived from internal qubit state
+##
+## COMPOSTING EFFECT: Passively converts detritus (🍂) to mushrooms (🍄)
+## Represents natural decomposition and fungal recycling
+
+# Economy reference for composting (set by Farm or Biome)
+var economy = null
+
+# Composting parameters
+const COMPOSTING_RATE = 0.1  # Convert 10% of detritus per second
+const COMPOSTING_RATIO = 0.5  # 2 detritus → 1 mushroom (50% efficiency)
 
 func _ready():
 	"""Initialize mushroom icon quantum state and Hamiltonian"""
@@ -35,3 +45,46 @@ func _ready():
 
 	# Sun damage: fungi harmed by sunlight (5x stronger than base)
 	sun_damage_strength = 0.05  # Max 0.05 damage/sec when aligned with sun
+
+
+func _process(delta: float):
+	"""Passive composting effect - converts detritus to mushrooms over time"""
+	if not economy:
+		if OS.get_environment("VERBOSE_LOGGING") == "1" or OS.get_environment("VERBOSE_ECONOMY") == "1":
+			print("🍄 Composting skipped: no economy reference")
+		return
+
+	if active_strength <= 0.0:
+		if OS.get_environment("VERBOSE_LOGGING") == "1" or OS.get_environment("VERBOSE_ECONOMY") == "1":
+			print("🍄 Composting skipped: activation = %.3f" % active_strength)
+		return
+
+	# Only compost if we have detritus
+	var detritus_amount = economy.get_resource("🍂")
+	if detritus_amount <= 0:
+		return
+
+	if OS.get_environment("VERBOSE_LOGGING") == "1" or OS.get_environment("VERBOSE_ECONOMY") == "1":
+		print("🍄 Composting active: detritus=%d, activation=%.3f" % [detritus_amount, active_strength])
+
+	# Calculate how much to compost this frame
+	# Rate scaled by icon activation (more mushrooms planted = faster composting)
+	var composting_power = COMPOSTING_RATE * active_strength * delta
+	var detritus_to_convert = min(detritus_amount, detritus_amount * composting_power)
+
+	# Don't convert tiny amounts (avoid fractional credits)
+	if detritus_to_convert < 1:
+		return
+
+	# Convert detritus → mushrooms at 2:1 ratio
+	var mushrooms_produced = int(detritus_to_convert * COMPOSTING_RATIO)
+
+	if mushrooms_produced > 0:
+		var detritus_consumed = mushrooms_produced * 2  # 2 detritus per mushroom
+
+		# Perform the conversion
+		if economy.remove_resource("🍂", detritus_consumed, "composting"):
+			economy.add_resource("🍄", mushrooms_produced, "composting")
+
+			if OS.get_environment("VERBOSE_LOGGING") == "1" or OS.get_environment("VERBOSE_ECONOMY") == "1":
+				print("🍄 Composting: %d 🍂 → %d 🍄 (%.1f%% activation)" % [detritus_consumed, mushrooms_produced, active_strength * 100])

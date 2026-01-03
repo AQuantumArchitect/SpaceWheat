@@ -1,0 +1,1093 @@
+tehcr33d@DESKTOP-B7NQRHN:~/ws/SpaceWheat$ godot
+Godot Engine v4.5.stable.official.876b29033 - https://godotengine.org
+WARNING: Could not set V-Sync mode, as changing V-Sync mode is not supported by the graphics driver.
+     at: set_use_vsync (platform/linuxbsd/x11/gl_manager_x11.cpp:364)
+OpenGL API 4.1 (Core Profile) Mesa 23.2.1-1ubuntu3.1~22.04.3 - Compatibility - Using Device: Microsoft - D3D12 (Intel(R) HD Graphics 620)
+libpulse.so.0: cannot open shared object file: No such file or directory
+libpulse.so.0: cannot open shared object file: No such file or directory
+ALSA lib confmisc.c:855:(parse_card) cannot find card '0'
+ALSA lib conf.c:5178:(_snd_config_evaluate) function snd_func_card_inum returned error: No such file or directory
+ALSA lib confmisc.c:422:(snd_func_concat) error evaluating strings
+ALSA lib conf.c:5178:(_snd_config_evaluate) function snd_func_concat returned error: No such file or directory
+ALSA lib confmisc.c:1334:(snd_func_refer) error evaluating name
+ALSA lib conf.c:5178:(_snd_config_evaluate) function snd_func_refer returned error: No such file or directory
+ALSA lib conf.c:5701:(snd_config_expand) Evaluate error: No such file or directory
+ALSA lib pcm.c:2664:(snd_pcm_open_noupdate) Unknown PCM default
+ERROR: Condition "status < 0" is true. Returning: ERR_CANT_OPEN
+   at: init_output_device (drivers/alsa/audio_driver_alsa.cpp:90)
+WARNING: All audio drivers failed, falling back to the dummy driver.
+     at: initialize (servers/audio_server.cpp:244)
+
+💾 GameStateManager ready - Save dir: user://saves/
+   📚 Persistent VocabularyEvolution initialized
+📜 IconRegistry initializing...
+📜 IconRegistry ready: 29 icons registered
+🌾 FarmView starting...
+📏 FarmView size: 1280 × 720
+   FarmView anchors: L0.0 T0.0 R1.0 B1.0
+   Viewport: 1280 × 720
+🎪 Loading player shell scene...
+🎪 PlayerShell initializing...
+WARNING: Nodes with non-equal opposite anchors will have their size overridden after _ready().
+If you want to set size, change the anchors or consider using set_deferred().
+     at: _set_size (scene/gui/control.cpp:1476)
+     GDScript backtrace (most recent call first):
+         [0] _ready (res://UI/PlayerShell.gd:31)
+         [1] _ready (res://UI/FarmView.gd:33)
+UILayoutManager: Input mode detected - MOUSE
+UILayoutManager: Viewport=(1280.0, 720.0), Scale=0.75×, Breakpoint=HD
+📐 Layout breakdown (parametric):
+  Top bar: 43.2px (0% to 6%)
+  Play area: 478.8px (6% to 72%)
+  Plots row: 108.0px (72% to 87%)
+  Actions row: 90.0px (87% to 100%)
+  Total: 720.0px (should equal viewport height: 720.0px)
+📋 OverlayManager initialized
+📜 Contract panel created (press C to toggle)
+📖 Vocabulary overlay created (press V to toggle)
+🎮 Escape menu created (ESC to toggle)
+⌨️  KeyboardHintButton initialized
+⌨️  Keyboard hint button created (K to toggle)
+💾 Creating Save/Load menu...
+💾 Save/Load menu instantiated, setting properties...
+📋 Save/Load menu closed
+💾 Adding Save/Load menu to parent...
+💾 Save/Load menu created
+💾 Connecting save/load menu signals...
+💾 Save/Load menu signals connected
+   ✅ Overlay manager created
+✅ PlayerShell ready
+   ✅ Player shell loaded and added to tree
+📝 Creating farm...
+📊 GridConfig validation: 12/12 plots active
+⚛️  Unified Emoji-Credits Economy initialized
+   1 quantum energy = 10 credits
+   🌾: 50  👥: 1  💨: 0  🌻: 0  🍄: 1  🍂: 1  👑: 0  💰: 1
+🛁 Initializing BioticFlux quantum bath...
+🛁 Initializing Market quantum bath...
+🛁 Initializing Forest quantum bath...
+🛁 Initializing Kitchen quantum bath...
+   📍 Biome registered: BioticFlux
+   📍 Biome registered: Market
+   📍 Biome registered: Forest
+   📍 Biome registered: Kitchen
+🌾 FarmGrid initialized: 6x2 = 12 plots
+   ℹ️  No biome injected - running in simple mode
+🎯 Goals System initialized with 6 goals
+   ✅ Farm created and added to tree
+   ✅ Farm registered with GameStateManager
+  🌾 Wheat: Lindblad incoming from ☀ = 0.017
+  🍄 Mushroom: Lindblad incoming from 🌙 = 0.40
+  ✅ Bath initialized with 6 emojis, 6 icons
+  ✅ Hamiltonian: 6 non-zero terms
+  ✅ Lindblad: 6 transfer terms
+  ✅ BioticFlux running in bath-first mode - skipping legacy init
+  ✅ Bath initialized with 6 emojis, 6 icons
+  ✅ Hamiltonian: 6 non-zero terms
+  ✅ Lindblad: 6 transfer terms
+  📈 Market ready for quantum trading dynamics!
+  ✅ MarketBiome running in bath-first mode
+📜 Deriving Icons from Markov chain...
+  ✓ Derived 8 Icons from Markov
+  ✅ Derived 8 Icons from Markov chain
+  🐺 Wolf: Predation tuned (🐇: 0.12, 🦌: 0.08, decay: 0.03)
+  🦅 Eagle: Predation tuned (🐦: 0.10, 🐜: 0.08, 🐇: 0.06, decay: 0.04)
+  🐇 Rabbit: Herbivory tuned (🌿: 0.15, decay: 0.02)
+  🦌 Deer: Herbivory tuned (🌿: 0.12, decay: 0.02)
+  🌿 Vegetation: Growth rates ensured (☀: 0.10, 💧: 0.06, 🍂: 0.04)
+  ✅ Bath initialized with 22 emojis, 22 icons
+  ✅ Hamiltonian: 22 non-zero terms
+  ✅ Lindblad: 46 transfer terms
+  🌲 Forest ecosystem ready for emergent Lotka-Volterra dynamics!
+  ✅ ForestEcosystem running in bath-first mode - skipping legacy init
+  ✅ Bath initialized with 4 emojis, 4 icons
+  ✅ Hamiltonian: 4 non-zero terms
+  ✅ Lindblad: 3 transfer terms
+  🍳 Kitchen ready for bread production!
+  ✅ QuantumKitchen running in bath-first mode
+🌍 BioticFlux | Temp: 300K | ☀️0.0° | 🌾0.0° | Energy: 0.0 | Qubits: 0
+📂 Loading farm into PlayerShell...
+🌾 PlotGridDisplay._ready() called (Instance: 87644178346, child_count before: 0)
+⚠️  PlotGridDisplay: grid_config is null - will be set later
+⚡ ActionPreviewRow updated for Tool 1: Grower
+⚡ ActionPreviewRow initialized
+🛠️  ToolSelectionRow initialized with 6 tools - beveled touch-friendly buttons
+🎮 FarmUI initializing from scene...
+   ✅ All child nodes referenced
+WARNING: Nodes with non-equal opposite anchors will have their size overridden after _ready().
+If you want to set size, change the anchors or consider using set_deferred().
+     at: _set_size (scene/gui/control.cpp:1476)
+     GDScript backtrace (most recent call first):
+         [0] _ready (res://UI/FarmUI.gd:57)
+         [1] load_farm (res://UI/PlayerShell.gd:77)
+         [2] _ready (res://UI/FarmView.gd:54)
+   ✅ FarmUI loaded (setup deferred until after layout calculation)
+✅ Farm loaded into PlayerShell
+🛁 Creating bath-first quantum visualization...
+🛁 BathQuantumViz: Added biome 'BioticFlux' with 6 basis states
+🛁 BathQuantumViz: Added biome 'Forest' with 22 basis states
+🛁 BathQuantumViz: Added biome 'Market' with 6 basis states
+🛁 BathQuantumViz: Added biome 'Kitchen' with 4 basis states
+🛁 BathQuantumViz: Initializing with 4 biomes...
+⚛️ QuantumForceGraph initialized (input enabled)
+📂 Loading farm into FarmUI...
+✅ ResourcePanel connected to economy.resource_changed (universal)
+   ✅ ResourcePanel wired to economy
+   📡 Connected to farm.plot_planted
+   📡 Connected to farm.plot_harvested
+   📡 Connected to farm.grid.entanglement_created
+   📡 Connected to farm.grid.visualization_changed
+💉 Farm injected into PlotGridDisplay
+📊 GridConfig validation: 12/12 plots active
+💉 GridConfig injected into PlotGridDisplay
+   ⏳ Tiles will be created once biomes are injected
+💉 Biomes injected into PlotGridDisplay (4 biomes)
+📐 Calculating parametric positions...
+   Grid: 6x2
+   Biomes: 4
+   Viewport: (1280.0, 720.0)
+   Graph center: (640.0, 360.0)
+   Graph radius: 288.0
+📐 ParametricPlotPositioner: Grouping 12 plots into 4 biomes
+     - Market: 2 plots
+     - BioticFlux: 4 plots
+     - Forest: 4 plots
+     - Kitchen: 2 plots
+🔵 Biome 'Market': 2 plots → positions
+🔵 Biome 'BioticFlux': 4 plots → positions
+🔵 Biome 'Forest': 4 plots → positions
+🔵 Biome 'Kitchen': 2 plots → positions
+✅ ParametricPlotPositioner: Calculated positions for 12 plots
+   Grid (0, 0) → Screen (239.7, 228.0)
+   Grid (1, 0) → Screen (377.9, 228.0)
+   Grid (2, 0) → Screen (308.2, 429.6)
+   ... and 9 more
+✅ PlotGridDisplay: Calculated 12 parametric plot positions
+ERROR: String formatting error: not all arguments converted during string formatting.
+   at: validated_evaluate (core/variant/variant_op.h:953)
+   GDScript backtrace (most recent call first):
+       [0] _calculate_parametric_positions (res://UI/PlotGridDisplay.gd:150)
+       [1] inject_biomes (res://UI/PlotGridDisplay.gd:107)
+       [2] setup_farm (res://UI/FarmUI.gd:92)
+   📋 Position keys: %s
+      (0, 0) → (239.68, 228.0)
+      (1, 0) → (377.92, 228.0)
+      (2, 0) → (308.224, 429.6)
+🎨 Creating tiles with parametric positions...
+🌾 Creating 12 plot tiles with parametric positioning...
+   📍 Classical positions available: 12
+   🔷 Biomes available: 4
+   📏 PlotGridDisplay size: (84.0, 475.2)
+   🔍 Checking plot at (0, 0) - in positions? true
+  📍 Tile at grid (0, 0) → screen (239.7, 228.0) → local (239.7, 181.0)
+WARNING: Nodes with non-equal opposite anchors will have their size overridden after _ready().
+If you want to set size, change the anchors or consider using set_deferred().
+     at: _set_size (scene/gui/control.cpp:1476)
+     GDScript backtrace (most recent call first):
+         [0] _layout_elements (res://UI/PlotTile.gd:440)
+         [1] _notification (res://UI/PlotTile.gd:415)
+         [2] _ready (res://UI/PlotTile.gd:81)
+         [3] _create_tiles (res://UI/PlotGridDisplay.gd:199)
+         [4] inject_biomes (res://UI/PlotGridDisplay.gd:112)
+         [5] setup_farm (res://UI/FarmUI.gd:92)
+WARNING: Nodes with non-equal opposite anchors will have their size overridden after _ready().
+If you want to set size, change the anchors or consider using set_deferred().
+     at: _set_size (scene/gui/control.cpp:1476)
+     GDScript backtrace (most recent call first):
+         [0] _layout_elements (res://UI/PlotTile.gd:442)
+         [1] _notification (res://UI/PlotTile.gd:415)
+         [2] _ready (res://UI/PlotTile.gd:81)
+         [3] _create_tiles (res://UI/PlotGridDisplay.gd:199)
+         [4] inject_biomes (res://UI/PlotGridDisplay.gd:112)
+         [5] setup_farm (res://UI/FarmUI.gd:92)
+WARNING: Nodes with non-equal opposite anchors will have their size overridden after _ready().
+If you want to set size, change the anchors or consider using set_deferred().
+     at: _set_size (scene/gui/control.cpp:1476)
+     GDScript backtrace (most recent call first):
+         [0] _layout_elements (res://UI/PlotTile.gd:440)
+         [1] _ready (res://UI/PlotTile.gd:85)
+         [2] _create_tiles (res://UI/PlotGridDisplay.gd:199)
+         [3] inject_biomes (res://UI/PlotGridDisplay.gd:112)
+         [4] setup_farm (res://UI/FarmUI.gd:92)
+WARNING: Nodes with non-equal opposite anchors will have their size overridden after _ready().
+If you want to set size, change the anchors or consider using set_deferred().
+     at: _set_size (scene/gui/control.cpp:1476)
+     GDScript backtrace (most recent call first):
+         [0] _layout_elements (res://UI/PlotTile.gd:442)
+         [1] _ready (res://UI/PlotTile.gd:85)
+         [2] _create_tiles (res://UI/PlotGridDisplay.gd:199)
+         [3] inject_biomes (res://UI/PlotGridDisplay.gd:112)
+         [4] setup_farm (res://UI/FarmUI.gd:92)
+   🔍 Checking plot at (1, 0) - in positions? true
+  📍 Tile at grid (1, 0) → screen (377.9, 228.0) → local (377.9, 181.0)
+WARNING: Nodes with non-equal opposite anchors will have their size overridden after _ready().
+If you want to set size, change the anchors or consider using set_deferred().
+     at: _set_size (scene/gui/control.cpp:1476)
+     GDScript backtrace (most recent call first):
+         [0] _layout_elements (res://UI/PlotTile.gd:440)
+         [1] _notification (res://UI/PlotTile.gd:415)
+         [2] _ready (res://UI/PlotTile.gd:81)
+         [3] _create_tiles (res://UI/PlotGridDisplay.gd:199)
+         [4] inject_biomes (res://UI/PlotGridDisplay.gd:112)
+         [5] setup_farm (res://UI/FarmUI.gd:92)
+WARNING: Nodes with non-equal opposite anchors will have their size overridden after _ready().
+If you want to set size, change the anchors or consider using set_deferred().
+     at: _set_size (scene/gui/control.cpp:1476)
+     GDScript backtrace (most recent call first):
+         [0] _layout_elements (res://UI/PlotTile.gd:442)
+         [1] _notification (res://UI/PlotTile.gd:415)
+         [2] _ready (res://UI/PlotTile.gd:81)
+         [3] _create_tiles (res://UI/PlotGridDisplay.gd:199)
+         [4] inject_biomes (res://UI/PlotGridDisplay.gd:112)
+         [5] setup_farm (res://UI/FarmUI.gd:92)
+WARNING: Nodes with non-equal opposite anchors will have their size overridden after _ready().
+If you want to set size, change the anchors or consider using set_deferred().
+     at: _set_size (scene/gui/control.cpp:1476)
+     GDScript backtrace (most recent call first):
+         [0] _layout_elements (res://UI/PlotTile.gd:440)
+         [1] _ready (res://UI/PlotTile.gd:85)
+         [2] _create_tiles (res://UI/PlotGridDisplay.gd:199)
+         [3] inject_biomes (res://UI/PlotGridDisplay.gd:112)
+         [4] setup_farm (res://UI/FarmUI.gd:92)
+WARNING: Nodes with non-equal opposite anchors will have their size overridden after _ready().
+If you want to set size, change the anchors or consider using set_deferred().
+     at: _set_size (scene/gui/control.cpp:1476)
+     GDScript backtrace (most recent call first):
+         [0] _layout_elements (res://UI/PlotTile.gd:442)
+         [1] _ready (res://UI/PlotTile.gd:85)
+         [2] _create_tiles (res://UI/PlotGridDisplay.gd:199)
+         [3] inject_biomes (res://UI/PlotGridDisplay.gd:112)
+         [4] setup_farm (res://UI/FarmUI.gd:92)
+   🔍 Checking plot at (2, 0) - in positions? true
+  📍 Tile at grid (2, 0) → screen (308.2, 429.6) → local (308.2, 382.6)
+WARNING: Nodes with non-equal opposite anchors will have their size overridden after _ready().
+If you want to set size, change the anchors or consider using set_deferred().
+     at: _set_size (scene/gui/control.cpp:1476)
+     GDScript backtrace (most recent call first):
+         [0] _layout_elements (res://UI/PlotTile.gd:440)
+         [1] _notification (res://UI/PlotTile.gd:415)
+         [2] _ready (res://UI/PlotTile.gd:81)
+         [3] _create_tiles (res://UI/PlotGridDisplay.gd:199)
+         [4] inject_biomes (res://UI/PlotGridDisplay.gd:112)
+         [5] setup_farm (res://UI/FarmUI.gd:92)
+WARNING: Nodes with non-equal opposite anchors will have their size overridden after _ready().
+If you want to set size, change the anchors or consider using set_deferred().
+     at: _set_size (scene/gui/control.cpp:1476)
+     GDScript backtrace (most recent call first):
+         [0] _layout_elements (res://UI/PlotTile.gd:442)
+         [1] _notification (res://UI/PlotTile.gd:415)
+         [2] _ready (res://UI/PlotTile.gd:81)
+         [3] _create_tiles (res://UI/PlotGridDisplay.gd:199)
+         [4] inject_biomes (res://UI/PlotGridDisplay.gd:112)
+         [5] setup_farm (res://UI/FarmUI.gd:92)
+WARNING: Nodes with non-equal opposite anchors will have their size overridden after _ready().
+If you want to set size, change the anchors or consider using set_deferred().
+     at: _set_size (scene/gui/control.cpp:1476)
+     GDScript backtrace (most recent call first):
+         [0] _layout_elements (res://UI/PlotTile.gd:440)
+         [1] _ready (res://UI/PlotTile.gd:85)
+         [2] _create_tiles (res://UI/PlotGridDisplay.gd:199)
+         [3] inject_biomes (res://UI/PlotGridDisplay.gd:112)
+         [4] setup_farm (res://UI/FarmUI.gd:92)
+WARNING: Nodes with non-equal opposite anchors will have their size overridden after _ready().
+If you want to set size, change the anchors or consider using set_deferred().
+     at: _set_size (scene/gui/control.cpp:1476)
+     GDScript backtrace (most recent call first):
+         [0] _layout_elements (res://UI/PlotTile.gd:442)
+         [1] _ready (res://UI/PlotTile.gd:85)
+         [2] _create_tiles (res://UI/PlotGridDisplay.gd:199)
+         [3] inject_biomes (res://UI/PlotGridDisplay.gd:112)
+         [4] setup_farm (res://UI/FarmUI.gd:92)
+WARNING: Nodes with non-equal opposite anchors will have their size overridden after _ready().
+If you want to set size, change the anchors or consider using set_deferred().
+     at: _set_size (scene/gui/control.cpp:1476)
+     GDScript backtrace (most recent call first):
+         [0] _layout_elements (res://UI/PlotTile.gd:440)
+         [1] _notification (res://UI/PlotTile.gd:415)
+         [2] _ready (res://UI/PlotTile.gd:81)
+         [3] _create_tiles (res://UI/PlotGridDisplay.gd:199)
+         [4] inject_biomes (res://UI/PlotGridDisplay.gd:112)
+         [5] setup_farm (res://UI/FarmUI.gd:92)
+WARNING: Nodes with non-equal opposite anchors will have their size overridden after _ready().
+If you want to set size, change the anchors or consider using set_deferred().
+     at: _set_size (scene/gui/control.cpp:1476)
+     GDScript backtrace (most recent call first):
+         [0] _layout_elements (res://UI/PlotTile.gd:442)
+         [1] _notification (res://UI/PlotTile.gd:415)
+         [2] _ready (res://UI/PlotTile.gd:81)
+         [3] _create_tiles (res://UI/PlotGridDisplay.gd:199)
+         [4] inject_biomes (res://UI/PlotGridDisplay.gd:112)
+         [5] setup_farm (res://UI/FarmUI.gd:92)
+WARNING: Nodes with non-equal opposite anchors will have their size overridden after _ready().
+If you want to set size, change the anchors or consider using set_deferred().
+     at: _set_size (scene/gui/control.cpp:1476)
+     GDScript backtrace (most recent call first):
+         [0] _layout_elements (res://UI/PlotTile.gd:440)
+         [1] _ready (res://UI/PlotTile.gd:85)
+         [2] _create_tiles (res://UI/PlotGridDisplay.gd:199)
+         [3] inject_biomes (res://UI/PlotGridDisplay.gd:112)
+         [4] setup_farm (res://UI/FarmUI.gd:92)
+WARNING: Nodes with non-equal opposite anchors will have their size overridden after _ready().
+If you want to set size, change the anchors or consider using set_deferred().
+     at: _set_size (scene/gui/control.cpp:1476)
+     GDScript backtrace (most recent call first):
+         [0] _layout_elements (res://UI/PlotTile.gd:442)
+         [1] _ready (res://UI/PlotTile.gd:85)
+         [2] _create_tiles (res://UI/PlotGridDisplay.gd:199)
+         [3] inject_biomes (res://UI/PlotGridDisplay.gd:112)
+         [4] setup_farm (res://UI/FarmUI.gd:92)
+WARNING: Nodes with non-equal opposite anchors will have their size overridden after _ready().
+If you want to set size, change the anchors or consider using set_deferred().
+     at: _set_size (scene/gui/control.cpp:1476)
+     GDScript backtrace (most recent call first):
+         [0] _layout_elements (res://UI/PlotTile.gd:440)
+         [1] _notification (res://UI/PlotTile.gd:415)
+         [2] _ready (res://UI/PlotTile.gd:81)
+         [3] _create_tiles (res://UI/PlotGridDisplay.gd:199)
+         [4] inject_biomes (res://UI/PlotGridDisplay.gd:112)
+         [5] setup_farm (res://UI/FarmUI.gd:92)
+WARNING: Nodes with non-equal opposite anchors will have their size overridden after _ready().
+If you want to set size, change the anchors or consider using set_deferred().
+     at: _set_size (scene/gui/control.cpp:1476)
+     GDScript backtrace (most recent call first):
+         [0] _layout_elements (res://UI/PlotTile.gd:442)
+         [1] _notification (res://UI/PlotTile.gd:415)
+         [2] _ready (res://UI/PlotTile.gd:81)
+         [3] _create_tiles (res://UI/PlotGridDisplay.gd:199)
+         [4] inject_biomes (res://UI/PlotGridDisplay.gd:112)
+         [5] setup_farm (res://UI/FarmUI.gd:92)
+WARNING: Nodes with non-equal opposite anchors will have their size overridden after _ready().
+If you want to set size, change the anchors or consider using set_deferred().
+     at: _set_size (scene/gui/control.cpp:1476)
+     GDScript backtrace (most recent call first):
+         [0] _layout_elements (res://UI/PlotTile.gd:440)
+         [1] _ready (res://UI/PlotTile.gd:85)
+         [2] _create_tiles (res://UI/PlotGridDisplay.gd:199)
+         [3] inject_biomes (res://UI/PlotGridDisplay.gd:112)
+         [4] setup_farm (res://UI/FarmUI.gd:92)
+WARNING: Nodes with non-equal opposite anchors will have their size overridden after _ready().
+If you want to set size, change the anchors or consider using set_deferred().
+     at: _set_size (scene/gui/control.cpp:1476)
+     GDScript backtrace (most recent call first):
+         [0] _layout_elements (res://UI/PlotTile.gd:442)
+         [1] _ready (res://UI/PlotTile.gd:85)
+         [2] _create_tiles (res://UI/PlotGridDisplay.gd:199)
+         [3] inject_biomes (res://UI/PlotGridDisplay.gd:112)
+         [4] setup_farm (res://UI/FarmUI.gd:92)
+WARNING: Nodes with non-equal opposite anchors will have their size overridden after _ready().
+If you want to set size, change the anchors or consider using set_deferred().
+     at: _set_size (scene/gui/control.cpp:1476)
+     GDScript backtrace (most recent call first):
+         [0] _layout_elements (res://UI/PlotTile.gd:440)
+         [1] _notification (res://UI/PlotTile.gd:415)
+         [2] _ready (res://UI/PlotTile.gd:81)
+         [3] _create_tiles (res://UI/PlotGridDisplay.gd:199)
+         [4] inject_biomes (res://UI/PlotGridDisplay.gd:112)
+         [5] setup_farm (res://UI/FarmUI.gd:92)
+WARNING: Nodes with non-equal opposite anchors will have their size overridden after _ready().
+If you want to set size, change the anchors or consider using set_deferred().
+     at: _set_size (scene/gui/control.cpp:1476)
+     GDScript backtrace (most recent call first):
+         [0] _layout_elements (res://UI/PlotTile.gd:442)
+         [1] _notification (res://UI/PlotTile.gd:415)
+         [2] _ready (res://UI/PlotTile.gd:81)
+         [3] _create_tiles (res://UI/PlotGridDisplay.gd:199)
+         [4] inject_biomes (res://UI/PlotGridDisplay.gd:112)
+         [5] setup_farm (res://UI/FarmUI.gd:92)
+WARNING: Nodes with non-equal opposite anchors will have their size overridden after _ready().
+If you want to set size, change the anchors or consider using set_deferred().
+     at: _set_size (scene/gui/control.cpp:1476)
+     GDScript backtrace (most recent call first):
+         [0] _layout_elements (res://UI/PlotTile.gd:440)
+         [1] _ready (res://UI/PlotTile.gd:85)
+         [2] _create_tiles (res://UI/PlotGridDisplay.gd:199)
+         [3] inject_biomes (res://UI/PlotGridDisplay.gd:112)
+         [4] setup_farm (res://UI/FarmUI.gd:92)
+WARNING: Nodes with non-equal opposite anchors will have their size overridden after _ready().
+If you want to set size, change the anchors or consider using set_deferred().
+     at: _set_size (scene/gui/control.cpp:1476)
+     GDScript backtrace (most recent call first):
+         [0] _layout_elements (res://UI/PlotTile.gd:442)
+         [1] _ready (res://UI/PlotTile.gd:85)
+         [2] _create_tiles (res://UI/PlotGridDisplay.gd:199)
+         [3] inject_biomes (res://UI/PlotGridDisplay.gd:112)
+         [4] setup_farm (res://UI/FarmUI.gd:92)
+WARNING: Nodes with non-equal opposite anchors will have their size overridden after _ready().
+If you want to set size, change the anchors or consider using set_deferred().
+     at: _set_size (scene/gui/control.cpp:1476)
+     GDScript backtrace (most recent call first):
+         [0] _layout_elements (res://UI/PlotTile.gd:440)
+         [1] _notification (res://UI/PlotTile.gd:415)
+         [2] _ready (res://UI/PlotTile.gd:81)
+         [3] _create_tiles (res://UI/PlotGridDisplay.gd:199)
+         [4] inject_biomes (res://UI/PlotGridDisplay.gd:112)
+         [5] setup_farm (res://UI/FarmUI.gd:92)
+WARNING: Nodes with non-equal opposite anchors will have their size overridden after _ready().
+If you want to set size, change the anchors or consider using set_deferred().
+     at: _set_size (scene/gui/control.cpp:1476)
+     GDScript backtrace (most recent call first):
+         [0] _layout_elements (res://UI/PlotTile.gd:442)
+         [1] _notification (res://UI/PlotTile.gd:415)
+         [2] _ready (res://UI/PlotTile.gd:81)
+         [3] _create_tiles (res://UI/PlotGridDisplay.gd:199)
+         [4] inject_biomes (res://UI/PlotGridDisplay.gd:112)
+         [5] setup_farm (res://UI/FarmUI.gd:92)
+WARNING: Nodes with non-equal opposite anchors will have their size overridden after _ready().
+If you want to set size, change the anchors or consider using set_deferred().
+     at: _set_size (scene/gui/control.cpp:1476)
+     GDScript backtrace (most recent call first):
+         [0] _layout_elements (res://UI/PlotTile.gd:440)
+         [1] _ready (res://UI/PlotTile.gd:85)
+         [2] _create_tiles (res://UI/PlotGridDisplay.gd:199)
+         [3] inject_biomes (res://UI/PlotGridDisplay.gd:112)
+         [4] setup_farm (res://UI/FarmUI.gd:92)
+WARNING: Nodes with non-equal opposite anchors will have their size overridden after _ready().
+If you want to set size, change the anchors or consider using set_deferred().
+     at: _set_size (scene/gui/control.cpp:1476)
+     GDScript backtrace (most recent call first):
+         [0] _layout_elements (res://UI/PlotTile.gd:442)
+         [1] _ready (res://UI/PlotTile.gd:85)
+         [2] _create_tiles (res://UI/PlotGridDisplay.gd:199)
+         [3] inject_biomes (res://UI/PlotGridDisplay.gd:112)
+         [4] setup_farm (res://UI/FarmUI.gd:92)
+WARNING: Nodes with non-equal opposite anchors will have their size overridden after _ready().
+If you want to set size, change the anchors or consider using set_deferred().
+     at: _set_size (scene/gui/control.cpp:1476)
+     GDScript backtrace (most recent call first):
+         [0] _layout_elements (res://UI/PlotTile.gd:440)
+         [1] _notification (res://UI/PlotTile.gd:415)
+         [2] _ready (res://UI/PlotTile.gd:81)
+         [3] _create_tiles (res://UI/PlotGridDisplay.gd:199)
+         [4] inject_biomes (res://UI/PlotGridDisplay.gd:112)
+         [5] setup_farm (res://UI/FarmUI.gd:92)
+WARNING: Nodes with non-equal opposite anchors will have their size overridden after _ready().
+If you want to set size, change the anchors or consider using set_deferred().
+     at: _set_size (scene/gui/control.cpp:1476)
+     GDScript backtrace (most recent call first):
+         [0] _layout_elements (res://UI/PlotTile.gd:442)
+         [1] _notification (res://UI/PlotTile.gd:415)
+         [2] _ready (res://UI/PlotTile.gd:81)
+         [3] _create_tiles (res://UI/PlotGridDisplay.gd:199)
+         [4] inject_biomes (res://UI/PlotGridDisplay.gd:112)
+         [5] setup_farm (res://UI/FarmUI.gd:92)
+WARNING: Nodes with non-equal opposite anchors will have their size overridden after _ready().
+If you want to set size, change the anchors or consider using set_deferred().
+     at: _set_size (scene/gui/control.cpp:1476)
+     GDScript backtrace (most recent call first):
+         [0] _layout_elements (res://UI/PlotTile.gd:440)
+         [1] _ready (res://UI/PlotTile.gd:85)
+         [2] _create_tiles (res://UI/PlotGridDisplay.gd:199)
+         [3] inject_biomes (res://UI/PlotGridDisplay.gd:112)
+         [4] setup_farm (res://UI/FarmUI.gd:92)
+WARNING: Nodes with non-equal opposite anchors will have their size overridden after _ready().
+If you want to set size, change the anchors or consider using set_deferred().
+     at: _set_size (scene/gui/control.cpp:1476)
+     GDScript backtrace (most recent call first):
+         [0] _layout_elements (res://UI/PlotTile.gd:442)
+         [1] _ready (res://UI/PlotTile.gd:85)
+         [2] _create_tiles (res://UI/PlotGridDisplay.gd:199)
+         [3] inject_biomes (res://UI/PlotGridDisplay.gd:112)
+         [4] setup_farm (res://UI/FarmUI.gd:92)
+WARNING: Nodes with non-equal opposite anchors will have their size overridden after _ready().
+If you want to set size, change the anchors or consider using set_deferred().
+     at: _set_size (scene/gui/control.cpp:1476)
+     GDScript backtrace (most recent call first):
+         [0] _layout_elements (res://UI/PlotTile.gd:440)
+         [1] _notification (res://UI/PlotTile.gd:415)
+         [2] _ready (res://UI/PlotTile.gd:81)
+         [3] _create_tiles (res://UI/PlotGridDisplay.gd:199)
+         [4] inject_biomes (res://UI/PlotGridDisplay.gd:112)
+         [5] setup_farm (res://UI/FarmUI.gd:92)
+WARNING: Nodes with non-equal opposite anchors will have their size overridden after _ready().
+If you want to set size, change the anchors or consider using set_deferred().
+     at: _set_size (scene/gui/control.cpp:1476)
+     GDScript backtrace (most recent call first):
+         [0] _layout_elements (res://UI/PlotTile.gd:442)
+         [1] _notification (res://UI/PlotTile.gd:415)
+         [2] _ready (res://UI/PlotTile.gd:81)
+         [3] _create_tiles (res://UI/PlotGridDisplay.gd:199)
+         [4] inject_biomes (res://UI/PlotGridDisplay.gd:112)
+         [5] setup_farm (res://UI/FarmUI.gd:92)
+WARNING: Nodes with non-equal opposite anchors will have their size overridden after _ready().
+If you want to set size, change the anchors or consider using set_deferred().
+     at: _set_size (scene/gui/control.cpp:1476)
+     GDScript backtrace (most recent call first):
+         [0] _layout_elements (res://UI/PlotTile.gd:440)
+         [1] _ready (res://UI/PlotTile.gd:85)
+         [2] _create_tiles (res://UI/PlotGridDisplay.gd:199)
+         [3] inject_biomes (res://UI/PlotGridDisplay.gd:112)
+         [4] setup_farm (res://UI/FarmUI.gd:92)
+WARNING: Nodes with non-equal opposite anchors will have their size overridden after _ready().
+If you want to set size, change the anchors or consider using set_deferred().
+     at: _set_size (scene/gui/control.cpp:1476)
+     GDScript backtrace (most recent call first):
+         [0] _layout_elements (res://UI/PlotTile.gd:442)
+         [1] _ready (res://UI/PlotTile.gd:85)
+         [2] _create_tiles (res://UI/PlotGridDisplay.gd:199)
+         [3] inject_biomes (res://UI/PlotGridDisplay.gd:112)
+         [4] setup_farm (res://UI/FarmUI.gd:92)
+WARNING: Nodes with non-equal opposite anchors will have their size overridden after _ready().
+If you want to set size, change the anchors or consider using set_deferred().
+     at: _set_size (scene/gui/control.cpp:1476)
+     GDScript backtrace (most recent call first):
+         [0] _layout_elements (res://UI/PlotTile.gd:440)
+         [1] _notification (res://UI/PlotTile.gd:415)
+         [2] _ready (res://UI/PlotTile.gd:81)
+         [3] _create_tiles (res://UI/PlotGridDisplay.gd:199)
+         [4] inject_biomes (res://UI/PlotGridDisplay.gd:112)
+         [5] setup_farm (res://UI/FarmUI.gd:92)
+WARNING: Nodes with non-equal opposite anchors will have their size overridden after _ready().
+If you want to set size, change the anchors or consider using set_deferred().
+     at: _set_size (scene/gui/control.cpp:1476)
+     GDScript backtrace (most recent call first):
+         [0] _layout_elements (res://UI/PlotTile.gd:442)
+         [1] _notification (res://UI/PlotTile.gd:415)
+         [2] _ready (res://UI/PlotTile.gd:81)
+         [3] _create_tiles (res://UI/PlotGridDisplay.gd:199)
+         [4] inject_biomes (res://UI/PlotGridDisplay.gd:112)
+         [5] setup_farm (res://UI/FarmUI.gd:92)
+WARNING: Nodes with non-equal opposite anchors will have their size overridden after _ready().
+If you want to set size, change the anchors or consider using set_deferred().
+     at: _set_size (scene/gui/control.cpp:1476)
+     GDScript backtrace (most recent call first):
+         [0] _layout_elements (res://UI/PlotTile.gd:440)
+         [1] _ready (res://UI/PlotTile.gd:85)
+         [2] _create_tiles (res://UI/PlotGridDisplay.gd:199)
+         [3] inject_biomes (res://UI/PlotGridDisplay.gd:112)
+         [4] setup_farm (res://UI/FarmUI.gd:92)
+WARNING: Nodes with non-equal opposite anchors will have their size overridden after _ready().
+If you want to set size, change the anchors or consider using set_deferred().
+     at: _set_size (scene/gui/control.cpp:1476)
+     GDScript backtrace (most recent call first):
+         [0] _layout_elements (res://UI/PlotTile.gd:442)
+         [1] _ready (res://UI/PlotTile.gd:85)
+         [2] _create_tiles (res://UI/PlotGridDisplay.gd:199)
+         [3] inject_biomes (res://UI/PlotGridDisplay.gd:112)
+         [4] setup_farm (res://UI/FarmUI.gd:92)
+WARNING: Nodes with non-equal opposite anchors will have their size overridden after _ready().
+If you want to set size, change the anchors or consider using set_deferred().
+     at: _set_size (scene/gui/control.cpp:1476)
+     GDScript backtrace (most recent call first):
+         [0] _layout_elements (res://UI/PlotTile.gd:440)
+         [1] _notification (res://UI/PlotTile.gd:415)
+         [2] _ready (res://UI/PlotTile.gd:81)
+         [3] _create_tiles (res://UI/PlotGridDisplay.gd:199)
+         [4] inject_biomes (res://UI/PlotGridDisplay.gd:112)
+         [5] setup_farm (res://UI/FarmUI.gd:92)
+WARNING: Nodes with non-equal opposite anchors will have their size overridden after _ready().
+If you want to set size, change the anchors or consider using set_deferred().
+     at: _set_size (scene/gui/control.cpp:1476)
+     GDScript backtrace (most recent call first):
+         [0] _layout_elements (res://UI/PlotTile.gd:442)
+         [1] _notification (res://UI/PlotTile.gd:415)
+         [2] _ready (res://UI/PlotTile.gd:81)
+         [3] _create_tiles (res://UI/PlotGridDisplay.gd:199)
+         [4] inject_biomes (res://UI/PlotGridDisplay.gd:112)
+         [5] setup_farm (res://UI/FarmUI.gd:92)
+WARNING: Nodes with non-equal opposite anchors will have their size overridden after _ready().
+If you want to set size, change the anchors or consider using set_deferred().
+     at: _set_size (scene/gui/control.cpp:1476)
+     GDScript backtrace (most recent call first):
+         [0] _layout_elements (res://UI/PlotTile.gd:440)
+         [1] _ready (res://UI/PlotTile.gd:85)
+         [2] _create_tiles (res://UI/PlotGridDisplay.gd:199)
+         [3] inject_biomes (res://UI/PlotGridDisplay.gd:112)
+         [4] setup_farm (res://UI/FarmUI.gd:92)
+WARNING: Nodes with non-equal opposite anchors will have their size overridden after _ready().
+If you want to set size, change the anchors or consider using set_deferred().
+     at: _set_size (scene/gui/control.cpp:1476)
+     GDScript backtrace (most recent call first):
+         [0] _layout_elements (res://UI/PlotTile.gd:442)
+         [1] _ready (res://UI/PlotTile.gd:85)
+         [2] _create_tiles (res://UI/PlotGridDisplay.gd:199)
+         [3] inject_biomes (res://UI/PlotGridDisplay.gd:112)
+         [4] setup_farm (res://UI/FarmUI.gd:92)
+WARNING: Nodes with non-equal opposite anchors will have their size overridden after _ready().
+If you want to set size, change the anchors or consider using set_deferred().
+     at: _set_size (scene/gui/control.cpp:1476)
+     GDScript backtrace (most recent call first):
+         [0] _layout_elements (res://UI/PlotTile.gd:440)
+         [1] _notification (res://UI/PlotTile.gd:415)
+         [2] _ready (res://UI/PlotTile.gd:81)
+         [3] _create_tiles (res://UI/PlotGridDisplay.gd:199)
+         [4] inject_biomes (res://UI/PlotGridDisplay.gd:112)
+         [5] setup_farm (res://UI/FarmUI.gd:92)
+WARNING: Nodes with non-equal opposite anchors will have their size overridden after _ready().
+If you want to set size, change the anchors or consider using set_deferred().
+     at: _set_size (scene/gui/control.cpp:1476)
+     GDScript backtrace (most recent call first):
+         [0] _layout_elements (res://UI/PlotTile.gd:442)
+         [1] _notification (res://UI/PlotTile.gd:415)
+         [2] _ready (res://UI/PlotTile.gd:81)
+         [3] _create_tiles (res://UI/PlotGridDisplay.gd:199)
+         [4] inject_biomes (res://UI/PlotGridDisplay.gd:112)
+         [5] setup_farm (res://UI/FarmUI.gd:92)
+WARNING: Nodes with non-equal opposite anchors will have their size overridden after _ready().
+If you want to set size, change the anchors or consider using set_deferred().
+     at: _set_size (scene/gui/control.cpp:1476)
+     GDScript backtrace (most recent call first):
+         [0] _layout_elements (res://UI/PlotTile.gd:440)
+         [1] _ready (res://UI/PlotTile.gd:85)
+         [2] _create_tiles (res://UI/PlotGridDisplay.gd:199)
+         [3] inject_biomes (res://UI/PlotGridDisplay.gd:112)
+         [4] setup_farm (res://UI/FarmUI.gd:92)
+WARNING: Nodes with non-equal opposite anchors will have their size overridden after _ready().
+If you want to set size, change the anchors or consider using set_deferred().
+     at: _set_size (scene/gui/control.cpp:1476)
+     GDScript backtrace (most recent call first):
+         [0] _layout_elements (res://UI/PlotTile.gd:442)
+         [1] _ready (res://UI/PlotTile.gd:85)
+         [2] _create_tiles (res://UI/PlotGridDisplay.gd:199)
+         [3] inject_biomes (res://UI/PlotGridDisplay.gd:112)
+         [4] setup_farm (res://UI/FarmUI.gd:92)
+  📍 ... and 9 more tiles positioned parametrically
+✅ Created 12 plot tiles: 12 positioned parametrically, 0 without positions
+✅ Tiles created after biome injection
+   ✅ PlotGridDisplay wired to farm
+⚡ ActionPreviewRow updated for Tool 1: Grower
+   📡 Connected to action_preview_row.action_pressed
+⌨️  FarmInputHandler initialized (Tool Mode System)
+✅ Input processing enabled (no deferred delays)
+
+============================================================
+⌨️  FARM KEYBOARD CONTROLS (Tool Mode System)
+============================================================
+
+🛠️  TOOL SELECTION (Numbers 1-4):
+  1 = Grower
+  2 = Quantum
+  3 = Industry
+  4 = Energy
+
+⚡ ACTIONS (Q/E/R - Context-sensitive):
+  Current Tool: Grower
+  Q = Plant ▸
+  E = Entangle (Bell φ+)
+  R = Measure + Harvest
+
+📍 MULTI-SELECT PLOTS (NEW):
+  T/Y/U/I/O/P = Toggle checkbox on plots 1-6
+  [ = Deselect all plots
+  ] = Restore previous selection state
+  Q/E/R = Apply current tool action to ALL selected plots
+
+🎮 MOVEMENT (Legacy - for focus/cursor):
+  WASD = Move cursor (up/left/down/right)
+
+📋 DEBUG:
+  ? = Show this help
+  I = Toggle info panel
+============================================================
+
+💉 GridConfig injected into FarmInputHandler (6x2 grid)
+   📡 Connected to input_handler.tool_changed
+   📡 Connected to input_handler.submenu_changed
+   📡 Connected to plot selection changes
+✅ FarmUI farm setup complete
+💡 Press F3 to toggle layout debug display
+✅ BathQuantumViz: Ready (plot-driven mode - bubbles will spawn on demand)
+   📍 Position: (0.0, 0.0)
+   📊 QuantumForceGraph exists: true
+   📊 QuantumForceGraph center: (640.0, 360.0), radius: 252.0
+   📡 Connected to farm.plot_planted for auto-requesting bubbles
+   ✅ Quantum visualization initialized
+🎮 Creating input controller...
+🔗 Connecting overlay signals...
+   ✅ ESC key (escape menu) connected
+   ✅ V key (vocabulary) connected
+   ✅ C key (contracts) connected
+   ✅ N key (network) connected
+   ✅ K key (keyboard help) connected
+   ✅ Q key (quit) connected
+   ✅ R key (restart) connected
+   ✅ Overlay state sync connected
+💉 InputController injected into SaveLoadMenu
+   ✅ InputController injected into SaveLoadMenu
+✅ FarmView ready - game started!
+⌨️ KEY PRESSED: 84
+⌨️  Toggle plot (0, 0)
+☑️  Plot (0, 0) selected (total selected: 1)
+✅ 1 plot(s) selected - Q/E/R actions available
+⌨️ KEY PRESSED: 89
+⌨️  Toggle plot (1, 0)
+☑️  Plot (1, 0) selected (total selected: 2)
+✅ 2 plot(s) selected - Q/E/R actions available
+⌨️ KEY PRESSED: 85
+⌨️  Toggle plot (2, 0)
+☑️  Plot (2, 0) selected (total selected: 3)
+✅ 3 plot(s) selected - Q/E/R actions available
+✅ Input processing enabled (UI ready)
+   📊 PlotGridDisplay has 12 tiles ready
+⌨️ KEY PRESSED: 73
+⌨️  Toggle plot (3, 0)
+☑️  Plot (3, 0) selected (total selected: 4)
+✅ 4 plot(s) selected - Q/E/R actions available
+⌨️ KEY PRESSED: 79
+⌨️  Toggle plot (4, 0)
+☑️  Plot (4, 0) selected (total selected: 5)
+✅ 5 plot(s) selected - Q/E/R actions available
+⌨️ KEY PRESSED: 80
+⌨️  Toggle plot (5, 0)
+☑️  Plot (5, 0) selected (total selected: 6)
+✅ 6 plot(s) selected - Q/E/R actions available
+⌨️ KEY PRESSED: 55
+⌨️  Toggle plot (0, 1)
+☑️  Plot (0, 1) selected (total selected: 7)
+✅ 7 plot(s) selected - Q/E/R actions available
+⌨️ KEY PRESSED: 56
+⌨️  Toggle plot (1, 1)
+☑️  Plot (1, 1) selected (total selected: 8)
+✅ 8 plot(s) selected - Q/E/R actions available
+⌨️ KEY PRESSED: 57
+⌨️  Toggle plot (2, 1)
+☑️  Plot (2, 1) selected (total selected: 9)
+✅ 9 plot(s) selected - Q/E/R actions available
+⌨️ KEY PRESSED: 48
+⌨️  Toggle plot (3, 1)
+☑️  Plot (3, 1) selected (total selected: 10)
+✅ 10 plot(s) selected - Q/E/R actions available
+⌨️ KEY PRESSED: 44
+⌨️  Toggle plot (4, 1)
+☑️  Plot (4, 1) selected (total selected: 11)
+✅ 11 plot(s) selected - Q/E/R actions available
+⌨️ KEY PRESSED: 46
+⌨️  Toggle plot (5, 1)
+☑️  Plot (5, 1) selected (total selected: 12)
+✅ 12 plot(s) selected - Q/E/R actions available
+🌍 BioticFlux | Temp: 300K | ☀️0.0° | 🌾0.0° | Energy: 0.0 | Qubits: 0
+⌨️ KEY PRESSED: 81
+📂 Entered submenu: Plant Type
+   Q = Wheat
+   E = Mushroom
+   R = Tomato
+📂 Submenu entered: Plant Type
+📂 ActionPreviewRow showing submenu: Plant Type
+⌨️ KEY PRESSED: 81
+📂 Submenu plant | Key Q | Action: Wheat | Plots: 12
+🌱 Batch planting wheat at 12 plots: [(0, 0), (1, 0), (2, 0), (3, 0), (4, 0), (5, 0), (0, 1), (1, 1), (2, 1), (3, 1), (4, 1), (5, 1)]
+💸 Spent 1 🌾 on wheat
+🛁 Plot.plant(): created BATH PROJECTION 🌾↔👥 at (0, 0)
+   ✅ Plot (0, 0) now planted=true, quantum_state exists=true
+🌱 Farm: Emitting plot_planted signal for wheat at (0, 0)
+🌱 Farm.plot_planted received at PlotGridDisplay
+   ✓ update_tile_from_farm((0, 0)): found plot, transforming data...
+  🌾 PlotGridDisplay updating tile for plot (0, 0)
+🔔 BathQuantumViz: Received plot_planted signal for wheat at (0, 0)
+   ⚠️  No farm or grid found
+💸 Spent 1 🌾 on wheat
+🛁 Plot.plant(): created BATH PROJECTION 🌾↔👥 at (1, 0)
+   ✅ Plot (1, 0) now planted=true, quantum_state exists=true
+🌱 Farm: Emitting plot_planted signal for wheat at (1, 0)
+🌱 Farm.plot_planted received at PlotGridDisplay
+   ✓ update_tile_from_farm((1, 0)): found plot, transforming data...
+  🌾 PlotGridDisplay updating tile for plot (1, 0)
+🔔 BathQuantumViz: Received plot_planted signal for wheat at (1, 0)
+   ⚠️  No farm or grid found
+💸 Spent 1 🌾 on wheat
+🛁 Plot.plant(): created BATH PROJECTION 🌾↔👥 at (2, 0)
+   ✅ Plot (2, 0) now planted=true, quantum_state exists=true
+🌱 Farm: Emitting plot_planted signal for wheat at (2, 0)
+🌱 Farm.plot_planted received at PlotGridDisplay
+   ✓ update_tile_from_farm((2, 0)): found plot, transforming data...
+  🌾 PlotGridDisplay updating tile for plot (2, 0)
+🔔 BathQuantumViz: Received plot_planted signal for wheat at (2, 0)
+   ⚠️  No farm or grid found
+💸 Spent 1 🌾 on wheat
+🛁 Plot.plant(): created BATH PROJECTION 🌾↔👥 at (3, 0)
+   ✅ Plot (3, 0) now planted=true, quantum_state exists=true
+🌱 Farm: Emitting plot_planted signal for wheat at (3, 0)
+🌱 Farm.plot_planted received at PlotGridDisplay
+   ✓ update_tile_from_farm((3, 0)): found plot, transforming data...
+  🌾 PlotGridDisplay updating tile for plot (3, 0)
+🔔 BathQuantumViz: Received plot_planted signal for wheat at (3, 0)
+   ⚠️  No farm or grid found
+💸 Spent 1 🌾 on wheat
+🛁 Plot.plant(): created BATH PROJECTION 🌾↔👥 at (4, 0)
+   ✅ Plot (4, 0) now planted=true, quantum_state exists=true
+🌱 Farm: Emitting plot_planted signal for wheat at (4, 0)
+🌱 Farm.plot_planted received at PlotGridDisplay
+   ✓ update_tile_from_farm((4, 0)): found plot, transforming data...
+  🌾 PlotGridDisplay updating tile for plot (4, 0)
+🔔 BathQuantumViz: Received plot_planted signal for wheat at (4, 0)
+   ⚠️  No farm or grid found
+💸 Spent 1 🌾 on wheat
+🛁 Plot.plant(): created BATH PROJECTION 🌾↔👥 at (5, 0)
+   ✅ Plot (5, 0) now planted=true, quantum_state exists=true
+🌱 Farm: Emitting plot_planted signal for wheat at (5, 0)
+🌱 Farm.plot_planted received at PlotGridDisplay
+   ✓ update_tile_from_farm((5, 0)): found plot, transforming data...
+  🌾 PlotGridDisplay updating tile for plot (5, 0)
+🔔 BathQuantumViz: Received plot_planted signal for wheat at (5, 0)
+   ⚠️  No farm or grid found
+💸 Spent 1 🌾 on wheat
+🛁 Plot.plant(): created BATH PROJECTION 🌾↔👥 at (0, 1)
+   ✅ Plot (0, 1) now planted=true, quantum_state exists=true
+🌱 Farm: Emitting plot_planted signal for wheat at (0, 1)
+🌱 Farm.plot_planted received at PlotGridDisplay
+   ✓ update_tile_from_farm((0, 1)): found plot, transforming data...
+  🌾 PlotGridDisplay updating tile for plot (0, 1)
+🔔 BathQuantumViz: Received plot_planted signal for wheat at (0, 1)
+   ⚠️  No farm or grid found
+💸 Spent 1 🌾 on wheat
+🛁 Plot.plant(): created BATH PROJECTION 🌾↔👥 at (1, 1)
+   ✅ Plot (1, 1) now planted=true, quantum_state exists=true
+🌱 Farm: Emitting plot_planted signal for wheat at (1, 1)
+🌱 Farm.plot_planted received at PlotGridDisplay
+   ✓ update_tile_from_farm((1, 1)): found plot, transforming data...
+  🌾 PlotGridDisplay updating tile for plot (1, 1)
+🔔 BathQuantumViz: Received plot_planted signal for wheat at (1, 1)
+   ⚠️  No farm or grid found
+💸 Spent 1 🌾 on wheat
+🛁 Plot.plant(): created BATH PROJECTION 🌾↔👥 at (2, 1)
+   ✅ Plot (2, 1) now planted=true, quantum_state exists=true
+🌱 Farm: Emitting plot_planted signal for wheat at (2, 1)
+🌱 Farm.plot_planted received at PlotGridDisplay
+   ✓ update_tile_from_farm((2, 1)): found plot, transforming data...
+  🌾 PlotGridDisplay updating tile for plot (2, 1)
+🔔 BathQuantumViz: Received plot_planted signal for wheat at (2, 1)
+   ⚠️  No farm or grid found
+💸 Spent 1 🌾 on wheat
+🛁 Plot.plant(): created BATH PROJECTION 🌾↔👥 at (3, 1)
+   ✅ Plot (3, 1) now planted=true, quantum_state exists=true
+🌱 Farm: Emitting plot_planted signal for wheat at (3, 1)
+🌱 Farm.plot_planted received at PlotGridDisplay
+   ✓ update_tile_from_farm((3, 1)): found plot, transforming data...
+  🌾 PlotGridDisplay updating tile for plot (3, 1)
+🔔 BathQuantumViz: Received plot_planted signal for wheat at (3, 1)
+   ⚠️  No farm or grid found
+💸 Spent 1 🌾 on wheat
+🛁 Plot.plant(): created BATH PROJECTION 🌾↔👥 at (4, 1)
+   ✅ Plot (4, 1) now planted=true, quantum_state exists=true
+🌱 Farm: Emitting plot_planted signal for wheat at (4, 1)
+🌱 Farm.plot_planted received at PlotGridDisplay
+   ✓ update_tile_from_farm((4, 1)): found plot, transforming data...
+  🌾 PlotGridDisplay updating tile for plot (4, 1)
+🔔 BathQuantumViz: Received plot_planted signal for wheat at (4, 1)
+   ⚠️  No farm or grid found
+💸 Spent 1 🌾 on wheat
+🛁 Plot.plant(): created BATH PROJECTION 🌾↔👥 at (5, 1)
+   ✅ Plot (5, 1) now planted=true, quantum_state exists=true
+🌱 Farm: Emitting plot_planted signal for wheat at (5, 1)
+🌱 Farm.plot_planted received at PlotGridDisplay
+   ✓ update_tile_from_farm((5, 1)): found plot, transforming data...
+  🌾 PlotGridDisplay updating tile for plot (5, 1)
+🔔 BathQuantumViz: Received plot_planted signal for wheat at (5, 1)
+   ⚠️  No farm or grid found
+📁 Exited submenu: plant
+📁 Submenu exited - restoring tool display
+⚡ ActionPreviewRow updated for Tool 1: Grower
+🔄 Tool changed via input: 1 (Grower)
+⚡ ActionPreviewRow updated for Tool 1: Grower
+⌨️ KEY PRESSED: 53
+🛠️  Tool switched to: Gates
+🔄 Tool changed via input: 5 (Gates)
+⚡ ActionPreviewRow updated for Tool 5: Gates
+🌍 BioticFlux | Temp: 300K | ☀️0.0° | 🌾0.0° | Energy: 0.0 | Qubits: 4
+⌨️ KEY PRESSED: 81
+📂 Entered submenu: 1-Qubit Gates
+   Q = Pauli-X (Flip)
+   E = Hadamard (H)
+   R = Pauli-Z (Phase)
+📂 Submenu entered: 1-Qubit Gates
+📂 ActionPreviewRow showing submenu: 1-Qubit Gates
+⌨️ KEY PRESSED: 81
+📂 Submenu single_gates | Key Q | Action: Pauli-X (Flip) | Plots: 12
+↔️ Applying Pauli-X (bit flip) to 12 plots...
+  ↔️ Applied Pauli-X at (0, 0) (theta flipped)
+  ↔️ Applied Pauli-X at (1, 0) (theta flipped)
+  ↔️ Applied Pauli-X at (2, 0) (theta flipped)
+  ↔️ Applied Pauli-X at (3, 0) (theta flipped)
+  ↔️ Applied Pauli-X at (4, 0) (theta flipped)
+  ↔️ Applied Pauli-X at (5, 0) (theta flipped)
+  ↔️ Applied Pauli-X at (0, 1) (theta flipped)
+  ↔️ Applied Pauli-X at (1, 1) (theta flipped)
+  ↔️ Applied Pauli-X at (2, 1) (theta flipped)
+  ↔️ Applied Pauli-X at (3, 1) (theta flipped)
+  ↔️ Applied Pauli-X at (4, 1) (theta flipped)
+  ↔️ Applied Pauli-X at (5, 1) (theta flipped)
+📁 Exited submenu: single_gates
+📁 Submenu exited - restoring tool display
+⚡ ActionPreviewRow updated for Tool 5: Gates
+🔄 Tool changed via input: 5 (Gates)
+⚡ ActionPreviewRow updated for Tool 5: Gates
+🌍 BioticFlux | Temp: 300K | ☀️0.0° | 🌾0.0° | Energy: 0.0 | Qubits: 4
+⌨️ KEY PRESSED: 52
+🛠️  Tool switched to: Energy
+🔄 Tool changed via input: 4 (Energy)
+⚡ ActionPreviewRow updated for Tool 4: Energy
+⌨️ KEY PRESSED: 69
+⚡ Tool 4 (Energy) | Key E | Action: Inject Energy | Plots: 12 selected
+⚡ Injecting energy into 12 plots...
+SCRIPT ERROR: Invalid access to property or key 'wheat_inventory' on a base object of type 'Node (FarmEconomy)'.
+          at: FarmInputHandler._action_inject_energy (res://UI/FarmInputHandler.gd:946)
+          GDScript backtrace (most recent call first):
+              [0] _action_inject_energy (res://UI/FarmInputHandler.gd:946)
+              [1] _execute_tool_action (res://UI/FarmInputHandler.gd:458)
+              [2] _input (res://UI/FarmInputHandler.gd:193)
+⌨️ KEY PRESSED: 69
+⚡ Tool 4 (Energy) | Key E | Action: Inject Energy | Plots: 12 selected
+⚡ Injecting energy into 12 plots...
+SCRIPT ERROR: Invalid access to property or key 'wheat_inventory' on a base object of type 'Node (FarmEconomy)'.
+          at: FarmInputHandler._action_inject_energy (res://UI/FarmInputHandler.gd:946)
+          GDScript backtrace (most recent call first):
+              [0] _action_inject_energy (res://UI/FarmInputHandler.gd:946)
+              [1] _execute_tool_action (res://UI/FarmInputHandler.gd:458)
+              [2] _input (res://UI/FarmInputHandler.gd:193)
+🌍 BioticFlux | Temp: 300K | ☀️0.0° | 🌾0.0° | Energy: 0.0 | Qubits: 4
+⌨️ KEY PRESSED: 82
+⚡ Tool 4 (Energy) | Key R | Action: Drain Energy | Plots: 12 selected
+🔋 Draining energy from 12 plots...
+⌨️ KEY PRESSED: 49
+🛠️  Tool switched to: Grower
+🔄 Tool changed via input: 1 (Grower)
+⚡ ActionPreviewRow updated for Tool 1: Grower
+⌨️ KEY PRESSED: 50
+🛠️  Tool switched to: Quantum
+🔄 Tool changed via input: 2 (Quantum)
+⚡ ActionPreviewRow updated for Tool 2: Quantum
+🌍 BioticFlux | Temp: 300K | ☀️0.0° | 🌾0.0° | Energy: 0.0 | Qubits: 4
+⌨️ KEY PRESSED: 69
+⚡ Tool 2 (Quantum) | Key E | Action: Set Measure Trigger | Plots: 12 selected
+👁️ Setting up persistent measure trigger for 12 plots...
+SCRIPT ERROR: Invalid type in function 'add_persistent_gate' in base 'Resource (FarmPlot)'. The array of argument 2 (Array) does not have the same element type as the expected typed array argument.
+          at: FarmInputHandler._action_measure_trigger (res://UI/FarmInputHandler.gd:890)
+          GDScript backtrace (most recent call first):
+              [0] _action_measure_trigger (res://UI/FarmInputHandler.gd:890)
+              [1] _execute_tool_action (res://UI/FarmInputHandler.gd:444)
+              [2] _input (res://UI/FarmInputHandler.gd:193)
+⌨️ KEY PRESSED: 49
+🛠️  Tool switched to: Grower
+🔄 Tool changed via input: 1 (Grower)
+⚡ ActionPreviewRow updated for Tool 1: Grower
+⌨️ KEY PRESSED: 82
+⚡ Tool 1 (Grower) | Key R | Action: Measure + Harvest | Plots: 12 selected
+🔬✂️  Batch measuring and harvesting 12 plots: [(0, 0), (1, 0), (2, 0), (3, 0), (4, 0), (5, 0), (0, 1), (1, 1), (2, 1), (3, 1), (4, 1), (5, 1)]
+🔬 Plot (0, 0) measured: outcome=👥
+✂️  Plot (0, 0) harvested: energy=0.00, outcome=👥
++ 1 👥-credits (0 units) from harvest
+✂️  Farm.plot_harvested received at PlotGridDisplay
+   ✓ update_tile_from_farm((0, 0)): found plot, transforming data...
+  🌾 PlotGridDisplay updating tile for plot (0, 0)
+🔬 Plot (1, 0) measured: outcome=🌾
+✂️  Plot (1, 0) harvested: energy=0.00, outcome=🌾
++ 1 🌾-credits (0 units) from harvest
+🎉 Goal completed: First Harvest
+   Reward: +10 credits
+✂️  Farm.plot_harvested received at PlotGridDisplay
+   ✓ update_tile_from_farm((1, 0)): found plot, transforming data...
+  🌾 PlotGridDisplay updating tile for plot (1, 0)
+🔬 Plot (2, 0) measured: outcome=🌾
+✂️  Plot (2, 0) harvested: energy=0.04, outcome=🌾
++ 0 🌾-credits (0 units) from harvest
+✂️  Farm.plot_harvested received at PlotGridDisplay
+   ✓ update_tile_from_farm((2, 0)): found plot, transforming data...
+  🌾 PlotGridDisplay updating tile for plot (2, 0)
+🔬 Plot (3, 0) measured: outcome=🌾
+✂️  Plot (3, 0) harvested: energy=0.04, outcome=🌾
++ 0 🌾-credits (0 units) from harvest
+✂️  Farm.plot_harvested received at PlotGridDisplay
+   ✓ update_tile_from_farm((3, 0)): found plot, transforming data...
+  🌾 PlotGridDisplay updating tile for plot (3, 0)
+🔬 Plot (4, 0) measured: outcome=🌾
+✂️  Plot (4, 0) harvested: energy=0.04, outcome=🌾
++ 0 🌾-credits (0 units) from harvest
+✂️  Farm.plot_harvested received at PlotGridDisplay
+   ✓ update_tile_from_farm((4, 0)): found plot, transforming data...
+  🌾 PlotGridDisplay updating tile for plot (4, 0)
+🔬 Plot (5, 0) measured: outcome=🌾
+✂️  Plot (5, 0) harvested: energy=0.04, outcome=🌾
++ 0 🌾-credits (0 units) from harvest
+✂️  Farm.plot_harvested received at PlotGridDisplay
+   ✓ update_tile_from_farm((5, 0)): found plot, transforming data...
+  🌾 PlotGridDisplay updating tile for plot (5, 0)
+🔬 Plot (0, 1) measured: outcome=🌾
+✂️  Plot (0, 1) harvested: energy=0.00, outcome=🌾
++ 1 🌾-credits (0 units) from harvest
+✂️  Farm.plot_harvested received at PlotGridDisplay
+   ✓ update_tile_from_farm((0, 1)): found plot, transforming data...
+  🌾 PlotGridDisplay updating tile for plot (0, 1)
+🔬 Plot (1, 1) measured: outcome=👥
+✂️  Plot (1, 1) harvested: energy=0.00, outcome=👥
++ 1 👥-credits (0 units) from harvest
+✂️  Farm.plot_harvested received at PlotGridDisplay
+   ✓ update_tile_from_farm((1, 1)): found plot, transforming data...
+  🌾 PlotGridDisplay updating tile for plot (1, 1)
+🔬 Plot (2, 1) measured: outcome=👥
+✂️  Plot (2, 1) harvested: energy=0.00, outcome=👥
++ 1 👥-credits (0 units) from harvest
+✂️  Farm.plot_harvested received at PlotGridDisplay
+   ✓ update_tile_from_farm((2, 1)): found plot, transforming data...
+  🌾 PlotGridDisplay updating tile for plot (2, 1)
+🔬 Plot (3, 1) measured: outcome=🌾
+✂️  Plot (3, 1) harvested: energy=0.00, outcome=🌾
++ 1 🌾-credits (0 units) from harvest
+✂️  Farm.plot_harvested received at PlotGridDisplay
+   ✓ update_tile_from_farm((3, 1)): found plot, transforming data...
+  🌾 PlotGridDisplay updating tile for plot (3, 1)
+🔬 Plot (4, 1) measured: outcome=🌾
+✂️  Plot (4, 1) harvested: energy=0.17, outcome=🌾
++ 1 🌾-credits (0 units) from harvest
+✂️  Farm.plot_harvested received at PlotGridDisplay
+   ✓ update_tile_from_farm((4, 1)): found plot, transforming data...
+  🌾 PlotGridDisplay updating tile for plot (4, 1)
+🔬 Plot (5, 1) measured: outcome=🌾
+✂️  Plot (5, 1) harvested: energy=0.17, outcome=🌾
++ 1 🌾-credits (0 units) from harvest
+✂️  Farm.plot_harvested received at PlotGridDisplay
+   ✓ update_tile_from_farm((5, 1)): found plot, transforming data...
+  🌾 PlotGridDisplay updating tile for plot (5, 1)
+🌍 BioticFlux | Temp: 300K | ☀️0.0° | 🌾0.0° | Energy: 0.0 | Qubits: 4
+⌨️ KEY PRESSED: 4194305
+  → ESC: Opening menu
+🔄 toggle_escape_menu() called
+  escape_menu exists, is_visible() = false
+    → Menu is hidden, calling show_overlay()
+🔓 show_overlay('escape_menu') called
+  → Calling escape_menu.show_menu()
+📋 Menu opened - Game PAUSED
+🔗 Synced InputController.menu_visible = true
+  ✅ escape_menu shown
+  → Menu is visible - blocking game input
+💾 Save pressed
+📋 OverlayManager._on_save_pressed() called
+   save_load_menu exists: true
+   Calling show_menu(SAVE)...
+🔒 InputController disabled - SaveLoadMenu now handling all input
+📂 Loaded save from slot 1
+📂 Loaded save from slot 2
+📂 Loaded save from slot 3
+📋 Save/Load menu opened - Mode: SAVE
+   save_load_menu.visible = true
+💾 Save menu opened
+🎮 Slot 2 selected - Mode: SAVE
+SCRIPT ERROR: Invalid call. Nonexistent function 'has' in base 'Resource (FarmPlot)'.
+          at: capture_state_from_game (res://Core/GameState/GameStateManager.gd:252)
+          GDScript backtrace (most recent call first):
+              [0] capture_state_from_game (res://Core/GameState/GameStateManager.gd:252)
+              [1] save_game (res://Core/GameState/GameStateManager.gd:79)
+              [2] _on_save_load_slot_selected (res://UI/Managers/OverlayManager.gd:493)
+              [3] _on_slot_pressed (res://UI/Panels/SaveLoadMenu.gd:536)
+ERROR: Can't save empty resource to path 'user://saves/save_slot_1.tres'.
+   at: save (core/io/resource_saver.cpp:101)
+   GDScript backtrace (most recent call first):
+       [0] save_game (res://Core/GameState/GameStateManager.gd:83)
+       [1] _on_save_load_slot_selected (res://UI/Managers/OverlayManager.gd:493)
+       [2] _on_slot_pressed (res://UI/Panels/SaveLoadMenu.gd:536)
+ERROR: Failed to save game to slot 1
+   at: push_error (core/variant/variant_utility.cpp:1024)
+   GDScript backtrace (most recent call first):
+       [0] save_game (res://Core/GameState/GameStateManager.gd:90)
+       [1] _on_save_load_slot_selected (res://UI/Managers/OverlayManager.gd:493)
+       [2] _on_slot_pressed (res://UI/Panels/SaveLoadMenu.gd:536)
+❌ Failed to save to slot 2
+🔓 InputController re-enabled
+📋 Save/Load menu closed
+⌨️ KEY PRESSED: 81
+  → Q: Quitting game
+🛑 Quit requested - exiting game
+  → Menu is visible - blocking game input
+WARNING: ObjectDB instances leaked at exit (run with --verbose for details).
+     at: cleanup (core/object/object.cpp:2514)
+ERROR: 1 resources still in use at exit (run with --verbose for details).
+   at: clear (core/io/resource.cpp:795)
+tehcr33d@DESKTOP-B7NQRHN:~/ws/SpaceWheat$

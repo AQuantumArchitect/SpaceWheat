@@ -1,19 +1,36 @@
 class_name FarmInputHandler
 extends Node
 
-## Keyboard-driven Farm UI - Minecraft-style tool/action system
+## INPUT CONTRACT (Layer 2 - Tool/Action System)
+## ═══════════════════════════════════════════════════════════════
+## PHASE: _input() - Runs after InputController
+## HANDLES: InputEventKey via input actions
+## ACTIONS: tool_1-6, action_q/e/r, select_plot_*, move_*, toggle_help
+## CONSUMES: Always for handled actions (via get_viewport().set_input_as_handled())
+## EMITS: tool_changed, submenu_changed, action_performed
+## REQUIRES: GridConfig injection for plot selection
+## ═══════════════════════════════════════════════════════════════
+##
+## Keyboard-driven Farm UI - Minecraft-style tool/action system:
 ## Numbers 1-6 = Tool modes (Plant, Quantum, Economy, etc)
 ## Q/E/R = Context-sensitive actions (depends on active tool)
 ## WASD = Movement/cursor control
-## YUIOP = Quick-access location selectors
+## TYUIOP = Quick-access location selectors
 
-# Preload GridConfig (Phase 7)
+# Preloads
 const GridConfig = preload("res://Core/GameState/GridConfig.gd")
+const ToolConfig = preload("res://Core/GameState/ToolConfig.gd")
+const QuantumAlgorithms = preload("res://Core/QuantumSubstrate/QuantumAlgorithms.gd")
+
+# Tool actions from shared config (single source of truth)
+const TOOL_ACTIONS = ToolConfig.TOOL_ACTIONS
 
 var farm  # Will be injected with Farm instance (Farm.gd)
-var plot_grid_display: Node = null  # NEW: Will be injected with PlotGridDisplay instance
+var plot_grid_display: Node = null  # Will be injected with PlotGridDisplay instance
 var current_selection: Vector2i = Vector2i.ZERO
 var current_tool: int = 1  # Active tool (1-6)
+var current_submenu: String = ""  # Active submenu name (empty = no submenu)
+var _cached_submenu: Dictionary = {}  # Cached dynamic submenu during session
 var grid_config: GridConfig = null  # Grid configuration (Phase 7)
 var input_enable_frame_count: int = 0  # Counter to enable input after N frames
 
@@ -24,41 +41,37 @@ var grid_height: int = 2
 # Debug: Set to true to enable verbose logging (keystroke-by-keystroke, location info, etc)
 const VERBOSE = false
 
-# Tool action sets - each tool has 3 actions mapped to Q, E, R
-# All actions are batch operations on multi-selected plots
-const TOOL_ACTIONS = {
-	1: {  # GROWER Tool - Core farming (80% of gameplay)
-		"name": "Grower",
-		"Q": {"action": "plant_batch", "label": "Plant (wheat/mushroom/tomato)"},
-		"E": {"action": "entangle_batch", "label": "Entangle (Bell φ+)"},
-		"R": {"action": "measure_and_harvest", "label": "Measure + Harvest"},
-	},
-	2: {  # QUANTUM Tool - Advanced quantum operations
-		"name": "Quantum",
-		"Q": {"action": "cluster", "label": "Cluster (GHZ/W/3+qubits)"},
-		"E": {"action": "measure_plot", "label": "Measure Cascade"},
-		"R": {"action": "break_entanglement", "label": "Break Entanglement"},
-	},
-	3: {  # INDUSTRY Tool - Economy & automation
-		"name": "Industry",
-		"Q": {"action": "place_mill", "label": "Build Mill"},
-		"E": {"action": "place_market", "label": "Build Market"},
-		"R": {"action": "place_kitchen", "label": "Build Kitchen"},
-	},
-	4: {  # ENERGY Tool - Quantum energy management
-		"name": "Energy",
-		"Q": {"action": "inject_energy", "label": "Inject Energy"},
-		"E": {"action": "drain_energy", "label": "Drain Energy"},
-		"R": {"action": "place_energy_tap", "label": "Place Energy Tap"},
-	},
-}
+# ═══════════════════════════════════════════════════════════════
+# MODEL B COMPATIBILITY LAYER
+# ═══════════════════════════════════════════════════════════════
+# These helper functions provide safe fallbacks for Model A code
+# that tries to access quantum_state on plots (which don't exist in Model B)
 
+func _get_plot_north_emoji(plot: BiomePlot) -> String:
+	"""Get north emoji safely (handles Model B where quantum_state doesn't exist)"""
+	if plot and plot.quantum_state:
+		return plot.quantum_state.north_emoji
+	# Model B fallback: return placeholder
+	return "?"
+
+func _get_plot_south_emoji(plot: BiomePlot) -> String:
+	"""Get south emoji safely"""
+	if plot and plot.quantum_state:
+		return plot.quantum_state.south_emoji
+	return "?"
+
+func _action_disabled_message(action_name: String) -> String:
+	"""Return standard message for disabled actions"""
+	return "⚠️  %s not functional in Model B (requires quantum_computer refactor)" % action_name
+
+# ═══════════════════════════════════════════════════════════════
 
 # Signals
 signal action_performed(action: String, success: bool, message: String)
 signal selection_changed(new_pos: Vector2i)
 signal plot_selected(pos: Vector2i)  # Signal emitted when plot location is selected
 signal tool_changed(tool_num: int, tool_info: Dictionary)
+signal submenu_changed(submenu_name: String, submenu_info: Dictionary)  # Emitted when entering/exiting submenu
 signal help_requested
 
 func _ready():
@@ -122,7 +135,7 @@ func _input(event: InputEvent):
 			if VERBOSE:
 				print("🛠️  Tool key pressed: %d" % i)
 			_select_tool(i)
-			get_tree().root.set_input_as_handled()
+			get_viewport().set_input_as_handled()
 			return
 
 	# Location quick-select (dynamic from GridConfig, or default mapping) - MULTI-SELECT: Toggle plots with checkboxes
@@ -134,11 +147,13 @@ func _input(event: InputEvent):
 				var pos = grid_config.keyboard_layout.get_position_for_action(action)
 				if pos != Vector2i(-1, -1) and grid_config.is_position_valid(pos):
 					_toggle_plot_selection(pos)
-					get_tree().root.set_input_as_handled()
+					get_viewport().set_input_as_handled()
 					return
 	else:
 		print("⚠️  grid_config is NULL at input time - falling back to hardcoded actions")
-		# Fallback: default 6x2 keyboard layout (T/Y/U/I/O/P for row 0, 0/9/8/7 for row 1)
+		# Fallback: default 6x2 keyboard layout
+		# Row 0: TYUIOP left-to-right
+		# Row 1: 7890 left-to-right
 		var default_keys = {
 			"select_plot_t": Vector2i(0, 0),
 			"select_plot_y": Vector2i(1, 0),
@@ -146,17 +161,17 @@ func _input(event: InputEvent):
 			"select_plot_i": Vector2i(3, 0),
 			"select_plot_o": Vector2i(4, 0),
 			"select_plot_p": Vector2i(5, 0),
-			"select_plot_0": Vector2i(0, 1),
-			"select_plot_9": Vector2i(1, 1),
-			"select_plot_8": Vector2i(2, 1),
-			"select_plot_7": Vector2i(3, 1),
+			"select_plot_7": Vector2i(0, 1),
+			"select_plot_8": Vector2i(1, 1),
+			"select_plot_9": Vector2i(2, 1),
+			"select_plot_0": Vector2i(3, 1),
 		}
 		for action in default_keys.keys():
 			if event.is_action_pressed(action):
 				if VERBOSE:
 					print("📍 Fallback action detected: %s → %s" % [action, default_keys[action]])
 				_toggle_plot_selection(default_keys[action])
-				get_tree().root.set_input_as_handled()
+				get_viewport().set_input_as_handled()
 				return
 
 	# Selection management: [ = clear all, ] = restore previous
@@ -164,29 +179,29 @@ func _input(event: InputEvent):
 	if event is InputEventKey and event.pressed:
 		if event.keycode == KEY_BRACKETLEFT:  # [ key
 			_clear_all_selection()
-			get_tree().root.set_input_as_handled()
+			get_viewport().set_input_as_handled()
 			return
 		elif event.keycode == KEY_BRACKETRIGHT:  # ] key
 			_restore_previous_selection()
-			get_tree().root.set_input_as_handled()
+			get_viewport().set_input_as_handled()
 			return
 
 	# Movement (WASD or D-Pad or Left Stick) - Phase 7: Use InputMap actions
 	if event.is_action_pressed("move_up"):
 		_move_selection(Vector2i.UP)
-		get_tree().root.set_input_as_handled()
+		get_viewport().set_input_as_handled()
 		return
 	elif event.is_action_pressed("move_down"):
 		_move_selection(Vector2i.DOWN)
-		get_tree().root.set_input_as_handled()
+		get_viewport().set_input_as_handled()
 		return
 	elif event.is_action_pressed("move_left"):
 		_move_selection(Vector2i.LEFT)
-		get_tree().root.set_input_as_handled()
+		get_viewport().set_input_as_handled()
 		return
 	elif event.is_action_pressed("move_right"):
 		_move_selection(Vector2i.RIGHT)
-		get_tree().root.set_input_as_handled()
+		get_viewport().set_input_as_handled()
 		return
 
 	# Action keys (Q/E/R or gamepad buttons A/B/X) - Phase 7: Use InputMap actions
@@ -206,25 +221,25 @@ func _input(event: InputEvent):
 			if VERBOSE:
 				print("⚡ action_q detected")
 			_execute_tool_action("Q")
-			get_tree().root.set_input_as_handled()
+			get_viewport().set_input_as_handled()
 			return
 		elif event.is_action_pressed("action_e"):
 			if VERBOSE:
 				print("⚡ action_e detected")
 			_execute_tool_action("E")
-			get_tree().root.set_input_as_handled()
+			get_viewport().set_input_as_handled()
 			return
 		elif event.is_action_pressed("action_r"):
 			if VERBOSE:
 				print("⚡ action_r detected")
 			_execute_tool_action("R")
-			get_tree().root.set_input_as_handled()
+			get_viewport().set_input_as_handled()
 			return
 
 	# Debug/Help - Phase 7: Use InputMap action
 	if event.is_action_pressed("toggle_help"):
 		_print_help()
-		get_tree().root.set_input_as_handled()
+		get_viewport().set_input_as_handled()
 		return
 
 	# NOTE: K key for keyboard help is now handled by InputController
@@ -239,6 +254,10 @@ func _select_tool(tool_num: int):
 		print("⚠️  Tool %d not available" % tool_num)
 		return
 
+	# Exit any active submenu when switching tools
+	if current_submenu != "":
+		_exit_submenu()
+
 	current_tool = tool_num
 	var tool_info = TOOL_ACTIONS[tool_num]
 	print("🛠️  Tool switched to: %s" % tool_info["name"])
@@ -250,13 +269,210 @@ func _select_tool(tool_num: int):
 	tool_changed.emit(tool_num, tool_info)
 
 
-func _execute_tool_action(action_key: String):
-	"""Execute the action mapped to Q/E/R for current tool
+## Submenu System
 
-	NEW: Applies to ALL selected plots (multi-select support)
+func _enter_submenu(submenu_name: String):
+	"""Enter a submenu - QER keys now map to submenu actions"""
+	var submenu = ToolConfig.get_submenu(submenu_name)
+	if submenu.is_empty():
+		print("⚠️  Submenu '%s' not found" % submenu_name)
+		return
+
+	# Check if submenu is dynamic - generate runtime actions
+	if submenu.get("dynamic", false):
+		submenu = ToolConfig.get_dynamic_submenu(submenu_name, farm)
+		print("🔄 Generated dynamic submenu: %s" % submenu_name)
+
+	current_submenu = submenu_name
+
+	# Cache the generated submenu for this session
+	_cached_submenu = submenu
+
+	print("📂 Entered submenu: %s" % submenu.get("name", submenu_name))
+	print("   Q = %s" % submenu["Q"]["label"])
+	print("   E = %s" % submenu["E"]["label"])
+	print("   R = %s" % submenu["R"]["label"])
+
+	submenu_changed.emit(submenu_name, submenu)
+
+
+func _exit_submenu():
+	"""Exit current submenu and return to tool mode"""
+	if current_submenu == "":
+		return
+
+	print("📁 Exited submenu: %s" % current_submenu)
+	current_submenu = ""
+	_cached_submenu = {}  # Clear cache
+	submenu_changed.emit("", {})
+
+	# Re-emit tool info to update UI
+	tool_changed.emit(current_tool, TOOL_ACTIONS[current_tool])
+
+
+func _execute_submenu_action(action_key: String):
+	"""Execute action from current submenu"""
+	# Use cached submenu (supports dynamic generation)
+	var submenu = _cached_submenu if not _cached_submenu.is_empty() else ToolConfig.get_submenu(current_submenu)
+
+	if submenu.is_empty():
+		print("⚠️  Current submenu '%s' not found" % current_submenu)
+		_exit_submenu()
+		return
+
+	# Check if entire submenu is disabled (e.g., no vocabulary discovered)
+	if submenu.get("_disabled", false):
+		print("⚠️  Submenu disabled - grow crops to discover vocabulary")
+		action_performed.emit("disabled", false, "⚠️  Discover vocabulary by growing crops")
+		return
+
+	if not submenu.has(action_key):
+		print("⚠️  Action %s not available in submenu %s" % [action_key, current_submenu])
+		return
+
+	var action_info = submenu[action_key]
+	var action = action_info["action"]
+	var label = action_info["label"]
+
+	# Check if action is empty (locked button)
+	if action == "":
+		print("⚠️  Action locked - discover more vocabulary")
+		action_performed.emit("locked", false, "⚠️  Unlock by discovering vocabulary")
+		return
+
+	# Get currently selected plots
+	var selected_plots: Array[Vector2i] = []
+	if plot_grid_display and plot_grid_display.has_method("get_selected_plots"):
+		selected_plots = plot_grid_display.get_selected_plots()
+
+	if selected_plots.is_empty():
+		if _is_valid_position(current_selection):
+			selected_plots = [current_selection]
+		else:
+			print("⚠️  No plots selected!")
+			action_performed.emit(action, false, "⚠️  No plots selected")
+			return
+
+	print("📂 Submenu %s | Key %s | Action: %s | Plots: %d" % [current_submenu, action_key, label, selected_plots.size()])
+
+	# Execute submenu-specific actions
+	match action:
+		# Plant submenu
+		"plant_wheat":
+			_action_batch_plant("wheat", selected_plots)
+		"plant_mushroom":
+			_action_batch_plant("mushroom", selected_plots)
+		"plant_tomato":
+			_action_batch_plant("tomato", selected_plots)
+
+		# Industry submenu
+		"place_mill":
+			_action_batch_build("mill", selected_plots)
+		"place_market":
+			_action_batch_build("market", selected_plots)
+		"place_kitchen":
+			_action_place_kitchen(selected_plots)
+
+		# Single-qubit gate submenu
+		"apply_pauli_x":
+			_action_apply_pauli_x(selected_plots)
+		"apply_hadamard":
+			_action_apply_hadamard(selected_plots)
+		"apply_pauli_z":
+			_action_apply_pauli_z(selected_plots)
+
+		# Two-qubit gate submenu
+		"apply_cnot":
+			_action_apply_cnot(selected_plots)
+		"apply_cz":
+			_action_apply_cz(selected_plots)
+		"apply_swap":
+			_action_apply_swap(selected_plots)
+
+		# Tool 6: Biome Management
+		"clear_biome_assignment":
+			_action_clear_biome_assignment(selected_plots)
+
+		"inspect_plot":
+			_action_inspect_plot(selected_plots)
+
+		"pump_to_wheat":
+			_action_pump_to_wheat(selected_plots)
+
+		"reset_to_pure":
+			_action_reset_to_pure(selected_plots)
+
+		"reset_to_mixed":
+			_action_reset_to_mixed(selected_plots)
+
+		_:
+			# Handle dynamic actions
+			if action.begins_with("tap_"):
+				# Dynamic energy tap
+				var emoji = _extract_emoji_from_action(action)
+				if emoji != "":
+					_action_place_energy_tap_for(selected_plots, emoji)
+				else:
+					print("⚠️  Unknown tap action: %s" % action)
+			elif action.begins_with("assign_to_"):
+				# Dynamic biome assignment
+				var biome_name = action.replace("assign_to_", "")
+				if farm.grid.biomes.has(biome_name):
+					_action_assign_plots_to_biome(selected_plots, biome_name)
+				else:
+					print("⚠️  Biome '%s' not found in registry!" % biome_name)
+			else:
+				print("⚠️  Unknown submenu action: %s" % action)
+
+	# Auto-exit submenu after executing action
+	_exit_submenu()
+
+
+func get_current_actions() -> Dictionary:
+	"""Get current QER actions (from submenu or tool)
+
+	Used by UI to display correct action labels.
+	"""
+	if current_submenu != "":
+		var submenu = ToolConfig.get_submenu(current_submenu)
+		return {
+			"Q": submenu.get("Q", {}),
+			"E": submenu.get("E", {}),
+			"R": submenu.get("R", {}),
+			"is_submenu": true,
+			"submenu_name": current_submenu,
+		}
+	else:
+		var tool = TOOL_ACTIONS.get(current_tool, {})
+		return {
+			"Q": tool.get("Q", {}),
+			"E": tool.get("E", {}),
+			"R": tool.get("R", {}),
+			"is_submenu": false,
+			"tool_name": tool.get("name", ""),
+		}
+
+
+func execute_action(action_key: String) -> void:
+	"""PUBLIC: Execute the action mapped to Q/E/R for current tool
+
+	Called by ActionPreviewRow buttons when clicked/touched.
+	"""
+	_execute_tool_action(action_key)
+
+
+func _execute_tool_action(action_key: String):
+	"""Execute the action mapped to Q/E/R for current tool or submenu
+
+	NEW: Supports submenu navigation and multi-select
 	"""
 	if not farm:
 		push_error("Farm not set on FarmInputHandler!")
+		return
+
+	# Check if we're in a submenu first
+	if current_submenu != "":
+		_execute_submenu_action(action_key)
 		return
 
 	if not TOOL_ACTIONS.has(current_tool):
@@ -271,6 +487,11 @@ func _execute_tool_action(action_key: String):
 	var action_info = tool[action_key]
 	var action = action_info["action"]
 	var label = action_info["label"]
+
+	# Check if this action opens a submenu
+	if action_info.has("submenu"):
+		_enter_submenu(action_info["submenu"])
+		return
 
 	# Get currently selected plots
 	var selected_plots: Array[Vector2i] = []
@@ -300,13 +521,13 @@ func _execute_tool_action(action_key: String):
 		"measure_and_harvest":
 			_action_batch_measure_and_harvest(selected_plots)
 
-		# Tool 2: QUANTUM - Advanced quantum
+		# Tool 2: QUANTUM - Persistent gate infrastructure
 		"cluster":
 			_action_cluster(selected_plots)
-		"measure_plot":
-			_action_batch_measure(selected_plots)  # Cascades automatically
-		"break_entanglement":
-			_action_break_entanglement(selected_plots)
+		"measure_trigger":
+			_action_measure_trigger(selected_plots)
+		"remove_gates":
+			_action_remove_gates(selected_plots)
 
 		# Tool 3: INDUSTRY - Economy & automation
 		"place_mill":
@@ -314,7 +535,7 @@ func _execute_tool_action(action_key: String):
 		"place_market":
 			_action_batch_build("market", selected_plots)
 		"place_kitchen":
-			_action_batch_build("kitchen", selected_plots)
+			_action_place_kitchen(selected_plots)
 
 		# Tool 4: ENERGY - Energy management
 		"inject_energy":
@@ -323,6 +544,18 @@ func _execute_tool_action(action_key: String):
 			_action_drain_energy(selected_plots)
 		"place_energy_tap":
 			_action_place_energy_tap(selected_plots)
+
+		# Tool 5: GATES - Instantaneous single-qubit gates
+		"apply_pauli_x":
+			_action_apply_pauli_x(selected_plots)
+		"apply_hadamard":
+			_action_apply_hadamard(selected_plots)
+		"apply_pauli_z":
+			_action_apply_pauli_z(selected_plots)
+
+		# Tool 5: Measure (R action)
+		"measure_batch":
+			_action_batch_measure(selected_plots)
 
 		_:
 			print("⚠️  Unknown action: %s" % action)
@@ -516,26 +749,45 @@ func _action_batch_build(build_type: String, positions: Array[Vector2i]):
 			"%s Built %d/%d %s structures" % ["✅" if success else "❌", success_count, positions.size(), build_type])
 
 
+func _action_place_kitchen(positions: Array[Vector2i]):
+	"""Place kitchen using triplet entanglement (requires exactly 3 plots)"""
+	if not farm or not farm.grid:
+		action_performed.emit("place_kitchen", false, "⚠️  Farm not loaded yet")
+		return
+
+	print("🍳 Placing kitchen with %d selected plots..." % positions.size())
+
+	# Kitchen requires exactly 3 plots for triplet entanglement
+	if positions.size() != 3:
+		action_performed.emit("place_kitchen", false, "⚠️  Kitchen requires exactly 3 plots selected (got %d)" % positions.size())
+		print("  ❌ Kitchen needs exactly 3 plots for triplet entanglement")
+		return
+
+	# Create triplet entanglement (determines Bell state by spatial pattern)
+	var pos_a = positions[0]
+	var pos_b = positions[1]
+	var pos_c = positions[2]
+
+	var success = farm.grid.create_triplet_entanglement(pos_a, pos_b, pos_c)
+
+	if success:
+		print("  🍳 Kitchen triplet created: %s ↔ %s ↔ %s" % [pos_a, pos_b, pos_c])
+		action_performed.emit("place_kitchen", true, "✅ Kitchen created with triplet entanglement")
+	else:
+		print("  ❌ Failed to create kitchen triplet")
+		action_performed.emit("place_kitchen", false, "❌ Failed to create kitchen (plots may need to be planted first)")
+
+
 func _action_batch_boost_energy(positions: Array[Vector2i]):
-	"""Boost quantum energy in selected plots (grow energy in quantum states)"""
+	"""Boost quantum energy in selected plots (Model B: feature deprecated)"""
 	if not farm:
 		action_performed.emit("boost_energy", false, "⚠️  Farm not loaded yet")
 		return
 
-	print("⚡ Batch boosting energy at %d plots: %s" % [positions.size(), positions])
-
-	var success_count = 0
-	for pos in positions:
-		var plot = farm.grid.get_plot(pos)
-		if plot and plot.quantum_state:
-			# Grow energy by a small amount (strength * dt = 0.3 * 1.0 = 30% exponential growth)
-			plot.quantum_state.grow_energy(0.3, 1.0)
-			success_count += 1
-			print("  ⚡ Boosted energy at %s: %.2f" % [pos, plot.quantum_state.energy])
-
-	var success = success_count > 0
-	action_performed.emit("boost_energy", success,
-		"%s Boosted energy in %d/%d plots" % ["✅" if success else "❌", success_count, positions.size()])
+	# Model B: Energy management moved to quantum_computer evolution
+	# This tool action is not functional in Model B architecture
+	action_performed.emit("boost_energy", false,
+		"⚠️  Energy boost disabled in Model B (use harvest instead)")
 
 
 func _action_batch_measure_and_harvest(positions: Array[Vector2i]):
@@ -595,7 +847,12 @@ func _action_plant_batch(positions: Array[Vector2i]):
 
 
 func _action_entangle_batch(positions: Array[Vector2i]):
-	"""Batch entangle selected plots in Bell state φ+"""
+	"""Batch entangle selected plots in Bell state φ+ - INSTANTANEOUS ONLY.
+
+	Unlike Tool 2 (persistent infrastructure), this creates entanglement
+	directly on current qubits WITHOUT modifying plot infrastructure.
+	Entanglement disappears when qubits are harvested.
+	"""
 	if not farm or not farm.grid:
 		action_performed.emit("entangle_batch", false, "⚠️  Farm not loaded yet")
 		return
@@ -604,136 +861,302 @@ func _action_entangle_batch(positions: Array[Vector2i]):
 		action_performed.emit("entangle_batch", false, "⚠️  Need at least 2 plots to entangle")
 		return
 
-	print("🔗 Batch entangling %d plots..." % positions.size())
+	print("🔗 Instantaneous entangling %d plots (no persistence)..." % positions.size())
 
 	var success_count = 0
 	# Create pairwise entanglement: 0-1, 1-2, 2-3, etc.
+	# Use _create_quantum_entanglement directly (skips infrastructure setup)
 	for i in range(positions.size() - 1):
 		var plot1 = positions[i]
 		var plot2 = positions[i + 1]
-		farm.grid.create_entanglement(plot1, plot2)
-		success_count += 1
-		print("  🔗 Entangled %s ↔ %s (Bell φ+)" % [plot1, plot2])
+		# Direct quantum entanglement - NO infrastructure persistence
+		var result = farm.grid._create_quantum_entanglement(plot1, plot2)
+		if result:
+			success_count += 1
+			print("  🔗 Entangled %s ↔ %s (Bell φ+, instantaneous)" % [plot1, plot2])
 
 	action_performed.emit("entangle_batch", success_count > 0,
-		"✅ Created %d Bell state entanglements" % success_count)
+		"✅ Created %d instantaneous entanglements (no persistence)" % success_count)
 
 
-## NEW Tool 2 (QUANTUM) Actions
+## NEW Tool 2 (QUANTUM) Actions - PERSISTENT INFRASTRUCTURE
 
 func _action_cluster(positions: Array[Vector2i]):
-	"""Create GHZ/W/Cluster states for 3+ qubit entanglement"""
+	"""Build PERSISTENT entanglement gate infrastructure on selected plots.
+
+	Auto-detects gate type based on selection:
+	- 2 plots → Bell gate (persistent pairwise φ+ entanglement)
+	- 3+ plots → Cluster gate (persistent N-qubit entanglement)
+
+	Unlike Tool 1-E (instantaneous), this creates infrastructure that:
+	1. Applies to currently planted qubits immediately
+	2. Auto-applies to future qubits planted in these plots
+	"""
 	if not farm or not farm.grid:
 		action_performed.emit("cluster", false, "⚠️  Farm not loaded yet")
 		return
 
-	if positions.size() < 3:
-		action_performed.emit("cluster", false, "⚠️  Need at least 3 plots for clustering")
+	if positions.size() < 2:
+		action_performed.emit("cluster", false, "⚠️  Need at least 2 plots for entanglement gate")
 		return
 
-	print("🔗 Creating cluster state for %d plots..." % positions.size())
+	# Determine gate type based on selection count
+	var gate_type = "bell" if positions.size() == 2 else "cluster"
+	var gate_label = "Bell φ+" if gate_type == "bell" else "Cluster"
 
-	# TODO: Detect geometry (horizontal/L-shape/T-shape) and create appropriate state
-	# For now, create sequential pairwise entanglement like entangle_batch
-	var success_count = 0
-	for i in range(positions.size() - 1):
-		var plot1 = positions[i]
-		var plot2 = positions[i + 1]
-		farm.grid.create_entanglement(plot1, plot2)
-		success_count += 1
+	print("🔧 Building persistent %s gate for %d plots: %s" % [gate_label, positions.size(), positions])
 
-	action_performed.emit("cluster", success_count > 0,
-		"✅ Created cluster state with %d plots" % positions.size())
+	# Add persistent gate infrastructure to each plot
+	var success_gates = 0
+	# Create properly typed array for add_persistent_gate
+	var typed_positions: Array[Vector2i] = []
+	typed_positions.assign(positions)
+
+	for pos in positions:
+		var plot = farm.grid.get_plot(pos)
+		if plot:
+			plot.add_persistent_gate(gate_type, typed_positions)
+			success_gates += 1
+			print("  ✅ Added gate to plot at %s" % pos)
+		else:
+			print("  ⚠️ No plot found at %s" % pos)
+
+	# Also apply to currently planted qubits (if all are planted)
+	var planted_count = 0
+	for pos in positions:
+		var plot = farm.grid.get_plot(pos)
+		if plot and plot.is_planted:
+			planted_count += 1
+
+	if planted_count == positions.size():
+		# All plots planted - create quantum entanglement now
+		var success_count = 0
+		for i in range(positions.size() - 1):
+			var plot1 = positions[i]
+			var plot2 = positions[i + 1]
+			farm.grid.create_entanglement(plot1, plot2)
+			success_count += 1
+		print("  🔗 Created %d immediate %s entanglements" % [success_count, gate_label])
+
+	# Trigger visualization update for gate infrastructure
+	if success_gates > 0 and farm.grid.has_signal("visualization_changed"):
+		farm.grid.visualization_changed.emit()
+
+	action_performed.emit("cluster", true,
+		"✅ Built %s gate on %d plots (planted: %d)" % [gate_label, positions.size(), planted_count])
 
 
-func _action_break_entanglement(positions: Array[Vector2i]):
-	"""Break all entanglements for selected plots"""
+func _action_measure_trigger(positions: Array[Vector2i]):
+	"""Build PERSISTENT measure trigger on selected plots.
+
+	When triggered, these plots will cascade-measure their entangled networks.
+	"""
 	if not farm or not farm.grid:
-		action_performed.emit("break_entanglement", false, "⚠️  Farm not loaded yet")
+		action_performed.emit("measure_trigger", false, "⚠️  Farm not loaded yet")
 		return
 
-	print("🔓 Breaking entanglement for %d plots..." % positions.size())
+	print("👁️ Setting up persistent measure trigger for %d plots..." % positions.size())
 
 	var success_count = 0
 	for pos in positions:
 		var plot = farm.grid.get_plot(pos)
 		if plot:
-			# Clear all entangled links
-			plot.entangled_plots.clear()
+			plot.add_persistent_gate("measure_trigger", [])
 			success_count += 1
-			print("  🔓 Cleared entanglement at %s" % pos)
+			print("  👁️ Measure trigger set on %s" % pos)
 
-	action_performed.emit("break_entanglement", success_count > 0,
-		"✅ Broke entanglement on %d plots" % success_count)
+	action_performed.emit("measure_trigger", success_count > 0,
+		"✅ Set measure trigger on %d plots" % success_count)
 
 
-## NEW Tool 4 (ENERGY) Actions
+func _action_remove_gates(positions: Array[Vector2i]):
+	"""Remove ALL persistent gate infrastructure from selected plots.
 
-func _action_inject_energy(positions: Array[Vector2i]):
-	"""Inject quantum energy by spending wheat resources"""
-	if not farm or not farm.grid or not farm.economy:
-		action_performed.emit("inject_energy", false, "⚠️  Farm not loaded yet")
+	Clears both persistent gates and current quantum entanglements.
+	"""
+	if not farm or not farm.grid:
+		action_performed.emit("remove_gates", false, "⚠️  Farm not loaded yet")
 		return
 
-	print("⚡ Injecting energy into %d plots..." % positions.size())
+	print("💔 Removing gate infrastructure from %d plots..." % positions.size())
 
-	# Spending wheat (1 wheat → 0.1 energy per plot)
-	var emoji_resource = "wheat"
-	var cost_per_plot = 1
-	var energy_gain = 0.1
-
-	var total_cost = cost_per_plot * positions.size()
-
-	# Check if we have enough wheat
-	if farm.economy.wheat_inventory < total_cost:
-		action_performed.emit("inject_energy", false, "⚠️  Not enough wheat! Need %d, have %d" % [total_cost, farm.economy.wheat_inventory])
-		return
-
-	# Deduct cost from economy first
-	farm.economy.wheat_inventory -= total_cost
-	print("  💸 Spent %d wheat on energy injection" % total_cost)
-
-	# Apply energy boost to valid plots
 	var success_count = 0
 	for pos in positions:
 		var plot = farm.grid.get_plot(pos)
-		if plot and plot.quantum_state:
-			plot.quantum_state.energy += energy_gain
+		if plot:
+			# Clear persistent infrastructure
+			plot.clear_persistent_gates()
+			# Also clear current quantum entanglements
+			plot.entangled_plots.clear()
 			success_count += 1
-			print("  ⚡ Injected %.2f energy at %s" % [energy_gain, pos])
+			print("  💔 Cleared gates at %s" % pos)
 
-	action_performed.emit("inject_energy", success_count > 0,
-		"✅ Injected energy into %d plots (spent %d %s)" % [success_count, total_cost, emoji_resource])
+	# Trigger visualization update via FarmGrid signal
+	if success_count > 0 and farm.grid.has_signal("visualization_changed"):
+		farm.grid.visualization_changed.emit()
+
+	action_performed.emit("remove_gates", success_count > 0,
+		"✅ Removed gates from %d plots" % success_count)
+
+
+## Tool 4 (BIOME EVOLUTION CONTROLLER) - Research-Grade Actions
+
+func _action_boost_coupling(positions: Array[Vector2i]):
+	"""Boost Hamiltonian coupling between emojis → faster coherent oscillations
+
+	Physics: Increases H[i,j] coupling strength
+	Effect: Natural dynamics happen faster (e.g., wheat → bread)
+	"""
+	if not farm or not farm.grid:
+		action_performed.emit("boost_coupling", false, "⚠️  Farm not loaded yet")
+		return
+
+	print("⚡ Boosting Hamiltonian coupling for %d positions..." % positions.size())
+
+	# For simplicity, boost coupling between plot's north and south emojis
+	var success_count = 0
+	var boost_factor = 1.5  # 50% faster evolution
+
+	for pos in positions:
+		var plot = farm.grid.get_plot(pos)
+		if not plot or not plot.quantum_state:
+			continue
+
+		# Get biome for this position
+		var biome = _get_biome_for_position(pos)
+		if not biome:
+			print("  ⚠️  No biome at %s" % pos)
+			continue
+
+		var emoji_a = plot.quantum_state.north_emoji
+		var emoji_b = plot.quantum_state.south_emoji
+
+		# Boost coupling in biome
+		if biome.boost_hamiltonian_coupling(emoji_a, emoji_b, boost_factor):
+			success_count += 1
+
+	action_performed.emit("boost_coupling", success_count > 0,
+		"✅ Boosted coupling at %d plots (×%.1f)" % [success_count, boost_factor])
+
+
+func _action_tune_decoherence(positions: Array[Vector2i]):
+	"""Tune Lindblad decoherence rates → control purity
+
+	Physics: Modifies γ in Lindblad operators
+	Effect: Lower γ → higher purity → better harvest yield
+	"""
+	if not farm or not farm.grid:
+		action_performed.emit("tune_decoherence", false, "⚠️  Farm not loaded yet")
+		return
+
+	print("🌊 Tuning decoherence rates for %d positions..." % positions.size())
+
+	# Resource cost: 10 wheat credits per plot
+	# Maintaining quantum purity requires energy investment!
+	var cost_per_plot = 10
+	var total_cost = positions.size() * cost_per_plot
+
+	# Check if player can afford
+	if not farm.economy or not farm.economy.can_afford_resource("🌾", total_cost):
+		var available = 0
+		if farm.economy:
+			available = farm.economy.emoji_credits.get("🌾", 0)
+		print("  ❌ Insufficient wheat! Need %d, have %d" % [total_cost, available])
+		action_performed.emit("tune_decoherence", false,
+			"❌ Need %d 🌾 wheat (have %d)" % [total_cost, available])
+		return
+
+	# Spend resources
+	if not farm.economy.remove_resource("🌾", total_cost, "Tune decoherence"):
+		print("  ❌ Failed to spend resources")
+		action_performed.emit("tune_decoherence", false, "❌ Payment failed")
+		return
+
+	print("  💰 Spent %d wheat credits" % total_cost)
+
+	# Reduce decoherence → maintain purity
+	var success_count = 0
+	var rate_factor = 0.7  # Reduce decoherence by 30%
+
+	for pos in positions:
+		var plot = farm.grid.get_plot(pos)
+		if not plot or not plot.quantum_state:
+			continue
+
+		# Get biome for this position
+		var biome = _get_biome_for_position(pos)
+		if not biome:
+			print("  ⚠️  No biome at %s" % pos)
+			continue
+
+		var source = plot.quantum_state.north_emoji
+		var target = plot.quantum_state.south_emoji
+
+		# Tune Lindblad rate for this transition
+		# Try both directions (source→target and target→source)
+		var tuned = false
+		if biome.tune_lindblad_rate(source, target, rate_factor):
+			tuned = true
+		if biome.tune_lindblad_rate(target, source, rate_factor):
+			tuned = true
+
+		if tuned:
+			success_count += 1
+
+	action_performed.emit("tune_decoherence", success_count > 0,
+		"✅ Reduced decoherence at %d plots (×%.1f) | Cost: %d🌾" % [success_count, rate_factor, total_cost])
+
+
+func _action_add_driver(positions: Array[Vector2i]):
+	"""Add time-dependent driving field → resonant control
+
+	Physics: H_drive(t) = A·cos(ωt + φ)
+	Effect: Selective amplification at resonant frequency
+	"""
+	if not farm or not farm.grid:
+		action_performed.emit("add_driver", false, "⚠️  Farm not loaded yet")
+		return
+
+	print("📡 Adding resonant driver for %d positions..." % positions.size())
+
+	# Add moderate resonant drive
+	var success_count = 0
+	var frequency = 0.5  # Angular frequency (rad/s)
+	var amplitude = 0.1  # Drive strength
+
+	for pos in positions:
+		var plot = farm.grid.get_plot(pos)
+		if not plot or not plot.quantum_state:
+			continue
+
+		# Get biome for this position
+		var biome = _get_biome_for_position(pos)
+		if not biome:
+			print("  ⚠️  No biome at %s" % pos)
+			continue
+
+		# Drive the south emoji (excited state)
+		var target_emoji = plot.quantum_state.south_emoji
+
+		if biome.add_time_driver(target_emoji, frequency, amplitude):
+			success_count += 1
+
+	action_performed.emit("add_driver", success_count > 0,
+		"✅ Added driver at %d plots (ω=%.2f)" % [success_count, frequency])
+
+
+## DEPRECATED: Old fake physics methods (kept for backwards compatibility)
+
+func _action_inject_energy(positions: Array[Vector2i]):
+	"""DEPRECATED: Use boost_coupling instead"""
+	push_warning("inject_energy deprecated - use boost_coupling for real physics")
+	_action_boost_coupling(positions)
 
 
 func _action_drain_energy(positions: Array[Vector2i]):
-	"""Drain quantum energy to gain wheat resources"""
-	if not farm or not farm.grid or not farm.economy:
-		action_performed.emit("drain_energy", false, "⚠️  Farm not loaded yet")
-		return
-
-	print("🔋 Draining energy from %d plots..." % positions.size())
-
-	var drain_amount = 0.5  # Energy to drain per plot
-	var wheat_return = 1    # Wheat returned per drained energy
-
-	var success_count = 0
-	var total_wheat_gained = 0
-	for pos in positions:
-		var plot = farm.grid.get_plot(pos)
-		if plot and plot.quantum_state and plot.quantum_state.energy >= drain_amount:
-			plot.quantum_state.energy -= drain_amount
-			total_wheat_gained += wheat_return
-			success_count += 1
-			print("  🔋 Drained %.2f energy at %s → gained %d wheat" % [drain_amount, pos, wheat_return])
-
-	# Add gained wheat to economy
-	if success_count > 0 and farm.economy:
-		farm.economy.wheat_inventory += total_wheat_gained
-		print("  💰 Added %d wheat to inventory" % total_wheat_gained)
-
-	action_performed.emit("drain_energy", success_count > 0,
-		"✅ Drained energy from %d plots → gained %d wheat" % [success_count, total_wheat_gained])
+	"""DEPRECATED: Use tune_decoherence instead"""
+	push_warning("drain_energy deprecated - use tune_decoherence for real physics")
+	_action_tune_decoherence(positions)
 
 
 func _action_place_energy_tap(positions: Array[Vector2i]):
@@ -744,18 +1167,301 @@ func _action_place_energy_tap(positions: Array[Vector2i]):
 
 	print("🚰 Placing energy taps on %d plots..." % positions.size())
 
-	# TODO: Add target emoji selector (which emoji to drain to)
-	# For now, just mark that taps would be placed
+	# Get available emojis from vocabulary discovery system
+	var available_emojis = farm.grid.get_available_tap_emojis()
+	if available_emojis.is_empty():
+		action_performed.emit("place_energy_tap", false, "⚠️  No emojis discovered yet. Grow crops to discover vocabulary.")
+		return
+
+	# Use first available emoji (future: could add UI selector)
+	var target_emoji = available_emojis[0]
+	print("  🎯 Target emoji: %s (from %d discovered)" % [target_emoji, available_emojis.size()])
+
+	var success_count = 0
+	for pos in positions:
+		if farm.grid.plant_energy_tap(pos, target_emoji):
+			success_count += 1
+			print("  ⚡ Placed energy tap at %s targeting %s" % [pos, target_emoji])
+		else:
+			print("  ❌ Failed to place tap at %s (plot occupied or invalid)" % pos)
+
+	action_performed.emit("place_energy_tap", success_count > 0,
+		"✅ Placed %d energy taps targeting %s" % [success_count, target_emoji] if success_count > 0 else "❌ No taps placed")
+
+
+## NEW Tool 5 (GATES) Actions - INSTANTANEOUS SINGLE-QUBIT
+
+func _action_apply_pauli_x(positions: Array[Vector2i]):
+	"""Apply Pauli-X gate (bit flip) to selected plots - INSTANTANEOUS.
+
+	Flips the qubit state: |0⟩ → |1⟩, |1⟩ → |0⟩
+	Proper unitary: ρ' = XρX† where X = [[0,1],[1,0]]
+	"""
+	if not farm or not farm.grid:
+		action_performed.emit("apply_pauli_x", false, "⚠️  Farm not loaded yet")
+		return
+
+	print("↔️ Applying Pauli-X (bit flip) to %d plots..." % positions.size())
+
 	var success_count = 0
 	for pos in positions:
 		var plot = farm.grid.get_plot(pos)
-		if plot:
-			# TODO: Call farm.plant_energy_tap(pos, target_emoji)
+		if plot and plot.quantum_state and plot.quantum_state.bath:
+			var bath = plot.quantum_state.bath
+			var north = plot.quantum_state.north_emoji
+			var south = plot.quantum_state.south_emoji
+			var X = bath.get_standard_gate("X")
+			bath.apply_unitary_1q(north, south, X)
 			success_count += 1
-			print("  🚰 Placed energy tap at %s" % pos)
+			print("  ↔️ Applied Pauli-X at %s (%s ↔ %s)" % [pos, north, south])
+
+	action_performed.emit("apply_pauli_x", success_count > 0,
+		"✅ Applied Pauli-X to %d qubits" % success_count)
+
+
+func _action_apply_hadamard(positions: Array[Vector2i]):
+	"""Apply Hadamard gate (superposition) to selected plots - INSTANTANEOUS.
+
+	Creates equal superposition from basis states:
+	|0⟩ → (|0⟩ + |1⟩)/√2, |1⟩ → (|0⟩ - |1⟩)/√2
+	Proper unitary: ρ' = HρH† where H = (1/√2)[[1,1],[1,-1]]
+	"""
+	if not farm or not farm.grid:
+		action_performed.emit("apply_hadamard", false, "⚠️  Farm not loaded yet")
+		return
+
+	print("🌀 Applying Hadamard (superposition) to %d plots..." % positions.size())
+
+	var success_count = 0
+	for pos in positions:
+		var plot = farm.grid.get_plot(pos)
+		if plot and plot.quantum_state and plot.quantum_state.bath:
+			var bath = plot.quantum_state.bath
+			var north = plot.quantum_state.north_emoji
+			var south = plot.quantum_state.south_emoji
+			var H = bath.get_standard_gate("H")
+			bath.apply_unitary_1q(north, south, H)
+			success_count += 1
+			print("  🌀 Applied Hadamard at %s (%s ↔ %s)" % [pos, north, south])
+
+	action_performed.emit("apply_hadamard", success_count > 0,
+		"✅ Applied Hadamard to %d qubits" % success_count)
+
+
+func _action_apply_pauli_z(positions: Array[Vector2i]):
+	"""Apply Pauli-Z gate (phase flip) to selected plots - INSTANTANEOUS.
+
+	Applies a phase flip: |0⟩ → |0⟩, |1⟩ → -|1⟩
+	Proper unitary: ρ' = ZρZ† where Z = [[1,0],[0,-1]]
+	"""
+	if not farm or not farm.grid:
+		action_performed.emit("apply_pauli_z", false, "⚠️  Farm not loaded yet")
+		return
+
+	print("⚡ Applying Pauli-Z (phase flip) to %d plots..." % positions.size())
+
+	var success_count = 0
+	for pos in positions:
+		var plot = farm.grid.get_plot(pos)
+		if plot and plot.quantum_state and plot.quantum_state.bath:
+			var bath = plot.quantum_state.bath
+			var north = plot.quantum_state.north_emoji
+			var south = plot.quantum_state.south_emoji
+			var Z = bath.get_standard_gate("Z")
+			bath.apply_unitary_1q(north, south, Z)
+			success_count += 1
+			print("  ⚡ Applied Pauli-Z at %s (%s ↔ %s)" % [pos, north, south])
+
+	action_performed.emit("apply_pauli_z", success_count > 0,
+		"✅ Applied Pauli-Z to %d qubits" % success_count)
+
+
+## NEW Tool 4 (ENERGY) - Energy Tap with specific emoji target
+
+func _action_place_energy_tap_for(positions: Array[Vector2i], target_emoji: String):
+	"""Place energy tap targeting a specific emoji"""
+	if not farm or not farm.grid:
+		action_performed.emit("place_energy_tap", false, "⚠️  Farm not loaded yet")
+		return
+
+	print("🚰 Placing energy taps targeting %s on %d plots..." % [target_emoji, positions.size()])
+
+	var success_count = 0
+	for pos in positions:
+		if farm.grid.plant_energy_tap(pos, target_emoji):
+			success_count += 1
+			print("  ⚡ Placed energy tap at %s targeting %s" % [pos, target_emoji])
+		else:
+			print("  ❌ Failed to place tap at %s (plot occupied or invalid)" % pos)
 
 	action_performed.emit("place_energy_tap", success_count > 0,
-		"✅ Placed energy taps on %d plots (passive drain active)" % success_count)
+		"✅ Placed %d energy taps targeting %s" % [success_count, target_emoji] if success_count > 0 else "❌ No taps placed")
+
+
+## NEW Tool 5 (GATES) - Two-Qubit Gates
+
+func _action_apply_cnot(positions: Array[Vector2i]):
+	"""Apply CNOT (Controlled-NOT) gate to pairs of selected plots.
+
+	First plot is control, second is target.
+	Proper unitary on 4D subspace: CNOT|10⟩ = |11⟩, CNOT|11⟩ = |10⟩
+	"""
+	if not farm or not farm.grid:
+		action_performed.emit("apply_cnot", false, "⚠️  Farm not loaded yet")
+		return
+
+	if positions.size() < 2:
+		action_performed.emit("apply_cnot", false, "⚠️  CNOT requires at least 2 plots (control, target)")
+		return
+
+	print("⊕ Applying CNOT gate (control: %s → target: %s)..." % [positions[0], positions[1]])
+
+	var control_plot = farm.grid.get_plot(positions[0])
+	var target_plot = farm.grid.get_plot(positions[1])
+
+	if not control_plot or not control_plot.quantum_state or not control_plot.quantum_state.bath:
+		action_performed.emit("apply_cnot", false, "⚠️  Control plot has no quantum state")
+		return
+	if not target_plot or not target_plot.quantum_state or not target_plot.quantum_state.bath:
+		action_performed.emit("apply_cnot", false, "⚠️  Target plot has no quantum state")
+		return
+
+	# Verify both plots share the same bath (same biome)
+	if control_plot.quantum_state.bath != target_plot.quantum_state.bath:
+		action_performed.emit("apply_cnot", false, "⚠️  Plots must be in same biome for 2Q gates")
+		return
+
+	# Get bath and emojis for 4D subspace
+	var bath = control_plot.quantum_state.bath
+	var n1 = control_plot.quantum_state.north_emoji
+	var s1 = control_plot.quantum_state.south_emoji
+	var n2 = target_plot.quantum_state.north_emoji
+	var s2 = target_plot.quantum_state.south_emoji
+
+	# Apply proper 4×4 CNOT unitary
+	var CNOT = bath.get_standard_gate("CNOT")
+	bath.apply_unitary_2q(n1, s1, n2, s2, CNOT)
+
+	print("  ⊕ Applied CNOT: (%s,%s) ⊗ (%s,%s)" % [n1, s1, n2, s2])
+	action_performed.emit("apply_cnot", true, "✅ Applied CNOT: %s → %s" % [positions[0], positions[1]])
+
+
+func _action_apply_cz(positions: Array[Vector2i]):
+	"""Apply CZ (Controlled-Z) gate to pairs of selected plots.
+
+	Proper unitary on 4D subspace: CZ = diag(1, 1, 1, -1)
+	Adds phase -1 when both qubits are |1⟩
+	"""
+	if not farm or not farm.grid:
+		action_performed.emit("apply_cz", false, "⚠️  Farm not loaded yet")
+		return
+
+	if positions.size() < 2:
+		action_performed.emit("apply_cz", false, "⚠️  CZ requires at least 2 plots")
+		return
+
+	print("⚡ Applying CZ gate to %s and %s..." % [positions[0], positions[1]])
+
+	var plot_a = farm.grid.get_plot(positions[0])
+	var plot_b = farm.grid.get_plot(positions[1])
+
+	if not plot_a or not plot_a.quantum_state or not plot_a.quantum_state.bath:
+		action_performed.emit("apply_cz", false, "⚠️  First plot has no quantum state")
+		return
+	if not plot_b or not plot_b.quantum_state or not plot_b.quantum_state.bath:
+		action_performed.emit("apply_cz", false, "⚠️  Second plot has no quantum state")
+		return
+
+	# Verify both plots share the same bath
+	if plot_a.quantum_state.bath != plot_b.quantum_state.bath:
+		action_performed.emit("apply_cz", false, "⚠️  Plots must be in same biome for 2Q gates")
+		return
+
+	# Get bath and emojis for 4D subspace
+	var bath = plot_a.quantum_state.bath
+	var n1 = plot_a.quantum_state.north_emoji
+	var s1 = plot_a.quantum_state.south_emoji
+	var n2 = plot_b.quantum_state.north_emoji
+	var s2 = plot_b.quantum_state.south_emoji
+
+	# Apply proper 4×4 CZ unitary
+	var CZ = bath.get_standard_gate("CZ")
+	bath.apply_unitary_2q(n1, s1, n2, s2, CZ)
+
+	print("  ⚡ Applied CZ: (%s,%s) ⊗ (%s,%s)" % [n1, s1, n2, s2])
+	action_performed.emit("apply_cz", true, "✅ Applied CZ to %s ↔ %s" % [positions[0], positions[1]])
+
+
+func _action_apply_swap(positions: Array[Vector2i]):
+	"""Apply SWAP gate - exchange quantum states between two plots.
+
+	Proper unitary on 4D subspace: SWAP|01⟩ = |10⟩, SWAP|10⟩ = |01⟩
+	"""
+	if not farm or not farm.grid:
+		action_performed.emit("apply_swap", false, "⚠️  Farm not loaded yet")
+		return
+
+	if positions.size() < 2:
+		action_performed.emit("apply_swap", false, "⚠️  SWAP requires at least 2 plots")
+		return
+
+	print("⇄ Applying SWAP gate to %s and %s..." % [positions[0], positions[1]])
+
+	var plot_a = farm.grid.get_plot(positions[0])
+	var plot_b = farm.grid.get_plot(positions[1])
+
+	if not plot_a or not plot_a.quantum_state or not plot_a.quantum_state.bath:
+		action_performed.emit("apply_swap", false, "⚠️  First plot has no quantum state")
+		return
+	if not plot_b or not plot_b.quantum_state or not plot_b.quantum_state.bath:
+		action_performed.emit("apply_swap", false, "⚠️  Second plot has no quantum state")
+		return
+
+	# Verify both plots share the same bath
+	if plot_a.quantum_state.bath != plot_b.quantum_state.bath:
+		action_performed.emit("apply_swap", false, "⚠️  Plots must be in same biome for 2Q gates")
+		return
+
+	# Get bath and emojis for 4D subspace
+	var bath = plot_a.quantum_state.bath
+	var n1 = plot_a.quantum_state.north_emoji
+	var s1 = plot_a.quantum_state.south_emoji
+	var n2 = plot_b.quantum_state.north_emoji
+	var s2 = plot_b.quantum_state.south_emoji
+
+	# Apply proper 4×4 SWAP unitary
+	var SWAP = bath.get_standard_gate("SWAP")
+	bath.apply_unitary_2q(n1, s1, n2, s2, SWAP)
+
+	print("  ⇄ Applied SWAP: (%s,%s) ⊗ (%s,%s)" % [n1, s1, n2, s2])
+	action_performed.emit("apply_swap", true, "✅ Swapped %s ↔ %s" % [positions[0], positions[1]])
+
+
+func _extract_emoji_from_action(action: String) -> String:
+	"""Extract target emoji from dynamic tap action
+
+	Looks up emoji from cached submenu based on action name.
+	This allows dynamic emoji targets beyond hardcoded wheat/mushroom/tomato.
+
+	Args:
+		action: Action string like "tap_wheat" or "tap_emoji_12345"
+
+	Returns:
+		Emoji string, or empty if not found
+	"""
+	# Search cached submenu for matching action
+	for key in ["Q", "E", "R"]:
+		if _cached_submenu.has(key):
+			var action_info = _cached_submenu[key]
+			if action_info.get("action", "") == action:
+				return action_info.get("emoji", "")
+
+	# Fallback: Parse from hardcoded action names
+	match action:
+		"tap_wheat": return "🌾"
+		"tap_mushroom": return "🍄"
+		"tap_tomato": return "🍅"
+		_: return ""
 
 
 ## Help System
@@ -797,3 +1503,334 @@ func _print_help():
 	print("  I = Toggle info panel")
 
 	print(line + "\n")
+
+
+## Helper Methods
+
+func _get_biome_for_position(pos: Vector2i):
+	"""Get the biome that contains this position"""
+	if not farm or not farm.grid:
+		return null
+	return farm.grid.get_biome_for_plot(pos)
+
+
+## Tool 6: Biome Management Actions
+
+func _action_assign_plots_to_biome(plots: Array[Vector2i], biome_name: String):
+	"""Reassign selected plots to target biome
+
+	NOTE: This CHANGES the biome assignment but does NOT:
+	- Destroy existing quantum states (they persist)
+	- Clear entanglement links (they persist)
+	- Harvest crops (use Tool 1 R for that)
+
+	The plot keeps its quantum state but future operations use new biome's bath.
+	"""
+	if plots.is_empty():
+		print("⚠️  No plots selected for biome assignment")
+		action_performed.emit("assign_plots_to_biome", false, "No plots")
+		return
+
+	# Verify biome exists
+	if not farm.grid.biomes.has(biome_name):
+		print("❌ Biome '%s' not registered!" % biome_name)
+		action_performed.emit("assign_plots_to_biome", false, "Biome not found")
+		return
+
+	print("🌍 Reassigning %d plot(s) to %s biome..." % [plots.size(), biome_name])
+
+	var success_count = 0
+	for pos in plots:
+		# Get current biome (for logging)
+		var old_biome = farm.grid.plot_biome_assignments.get(pos, "None")
+
+		# Reassign to new biome
+		farm.grid.assign_plot_to_biome(pos, biome_name)
+
+		print("  • Plot %s: %s → %s" % [pos, old_biome, biome_name])
+		success_count += 1
+
+	print("✅ Reassigned %d plot(s) to %s" % [success_count, biome_name])
+	action_performed.emit("assign_plots_to_biome", true,
+		"%d plots → %s" % [success_count, biome_name])
+
+
+func _action_clear_biome_assignment(plots: Array[Vector2i]):
+	"""Remove biome assignment from selected plots
+
+	Returns plots to unassigned state. Future operations will fail
+	unless plot is reassigned to a biome first.
+	"""
+	if plots.is_empty():
+		print("⚠️  No plots selected to clear")
+		action_performed.emit("clear_biome_assignment", false, "No plots")
+		return
+
+	print("❌ Clearing biome assignment for %d plot(s)..." % plots.size())
+
+	var success_count = 0
+	for pos in plots:
+		var old_biome = farm.grid.plot_biome_assignments.get(pos, "None")
+
+		# Remove from assignments dict
+		farm.grid.plot_biome_assignments.erase(pos)
+
+		print("  • Plot %s: %s → (unassigned)" % [pos, old_biome])
+		success_count += 1
+
+	print("✅ Cleared %d plot(s)" % success_count)
+	action_performed.emit("clear_biome_assignment", true,
+		"Cleared %d plots" % success_count)
+
+
+func _action_inspect_plot(plots: Array[Vector2i]):
+	"""Show detailed metadata for selected plot(s)
+
+	Displays:
+	- Current biome assignment
+	- Quantum state (if planted)
+	- Entanglement links
+	- Bath projection info
+
+	Also opens the biome inspector overlay for the first selected plot
+	"""
+	if plots.is_empty():
+		print("⚠️  No plots selected to inspect")
+		action_performed.emit("inspect_plot", false, "No plots")
+		return
+
+	print("🔍 PLOT INSPECTION")
+	print("──────────────────────────────────────────────────────────────────────")
+
+	var inspected_count = 0
+	var first_biome_name = ""
+
+	for pos in plots:
+		print("\n📍 Plot %s:" % pos)
+
+		# Biome assignment
+		var biome_name = farm.grid.plot_biome_assignments.get(pos, "(unassigned)")
+		print("   🌍 Biome: %s" % biome_name)
+
+		if inspected_count == 0:
+			first_biome_name = biome_name
+
+		# Get plot instance
+		var plot = farm.grid.get_plot(pos)
+		if not plot:
+			print("   ❌ Plot not found in grid!")
+			continue
+
+		# Plant status
+		if plot.is_planted:
+			print("   🌱 Planted: YES")
+			print("      Has been measured: %s" % ("YES" if plot.has_been_measured else "NO"))
+
+			# Quantum state info
+			if plot.quantum_state:
+				var north = plot.quantum_state.north_emoji
+				var south = plot.quantum_state.south_emoji
+				var energy = plot.quantum_state.get_quantum_energy()
+				print("      ⚛️  State: %s ↔ %s | Energy: %.3f" % [north, south, energy])
+		else:
+			print("   🌱 Planted: NO")
+
+		# Entanglement links
+		if biome_name != "(unassigned)":
+			var biome = farm.grid.biomes.get(biome_name)
+			if biome and biome.bell_gates:
+				var is_entangled = false
+				for gate in biome.bell_gates:
+					if pos in gate:
+						is_entangled = true
+						print("   🔗 Entangled with: %s" % gate)
+						break
+
+				if not is_entangled:
+					print("   🔗 Entangled: NO")
+
+		# Bath projection (if plot is in a biome)
+		if biome_name != "(unassigned)":
+			var biome = farm.grid.biomes.get(biome_name)
+			if biome and biome.active_projections.has(pos):
+				var projection = biome.active_projections[pos]
+				print("   🛁 Bath Projection: Active")
+				if projection.has("north") and projection.has("south"):
+					print("      North: %s | South: %s" % [projection.north, projection.south])
+
+		inspected_count += 1
+
+	print("\n──────────────────────────────────────────────────────────────────────")
+	print("✅ Inspected %d plot(s)" % inspected_count)
+
+	# Open biome inspector overlay for first plot's biome
+	if first_biome_name != "" and first_biome_name != "(unassigned)":
+		# Get biome inspector overlay from OverlayManager
+		var overlay_manager = _get_overlay_manager()
+		if overlay_manager and overlay_manager.biome_inspector:
+			overlay_manager.biome_inspector.inspect_plot_biome(plots[0], farm)
+			print("🌍 Opened biome inspector for plot %s's biome: %s" % [plots[0], first_biome_name])
+
+	action_performed.emit("inspect_plot", true,
+		"Inspected %d plots" % inspected_count)
+
+
+func _get_overlay_manager():
+	"""Navigate scene tree to find OverlayManager
+
+	Hierarchy: FarmInputHandler → FarmUI → FarmView → PlayerShell → OverlayManager
+	"""
+	# Navigate up the tree to find PlayerShell
+	var current = self
+	while current:
+		if current.has_method("get_class"):
+			var node_class = current.get_class()
+			# Check if it's PlayerShell (or has overlay_manager property)
+			if current.has_node("OverlayManager") or current.get("overlay_manager"):
+				return current.get("overlay_manager")
+
+		# Try by node name
+		if current.name == "PlayerShell" or current.name.contains("Shell"):
+			if current.has_node("OverlayManager"):
+				return current.get_node("OverlayManager")
+			elif current.get("overlay_manager"):
+				return current.get("overlay_manager")
+
+		current = current.get_parent()
+
+	push_warning("_get_overlay_manager: Could not find OverlayManager in scene tree")
+	return null
+
+## ═══════════════════════════════════════════════════════════════════════════
+## Phase 4 UI: Pump & Reset Operations (Gozinta Channels)
+## ═══════════════════════════════════════════════════════════════════════════
+
+func _action_pump_to_wheat(plots: Array[Vector2i]):
+	"""Phase 4: Pump population from sink to wheat emoji
+	
+	Invokes BiomeBase.pump_emoji() to transfer population via Lindblad pump operator.
+	Uses default parameters: source="sink", target="🌾", rate=0.1, duration=5.0
+	"""
+	if plots.is_empty():
+		print("⚠️  No plots selected for pump operation")
+		action_performed.emit("pump_to_wheat", false, "No plots")
+		return
+
+	if not farm or not farm.grid or not farm.grid.biomes:
+		print("⚠️  Farm grid not initialized")
+		action_performed.emit("pump_to_wheat", false, "Farm unavailable")
+		return
+
+	print("⚡ PUMP OPERATION: Transferring population to Wheat")
+	print("──────────────────────────────────────────────────────────────────────")
+
+	# Get first biome (simplest approach - pump to first available biome)
+	var biome_name = farm.grid.biomes.keys()[0] if farm.grid.biomes.size() > 0 else ""
+	if biome_name == "":
+		print("❌ No biomes available for pump operation")
+		action_performed.emit("pump_to_wheat", false, "No biomes")
+		return
+
+	var biome = farm.grid.biomes[biome_name]
+	if not biome:
+		print("❌ Could not access biome '%s'" % biome_name)
+		action_performed.emit("pump_to_wheat", false, "Biome access failed")
+		return
+
+	# Pump parameters (Phase 4)
+	var target_emoji = "🌾"  # Wheat
+	var pump_rate = 0.1
+	var duration = 5.0
+
+	print("   🌾 Target: Wheat (🌾)")
+	print("   ⏱️  Duration: %.1f seconds" % duration)
+	print("   📊 Rate: %.2f" % pump_rate)
+
+	# Execute pump operation
+	biome.pump_emoji("sink", target_emoji, pump_rate, duration)
+
+	print("✅ Pump operation initiated for biome '%s'" % biome_name)
+	action_performed.emit("pump_to_wheat", true, "Pumped to wheat")
+
+
+func _action_reset_to_pure(plots: Array[Vector2i]):
+	"""Phase 4: Reset quantum state to pure |0⟩ state
+	
+	Invokes BiomeBase.apply_reset() with alpha=1.0 to collapse to pure ground state.
+	This is a strong decoherence channel - maximally damps coherence and resets.
+	"""
+	if plots.is_empty():
+		print("⚠️  No plots selected for reset operation")
+		action_performed.emit("reset_to_pure", false, "No plots")
+		return
+
+	if not farm or not farm.grid or not farm.grid.biomes:
+		print("⚠️  Farm grid not initialized")
+		action_performed.emit("reset_to_pure", false, "Farm unavailable")
+		return
+
+	print("✨ RESET OPERATION: Collapsing to Pure State")
+	print("──────────────────────────────────────────────────────────────────────")
+
+	var biome_name = farm.grid.biomes.keys()[0] if farm.grid.biomes.size() > 0 else ""
+	if biome_name == "":
+		print("❌ No biomes available for reset operation")
+		action_performed.emit("reset_to_pure", false, "No biomes")
+		return
+
+	var biome = farm.grid.biomes[biome_name]
+	if not biome:
+		print("❌ Could not access biome '%s'" % biome_name)
+		action_performed.emit("reset_to_pure", false, "Biome access failed")
+		return
+
+	print("   🔄 Action: Reset via ρ ← |0⟩⟨0| (pure collapse)")
+	print("   🌱 All emojis collapse to ground state")
+
+	# Execute reset to pure state (alpha=1.0 means full reset, ref_state="pure")
+	biome.apply_reset(1.0, "pure")
+
+	print("✅ Reset to pure state completed for biome '%s'" % biome_name)
+	action_performed.emit("reset_to_pure", true, "Reset to pure")
+
+
+func _action_reset_to_mixed(plots: Array[Vector2i]):
+	"""Phase 4: Reset quantum state to maximally mixed state
+	
+	Invokes BiomeBase.apply_reset() with alpha=1.0 and ref_state="maximally_mixed"
+	This creates complete uncertainty - all eigenstates equally probable.
+	"""
+	if plots.is_empty():
+		print("⚠️  No plots selected for reset operation")
+		action_performed.emit("reset_to_mixed", false, "No plots")
+		return
+
+	if not farm or not farm.grid or not farm.grid.biomes:
+		print("⚠️  Farm grid not initialized")
+		action_performed.emit("reset_to_mixed", false, "Farm unavailable")
+		return
+
+	print("🌈 RESET OPERATION: Collapsing to Maximally Mixed State")
+	print("──────────────────────────────────────────────────────────────────────")
+
+	var biome_name = farm.grid.biomes.keys()[0] if farm.grid.biomes.size() > 0 else ""
+	if biome_name == "":
+		print("❌ No biomes available for reset operation")
+		action_performed.emit("reset_to_mixed", false, "No biomes")
+		return
+
+	var biome = farm.grid.biomes[biome_name]
+	if not biome:
+		print("❌ Could not access biome '%s'" % biome_name)
+		action_performed.emit("reset_to_mixed", false, "Biome access failed")
+		return
+
+	print("   🔄 Action: Reset via ρ ← I/N (maximum entropy)")
+	print("   🎲 All emojis equally probable - complete uncertainty")
+
+	# Execute reset to maximally mixed state
+	biome.apply_reset(1.0, "maximally_mixed")
+
+	print("✅ Reset to maximally mixed state completed for biome '%s'" % biome_name)
+	action_performed.emit("reset_to_mixed", true, "Reset to mixed")
+

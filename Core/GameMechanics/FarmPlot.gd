@@ -30,7 +30,9 @@ var tap_target_emoji: String = ""        # What emoji to tap (🌾, 💧, 👥, 
 var tap_theta: float = 3.0 * PI / 4.0   # Tap position: near south pole
 var tap_phi: float = PI / 4.0            # Tap position: 45° off axis
 var tap_accumulated_resource: float = 0.0  # Energy accumulated
-var tap_base_rate: float = 0.5           # Base drain rate
+var tap_base_rate: float = 0.5           # Base drain rate (legacy)
+var tap_drain_rate: float = 0.1          # Drain rate κ (probability/sec) for Lindblad drain operators
+var tap_last_flux_check: float = 0.0     # Timestamp of last flux read from bath
 
 
 ## Initialization
@@ -49,11 +51,11 @@ func get_plot_emojis() -> Dictionary:
 	"""Get the dual-emoji pair for this plot type"""
 	match plot_type:
 		PlotType.WHEAT:
-			return {"north": "🌾", "south": "👥"}  # Wheat ↔ Labor
+			return {"north": "🌾", "south": "👥"}  # Wheat ↔ Labor (agriculture)
 		PlotType.TOMATO:
-			return {"north": "🍅", "south": "🍝"}  # Tomato ↔ Sauce
+			return {"north": "🍅", "south": "🌌"}  # Tomato ↔ Cosmic Chaos (counter-axial: life vs entropy)
 		PlotType.MUSHROOM:
-			return {"north": "🍄", "south": "🍂"}  # Mushroom ↔ Detritus
+			return {"north": "🍄", "south": "🍂"}  # Mushroom ↔ Detritus (decomposition cycle)
 		PlotType.MILL:
 			return {"north": "🏭", "south": "💨"}  # Mill ↔ Flour
 		PlotType.MARKET:
@@ -67,31 +69,71 @@ func get_plot_emojis() -> Dictionary:
 
 
 func get_semantic_emoji() -> String:
-	"""Get the dominant emoji based on quantum state"""
-	if not is_planted or not quantum_state:
+	"""Get the dominant emoji based on quantum state (Model B version)"""
+	if not is_planted:
 		var emojis = get_plot_emojis()
 		return emojis["north"]  # Default to north emoji
 
-	return quantum_state.get_semantic_state()
+	# Model B: Determine emoji based on purity from parent biome
+	var purity = get_purity()
+	if purity > 0.5:
+		return measured_outcome if measured_outcome else get_basis_labels()[0]
+	else:
+		return measured_outcome if measured_outcome else get_basis_labels()[0]
 
 
 ## Growth & Evolution
 
 
 func grow(delta: float, biome = null, territory_manager = null, icon_network = null, conspiracy_network = null) -> float:
-	"""Evolve quantum state with energy growth from biome"""
-	if not is_planted or not quantum_state:
+	"""Evolve quantum state with energy growth from biome (Model B version)"""
+	if not is_planted:
 		return 0.0
 
-	# Let biome handle quantum evolution
-	if biome and biome.has_method("_evolve_quantum_substrate"):
-		biome._evolve_quantum_substrate(delta)
+	# Model B: Quantum evolution is handled by parent biome's quantum computer
+	# This method is called each frame for plot growth logic
 
-	# Apply phase constraints if any
-	if phase_constraint:
-		phase_constraint.apply(quantum_state)
+	# Process energy tap if applicable (Manifest Section 4.1)
+	if plot_type == PlotType.ENERGY_TAP:
+		process_energy_tap(delta, biome)
 
 	return 0.0
+
+
+func process_energy_tap(delta: float, biome = null) -> void:
+	"""Process energy tap drain and accumulate resources
+
+	Energy taps drain target emojis via Lindblad operators to sink state.
+	This method reads the sink flux from the bath and converts it to harvestable resources.
+
+	Manifest Section 4.1: Energy taps use L_e = |sink⟩⟨e| drain operators.
+	Flux is tracked during bath evolution in QuantumBath.sink_flux_per_emoji.
+
+	Args:
+		delta: Time step in seconds
+		biome: BiomeBase reference for accessing bath
+	"""
+	if plot_type != PlotType.ENERGY_TAP or not tap_target_emoji:
+		return
+
+	if not biome or not biome.bath:
+		return
+
+	# Read flux from bath (Manifest Section 4.1)
+	var flux = biome.bath.get_sink_flux(tap_target_emoji)
+
+	if flux > 0.0:
+		# Convert flux to classical resource (1 flux = 10 resource units)
+		var resource_gain = flux * 10.0
+
+		tap_accumulated_resource += resource_gain
+		tap_last_flux_check = biome.bath.bath_time
+
+		# Debug output (can be removed in production)
+		if resource_gain > 0.01:
+			print("   ⚡ Tap %s: drained %.4f flux from %s → +%.2f resource (total: %.2f)" % [
+				plot_id, flux, tap_target_emoji, resource_gain, tap_accumulated_resource
+			])
 
 
 ## Entanglement

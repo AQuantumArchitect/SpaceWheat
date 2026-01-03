@@ -15,6 +15,7 @@ const FarmInputHandler = preload("res://UI/FarmInputHandler.gd")
 const ToolSelectionRow = preload("res://UI/Panels/ToolSelectionRow.gd")
 const ActionPreviewRow = preload("res://UI/Panels/ActionPreviewRow.gd")
 const ResourcePanel = preload("res://UI/Panels/ResourcePanel.gd")
+const QuantumModeStatusIndicator = preload("res://UI/Panels/QuantumModeStatusIndicator.gd")
 const GridConfig = preload("res://Core/GameState/GridConfig.gd")
 
 var farm: Node
@@ -24,6 +25,7 @@ var input_handler = null  # Created dynamically
 var tool_selection_row = null  # From scene
 var action_preview_row = null  # From scene
 var resource_panel = null  # From scene
+var quantum_mode_indicator = null  # Created dynamically
 var quantum_visualization = null  # Optional - only if needed later
 var current_tool: int = 1
 
@@ -33,7 +35,11 @@ var debug_label: Label = null
 
 
 func _ready() -> void:
-	"""FarmUI scene is ready - get references to child nodes"""
+	"""FarmUI scene is ready - get references to child nodes and setup layout.
+
+	NOTE: Farm setup (setup_farm()) will be called by BootManager after all
+	dependencies are guaranteed to exist. We only initialize scene structure here.
+	"""
 	print("🎮 FarmUI initializing from scene...")
 
 	# Ensure FarmUI is properly sized to fill parent (using anchors)
@@ -41,10 +47,13 @@ func _ready() -> void:
 
 	# Get references to scene-defined child nodes
 	resource_panel = get_node("MainContainer/ResourcePanel")
-	plot_grid_display = get_node("MainContainer/PlotGridDisplay")
-	quantum_visualization = get_node("QuantumVisualizationController")
+	plot_grid_display = get_node("PlotGridDisplay")  # Now sibling of MainContainer
+	# quantum_visualization = get_node("QuantumVisualizationController")  # REMOVED - abandoned ghost node
 	tool_selection_row = get_node("MainContainer/ToolSelectionRow")
 	action_preview_row = get_node("MainContainer/ActionPreviewRow")
+
+	# Create quantum mode status indicator (Phase 1 UI integration)
+	_create_quantum_mode_indicator()
 
 	print("   ✅ All child nodes referenced")
 
@@ -61,15 +70,16 @@ func _ready() -> void:
 	var main_container = get_node_or_null("MainContainer")
 	if main_container:
 		main_container.set_deferred("size", size)
+		# CRITICAL: MainContainer must pass input through to PlotGridDisplay below
+		main_container.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		print("   ✅ MainContainer mouse_filter set to IGNORE for plot tile input")
 
 	# Apply responsive sizing BEFORE layout engine runs (critical - must happen in _ready)
 	_apply_parametric_sizing()
 
-	# Wait one frame for layout engine to calculate subsequent sizes
-	await get_tree().process_frame
-
 	# DEBUG: Add info about toggling debug display
 	print("💡 Press F3 to toggle layout debug display")
+	print("   ⏳ Waiting for BootManager to call setup_farm()...")
 
 
 func setup_farm(farm_ref: Node) -> void:
@@ -90,6 +100,13 @@ func setup_farm(farm_ref: Node) -> void:
 		plot_grid_display.inject_grid_config(grid_config)
 		if farm.grid and farm.grid.biomes:
 			plot_grid_display.inject_biomes(farm.grid.biomes)
+
+		# Wire rejection visual feedback
+		if farm.has_signal("action_rejected"):
+			if not farm.action_rejected.is_connected(plot_grid_display.show_rejection_effect):
+				farm.action_rejected.connect(plot_grid_display.show_rejection_effect)
+				print("   📡 Connected to farm.action_rejected for visual feedback")
+
 		print("   ✅ PlotGridDisplay wired to farm")
 
 	# Quantum visualization optional - skip for now
@@ -109,6 +126,9 @@ func setup_farm(farm_ref: Node) -> void:
 	# Wire action preview
 	if action_preview_row:
 		action_preview_row.update_for_tool(1)
+		if not action_preview_row.action_pressed.is_connected(_on_action_pressed):
+			action_preview_row.action_pressed.connect(_on_action_pressed)
+			print("   📡 Connected to action_preview_row.action_pressed")
 
 	# Create input handler
 	input_handler = FarmInputHandler.new()
@@ -123,6 +143,10 @@ func setup_farm(farm_ref: Node) -> void:
 		if input_handler.has_signal("tool_changed"):
 			input_handler.tool_changed.connect(_on_input_tool_changed)
 			print("   📡 Connected to input_handler.tool_changed")
+
+		if input_handler.has_signal("submenu_changed"):
+			input_handler.submenu_changed.connect(_on_input_submenu_changed)
+			print("   📡 Connected to input_handler.submenu_changed")
 
 	# Wire plot selection changes
 	if plot_grid_display and plot_grid_display.has_signal("selection_count_changed"):
@@ -161,6 +185,15 @@ func _on_tool_selected(tool_num: int) -> void:
 	_select_tool(tool_num)
 
 
+func _on_action_pressed(action_key: String) -> void:
+	"""Handle action button press from ActionPreviewRow (Q/E/R buttons clicked)"""
+	if input_handler:
+		print("🖱️  Action button clicked: %s" % action_key)
+		input_handler.execute_action(action_key)
+	else:
+		push_error("FarmUI: Cannot execute action - input_handler not initialized")
+
+
 func _on_input_tool_changed(tool_num: int, tool_info: Dictionary) -> void:
 	"""Handle tool change from keyboard input (FarmInputHandler)"""
 	print("🔄 Tool changed via input: %d (%s)" % [tool_num, tool_info.get("name", "unknown")])
@@ -170,6 +203,18 @@ func _on_input_tool_changed(tool_num: int, tool_info: Dictionary) -> void:
 	if action_preview_row:
 		action_preview_row.update_for_tool(tool_num)
 	current_tool = tool_num
+
+
+func _on_input_submenu_changed(submenu_name: String, submenu_info: Dictionary) -> void:
+	"""Handle submenu enter/exit from FarmInputHandler"""
+	if submenu_name == "":
+		print("📁 Submenu exited - restoring tool display")
+	else:
+		print("📂 Submenu entered: %s" % submenu_info.get("name", submenu_name))
+
+	# Update action preview row with submenu actions
+	if action_preview_row:
+		action_preview_row.update_for_submenu(submenu_name, submenu_info)
 
 
 func _on_selection_changed(count: int) -> void:
@@ -250,3 +295,32 @@ func _update_debug_display() -> void:
 	else:
 		if debug_label != null:
 			debug_label.hide()
+
+## ========================================
+## Phase 1 UI Integration: Quantum Mode Indicator
+## ========================================
+
+func _create_quantum_mode_indicator() -> void:
+	"""Create and position quantum rigor mode status indicator (top-right corner)"""
+	# Create the indicator component
+	quantum_mode_indicator = QuantumModeStatusIndicator.new()
+
+	# Get MainContainer to add it there
+	var main_container = get_node_or_null("MainContainer")
+	if not main_container:
+		push_error("Cannot create quantum mode indicator: MainContainer not found")
+		return
+
+	# Add as child of MainContainer
+	main_container.add_child(quantum_mode_indicator)
+
+	# Position in top-right corner
+	quantum_mode_indicator.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	quantum_mode_indicator.offset_left = -220  # 220 pixels from right edge
+	quantum_mode_indicator.offset_top = 8      # 8 pixels from top
+	quantum_mode_indicator.custom_minimum_size = Vector2(210, 40)
+
+	# Enable input processing for the indicator
+	quantum_mode_indicator.mouse_filter = Control.MOUSE_FILTER_PASS
+
+	print("   ✅ Quantum mode status indicator created (top-right corner)")

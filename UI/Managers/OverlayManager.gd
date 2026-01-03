@@ -1,39 +1,53 @@
 class_name OverlayManager
 extends Node
 
-## Centralizes management of all overlays (Contracts, Vocabulary, Network, Escape Menu, Save/Load)
+## Centralizes management of all overlays (Quests, Vocabulary, Network, Escape Menu, Save/Load)
 ## Handles overlay visibility, positioning, and menu actions
 
 # Preload dependencies
-const ContractPanel = preload("res://UI/ContractPanel.gd")
+const QuestPanel = preload("res://UI/Panels/QuestPanel.gd")
+const FactionQuestOffersPanel = preload("res://UI/Panels/FactionQuestOffersPanel.gd")
 const NetworkInfoPanel = preload("res://UI/NetworkInfoPanel.gd")
 const ConspiracyNetworkOverlay = preload("res://UI/ConspiracyNetworkOverlay.gd")
 const SaveLoadMenu = preload("res://UI/Panels/SaveLoadMenu.gd")
 const EscapeMenu = preload("res://UI/Panels/EscapeMenu.gd")
-const SaveDataAdapter = preload("res://UI/SaveDataAdapter.gd")
+const BiomeInspectorOverlay = preload("res://UI/Panels/BiomeInspectorOverlay.gd")
+const QuantumRigorConfigUI = preload("res://UI/Panels/QuantumRigorConfigUI.gd")
+const IconDetailPanel = preload("res://UI/Panels/IconDetailPanel.gd")
+# const SaveDataAdapter = preload("res://UI/SaveDataAdapter.gd")  # Legacy - unused, commented out to fix compilation error
 
 # Overlay instances
-var contract_panel: ContractPanel
+var quest_panel: QuestPanel
+var faction_quest_offers_panel: FactionQuestOffersPanel  # New emergent quest system
 var vocabulary_overlay: Control
 var network_overlay: ConspiracyNetworkOverlay
 var network_info_panel: NetworkInfoPanel
 var escape_menu: EscapeMenu
 var save_load_menu
 var keyboard_hint_button: Control  # Keyboard help display
+var biome_inspector: BiomeInspectorOverlay  # Biome inspection overlay
+var quantum_config_ui: QuantumRigorConfigUI  # Quantum rigor mode settings panel
+var touch_button_bar: Control  # Touch-friendly panel buttons on right side
+var icon_detail_panel  # Icon information detail panel
 
 # Dependencies
 var layout_manager
+var quest_manager
 var faction_manager
 var vocabulary_evolution
 var conspiracy_network
+var farm  # Farm reference for biome inspector
 
 # Track overlay visibility state
 var overlay_states: Dictionary = {
-	"contracts": false,
+	"quests": false,
+	"quest_offers": false,  # Emergent faction quest offers
 	"vocabulary": false,
 	"network": false,
 	"escape_menu": false,
-	"save_load": false
+	"save_load": false,
+	"biomes": false,
+	"quantum_config": false  # Quantum rigor mode settings
 }
 
 # Signals for menu actions
@@ -49,12 +63,13 @@ signal debug_scenario_requested(name: String)
 var _overlays_created: bool = false
 
 
-func setup(layout_mgr, vocab_sys, faction_mgr, conspiracy_net) -> void:
+func setup(layout_mgr, vocab_sys, faction_mgr, conspiracy_net, quest_mgr = null) -> void:
 	"""Initialize OverlayManager with required dependencies"""
 	layout_manager = layout_mgr
 	vocabulary_evolution = vocab_sys
 	faction_manager = faction_mgr
 	conspiracy_network = conspiracy_net
+	quest_manager = quest_mgr
 	print("📋 OverlayManager initialized")
 
 
@@ -70,13 +85,32 @@ func create_overlays(parent: Control) -> void:
 		push_error("OverlayManager: layout_manager not set before create_overlays()")
 		return
 
-	# Create Contract Panel
-	contract_panel = ContractPanel.new()
-	contract_panel.set_faction_manager(faction_manager)
-	contract_panel.visible = false
-	contract_panel.z_index = 1001
-	parent.add_child(contract_panel)
-	print("📜 Contract panel created (press C to toggle)")
+	# Create Quest Panel
+	quest_panel = QuestPanel.new()
+	if layout_manager:
+		quest_panel.set_layout_manager(layout_manager)
+	if quest_manager:
+		quest_panel.connect_to_quest_manager(quest_manager)
+	quest_panel.visible = false
+	quest_panel.z_index = 1001
+	parent.add_child(quest_panel)
+	print("📜 Quest panel created (press C to toggle)")
+
+	# Create Faction Quest Offers Panel (Emergent System)
+	faction_quest_offers_panel = FactionQuestOffersPanel.new()
+	if layout_manager:
+		faction_quest_offers_panel.set_layout_manager(layout_manager)
+	if quest_manager:
+		faction_quest_offers_panel.connect_to_quest_manager(quest_manager)
+	faction_quest_offers_panel.visible = false
+	faction_quest_offers_panel.z_index = 1002  # Above quest panel
+	parent.add_child(faction_quest_offers_panel)
+
+	# Connect signals
+	faction_quest_offers_panel.quest_offer_accepted.connect(_on_quest_offer_accepted)
+	faction_quest_offers_panel.panel_closed.connect(_on_quest_offers_panel_closed)
+
+	print("⚛️  Faction Quest Offers panel created (press C to toggle)")
 
 	# Create Vocabulary Overlay
 	vocabulary_overlay = _create_vocabulary_overlay()
@@ -139,6 +173,32 @@ func create_overlays(parent: Control) -> void:
 	save_load_menu.menu_closed.connect(_on_save_load_menu_closed)
 	print("💾 Save/Load menu signals connected")
 
+	# Create Biome Inspector Overlay
+	biome_inspector = BiomeInspectorOverlay.new()
+	biome_inspector.layer = 100  # Same layer as other overlays
+	parent.add_child(biome_inspector)
+	biome_inspector.overlay_closed.connect(_on_biome_inspector_closed)
+	print("🌍 Biome inspector overlay created (B to toggle)")
+
+	# Create Quantum Rigor Config UI (Phase 1 UI Integration)
+	quantum_config_ui = QuantumRigorConfigUI.new()
+	quantum_config_ui.visible = false
+	quantum_config_ui.z_index = 1003  # Above other overlays
+	parent.add_child(quantum_config_ui)
+	print("🔬 Quantum rigor config panel created (Shift+Q to toggle)")
+
+	# Create Touch Button Bar (for touch devices)
+	touch_button_bar = _create_touch_button_bar()
+	parent.add_child(touch_button_bar)
+	print("📱 Touch button bar created (📖=V, 📋=C, ☰=ESC)")
+
+	# Create Icon Detail Panel
+	icon_detail_panel = IconDetailPanel.new()
+	icon_detail_panel.set_layout_manager(layout_manager)
+	parent.add_child(icon_detail_panel)
+	icon_detail_panel.panel_closed.connect(_on_icon_detail_panel_closed)
+	print("📖 Icon detail panel created (click emojis in vocab to view)")
+
 	# Update positions after layout is ready
 	await get_tree().process_frame
 	update_positions()
@@ -147,14 +207,21 @@ func create_overlays(parent: Control) -> void:
 func toggle_overlay(name: String) -> void:
 	"""Toggle visibility of an overlay by name"""
 	match name:
-		"contracts":
-			toggle_contract_panel()
+		"quests":
+			# C key now shows quest offers (emergent system) instead of old active quest panel
+			toggle_quest_offers_panel()
+		"quest_offers":
+			toggle_quest_offers_panel()
 		"vocabulary":
 			toggle_vocabulary_overlay()
 		"network":
 			toggle_network_overlay()
 		"escape_menu":
 			toggle_escape_menu()
+		"biomes":
+			toggle_biome_inspector()
+		"quantum_config":
+			toggle_quantum_config_ui()
 		_:
 			push_warning("OverlayManager: Unknown overlay '%s'" % name)
 
@@ -163,16 +230,38 @@ func show_overlay(name: String) -> void:
 	"""Show a specific overlay"""
 	print("🔓 show_overlay('%s') called" % name)
 	match name:
-		"contracts":
-			if contract_panel:
-				print("  → Setting contract_panel.visible = true")
-				contract_panel.visible = true
-				contract_panel.refresh_display()
-				overlay_states["contracts"] = true
-				overlay_toggled.emit("contracts", true)
-				print("  ✅ contract_panel shown")
+		"quests":
+			# C key now shows quest offers (emergent system)
+			if faction_quest_offers_panel and farm:
+				print("  → Showing faction quest offers with current biome")
+				var biome = farm.biotic_flux_biome if farm.has("biotic_flux_biome") else null
+				if biome:
+					faction_quest_offers_panel.show_offers(biome)
+					overlay_states["quest_offers"] = true
+					overlay_toggled.emit("quest_offers", true)
+					print("  ✅ faction_quest_offers_panel shown")
+				else:
+					print("  ❌ No biome available!")
+			elif not faction_quest_offers_panel:
+				print("  ❌ faction_quest_offers_panel is null!")
 			else:
-				print("  ❌ contract_panel is null!")
+				print("  ❌ farm reference not set!")
+		"quest_offers":
+			if faction_quest_offers_panel and farm:
+				print("  → Showing faction quest offers with current biome")
+				# Get current biome from farm
+				var biome = farm.biotic_flux_biome if farm.has("biotic_flux_biome") else null
+				if biome:
+					faction_quest_offers_panel.show_offers(biome)
+					overlay_states["quest_offers"] = true
+					overlay_toggled.emit("quest_offers", true)
+					print("  ✅ faction_quest_offers_panel shown")
+				else:
+					print("  ❌ No biome available!")
+			elif not faction_quest_offers_panel:
+				print("  ❌ faction_quest_offers_panel is null!")
+			else:
+				print("  ❌ farm reference not set!")
 		"vocabulary":
 			if vocabulary_overlay:
 				print("  → Setting vocabulary_overlay.visible = true")
@@ -202,6 +291,15 @@ func show_overlay(name: String) -> void:
 				print("  ✅ escape_menu shown")
 			else:
 				print("  ❌ escape_menu is null!")
+		"quantum_config":
+			if quantum_config_ui:
+				print("  → Setting quantum_config_ui.visible = true")
+				quantum_config_ui.visible = true
+				overlay_states["quantum_config"] = true
+				overlay_toggled.emit("quantum_config", true)
+				print("  ✅ quantum_config_ui shown")
+			else:
+				print("  ❌ quantum_config_ui is null!")
 		_:
 			push_warning("OverlayManager: Unknown overlay '%s'" % name)
 
@@ -210,15 +308,25 @@ func hide_overlay(name: String) -> void:
 	"""Hide a specific overlay"""
 	print("🔐 hide_overlay('%s') called" % name)
 	match name:
-		"contracts":
-			if contract_panel:
-				print("  → Setting contract_panel.visible = false")
-				contract_panel.visible = false
-				overlay_states["contracts"] = false
-				overlay_toggled.emit("contracts", false)
-				print("  ✅ contract_panel hidden")
+		"quests":
+			# C key now hides quest offers (emergent system)
+			if faction_quest_offers_panel:
+				print("  → Setting faction_quest_offers_panel.visible = false")
+				faction_quest_offers_panel.visible = false
+				overlay_states["quest_offers"] = false
+				overlay_toggled.emit("quest_offers", false)
+				print("  ✅ faction_quest_offers_panel hidden")
 			else:
-				print("  ❌ contract_panel is null!")
+				print("  ❌ faction_quest_offers_panel is null!")
+		"quest_offers":
+			if faction_quest_offers_panel:
+				print("  → Setting faction_quest_offers_panel.visible = false")
+				faction_quest_offers_panel.visible = false
+				overlay_states["quest_offers"] = false
+				overlay_toggled.emit("quest_offers", false)
+				print("  ✅ faction_quest_offers_panel hidden")
+			else:
+				print("  ❌ faction_quest_offers_panel is null!")
 		"vocabulary":
 			if vocabulary_overlay:
 				print("  → Setting vocabulary_overlay.visible = false")
@@ -248,6 +356,15 @@ func hide_overlay(name: String) -> void:
 				print("  ✅ escape_menu hidden")
 			else:
 				print("  ❌ escape_menu is null!")
+		"quantum_config":
+			if quantum_config_ui:
+				print("  → Setting quantum_config_ui.visible = false")
+				quantum_config_ui.visible = false
+				overlay_states["quantum_config"] = false
+				overlay_toggled.emit("quantum_config", false)
+				print("  ✅ quantum_config_ui hidden")
+			else:
+				print("  ❌ quantum_config_ui is null!")
 		_:
 			push_warning("OverlayManager: Unknown overlay '%s'" % name)
 
@@ -263,9 +380,9 @@ func update_positions() -> void:
 	if not layout_manager:
 		return
 
-	# Contract panel - top-left corner with scaled margin
-	if contract_panel:
-		contract_panel.position = layout_manager.anchor_to_corner("top_left", Vector2(10, 10))
+	# Quest panel - top-left corner with scaled margin
+	if quest_panel:
+		quest_panel.position = layout_manager.anchor_to_corner("top_left", Vector2(10, 10))
 
 	# Network info panel - below top bar with scaled margin
 	if network_info_panel:
@@ -301,23 +418,38 @@ func is_menu_open() -> bool:
 # PRIVATE METHODS
 # ============================================================================
 
-func toggle_contract_panel() -> void:
-	"""Toggle contract panel visibility"""
-	print("🔄 toggle_contract_panel() called")
-	if contract_panel:
-		print("  contract_panel exists, visible = %s" % contract_panel.visible)
-		if contract_panel.visible:
+func toggle_quest_panel() -> void:
+	"""Toggle quest panel visibility"""
+	print("🔄 toggle_quest_panel() called")
+	if quest_panel:
+		print("  quest_panel exists, visible = %s" % quest_panel.visible)
+		if quest_panel.visible:
 			print("    → Panel is visible, calling hide_overlay()")
-			hide_overlay("contracts")
+			hide_overlay("quests")
 		else:
 			print("    → Panel is hidden, calling show_overlay()")
-			show_overlay("contracts")
+			show_overlay("quests")
 	else:
-		print("  ❌ contract_panel is null!")
+		print("  ❌ quest_panel is null!")
+
+
+func toggle_quest_offers_panel() -> void:
+	"""Toggle faction quest offers panel visibility"""
+	print("🔄 toggle_quest_offers_panel() called")
+	if faction_quest_offers_panel:
+		print("  faction_quest_offers_panel exists, visible = %s" % faction_quest_offers_panel.visible)
+		if faction_quest_offers_panel.visible:
+			print("    → Panel is visible, calling hide_overlay()")
+			hide_overlay("quest_offers")
+		else:
+			print("    → Panel is hidden, calling show_overlay()")
+			show_overlay("quest_offers")
+	else:
+		print("  ❌ faction_quest_offers_panel is null!")
 
 
 func toggle_vocabulary_overlay() -> void:
-	"""Toggle vocabulary overlay visibility"""
+	"""Toggle vocabulary overlay visibility and refresh content"""
 	print("🔄 toggle_vocabulary_overlay() called")
 	if vocabulary_overlay:
 		print("  vocabulary_overlay exists, visible = %s" % vocabulary_overlay.visible)
@@ -325,7 +457,8 @@ func toggle_vocabulary_overlay() -> void:
 			print("    → Overlay is visible, calling hide_overlay()")
 			hide_overlay("vocabulary")
 		else:
-			print("    → Overlay is hidden, calling show_overlay()")
+			print("    → Overlay is hidden, refreshing and showing")
+			_refresh_vocabulary_overlay()
 			show_overlay("vocabulary")
 	else:
 		print("  ❌ vocabulary_overlay is null!")
@@ -373,15 +506,147 @@ func toggle_keyboard_help() -> void:
 		print("⚠️  Keyboard help not initialized")
 
 
+func toggle_biome_inspector() -> void:
+	"""Toggle biome inspector overlay (B key)"""
+	print("🔄 toggle_biome_inspector() called")
+	if biome_inspector:
+		if not farm:
+			print("⚠️  Farm reference not set in OverlayManager")
+			return
+
+		print("  biome_inspector exists, visible = %s" % biome_inspector.is_overlay_visible())
+		if biome_inspector.is_overlay_visible():
+			print("    → Overlay is visible, hiding")
+			biome_inspector.hide_overlay()
+		else:
+			print("    → Overlay is hidden, showing all biomes")
+			biome_inspector.show_all_biomes(farm)
+	else:
+		print("  ❌ biome_inspector is null!")
+
+
+func toggle_quantum_config_ui() -> void:
+	"""Toggle quantum rigor config UI (Shift+Q)"""
+	print("🔄 toggle_quantum_config_ui() called")
+	if quantum_config_ui:
+		print("  quantum_config_ui exists, visible = %s" % quantum_config_ui.visible)
+		if quantum_config_ui.visible:
+			print("    → Panel is visible, hiding")
+			hide_overlay("quantum_config")
+		else:
+			print("    → Panel is hidden, showing")
+			show_overlay("quantum_config")
+	else:
+		print("  ❌ quantum_config_ui is null!")
+
+
+func _on_biome_inspector_closed() -> void:
+	"""Handle biome inspector overlay closed signal"""
+	overlay_states["biomes"] = false
+	overlay_toggled.emit("biomes", false)
+
+
+func _on_icon_detail_panel_closed() -> void:
+	"""Handle icon detail panel closed signal"""
+	# Nothing special needed - panel just hides itself
+	pass
+
+
+func _on_emoji_clicked(emoji: String, icon: Icon) -> void:
+	"""Handle emoji button click - show Icon detail panel"""
+	if icon_detail_panel:
+		icon_detail_panel.show_icon(icon)
+	else:
+		push_warning("Icon detail panel not available")
+
+
+func _refresh_vocabulary_overlay() -> void:
+	"""Refresh vocabulary overlay with current player vocabulary"""
+	if not vocabulary_overlay:
+		return
+
+	const FactionDatabase = preload("res://Core/Quests/FactionDatabase.gd")
+
+	# Get player's known emojis
+	var known_emojis = GameStateManager.current_state.known_emojis if GameStateManager.current_state else []
+
+	# Get stats label and emoji grid
+	var stats_label = vocabulary_overlay.find_child("StatsLabel", true, false)
+	var emoji_grid = vocabulary_overlay.find_child("EmojiGrid", true, false)
+
+	if not stats_label or not emoji_grid:
+		push_error("VocabularyOverlay missing required children!")
+		return
+
+	# Update stats
+	var total_factions = FactionDatabase.ALL_FACTIONS.size()
+	var accessible = GameStateManager.get_accessible_factions().size()
+
+	stats_label.text = "Vocabulary: %d emojis | Accessible Factions: %d/%d (%.0f%%)" % [
+		known_emojis.size(),
+		accessible,
+		total_factions,
+		float(accessible) / total_factions * 100
+	]
+
+	# Clear existing emoji labels
+	for child in emoji_grid.get_children():
+		child.queue_free()
+
+	# Add emoji labels (or buttons if Icon exists)
+	var scale_factor = layout_manager.scale_factor if layout_manager else 1.0
+	var emoji_font_size = layout_manager.get_scaled_font_size(32) if layout_manager else 32
+
+	for emoji in known_emojis:
+		# Check if Icon exists for this emoji
+		var icon = IconRegistry.get_icon(emoji) if IconRegistry else null
+
+		if icon:
+			# Create button for emojis with Icons (clickable)
+			var emoji_button = Button.new()
+			emoji_button.text = emoji
+			emoji_button.flat = true  # No button background
+			emoji_button.add_theme_font_size_override("font_size", emoji_font_size)
+			emoji_button.custom_minimum_size = Vector2(50 * scale_factor, 50 * scale_factor)
+
+			# Visual indicator: slight yellow tint for Icons
+			emoji_button.modulate = Color(1.0, 1.0, 0.7)  # Light yellow
+
+			# Connect to Icon detail panel
+			emoji_button.pressed.connect(_on_emoji_clicked.bind(emoji, icon))
+
+			emoji_grid.add_child(emoji_button)
+		else:
+			# Create label for emojis without Icons (not clickable)
+			var label = Label.new()
+			label.text = emoji
+			label.add_theme_font_size_override("font_size", emoji_font_size)
+			label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+			label.custom_minimum_size = Vector2(50 * scale_factor, 50 * scale_factor)
+
+			# Slightly dimmed for no Icon
+			label.modulate = Color(0.8, 0.8, 0.8)
+
+			emoji_grid.add_child(label)
+
+	print("📖 Vocabulary overlay refreshed: %d emojis, %d/%d factions accessible" % [
+		known_emojis.size(),
+		accessible,
+		total_factions
+	])
+
+
 func _create_vocabulary_overlay() -> Control:
-	"""Create vocabulary display overlay - shows emoji lexicon"""
+	"""Create vocabulary display overlay - shows player's discovered emojis"""
 	var scale_factor = layout_manager.scale_factor if layout_manager else 1.0
 	var font_size = layout_manager.get_scaled_font_size(18) if layout_manager else 18
 	var title_font_size = layout_manager.get_scaled_font_size(24) if layout_manager else 24
+	var stats_font_size = layout_manager.get_scaled_font_size(14) if layout_manager else 14
 
 	# Main panel container
 	var panel = PanelContainer.new()
-	panel.custom_minimum_size = Vector2(400 * scale_factor, 300 * scale_factor)
+	panel.custom_minimum_size = Vector2(500 * scale_factor, 600 * scale_factor)
 	panel.position = Vector2(100 * scale_factor, 100 * scale_factor)
 	panel.z_index = 1000
 	panel.visible = false
@@ -391,44 +656,106 @@ func _create_vocabulary_overlay() -> Control:
 	vbox.add_theme_constant_override("separation", int(10 * scale_factor))
 	panel.add_child(vbox)
 
+	# Header HBox
+	var header_hbox = HBoxContainer.new()
+	vbox.add_child(header_hbox)
+
 	# Title
 	var title = Label.new()
 	title.text = "📖 Vocabulary"
 	title.add_theme_font_size_override("font_size", title_font_size)
-	vbox.add_child(title)
+	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	header_hbox.add_child(title)
 
-	# Content label with emoji vocabulary
-	var content = Label.new()
-	content.text = """🌾 Wheat - Staple crop
-👥 Labor - Farm workers
-🍅 Tomato - Special crop
-🍄 Mushroom - Fungal crop
-💰 Credits - Currency
-⏱️ Tribute - Regular payment
-🌍 Biome - Environment
-⚡ Energy - System power
-🏭 Mill - Processing building
-💨 Detritus - Waste product"""
-	content.add_theme_font_size_override("font_size", font_size)
-	content.autowrap_mode = TextServer.AUTOWRAP_WORD
-	content.clip_text = true
-	vbox.add_child(content)
-
-	# Separator
-	var separator = Control.new()
-	separator.custom_minimum_size.y = int(5 * scale_factor)
-	vbox.add_child(separator)
-
-	# Close button
+	# Close button (top right)
 	var close_btn = Button.new()
-	close_btn.text = "Close [V]"
+	close_btn.text = "✖"
 	close_btn.add_theme_font_size_override("font_size", font_size)
 	close_btn.pressed.connect(func():
 		panel.visible = false
 	)
-	vbox.add_child(close_btn)
+	header_hbox.add_child(close_btn)
+
+	# Stats label (shows faction accessibility)
+	var stats_label = Label.new()
+	stats_label.name = "StatsLabel"
+	stats_label.add_theme_font_size_override("font_size", stats_font_size)
+	stats_label.modulate = Color(0.7, 0.9, 1.0)  # Light blue
+	vbox.add_child(stats_label)
+
+	# Scroll container for emoji grid
+	var scroll = ScrollContainer.new()
+	scroll.custom_minimum_size.y = 450 * scale_factor
+	scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	vbox.add_child(scroll)
+
+	# Grid container for emojis
+	var grid = GridContainer.new()
+	grid.name = "EmojiGrid"
+	grid.columns = 8
+	grid.add_theme_constant_override("h_separation", int(15 * scale_factor))
+	grid.add_theme_constant_override("v_separation", int(15 * scale_factor))
+	scroll.add_child(grid)
+
+	# Close button (bottom)
+	var close_btn_bottom = Button.new()
+	close_btn_bottom.text = "Close [V]"
+	close_btn_bottom.add_theme_font_size_override("font_size", font_size)
+	close_btn_bottom.pressed.connect(func():
+		panel.visible = false
+	)
+	vbox.add_child(close_btn_bottom)
 
 	return panel
+
+
+func _create_touch_button_bar() -> Control:
+	"""Create touch-friendly button bar for right side of screen"""
+	const PanelTouchButton = preload("res://UI/Components/PanelTouchButton.gd")
+
+	var scale = layout_manager.scale_factor if layout_manager else 1.0
+
+	# VBoxContainer for buttons stacked vertically
+	var button_bar = VBoxContainer.new()
+	button_bar.name = "TouchButtonBar"
+	button_bar.add_theme_constant_override("separation", int(10 * scale))
+
+	# Position on right side of screen
+	button_bar.anchor_left = 1.0
+	button_bar.anchor_right = 1.0
+	button_bar.anchor_top = 0.3  # Start 30% down screen
+	button_bar.anchor_bottom = 0.3
+	button_bar.offset_left = -80 * scale  # 80px from right edge
+	button_bar.offset_right = -10 * scale  # 10px from edge
+	button_bar.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	button_bar.z_index = 500  # Below panels but above game
+
+	# Vocabulary button (V key)
+	var vocab_button = PanelTouchButton.new()
+	vocab_button.set_layout_manager(layout_manager)
+	vocab_button.button_emoji = "📖"
+	vocab_button.keyboard_hint = "[V]"
+	vocab_button.button_activated.connect(toggle_vocabulary_overlay)
+	button_bar.add_child(vocab_button)
+
+	# Quest button (C key)
+	var quest_button = PanelTouchButton.new()
+	quest_button.set_layout_manager(layout_manager)
+	quest_button.button_emoji = "📋"
+	quest_button.keyboard_hint = "[C]"
+	quest_button.button_activated.connect(toggle_quest_offers_panel)
+	button_bar.add_child(quest_button)
+
+	# Menu button (ESC key) - Optional but helpful for touch users
+	var menu_button = PanelTouchButton.new()
+	menu_button.set_layout_manager(layout_manager)
+	menu_button.button_emoji = "☰"
+	menu_button.keyboard_hint = "[ESC]"
+	menu_button.button_activated.connect(toggle_escape_menu)
+	button_bar.add_child(menu_button)
+
+	return button_bar
 
 
 # ============================================================================
@@ -505,28 +832,28 @@ func _on_save_load_slot_selected(slot: int, mode: String) -> void:
 			return
 
 		# Convert to display data using adapter
-		var display_data = SaveDataAdapter.from_game_state(game_state)
-		if not display_data:
-			print("❌ Failed to convert save data for display")
-			return
+		# var display_data = SaveDataAdapter.from_game_state(game_state)
+	# 		if not display_data:
+	# 			print("❌ Failed to convert save data for display")
+	# 			return
 
 		# Reconstruct biome and grid from saved state
-		var biome = SaveDataAdapter.create_biome_from_state(display_data.biome_data)
-		var grid = SaveDataAdapter.create_grid_from_state(
-			display_data.grid_data,
-			display_data.grid_width,
-			display_data.grid_height,
-			biome
-		)
+		# var biome = SaveDataAdapter.create_biome_from_state(display_data.biome_data)
+		# var grid = SaveDataAdapter.create_grid_from_state(
+	# 	display_data.grid_data,
+	# 	display_data.grid_width,
+	# 	display_data.grid_height,
+	# 	biome
+	# )
 
 		# Update visualizer if available
-		if layout_manager and layout_manager.quantum_graph:
-			var center = layout_manager.layout_manager.play_area_rect.get_center()
-			var radius = layout_manager.layout_manager.play_area_rect.size.length() * 0.3
-			layout_manager.quantum_graph.initialize(grid, center, radius)
-			layout_manager.quantum_graph.set_biome(biome)
-			layout_manager.quantum_graph.create_sun_qubit_node()
-			print("✅ Visualizer updated with save data")
+		# if layout_manager and layout_manager.quantum_graph:
+	# 	# var center = layout_manager.layout_manager.play_area_rect.get_center()
+	# 	# var radius = layout_manager.layout_manager.play_area_rect.size.length() * 0.3
+	# 	# layout_manager.quantum_graph.initialize(grid, center, radius)
+	# 	# layout_manager.quantum_graph.set_biome(biome)
+	# 	# layout_manager.quantum_graph.create_sun_qubit_node()
+	# print("✅ Visualizer updated with save data")
 
 		# Emit signal
 		load_requested.emit(slot)
@@ -554,3 +881,18 @@ func _on_save_load_menu_closed() -> void:
 		escape_menu.show_menu()
 	else:
 		print("⚠️  Escape menu not available to return to")
+
+
+func _on_quest_offer_accepted(quest: Dictionary) -> void:
+	"""Handle when player accepts a quest offer from faction panel"""
+	print("⚛️  Quest offer accepted: %s - %s" % [quest.get("faction", ""), quest.get("body", "")])
+	# Quest is already added to active quests by QuestManager in the panel
+	# Just refresh the active quests panel if it's visible
+	if quest_panel and quest_panel.visible:
+		quest_panel.refresh_display()
+
+
+func _on_quest_offers_panel_closed() -> void:
+	"""Handle when faction quest offers panel is closed"""
+	overlay_states["quest_offers"] = false
+	overlay_toggled.emit("quest_offers", false)

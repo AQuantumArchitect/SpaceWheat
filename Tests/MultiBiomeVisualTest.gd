@@ -3,6 +3,7 @@ extends Node2D
 const BioticFluxBiome = preload("res://Core/Environment/BioticFluxBiome.gd")
 const ForestEcosystem_Biome = preload("res://Core/Environment/ForestEcosystem_Biome.gd")
 const DualEmojiQubit = preload("res://Core/QuantumSubstrate/DualEmojiQubit.gd")
+const QuantumGlyph = preload("res://Core/Visualization/QuantumGlyph.gd")
 
 # Biomes
 var biome1: BioticFluxBiome  # BioticFlux - wheat/mushroom farm
@@ -26,15 +27,21 @@ var biome2_config = {
 }
 
 # Entity positions (relative to biome center, normalized -1 to 1)
-var biome1_entities: Array = []  # [{qubit, rel_pos, type}]
-var biome2_entities: Array = []  # [{patch_pos, rel_pos}]
+var biome1_entities: Array = []  # [{qubit, rel_pos, type, glyph}]
+var biome2_entities: Array = []  # [{patch_pos, rel_pos, glyph}]
 
 # Simulation state
 var simulation_time: float = 0.0
 var is_running: bool = true
 
+# Emoji font for rendering
+var emoji_font: Font
+
 func _ready() -> void:
 	print("Starting Multi-Biome Visual Test...")
+
+	# Get emoji font for rendering
+	emoji_font = ThemeDB.fallback_font
 
 	# Create first biome - BioticFlux (farming)
 	biome1 = BioticFluxBiome.new()
@@ -63,11 +70,14 @@ func _setup_biotic_flux() -> void:
 	biome1.plots_by_type[biome1.PlotType.FARM].append(Vector2i(-1, -1))
 	biome1.plot_types[Vector2i(-1, -1)] = biome1.PlotType.FARM
 
-	# Add sun entity at center
+	# Add sun entity at center with glyph
+	var sun_glyph = QuantumGlyph.new()
+	sun_glyph.qubit = biome1.sun_qubit
 	biome1_entities.append({
 		"qubit": biome1.sun_qubit,
 		"rel_pos": Vector2(0, 0),
-		"type": "sun"
+		"type": "sun",
+		"glyph": sun_glyph
 	})
 
 	# Add 3 wheat scattered in a triangle
@@ -91,10 +101,13 @@ func _setup_biotic_flux() -> void:
 		biome1.plots_by_type[biome1.PlotType.FARM].append(pos)
 		biome1.plot_types[pos] = biome1.PlotType.FARM
 
+		var wheat_glyph = QuantumGlyph.new()
+		wheat_glyph.qubit = wheat
 		biome1_entities.append({
 			"qubit": wheat,
 			"rel_pos": wheat_positions[i],
-			"type": "wheat"
+			"type": "wheat",
+			"glyph": wheat_glyph
 		})
 
 	# Add 2 mushrooms
@@ -117,10 +130,13 @@ func _setup_biotic_flux() -> void:
 		biome1.plots_by_type[biome1.PlotType.FARM].append(pos)
 		biome1.plot_types[pos] = biome1.PlotType.FARM
 
+		var mushroom_glyph = QuantumGlyph.new()
+		mushroom_glyph.qubit = mushroom
 		biome1_entities.append({
 			"qubit": mushroom,
 			"rel_pos": mushroom_positions[i],
-			"type": "mushroom"
+			"type": "mushroom",
+			"glyph": mushroom_glyph
 		})
 
 
@@ -161,6 +177,16 @@ func _process(delta: float) -> void:
 	# Update ForestEcosystem biome
 	biome2.time_tracker.update(delta)
 	biome2._update_quantum_substrate(delta)
+
+	# Update glyph positions and state for BioticFlux entities
+	var center = biome1_config.center
+	var width = biome1_config.width
+	var height = biome1_config.height
+	for entity in biome1_entities:
+		var rel_pos = entity.rel_pos
+		var screen_pos = center + Vector2(rel_pos.x * width * 0.8, rel_pos.y * height * 0.8)
+		entity.glyph.position = screen_pos
+		entity.glyph.update_from_qubit(delta)
 
 	# Redraw every frame
 	queue_redraw()
@@ -227,49 +253,10 @@ func _draw_biome_oval(config: Dictionary) -> void:
 
 
 func _draw_biotic_flux_entities() -> void:
-	"""Draw all entities in the BioticFlux biome"""
-	var center = biome1_config.center
-	var width = biome1_config.width
-	var height = biome1_config.height
-	var font = ThemeDB.fallback_font
-
+	"""Draw all entities in the BioticFlux biome using QuantumGlyph"""
+	# Use the sophisticated 6-layer QuantumGlyph rendering
 	for entity in biome1_entities:
-		var rel_pos = entity.rel_pos
-		var screen_pos = center + Vector2(rel_pos.x * width * 0.8, rel_pos.y * height * 0.8)
-		var qubit = entity.qubit
-		var entity_type = entity.type
-
-		if entity_type == "sun":
-			# Draw sun with brightness-based color
-			var sun_brightness = pow(cos(qubit.theta / 2.0), 2)
-			var sun_color = Color(1.0, 1.0, 0.2).lerp(Color(0.3, 0.2, 0.5), 1.0 - sun_brightness)
-			draw_circle(screen_pos, 25, sun_color)
-
-			# Draw sun/moon emoji
-			var emoji = qubit.north_emoji if sun_brightness > 0.5 else qubit.south_emoji
-			draw_string(font, screen_pos + Vector2(-12, 8), emoji, HORIZONTAL_ALIGNMENT_LEFT, -1, 24)
-
-		elif entity_type == "wheat" or entity_type == "mushroom":
-			# Draw crop circle (energy-based size)
-			var energy = qubit.energy
-			var base_radius = 18
-			var radius = base_radius * (0.5 + energy * 0.5)
-
-			# Color based on type
-			var crop_color = Color(0.9, 0.8, 0.2, 0.6) if entity_type == "wheat" else Color(0.6, 0.4, 0.3, 0.6)
-			draw_circle(screen_pos, radius, crop_color)
-
-			# Draw blended emoji based on theta
-			var north_prob = pow(cos(qubit.theta / 2.0), 2)
-			var emoji = qubit.north_emoji if north_prob > 0.5 else qubit.south_emoji
-			draw_string(font, screen_pos + Vector2(-10, 6), emoji, HORIZONTAL_ALIGNMENT_LEFT, -1, 20)
-
-			# Draw energy bar
-			var bar_width = 30
-			var bar_height = 4
-			var bar_pos = screen_pos + Vector2(-bar_width/2, radius + 5)
-			draw_rect(Rect2(bar_pos, Vector2(bar_width, bar_height)), Color(0.2, 0.2, 0.2, 0.8))
-			draw_rect(Rect2(bar_pos, Vector2(bar_width * energy, bar_height)), Color(0.3, 0.8, 0.3, 0.9))
+		entity.glyph.draw(self, emoji_font)
 
 
 func _draw_forest_entities() -> void:

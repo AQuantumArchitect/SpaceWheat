@@ -11,9 +11,12 @@ class_name PlayerShell
 extends Control
 
 const OverlayManager = preload("res://UI/Managers/OverlayManager.gd")
+const QuestManager = preload("res://Core/Quests/QuestManager.gd")
+const FactionDatabase = preload("res://Core/Quests/FactionDatabase.gd")
 
 var current_farm_ui = null  # FarmUI instance (from scene)
 var overlay_manager: OverlayManager = null
+var quest_manager: QuestManager = null
 var farm: Node = null
 var farm_ui_container: Control = null
 
@@ -44,12 +47,17 @@ func _ready() -> void:
 	add_child(layout_manager)
 	# _ready() will be called automatically by the engine
 
+	# Create quest manager (before overlays, since overlays need it)
+	quest_manager = QuestManager.new()
+	add_child(quest_manager)
+	print("   ✅ Quest manager created")
+
 	# Create overlay manager and add to overlay layer
 	overlay_manager = OverlayManager.new()
 	overlay_layer.add_child(overlay_manager)
 
-	# Setup overlay manager with proper dependencies
-	overlay_manager.setup(layout_manager, null, null, null)
+	# Setup overlay manager with proper dependencies (pass quest_manager)
+	overlay_manager.setup(layout_manager, null, null, null, quest_manager)
 
 	# Initialize overlays (C/V/N/K/ESC menus)
 	overlay_manager.create_overlays(overlay_layer)
@@ -70,6 +78,14 @@ func load_farm(farm_ref: Node) -> void:
 	# Store farm reference
 	farm = farm_ref
 
+	# Connect quest manager to farm economy
+	if quest_manager and farm.economy:
+		quest_manager.connect_to_economy(farm.economy)
+		print("   ✅ Quest manager connected to economy")
+
+		# Offer initial quest
+		_offer_initial_quest()
+
 	# Load FarmUI as scene and add to container
 	var farm_ui_scene = load("res://UI/FarmUI.tscn")
 	if farm_ui_scene:
@@ -87,6 +103,26 @@ func load_farm(farm_ref: Node) -> void:
 	print("✅ Farm loaded into PlayerShell")
 
 
+func get_farm_ui():
+	"""Get the currently loaded FarmUI instance"""
+	return current_farm_ui
+
+
+func load_farm_ui(farm_ui: Control) -> void:
+	"""Load an already-instantiated FarmUI into the farm container.
+
+	Called by BootManager.boot() in Stage 3C to add the FarmUI that has
+	already been instantiated and setup with all dependencies.
+
+	This is separate from load_farm() which handles the entire loading sequence.
+	"""
+	# Store reference
+	current_farm_ui = farm_ui
+
+	# Add to container
+	if farm_ui_container:
+		farm_ui_container.add_child(farm_ui)
+		print("   ✓ FarmUI mounted in container")
 
 
 ## OVERLAY SYSTEM INITIALIZATION
@@ -114,3 +150,32 @@ func _initialize_overlay_system() -> void:
 	overlay_manager.create_overlays(self)
 
 	print("🎭 Overlay system initialized")
+
+
+## QUEST SYSTEM HELPERS
+
+func _offer_initial_quest() -> void:
+	"""Offer first quest to player when farm loads"""
+	if not quest_manager or not farm:
+		return
+
+	# Get random faction from database
+	var faction = FactionDatabase.get_random_faction()
+	if faction.is_empty():
+		print("⚠️  No factions available for quests")
+		return
+
+	# Get resources from current biome
+	var resources = []
+	if farm.biotic_flux_biome:
+		resources = farm.biotic_flux_biome.get_harvestable_emojis()
+
+	if resources.is_empty():
+		resources = ["🌾", "👥"]  # Fallback
+
+	# Generate and offer quest
+	var quest = quest_manager.offer_quest(faction, "BioticFlux", resources)
+	if not quest.is_empty():
+		# Auto-accept first quest for tutorial
+		quest_manager.accept_quest(quest)
+		print("   📜 Initial quest offered: %s - %s" % [quest.get("faction", ""), quest.get("body", "")])

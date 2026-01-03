@@ -1,6 +1,15 @@
 class_name QuantumForceGraph
 extends Node2D
 
+## INPUT CONTRACT (Layer 5 - Bubble Touch Gestures)
+## ═══════════════════════════════════════════════════════════════
+## PHASE: _unhandled_input() - Lowest priority, receives leftover events
+## HANDLES: Mouse/touch events that weren't consumed by higher layers
+## PURPOSE: Bubble tap (measure/harvest) and swipe (entangle) gestures
+## CONSUMES: When gesture detected on quantum node
+## EMITS: node_clicked, node_swiped_to
+## ═══════════════════════════════════════════════════════════════
+##
 ## Quantum Force-Directed Graph Visualization
 ## Central visualization showing quantum states as force-directed graph
 ## Connected to classical plots via tether lines
@@ -10,6 +19,7 @@ const QuantumNode = preload("res://Core/Visualization/QuantumNode.gd")
 const FarmGrid = preload("res://Core/GameMechanics/FarmGrid.gd")
 const DualEmojiQubit = preload("res://Core/QuantumSubstrate/DualEmojiQubit.gd")
 const SemanticCoupling = preload("res://Core/QuantumSubstrate/SemanticCoupling.gd")
+const BiomeLayoutCalculator = preload("res://Core/Visualization/BiomeLayoutCalculator.gd")
 
 # Quantum nodes
 var quantum_nodes: Array[QuantumNode] = []
@@ -20,6 +30,11 @@ var sun_qubit_node: QuantumNode = null  # Special celestial sun node
 # Graph properties
 var center_position: Vector2 = Vector2.ZERO
 var graph_radius: float = 300.0
+var lock_dimensions: bool = false  # When true, prevent auto-scaling on viewport change
+
+# Layout calculator - computes positions from biome configs + viewport
+var layout_calculator: BiomeLayoutCalculator = null
+var cached_viewport_size: Vector2 = Vector2.ZERO  # Track viewport for change detection
 
 # Click tracking for double-tap interactions
 var clicked_nodes: Dictionary = {}  # grid_position -> click_count
@@ -56,6 +71,16 @@ const ENTANGLEMENT_WIDTH = 3.0
 # Animation
 var time_accumulator: float = 0.0
 
+# Life cycle effects (external systems can add effects here)
+var life_cycle_effects: Dictionary = {
+	"spawns": [],     # [{position, time, color}]
+	"deaths": [],     # [{position, time, icon}]
+	"strikes": []     # [{from, to, time}]
+}
+
+# NOTE: Rejection effects removed - now handled by PlotGridDisplay (UI layer)
+# Keeping this comment to prevent future duplicate implementations
+
 # Particle system for entanglement lines
 var entanglement_particles: Array[Dictionary] = []  # {position, velocity, life, color}
 const MAX_PARTICLES_PER_LINE = 8
@@ -91,17 +116,64 @@ var plot_tether_colors: Dictionary = {}
 # Plot wrappers for quantum visualization
 var all_plots: Dictionary = {}  # grid_pos -> PlotBase (FarmPlot, BiomePlot, or CelestialPlot)
 
+# ALL plot positions (including unplanted) for persistent gate infrastructure visualization
+var all_plot_positions: Dictionary = {}  # Vector2i grid_pos -> Vector2 screen_pos
+
 # Debug mode (set to false for production)
-const DEBUG_MODE = false  # Set to true for debugging node positions and scaling
+const DEBUG_MODE = true  # Set to true for debugging node positions and scaling
 var debug_frame_count = 0
 var frame_count = 0
 
 
 func _ready():
 	set_process(true)
-	# Enable mouse input detection
-	set_process_input(true)
+	# Enable mouse input detection (unhandled so UI can process first)
+	set_process_unhandled_input(true)
+	# Create layout calculator
+	layout_calculator = BiomeLayoutCalculator.new()
 	print("⚛️ QuantumForceGraph initialized (input enabled)")
+
+
+# REMOVED: show_rejection_effect() - now handled by PlotGridDisplay (UI layer)
+
+
+func update_layout(force: bool = false) -> void:
+	"""Recompute all positions from biome configs + viewport size
+
+	Called automatically when viewport changes. Can also be called manually
+	when biome visual configs change.
+
+	Args:
+		force: If true, recompute even if viewport size hasn't changed
+	"""
+	if not layout_calculator:
+		layout_calculator = BiomeLayoutCalculator.new()
+
+	# Get current viewport size
+	var viewport = get_viewport()
+	var viewport_size = viewport.get_visible_rect().size if viewport else Vector2(1280, 720)
+
+	# Check if update is needed
+	if not force and viewport_size == cached_viewport_size:
+		return
+
+	cached_viewport_size = viewport_size
+
+	# Compute biome ovals from configs
+	layout_calculator.compute_layout(biomes, viewport_size)
+
+	# Update graph center and radius from calculator
+	center_position = layout_calculator.graph_center
+	graph_radius = layout_calculator.graph_radius
+
+	# Update all node positions from their parametric coordinates
+	layout_calculator.update_node_positions(quantum_nodes)
+
+	# CRITICAL: Trigger redraw so new layout is rendered
+	queue_redraw()
+
+	if DEBUG_MODE:
+		print("📐 Layout updated: %s" % layout_calculator.debug_info())
 
 
 func initialize(grid: FarmGrid, center_pos: Vector2, radius: float, provided_positions: Dictionary = {}):
@@ -123,6 +195,7 @@ func initialize(grid: FarmGrid, center_pos: Vector2, radius: float, provided_pos
 	if grid:
 		# Use provided positions or calculate them from grid
 		var classical_plot_positions: Dictionary = {}
+		var parametric_assignments: Dictionary = {}  # grid_pos -> {biome, t, ring}
 
 		# If positions were provided by PlotGridDisplay, use those (plots are foundation)
 		if not provided_positions.is_empty():
@@ -168,44 +241,51 @@ func initialize(grid: FarmGrid, center_pos: Vector2, radius: float, provided_pos
 
 			print("   Total: %d biomes with %d plots" % [plots_by_biome.keys().size(), total_plots_grouped])
 
-			# Second pass: calculate parametric positions for each biome's plots
-			for biome_name in plots_by_biome:
-				if not biomes.has(biome_name):
-					print("⚠️ Biome '%s' not found in registry!" % biome_name)
+			# PARAMETRIC LAYOUT: Assign parametric coordinates to each plot
+			# The layout calculator will compute actual positions from these
+			for bname in plots_by_biome:
+				if not biomes.has(bname):
+					print("⚠️ Biome '%s' not found in registry!" % bname)
 					continue
 
-				var biome_obj = biomes[biome_name]
-				var biome_config = biome_obj.get_visual_config()
-				var biome_center = center_position + biome_config.center_offset * graph_radius
+				var biome_plots = plots_by_biome[bname]
 
-				# Create nodes for ALL plots (planted and unplanted)
-				# QuantumNode handles visibility based on quantum_state
-				var all_plots = plots_by_biome[biome_name]
-
-				# Get parametric ring positions from biome (with viewport scaling for consistency)
-				var plot_positions = biome_obj.get_plot_positions_in_oval(
-					all_plots.size(),
-					biome_center,
-					viewport_scale
+				# Get parametric coordinates for all plots in this biome
+				var parametric_coords = layout_calculator.distribute_nodes_in_biome(
+					bname,
+					biome_plots.size(),
+					0  # seed_offset
 				)
 
-				print("🔵 Biome '%s': %d plots → %d total → %d positions" % [
-					biome_name,
-					plots_by_biome[biome_name].size(),
-					all_plots.size(),
-					plot_positions.size()
+				print("🔵 Biome '%s': %d plots → %d parametric coords" % [
+					bname,
+					biome_plots.size(),
+					parametric_coords.size()
 				])
 
-				# Assign positions to ALL plots (in grid order for consistency)
-				var plot_idx = 0
-				for grid_pos in all_plots:
-					if plot_idx < plot_positions.size():
-						var screen_pos = plot_positions[plot_idx]
+				# Assign parametric coords to each plot
+				for i in range(biome_plots.size()):
+					var grid_pos = biome_plots[i]
+					if i < parametric_coords.size():
+						parametric_assignments[grid_pos] = {
+							"biome": bname,
+							"t": parametric_coords[i]["t"],
+							"ring": parametric_coords[i]["ring"]
+						}
 
-						# Offset anchor position UPWARD (negative Y) so bubbles float above like balloons
-						var home_pos = screen_pos + Vector2(0, -60)
-						classical_plot_positions[grid_pos] = home_pos
-						plot_idx += 1
+			# Compute initial layout (needed for classical_plot_positions)
+			update_layout(true)
+
+			# Convert parametric coords to screen positions for node creation
+			for grid_pos in parametric_assignments:
+				var params = parametric_assignments[grid_pos]
+				var screen_pos = layout_calculator.get_parametric_position(
+					params["biome"],
+					params["t"],
+					params["ring"]
+				)
+				# Offset anchor position UPWARD (negative Y) so bubbles float above
+				classical_plot_positions[grid_pos] = screen_pos + Vector2(0, -60)
 
 		# Create quantum nodes for all plots
 		if classical_plot_positions.size() > 0:
@@ -216,76 +296,113 @@ func initialize(grid: FarmGrid, center_pos: Vector2, radius: float, provided_pos
 			if classical_plot_positions.size() > 3:
 				print("   ... and %d more" % (classical_plot_positions.size() - 3))
 
-			create_quantum_nodes(classical_plot_positions)
-			print("⚛️ QuantumForceGraph initialized with %d quantum nodes (parametric ring layout)" % quantum_nodes.size())
+			# Store ALL plot positions for persistent gate infrastructure visualization
+			all_plot_positions = classical_plot_positions.duplicate()
+			print("📍 Stored %d plot positions in all_plot_positions" % all_plot_positions.size())
 
-			# Verify nodes were created with positions
+			create_quantum_nodes(classical_plot_positions)
+
+			# PARAMETRIC LAYOUT: Assign parametric coordinates to nodes
+			# This allows update_layout() to recompute positions on viewport change
+			for grid_pos in parametric_assignments:
+				var node = quantum_nodes_by_grid_pos.get(grid_pos)
+				if node:
+					var params = parametric_assignments[grid_pos]
+					node.biome_name = params["biome"]
+					node.parametric_t = params["t"]
+					node.parametric_ring = params["ring"]
+
+			print("⚛️ QuantumForceGraph initialized with %d quantum nodes (parametric layout)" % quantum_nodes.size())
+
+			# Verify nodes were created with parametric coords
 			if quantum_nodes.size() > 0:
 				var node = quantum_nodes[0]
-				print("   First node: pos=(%.1f, %.1f), anchor=(%.1f, %.1f)" % [
-					node.position.x, node.position.y,
-					node.classical_anchor.x, node.classical_anchor.y
+				print("   First node: biome='%s', t=%.2f, ring=%.2f, pos=(%.1f, %.1f)" % [
+					node.biome_name, node.parametric_t, node.parametric_ring,
+					node.position.x, node.position.y
 				])
 		else:
 			print("⚠️ QuantumForceGraph: No plots found to create quantum nodes")
 
 
-func _input(event: InputEvent):
-	"""Handle mouse clicks and swipes on quantum nodes"""
+func _unhandled_input(event: InputEvent):
+	"""Handle mouse clicks, touch taps, and swipes on quantum nodes
+
+	Uses _unhandled_input() instead of _input() so Control nodes can handle input first.
+	Since UI Controls have mouse_filter=IGNORE, unhandled events reach us here.
+
+	Handles both mouse (InputEventMouseButton) and touch (InputEventScreenTouch).
+	"""
+	# Unified handling for mouse and touch events
+	var local_pos: Vector2
+	var is_press: bool = false
+	var is_release: bool = false
+
 	if event is InputEventMouseButton:
-		if event.button_index == MOUSE_BUTTON_LEFT:
-			var local_mouse_pos = get_local_mouse_position()
-			var clicked_node = get_node_at_position(local_mouse_pos)
+		if event.button_index != MOUSE_BUTTON_LEFT:
+			return
+		# Convert global position to local coordinates
+		local_pos = get_global_transform().affine_inverse() * event.global_position
+		is_press = event.pressed
+		is_release = not event.pressed
+		print("🖱️  QuantumForceGraph: Mouse %s at local %s" % ["PRESS" if is_press else "RELEASE", local_pos])
 
-			if event.pressed:
-				# PRESS: Start tracking swipe
-				print("🖱️ QuantumForceGraph._input() received LEFT PRESS")
-				print("🖱️   Local mouse pos: %s" % local_mouse_pos)
+	elif event is InputEventScreenTouch:
+		# Touch events - convert position to local coordinates
+		local_pos = get_global_transform().affine_inverse() * event.position
+		is_press = event.pressed
+		is_release = not event.pressed
+		print("👆 QuantumForceGraph: Touch %s at local %s (finger %d)" % ["DOWN" if is_press else "UP", local_pos, event.index])
 
-				if clicked_node:
-					print("🖱️   Found quantum node at grid pos: %s" % clicked_node.grid_position)
-					swipe_start_pos = local_mouse_pos
-					swipe_start_node = clicked_node
-					is_swiping = true
-					swipe_start_time = Time.get_ticks_msec() / 1000.0
+	else:
+		return  # Not an event we handle
 
+	var clicked_node = get_node_at_position(local_pos)
+	print("   Local pos: %s, Node: %s" % [local_pos, clicked_node])
+
+	if is_press:
+		# PRESS/TOUCH DOWN: Start tracking for potential swipe
+		if clicked_node:
+			print("   ✅ Found quantum node at grid pos: %s" % clicked_node.grid_position)
+			swipe_start_pos = local_pos
+			swipe_start_node = clicked_node
+			is_swiping = true
+			swipe_start_time = Time.get_ticks_msec() / 1000.0
+			get_viewport().set_input_as_handled()
+			print("   Starting swipe tracking from: %s" % clicked_node.grid_position)
+		else:
+			print("   ⏩ No quantum node at position")
+
+	elif is_release:
+		# RELEASE/TOUCH UP: Determine if it was a tap or swipe
+		if is_swiping and swipe_start_node:
+			var swipe_distance = swipe_start_pos.distance_to(local_pos)
+			var swipe_time = (Time.get_ticks_msec() / 1000.0) - swipe_start_time
+
+			print("   Swipe distance: %.1f, time: %.2fs" % [swipe_distance, swipe_time])
+
+			if swipe_distance >= SWIPE_MIN_DISTANCE and swipe_time <= SWIPE_MAX_TIME:
+				# SWIPE GESTURE: Check if end is on another node
+				var end_node = get_node_at_position(local_pos)
+				if end_node and end_node != swipe_start_node:
+					print("✨ SWIPE DETECTED: %s → %s" % [swipe_start_node.grid_position, end_node.grid_position])
+					node_swiped_to.emit(swipe_start_node.grid_position, end_node.grid_position)
 					get_viewport().set_input_as_handled()
-					print("🖱️   Starting swipe tracking from: %s" % clicked_node.grid_position)
 				else:
-					print("🖱️   No quantum node at press position")
+					# Swipe but didn't land on another node - treat as tap
+					print("   Swipe but no target - treating as tap")
+					if swipe_start_node:
+						node_clicked.emit(swipe_start_node.grid_position, 0)
+						get_viewport().set_input_as_handled()
 			else:
-				# RELEASE: Check if this was a click or swipe
-				print("🖱️ QuantumForceGraph._input() received LEFT RELEASE")
-				print("🖱️   Local mouse pos: %s" % local_mouse_pos)
+				# SHORT TAP: Regular tap/click
+				if swipe_start_node:
+					print("👆 TAP DETECTED on: %s" % swipe_start_node.grid_position)
+					node_clicked.emit(swipe_start_node.grid_position, 0)
+					get_viewport().set_input_as_handled()
 
-				if is_swiping and swipe_start_node:
-					var swipe_distance = swipe_start_pos.distance_to(local_mouse_pos)
-					var swipe_time = (Time.get_ticks_msec() / 1000.0) - swipe_start_time
-
-					print("🖱️   Swipe distance: %.1f, time: %.2fs" % [swipe_distance, swipe_time])
-
-					if swipe_distance >= SWIPE_MIN_DISTANCE and swipe_time <= SWIPE_MAX_TIME:
-						# SWIPE GESTURE: Check if end is on another node
-						var end_node = get_node_at_position(local_mouse_pos)
-						if end_node and end_node != swipe_start_node:
-							print("✨ SWIPE DETECTED: %s → %s" % [swipe_start_node.grid_position, end_node.grid_position])
-							node_swiped_to.emit(swipe_start_node.grid_position, end_node.grid_position)
-							get_viewport().set_input_as_handled()
-						else:
-							# Swipe but didn't land on another node - just click
-							print("🖱️   Swipe but no target node - treating as click")
-							if swipe_start_node:
-								node_clicked.emit(swipe_start_node.grid_position, 0)
-								get_viewport().set_input_as_handled()
-					else:
-						# SHORT TAP: Regular click
-						if swipe_start_node:
-							print("🖱️   TAP DETECTED (short press) on: %s" % swipe_start_node.grid_position)
-							node_clicked.emit(swipe_start_node.grid_position, 0)
-							get_viewport().set_input_as_handled()
-
-					is_swiping = false
-					swipe_start_node = null
+		is_swiping = false
+		swipe_start_node = null
 
 
 func set_icons(biotic, chaos, imperium):
@@ -447,6 +564,34 @@ func create_quantum_nodes(classical_plot_positions: Dictionary):
 		print("⚛️ ===================================\n")
 
 
+func rebuild_from_biomes(classical_plot_positions: Dictionary) -> void:
+	"""Phase 5: Rebuild quantum visualization from biome states after loading a save
+
+	Called by GameStateManager.apply_state_to_game() to rebuild visualization from simulation.
+	This clears old nodes and recreates them based on current biome quantum states.
+
+	Args:
+		classical_plot_positions: Dictionary mapping Vector2i grid position -> Vector2 screen position
+	"""
+	print("🔄 QuantumForceGraph: Rebuilding from biome states...")
+
+	# Clear existing visualization
+	quantum_nodes.clear()
+	node_by_plot_id.clear()
+	quantum_nodes_by_grid_pos.clear()
+	sun_qubit_node = null
+
+	# Recreate nodes from current biome states
+	if classical_plot_positions:
+		create_quantum_nodes(classical_plot_positions)
+
+	# Recreate sun node if BioticFlux biome available
+	if biotic_flux_biome:
+		create_sun_qubit_node()
+
+	print("   ✅ QuantumForceGraph rebuilt: %d nodes recreated from biome states" % quantum_nodes.size())
+
+
 func create_sun_qubit_node():
 	"""Create a special celestial quantum node for the sun/moon qubit
 
@@ -511,6 +656,8 @@ func _process(delta):
 
 	# Update Icon particle field
 	_update_icon_particles(delta)
+
+	# NOTE: Rejection effects removed - now handled by PlotGridDisplay (UI layer)
 
 	# Update Carrion Throne political attractor (if active)
 	if imperium_icon and imperium_icon.has_method("update_political_season"):
@@ -731,6 +878,9 @@ func _spawn_icon_particles(delta: float):
 			})
 
 
+# REMOVED: _update_rejection_effects() - now handled by PlotGridDisplay (UI layer)
+
+
 func _update_forces(delta: float):
 	"""Calculate and apply all forces to quantum nodes"""
 	for node in quantum_nodes:
@@ -789,6 +939,10 @@ func _calculate_tether_force(node: QuantumNode, is_measured: bool = false) -> Ve
 		node: The quantum node
 		is_measured: If true, use MUCH stronger tether (measured nodes snap to position)
 	"""
+	# Only apply tether force if node is attached to a farm plot
+	if not node.has_farm_tether:
+		return Vector2.ZERO
+
 	var tether_vector = node.classical_anchor - node.position
 	var spring_constant = MEASURED_TETHER_STRENGTH if is_measured else TETHER_SPRING_CONSTANT
 	return tether_vector * spring_constant
@@ -914,55 +1068,13 @@ func _update_positions(delta: float):
 
 func _draw():
 	"""Draw the quantum force graph"""
-	if quantum_nodes.is_empty():
-		if DEBUG_MODE:
-			# Draw debug message in center
-			var font = ThemeDB.fallback_font
-			draw_string(font, center_position, "NO QUANTUM NODES", HORIZONTAL_ALIGNMENT_CENTER, -1, 32, Color.RED)
-		return
-
 	# Track frame for debug logging
 	frame_count += 1
 
-	# PARAMETRIC SIZING: Recalculate graph_radius based on current viewport size
-	# This ensures ovals and nodes scale responsively when resolution changes
-	var current_viewport_rect = get_viewport().get_visible_rect()
-	var new_radius = current_viewport_rect.size.length() * 0.3
-	if new_radius != graph_radius:
-		# Viewport size changed - scale all node positions proportionally
-		var radius_scale = new_radius / graph_radius
-		var old_center = center_position
-		var new_center = current_viewport_rect.get_center()
-
-		# Scale all node positions around the center
-		for node in quantum_nodes:
-			if node:
-				# Scale position relative to old center, then translate to new center
-				var offset = node.position - old_center
-				node.position = new_center + (offset * radius_scale)
-				node.classical_anchor = node.classical_anchor.lerp(new_center + ((node.classical_anchor - old_center) * radius_scale), 0.5)
-
-		graph_radius = new_radius
-		center_position = new_center
-		if DEBUG_MODE and frame_count % 120 == 0:
-			print("📐 QuantumForceGraph: radius updated to %.1f, scaled %d nodes (parametric sizing)" % [graph_radius, quantum_nodes.size()])
-
-	# Draw quantum graph background - very subtle, low contrast
-	var bg_gradient_outer = Color(0.08, 0.08, 0.12, 0.12)  # Very dark, much more transparent
-	var bg_gradient_inner = Color(0.1, 0.1, 0.14, 0.18)    # Slightly lighter center, still subtle
-
-	# Draw layered circles for depth (fewer layers, more subtle)
-	for i in range(3):
-		var radius = graph_radius * (1.0 - i * 0.25)
-		var alpha_factor = 1.0 - i * 0.3
-		var circle_color = bg_gradient_outer.lerp(bg_gradient_inner, i / 3.0)
-		circle_color.a *= alpha_factor
-		draw_circle(center_position, radius, circle_color)
-
-	# Draw very subtle center glow (warm neutral instead of blue)
-	var center_glow = Color(0.15, 0.15, 0.18, 0.08)  # Neutral dark gray, very subtle
-	draw_circle(center_position, 40.0, center_glow)
-	draw_circle(center_position, 20.0, Color(0.18, 0.18, 0.2, 0.12))
+	# PARAMETRIC LAYOUT: Use BiomeLayoutCalculator for all positioning
+	# This handles viewport resize and biome config changes
+	if not lock_dimensions:
+		update_layout()  # Recomputes positions if viewport changed
 
 	# Draw strange attractor (political season cycle)
 	_draw_strange_attractor()
@@ -978,11 +1090,17 @@ func _draw():
 	# 1. Tether lines (background)
 	_draw_tether_lines()
 
-	# 2. Energy transfer forces (Lindbladian evolution visualization)
+	# 2. Persistent gate infrastructure (at plot positions, architectural)
+	_draw_persistent_gate_infrastructure()
+
+	# 3. Energy transfer forces (Lindbladian evolution visualization)
 	_draw_energy_transfer_forces()
 
-	# 3. Entanglement lines (midground)
+	# 4. Qubit entanglement lines (at quantum node positions, particle-like)
 	_draw_entanglement_lines()
+
+	# 4b. Food web edges (predation/escape relationships in Forest biome)
+	_draw_food_web_edges()
 
 	# 3. Entanglement particles (above lines, below nodes)
 	_draw_particles()
@@ -996,52 +1114,58 @@ func _draw():
 	# 6. Sun qubit node (always on top, celestial)
 	_draw_sun_qubit_node()
 
+	# 7. Life cycle effects (spawns, deaths, coherence strikes)
+	_draw_life_cycle_effects()
+
+	# NOTE: Rejection effects removed - now handled by PlotGridDisplay (UI layer)
+
 	# DEBUG: Draw node position markers to verify scaling
 	if DEBUG_MODE:
 		_draw_debug_node_positions()
 
 
 func _draw_biome_regions():
-	"""Draw oval biome regions (generic, data-driven)
+	"""Draw oval biome regions using cached layout from BiomeLayoutCalculator
 
-	Iterates over all registered biomes and renders them as ovals.
+	Reads pre-computed oval positions/sizes from layout_calculator.biome_ovals.
 	Biomes can provide custom rendering via render_biome_content() callback.
 	"""
+	if not layout_calculator:
+		return
+
 	for biome_name in biomes:
 		var biome_obj = biomes[biome_name]
-		var config = biome_obj.get_visual_config()
 
-		# Skip if disabled
-		if not config.get("enabled", true):
-			continue
+		# Get cached oval from layout calculator
+		var oval = layout_calculator.get_biome_oval(biome_name)
+		if oval.is_empty():
+			# Fallback: compute on the fly if not cached
+			update_layout(true)
+			oval = layout_calculator.get_biome_oval(biome_name)
+			if oval.is_empty():
+				continue
 
-		# Calculate biome center from offset
-		var biome_center = center_position + config.center_offset * graph_radius
-
-		# Scale oval dimensions based on graph radius
-		# Default 350×216 at full resolution, scale proportionally to graph_radius
-		var base_oval_width = config.get("oval_width", config.circle_radius)
-		var base_oval_height = config.get("oval_height", config.circle_radius)
-
-		# Scale: graph_radius / 300 (assuming 300 is "normal" graph radius)
-		var scale_factor = graph_radius / 300.0
-		var oval_width = base_oval_width * scale_factor
-		var oval_height = base_oval_height * scale_factor
-		var biome_radius = (oval_width + oval_height) / 2.0  # Average for radius parameter
+		var biome_center = oval.get("center", center_position)
+		var semi_a = oval.get("semi_a", 100.0)  # Horizontal semi-axis
+		var semi_b = oval.get("semi_b", 60.0)   # Vertical semi-axis
+		var color = oval.get("color", Color(0.5, 0.5, 0.5, 0.3))
+		var label = oval.get("label", biome_name)
 
 		# Draw filled oval using polygon approximation
-		_draw_filled_oval(biome_center, oval_width, oval_height, config.color)
+		# Note: _draw_filled_oval uses full width/height, not semi-axes
+		_draw_filled_oval(biome_center, semi_a, semi_b, color)
 
 		# Draw oval border
-		_draw_oval_outline(biome_center, oval_width, oval_height, Color(1, 1, 1, 0.2), 2.0)
+		_draw_oval_outline(biome_center, semi_a, semi_b, Color(1, 1, 1, 0.2), 2.0)
 
 		# Call biome's custom rendering callback (pass average radius for compatibility)
+		var biome_radius = (semi_a + semi_b) / 2.0
 		biome_obj.render_biome_content(self, biome_center, biome_radius)
 
 		# Draw label above oval
 		var font = ThemeDB.fallback_font
-		var label_pos = biome_center + Vector2(0, -oval_height - 15)
-		draw_string(font, label_pos, config.label, HORIZONTAL_ALIGNMENT_CENTER, -1, 16, Color(1, 1, 1, 0.6))
+		var label_pos = biome_center + Vector2(0, -semi_b - 15)
+		draw_string(font, label_pos, label, HORIZONTAL_ALIGNMENT_CENTER, -1, 16, Color(1, 1, 1, 0.6))
 
 
 func _draw_filled_oval(center: Vector2, width: float, height: float, color: Color):
@@ -1074,11 +1198,41 @@ func _draw_oval_outline(center: Vector2, width: float, height: float, color: Col
 		prev_point = point
 
 
+func _draw_biome_oval(oval_config: Dictionary) -> void:
+	"""Draw a biome oval with fill, border, and label - EXACT code from MultiBiomeVisualTest"""
+	var center = oval_config.get("center", Vector2.ZERO)
+	var semi_a = oval_config.get("semi_a", 100.0)  # Horizontal radius
+	var semi_b = oval_config.get("semi_b", 60.0)   # Vertical radius
+	var color = oval_config.get("color", Color(0.5, 0.5, 0.5, 0.3))
+	var label = oval_config.get("label", "")
+
+	# Draw filled oval (using existing helper)
+	_draw_filled_oval(center, semi_a, semi_b, color)
+
+	# Draw border with slight transparency
+	var border_color = Color(color.r, color.g, color.b, min(color.a * 2.0, 0.6))
+	_draw_oval_outline(center, semi_a, semi_b, border_color, 2.0)
+
+	# Draw label above the oval
+	if not label.is_empty():
+		var font = ThemeDB.fallback_font
+		var label_pos = center + Vector2(0, -semi_b - 15)
+		draw_string(font, label_pos, label, HORIZONTAL_ALIGNMENT_CENTER, -1, 18, Color(1, 1, 1, 0.8))
+
+
 
 func _draw_tether_lines():
-	"""Draw tether lines from classical plots to quantum nodes"""
+	"""Draw tether lines from classical plots to quantum nodes
+
+	Only draws tethers for nodes attached to actual farm plots (has_farm_tether=true).
+	Free-floating biome bubbles (forest organisms, celestial objects) have no tethers.
+	"""
 	for node in quantum_nodes:
-		# Only draw tether if node is planted AND has quantum state (mills/markets are classical)
+		# Only draw tether if node is attached to a farm plot
+		if not node.has_farm_tether:
+			continue
+
+		# Also require planted state and quantum state
 		if not node.plot or not node.plot.is_planted or not node.plot.quantum_state:
 			continue
 
@@ -1144,9 +1298,8 @@ func _draw_entanglement_lines():
 			# ====================================================================
 			# WIDTH ENCODING: Edge width ∝ entanglement strength
 			# ====================================================================
-			var entanglement_strength = 0.5  # Default/fallback
-			if "entanglement_strength" in node.plot.entangled_plots[partner_id]:
-				entanglement_strength = node.plot.entangled_plots[partner_id]["entanglement_strength"]
+			# entangled_plots is Dictionary {plot_id -> strength (float)}, not {plot_id -> {dict}}
+			var entanglement_strength = node.plot.entangled_plots.get(partner_id, 0.5)
 
 			var base_line_width = base_width + entanglement_strength * max_width
 
@@ -1218,6 +1371,464 @@ func _draw_entanglement_lines():
 
 	if DEBUG_MODE and entanglement_count > 0:
 		print("🔗 Drew %d entanglement lines" % entanglement_count)
+
+
+func _draw_food_web_edges():
+	"""Draw predation and escape relationships between forest organisms
+
+	Visualizes the food web topology stored in organism qubits:
+	- 🍴 (predation): Red/orange arrows from predator to prey
+	- 🏃 (escape): Blue dashed lines showing flee relationships
+
+	This creates a dynamic visualization of who's hunting whom!
+	"""
+	var predation_count = 0
+	var escape_count = 0
+
+	# Find forest nodes by checking biome_name
+	var forest_nodes: Array = []
+	for node in quantum_nodes:
+		if node.biome_name == "Forest":
+			forest_nodes.append(node)
+
+	if forest_nodes.is_empty():
+		return
+
+	# Check each pair for predation/escape relationships
+	for predator_node in forest_nodes:
+		if not predator_node.plot or not predator_node.plot.quantum_state:
+			continue
+
+		var pred_qubit = predator_node.plot.quantum_state
+		if not pred_qubit.has_method("get_graph_targets"):
+			continue
+
+		# Get predation targets (🍴 = hunts)
+		var prey_targets = pred_qubit.get_graph_targets("🍴")
+
+		for prey_node in forest_nodes:
+			if prey_node == predator_node:
+				continue
+			if not prey_node.plot or not prey_node.plot.quantum_state:
+				continue
+
+			var prey_emoji = prey_node.emoji_north
+
+			# Check if predator hunts this prey
+			if prey_emoji in prey_targets:
+				_draw_predation_arrow(predator_node.position, prey_node.position)
+				predation_count += 1
+
+		# Get escape targets (🏃 = flees from) - draw from prey perspective
+		var escape_targets = pred_qubit.get_graph_targets("🏃")
+
+		for threat_node in forest_nodes:
+			if threat_node == predator_node:
+				continue
+			if not threat_node.plot or not threat_node.plot.quantum_state:
+				continue
+
+			var threat_emoji = threat_node.emoji_north
+
+			# Check if this node flees from the threat
+			if threat_emoji in escape_targets:
+				_draw_escape_line(predator_node.position, threat_node.position)
+				escape_count += 1
+
+
+func _draw_predation_arrow(from_pos: Vector2, to_pos: Vector2):
+	"""Draw a hunting/predation arrow (red/orange, solid, with arrowhead)"""
+	var direction = (to_pos - from_pos).normalized()
+	var distance = from_pos.distance_to(to_pos)
+
+	# Don't draw if too close
+	if distance < 30.0:
+		return
+
+	# Pulse animation for active hunting
+	var pulse = (sin(time_accumulator * 3.0) + 1.0) / 2.0
+	var alpha = 0.4 + pulse * 0.3
+
+	# Hunting color: orange-red gradient
+	var color = Color(1.0, 0.4, 0.2, alpha)
+
+	# Shorten arrow to not overlap with bubbles
+	var arrow_start = from_pos + direction * 25.0
+	var arrow_end = to_pos - direction * 25.0
+
+	# Draw glow
+	var glow = color
+	glow.a = alpha * 0.3
+	draw_line(arrow_start, arrow_end, glow, 6.0, true)
+
+	# Draw main line
+	draw_line(arrow_start, arrow_end, color, 2.5, true)
+
+	# Draw arrowhead
+	var arrow_size = 12.0
+	var perp = direction.rotated(PI / 2.0)
+	var arrow_tip = arrow_end
+	var arrow_left = arrow_tip - direction * arrow_size + perp * arrow_size * 0.5
+	var arrow_right = arrow_tip - direction * arrow_size - perp * arrow_size * 0.5
+
+	var arrow_points = PackedVector2Array([arrow_tip, arrow_left, arrow_right])
+	draw_colored_polygon(arrow_points, color)
+
+
+func _draw_escape_line(from_pos: Vector2, threat_pos: Vector2):
+	"""Draw an escape/flee relationship (blue, dashed, pointing away from threat)"""
+	var direction = (from_pos - threat_pos).normalized()  # Away from threat
+	var distance = from_pos.distance_to(threat_pos)
+
+	# Don't draw if too close
+	if distance < 30.0:
+		return
+
+	# Quick pulse for nervous energy
+	var pulse = (sin(time_accumulator * 5.0) + 1.0) / 2.0
+	var alpha = 0.3 + pulse * 0.2
+
+	# Escape color: electric blue
+	var color = Color(0.3, 0.7, 1.0, alpha)
+
+	# Draw dashed line from prey toward escape direction
+	var start = from_pos
+	var escape_dir = direction * 40.0  # Short escape vector
+	var end = from_pos + escape_dir
+
+	# Draw multiple dashes
+	var dash_length = 8.0
+	var gap_length = 5.0
+	var total_length = 40.0
+	var current = 0.0
+
+	while current < total_length:
+		var dash_start = start + direction * current
+		var dash_end = start + direction * min(current + dash_length, total_length)
+		draw_line(dash_start, dash_end, color, 2.0, true)
+		current += dash_length + gap_length
+
+
+func _draw_life_cycle_effects():
+	"""Draw life cycle visual effects: spawns, deaths, coherence strikes
+
+	Effects are stored in life_cycle_effects dictionary by external systems.
+	Each effect has a 'time' field that counts up - effects fade as time increases.
+	"""
+	var font = ThemeDB.fallback_font
+
+	# ════════════════════════════════════════════════════════════════
+	# SPAWN EFFECTS: Expanding rings of light when organisms are born
+	# ════════════════════════════════════════════════════════════════
+	for effect in life_cycle_effects.get("spawns", []):
+		var pos = effect.get("position", Vector2.ZERO)
+		var t = effect.get("time", 0.0)
+		var color = effect.get("color", Color.GREEN)
+
+		var duration = 1.0
+		var progress = clamp(t / duration, 0.0, 1.0)
+		var alpha = 1.0 - progress  # Fade out
+
+		# Expanding ring
+		var ring_radius = 10.0 + progress * 50.0
+		var ring_color = color
+		ring_color.a = alpha * 0.6
+		draw_arc(pos, ring_radius, 0, TAU, 32, ring_color, 3.0, true)
+
+		# Inner glow
+		var glow_color = color.lightened(0.3)
+		glow_color.a = alpha * 0.4
+		draw_circle(pos, ring_radius * 0.5, glow_color)
+
+		# Sparkle particles
+		for i in range(4):
+			var angle = (t * 3.0 + i * TAU / 4.0)
+			var sparkle_pos = pos + Vector2(cos(angle), sin(angle)) * ring_radius * 0.7
+			var sparkle_color = Color.WHITE
+			sparkle_color.a = alpha * 0.8
+			draw_circle(sparkle_pos, 3.0 * (1.0 - progress), sparkle_color)
+
+	# ════════════════════════════════════════════════════════════════
+	# DEATH EFFECTS: Fading emoji with dissolving particles
+	# ════════════════════════════════════════════════════════════════
+	for effect in life_cycle_effects.get("deaths", []):
+		var pos = effect.get("position", Vector2.ZERO)
+		var t = effect.get("time", 0.0)
+		var icon = effect.get("icon", "💀")
+
+		var duration = 1.0
+		var progress = clamp(t / duration, 0.0, 1.0)
+		var alpha = 1.0 - progress
+
+		# Fading emoji (drifting upward like a ghost)
+		var ghost_pos = pos + Vector2(0, -progress * 30.0)
+		var emoji_alpha = alpha * 0.8
+		draw_string(font, ghost_pos, icon, HORIZONTAL_ALIGNMENT_CENTER, -1, 24, Color(1, 1, 1, emoji_alpha))
+
+		# Dissolving particles (float upward and outward)
+		for i in range(6):
+			var angle = i * TAU / 6.0 + t * 2.0
+			var dist = progress * 40.0
+			var particle_pos = pos + Vector2(cos(angle), sin(angle) - progress) * dist
+			var particle_color = Color(0.5, 0.5, 0.5, alpha * 0.5)
+			draw_circle(particle_pos, 2.0 * (1.0 - progress), particle_color)
+
+	# ════════════════════════════════════════════════════════════════
+	# COHERENCE STRIKE EFFECTS: Lightning flash between predator and prey
+	# ════════════════════════════════════════════════════════════════
+	for effect in life_cycle_effects.get("strikes", []):
+		var from_pos = effect.get("from", Vector2.ZERO)
+		var to_pos = effect.get("to", Vector2.ZERO)
+		var t = effect.get("time", 0.0)
+
+		var duration = 0.5
+		var progress = clamp(t / duration, 0.0, 1.0)
+		var alpha = 1.0 - progress
+
+		# Electric flash color (bright yellow-white)
+		var flash_color = Color(1.0, 0.95, 0.5, alpha)
+
+		# Jagged lightning bolt
+		var direction = (to_pos - from_pos).normalized()
+		var distance = from_pos.distance_to(to_pos)
+		var perp = direction.rotated(PI / 2.0)
+
+		var segments = 5
+		var prev_point = from_pos
+		for i in range(segments):
+			var t_seg = float(i + 1) / float(segments)
+			var base_point = from_pos.lerp(to_pos, t_seg)
+			# Add zigzag offset (except for last point)
+			var offset = 0.0 if i == segments - 1 else (randf() - 0.5) * 20.0
+			var point = base_point + perp * offset
+
+			# Outer glow
+			var glow = flash_color
+			glow.a = alpha * 0.3
+			draw_line(prev_point, point, glow, 8.0, true)
+
+			# Core lightning
+			draw_line(prev_point, point, flash_color, 3.0, true)
+
+			prev_point = point
+
+		# Impact flash at prey position
+		var impact_size = 20.0 * (1.0 - progress)
+		var impact_color = flash_color
+		impact_color.a = alpha * 0.6
+		draw_circle(to_pos, impact_size, impact_color)
+
+
+# REMOVED: _draw_rejection_effects() - now handled by PlotGridDisplay (UI layer)
+# This was creating duplicate rejection visuals
+
+
+func _draw_persistent_gate_infrastructure():
+	"""Draw persistent gate infrastructure at PLOT positions (not floating quantum nodes).
+
+	INFRASTRUCTURE VISUAL: Solid architectural lines connecting plot positions
+	- Bell gates: Gold/amber two-node connection
+	- Cluster gates: Multi-node web with central hub
+
+	These are the persistent "toggle switches" that survive harvest/replant.
+	Different from instantaneous qubit entanglements which float with the bubbles.
+
+	IMPORTANT: Uses all_plot_positions (ALL plots) not quantum_nodes_by_grid_pos (only planted)
+	"""
+	if not farm_grid:
+		return
+
+	var drawn_gates = {}  # Track to avoid drawing same gate multiple times
+	var gate_count = 0
+
+	# Parametric sizing based on graph radius
+	var base_width = graph_radius * 0.008  # ~2.4px at radius 300
+	var max_width = graph_radius * 0.02    # ~6px at radius 300
+	var corner_radius = graph_radius * 0.025  # Corner connector size
+
+	# Debug: Log available positions on first few frames
+	if frame_count < 5:
+		print("📍 Gate draw: all_plot_positions has %d entries, checking %d plots" % [all_plot_positions.size(), farm_grid.plots.size()])
+
+	# Iterate ALL plots in the grid (not just quantum nodes)
+	# NOTE: farm_grid.plots is a Dictionary {Vector2i -> PlotBase}, so iterate keys and get values
+	for grid_pos in farm_grid.plots:
+		var plot = farm_grid.plots[grid_pos]
+		if not plot:
+			continue
+
+		# Check for persistent gates on this plot
+		var active_gates = plot.get_active_gates() if plot.has_method("get_active_gates") else []
+
+		for gate in active_gates:
+			var gate_type = gate.get("type", "")
+			var linked_plots: Array = gate.get("linked_plots", [])
+
+			if linked_plots.is_empty():
+				continue
+
+			# Create unique gate key to avoid duplicate draws
+			var sorted_positions = linked_plots.duplicate()
+			sorted_positions.sort()
+			var gate_key = "%s_%s" % [gate_type, str(sorted_positions)]
+
+			if drawn_gates.has(gate_key):
+				continue
+			drawn_gates[gate_key] = true
+
+			# Collect plot positions from all_plot_positions (includes unplanted plots)
+			var plot_positions: Array[Vector2] = []
+			for pos in linked_plots:
+				# Try all_plot_positions first (all plots)
+				if all_plot_positions.has(pos):
+					plot_positions.append(all_plot_positions[pos])
+				# Fallback to quantum node anchor if available
+				elif quantum_nodes_by_grid_pos.has(pos):
+					plot_positions.append(quantum_nodes_by_grid_pos[pos].classical_anchor)
+
+			if plot_positions.size() < 2:
+				continue
+
+			# Choose visual style based on gate type
+			match gate_type:
+				"bell":
+					_draw_bell_gate_infrastructure(plot_positions, base_width, max_width, corner_radius)
+				"cluster":
+					_draw_cluster_gate_infrastructure(plot_positions, base_width, max_width, corner_radius)
+				_:
+					# Default: simple lines
+					_draw_bell_gate_infrastructure(plot_positions, base_width, max_width, corner_radius)
+
+			gate_count += 1
+
+	# Debug: Always print gate count on first few frames
+	if gate_count > 0 and frame_count < 10:
+		print("🔧 Drew %d persistent gate infrastructure (frame %d)" % [gate_count, frame_count])
+	elif DEBUG_MODE and gate_count > 0:
+		print("🔧 Drew %d persistent gate infrastructure" % gate_count)
+
+
+func _draw_bell_gate_infrastructure(positions: Array[Vector2], base_width: float, max_width: float, corner_radius: float):
+	"""Draw Bell gate infrastructure (2-node connection) at plot positions.
+
+	VISUAL STYLE: Solid amber/gold brackets connecting two plots
+	- Architectural feel (infrastructure, not particles)
+	- Corner connectors at each plot
+	- Solid connecting beam between them
+	"""
+	if positions.size() < 2:
+		return
+
+	var p1 = positions[0]
+	var p2 = positions[1]
+
+	# Animation - slow pulse for infrastructure (much slower than qubit entanglement)
+	var pulse = (sin(time_accumulator * 0.8) + 1.0) / 2.0  # Slow, steady
+	var pulse_factor = 0.7 + pulse * 0.3  # 0.7 to 1.0
+
+	# Amber/gold infrastructure color (distinct from cyan qubit entanglement)
+	var infra_color = Color(1.0, 0.75, 0.2)  # Golden amber
+	var infra_glow = Color(1.0, 0.85, 0.4)   # Lighter glow
+
+	# Calculate line properties
+	var line_width = base_width + max_width * 0.5
+	var pulsed_width = line_width * pulse_factor
+
+	# Draw glow layer (outer)
+	var glow_color = infra_glow
+	glow_color.a = 0.3 * pulse_factor
+	draw_line(p1, p2, glow_color, pulsed_width * 2.5, true)
+
+	# Draw core line (solid infrastructure beam)
+	var core_color = infra_color
+	core_color.a = 0.85 * pulse_factor
+	draw_line(p1, p2, core_color, pulsed_width, true)
+
+	# Draw corner connectors at each position (square brackets feel)
+	_draw_gate_corner_connector(p1, corner_radius, infra_color, pulse_factor)
+	_draw_gate_corner_connector(p2, corner_radius, infra_color, pulse_factor)
+
+
+func _draw_cluster_gate_infrastructure(positions: Array[Vector2], base_width: float, max_width: float, corner_radius: float):
+	"""Draw Cluster gate infrastructure (N-node web) at plot positions.
+
+	VISUAL STYLE: Multi-node web with central hub
+	- All nodes connect to central point
+	- Corner connectors at each plot
+	- Hub indicator in center
+	"""
+	if positions.size() < 2:
+		return
+
+	# Calculate center hub position
+	var hub = Vector2.ZERO
+	for pos in positions:
+		hub += pos
+	hub /= positions.size()
+
+	# Animation - slow pulse
+	var pulse = (sin(time_accumulator * 0.8) + 1.0) / 2.0
+	var pulse_factor = 0.7 + pulse * 0.3
+
+	# Purple/violet for cluster gates (distinct from bell amber)
+	var cluster_color = Color(0.7, 0.4, 1.0)  # Purple
+	var cluster_glow = Color(0.85, 0.6, 1.0)  # Lighter purple glow
+
+	var line_width = base_width + max_width * 0.3  # Slightly thinner
+	var pulsed_width = line_width * pulse_factor
+
+	# Draw spokes from hub to each position
+	for pos in positions:
+		# Glow layer
+		var glow_color = cluster_glow
+		glow_color.a = 0.25 * pulse_factor
+		draw_line(hub, pos, glow_color, pulsed_width * 2.0, true)
+
+		# Core line
+		var core_color = cluster_color
+		core_color.a = 0.8 * pulse_factor
+		draw_line(hub, pos, core_color, pulsed_width, true)
+
+		# Corner connector at plot position
+		_draw_gate_corner_connector(pos, corner_radius, cluster_color, pulse_factor)
+
+	# Draw central hub indicator
+	var hub_size = corner_radius * 1.5 * pulse_factor
+	var hub_glow = cluster_glow
+	hub_glow.a = 0.4 * pulse_factor
+	draw_circle(hub, hub_size * 1.5, hub_glow)
+
+	var hub_core = cluster_color
+	hub_core.a = 0.9 * pulse_factor
+	draw_circle(hub, hub_size, hub_core)
+
+	# Inner bright spot
+	var bright = Color.WHITE
+	bright.a = 0.6 * pulse_factor
+	draw_circle(hub, hub_size * 0.4, bright)
+
+
+func _draw_gate_corner_connector(pos: Vector2, radius: float, color: Color, pulse_factor: float):
+	"""Draw corner connector bracket at a plot position.
+
+	VISUAL: Small square bracket/corner piece indicating infrastructure attachment.
+	"""
+	var size = radius * pulse_factor
+
+	# Glow circle
+	var glow = color
+	glow.a = 0.3 * pulse_factor
+	draw_circle(pos, size * 1.8, glow)
+
+	# Core circle (solid infrastructure point)
+	var core = color
+	core.a = 0.9 * pulse_factor
+	draw_circle(pos, size, core)
+
+	# Inner highlight
+	var highlight = Color.WHITE
+	highlight.a = 0.5 * pulse_factor
+	draw_circle(pos, size * 0.5, highlight)
 
 
 func _draw_energy_transfer_forces():
@@ -1577,6 +2188,54 @@ func _draw_quantum_bubble(node: QuantumNode, is_celestial: bool = false) -> void
 
 		outline_color.a = 0.95 * anim_alpha
 		draw_arc(node.position, node.radius * 1.02 * anim_scale, 0, TAU, 64, outline_color, outline_width, true)
+
+	# ====================================================================
+	# LAYER 6b: THETA ORIENTATION INDICATOR (behavioral direction)
+	# ====================================================================
+	# For forest organisms: theta indicates hunting/fleeing direction
+	# A small arrow on the bubble edge shows which way the organism is "facing"
+	if node.biome_name == "Forest" and node.plot and node.plot.quantum_state:
+		var qubit = node.plot.quantum_state
+		var theta = qubit.theta if "theta" in qubit else PI / 2.0
+
+		# Map theta to visual direction:
+		# theta=0 (predatory/north) → pointing up
+		# theta=π (prey/south) → pointing down
+		# theta=π/2 (neutral) → pointing sideways based on phi
+		var phi = qubit.phi if "phi" in qubit else 0.0
+
+		# Direction vector: theta controls vertical, phi controls horizontal
+		var dir_y = cos(theta)  # North pole = up, south pole = down
+		var dir_x = sin(theta) * cos(phi)  # Equator + phi rotation
+		var direction = Vector2(dir_x, -dir_y).normalized()  # Negate y for screen coords
+
+		# Draw orientation indicator at bubble edge
+		var indicator_start = node.position + direction * (node.radius * 0.7 * anim_scale)
+		var indicator_end = node.position + direction * (node.radius * 1.3 * anim_scale)
+
+		# Color based on state: red for hunting, blue for fleeing, white for neutral
+		var indicator_color: Color
+		if theta < PI / 3.0:
+			indicator_color = Color(1.0, 0.4, 0.3, 0.8)  # Red-orange: predatory
+		elif theta > 2.0 * PI / 3.0:
+			indicator_color = Color(0.4, 0.7, 1.0, 0.8)  # Blue: prey/fleeing
+		else:
+			indicator_color = Color(1.0, 1.0, 1.0, 0.5)  # White: neutral
+
+		indicator_color.a *= anim_alpha
+
+		# Draw arrow line
+		draw_line(indicator_start, indicator_end, indicator_color, 2.5, true)
+
+		# Draw arrowhead
+		var arrow_size = 6.0 * anim_scale
+		var perp = direction.rotated(PI / 2.0)
+		var arrow_tip = indicator_end
+		var arrow_left = arrow_tip - direction * arrow_size + perp * arrow_size * 0.5
+		var arrow_right = arrow_tip - direction * arrow_size - perp * arrow_size * 0.5
+
+		var arrow_points = PackedVector2Array([arrow_tip, arrow_left, arrow_right])
+		draw_colored_polygon(arrow_points, indicator_color)
 
 	# ====================================================================
 	# LAYER 7: DUAL EMOJI SYSTEM (quantum superposition visualization)

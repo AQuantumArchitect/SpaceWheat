@@ -49,44 +49,62 @@ func set_entangled_wheat(plots: Array) -> void:
 
 
 func perform_quantum_measurement() -> void:
-	"""Measure ancilla of all entangled wheat plots
+	"""Measure entangled wheat plots and determine flour outcomes (Model B version)
+
+	Model B changes:
+	- Plots no longer have quantum_state; use parent_biome.quantum_computer instead
+	- Query purity from biome's quantum_computer
+	- Flour outcome based on purity probability
 
 	Process:
-	1. Couple each wheat qubit to ancilla (H = g * Z_wheat ⊗ X_mill)
-	2. Measure ancilla in computational basis (|0⟩ or |1⟩)
-	3. Record outcome (nothing or flour)
-	4. Add to economy
+	1. Query each wheat plot's parent biome quantum state
+	2. Get purity (measurement probability) from quantum computer
+	3. Determine flour outcome probabilistically
+	4. Accumulate flour for economy
 	"""
 	if entangled_wheat.is_empty():
 		return
 
 	var total_flour = 0
+	var accumulated_wheat = 0
 
 	for plot in entangled_wheat:
-		if not plot or not plot.quantum_state:
+		if not plot or not plot.is_planted:
 			continue
 
-		# Step 1: Couple wheat to ancilla
-		plot.quantum_state.couple_to_ancilla(coupling_strength, measurement_interval)
+		# Model B: Get parent biome and quantum computer
+		var biome = plot.parent_biome
+		if not biome or not biome.quantum_computer:
+			continue
 
-		# Step 2: Measure ancilla
-		var outcome = plot.quantum_state.measure_ancilla()
+		# Get component containing this plot's register
+		var comp = biome.quantum_computer.get_component_containing(plot.register_id)
+		if not comp:
+			continue
 
-		# Step 3: For gameplay/visuals, collapse wheat to one pole based on outcome
-		# Flour (|1⟩) → South pole (theta=π, detritus)
-		# Nothing (|0⟩) → North pole (theta=0, healthy)
-		if outcome == "flour":
-			plot.quantum_state.theta = PI  # Collapse to south (detritus state)
-		else:
-			plot.quantum_state.theta = 0.0  # Collapse to north (healthy state)
-		plot.quantum_state.phi = 0.0  # Reset phase for clarity
-		plot.has_been_measured = true
+		# Get purity (probability in measurement basis)
+		var purity = biome.quantum_computer.get_marginal_purity(comp, plot.register_id)
 
-		# Step 4: Record outcome
-		if outcome == "flour":
+		# Get mass (total probability in subspace)
+		var mass = biome.quantum_computer.get_marginal_probability_subspace(
+			comp, plot.register_id, [plot.north_emoji, plot.south_emoji]
+		)
+
+		if mass < 1e-6:
+			# No probability to measure - skip this plot
+			continue
+
+		# Flour outcome: probabilistic based on purity
+		# Higher purity = higher chance of flour outcome
+		var flour_outcome = randf() < purity
+
+		if flour_outcome:
 			total_flour += 1
+			accumulated_wheat += 1
+			plot.has_been_measured = true
+			plot.measured_outcome = plot.south_emoji  # Mark as measured (flour state)
 
-	# Step 4: Update statistics
+	# Update statistics
 	total_measurements += 1
 	flour_outcomes += total_flour
 
@@ -96,10 +114,11 @@ func perform_quantum_measurement() -> void:
 		"wheat_count": entangled_wheat.size()
 	})
 
-	# Step 5: Add to economy if available
-	if total_flour > 0:
-		if farm_grid and farm_grid.has_method("add_resource"):
-			farm_grid.add_resource("flour", total_flour)
+	# Convert flour to economy resource
+	if total_flour > 0 and farm_grid:
+		# Route through FarmEconomy for proper conversion
+		if farm_grid.has_method("process_mill_flour"):
+			farm_grid.process_mill_flour(total_flour)
 
 
 func get_flow_rate() -> Dictionary:

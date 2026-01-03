@@ -1,0 +1,11 @@
+[gd_scene load_steps=3 format=3 uid="uid://bqn3jvx8uu8wy"]
+
+[ext_resource type="PackedScene" uid="uid://ckxpnwkfqtkwo" path="res://scenes/FarmView.tscn" id="1_farm"]
+[ext_resource type="Script" path="res://Tests/test_bubble_tap_endtoend.gd" id="2_test"]
+
+[node name="AutomatedTapTest" type="Node"]
+
+[node name="FarmView" parent="." instance=ExtResource("1_farm")]
+
+[node name="TestRunner" type="Node" parent="."]
+script = ExtResource("2_test")

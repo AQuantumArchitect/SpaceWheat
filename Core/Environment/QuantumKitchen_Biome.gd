@@ -1,289 +1,399 @@
 class_name QuantumKitchen_Biome
 extends BiomeBase
 
-## Quantum Kitchen Biome: Triplet Bell State to Bread Converter
+## Quantum Kitchen Biome: Bell State Entanglement Factory
 ##
-## The Kitchen measures a triple Bell state (wheat + water + flour)
-## and produces a bread qubit entangled with the input resources.
+## The Kitchen operates on QUANTUM inputs (still in superposition!)
+## and creates entangled Bell states where:
 ##
-## Input: Three separate qubits in Bell state configuration
-## (defined by spatial plot arrangement via gate action)
+##   |ψ_kitchen⟩ = α|🌾🌾🌾⟩ + β|🍞⟩
 ##
-## Output: (🍞 bread, (🌾 wheat + 💧 water + 🌾 flour))
-## A weird qubit where the bread is entangled with the consumed resources
+## The bread icon Hamiltonian drives the state toward 🍞.
+## Measurement collapses the state normally (no special treatment).
 ##
-## Mechanics:
-## 1. Player arranges plots: wheat, water, flour in spatial pattern
-## 2. Pattern defines Bell state type (GHZ, W, Cluster)
-## 3. Kitchen measures triplet → collapses to bread production
-## 4. Bread qubit stores entanglement (what resources created it)
-## 5. Bread can be consumed by guilds (drains it away)
+## Architecture mirrors other biomes:
+## - Celestial equivalent: oven_qubit (🔥/❄️ hot/cold)
+## - Icon: bread_icon (Hamiltonian that attracts toward 🍞)
+## - Inputs: 3 quantum qubits that become entangled with bread output
+##
+## Measurement choices:
+## - "Separate" basis → collapse to |🌾🌾🌾⟩ (get 3 individual resources)
+## - "Bread" basis → collapse to |🍞⟩ (get 1 bread qubit)
+##
+## Emoji pairings:
+## - 🍞 pairs with the input triple (stored as metadata)
+## - Input emojis retain their original pairings from source biome
 
 const BellStateDetector = preload("res://Core/QuantumSubstrate/BellStateDetector.gd")
 
-## Bell state detector for triplet analysis
-var bell_detector: BellStateDetector
+# ═══════════════════════════════════════════════════════════════════════════
+# CELESTIAL: Oven temperature (drives baking speed)
+# ═══════════════════════════════════════════════════════════════════════════
+var oven_qubit: DualEmojiQubit = null  # 🔥/❄️ Hot/Cold
+var oven_period: float = 15.0  # seconds for heat cycle
 
-## Input qubits (must be in Bell state)
-var wheat_qubit: DualEmojiQubit   # 🌾 input
-var water_qubit: DualEmojiQubit   # 💧 input
-var flour_qubit: DualEmojiQubit   # 🌾 input (flour is wheat product)
+# ═══════════════════════════════════════════════════════════════════════════
+# ICON: Bread attractor (Hamiltonian that drives toward 🍞)
+# ═══════════════════════════════════════════════════════════════════════════
+var bread_icon: Dictionary = {}
 
-## Output qubit
-var bread_qubit: DualEmojiQubit   # (🍞, combined inputs)
+# ═══════════════════════════════════════════════════════════════════════════
+# BELL STATE: Entangled kitchen state
+# ═══════════════════════════════════════════════════════════════════════════
+var bell_detector: BellStateDetector = null
+var input_qubits: Array = []  # The 3 quantum inputs (still in superposition!)
+var bread_qubit: DualEmojiQubit = null  # The entangled output: 🍞/input_triple
 
-## Kitchen parameters
-var bread_production_efficiency: float = 0.8  # How much energy converts to bread
-var bell_state_strength_required: float = 0.5  # Minimum state quality for measurement
+# ═══════════════════════════════════════════════════════════════════════════
+# EMOJI PAIRINGS: Registered in _ready() via BiomeBase.register_emoji_pair()
+# ═══════════════════════════════════════════════════════════════════════════
 
-## Statistics
+# Kitchen parameters
+var bread_production_efficiency: float = 0.8  # Energy conversion ratio
+
+# Statistics
 var total_bread_produced: float = 0.0
-var measurement_count: int = 0
-var last_measurement_time: float = 0.0
+var entanglement_count: int = 0
 
 
 func _ready():
 	super._ready()
-	bell_detector = BellStateDetector.new()
-	add_child(bell_detector)
 
-	print("🍳 Quantum Kitchen initialized")
+	# Register emoji pairings for this biome (uses BiomeBase system)
+	register_emoji_pair("🔥", "❄️")  # Hot ↔ Cold
+	register_resource("🍞", true, false)  # Bread is producible
+
+	# Configure visual properties for QuantumForceGraph
+	visual_color = Color(0.9, 0.7, 0.4, 0.3)  # Warm bread color
+	visual_label = "🍳 Kitchen"
+	visual_center_offset = Vector2(0.0, -0.8)  # Top-center (more separation)
+	visual_oval_width = 220.0
+	visual_oval_height = 140.0
+
+	print("  ✅ QuantumKitchen running in bath-first mode")
+
+
+func _initialize_bath() -> void:
+	"""Override BiomeBase: Initialize quantum bath for Kitchen biome"""
+	_initialize_bath_kitchen()
+
+
+func _initialize_kitchen_qubits():
+	"""Set up quantum states for kitchen"""
+
+	# Oven qubit: 🔥 Hot (north) / ❄️ Cold (south)
+	# Hot oven bakes faster, cold oven preserves inputs
+	oven_qubit = BiomeUtilities.create_qubit("🔥", "❄️", PI / 2.0)
+	oven_qubit.phi = 0.0
+	oven_qubit.radius = 1.0
+	# energy removed - derived from theta
+	# Model B: Oven state is managed by QuantumComputer, not stored in plots
+
+
+func _initialize_bread_icon():
+	"""Set up bread icon Hamiltonian"""
+
+	# BREAD ICON - Attracts entangled state toward 🍞 outcome
+	var bread_internal = DualEmojiQubit.new()
+	bread_internal.north_emoji = "🍞"
+	bread_internal.south_emoji = "🌾"  # Represents inputs
+	bread_internal.theta = 0.0  # Points to bread
+	bread_internal.phi = 0.0
+	bread_internal.radius = 1.0
+
+	bread_icon = {
+		"hamiltonian_terms": {"sigma_x": 0.0, "sigma_y": 0.0, "sigma_z": 0.0},
+		"stable_theta": 0.0,  # North pole = 🍞 (bread state)
+		"stable_phi": 0.0,
+		"spring_constant": 0.5,  # How strongly kitchen drives toward bread
+		"internal_qubit": bread_internal,
+	}
+
+
+func _initialize_bath_kitchen() -> void:
+	"""Initialize quantum bath for Kitchen biome (Bath-First)
+
+	Kitchen emojis: 🔥 ❄️ 🍞 🌾
+	Dynamics:
+	  - Fire/Cold oscillate with time-dependent self-energy (oven cycle)
+	  - Bread is produced from Wheat via Lindblad transfer
+	  - Heat accelerates bread production
+	"""
+	print("🛁 Initializing Kitchen quantum bath...")
+
+	# Create bath with Kitchen emoji basis
+	bath = QuantumBath.new()
+	var emojis = ["🔥", "❄️", "🍞", "🌾"]
+	bath.initialize_with_emojis(emojis)
+
+	# Initialize weighted distribution
+	# Fire/Cold start balanced (moderate oven)
+	# Wheat is input material, Bread starts low
+	bath.initialize_weighted({
+		"🔥": 0.25,  # Fire - oven heat
+		"❄️": 0.25,  # Cold - oven rest
+		"🌾": 0.40,  # Wheat - raw input
+		"🍞": 0.10   # Bread - product (starts low)
+	})
+
+	# Collect Icons from registry
+	# Get IconRegistry (now guaranteed to be first autoload)
+	var icon_registry = get_node_or_null("/root/IconRegistry")
+	if not icon_registry:
+		push_error("🛁 IconRegistry not available!")
+		return
+
+	var icons: Array[Icon] = []
+	for emoji in emojis:
+		var icon = icon_registry.get_icon(emoji)
+		if icon:
+			icons.append(icon)
+		else:
+			push_warning("🛁 Icon not found for emoji: " + emoji)
+
+	# Build Hamiltonian and Lindblad operators from Icons
+	if not icons.is_empty():
+		bath.active_icons = icons
+		bath.build_hamiltonian_from_icons(icons)
+		bath.build_lindblad_from_icons(icons)
+
+		print("  ✅ Bath initialized with %d emojis, %d icons" % [emojis.size(), icons.size()])
+		print("  ✅ Hamiltonian: %d non-zero terms" % bath.hamiltonian_sparse.size())
+		print("  ✅ Lindblad: %d transfer terms" % bath.lindblad_terms.size())
+	else:
+		push_warning("🛁 No icons found for Kitchen bath")
+
+	print("  🍳 Kitchen ready for bread production!")
 
 
 func _update_quantum_substrate(dt: float) -> void:
-	"""Override parent: Kitchen has no continuous evolution"""
-	pass  # Measurement-based system, not continuous evolution
+	"""Override parent: Evolve kitchen quantum state"""
+	# Bath mode: bread production dynamics handled by BiomeBase
+	# Oven temperature and bread transformation come from bath Lindblad operators
+	pass
 
 
-func set_input_qubits(wheat: DualEmojiQubit, water: DualEmojiQubit, flour: DualEmojiQubit):
+func _apply_oven_oscillation(delta: float):
+	"""Oven qubit oscillates between hot and cold"""
+	if not oven_qubit:
+		return
+
+	var omega = TAU / oven_period
+	var t = time_tracker.time_elapsed
+
+	# Temperature oscillates (like sun in BioticFlux)
+	var amplitude = PI / 4.0  # ±45° swing
+	var base_theta = PI / 4.0  # Biased hot
+	oven_qubit.theta = base_theta + amplitude * sin(omega * t)
+
+	oven_qubit.theta = clamp(oven_qubit.theta, 0.0, PI)
+
+
+func _apply_bread_hamiltonian(delta: float):
+	"""Apply bread icon to drive entangled states toward 🍞"""
+	if not bread_qubit:
+		return
+
+	# Get oven heat level (hot = faster baking)
+	var heat = pow(cos(oven_qubit.theta / 2.0), 2) if oven_qubit else 0.5
+
+	# Spring force toward bread state (theta=0)
+	var target_theta = bread_icon["stable_theta"]
+	var spring_k = bread_icon["spring_constant"] * heat  # Heat accelerates baking
+
+	var theta_diff = target_theta - bread_qubit.theta
+	bread_qubit.theta += theta_diff * spring_k * delta
+
+	# Clamp theta
+	bread_qubit.theta = clamp(bread_qubit.theta, 0.0, PI)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# PUBLIC API: Kitchen operations
+# ═══════════════════════════════════════════════════════════════════════════
+
+func set_quantum_inputs(qubit1: DualEmojiQubit, qubit2: DualEmojiQubit, qubit3: DualEmojiQubit):
 	"""
-	Set the three input qubits that will be measured
+	Set the three QUANTUM input qubits (still in superposition!)
 
-	The qubits must be in a spatial Bell state configuration.
-	The kitchen doesn't track positions - that's defined externally.
+	These qubits will be entangled with the bread output.
+	They are NOT measured yet - that happens when player uses measure tool.
 	"""
-	wheat_qubit = wheat
-	water_qubit = water
-	flour_qubit = flour
+	input_qubits = [qubit1, qubit2, qubit3]
 
-	print("🍳 Kitchen inputs set: wheat (🌾), water (💧), flour (🌾)")
+	# Build input description from the qubits' emojis
+	var input_desc = "%s%s%s" % [
+		qubit1.north_emoji if qubit1 else "?",
+		qubit2.north_emoji if qubit2 else "?",
+		qubit3.north_emoji if qubit3 else "?",
+	]
+
+	print("🍳 Kitchen received quantum inputs: %s (still in superposition)" % input_desc)
 
 
-func configure_bell_state(plot_positions):
+func configure_bell_state(plot_positions: Array) -> bool:
 	"""
-	Configure the Bell state from plot positions
+	Configure Bell state from plot positions
 
-	The plots themselves act as a "quantum gate" that defines
-	how the three qubits are entangled.
-
-	positions: [pos_wheat, pos_water, pos_flour] in physical layout
+	The spatial arrangement determines the entanglement type:
+	- GHZ (line): Maximally entangled, all-or-nothing collapse
+	- W (L-shape): Robust entanglement, one-survives collapse
+	- Cluster (T-shape): Graph state, sequential measurement
 	"""
 	if plot_positions.size() != 3:
 		push_error("Kitchen requires exactly 3 plot positions")
 		return false
 
-	var types = ["wheat", "water", "flour"]
-	bell_detector.set_plots(plot_positions, types)
+	bell_detector.set_plots(plot_positions, ["input1", "input2", "input3"])
 
-	var state_type = bell_detector.get_state_type()
 	var is_valid = bell_detector.is_valid_triplet()
-
 	if is_valid:
-		print("🍳 Bell state detected: %s (strength: %.1f)" % [
-			bell_detector.get_state_name(),
-			bell_detector.get_state_strength()
-		])
+		print("🍳 Bell state configured: %s" % bell_detector.get_state_name())
 	else:
-		print("⚠️  Invalid Bell state configuration. Required arrangement:")
-		print("   • GHZ: Three plots in line (horizontal/vertical/diagonal)")
-		print("   • W State: L-shape arrangement")
-		print("   • Cluster: T-shape arrangement")
+		print("⚠️  Invalid Bell state configuration")
 
 	return is_valid
 
 
-func can_produce_bread() -> bool:
-	"""Check if kitchen is ready to produce bread"""
-	# Need valid Bell state
-	if not bell_detector.is_valid_triplet():
-		return false
-
-	# Need input qubits
-	if not wheat_qubit or not water_qubit or not flour_qubit:
-		return false
-
-	# Need energy in inputs
-	if wheat_qubit.radius < 0.1 or water_qubit.radius < 0.1 or flour_qubit.radius < 0.1:
-		return false
-
-	return true
-
-
-func produce_bread() -> DualEmojiQubit:
+func create_bread_entanglement() -> DualEmojiQubit:
 	"""
-	MEASUREMENT: Measure the triplet Bell state and produce bread
+	Create the entangled bread state from quantum inputs
 
-	Process:
-	1. Verify Bell state is valid
-	2. Measure each input qubit
-	3. Collapse triplet to classical outcome
-	4. Produce bread qubit entangled with inputs
-	5. Consume input energy proportional to bread produced
-	6. Return bread qubit
+	This creates the Bell state: α|inputs⟩ + β|🍞⟩
+	The bread_icon Hamiltonian will drive it toward 🍞 over time.
 
-	Returns: New bread qubit (🍞, inputs) or null if failed
+	Returns: The bread qubit (entangled with inputs)
 	"""
-	if not can_produce_bread():
-		print("⚠️  Cannot produce bread: missing valid Bell state or inputs")
+	if input_qubits.size() < 3:
+		print("⚠️  Cannot create bread: need 3 quantum inputs")
 		return null
 
-	print("\n🍳 KITCHEN MEASUREMENT SEQUENCE")
-	print(_make_line("═", 60))
+	if not input_qubits[0] or not input_qubits[1] or not input_qubits[2]:
+		print("⚠️  Cannot create bread: null input qubits")
+		return null
 
-	# Step 1: Get Bell state info
-	var state_type = bell_detector.get_state_type()
-	var state_name = bell_detector.get_state_name()
-	var state_strength = bell_detector.get_state_strength()
+	print("\n🍳 CREATING BREAD ENTANGLEMENT")
+	print("═".repeat(60))
 
-	print("\n1️⃣  BELL STATE VERIFICATION:")
-	print("   Type: %s" % state_name)
-	print("   Strength: %.1f%%" % [state_strength * 100])
-	print("   Description: %s" % bell_detector.get_state_description())
-	print()
+	# Calculate combined input resources (radius = amount)
+	var total_resources = 0.0
+	var input_desc = ""
+	for i in range(3):
+		var q = input_qubits[i]
+		total_resources += q.radius if q else 0.0
+		input_desc += q.north_emoji if q else "?"
+		print("  Input %d: %s/%s (θ=%.2f, R=%.2f)" % [
+			i + 1,
+			q.north_emoji if q else "?",
+			q.south_emoji if q else "?",
+			q.theta if q else 0.0,
+			q.radius if q else 0.0,
+		])
 
-	# Step 2: Measure each input qubit
-	print("2️⃣  MEASURING INPUT TRIPLET:")
-	print()
+	# Create bread qubit: 🍞 / (inputs)
+	# Starts at θ=π/2 (equal superposition of bread and inputs)
+	bread_qubit = BiomeUtilities.create_qubit("🍞", "(%s)" % input_desc, PI / 2.0)
+	bread_qubit.phi = 0.0
+	bread_qubit.radius = total_resources * bread_production_efficiency
 
-	var wheat_outcome = _measure_qubit(wheat_qubit, "🌾 Wheat")
-	var water_outcome = _measure_qubit(water_qubit, "💧 Water")
-	var flour_outcome = _measure_qubit(flour_qubit, "🌾 Flour")
+	# Store input references for entanglement correlation
+	bread_qubit.set_meta("entangled_inputs", input_qubits)
+	bread_qubit.set_meta("input_description", input_desc)
 
-	# Step 3: Calculate bread energy from inputs
-	print("\n3️⃣  CALCULATING BREAD ENERGY:")
-	print()
+	# Model B: Bread state is managed by QuantumComputer, not stored in plots
+	entanglement_count += 1
 
-	var wheat_energy = wheat_qubit.radius * wheat_outcome
-	var water_energy = water_qubit.radius * water_outcome
-	var flour_energy = flour_qubit.radius * flour_outcome
-
-	var total_input_energy = wheat_energy + water_energy + flour_energy
-	var bread_energy = total_input_energy * bread_production_efficiency
-
-	print("   Wheat energy: %.2f" % wheat_energy)
-	print("   Water energy: %.2f" % water_energy)
-	print("   Flour energy: %.2f" % flour_energy)
-	print("   Total input: %.2f" % total_input_energy)
-	print("   Efficiency: %.0f%%" % [bread_production_efficiency * 100])
-	print("   Bread produced: %.2f" % bread_energy)
-	print()
-
-	# Step 4: Collapse - consume inputs
-	print("4️⃣  COLLAPSING TRIPLET (Consuming Inputs):")
-	print()
-
-	wheat_qubit.radius *= (1.0 - bread_production_efficiency * 0.5)
-	water_qubit.radius *= (1.0 - bread_production_efficiency * 0.3)
-	flour_qubit.radius *= (1.0 - bread_production_efficiency * 0.5)
-
-	print("   Wheat remaining: %.2f" % wheat_qubit.radius)
-	print("   Water remaining: %.2f" % water_qubit.radius)
-	print("   Flour remaining: %.2f" % flour_qubit.radius)
-	print()
-
-	# Step 5: Create bread qubit
-	# The bread is entangled with the inputs that created it
-	# State 1: 🍞 (bread)
-	# State 2: (🌾 🌾 💧) - the combined inputs
-	print("5️⃣  CREATING BREAD QUBIT:")
-	print()
-
-	bread_qubit = BiomeUtilities.create_qubit("🍞", "(🌾🌾💧)", PI / 2.0)  # Start in superposition
-	bread_qubit.radius = max(0.1, bread_energy)  # Store energy as radius
-
-	# Theta influenced by Bell state type
-	var theta_from_state = _get_theta_from_bell_state(state_type)
-	bread_qubit.theta = theta_from_state
-
-	print("   Bread qubit created:")
-	print("   • Energy (radius): %.2f" % bread_qubit.radius)
-	print("   • State (theta): %.2f rad (%.0f°)" % [
-		bread_qubit.theta,
-		bread_qubit.theta * 180.0 / PI
-	])
-	print("   • Entangled with: (wheat + water + flour)")
-	print()
-
-	# Step 6: Record measurement
-	measurement_count += 1
-	total_bread_produced += bread_energy
-	last_measurement_time = Time.get_ticks_msec()
-
-	print("6️⃣  MEASUREMENT COMPLETE")
-	print("   Total bread ever produced: %.2f" % total_bread_produced)
-	print("   Measurement count: %d" % measurement_count)
-	print()
-	print(_make_line("═", 60))
-	print()
+	print("\n  Created: 🍞/(%s)" % input_desc)
+	print("  θ = π/2 (equal superposition)")
+	print("  Radius = %.2f (%.0f%% of inputs)" % [bread_qubit.radius, bread_production_efficiency * 100])
+	print("  Bread icon will drive toward 🍞 state...")
+	print("═".repeat(60) + "\n")
 
 	return bread_qubit
 
 
-func _make_line(char: String, count: int) -> String:
-	"""Helper to create repeated character string"""
-	var line = ""
-	for i in range(count):
-		line += char
-	return line
-
-
-func _measure_qubit(qubit: DualEmojiQubit, label: String) -> float:
+func measure_as_bread() -> DualEmojiQubit:
 	"""
-	Measure a single qubit in the triplet
+	Measure in the BREAD basis → collapse to |🍞⟩
 
-	Returns: Measurement outcome as probability (0.0-1.0)
+	Returns the bread qubit collapsed to bread state.
+	The input qubits are consumed (their information is now in the bread).
 	"""
-	if not qubit:
+	if not bread_qubit:
+		print("⚠️  No bread qubit to measure")
+		return null
+
+	print("🍞 MEASURING AS BREAD")
+
+	# Collapse to bread state (theta → 0)
+	bread_qubit.theta = 0.0
+
+	# Clear input qubits (consumed)
+	for q in input_qubits:
+		if q:
+			q.radius = 0.0
+
+	total_bread_produced += bread_qubit.radius
+
+	print("  → Collapsed to 🍞 (resources: %.2f)" % bread_qubit.radius)
+
+	return bread_qubit
+
+
+func measure_as_separate() -> Array:
+	"""
+	Measure in the SEPARATE basis → collapse to |input₁⟩|input₂⟩|input₃⟩
+
+	Returns the 3 individual input qubits (collapsed to their own states).
+	The bread qubit is destroyed (the entanglement chose inputs over bread).
+	"""
+	if not bread_qubit or input_qubits.size() < 3:
+		print("⚠️  No entanglement to measure")
+		return []
+
+	print("🌾 MEASURING AS SEPARATE INPUTS")
+
+	var results = []
+	for i in range(3):
+		var q = input_qubits[i]
+		if q:
+			# Each input collapses based on its own theta
+			var prob_north = pow(cos(q.theta / 2.0), 2)
+			var collapsed_to_north = randf() < prob_north
+			q.theta = 0.0 if collapsed_to_north else PI
+			results.append(q)
+			print("  → Input %d collapsed to %s" % [i + 1, q.north_emoji if collapsed_to_north else q.south_emoji])
+
+	# Destroy bread qubit (chose inputs instead)
+	bread_qubit.radius = 0.0
+	bread_qubit = null
+
+	return results
+
+
+func get_bread_probability() -> float:
+	"""Get probability of measuring bread (vs separate inputs)"""
+	if not bread_qubit:
 		return 0.0
 
-	var prob = sin(qubit.theta / 2.0) ** 2
-	var outcome = "state 1" if randf() < prob else "state 2"
-	var outcome_value = prob if outcome == "state 1" else (1.0 - prob)
-
-	print("   %s: P(state1)=%.1f%% → measured %s (value: %.2f)" % [
-		label,
-		prob * 100,
-		outcome,
-		outcome_value
-	])
-
-	return outcome_value
+	# P(bread) = cos²(θ/2) since bread is north pole
+	return pow(cos(bread_qubit.theta / 2.0), 2)
 
 
-func _get_theta_from_bell_state(state_type: BellStateDetector.BellStateType) -> float:
-	"""
-	Determine bread qubit theta based on Bell state type
+func get_kitchen_status() -> Dictionary:
+	"""Get current kitchen state for display"""
+	var heat = pow(cos(oven_qubit.theta / 2.0), 2) if oven_qubit else 0.0
 
-	Different Bell state configurations create bread with different properties
-	"""
-	match state_type:
-		BellStateDetector.BellStateType.GHZ_HORIZONTAL:
-			return 0.0  # Pure bread state (coins equivalent in market analogy)
-		BellStateDetector.BellStateType.GHZ_VERTICAL:
-			return PI / 4.0  # Lean toward bread
-		BellStateDetector.BellStateType.GHZ_DIAGONAL:
-			return PI / 2.0  # Balanced bread/inputs
-		BellStateDetector.BellStateType.W_STATE:
-			return 3.0 * PI / 4.0  # Lean toward inputs
-		BellStateDetector.BellStateType.CLUSTER_STATE:
-			return PI  # Pure inputs state (maximizes resource linkage)
-		_:
-			return PI / 2.0  # Default balanced
-
-
-func get_bread_qubit() -> DualEmojiQubit:
-	"""Get the currently produced bread qubit"""
-	return bread_qubit
+	return {
+		"has_inputs": input_qubits.size() >= 3,
+		"has_bread_entanglement": bread_qubit != null,
+		"bread_probability": get_bread_probability(),
+		"oven_heat": heat,
+		"oven_theta": oven_qubit.theta if oven_qubit else 0.0,
+		"bread_resources": bread_qubit.radius if bread_qubit else 0.0,
+		"total_produced": total_bread_produced,
+		"entanglement_count": entanglement_count,
+	}
 
 
 func get_biome_type() -> String:
@@ -291,36 +401,27 @@ func get_biome_type() -> String:
 	return "QuantumKitchen"
 
 
-func get_kitchen_status() -> Dictionary:
-	"""Get current kitchen state for display"""
-	var wheat_available = wheat_qubit.radius if wheat_qubit else 0.0
-	var water_available = water_qubit.radius if water_qubit else 0.0
-	var flour_available = flour_qubit.radius if flour_qubit else 0.0
-	var bread_available = bread_qubit.radius if bread_qubit else 0.0
-
-	var bell_state = "None"
-	var bell_strength = 0.0
-	if bell_detector:
-		bell_state = bell_detector.get_state_name()
-		bell_strength = bell_detector.get_state_strength()
-
-	return {
-		"wheat_energy": wheat_available,
-		"water_energy": water_available,
-		"flour_energy": flour_available,
-		"bread_energy": bread_available,
-		"bell_state": bell_state,
-		"bell_strength": bell_strength,
-		"can_produce": can_produce_bread(),
-		"total_produced": total_bread_produced,
-		"measurement_count": measurement_count,
-		"last_measurement": last_measurement_time
-	}
+func get_paired_emoji(emoji: String) -> String:
+	"""Get the paired emoji for this biome's axis"""
+	return emoji_pairings.get(emoji, "?")
 
 
-func _reset_custom() -> void:
-	"""Override parent: Reset kitchen to initial state"""
-	bread_qubit = null
-	measurement_count = 0
-	total_bread_produced = 0.0
-	print("🍳 Quantum Kitchen reset")
+# ═══════════════════════════════════════════════════════════════════════════
+# LEGACY API: Compatibility with old tests
+# ═══════════════════════════════════════════════════════════════════════════
+
+func set_input_qubits(wheat: DualEmojiQubit, water: DualEmojiQubit, flour: DualEmojiQubit):
+	"""Legacy: Set inputs (redirects to new API)"""
+	set_quantum_inputs(wheat, water, flour)
+
+
+func can_produce_bread() -> bool:
+	"""Legacy: Check if kitchen can produce bread"""
+	return input_qubits.size() >= 3 and input_qubits[0] != null
+
+
+func produce_bread() -> DualEmojiQubit:
+	"""Legacy: Create bread (redirects to new API)"""
+	if not bread_qubit:
+		create_bread_entanglement()
+	return measure_as_bread()

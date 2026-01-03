@@ -1,0 +1,116 @@
+forest_emoji_simulation_v11 = {
+    "⛰": {  # Mountain
+        "🌳": 0.6,  # Forest
+        "☔": 0.4   # Weather
+    },
+    "☀": {  # Sunlight
+        "🌳": 0.5,  # Forest
+        "🌱": 0.3,  # Seedlings
+        "🌿": 0.2   # Vegetation
+    },
+    "☔": {  # Weather
+        "💧": 0.5,  # Water
+        "☀": 0.3,  # Sunlight
+        "💨": 0.2   # Wind
+    },
+    "🌳": {  # Forest
+        "⛰": 0.3,  # Soil
+        "🌲": 0.3,  # Tree
+        "🏡": 0.2,  # Shelter
+        "🌿": 0.2,  # Vegetation
+        "🌳": 0.1   # Remain Forest
+    },
+    "🌰": {  # Brazilian Nut Tree
+        "🍯": 0.2,  # Nectar
+        "🌼": 0.2,  # Pollination
+        "🍂": 0.2,  # Organic Matter
+        "🌱": 0.4   # Seedling
+    },
+    "🐝": {  # Orchid Bee
+        "🌼": 0.5,  # Pollination
+        "🍯": 0.5  # Nectar
+    },
+    "🌲": {  # Tree
+        "🏡": 0.3,  # Shelter
+        "🍂": 0.3,  # Organic Matter
+        "🐦": 0.4,  # Small Bird
+        "🌰": 0.2,  # Brazilian Nut Tree
+        "🌳": 0.2   # Remain Forest
+    },
+    "🌱": {  # Seedling
+        "⛰": 0.4,  # Soil
+        "☀": 0.3,  # Sunlight
+        "🌲": 0.3   # Tree growth
+    },
+    "🐇": {  # Rabbit
+        "🏡": 0.5,  # Shelter
+        "🍂": 0.3,  # Organic Matter
+        "🐺": 0.2,  # Predator
+        "🦅": 0.1  # Eagle
+    },
+    "🦌": {  # Deer
+        "🏡": 0.5,  # Shelter
+        "🍂": 0.3,  # Organic Matter
+        "🐺": 0.3  # Predator
+    },
+    "🦅": {  # Eagle
+        "💨": 0.3,  # Wind
+        "🌳": 0.5,  # Forest
+        "🐜": 0.2  # Bugs
+    },
+    "💧": {  # Water
+        "🌳": 0.4,  # Forest
+        "🌲": 0.3,  # Tree
+        "⛰": 0.3   # Soil
+    },
+    "💨": {  # Wind
+        "🌼": 0.3,  # Pollination
+        "🌱": 0.3,  # Seed Dispersal
+        "⛰": 0.4   # Mountain
+    },
+    "🐺": {  # Wolf
+        "🌳": 0.5,  # Forest
+        "💧": 0.3,  # Water
+        "🌿": 0.2  # Vegetation
+    },
+    "🌿": {  # Vegetation
+        "🍂": 0.2,  # Organic Matter
+        "🐇": 0.5,  # Rabbit
+        "🦌": 0.3  # Deer
+    },
+    "🍄": {  # Fungus
+        "🍂": 0.5,  # Organic Matter
+        "⛰": 0.5   # Soil
+    },
+    "🐜": {  # Bugs
+        "🍯": 0.3,  # Nectar
+        "🌰": 0.3,  # Brazilian Nut Tree
+        "🐦": 0.2,  # Small Bird
+        "🦅": 0.2   # Eagle
+    },
+    "🐦": {  # Small Bird
+        "🐜": 0.3,  # Bugs
+        "🌱": 0.3,  # Seed Dispersal
+        "🦅": 0.2,  # Eagle
+        "🌲": 0.2,  # Tree
+        "🏡": 0.2   # Shelter
+    },
+    "🍂": {  # Organic Matter
+        "🍄": 0.5,  # Fungus
+        "🐜": 0.5   # Bugs
+    },
+    "🌼": {  # Pollination
+        "🐝": 0.4,  # Orchid Bee
+        "🍯": 0.2,  # Nectar
+        "🌱": 0.4   # Seed development
+    },
+    "🍯": {  # Nectar
+        "🌰": 0.5,  # Brazilian Nut Tree
+        "🐜": 0.5   # Bugs
+    },
+    "🏡": {  # Shelter
+        "🐇": 0.3,  # Rabbit
+        "🦌": 0.3,  # Deer
+        "🐦": 0.4   # Small Bird
+    }
+}

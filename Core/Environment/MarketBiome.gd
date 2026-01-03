@@ -1,260 +1,374 @@
 class_name MarketBiome
 extends "res://Core/Environment/BiomeBase.gd"
 
-## Market Biome: Parallel quantum system for trading/economics
-## Represents supply/demand dynamics controlled by Granary Guilds
+## Quantum Market Biome: Full quantum system for trading/economics
 ##
-## The MarketBiome is a separate quantum system that evolves independently:
-## - Represents market supply/demand as a qubit on the Bloch sphere
-## - Coupled to Granary Guilds icon (like wheat/mushroom in farming biome)
-## - High supply (high θ) = low prices
-## - Low supply (low θ) = high prices
-## - Farm must navigate both biome_market supply curves simultaneously
+## Two quantum axes drive market dynamics:
+## 1. Sentiment qubit: 🐂/🐻 (Bull/Bear) - price direction
+## 2. Liquidity qubit: 💰/📦 (Money/Goods) - available resources
 ##
-## Architecture mirrors wheat-farming biome but for economics:
-## - sun_qubit → market_qubit (represents overall market conditions)
-## - wheat_icon → granary_guilds_icon (supply management)
-## - emoji qubits → flour inventory pricing
+## Architecture mirrors BioticFlux biome but for economics:
+## - Celestial equivalent: market_sentiment_qubit (drives overall mood)
+## - Icon equivalents: bull_icon, bear_icon (Hamiltonian attractors)
+## - Crop equivalents: trader qubits (💰/📦 money/goods axis)
+##
+## Biome emoji pairings (what gets attached when injected):
+## - 💰 pairs with 📦 (money ↔ goods)
+## - 🐂 pairs with 🐻 (bull ↔ bear)
 
 const TIME_SCALE = 1.0  # Market evolution speed
 
-# Market state qubit (represents overall market conditions)
-var market_qubit: DualEmojiQubit = null  # θ: supply level, φ: seasonal pattern
+# ═══════════════════════════════════════════════════════════════════════════
+# CELESTIAL: Market Sentiment (drives overall market mood)
+# ═══════════════════════════════════════════════════════════════════════════
+var sentiment_qubit: DualEmojiQubit = null  # 🐂/🐻 Bull/Bear sentiment
+var sentiment_period: float = 30.0  # seconds for full bull/bear cycle
 
-# Granary Guilds icon (merchant collective avatar)
-var granary_guilds_icon: Dictionary = {}  # Manages supply/demand
+# ═══════════════════════════════════════════════════════════════════════════
+# ICONS: Market forces (Hamiltonian attractors)
+# ═══════════════════════════════════════════════════════════════════════════
+var bull_icon: Dictionary = {}  # Attracts toward 🐂 (rising prices)
+var bear_icon: Dictionary = {}  # Attracts toward 🐻 (falling prices)
+
+# ═══════════════════════════════════════════════════════════════════════════
+# EMOJI PAIRINGS: Registered in _ready() via BiomeBase.register_emoji_pair()
+# ═══════════════════════════════════════════════════════════════════════════
 
 # Market-specific constants
-var base_flour_price: int = 100  # Starting price
-var price_per_supply_theta: float = 50.0  # Price modifier based on θ
+var base_price: int = 100  # Starting price per unit
+var volatility: float = 0.3  # How much sentiment affects prices
+
+# Granary Guilds influence (merchant collective)
+var granary_guilds_qubit: DualEmojiQubit = null  # 🏛️/🏚️ (stable/chaotic markets)
 
 
 func _ready():
 	super._ready()
 
-	# HAUNTED UI FIX: Guard against double-initialization
-	if market_qubit != null:
-		print("⚠️  MarketBiome._ready() called multiple times, skipping re-initialization")
-		return
-
-	_initialize_market_qubits()
-	print("💰 MarketBiome initialized")
+	# Register emoji pairings for this biome (uses BiomeBase system)
+	register_emoji_pair("💰", "📦")  # Money ↔ Goods
+	register_emoji_pair("🐂", "🐻")  # Bull ↔ Bear
 
 	# Configure visual properties for QuantumForceGraph
+	# Layout: Market (TY) in top-left corner - moved left by ~3/8 screen width total
 	visual_color = Color(1.0, 0.55, 0.0, 0.3)  # Sunset orange
-	visual_label = "💰 Market"
-	visual_center_offset = Vector2(-0.85, -0.5)  # Top-left (TY far left - pushed to edge)
-	visual_oval_width = 250.0   # Spread TY plots out
-	visual_oval_height = 155.0  # Golden ratio: 250/1.618
+	visual_label = "📈 Market"
+	visual_center_offset = Vector2(-1.15, -0.25)  # Far left, -0.9 - 0.25 for extra 1/8
+	visual_oval_width = 400.0   # 2x larger to match other biomes
+	visual_oval_height = 250.0  # Golden ratio maintained
+
+	print("  ✅ MarketBiome running in bath-first mode")
+
+
+func _initialize_bath() -> void:
+	"""Initialize quantum bath for Market biome (Bath-First)"""
+	print("🛁 Initializing Market quantum bath...")
+
+	# Create bath with Market emoji basis
+	bath = QuantumBath.new()
+	var emojis = ["🐂", "🐻", "💰", "📦", "🏛️", "🏚️"]
+	bath.initialize_with_emojis(emojis)
+
+	# Initialize weighted distribution
+	# Bull/Bear start balanced (neutral market)
+	# Money and Goods are equal liquidity
+	# Granary Guilds lean toward stability
+	bath.initialize_weighted({
+		"🐂": 0.20,  # Bull - rising prices
+		"🐻": 0.20,  # Bear - falling prices
+		"💰": 0.20,  # Money - liquid capital
+		"📦": 0.20,  # Goods - commodities
+		"🏛️": 0.15,  # Stable - Granary Guilds stability
+		"🏚️": 0.05   # Chaotic - market chaos
+	})
+
+	# Collect Icons from registry
+	# Get IconRegistry (Farm._ensure_iconregistry() guarantees it exists)
+	var icon_registry = get_node("/root/IconRegistry")
+	if not icon_registry:
+		push_error("🛁 IconRegistry not available!")
+		return
+
+	var icons: Array[Icon] = []
+	for emoji in emojis:
+		var icon = icon_registry.get_icon(emoji)
+		if icon:
+			icons.append(icon)
+		else:
+			push_warning("🛁 Icon not found for emoji: " + emoji)
+
+	# Build Hamiltonian and Lindblad operators from Icons
+	if not icons.is_empty():
+		bath.active_icons = icons
+		bath.build_hamiltonian_from_icons(icons)
+		bath.build_lindblad_from_icons(icons)
+
+		print("  ✅ Bath initialized with %d emojis, %d icons" % [emojis.size(), icons.size()])
+		print("  ✅ Hamiltonian: %d non-zero terms" % bath.hamiltonian_sparse.size())
+		print("  ✅ Lindblad: %d transfer terms" % bath.lindblad_terms.size())
+	else:
+		push_warning("🛁 No icons found for Market bath")
+
+	print("  📈 Market ready for quantum trading dynamics!")
 
 
 func _initialize_market_qubits():
-	"""Set up quantum state for market"""
+	"""Set up quantum states for market"""
 
-	# Market qubit represents supply level
-	# θ near π = high supply (low prices)
-	# θ near 0 = low supply (high prices)
-	market_qubit = BiomeUtilities.create_qubit("📉", "📈", PI / 2.0)  # Down/Up emojis for supply
-	market_qubit.energy = 1.0
+	# Sentiment qubit: 🐂 Bull (north) / 🐻 Bear (south)
+	# θ=0 → pure bull, θ=π → pure bear, θ=π/2 → neutral
+	sentiment_qubit = BiomeUtilities.create_qubit("🐂", "🐻", PI / 2.0)
+	sentiment_qubit.phi = 0.0
+	sentiment_qubit.radius = 1.0
+	# energy removed - derived from theta
 
-	# Granary Guilds icon (merchant collective)
-	# Stable point: θ ≈ π (abundant supply profits merchants)
-	granary_guilds_icon = {
-		"name": "Granary Guilds",
-		"emoji": "🏢",
-		"internal_qubit": BiomeUtilities.create_qubit("💰", "📊", PI)
+	# Granary Guilds qubit: 🏛️ Stable (north) / 🏚️ Chaotic (south)
+	# Merchants prefer stability (low volatility, predictable prices)
+	granary_guilds_qubit = BiomeUtilities.create_qubit("🏛️", "🏚️", PI / 4.0)
+	granary_guilds_qubit.radius = 1.0
+	# energy removed - derived from theta
+	# Model B: Sentiment state is managed by QuantumComputer, not stored in plots
+
+
+func _initialize_market_icons():
+	"""Set up icon Hamiltonians for market forces"""
+
+	# BULL ICON - Attracts prices upward
+	var bull_internal = DualEmojiQubit.new()
+	bull_internal.north_emoji = "🐂"
+	bull_internal.south_emoji = "🐻"
+	bull_internal.theta = PI / 6.0  # Leans bullish
+	bull_internal.phi = 0.0
+	bull_internal.radius = 1.0
+
+	bull_icon = {
+		"hamiltonian_terms": {"sigma_x": 0.0, "sigma_y": 0.0, "sigma_z": 0.0},
+		"stable_theta": 0.0,  # Pure bull
+		"stable_phi": 0.0,
+		"spring_constant": 0.3,  # Bull force strength
+		"internal_qubit": bull_internal,
 	}
-	granary_guilds_icon["internal_qubit"].energy = 1.0
+
+	# BEAR ICON - Attracts prices downward
+	var bear_internal = DualEmojiQubit.new()
+	bear_internal.north_emoji = "🐂"
+	bear_internal.south_emoji = "🐻"
+	bear_internal.theta = 5.0 * PI / 6.0  # Leans bearish
+	bear_internal.phi = PI
+	bear_internal.radius = 1.0
+
+	bear_icon = {
+		"hamiltonian_terms": {"sigma_x": 0.0, "sigma_y": 0.0, "sigma_z": 0.0},
+		"stable_theta": PI,  # Pure bear
+		"stable_phi": PI,
+		"spring_constant": 0.3,  # Bear force strength
+		"internal_qubit": bear_internal,
+	}
+
+
+func _initialize_bath_market() -> void:
+	"""Initialize quantum bath for Market biome (Bath-First)
+
+	Market emojis: 🐂 🐻 💰 📦 🏛️ 🏚️
+	Dynamics:
+	  - Bull/Bear oscillate with time-dependent self-energy (sentiment cycle)
+	  - Money flows toward bull markets (Lindblad transfer)
+	  - Goods flow toward bear markets (accumulation in downturns)
+	  - Stability/Chaos affects volatility
+	"""
+	print("🛁 Initializing Market quantum bath...")
+
+	# Create bath with Market emoji basis
+	bath = QuantumBath.new()
+	var emojis = ["🐂", "🐻", "💰", "📦", "🏛️", "🏚️"]
+	bath.initialize_with_emojis(emojis)
+
+	# Initialize weighted distribution
+	# Bull/Bear start balanced (neutral market)
+	# Money and Goods are equal liquidity
+	# Granary Guilds lean toward stability
+	bath.initialize_weighted({
+		"🐂": 0.20,  # Bull - rising prices
+		"🐻": 0.20,  # Bear - falling prices
+		"💰": 0.20,  # Money - liquid capital
+		"📦": 0.20,  # Goods - commodities
+		"🏛️": 0.15,  # Stable - Granary Guilds stability
+		"🏚️": 0.05   # Chaotic - market chaos
+	})
+
+	# Collect Icons from registry
+	# Get IconRegistry (now guaranteed to be first autoload)
+	var icon_registry = get_node_or_null("/root/IconRegistry")
+	if not icon_registry:
+		push_error("🛁 IconRegistry not available!")
+		return
+
+	var icons: Array[Icon] = []
+	for emoji in emojis:
+		var icon = icon_registry.get_icon(emoji)
+		if icon:
+			icons.append(icon)
+		else:
+			push_warning("🛁 Icon not found for emoji: " + emoji)
+
+	# Build Hamiltonian and Lindblad operators from Icons
+	if not icons.is_empty():
+		bath.active_icons = icons
+		bath.build_hamiltonian_from_icons(icons)
+		bath.build_lindblad_from_icons(icons)
+
+		print("  ✅ Bath initialized with %d emojis, %d icons" % [emojis.size(), icons.size()])
+		print("  ✅ Hamiltonian: %d non-zero terms" % bath.hamiltonian_sparse.size())
+		print("  ✅ Lindblad: %d transfer terms" % bath.lindblad_terms.size())
+	else:
+		push_warning("🛁 No icons found for Market bath")
+
+	print("  📈 Market ready for quantum trading dynamics!")
 
 
 func _update_quantum_substrate(dt: float) -> void:
 	"""Override parent: Evolve market quantum state"""
-	if not market_qubit or not granary_guilds_icon:
+	# Bath mode: quantum evolution handled by BiomeBase
+	# Market sentiment and trader dynamics come from bath amplitudes
+	pass
+
+
+func _apply_sentiment_oscillation(delta: float):
+	"""Sentiment qubit oscillates between bull and bear"""
+	if not sentiment_qubit:
 		return
 
-	# Market qubit evolves toward Granary Guilds icon stable point
-	# (Merchants push for high supply to maximize profit)
-	_evolve_market_qubit(dt)
+	# Oscillation parameters (like sun/moon)
+	var omega = TAU / sentiment_period
+	var t = time_tracker.time_elapsed
+
+	# Theta oscillates around equator with some amplitude
+	var amplitude = PI / 3.0  # ±60° swing
+	var base_theta = PI / 2.0
+	sentiment_qubit.theta = base_theta + amplitude * sin(omega * t)
+
+	# Phi rotates slowly (seasonal patterns)
+	sentiment_qubit.phi = fmod(omega * t * 0.1, TAU)
+
+	# Clamp theta to valid range
+	sentiment_qubit.theta = clamp(sentiment_qubit.theta, 0.0, PI)
 
 
-func _evolve_market_qubit(delta: float):
-	"""Market qubit gravitates toward Granary Guilds stable point"""
-	if not market_qubit or not granary_guilds_icon:
+func _apply_market_hamiltonian(delta: float):
+	"""Apply market forces to all trader qubits"""
+	if not sentiment_qubit:
 		return
 
-	var guilds_theta = granary_guilds_icon["internal_qubit"].theta
-	var current_theta = market_qubit.theta
+	# Get current market mood
+	var bull_prob = pow(cos(sentiment_qubit.theta / 2.0), 2)  # P(bull)
+	var bear_prob = pow(sin(sentiment_qubit.theta / 2.0), 2)  # P(bear)
 
-	# Spring force: market trends toward merchant stability
-	var theta_diff = guilds_theta - current_theta
-	var coupling_strength = 0.1  # How strongly merchants influence market
-	var drift = theta_diff * coupling_strength * 0.016  # delta ≈ 0.016 at 60fps
-
-	market_qubit.theta += drift
-
-	# Keep theta in [0, 2π]
-	if market_qubit.theta > TAU:
-		market_qubit.theta -= TAU
-	elif market_qubit.theta < 0:
-		market_qubit.theta += TAU
-
-	# Slow energy decay (market loses vitality over time)
-	market_qubit.radius *= 0.9995  # ~0.05% decay per frame
+	# Model B: Market qubit evolution is handled by quantum_computer and bath evolution
+	# Market forces (bull/bear sentiment) affect prices through Hamiltonian evolution
+	# Spring forces are applied through icon Hamiltonians, not direct qubit manipulation
 
 
-func get_flour_price() -> int:
+# ═══════════════════════════════════════════════════════════════════════════
+# PUBLIC API: Market operations
+# ═══════════════════════════════════════════════════════════════════════════
+
+func get_paired_emoji(emoji: String) -> String:
+	"""Get the paired emoji for this biome's axis"""
+	return emoji_pairings.get(emoji, "?")
+
+
+func create_trader_qubit(position: Vector2i, initial_resources: float = 0.5) -> DualEmojiQubit:
+	"""Create a new trader qubit (💰/📦) at the given position"""
+	var qubit = BiomeUtilities.create_qubit("💰", "📦", PI / 2.0)
+	qubit.phi = randf() * TAU
+	qubit.radius = clamp(initial_resources, 0.1, 1.0)
+	# energy removed - derived from theta
+	# Model B: Trader state is managed by QuantumComputer, not stored in plots
+	return qubit
+
+
+func get_current_price() -> int:
+	"""Calculate current price based on sentiment"""
+	if not sentiment_qubit:
+		return base_price
+
+	# Bull = high prices, Bear = low prices
+	var bull_prob = pow(cos(sentiment_qubit.theta / 2.0), 2)
+	var price_modifier = 0.5 + bull_prob  # Range: 0.5 to 1.5
+
+	return int(base_price * price_modifier)
+
+
+func get_sentiment_string() -> String:
+	"""Get human-readable sentiment"""
+	if not sentiment_qubit:
+		return "Unknown"
+
+	var bull_prob = pow(cos(sentiment_qubit.theta / 2.0), 2)
+	if bull_prob > 0.7:
+		return "🐂 Strong Bull"
+	elif bull_prob > 0.5:
+		return "🐂 Mild Bull"
+	elif bull_prob > 0.3:
+		return "🐻 Mild Bear"
+	else:
+		return "🐻 Strong Bear"
+
+
+func execute_trade(trader_qubit: DualEmojiQubit, sell_amount: float) -> Dictionary:
 	"""
-	Calculate current flour price based on market state
+	Execute a trade - collapse part of the qubit to classical resources
 
-	Price equation:
-	- Base price: 100 credits
-	- Supply modifier: π - θ (low θ = high demand = high price)
-	- Result: prices range from ~50 to ~150 based on supply
+	The trader qubit is in superposition 💰/📦 (money/goods)
+	Selling collapses toward 💰 (money), buying collapses toward 📦 (goods)
 
-	When market_theta ≈ 0: Low supply, high prices (150)
-	When market_theta ≈ π/2: Neutral supply, neutral prices (100)
-	When market_theta ≈ π: High supply, low prices (50)
+	Returns: {success, credits_received, goods_remaining}
 	"""
-	if not market_qubit:
-		return base_flour_price
+	if not trader_qubit:
+		return {"success": false, "credits_received": 0, "goods_remaining": 0.0}
 
-	# Supply ratio: 1.0 means equilibrium, >1 means oversupply, <1 means shortage
-	var supply_ratio = (PI - market_qubit.theta) / PI
+	var current_price = get_current_price()
+	var credits = int(sell_amount * current_price)
 
-	# Price modifier: oversupply = lower prices, shortage = higher prices
-	var price = int(base_flour_price * (0.5 + supply_ratio))
+	# Selling shifts qubit toward 💰 (money side = north pole)
+	var shift_amount = sell_amount * 0.5  # Partial collapse
+	trader_qubit.theta = max(0.0, trader_qubit.theta - shift_amount)
 
-	return max(20, min(200, price))  # Clamp between 20-200
+	# Reduce radius (goods consumed)
+	trader_qubit.radius = max(0.1, trader_qubit.radius - sell_amount)
+
+	# Affect market sentiment (large sales push toward bear)
+	if sell_amount > 0.5:
+		sentiment_qubit.theta = min(PI, sentiment_qubit.theta + 0.1)
+
+	return {
+		"success": true,
+		"credits_received": credits,
+		"goods_remaining": trader_qubit.radius,
+		"price_per_unit": current_price,
+		"sentiment": get_sentiment_string()
+	}
+
+
+func get_market_status() -> Dictionary:
+	"""Get full market state for display"""
+	if not sentiment_qubit:
+		return {}
+
+	var bull_prob = pow(cos(sentiment_qubit.theta / 2.0), 2)
+
+	return {
+		"sentiment": get_sentiment_string(),
+		"bull_probability": bull_prob,
+		"bear_probability": 1.0 - bull_prob,
+		"current_price": get_current_price(),
+		"sentiment_theta": sentiment_qubit.theta,
+		"sentiment_phi": sentiment_qubit.phi,
+		"volatility": volatility,
+		"time_elapsed": time_tracker.time_elapsed,
+	}
 
 
 func get_biome_type() -> String:
 	"""Return biome type identifier"""
 	return "Market"
-
-
-func get_market_conditions() -> Dictionary:
-	"""Get full market state info"""
-	if not market_qubit:
-		return {}
-
-	return {
-		"flour_price": get_flour_price(),
-		"supply_theta": market_qubit.theta,
-		"supply_level": (PI - market_qubit.theta) / PI,  # 0=shortage, 1=equilibrium, >1=oversupply
-		"market_energy": market_qubit.radius,
-		"time_elapsed": time_tracker.time_elapsed,
-		"guilds_stability": granary_guilds_icon["internal_qubit"].theta
-	}
-
-
-func apply_player_sale(flour_amount: int):
-	"""
-	When player sells flour, it affects market supply
-
-	More flour sold = higher supply = lower future prices
-	"""
-	if not market_qubit:
-		return
-
-	# Each 10 flour sold slightly increases supply (pushes theta toward π)
-	var supply_shock = flour_amount * 0.01  # 10 flour = 0.1 rad push
-	market_qubit.theta += supply_shock
-
-	# Keep in bounds
-	if market_qubit.theta > TAU:
-		market_qubit.theta -= TAU
-
-	print("📊 Market absorbed " + str(flour_amount) + " flour - supply increased")
-
-
-func set_granary_guilds_state(theta: float, phi: float):
-	"""
-	Externally modify Granary Guilds influence (tribute effect)
-
-	High tributes to guilds = more merchant influence = push prices down
-	"""
-	if not granary_guilds_icon:
-		return
-
-	granary_guilds_icon["internal_qubit"].theta = fmod(theta, TAU)
-	granary_guilds_icon["internal_qubit"].phi = fmod(phi, TAU)
-
-
-func reset_to_neutral():
-	"""Reset market to neutral supply state"""
-	if market_qubit:
-		market_qubit.theta = PI / 2.0  # Neutral supply
-		market_qubit.radius = 1.0
-
-
-## NEW: Direct Planting System
-
-func inject_planting(position: Vector2i, wheat_amount: float, labor_amount: float, plot_type: int) -> Resource:
-	"""
-	Inject wheat directly into market biome (like planting in farming biome)
-
-	MARKET BIOME GAMEPLAY:
-	- Player plants: 0.22🌾 + 0.08👥
-	- Market converts wheat into coin energy (💰)
-	- Coin energy grows over time (market supply dynamics)
-	- Harvest = get credits based on coin energy amount
-
-	Returns: Qubit representing the coin injection
-	"""
-	if not market_qubit:
-		return null
-
-	# Create coin qubit to represent this wheat injection
-	var coin_qubit = DualEmojiQubit.new("💰", "💵", PI / 2.0)
-
-	# Coin qubit starts at specific position based on wheat amount
-	# More wheat = more initial energy
-	coin_qubit.phi = 0.0
-	coin_qubit.radius = min(1.0, wheat_amount / 0.22)  # Scale by wheat amount (0.22 = full)
-	coin_qubit.energy = wheat_amount * 100.0  # Convert wheat to coin energy
-
-	# Labor enhances coin production
-	coin_qubit.energy *= (1.0 + labor_amount * 5.0)  # 0.08 labor = 1.4x multiplier
-
-	print("💰 Market injection: %.2f🌾 + %.2f👥 → %.1f coin energy" %
-		[wheat_amount, labor_amount, coin_qubit.energy])
-
-	return coin_qubit
-
-
-func get_coin_energy(coin_qubit: Resource) -> float:
-	"""Get current coin energy from injected qubit"""
-	if coin_qubit and coin_qubit is DualEmojiQubit:
-		return coin_qubit.energy
-	return 0.0
-
-
-func harvest_coin_energy(coin_qubit: Resource) -> Dictionary:
-	"""
-	Harvest coin energy from market biome
-	Converts accumulated energy into classical credits
-
-	Returns: {
-		"success": bool,
-		"credits": int,
-		"coin_energy": float
-	}
-	"""
-	if not coin_qubit:
-		return {"success": false, "credits": 0, "coin_energy": 0.0}
-
-	var coin_energy = get_coin_energy(coin_qubit)
-	if coin_energy <= 0:
-		return {"success": false, "credits": 0, "coin_energy": 0.0}
-
-	# Convert coin energy to credits
-	# Base rate: 1 energy = 10 credits
-	var credits_earned = int(coin_energy * 10.0)
-
-	print("💵 Market harvest: %.1f coin energy → %d credits" % [coin_energy, credits_earned])
-
-	return {
-		"success": true,
-		"credits": credits_earned,
-		"coin_energy": coin_energy
-	}

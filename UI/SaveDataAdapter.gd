@@ -92,7 +92,7 @@ static func create_biome_from_state(biome_state: Dictionary) -> Biome:
 			biome.sun_qubit.theta = sq_data.get("theta", 0.0)
 			biome.sun_qubit.phi = sq_data.get("phi", 0.0)
 			biome.sun_qubit.radius = sq_data.get("radius", 1.0)
-			biome.sun_qubit.energy = sq_data.get("energy", 1.0)
+			# energy removed - derived from theta
 
 	# Restore wheat icon
 	if biome_state.has("wheat_icon") and biome_state["wheat_icon"]:
@@ -102,7 +102,7 @@ static func create_biome_from_state(biome_state: Dictionary) -> Biome:
 			iq.theta = wi_data.get("theta", PI/12)
 			iq.phi = wi_data.get("phi", 0.0)
 			iq.radius = wi_data.get("radius", 1.0)
-			iq.energy = wi_data.get("energy", 1.0)
+			# energy removed - derived from theta
 
 	# Restore mushroom icon
 	if biome_state.has("mushroom_icon") and biome_state["mushroom_icon"]:
@@ -112,7 +112,7 @@ static func create_biome_from_state(biome_state: Dictionary) -> Biome:
 			iq.theta = mi_data.get("theta", 11*PI/12)
 			iq.phi = mi_data.get("phi", 0.0)
 			iq.radius = mi_data.get("radius", 1.0)
-			iq.energy = mi_data.get("energy", 1.0)
+			# energy removed - derived from theta
 
 	# Restore emoji qubits (quantum states per plot)
 	if biome_state.has("quantum_states") and biome_state["quantum_states"]:
@@ -124,7 +124,7 @@ static func create_biome_from_state(biome_state: Dictionary) -> Biome:
 				qubit.theta = qs_data.get("theta", 0.0)
 				qubit.phi = qs_data.get("phi", 0.0)
 				qubit.radius = qs_data.get("radius", 1.0)
-				qubit.energy = qs_data.get("energy", 1.0)
+				# energy removed - derived from theta (excitation = sin²(θ/2))
 				biome.quantum_states[pos] = qubit
 
 	print("✅ Biome reconstructed from saved state")

@@ -27,8 +27,8 @@ func _initialize():
 	print("Farming → Milling → Kitchen → Market → Guild Consumption")
 	print(print_line("=", 80) + "\n")
 
-	kitchen = QuantumKitchen_BioticFluxBiome.new()
-	economy = EconomicBioticFluxBiome.new()
+	kitchen = QuantumKitchen_Biome.new()
+	economy = EconomicBiome.new()
 
 	_simulate_complete_chain()
 

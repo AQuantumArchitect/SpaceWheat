@@ -30,6 +30,20 @@ var emoji_south: String = "👥"  # South pole emoji (e.g., 👥 for wheat)
 var emoji_north_opacity: float = 1.0  # Probability-weighted opacity
 var emoji_south_opacity: float = 0.0  # Probability-weighted opacity
 
+# Parametric biome coordinates (for auto-scaling layout)
+# Position is computed by BiomeLayoutCalculator from these coords
+var biome_name: String = ""        # Which biome this node belongs to
+var parametric_t: float = 0.5      # Angular parameter [0, 1] around biome oval
+var parametric_ring: float = 0.5   # Radial parameter [0, 1] (0=center, 1=edge)
+
+# Farm plot tethering
+# When true, this bubble is attached to a farm plot and should show tether lines
+# When false, this is a free-floating biome bubble (no tether)
+var has_farm_tether: bool = false
+
+# Legacy compatibility (deprecated - use biome_name + parametric coords)
+var venn_zone: int = -1      # Zone enum value (-1 = not set)
+
 # Animation properties
 var visual_scale: float = 0.0  # Animated scale (0 to 1)
 var visual_alpha: float = 0.0  # Animated alpha (0 to 1)
@@ -102,19 +116,19 @@ func update_from_quantum_state():
 		energy = 0.0
 		coherence = 1.0
 		radius = MIN_RADIUS
-		color = Color(0.5, 0.5, 0.5, 0.3)  # Gray, semi-transparent
+		color = Color(0.5, 0.5, 0.5, 0.0)  # Transparent
 
-		# Show plot emojis even if unplanted - with LOW opacity for ghost markers
-		var emojis = plot.get_plot_emojis() if plot else {"north": "?", "south": "?"}
-		emoji_north = emojis["north"]
-		emoji_south = emojis["south"]
-		# Ghost marker: show faint emoji so players know where plots are
-		emoji_north_opacity = 0.15  # Low opacity for unplanted plots (visible but ghosty)
+		# No emoji display for unplanted/harvested plots
+		emoji_north_opacity = 0.0
 		emoji_south_opacity = 0.0
+
+		# Make bubble completely invisible (won't render - see _draw_quantum_bubble check)
+		visual_scale = 0.0
+		visual_alpha = 0.0
 
 		# DEBUG: Log state transitions
 		if is_transitioning_planted:
-			print("⚠️  Node %s: state changed from PLANTED → UNPLANTED" % grid_position)
+			print("⚠️  Node %s: state changed from PLANTED → UNPLANTED (bubble removed)" % grid_position)
 		return
 
 	# PLANTED PLOT PATH
@@ -185,14 +199,22 @@ func update_from_quantum_state():
 		emoji_south_opacity = 0.0
 	else:
 		# Unmeasured: Show both emojis with theta-weighted opacity (Bloch sphere polar angle)
-		var emojis = plot.get_plot_emojis()
-		emoji_north = emojis["north"]
-		emoji_south = emojis["south"]
+		# Prefer qubit's own emojis (supports custom qubits like sun, organisms)
+		# Fall back to plot_type emojis only if qubit doesn't have them
+		if quantum_state.has_method("get") or "north_emoji" in quantum_state:
+			emoji_north = quantum_state.north_emoji
+			emoji_south = quantum_state.south_emoji
+		else:
+			var emojis = plot.get_plot_emojis()
+			emoji_north = emojis["north"]
+			emoji_south = emojis["south"]
 
-		# Theta-weighted opacity using Born rule: P = sin²(θ/2) for north, cos²(θ/2) for south
+		# Theta-weighted opacity using Born rule (Bloch sphere convention):
+		# |ψ⟩ = cos(θ/2)|0⟩ + e^(iφ)sin(θ/2)|1⟩
+		# θ=0 (north pole): 100% north emoji, θ=π (south pole): 100% south emoji
 		var theta = quantum_state.theta
-		emoji_north_opacity = pow(sin(theta / 2.0), 2.0)  # Peaks at north pole (θ=0)
-		emoji_south_opacity = pow(cos(theta / 2.0), 2.0)  # Peaks at south pole (θ=π)
+		emoji_north_opacity = pow(cos(theta / 2.0), 2.0)  # cos²(θ/2): 1 at θ=0, 0 at θ=π
+		emoji_south_opacity = pow(sin(theta / 2.0), 2.0)  # sin²(θ/2): 0 at θ=0, 1 at θ=π
 
 		# DEBUG: Log emoji opacity when planted (disabled for cleaner console)
 		# if radius == MAX_RADIUS:  # First update after becoming planted

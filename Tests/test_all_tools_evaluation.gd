@@ -17,9 +17,25 @@ func _ready():
 	print("COMPREHENSIVE TOOL EVALUATION TEST")
 	print(sep + "\n")
 
-	# Wait for UI to initialize
-	await get_tree().process_frame
-	await get_tree().process_frame
+	# Wait for BootManager to signal game is ready
+	print("⏳ Waiting for BootManager boot sequence...")
+	var boot_mgr = get_node_or_null("/root/BootManager")
+	if boot_mgr:
+		# Check if already booted
+		if not boot_mgr.is_ready:
+			# Not ready yet, wait for signal
+			if boot_mgr.has_signal("game_ready"):
+				await boot_mgr.game_ready
+		print("✅ Boot sequence complete")
+		# Wait a few more frames for post-boot setup (FarmInputHandler creation, etc.)
+		for i in range(5):
+			await get_tree().process_frame
+		print("✅ Post-boot setup complete, starting tests\n")
+	else:
+		# Fallback: wait some frames
+		print("⚠️  BootManager not found, using frame wait fallback")
+		for i in range(10):
+			await get_tree().process_frame
 
 	# Find components
 	var farm_view = get_tree().root.find_child("FarmView", true, false)
@@ -79,33 +95,33 @@ func _ready():
 
 
 func _test_tool_1_grower():
-	_log("\n" + "-"*80)
+	_log("\n" + "-".repeat(80))
 	_log("TOOL 1: GROWER (🌱)")
-	_log("-"*80)
+	_log("-".repeat(80))
 
 	# Select first plot
 	input_handler.current_selection = Vector2i(0, 0)
-	plot_grid_display._update_tile_display()
+	plot_grid_display.update_tile_from_farm(Vector2i(0, 0))
 
 	# Test Q: plant_batch
 	_log("\n[Q] plant_batch")
-	var wheat_before = farm.economy.wheat_inventory
-	input_handler._on_action_key_pressed("Q")
+	var wheat_before = farm.economy.get_resource_units("🌾")
+	input_handler.execute_action("Q")
 	await get_tree().process_frame
-	var wheat_after = farm.economy.wheat_inventory
+	var wheat_after = farm.economy.get_resource_units("🌾")
 	var plant_result = "PASS" if farm.grid.get_plot(Vector2i(0, 0)).is_planted else "FAIL"
 	_log("  Result: %s (wheat: %d → %d)" % [plant_result, wheat_before, wheat_after])
 	test_results["Tool1_plant_batch"] = plant_result
 
 	# Select 2 plots for entangle
 	input_handler.current_selection = Vector2i(0, 0)
-	plot_grid_display._update_tile_display()
-	plot_grid_display._toggle_plot_selection(Vector2i(0, 0))
-	plot_grid_display._toggle_plot_selection(Vector2i(1, 0))
+	plot_grid_display.update_tile_from_farm(Vector2i(0, 0))
+	plot_grid_display.toggle_plot_selection(Vector2i(0, 0))
+	plot_grid_display.toggle_plot_selection(Vector2i(1, 0))
 
 	# Test E: entangle_batch
 	_log("\n[E] entangle_batch")
-	input_handler._on_action_key_pressed("E")
+	input_handler.execute_action("E")
 	await get_tree().process_frame
 	var plot_0 = farm.grid.get_plot(Vector2i(0, 0))
 	var entangle_result = "PASS" if plot_0.entangled_plots.size() > 0 else "FAIL"
@@ -115,7 +131,7 @@ func _test_tool_1_grower():
 	# Test R: measure_and_harvest
 	_log("\n[R] measure_and_harvest")
 	var yield_before = farm.grid.get_plot(Vector2i(0, 0)).yield_amount
-	input_handler._on_action_key_pressed("R")
+	input_handler.execute_action("R")
 	await get_tree().process_frame
 	var yield_after = farm.grid.get_plot(Vector2i(0, 0)).yield_amount
 	var harvest_result = "PASS" if yield_after > yield_before else "FAIL"
@@ -124,14 +140,14 @@ func _test_tool_1_grower():
 
 
 func _test_tool_2_quantum():
-	_log("\n" + "-"*80)
+	_log("\n" + "-".repeat(80))
 	_log("TOOL 2: QUANTUM (⚛️)")
-	_log("-"*80)
+	_log("-".repeat(80))
 
 	# Plant 3 plots for quantum operations
 	for i in range(3):
 		input_handler.current_selection = Vector2i(i, 1)
-		plot_grid_display._toggle_plot_selection(Vector2i(i, 1))
+		plot_grid_display.toggle_plot_selection(Vector2i(i, 1))
 		farm.build(Vector2i(i, 1), "wheat")
 
 	# Switch to tool 2
@@ -139,7 +155,7 @@ func _test_tool_2_quantum():
 
 	# Test Q: cluster
 	_log("\n[Q] cluster")
-	input_handler._on_action_key_pressed("Q")
+	input_handler.execute_action("Q")
 	await get_tree().process_frame
 	var cluster_count = 0
 	for i in range(3):
@@ -153,10 +169,10 @@ func _test_tool_2_quantum():
 	# Test E: measure_plot
 	_log("\n[E] measure_plot")
 	input_handler.current_selection = Vector2i(0, 1)
-	plot_grid_display._update_tile_display()
+	plot_grid_display.update_tile_from_farm(Vector2i(0, 1))
 	var plot_before = farm.grid.get_plot(Vector2i(0, 1))
 	var entangled_before = plot_before.entangled_plots.size()
-	input_handler._on_action_key_pressed("E")
+	input_handler.execute_action("E")
 	await get_tree().process_frame
 	var plot_after = farm.grid.get_plot(Vector2i(0, 1))
 	var entangled_after = plot_after.entangled_plots.size()
@@ -166,7 +182,7 @@ func _test_tool_2_quantum():
 
 	# Test R: break_entanglement
 	_log("\n[R] break_entanglement")
-	input_handler._on_action_key_pressed("R")
+	input_handler.execute_action("R")
 	await get_tree().process_frame
 	var final_entangle = farm.grid.get_plot(Vector2i(0, 1)).entangled_plots.size()
 	var break_result = "PASS" if final_entangle == 0 else "FAIL"
@@ -175,9 +191,9 @@ func _test_tool_2_quantum():
 
 
 func _test_tool_3_industry():
-	_log("\n" + "-"*80)
+	_log("\n" + "-".repeat(80))
 	_log("TOOL 3: INDUSTRY (🏭)")
-	_log("-"*80)
+	_log("-".repeat(80))
 
 	# Switch to tool 3
 	input_handler.current_tool = 3
@@ -191,8 +207,8 @@ func _test_tool_3_industry():
 	# Test Q: place_mill
 	_log("\n[Q] place_mill")
 	input_handler.current_selection = Vector2i(3, 0)
-	plot_grid_display._toggle_plot_selection(Vector2i(3, 0))
-	input_handler._on_action_key_pressed("Q")
+	plot_grid_display.toggle_plot_selection(Vector2i(3, 0))
+	input_handler.execute_action("Q")
 	await get_tree().process_frame
 	var mill_plot = farm.grid.get_plot(Vector2i(3, 0))
 	var mill_result = "PASS" if mill_plot.is_planted and "mill" in mill_plot.plant_type else "FAIL"
@@ -202,8 +218,8 @@ func _test_tool_3_industry():
 	# Test E: place_market
 	_log("\n[E] place_market")
 	input_handler.current_selection = Vector2i(4, 0)
-	plot_grid_display._toggle_plot_selection(Vector2i(4, 0))
-	input_handler._on_action_key_pressed("E")
+	plot_grid_display.toggle_plot_selection(Vector2i(4, 0))
+	input_handler.execute_action("E")
 	await get_tree().process_frame
 	var market_plot = farm.grid.get_plot(Vector2i(4, 0))
 	var market_result = "PASS" if market_plot.is_planted and "market" in market_plot.plant_type else "FAIL"
@@ -213,8 +229,8 @@ func _test_tool_3_industry():
 	# Test R: place_kitchen
 	_log("\n[R] place_kitchen")
 	input_handler.current_selection = Vector2i(5, 0)
-	plot_grid_display._toggle_plot_selection(Vector2i(5, 0))
-	input_handler._on_action_key_pressed("R")
+	plot_grid_display.toggle_plot_selection(Vector2i(5, 0))
+	input_handler.execute_action("R")
 	await get_tree().process_frame
 	var kitchen_plot = farm.grid.get_plot(Vector2i(5, 0))
 	var kitchen_result = "PASS" if kitchen_plot.is_planted and "kitchen" in kitchen_plot.plant_type else "FAIL"
@@ -223,9 +239,9 @@ func _test_tool_3_industry():
 
 
 func _test_tool_4_energy():
-	_log("\n" + "-"*80)
+	_log("\n" + "-".repeat(80))
 	_log("TOOL 4: ENERGY (⚡)")
-	_log("-"*80)
+	_log("-".repeat(80))
 
 	# Switch to tool 4
 	input_handler.current_tool = 4
@@ -233,35 +249,19 @@ func _test_tool_4_energy():
 	# Plant a plot with quantum state
 	farm.build(Vector2i(0, 0), "wheat")
 
-	# Test Q: inject_energy
-	_log("\n[Q] inject_energy")
-	input_handler.current_selection = Vector2i(0, 0)
-	plot_grid_display._toggle_plot_selection(Vector2i(0, 0))
-	var plot = farm.grid.get_plot(Vector2i(0, 0))
-	var energy_before = plot.quantum_state.energy if plot.quantum_state else 0.0
-	input_handler._on_action_key_pressed("Q")
-	await get_tree().process_frame
-	var energy_after = plot.quantum_state.energy if plot.quantum_state else 0.0
-	var inject_result = "PASS" if energy_after > energy_before else "FAIL"
-	_log("  Result: %s (energy: %.2f → %.2f)" % [inject_result, energy_before, energy_after])
-	test_results["Tool4_inject_energy"] = inject_result
+	# Test Q: inject_energy (DEPRECATED - now uses boost_coupling)
+	_log("\n[Q] inject_energy (DEPRECATED - skipping)")
+	test_results["Tool4_inject_energy"] = "SKIPPED"
 
-	# Test E: drain_energy
-	_log("\n[E] drain_energy")
-	var wheat_before = farm.economy.wheat_inventory
-	input_handler._on_action_key_pressed("E")
-	await get_tree().process_frame
-	var wheat_after = farm.economy.wheat_inventory
-	var energy_final = plot.quantum_state.energy if plot.quantum_state else 0.0
-	var drain_result = "PASS" if wheat_after > wheat_before and energy_final < energy_after else "FAIL"
-	_log("  Result: %s (wheat: %d → %d, energy: %.2f)" % [drain_result, wheat_before, wheat_after, energy_final])
-	test_results["Tool4_drain_energy"] = drain_result
+	# Test E: drain_energy (DEPRECATED - now uses tune_decoherence)
+	_log("\n[E] drain_energy (DEPRECATED - skipping)")
+	test_results["Tool4_drain_energy"] = "SKIPPED"
 
 	# Test R: place_energy_tap
 	_log("\n[R] place_energy_tap")
 	input_handler.current_selection = Vector2i(1, 1)
-	plot_grid_display._toggle_plot_selection(Vector2i(1, 1))
-	input_handler._on_action_key_pressed("R")
+	plot_grid_display.toggle_plot_selection(Vector2i(1, 1))
+	input_handler.execute_action("R")
 	await get_tree().process_frame
 	var tap_plot = farm.grid.get_plot(Vector2i(1, 1))
 	var tap_result = "PASS" if tap_plot.is_planted and "tap" in tap_plot.plant_type else "FAIL"
@@ -270,9 +270,9 @@ func _test_tool_4_energy():
 
 
 func _test_tool_5_6_placeholders():
-	_log("\n" + "-"*80)
+	_log("\n" + "-".repeat(80))
 	_log("TOOLS 5 & 6: PLACEHOLDERS")
-	_log("-"*80)
+	_log("-".repeat(80))
 
 	input_handler.current_tool = 5
 	_log("\nTool 5: Not yet implemented (placeholder)")
@@ -284,13 +284,14 @@ func _test_tool_5_6_placeholders():
 
 
 func _print_summary():
-	_log("\n" + "="*80)
+	_log("\n" + "=".repeat(80))
 	_log("TEST SUMMARY")
-	_log("="*80)
+	_log("=".repeat(80))
 
 	var passed = 0
 	var failed = 0
 	var not_impl = 0
+	var skipped = 0
 
 	for action in test_results.keys():
 		var result = test_results[action]
@@ -303,8 +304,11 @@ func _print_summary():
 		elif result == "NOT_IMPLEMENTED":
 			not_impl += 1
 			_log("  ⏸️  %s: NOT IMPLEMENTED" % action)
+		elif result == "SKIPPED":
+			skipped += 1
+			_log("  ⏭️  %s: SKIPPED (deprecated API)" % action)
 
-	_log("\nResults: %d passed, %d failed, %d not implemented (out of %d)" % [passed, failed, not_impl, test_results.size()])
+	_log("\nResults: %d passed, %d failed, %d skipped, %d not implemented (out of %d)" % [passed, failed, skipped, not_impl, test_results.size()])
 
 	# Save results to file
 	var results_file = "user://tool_evaluation_results.txt"

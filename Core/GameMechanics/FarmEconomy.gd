@@ -1,174 +1,202 @@
 class_name FarmEconomy
 extends Node
 
-## Farm Economy Singleton - Quantum Energy Currency System
-## ALL resources are "units of quantum energy" tied to emoji states
-## Starting with minimal resources forces strategic gameplay
+## Farm Economy - Unified Emoji-Credits System
+## ALL resources are "emoji-credits" stored in a single dictionary
+## 1 quantum energy = 10 emoji-credits
+## Example: 50 wheat = 500 🌾-credits
 
-signal wheat_changed(new_amount: int)          # 🌾 Quantum energy (wheat state)
-signal labor_changed(new_amount: int)          # 👥 Quantum energy (labor/people)
-signal flour_changed(new_amount: int)          # 🍞 Quantum energy (processed grain)
-signal flower_changed(new_amount: int)         # 🌻 Quantum energy (flowers)
-signal imperium_changed(new_amount: int)       # 👑 Quantum energy (order/structure)
-signal credits_changed(new_amount: int)        # 💰 Quantum energy (exchange/value)
-signal mushroom_changed(new_amount: int)       # 🍄 Quantum energy (fungi)
-signal detritus_changed(new_amount: int)       # 🍂 Quantum energy (decay)
+# Universal resource change signal
+signal resource_changed(emoji: String, new_amount: int)
+
+# Other signals
 signal purchase_failed(reason: String)
-signal flour_processed(wheat_amount: int, flour_produced: int)  # Mill processing event
-signal flour_sold(flour_amount: int, credits_received: int)     # Flour sale event
-signal emoji_resource_changed(emoji: String, new_amount: int)   # Generic emoji resource change
+signal flour_processed(wheat_amount: int, flour_produced: int)
+signal flour_sold(flour_amount: int, credits_received: int)
 
-# Quantum Energy Currency System - Each emoji represents one type of quantum energy
-# Starting with VERY LITTLE forces strategic choices and makes growth meaningful
-var wheat_inventory: int = 50         # 🌾 Quantum energy (primary harvest)
-var labor_inventory: int = 1          # 👥 Quantum energy (from 👥 measurements)
-var flour_inventory: int = 0          # 🍞 Quantum energy (from mill processing)
-var flower_inventory: int = 0         # 🌻 Quantum energy (rare yields)
-var mushroom_inventory: int = 1       # 🍄 Quantum energy (nocturnal growth)
-var detritus_inventory: int = 1       # 🍂 Quantum energy (compost/decay)
-var imperium_resource: int = 0        # 👑 Quantum energy (imperial influence)
-var credits: int = 1                  # 💰 Quantum energy (exchange medium, very scarce)
+# Conversion ratio: 1 quantum energy = 10 credits
+const QUANTUM_TO_CREDITS: int = 10
 
-# Generic emoji resources dictionary (for extensible resource system)
-var emoji_resources: Dictionary = {}  # Map emoji strings to integer quantities
+# Initial resources in emoji-credits
+const INITIAL_RESOURCES = {
+	"🌾": 500,   # 50 wheat * 10 (agriculture)
+	"👥": 10,    # 1 labor * 10 (work)
+	"💨": 0,     # flour
+	"🌻": 0,     # flower
+	"🍄": 10,    # 1 mushroom * 10 (fungal)
+	"🍂": 10,    # 1 detritus * 10 (decay)
+	"🍅": 0,     # tomato (life/conspiracy)
+	"🌌": 0,     # cosmic chaos (entropy/void)
+	"👑": 0,     # imperium
+	"💰": 10,    # 1 legacy credit * 10 (now just another emoji)
+}
+
+# Unified emoji-credits dictionary - THE source of truth
+var emoji_credits: Dictionary = {}
 
 # Stats
 var total_wheat_harvested: int = 0  # For contract tracking
 
 # Imperium Icon reference (linked to conspiracy network)
-var imperium_icon = null  # Set by FarmView or whoever manages Icons
+var imperium_icon = null
 
 
 func _ready():
-	print("⚛️  Quantum Energy Economy initialized - All resources are emoji-quantum currencies")
-	print("  🌾 Wheat: %d | 👥 Labor: %d | 🍄 Mushroom: %d | 🍂 Detritus: %d" % [wheat_inventory, labor_inventory, mushroom_inventory, detritus_inventory])
-	print("  💰 Credits: %d (exchange medium) | Starting minimal to force strategic growth" % credits)
+	# Initialize from INITIAL_RESOURCES
+	for emoji in INITIAL_RESOURCES:
+		emoji_credits[emoji] = INITIAL_RESOURCES[emoji]
+
+	print("⚛️  Unified Emoji-Credits Economy initialized")
+	print("   1 quantum energy = %d credits" % QUANTUM_TO_CREDITS)
+	_print_resources()
 
 
-## Wheat Management (Primary Currency)
+func _print_resources():
+	var output = "   "
+	for emoji in emoji_credits:
+		var quantum_units = emoji_credits[emoji] / QUANTUM_TO_CREDITS
+		output += "%s: %d  " % [emoji, quantum_units]
+	print(output)
 
-func can_afford_wheat(cost: int) -> bool:
-	"""Check if player has enough wheat"""
-	return wheat_inventory >= cost
+
+## ============================================================================
+## UNIFIED API - Primary methods for all resource operations
+## ============================================================================
+
+func add_resource(emoji: String, credits_amount: int, reason: String = "") -> void:
+	"""Add emoji-credits to any resource"""
+	if not emoji_credits.has(emoji):
+		emoji_credits[emoji] = 0
+
+	emoji_credits[emoji] += credits_amount
+	_emit_resource_change(emoji)
+
+	var quantum_units = credits_amount / QUANTUM_TO_CREDITS
+	if reason != "":
+		print("+ %d %s-credits (%d units) from %s" % [credits_amount, emoji, quantum_units, reason])
 
 
-func spend_wheat(amount: int, reason: String = "action") -> bool:
-	"""Spend wheat on an action (like planting)"""
-	if not can_afford_wheat(amount):
-		purchase_failed.emit("Not enough wheat! Need %d, have %d" % [amount, wheat_inventory])
+func remove_resource(emoji: String, credits_amount: int, reason: String = "") -> bool:
+	"""Remove emoji-credits from a resource. Returns false if insufficient."""
+	if not can_afford_resource(emoji, credits_amount):
+		purchase_failed.emit("Not enough %s! Need %d, have %d" % [emoji, credits_amount, get_resource(emoji)])
 		return false
 
-	wheat_inventory -= amount
-	wheat_changed.emit(wheat_inventory)
-	print("💸 Spent %d wheat on %s (remaining: %d)" % [amount, reason, wheat_inventory])
+	emoji_credits[emoji] -= credits_amount
+	_emit_resource_change(emoji)
+
+	var quantum_units = credits_amount / QUANTUM_TO_CREDITS
+	if reason != "":
+		print("- %d %s-credits (%d units) for %s" % [credits_amount, emoji, quantum_units, reason])
 	return true
 
 
-func earn_wheat(amount: int, reason: String = "harvest") -> void:
-	"""Earn wheat (from harvest)"""
-	wheat_inventory += amount
-	wheat_changed.emit(wheat_inventory)
-	print("💰 Earned %d wheat from %s (total: %d)" % [amount, reason, wheat_inventory])
+func get_resource(emoji: String) -> int:
+	"""Get emoji-credits for any resource"""
+	return emoji_credits.get(emoji, 0)
 
 
-## Wheat Inventory
-
-func add_wheat(amount: int):
-	"""Add wheat to inventory"""
-	wheat_inventory += amount
-	wheat_changed.emit(wheat_inventory)
-	print("🌾 Added %d wheat to inventory (total: %d)" % [amount, wheat_inventory])
+func get_resource_units(emoji: String) -> int:
+	"""Get resource in quantum units (credits / 10)"""
+	return get_resource(emoji) / QUANTUM_TO_CREDITS
 
 
-func record_harvest(amount: int):
-	"""Record wheat harvest (for contract tracking)"""
-	total_wheat_harvested += amount
-	add_wheat(amount)
-	print("📊 Total wheat harvested: %d" % total_wheat_harvested)
+func can_afford_resource(emoji: String, credits_amount: int) -> bool:
+	"""Check if player has enough emoji-credits"""
+	return get_resource(emoji) >= credits_amount
 
 
-func remove_wheat(amount: int) -> bool:
-	"""Remove wheat from inventory"""
-	if wheat_inventory < amount:
-		return false
+func can_afford_cost(cost: Dictionary) -> bool:
+	"""Check if player can afford a multi-resource cost
 
-	wheat_inventory -= amount
-	wheat_changed.emit(wheat_inventory)
+	cost format: {"🌾": 10, "👥": 5} meaning 10 wheat-credits + 5 labor-credits
+	"""
+	for emoji in cost.keys():
+		if not can_afford_resource(emoji, cost[emoji]):
+			return false
 	return true
 
 
-## Labor Inventory (👥 People)
-
-func add_labor(amount: int):
-	"""Add labor/people to inventory (from measuring 👥 quantum state)"""
-	labor_inventory += amount
-	labor_changed.emit(labor_inventory)
-	print("👥 Added %d labor to inventory (total: %d)" % [amount, labor_inventory])
-
-
-func remove_labor(amount: int) -> bool:
-	"""Remove labor from inventory"""
-	if labor_inventory < amount:
+func spend_cost(cost: Dictionary, reason: String = "") -> bool:
+	"""Spend a multi-resource cost. Atomic: all or nothing."""
+	if not can_afford_cost(cost):
+		var missing = _get_missing_resources(cost)
+		purchase_failed.emit("Cannot afford: " + missing)
 		return false
 
-	labor_inventory -= amount
-	labor_changed.emit(labor_inventory)
+	for emoji in cost.keys():
+		emoji_credits[emoji] -= cost[emoji]
+		_emit_resource_change(emoji)
+
+	if reason != "":
+		print("💸 Spent %s on %s" % [_format_cost(cost), reason])
 	return true
 
 
-## Flour Inventory
+func receive_harvest(emoji: String, quantum_energy: float, reason: String = "harvest") -> int:
+	"""Convert quantum energy from harvest to emoji-credits
 
-func add_flour(amount: int):
-	"""Add flour to inventory (mill output)"""
-	flour_inventory += amount
-	flour_changed.emit(flour_inventory)
-	print("💨 Added %d flour to inventory (total: %d)" % [amount, flour_inventory])
-
-
-func remove_flour(amount: int) -> bool:
-	"""Remove flour from inventory"""
-	if flour_inventory < amount:
-		return false
-
-	flour_inventory -= amount
-	flour_changed.emit(flour_inventory)
-	return true
+	1 quantum energy = 10 credits
+	Returns: number of credits added
+	"""
+	var credits_amount = int(quantum_energy * QUANTUM_TO_CREDITS)
+	add_resource(emoji, credits_amount, reason)
+	return credits_amount
 
 
-## Production Chain: Wheat → Flour → Credits
+func _emit_resource_change(emoji: String) -> void:
+	"""Emit universal resource_changed signal"""
+	var amount = emoji_credits.get(emoji, 0)
+	resource_changed.emit(emoji, amount)
+
+
+func _get_missing_resources(cost: Dictionary) -> String:
+	var missing = []
+	for emoji in cost.keys():
+		var have = get_resource(emoji)
+		var need = cost[emoji]
+		if have < need:
+			missing.append("%d more %s" % [(need - have) / QUANTUM_TO_CREDITS, emoji])
+	return ", ".join(missing)
+
+
+func _format_cost(cost: Dictionary) -> String:
+	var parts = []
+	for emoji in cost.keys():
+		parts.append("%d %s" % [cost[emoji] / QUANTUM_TO_CREDITS, emoji])
+	return ", ".join(parts)
+
+
+## ============================================================================
+## PRODUCTION CHAIN: Wheat → Flour → Money
+## ============================================================================
 
 func process_wheat_to_flour(wheat_amount: int) -> Dictionary:
-	"""
-	Convert wheat to flour using Mill economics
+	"""Convert wheat to flour using Mill economics
 
-	Mill efficiency: 10 wheat → 8 flour + 40 credits (5 credits per flour as processing labor)
-
-	Returns: {
-		"success": bool,
-		"flour_produced": int,
-		"credits_earned": int,
-		"wheat_used": int
-	}
+	Mill efficiency: 10 wheat → 8 flour + 40 💰-credits (5 per flour as labor value)
+	Amount is in quantum units (will be converted to credits internally)
 	"""
-	if wheat_inventory < wheat_amount:
-		purchase_failed.emit("Not enough wheat to mill! Need %d, have %d" % [wheat_amount, wheat_inventory])
+	var wheat_credits = wheat_amount * QUANTUM_TO_CREDITS
+
+	if not can_afford_resource("🌾", wheat_credits):
+		purchase_failed.emit("Not enough wheat to mill! Need %d, have %d" % [wheat_amount, get_resource_units("🌾")])
 		return {"success": false, "flour_produced": 0, "credits_earned": 0, "wheat_used": 0}
 
 	# Remove wheat
-	if not remove_wheat(wheat_amount):
-		return {"success": false, "flour_produced": 0, "credits_earned": 0, "wheat_used": 0}
+	remove_resource("🌾", wheat_credits, "mill_input")
 
 	# Mill economics: 0.8 ratio (10 wheat → 8 flour)
 	var flour_gained = int(wheat_amount * 0.8)
-	var credit_bonus = flour_gained * 5  # 5 credits per flour produced (labor value)
+	var credit_bonus = flour_gained * 5  # 5 💰-units per flour produced
 
-	# Add flour and credits from mill processing
-	add_flour(flour_gained)
-	add_credits(credit_bonus, "mill_processing")
+	# Add flour and 💰 from mill processing
+	add_resource("💨", flour_gained * QUANTUM_TO_CREDITS, "mill_output")
+	add_resource("💰", credit_bonus * QUANTUM_TO_CREDITS, "mill_processing")
 
 	flour_processed.emit(wheat_amount, flour_gained)
 
-	print("🏭 Milled %d wheat → %d flour + %d credits" % [wheat_amount, flour_gained, credit_bonus])
+	print("🏭 Milled %d wheat → %d flour + %d 💰" % [wheat_amount, flour_gained, credit_bonus])
 
 	return {
 		"success": true,
@@ -179,38 +207,31 @@ func process_wheat_to_flour(wheat_amount: int) -> Dictionary:
 
 
 func sell_flour_at_market(flour_amount: int) -> Dictionary:
-	"""
-	Sell flour at the market
+	"""Sell flour at the market
 
-	Market pricing: Flour is worth 100 credits gross, but market takes 20% margin
-	So farmer gets 80 credits per flour
-
-	Returns: {
-		"success": bool,
-		"flour_sold": int,
-		"credits_received": int,
-		"market_margin": int
-	}
+	Market pricing: 100 💰 gross per flour, market takes 20%
+	Farmer gets 80 💰 per flour
 	"""
-	if flour_inventory < flour_amount:
-		purchase_failed.emit("Not enough flour to sell! Need %d, have %d" % [flour_amount, flour_inventory])
+	var flour_credits = flour_amount * QUANTUM_TO_CREDITS
+
+	if not can_afford_resource("💨", flour_credits):
+		purchase_failed.emit("Not enough flour to sell! Need %d, have %d" % [flour_amount, get_resource_units("💨")])
 		return {"success": false, "flour_sold": 0, "credits_received": 0, "market_margin": 0}
 
 	# Remove flour
-	if not remove_flour(flour_amount):
-		return {"success": false, "flour_sold": 0, "credits_received": 0, "market_margin": 0}
+	remove_resource("💨", flour_credits, "market_sale")
 
-	# Market economics: 100 credits per flour gross, 20% margin to market
+	# Market economics: 100 💰 per flour gross, 20% margin to market
 	var flour_price_gross = flour_amount * 100
 	var market_cut = int(flour_price_gross * 0.20)
 	var farmer_cut = flour_price_gross - market_cut
 
-	# Add credits from market sale
-	add_credits(farmer_cut, "market_sale")
+	# Add 💰 from market sale
+	add_resource("💰", farmer_cut * QUANTUM_TO_CREDITS, "market_sale")
 
 	flour_sold.emit(flour_amount, farmer_cut)
 
-	print("💰 Sold %d flour at market → %d credits (market took %d)" % [flour_amount, farmer_cut, market_cut])
+	print("💰 Sold %d flour → %d 💰 (market took %d)" % [flour_amount, farmer_cut, market_cut])
 
 	return {
 		"success": true,
@@ -220,197 +241,60 @@ func sell_flour_at_market(flour_amount: int) -> Dictionary:
 	}
 
 
-## Credits Management (Classical Currency)
+func process_flour_to_bread(flour_amount: int) -> Dictionary:
+	"""Convert flour to bread using Kitchen
 
-func add_credits(amount: int, reason: String = "transaction"):
-	"""Add classical credits to inventory"""
-	credits += amount
-	credits_changed.emit(credits)
-	print("💵 Earned %d credits from %s (total: %d)" % [amount, reason, credits])
-
-
-func remove_credits(amount: int, reason: String = "transaction") -> bool:
-	"""Spend classical credits"""
-	if credits < amount:
-		purchase_failed.emit("Not enough credits! Need %d, have %d" % [amount, credits])
-		return false
-
-	credits -= amount
-	credits_changed.emit(credits)
-	print("💸 Spent %d credits on %s (remaining: %d)" % [amount, reason, credits])
-	return true
-
-
-func can_afford_credits(amount: int) -> bool:
-	"""Check if player has enough classical credits"""
-	return credits >= amount
-
-
-func can_afford(amount: int) -> bool:
-	"""Unified affordability check - checks classical credits
-
-	This is the GameController API method.
+	Kitchen efficiency: 5 flour → 3 bread (60% yield)
+	Amount is in quantum units (will be converted to credits internally)
 	"""
-	return can_afford_credits(amount)
+	var flour_credits = flour_amount * QUANTUM_TO_CREDITS
+
+	if not can_afford_resource("💨", flour_credits):
+		purchase_failed.emit("Not enough flour to bake! Need %d, have %d" % [flour_amount, get_resource_units("💨")])
+		return {"success": false, "bread_produced": 0, "flour_used": 0}
+
+	# Remove flour
+	remove_resource("💨", flour_credits, "kitchen_input")
+
+	# Kitchen efficiency: 0.6 ratio (5 flour → 3 bread)
+	var bread_gained = int(flour_amount * 0.6)
+
+	# Add bread (using 🍞 emoji)
+	add_resource("🍞", bread_gained * QUANTUM_TO_CREDITS, "kitchen_output")
+
+	print("🍳 Baked %d flour → %d bread" % [flour_amount, bread_gained])
+
+	return {
+		"success": true,
+		"bread_produced": bread_gained,
+		"flour_used": flour_amount
+	}
 
 
-func spend_credits(amount: int, reason: String = "action") -> bool:
-	"""Spend classical credits - GameController API method"""
-	return remove_credits(amount, reason)
-
-
-func earn_credits(amount: int, reason: String = "reward") -> void:
-	"""Earn classical credits - GameController API method"""
-	add_credits(amount, reason)
-
-
-## Flower Inventory
-
-func add_flower(amount: int):
-	"""Add flowers to inventory"""
-	flower_inventory += amount
-	flower_changed.emit(flower_inventory)
-	print("🌻 Added %d flowers to inventory (total: %d)" % [amount, flower_inventory])
-
-
-func remove_flower(amount: int) -> bool:
-	"""Remove flowers from inventory"""
-	if flower_inventory < amount:
-		return false
-
-	flower_inventory -= amount
-	flower_changed.emit(flower_inventory)
-	return true
-
-
-## Mushroom & Detritus Inventory
-
-func add_mushroom(amount: int):
-	"""Add mushrooms to inventory (from moon-phase harvest)"""
-	mushroom_inventory += amount
-	mushroom_changed.emit(mushroom_inventory)
-	print("🍄 Added %d mushrooms to inventory (total: %d)" % [amount, mushroom_inventory])
-
-
-func remove_mushroom(amount: int) -> bool:
-	"""Remove mushrooms from inventory"""
-	if mushroom_inventory < amount:
-		return false
-
-	mushroom_inventory -= amount
-	mushroom_changed.emit(mushroom_inventory)
-	return true
-
-
-func add_detritus(amount: int):
-	"""Add detritus to inventory (compost, from failed mushroom harvest)"""
-	detritus_inventory += amount
-	detritus_changed.emit(detritus_inventory)
-	print("🍂 Added %d detritus to inventory (total: %d)" % [amount, detritus_inventory])
-
-
-func remove_detritus(amount: int) -> bool:
-	"""Remove detritus from inventory"""
-	if detritus_inventory < amount:
-		return false
-
-	detritus_inventory -= amount
-	detritus_changed.emit(detritus_inventory)
-	return true
-
-
-## Quota System (for Carrion Throne integration later)
+## ============================================================================
+## QUOTA SYSTEM
+## ============================================================================
 
 func can_fulfill_quota(wheat_required: int) -> bool:
-	"""Check if player can fulfill a quota"""
-	return wheat_inventory >= wheat_required
-
+	return get_resource_units("🌾") >= wheat_required
 
 func fulfill_quota(wheat_required: int) -> bool:
-	"""Fulfill a quota, removing wheat from inventory"""
 	if not can_fulfill_quota(wheat_required):
 		return false
-
-	return remove_wheat(wheat_required)
-
-
-## Imperium Resource Management 🏰
-
-func get_imperium() -> int:
-	"""Get current imperium resource"""
-	return imperium_resource
+	return remove_resource("🌾", wheat_required * QUANTUM_TO_CREDITS, "quota")
 
 
-func add_imperium(amount: int):
-	"""Add imperium (for special events)"""
-	imperium_resource += amount
-	imperium_changed.emit(imperium_resource)
-	print("🏰 Gained %d imperium (total: %d)" % [amount, imperium_resource])
-
-
-func remove_imperium(amount: int) -> bool:
-	"""Spend imperium resource"""
-	if imperium_resource < amount:
-		return false
-
-	imperium_resource -= amount
-	imperium_changed.emit(imperium_resource)
-	print("🏰 Spent %d imperium (remaining: %d)" % [amount, imperium_resource])
-	return true
-
-
-## Dynamic Emoji Resources (for harvested items)
-
-func add_emoji_resource(emoji: String, amount: int):
-	"""Add a dynamic emoji resource to inventory
-	Called when harvesting any quantum emoji item
-	"""
-	if not emoji_resources.has(emoji):
-		emoji_resources[emoji] = 0
-
-	emoji_resources[emoji] += amount
-	emoji_resource_changed.emit(emoji, emoji_resources[emoji])
-	print("✨ Added %d %s to inventory (total: %d)" % [amount, emoji, emoji_resources[emoji]])
-
-
-func remove_emoji_resource(emoji: String, amount: int) -> bool:
-	"""Remove a dynamic emoji resource from inventory"""
-	if not emoji_resources.has(emoji) or emoji_resources[emoji] < amount:
-		return false
-
-	emoji_resources[emoji] -= amount
-	emoji_resource_changed.emit(emoji, emoji_resources[emoji])
-	return true
-
-
-func get_emoji_resource(emoji: String) -> int:
-	"""Get amount of a specific emoji resource"""
-	return emoji_resources.get(emoji, 0)
-
-
-func get_all_emoji_resources() -> Dictionary:
-	"""Get all emoji resources as a copy of the dictionary"""
-	return emoji_resources.duplicate()
-
-
-## Stats
+## ============================================================================
+## STATS
+## ============================================================================
 
 func get_stats() -> Dictionary:
 	"""Get economic statistics"""
 	return {
-		# Quantum resources (from farming)
-		"wheat": wheat_inventory,
-		"labor": labor_inventory,
-		"flour": flour_inventory,
-		"flower": flower_inventory,
-		"mushroom": mushroom_inventory,
-		"detritus": detritus_inventory,
-		"imperium": imperium_resource,
-		# Classical resources (from production chain)
-		"credits": credits,
 		# Statistics
 		"total_wheat_harvested": total_wheat_harvested,
-		"emoji_resources": emoji_resources.duplicate()
+		# All resources as emoji-credits
+		"emoji_credits": emoji_credits.duplicate()
 	}
 
 
@@ -422,14 +306,10 @@ func reset_harvest_counter():
 
 func print_stats():
 	"""Debug: Print economic stats"""
-	var stats = get_stats()
-	print("\n=== FARM ECONOMY ===")
-	print("🌾 Wheat: %d units (currency)" % stats["wheat"])
-	print("👥 Labor: %d" % stats["labor"])
-	print("💨 Flour: %d" % stats["flour"])
-	print("🌻 Flower: %d" % stats["flower"])
-	print("🍄 Mushroom: %d" % stats["mushroom"])
-	print("🍂 Detritus: %d" % stats["detritus"])
-	print("🏰 Imperium: %d" % stats["imperium"])
-	print("Total harvested: %d wheat" % stats["total_wheat_harvested"])
-	print("====================\n")
+	print("\n=== FARM ECONOMY (Emoji-Credits) ===")
+	for emoji in emoji_credits:
+		var credits_val = emoji_credits[emoji]
+		var units = credits_val / QUANTUM_TO_CREDITS
+		print("  %s: %d units (%d credits)" % [emoji, units, credits_val])
+	print("  Total wheat harvested: %d" % total_wheat_harvested)
+	print("=====================================\n")

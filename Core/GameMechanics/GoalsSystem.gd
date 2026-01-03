@@ -92,10 +92,10 @@ func _ready():
 
 ## Progress Tracking
 
-func record_harvest(wheat_amount: int):
-	"""Record a harvest event"""
+func record_harvest(wheat_credits: int):
+	"""Record a wheat harvest event (credits earned)"""
 	progress["harvest_count"] += 1
-	progress["total_wheat_harvested"] += wheat_amount
+	progress["total_wheat_harvested"] += wheat_credits
 	_check_goals()
 
 

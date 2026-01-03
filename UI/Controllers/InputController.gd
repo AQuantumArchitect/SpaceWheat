@@ -1,8 +1,23 @@
 class_name InputController
 extends Node
 
-## Handles keyboard input and shortcuts for game actions
-## Decouples input handling from UI and game logic
+## INPUT CONTRACT (Layer 0 - Global Menu Control)
+## ═══════════════════════════════════════════════════════════════
+## PHASE: _input() - First priority, runs before other handlers
+## HANDLES: InputEventKey only (keyboard)
+## KEYS: ESC, K, V, N, C, Q(menu), R(menu), TAB, G, SPACE, ARROWS
+## CONSUMES: Always for handled keys (via get_viewport().set_input_as_handled())
+## BLOCKS: ALL downstream input when menu_visible=true
+## EMITS: menu_toggled, vocabulary_requested, keyboard_help_requested, etc.
+## ═══════════════════════════════════════════════════════════════
+##
+## This is the top-level input handler for global actions like:
+## - Opening/closing menus (ESC)
+## - Overlay toggles (K=keyboard help, V=vocabulary, N=network, C=quests)
+## - Quit/restart (Q/R when menu visible)
+##
+## When menu_visible=true, this handler BLOCKS all game input.
+## Decouples input handling from UI and game logic.
 
 # Action signals
 signal plant_requested()
@@ -18,6 +33,7 @@ signal sell_wheat_requested()
 signal vocabulary_requested()
 signal network_toggled()
 signal contracts_toggled()
+signal biome_inspector_toggled()  # B: Toggle biome inspector overlay
 signal goal_cycle_requested()  # Cycle through goals/contracts
 
 # Navigation signals
@@ -31,6 +47,7 @@ signal apply_tool_requested()  # Spacebar: Apply selected tool to selected plot
 signal menu_toggled()  # ESC: Toggle menu
 signal restart_requested()  # R: Restart game
 signal keyboard_help_requested()  # K: Toggle keyboard shortcuts help
+signal quantum_config_requested()  # Shift+Q: Toggle quantum rigor config settings
 
 # Mode state
 var is_entangle_mode: bool = false
@@ -172,6 +189,17 @@ func _input(event):
 		KEY_C:
 			contracts_toggled.emit()
 			get_viewport().set_input_as_handled()
+		KEY_B:
+			print("  → B key pressed - biome inspector action")
+			biome_inspector_toggled.emit()
+			get_viewport().set_input_as_handled()
+
+		KEY_Q:
+			# Shift+Q: Open quantum rigor config settings
+			if event.shift_pressed:
+				print("  → Shift+Q pressed - quantum rigor config")
+				quantum_config_requested.emit()
+				get_viewport().set_input_as_handled()
 
 		# Goal cycling
 		KEY_TAB, KEY_G:

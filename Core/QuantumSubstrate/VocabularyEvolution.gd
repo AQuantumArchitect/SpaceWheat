@@ -65,7 +65,7 @@ func _seed_initial_vocabulary():
 	"""Seed the evolution pool with initial emoji pairs"""
 	# Start with classic wheat pair
 	var wheat_qubit = DualEmojiQubit.new("🌾", "👥", PI/2)
-	wheat_qubit.enable_berry_phase()
+	# berry_phase enabled by default (no longer a method)
 	evolving_qubits.append(wheat_qubit)
 
 	# Add a few random seeds from different categories
@@ -171,7 +171,7 @@ func _create_random_qubit_from_category(category: String) -> DualEmojiQubit:
 	var initial_theta = randf_range(PI/4, 3*PI/4)  # Mid-range
 	var qb = DualEmojiQubit.new(north, south, initial_theta)
 	qb.phi = randf_range(-PI, PI)
-	qb.enable_berry_phase()
+	# berry_phase enabled by default (no longer a method)
 
 	return qb
 
@@ -392,7 +392,7 @@ func deserialize(data: Dictionary) -> void:
 			qb.energy = qb_data.get("energy", 0.3)
 			qb.berry_phase = qb_data.get("berry_phase", 0.0)
 			qb.entanglement_graph = qb_data.get("entanglement_graph", {}).duplicate()
-			qb.enable_berry_phase()  # Ensure berry phase tracking is enabled
+			# berry_phase enabled by default (no longer a method)
 
 			evolving_qubits.append(qb)
 

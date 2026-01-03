@@ -65,17 +65,17 @@ func update_economy(economy: Node) -> void:
 	var old_credits = credits
 	var old_flour = flour
 
-	wheat = economy.wheat_inventory
-	credits = economy.credits
-	flour = economy.flour_inventory
+	wheat = economy.get_resource("🌾")
+	credits = economy.get_resource("💰")
+	flour = economy.get_resource("💨")
 
 	resources = {
-		"👥": economy.labor_inventory,
-		"💨": economy.flour_inventory,
-		"🌻": economy.flower_inventory,
-		"🍄": economy.mushroom_inventory,
-		"🍂": economy.detritus_inventory,
-		"🏰": economy.imperium_resource
+		"👥": economy.get_resource("👥"),
+		"💨": economy.get_resource("💨"),
+		"🌻": economy.get_resource("🌻"),
+		"🍄": economy.get_resource("🍄"),
+		"🍂": economy.get_resource("🍂"),
+		"🏰": economy.get_resource("👑")
 	}
 
 	# Emit signals for credits and flour changes
@@ -105,7 +105,8 @@ func update_plot(position: Vector2i, plot) -> void:
 		ui_data.south_emoji = emojis["south"]
 		ui_data.north_probability = plot.quantum_state.get_north_probability()
 		ui_data.south_probability = plot.quantum_state.get_south_probability()
-		ui_data.energy_level = plot.quantum_state.energy
+		# Use radius (Bloch vector length) as energy proxy - coherence measure
+		ui_data.energy_level = plot.quantum_state.radius
 
 	ui_data.has_been_measured = plot.has_been_measured
 

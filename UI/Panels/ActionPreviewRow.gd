@@ -5,37 +5,14 @@ extends HBoxContainer
 ## Displays what Q/E/R actions will do based on selected tool
 ## Buttons are touch-friendly and also show keyboard shortcuts
 
-# Tool actions - synced from FarmInputHandler.TOOL_ACTIONS
-const TOOL_ACTIONS = {
-	1: {  # GROWER Tool - Core farming
-		"name": "Grower",
-		"Q": {"action": "plant_batch", "label": "Plant", "emoji": "🌾"},
-		"E": {"action": "entangle_batch", "label": "Entangle (Bell φ+)", "emoji": "🔗"},
-		"R": {"action": "measure_and_harvest", "label": "Measure + Harvest", "emoji": "✂️"},
-	},
-	2: {  # QUANTUM Tool - Advanced quantum operations
-		"name": "Quantum",
-		"Q": {"action": "cluster", "label": "Cluster (GHZ/W/3+)", "emoji": "🎯"},
-		"E": {"action": "measure_plot", "label": "Measure Cascade", "emoji": "👁️"},
-		"R": {"action": "break_entanglement", "label": "Break Entanglement", "emoji": "💔"},
-	},
-	3: {  # INDUSTRY Tool - Economy & automation
-		"name": "Industry",
-		"Q": {"action": "place_mill", "label": "Build Mill", "emoji": "🏭"},
-		"E": {"action": "place_market", "label": "Build Market", "emoji": "🏪"},
-		"R": {"action": "place_kitchen", "label": "Build Kitchen", "emoji": "🍳"},
-	},
-	4: {  # ENERGY Tool - Quantum energy management
-		"name": "Energy",
-		"Q": {"action": "inject_energy", "label": "Inject Energy", "emoji": "⚡"},
-		"E": {"action": "drain_energy", "label": "Drain Energy", "emoji": "🌀"},
-		"R": {"action": "place_energy_tap", "label": "Place Energy Tap", "emoji": "🚰"},
-	},
-}
+# Tool actions from shared config (single source of truth)
+const ToolConfig = preload("res://Core/GameState/ToolConfig.gd")
+const TOOL_ACTIONS = ToolConfig.TOOL_ACTIONS
 
 # Action buttons
 var action_buttons: Dictionary = {}  # "Q", "E", "R" -> Button
 var current_tool: int = 1
+var current_submenu: String = ""  # Active submenu name (empty = show tool actions)
 
 # Styling
 var button_color: Color = Color(0.3, 0.3, 0.3)
@@ -95,10 +72,12 @@ func _ready():
 
 func update_for_tool(tool_num: int) -> void:
 	"""Update action buttons to show actions for the selected tool"""
-	if tool_num < 1 or tool_num > 4:
+	if tool_num < 1 or tool_num > 6:
 		return
 
 	current_tool = tool_num
+	current_submenu = ""  # Clear submenu when tool changes
+
 	var tool_info = TOOL_ACTIONS.get(tool_num, {})
 
 	# Update each action button
@@ -115,6 +94,50 @@ func update_for_tool(tool_num: int) -> void:
 		button.text = "[%s] %s %s" % [action_key, emoji, label]
 
 	print("⚡ ActionPreviewRow updated for Tool %d: %s" % [tool_num, tool_info.get("name", "Unknown")])
+
+
+func update_for_submenu(submenu_name: String, submenu_info: Dictionary) -> void:
+	"""Update action buttons to show submenu actions
+
+	Called when entering a submenu (e.g., 1-Q opens plant submenu).
+	submenu_info contains Q/E/R action definitions.
+	"""
+	if submenu_name == "":
+		# Exiting submenu - restore tool display
+		current_submenu = ""
+		update_for_tool(current_tool)
+		return
+
+	current_submenu = submenu_name
+
+	# Check if entire submenu is disabled
+	var is_disabled = submenu_info.get("_disabled", false)
+
+	# Update each action button with submenu actions
+	for action_key in ["Q", "E", "R"]:
+		if not action_buttons.has(action_key):
+			continue
+
+		var button = action_buttons[action_key]
+		var action_info = submenu_info.get(action_key, {})
+		var label = action_info.get("label", "?")
+		var emoji = action_info.get("emoji", "")
+		var action = action_info.get("action", "")
+
+		# Update button text with submenu prefix
+		button.text = "[%s] %s %s" % [action_key, emoji, label]
+
+		# Handle disabled/locked states
+		if is_disabled or action == "":
+			button.disabled = true
+			button.modulate = disabled_color
+		else:
+			button.disabled = false
+			button.modulate = button_color
+
+	var submenu_label = submenu_info.get("name", submenu_name)
+	var dynamic_note = " (dynamic)" if submenu_info.get("dynamic", false) else ""
+	print("📂 ActionPreviewRow showing submenu: %s%s" % [submenu_label, dynamic_note])
 
 
 func set_action_enabled(action_key: String, enabled: bool) -> void:

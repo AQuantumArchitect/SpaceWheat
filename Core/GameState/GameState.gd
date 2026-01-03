@@ -21,6 +21,7 @@ extends Resource
 @export var scenario_id: String = "default"
 @export var save_timestamp: int = 0  # Unix timestamp
 @export var game_time: float = 0.0  # Total playtime
+@export var save_version: int = 1  # Phase 4: Save format version (increment when format changes)
 
 ## Grid Dimensions (for variable-sized farms)
 @export var grid_width: int = 6
@@ -39,6 +40,10 @@ extends Resource
 @export var tributes_paid: int = 0
 @export var tributes_failed: int = 0
 
+## Player Vocabulary - Emojis the player has discovered
+## This determines which factions are accessible and what quests they can receive
+@export var known_emojis: Array[String] = []
+
 ## Plots - Array of serialized plot states (from FarmGrid)
 @export var plots: Array[Dictionary] = []
 # Each plot dictionary contains:
@@ -48,6 +53,9 @@ extends Resource
 #   has_been_measured: bool - Quantum state has been collapsed
 #   theta_frozen: bool - Measurement locked the theta value (stops Hamiltonian drift)
 #   entangled_with: Array[Vector2i] - Positions of entangled plots (bidirectional)
+#   persistent_gates: Array[Dictionary] - Persistent gate infrastructure (survives harvest)
+#       Each gate: {type: String, active: bool, linked_plots: Array[Vector2i]}
+#       Types: "bell_phi_plus", "cluster", "measure_trigger"
 #
 # NOTE: Quantum state details (theta, phi, radius, energy, berry_phase) are NOT persisted.
 #       They regenerate when plots are planted from the biome environment.
@@ -66,27 +74,54 @@ extends Resource
 @export var active_contracts: Array[Dictionary] = []
 # Each contract: {title, description, reward, requirements, faction}
 
-## Time/Cycles - Celestial & Icon States (NEW QUANTUM ARCHITECTURE)
-@export var time_elapsed: float = 0.0  # Biome absolute time (for sun cycle)
-@export var sun_theta: float = 0.0  # Sun/moon qubit theta (0 to TAU)
-@export var sun_phi: float = 0.0    # Sun/moon qubit phi (not really used for sun, but for completeness)
-@export var wheat_icon_theta: float = PI/12  # Wheat icon theta (starts at 15° agrarian)
-@export var mushroom_icon_theta: float = 11*PI/12  # Mushroom icon theta (starts at 165° lunar)
+## LEGACY - Single Biome (DEPRECATED in Phase 2)
+## Kept for backward compatibility with old saves
+@export var time_elapsed: float = 0.0  # DEPRECATED: Use biome_states["BioticFlux"]["time_elapsed"]
+@export var sun_theta: float = 0.0  # DEPRECATED: Use biome_states["BioticFlux"]["sun_qubit"]["theta"]
+@export var sun_phi: float = 0.0    # DEPRECATED: Use biome_states["BioticFlux"]["sun_qubit"]["phi"]
+@export var wheat_icon_theta: float = PI/12  # DEPRECATED
+@export var mushroom_icon_theta: float = 11*PI/12  # DEPRECATED
+@export var biome_state: Dictionary = {}  # DEPRECATED: Use biome_states
 
-## Biome Quantum State Tree (mirrors Biome.gd architecture)
-## Preserves complete quantum evolution state including all emoji qubits
-@export var biome_state: Dictionary = {}
-# Structure:
+## Phase 2: Multi-Biome Architecture
+## Each biome has its own quantum state, independent evolution
+@export var biome_states: Dictionary = {}
+# Structure: biome_name → biome_state_dict
 # {
-#   "time_elapsed": float,
-#   "sun_qubit": {theta, phi, radius, energy},
-#   "wheat_icon": {theta, phi, radius, energy} - if has internal_qubit,
-#   "mushroom_icon": {theta, phi, radius, energy} - if has internal_qubit,
-#   "quantum_states": [
-#     {position: Vector2i, theta, phi, radius, energy},
-#     ...
-#   ]
+#   "BioticFlux": {
+#     "time_elapsed": float,
+#     "sun_qubit": {theta, phi, radius, energy},
+#     "wheat_icon": {theta, phi, radius, energy},
+#     "mushroom_icon": {theta, phi, radius, energy},
+#     "quantum_states": [{position, theta, phi, radius, energy, north_emoji, south_emoji}, ...],
+#
+#     # Phase 5.1: Gate infrastructure (entanglement gates persist across saves)
+#     "bell_gates": [[Vector2i, ...], ...],  # Array of position arrays (pairs, triplets, clusters)
+#     # Example: [[Vector2i(0,0), Vector2i(1,0)], [Vector2i(2,0), Vector2i(3,0), Vector2i(4,0)]]
+#     # First is a pair gate, second is a triplet gate
+#
+#     # Phase 3: Bath-first mode support
+#     "use_bath_mode": bool,  # True if biome uses QuantumBath
+#     "bath_state": {  # Only if use_bath_mode=true
+#       "emojis": [String, ...],  # Emoji basis
+#       "amplitudes": {"emoji": {real: float, imag: float}, ...},
+#       "bath_time": float
+#     },
+#     "active_projections": [  # Only if use_bath_mode=true
+#       {"position": Vector2i, "north": String, "south": String},
+#       ...
+#     ]
+#   },
+#   "Market": {...},
+#   "Forest": {...},
+#   "Kitchen": {...}
 # }
+
+## Phase 2: Plot-to-Biome Assignments
+## Maps each plot position to its assigned biome
+@export var plot_biome_assignments: Dictionary = {}
+# Structure: String(Vector2i) → biome_name
+# Example: "(0, 0)" → "Market", "(2, 0)" → "BioticFlux"
 
 ## Vocabulary Evolution State (NEW - PERSISTED)
 ## Complete state snapshot from VocabularyEvolution.serialize()
@@ -119,12 +154,18 @@ func _init():
 				"is_planted": false,
 				"has_been_measured": false,
 				"theta_frozen": false,
-				"entangled_with": []
+				"entangled_with": [],
+				"persistent_gates": []
 			})
 
 	# Initialize typed arrays properly (Godot 4 requirement)
 	completed_goals.clear()
 	active_contracts.clear()
+
+	# Initialize player vocabulary with starter emojis
+	# 🌾 (Wheat) and 🍄 (Mushroom) are the magical starter emojis!
+	# They appear on the axial spine, giving access to ~50% of factions
+	known_emojis = ["🌾", "🍄"]
 
 
 ## Convenience method to create state for a specific grid size
@@ -145,7 +186,8 @@ static func create_for_grid(width: int, height: int):
 				"is_planted": false,
 				"has_been_measured": false,
 				"theta_frozen": false,
-				"entangled_with": []
+				"entangled_with": [],
+				"persistent_gates": []
 			})
 
 	return state

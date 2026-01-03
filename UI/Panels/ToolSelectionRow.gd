@@ -4,15 +4,9 @@ extends HBoxContainer
 ## Physical keyboard layout UI - Bottom row with tool selection buttons [1-6]
 ## Each button shows the keyboard shortcut and highlights when selected
 
-# Tool definitions (synced from FarmInputHandler)
-const TOOL_ACTIONS = {
-	1: {"name": "Grower", "emoji": "🌱"},
-	2: {"name": "Quantum", "emoji": "⚛️"},
-	3: {"name": "Industry", "emoji": "🏭"},
-	4: {"name": "Energy", "emoji": "⚡"},
-	5: {"name": "Future 5", "emoji": "5️⃣"},
-	6: {"name": "Future 6", "emoji": "6️⃣"},
-}
+# Tool definitions from shared config (single source of truth)
+const ToolConfig = preload("res://Core/GameState/ToolConfig.gd")
+const TOOL_ACTIONS = ToolConfig.TOOL_ACTIONS
 
 # Button array
 var tool_buttons: Array[Button] = []

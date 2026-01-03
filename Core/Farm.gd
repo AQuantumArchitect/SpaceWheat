@@ -17,8 +17,15 @@ const GoalsSystem = preload("res://Core/GameMechanics/GoalsSystem.gd")
 const BioticFluxBiome = preload("res://Core/Environment/BioticFluxBiome.gd")
 const MarketBiome = preload("res://Core/Environment/MarketBiome.gd")
 const ForestBiome = preload("res://Core/Environment/ForestEcosystem_Biome.gd")
+const QuantumKitchen_Biome = preload("res://Core/Environment/QuantumKitchen_Biome.gd")
+const TestBiome = preload("res://Core/Environment/TestBiome.gd")
 const FarmUIState = preload("res://Core/GameState/FarmUIState.gd")
 const VocabularyEvolution = preload("res://Core/QuantumSubstrate/VocabularyEvolution.gd")
+
+# Icon Hamiltonians (simulation objects that affect quantum evolution)
+const BioticFluxIcon = preload("res://Core/Icons/BioticFluxIcon.gd")
+const ChaosIcon = preload("res://Core/Icons/ChaosIcon.gd")
+const ImperiumIcon = preload("res://Core/Icons/ImperiumIcon.gd")
 
 # Core simulation systems
 var grid: FarmGrid
@@ -27,9 +34,15 @@ var goals: GoalsSystem
 var biotic_flux_biome: BioticFluxBiome
 var market_biome: MarketBiome
 var forest_biome: ForestBiome
+var kitchen_biome: QuantumKitchen_Biome
 var vocabulary_evolution: VocabularyEvolution  # Vocabulary evolution system
 var ui_state: FarmUIState  # UI State abstraction layer
 var grid_config: GridConfig = null  # Single source of truth for grid layout
+
+# Icon Hamiltonians (simulation objects)
+var biotic_icon = null
+var chaos_icon = null
+var imperium_icon = null
 
 # Configuration
 
@@ -37,45 +50,57 @@ var grid_config: GridConfig = null  # Single source of truth for grid layout
 var biome_enabled: bool = false
 
 # Build configuration - all plantable/buildable types
+# Costs are in emoji-credits (1 quantum unit = 10 credits)
 const BUILD_CONFIGS = {
 	"wheat": {
-		"cost": {"wheat": 1},
+		"cost": {"🌾": 1},  # 1 wheat credit - agricultural economy
 		"type": "plant",
 		"plant_type": "wheat",
-		"north_emoji": "🌾",
-		"south_emoji": "👥"
+		"north_emoji": "🌾",  # Wheat (growth/harvest)
+		"south_emoji": "👥"   # Labor (work/cultivation)
 	},
 	"tomato": {
-		"cost": {"wheat": 1},
+		"cost": {"🌾": 1},  # 1 wheat credit to plant
 		"type": "plant",
 		"plant_type": "tomato",
-		"north_emoji": "🍅",
-		"south_emoji": "🍝"
+		"north_emoji": "🍅",  # Tomato (life/creation/conspiracy)
+		"south_emoji": "🌌"   # Cosmic Chaos (void/entropy) - COUNTER-AXIAL
 	},
 	"mushroom": {
-		"cost": {"wheat": 0, "labor": 1},
+		"cost": {"🍄": 10, "🍂": 10},  # 1 mushroom + 1 detritus (50/50 split) - fungal cycle
 		"type": "plant",
 		"plant_type": "mushroom",
-		"north_emoji": "🍄",
-		"south_emoji": "🍂"
+		"north_emoji": "🍄",  # Mushroom (fruiting body)
+		"south_emoji": "🍂"   # Detritus (decomposition)
 	},
 	"mill": {
-		"cost": {"wheat": 3},
+		"cost": {"🌾": 30},  # 3 wheat = 30 wheat-credits
 		"type": "build"
-		# Reduced from 10 → 3 wheat to match new scarcity economy
-		# Achievable in ~2 harvest cycles with base yields of 2 wheat
 	},
 	"market": {
-		"cost": {"wheat": 3},
+		"cost": {"🌾": 30},  # 3 wheat = 30 wheat-credits
 		"type": "build"
-		# Reduced from 10 → 3 wheat to match new scarcity economy
-		# Achievable in ~2 harvest cycles with base yields of 2 wheat
+	},
+	"kitchen": {
+		"cost": {"🌾": 30, "💨": 10},  # 3 wheat + 1 flour
+		"type": "build"
+	},
+	"energy_tap": {
+		"cost": {"🌾": 20},  # 2 wheat = 20 wheat-credits
+		"type": "build"
+	},
+	"forest_harvest": {
+		"cost": {},  # Free - gather natural detritus from forest
+		"type": "gather",
+		"yields": {"🍂": 5},  # Collect 5 detritus (leaf litter, deadwood)
+		"biome_required": "Forest"  # Only works in Forest biome
 	}
 }
 
 # Signals - emitted when game state changes (no UI callbacks needed)
 signal state_changed(state_data: Dictionary)
 signal action_result(action: String, success: bool, message: String)
+signal action_rejected(action: String, position: Vector2i, reason: String)  # For visual/audio feedback
 signal plot_planted(position: Vector2i, plant_type: String)
 signal plot_harvested(position: Vector2i, yield_data: Dictionary)
 signal plot_measured(position: Vector2i, outcome: String)
@@ -84,6 +109,9 @@ signal economy_changed(state: Dictionary)
 
 
 func _ready():
+	# Ensure IconRegistry exists (for test mode where autoloads don't exist)
+	_ensure_iconregistry()
+
 	# Create grid configuration (single source of truth for grid layout)
 	grid_config = _create_grid_config()
 	var validation = grid_config.validate()
@@ -103,25 +131,44 @@ func _ready():
 
 	# Instantiate BioticFlux Biome
 	biotic_flux_biome = BioticFluxBiome.new()
+	biotic_flux_biome.name = "BioticFlux"
 	add_child(biotic_flux_biome)
 
 	# Instantiate Market Biome
 	market_biome = MarketBiome.new()
+	market_biome.name = "Market"
 	add_child(market_biome)
 
 	# Instantiate Forest Ecosystem Biome
 	forest_biome = ForestBiome.new()
+	forest_biome.name = "Forest"
 	add_child(forest_biome)
 
-	# All three biomes successfully instantiated
+	# Instantiate Kitchen Biome
+	kitchen_biome = QuantumKitchen_Biome.new()
+	kitchen_biome.name = "Kitchen"
+	add_child(kitchen_biome)
+
+	# All four biomes successfully instantiated
 	biome_enabled = true
+
+	# Create Icons (simulation objects that affect quantum evolution)
+	# These are owned by Farm (simulation) not UI
+	biotic_icon = BioticFluxIcon.new()
+	add_child(biotic_icon)
+
+	chaos_icon = ChaosIcon.new()
+	add_child(chaos_icon)
+
+	imperium_icon = ImperiumIcon.new()
+	add_child(imperium_icon)
 
 	# Create grid AFTER biome (or fallback)
 	grid = FarmGrid.new()
 	grid.grid_width = grid_config.grid_width
 	grid.grid_height = grid_config.grid_height
 
-	# Wire all three biomes to the grid
+	# Wire all four biomes to the grid
 	if biome_enabled:
 		grid.register_biome("BioticFlux", biotic_flux_biome)
 		biotic_flux_biome.grid = grid
@@ -132,14 +179,18 @@ func _ready():
 		grid.register_biome("Forest", forest_biome)
 		forest_biome.grid = grid
 
+		grid.register_biome("Kitchen", kitchen_biome)
+		kitchen_biome.grid = grid
+
 	add_child(grid)
 
-	# Register all three biomes as metadata for UI systems (QuantumForceGraph visualization)
+	# Register all four biomes as metadata for UI systems (QuantumForceGraph visualization)
 	set_meta("grid", grid)
 	if biome_enabled:
 		set_meta("biotic_flux_biome", biotic_flux_biome)
 		set_meta("market_biome", market_biome)
 		set_meta("forest_biome", forest_biome)
+		set_meta("kitchen_biome", kitchen_biome)
 
 	# Configure plot-to-biome assignments
 	if biome_enabled and grid and grid.has_method("assign_plot_to_biome"):
@@ -159,9 +210,43 @@ func _ready():
 		grid.assign_plot_to_biome(Vector2i(2, 1), "Forest")
 		grid.assign_plot_to_biome(Vector2i(3, 1), "Forest")
 
+		# Kitchen biome: , .
+		grid.assign_plot_to_biome(Vector2i(4, 1), "Kitchen")
+		grid.assign_plot_to_biome(Vector2i(5, 1), "Kitchen")
+
+		# Create TestBiomes for any unassigned plots
+		# DISABLED: TestBiome has IconRegistry dependency issues in headless mode
+		# All plots are already assigned to main biomes anyway
+		#print("🧪 Checking for unassigned plots...")
+		#var test_biome_count = 0
+		#for y in range(grid.grid_height):
+		#	for x in range(grid.grid_width):
+		#		var pos = Vector2i(x, y)
+		#		if not grid.plot_biome_assignments.has(pos):
+		#			# Create isolated TestBiome for this plot
+		#			var test_biome = TestBiome.new(test_biome_count, pos)
+		#			test_biome.name = "TestBiome_%d" % test_biome_count
+		#			add_child(test_biome)
+		#
+		#			# Assign plot to this test biome
+		#			grid.assign_plot_to_biome(pos, test_biome.name)
+		#
+		#			# Register with grid's biomes dict
+		#			grid.biomes[test_biome.name] = test_biome
+		#
+		#			test_biome_count += 1
+		#			print("  🧪 Created TestBiome #%d for plot %s" % [test_biome_count - 1, pos])
+		#
+		#if test_biome_count > 0:
+		#	print("  ✅ Created %d TestBiomes for unassigned plots" % test_biome_count)
+
 	# Get persistent vocabulary evolution from GameStateManager
 	# The vocabulary persists across farms/biomes and travels with the player
-	var game_state_mgr = get_tree().root.get_child(0) if get_tree().root.get_child_count() > 0 else null
+	# Safe access for headless mode where get_tree() may return null
+	var tree = get_tree()
+	var game_state_mgr = null
+	if tree and tree.root and tree.root.get_child_count() > 0:
+		game_state_mgr = tree.root.get_child(0)
 	if game_state_mgr and game_state_mgr.has_method("get_vocabulary_evolution"):
 		vocabulary_evolution = game_state_mgr.get_vocabulary_evolution()
 	else:
@@ -181,27 +266,131 @@ func _ready():
 	# Create UI State abstraction layer (Phase 2 integration)
 	ui_state = FarmUIState.new()
 
-	# Connect economy signals to both state_changed AND ui_state
-	economy.wheat_changed.connect(_on_economy_changed)
-	economy.wheat_changed.connect(_on_economy_changed_ui)
-	economy.credits_changed.connect(_on_economy_changed)  # Classical currency
-	economy.credits_changed.connect(_on_economy_changed_ui)  # Update UI
-	economy.flour_changed.connect(_on_economy_changed)
-	economy.flour_changed.connect(_on_economy_changed_ui)
-	economy.flower_changed.connect(_on_economy_changed)
-	economy.flower_changed.connect(_on_economy_changed_ui)
-	economy.labor_changed.connect(_on_economy_changed)
-	economy.labor_changed.connect(_on_economy_changed_ui)
+	# Connect economy signals to both state_changed AND ui_state (de-slopped)
+	var economy_signals = ["wheat_changed", "credits_changed", "flour_changed", "flower_changed", "labor_changed"]
+	for sig_name in economy_signals:
+		if economy.has_signal(sig_name):
+			economy.connect(sig_name, _on_economy_changed)
+			economy.connect(sig_name, _on_economy_changed_ui)
 
 	# Connect Farm's own measurement signal to trigger UIState update
-	if has_signal("plot_measured"):
-		plot_measured.connect(_on_plot_measured_ui)
+	plot_measured.connect(_on_plot_measured_ui)
 
 	# Connect goal signals
 	goals.goal_completed.connect(_on_goal_completed)
 
 	# Populate UIState with initial farm state
 	ui_state.refresh_all(self)
+
+
+## Called by BootManager in Stage 3A to finalize setup before simulation starts
+func finalize_setup() -> void:
+	"""Finalize farm setup after all basic initialization.
+
+	Called by BootManager.boot() after biomes are verified to be initialized.
+	This allows for any post-setup operations needed before gameplay starts.
+	"""
+	# Verify all biomes have their baths initialized
+	if biome_enabled:
+		assert(biotic_flux_biome.bath != null, "BioticFlux biome has null bath!")
+		assert(market_biome.bath != null, "Market biome has null bath!")
+		assert(forest_biome.bath != null, "Forest biome has null bath!")
+		assert(kitchen_biome.bath != null, "Kitchen biome has null bath!")
+
+	print("  ✓ Farm setup finalized")
+
+
+## Called by BootManager in Stage 3D to enable simulation processing
+func enable_simulation() -> void:
+	"""Enable the farm simulation to start processing quantum evolution.
+
+	Called by BootManager.boot() after UI is initialized.
+	This enables _process() to evolve quantum states in biomes.
+	"""
+	set_process(true)
+
+	# Enable biome processing
+	if biome_enabled:
+		if biotic_flux_biome:
+			biotic_flux_biome.set_process(true)
+		if market_biome:
+			market_biome.set_process(true)
+		if forest_biome:
+			forest_biome.set_process(true)
+		if kitchen_biome:
+			kitchen_biome.set_process(true)
+		print("  ✓ All biome processing enabled")
+
+	print("  ✓ Farm simulation process enabled")
+
+
+func _process(delta: float):
+	"""Handle passive effects like mushroom composting"""
+	_process_mushroom_composting(delta)
+
+
+func _process_mushroom_composting(delta: float):
+	"""Passive composting: converts detritus → mushrooms based on planted mushroom count
+
+	Composting rate scales with number of planted mushrooms
+	Ratio: 2 detritus → 1 mushroom
+	"""
+	if not economy or not grid:
+		return
+
+	# Count planted mushrooms to determine composting power
+	var mushroom_count = 0
+	for y in range(grid.grid_height):
+		for x in range(grid.grid_width):
+			var plot = grid.get_plot(Vector2i(x, y))
+			if plot and plot.is_planted and plot.plot_type == FarmPlot.PlotType.MUSHROOM:
+				mushroom_count += 1
+
+	if mushroom_count == 0:
+		return  # No composting without mushrooms
+
+	# Only compost if we have detritus
+	var detritus_amount = economy.get_resource("🍂")
+	if detritus_amount <= 0:
+		return
+
+	# Composting parameters
+	const COMPOSTING_RATE = 1.0  # 1 detritus per second per mushroom
+	const COMPOSTING_RATIO = 0.5  # 2 detritus → 1 mushroom
+
+	# Calculate composting power (scales with mushroom count)
+	var activation = min(1.0, float(mushroom_count) / 4.0)  # Full power at 4 mushrooms
+	var detritus_per_frame = COMPOSTING_RATE * activation * delta
+
+	# Accumulate fractional detritus
+	if not has_meta("composting_accumulator"):
+		set_meta("composting_accumulator", 0.0)
+
+	var accumulator = get_meta("composting_accumulator") + detritus_per_frame
+
+	# Only convert when we've accumulated at least 2 detritus (makes 1 mushroom)
+	if accumulator < 2.0:
+		set_meta("composting_accumulator", accumulator)
+		return
+
+	# Convert accumulated detritus → mushrooms at 2:1 ratio
+	var detritus_to_convert = int(accumulator)
+	var mushrooms_produced = int(detritus_to_convert * COMPOSTING_RATIO)
+
+	if mushrooms_produced > 0:
+		var detritus_consumed = mushrooms_produced * 2  # 2 detritus per mushroom
+
+		# Perform the conversion
+		if economy.remove_resource("🍂", detritus_consumed, "composting"):
+			economy.add_resource("🍄", mushrooms_produced, "composting")
+			# Reset accumulator, keeping remainder
+			set_meta("composting_accumulator", accumulator - detritus_consumed)
+
+			if OS.get_environment("VERBOSE_LOGGING") == "1" or OS.get_environment("VERBOSE_ECONOMY") == "1":
+				print("🍄 Composting: %d 🍂 → %d 🍄 (%.1f%% activation, %d mushrooms planted)" % [detritus_consumed, mushrooms_produced, activation * 100, mushroom_count])
+		else:
+			# Conversion failed, keep accumulator for next frame
+			set_meta("composting_accumulator", accumulator)
 
 
 ## GRID CONFIGURATION (Phase 2)
@@ -215,92 +404,93 @@ func _create_grid_config() -> GridConfig:
 	# Create keyboard layout configuration
 	var keyboard = KeyboardLayoutConfig.new()
 
-	# Row 0: Straightforward logical order TYUIOP
+	# Row 0: TYUIOP → left-to-right grid positions (0,0) through (5,0)
 	var row0_keys = ["t", "y", "u", "i", "o", "p"]
 	for i in range(6):
 		var pos = Vector2i(i, 0)
 		keyboard.action_to_position["select_plot_" + row0_keys[i]] = pos
 		keyboard.position_to_label[pos] = row0_keys[i].to_upper()
 
-	# Row 1: Straightforward logical order 7890
+	# Row 1: 7890-= → left-to-right grid positions (0,1) through (5,1)
 	var row1_keys = ["7", "8", "9", "0"]
 	for i in range(4):
 		var pos = Vector2i(i, 1)
 		keyboard.action_to_position["select_plot_" + row1_keys[i]] = pos
 		keyboard.position_to_label[pos] = row1_keys[i]
 
-	# CRITICAL FIX: Override keyboard mappings to match ACTUAL plot positions
-	# The sequential setup above doesn't match the parametric plot positions defined below
-	# Market (TY): positions are reversed - T at (1,0), Y at (0,0)
-	keyboard.action_to_position["select_plot_t"] = Vector2i(1, 0)
-	keyboard.action_to_position["select_plot_y"] = Vector2i(0, 0)
+	# Kitchen keys: , and .
+	var kitchen_keys = [",", "."]
+	for i in range(2):
+		var pos = Vector2i(4 + i, 1)
+		keyboard.action_to_position["select_plot_" + kitchen_keys[i]] = pos
+		keyboard.position_to_label[pos] = kitchen_keys[i]
 
-	# BioticFlux (UIOP): positions follow parametric order - U at (5,0), I at (3,0), O at (2,0), P at (4,0)
-	keyboard.action_to_position["select_plot_u"] = Vector2i(5, 0)
-	keyboard.action_to_position["select_plot_i"] = Vector2i(3, 0)
-	keyboard.action_to_position["select_plot_o"] = Vector2i(2, 0)
-	keyboard.action_to_position["select_plot_p"] = Vector2i(4, 0)
-
-	# Forest (7890): positions follow parametric order - 7 at (3,1), 8 at (1,1), 9 at (0,1), 0 at (2,1)
-	keyboard.action_to_position["select_plot_7"] = Vector2i(3, 1)
-	keyboard.action_to_position["select_plot_8"] = Vector2i(1, 1)
-	keyboard.action_to_position["select_plot_9"] = Vector2i(0, 1)
-	keyboard.action_to_position["select_plot_0"] = Vector2i(2, 1)
+	# NOTE: Removed confusing parametric position overrides
+	# Keyboard now matches grid in simple left-to-right order:
+	#   Row 0: T=0, Y=1, U=2, I=3, O=4, P=5
+	#   Row 1: 7=0, 8=1, 9=2, 0=3, -=4, ==5
 
 	config.keyboard_layout = keyboard
 
-	# Create plot configurations for Row 0 (all active)
-	# Grid positions are REVERSED within each biome to compensate for parametric positioning
-	# Market (TY) positions: (1,0), (0,0) instead of (0,0), (1,0) → displays as "TY" not "YT"
-	# BioticFlux (UIOP) positions: (5,0), (4,0), (3,0), (2,0) → displays as "UIOP" not "PIUO"
+	# =========================================================================
+	# PLOT CONFIGURATIONS - Simple logical positions
+	# Biomes handle their own visual arrangement
+	# =========================================================================
 
-	# Market (TY) - reversed positions
+	# Market (TY) - positions (0,0), (1,0)
 	for i in range(2):
 		var plot = PlotConfig.new()
-		plot.position = Vector2i(1 - i, 0)  # (1,0), (0,0)
+		plot.position = Vector2i(i, 0)
 		plot.is_active = true
-		plot.keyboard_label = row0_keys[i].to_upper()
+		plot.keyboard_label = row0_keys[i].to_upper()  # T, Y
 		plot.input_action = "select_plot_" + row0_keys[i]
 		plot.biome_name = "Market"
 		config.plots.append(plot)
 
-	# BioticFlux (UIOP) - parametric visual order compensation
-	var biome_flux_positions = [Vector2i(5, 0), Vector2i(3, 0), Vector2i(2, 0), Vector2i(4, 0)]
+	# BioticFlux (UIOP) - positions (2,0), (3,0), (4,0), (5,0)
 	for i in range(4):
 		var plot = PlotConfig.new()
-		plot.position = biome_flux_positions[i]
+		plot.position = Vector2i(2 + i, 0)
 		plot.is_active = true
-		plot.keyboard_label = row0_keys[2 + i].to_upper()
+		plot.keyboard_label = row0_keys[2 + i].to_upper()  # U, I, O, P
 		plot.input_action = "select_plot_" + row0_keys[2 + i]
 		plot.biome_name = "BioticFlux"
 		config.plots.append(plot)
 
-	# Create plot configurations for Row 1 (first 4 active, last 2 inactive)
-	# Forest (7890) - parametric visual order compensation
-	var forest_positions = [Vector2i(3, 1), Vector2i(1, 1), Vector2i(0, 1), Vector2i(2, 1)]
+	# Forest (7890) - positions (0,1), (1,1), (2,1), (3,1)
 	for i in range(4):
 		var plot = PlotConfig.new()
-		plot.position = forest_positions[i]
+		plot.position = Vector2i(i, 1)
 		plot.is_active = true
-		plot.keyboard_label = row1_keys[i]
+		plot.keyboard_label = row1_keys[i]  # 7, 8, 9, 0
 		plot.input_action = "select_plot_" + row1_keys[i]
 		plot.biome_name = "Forest"
 		config.plots.append(plot)
 
-	# Last 2 plots in Row 1 are inactive (deactivated spacers)
-	for i in range(4, 6):
+	# Kitchen (positions 4,1 and 5,1) - using keys ',' and '.'
+	# Reusing kitchen_keys declared above
+	for i in range(2):
 		var plot = PlotConfig.new()
-		plot.position = Vector2i(i, 1)
-		plot.is_active = false
+		plot.position = Vector2i(4 + i, 1)
+		plot.is_active = true  # Changed from false
+		plot.keyboard_label = kitchen_keys[i]
+		plot.input_action = "select_plot_" + kitchen_keys[i]
+		plot.biome_name = "Kitchen"
 		config.plots.append(plot)
 
 	# Set up biome assignments
-	for i in range(2):
-		config.biome_assignments[Vector2i(i, 0)] = "Market"
-	for i in range(2, 6):
-		config.biome_assignments[Vector2i(i, 0)] = "BioticFlux"
-	for i in range(4):
-		config.biome_assignments[Vector2i(i, 1)] = "Forest"
+	config.biome_assignments[Vector2i(0, 0)] = "Market"
+	config.biome_assignments[Vector2i(1, 0)] = "Market"
+	config.biome_assignments[Vector2i(2, 0)] = "BioticFlux"
+	config.biome_assignments[Vector2i(3, 0)] = "BioticFlux"
+	config.biome_assignments[Vector2i(4, 0)] = "BioticFlux"
+	config.biome_assignments[Vector2i(5, 0)] = "BioticFlux"
+	config.biome_assignments[Vector2i(0, 1)] = "Forest"
+	config.biome_assignments[Vector2i(1, 1)] = "Forest"
+	config.biome_assignments[Vector2i(2, 1)] = "Forest"
+	config.biome_assignments[Vector2i(3, 1)] = "Forest"
+	config.biome_assignments[Vector2i(4, 1)] = "Kitchen"
+	config.biome_assignments[Vector2i(5, 1)] = "Kitchen"
 
 	return config
 
@@ -321,16 +511,33 @@ func build(pos: Vector2i, build_type: String) -> bool:
 	var config = BUILD_CONFIGS[build_type]
 	var cost = config["cost"]
 
-	# 1. PRE-VALIDATION: Check if we can build here
+	# 1. PRE-VALIDATION: Check if we can build here (skip for gather actions)
 	var plot = grid.get_plot(pos)
-	if not plot or plot.is_planted:
-		action_result.emit("build_%s" % build_type, false, "Plot already occupied!")
-		return false
+	if config["type"] != "gather":
+		if not plot or plot.is_planted:
+			var reason = "Plot already occupied!"
+			action_result.emit("build_%s" % build_type, false, reason)
+			action_rejected.emit("build_%s" % build_type, pos, reason)
+			return false
+
+	# 1b. BIOME VALIDATION: Check if gather action is in correct biome
+	if config.has("biome_required"):
+		# Get biome name from plot_biome_assignments (in grid)
+		var biome_name = ""
+		if grid and grid.plot_biome_assignments.has(pos):
+			biome_name = grid.plot_biome_assignments[pos]
+		if biome_name != config["biome_required"]:
+			var reason = "Must be in %s biome!" % config["biome_required"]
+			action_result.emit("build_%s" % build_type, false, reason)
+			action_rejected.emit("build_%s" % build_type, pos, reason)
+			return false
 
 	# 2. ECONOMY CHECK: Can we afford it?
 	if not _can_afford_cost(cost):
 		var missing = _get_missing_resources(cost)
-		action_result.emit("build_%s" % build_type, false, "Cannot afford! Missing: %s" % missing)
+		var reason = "Cannot afford! Missing: %s" % missing
+		action_result.emit("build_%s" % build_type, false, reason)
+		action_rejected.emit("build_%s" % build_type, pos, reason)
 		return false
 
 	# 3. DEDUCT COST
@@ -340,21 +547,10 @@ func build(pos: Vector2i, build_type: String) -> bool:
 	var success = false
 	match config["type"]:
 		"plant":
-			# Request quantum state from Biome (or create local if no biome)
-			var qubit = null
-			if biome_enabled and grid:
-				# Get the biome assigned to this plot
-				var plot_biome = grid.get_biome_for_plot(pos)
-				if plot_biome:
-					qubit = plot_biome.create_quantum_state(pos, config["north_emoji"], config["south_emoji"])
-
-			# Fallback: if no biome, create local quantum state
-			if not qubit:
-				const DualEmojiQubit = preload("res://Core/QuantumSubstrate/DualEmojiQubit.gd")
-				qubit = DualEmojiQubit.new(config["north_emoji"], config["south_emoji"], PI/2)
-				qubit.energy = 0.3  # Stays at minimum without biome evolution
-
-			success = grid.plant(pos, config["plant_type"], qubit)
+			# Bath-first mode: Don't pre-create qubit, let grid.plant() handle it
+			# This ensures BasePlot.plant() uses the new API path which calls
+			# biome.create_projection() and properly registers in active_projections
+			success = grid.plant(pos, config["plant_type"])
 		"build":
 			# Route to specific building
 			match build_type:
@@ -362,16 +558,31 @@ func build(pos: Vector2i, build_type: String) -> bool:
 					success = grid.place_mill(pos)
 				"market":
 					success = grid.place_market(pos)
+				"kitchen":
+					success = grid.place_kitchen(pos)
+				"energy_tap":
+					# Energy tap requires target emoji - not supported in simple build() API
+					# Use grid.plant_energy_tap(pos, target_emoji) directly instead
+					print("⚠️  energy_tap requires target emoji - use grid.plant_energy_tap() instead")
+					success = false
+		"gather":
+			# Gather resources directly from environment
+			if config.has("yields"):
+				for emoji in config["yields"]:
+					var amount = config["yields"][emoji]
+					economy.add_resource(emoji, amount * 10, "gather_%s" % build_type)  # Convert to credits
+				success = true
 
 	if success:
+		print("🌱 Farm: Emitting plot_planted signal for %s at %s" % [build_type, pos])
 		plot_planted.emit(pos, build_type)
 		_emit_state_changed()
 		action_result.emit("build_%s" % build_type, true, "%s placed successfully!" % build_type.capitalize())
 		return true
 	else:
 		# Refund if operation failed, and clean up quantum state if created
-		if config["type"] == "plant" and biome_enabled and grid:
-			var plot_biome = grid.get_biome_for_plot(pos)
+		if config["type"] == "plant":
+			var plot_biome = _get_plot_biome(pos)
 			if plot_biome and plot_biome.has_method("clear_qubit"):
 				plot_biome.clear_qubit(pos)
 		_refund_resources(cost)
@@ -470,10 +681,11 @@ func harvest_plot(pos: Vector2i) -> Dictionary:
 		return {"success": false}
 
 	var plot = grid.get_plot(pos)
-	if not plot or not plot.is_planted or not plot.has_been_measured:
+	if not plot or not plot.is_planted:
 		action_result.emit("harvest", false, "Plot not ready to harvest")
 		return {"success": false}
 
+	# Note: has_been_measured check removed - BasePlot.harvest() handles auto-measure
 	var harvest_data = grid.harvest_wheat(pos)
 
 	if harvest_data.get("success", false):
@@ -568,6 +780,10 @@ func entangle_plots(pos1: Vector2i, pos2: Vector2i, bell_state: String = "phi_pl
 		plots_entangled.emit(pos1, pos2, bell_state)
 		_emit_state_changed()
 
+		# Track entanglement for achievements (Bug #9 fix)
+		if goals:
+			goals.record_entanglement()
+
 		var state_name = "same correlation (Φ+)" if bell_state == "phi_plus" else "opposite correlation (Ψ+)"
 		action_result.emit("entangle", true, "🔗 Entangled %s ↔ %s (%s)" % [pos1, pos2, state_name])
 		return true
@@ -576,22 +792,20 @@ func entangle_plots(pos1: Vector2i, pos2: Vector2i, bell_state: String = "phi_pl
 		return false
 
 
-## Batch Operation Methods (NEW - Multi-Select Support)
+## Batch Operation Methods (Multi-Select Support)
+## De-slopped: Common loop+result pattern extracted to _batch_operation()
 
-func batch_plant(positions: Array[Vector2i], plant_type: String) -> Dictionary:
-	"""Plant multiple plots with the given plant type
+func _batch_operation(positions: Array[Vector2i], operation_name: String, operation: Callable) -> Dictionary:
+	"""Execute an operation on multiple positions with unified result structure.
 
 	Args:
-		positions: Array of grid positions to plant
-		plant_type: "wheat", "tomato", or "mushroom"
+		positions: Array of grid positions to operate on
+		operation_name: Name for message (e.g., "Planted", "Measured")
+		operation: Callable that takes position and returns bool (success)
 
 	Returns: Dictionary with {success: bool, count: int, message: String}
 	"""
-	var result = {
-		"success": false,
-		"count": 0,
-		"message": ""
-	}
+	var result = {"success": false, "count": 0, "message": ""}
 
 	if positions.is_empty():
 		result["message"] = "No positions specified"
@@ -599,104 +813,51 @@ func batch_plant(positions: Array[Vector2i], plant_type: String) -> Dictionary:
 
 	var success_count = 0
 	for pos in positions:
-		if build(pos, plant_type):
+		if operation.call(pos):
 			success_count += 1
 
 	result["success"] = success_count > 0
 	result["count"] = success_count
-	result["message"] = "Planted %d/%d plots" % [success_count, positions.size()]
+	result["message"] = "%s %d/%d plots" % [operation_name, success_count, positions.size()]
 	return result
+
+
+func batch_plant(positions: Array[Vector2i], plant_type: String) -> Dictionary:
+	"""Plant multiple plots with the given plant type."""
+	return _batch_operation(positions, "Planted", func(pos): return build(pos, plant_type))
 
 
 func batch_measure(positions: Array[Vector2i]) -> Dictionary:
-	"""Measure quantum state of multiple plots
-
-	Args:
-		positions: Array of grid positions to measure
-
-	Returns: Dictionary with {success: bool, count: int}
-	"""
-	var result = {
-		"success": false,
-		"count": 0
-	}
-
-	if positions.is_empty():
-		return result
-
-	var success_count = 0
-	for pos in positions:
-		if measure_plot(pos):
-			success_count += 1
-
-	result["success"] = success_count > 0
-	result["count"] = success_count
-	return result
+	"""Measure quantum state of multiple plots."""
+	return _batch_operation(positions, "Measured", func(pos): return measure_plot(pos) != "")
 
 
 func batch_harvest(positions: Array[Vector2i]) -> Dictionary:
-	"""Harvest multiple plots (measure then harvest each)
+	"""Harvest multiple plots (measure then harvest each).
 
-	Args:
-		positions: Array of grid positions to harvest
-
-	Returns: Dictionary with {success: bool, count: int, total_yield: int}
+	Returns: Dictionary with {success, count, message, total_yield}
 	"""
-	var result = {
-		"success": false,
-		"count": 0,
-		"total_yield": 0
-	}
-
-	if positions.is_empty():
-		return result
-
-	var success_count = 0
 	var total_yield = 0
 
-	for pos in positions:
-		# Measure first if not already measured
+	# Custom operation that measures first, then harvests
+	var harvest_op = func(pos: Vector2i) -> bool:
 		var plot = grid.get_plot(pos)
 		if plot and plot.is_planted and not plot.has_been_measured:
 			measure_plot(pos)
-
-		# Then harvest
 		var harvest_result = harvest_plot(pos)
 		if harvest_result.get("success", false):
-			success_count += 1
 			total_yield += harvest_result.get("yield", 0)
+			return true
+		return false
 
-	result["success"] = success_count > 0
-	result["count"] = success_count
+	var result = _batch_operation(positions, "Harvested", harvest_op)
 	result["total_yield"] = total_yield
 	return result
 
 
 func batch_build(positions: Array[Vector2i], build_type: String) -> Dictionary:
-	"""Build structures (mill, market) on multiple plots
-
-	Args:
-		positions: Array of grid positions to build on
-		build_type: "mill" or "market"
-
-	Returns: Dictionary with {success: bool, count: int}
-	"""
-	var result = {
-		"success": false,
-		"count": 0
-	}
-
-	if positions.is_empty():
-		return result
-
-	var success_count = 0
-	for pos in positions:
-		if build(pos, build_type):
-			success_count += 1
-
-	result["success"] = success_count > 0
-	result["count"] = success_count
-	return result
+	"""Build structures (mill, market, kitchen) on multiple plots."""
+	return _batch_operation(positions, "Built", func(pos): return build(pos, build_type))
 
 
 func get_plot(position: Vector2i):
@@ -713,10 +874,13 @@ func get_state() -> Dictionary:
 
 	var state = {
 		"economy": {
-			"wheat": economy.wheat_inventory,
-			"flour": economy.flour_inventory,
-			"flower": economy.flower_inventory,
-			"labor": economy.labor_inventory,
+			"wheat": economy.get_resource("🌾"),
+			"flour": economy.get_resource("💨"),
+			"flower": economy.get_resource("🌻"),
+			"labor": economy.get_resource("👥"),
+			"mushroom": economy.get_resource("🍄"),
+			"detritus": economy.get_resource("🍂"),
+			"credits": economy.get_resource("💰"),
 		},
 		"plots": []
 	}
@@ -877,104 +1041,91 @@ func capture_game_state(state: Resource) -> Resource:
 	return state
 
 
+## Private Helpers - Biome Access
+
+func _get_plot_biome(pos: Vector2i):
+	"""Get biome for plot position. Returns null if biomes disabled or not found."""
+	if biome_enabled and grid:
+		return grid.get_biome_for_plot(pos)
+	return null
+
+
+func _ensure_iconregistry() -> void:
+	"""Ensure IconRegistry exists (for test mode where autoloads don't exist)
+
+	In normal gameplay: IconRegistry is autoload at /root/IconRegistry
+	In test mode (extends SceneTree): Autoloads don't exist, create fallback
+	"""
+	var icon_registry = get_node_or_null("/root/IconRegistry")
+	if icon_registry:
+		# Already exists (normal game mode)
+		return
+
+	# Test mode: Create IconRegistry
+	var IconRegistryScript = load("res://Core/QuantumSubstrate/IconRegistry.gd")
+	if not IconRegistryScript:
+		push_error("Failed to load IconRegistry.gd!")
+		return
+
+	icon_registry = IconRegistryScript.new()
+	icon_registry.name = "IconRegistry"
+	# Use get_tree() if available (normal mode), otherwise use SceneTree's root
+	var tree_root = get_tree().root if has_method("get_tree") else get_node("/root")
+	tree_root.add_child(icon_registry)
+	icon_registry._ready()  # Trigger initialization
+	print("✓ Test mode: IconRegistry initialized with %d icons" % icon_registry.icons.size())
+
+
 ## Private Helpers - Resource & Economy Management
+## Now uses FarmEconomy's unified emoji-credits API
 
 func _can_afford_cost(cost: Dictionary) -> bool:
-	"""Check if player can afford given resource cost"""
-	for resource in cost.keys():
-		var amount = cost[resource]
-		if amount <= 0:
-			continue
-
-		match resource:
-			"wheat":
-				if not economy.can_afford_wheat(amount):
-					return false
-			"labor":
-				if economy.labor_inventory < amount:
-					return false
-			"flour":
-				if economy.flour_inventory < amount:
-					return false
-
-	return true
+	"""Check if player can afford emoji-credits cost."""
+	return economy.can_afford_cost(cost)
 
 
 func _get_missing_resources(cost: Dictionary) -> String:
-	"""Get human-readable list of missing resources"""
+	"""Get human-readable list of missing resources."""
 	var missing = []
-
-	for resource in cost.keys():
-		var amount = cost[resource]
-		if amount <= 0:
-			continue
-
-		var have = 0
-		match resource:
-			"wheat":
-				have = economy.wheat_inventory
-			"labor":
-				have = economy.labor_inventory
-			"flour":
-				have = economy.flour_inventory
-
-		if have < amount:
-			missing.append("%d more %s" % [amount - have, resource])
-
+	for emoji in cost.keys():
+		var need = cost[emoji]
+		var have = economy.get_resource(emoji)
+		if have < need:
+			var shortfall = (need - have) / FarmEconomy.QUANTUM_TO_CREDITS
+			missing.append("%d more %s" % [shortfall, emoji])
 	return ", ".join(missing)
 
 
 func _spend_resources(cost: Dictionary, action: String) -> void:
-	"""Deduct resources from economy"""
-	for resource in cost.keys():
-		var amount = cost[resource]
-		if amount <= 0:
-			continue
-
-		match resource:
-			"wheat":
-				economy.spend_wheat(amount, action)
-			"labor":
-				economy.remove_labor(amount)
-			"flour":
-				economy.remove_flour(amount)
+	"""Deduct emoji-credits from economy."""
+	economy.spend_cost(cost, action)
 
 
 func _refund_resources(cost: Dictionary) -> void:
-	"""Return resources to player (failed operation)"""
-	for resource in cost.keys():
-		var amount = cost[resource]
-		if amount <= 0:
-			continue
-
-		match resource:
-			"wheat":
-				economy.add_wheat(amount)
-			"labor":
-				economy.add_labor(amount)
-			"flour":
-				economy.add_flour(amount)
+	"""Return emoji-credits to player (failed operation)."""
+	for emoji in cost.keys():
+		economy.add_resource(emoji, cost[emoji], "refund")
 
 
 func _process_harvest_outcome(harvest_data: Dictionary) -> void:
-	"""Route harvested resources to economy based on outcome"""
-	var outcome = harvest_data.get("outcome", "")
-	var yield_amount = harvest_data.get("yield", 1)
+	"""Route harvested resources to economy - generic emoji routing"""
+	var outcome_emoji = harvest_data.get("outcome", "")
+	var quantum_energy = harvest_data.get("energy", 0.0)
 
-	match outcome:
-		"wheat":
-			economy.earn_wheat(yield_amount, "wheat_harvest")
-			goals.record_harvest(yield_amount)
-		"labor":
-			economy.add_labor(yield_amount)
-		"mushroom":
-			economy.add_mushroom(yield_amount)
-		"detritus":
-			economy.add_detritus(yield_amount)
-		"tomato":
-			economy.earn_wheat(yield_amount * 2, "tomato_harvest")
-		"sauce":
-			economy.earn_wheat(yield_amount * 3, "sauce_harvest")
+	# Fallback: if energy not provided, use yield * 0.1 (inverse of QUANTUM_TO_CREDITS)
+	if quantum_energy == 0.0:
+		var yield_amount = harvest_data.get("yield", 1)
+		quantum_energy = float(yield_amount) / float(FarmEconomy.QUANTUM_TO_CREDITS)
+
+	if outcome_emoji.is_empty():
+		return
+
+	# Generic routing: any emoji → its credits
+	var credits_earned = economy.receive_harvest(outcome_emoji, quantum_energy, "harvest")
+
+	# Goal tracking for wheat (track credits earned, not units)
+	if outcome_emoji == "🌾":
+		goals.record_harvest(credits_earned)
 
 
 func _emit_state_changed() -> void:

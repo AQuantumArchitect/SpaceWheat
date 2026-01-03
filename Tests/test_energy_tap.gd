@@ -11,7 +11,7 @@ extends SceneTree
 
 const WheatPlot = preload("res://Core/GameMechanics/WheatPlot.gd")
 const FarmGrid = preload("res://Core/GameMechanics/FarmGrid.gd")
-const Biome = preload("res://Core/Environment/Biome.gd")
+const BioticFluxBiome = preload("res://Core/Environment/BioticFluxBiome.gd")
 const DualEmojiQubit = preload("res://Core/QuantumSubstrate/DualEmojiQubit.gd")
 
 var farm: FarmGrid

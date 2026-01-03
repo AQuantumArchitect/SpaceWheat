@@ -32,6 +32,7 @@ var selection_border: ColorRect
 var territory_border: ColorRect  # Shows Icon control
 var number_label: Label
 var checkbox_label: Label  # NEW: Multi-select checkbox (☐/☑)
+var purity_label: Label  # Purity indicator Tr(ρ²) - color-coded quality metric
 var center_state_indicator: Control  # Small indicator showing quantum state at plot center
 var entanglement_indicator: Control  # Visual ring showing entanglement status
 var entanglement_counter: Label  # Shows number of entangled connections
@@ -79,7 +80,7 @@ func _ready():
 	# Now set size properties (this triggers NOTIFICATION_RESIZED, which calls _layout_elements)
 	custom_minimum_size = Vector2(80, 80)
 	size = Vector2(80, 80)  # Explicit size for input detection
-	mouse_filter = Control.MOUSE_FILTER_STOP  # Explicitly enable mouse input
+	mouse_filter = Control.MOUSE_FILTER_IGNORE  # Let clicks pass through to quantum bubbles below
 
 	# Explicitly layout elements since NOTIFICATION_RESIZED may not fire in all cases
 	_layout_elements()
@@ -172,6 +173,17 @@ func _create_ui_elements():
 	checkbox_label.z_index = 5  # Above all other elements for visibility
 	add_child(checkbox_label)
 
+	# Purity indicator (shows Tr(ρ²) in bottom-left corner)
+	purity_label = Label.new()
+	purity_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	purity_label.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
+	purity_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	purity_label.add_theme_font_size_override("font_size", 12)
+	purity_label.text = ""  # Hidden by default
+	purity_label.z_index = 4  # Above most elements
+	purity_label.set_anchors_preset(Control.PRESET_FULL_RECT)
+	add_child(purity_label)
+
 	# Center state indicator (shows quantum state + biome effects at plot center)
 	# Use a ColorRect as the visual indicator - small circle-like square in center
 	center_state_indicator = ColorRect.new()
@@ -216,27 +228,9 @@ func _process(delta):
 	queue_redraw()  # Continuously redraw PCB styling and dynamic effects
 
 
-func _gui_input(event):
-	print("🎯 PlotTile._gui_input() CALLED at grid_pos %s, event type: %s" % [grid_position, event.get_class()])
-	if event is InputEventMouseButton:
-		print("🎯   Event is MouseButton, button: %s, pressed: %s" % [event.button_index, event.pressed])
-		if event.button_index == MOUSE_BUTTON_LEFT:
-			if event.pressed:
-				print("🖱️ PlotTile PRESSED at %s" % grid_position)
-				press_timer = 0.0
-				is_pressing = true
-			else:
-				print("🖱️ PlotTile RELEASED at %s (timer: %.2fs)" % [grid_position, press_timer])
-				is_pressing = false
-				if press_timer < LONG_PRESS_TIME:
-					# Short click
-					print("🖱️ PlotTile EMITTING clicked signal at %s" % grid_position)
-					clicked.emit(grid_position)
-				press_timer = 0.0
-
-	elif event is InputEventMouseMotion:
-		# Check hover state for visual feedback
-		pass
+## REMOVED: _gui_input() was dead code - PlotTile has mouse_filter=IGNORE
+## Input is now handled by PlotGridDisplay._input() for plots
+## and QuantumForceGraph._unhandled_input() for bubbles
 
 
 func _update_visuals():
@@ -256,6 +250,9 @@ func _update_visuals():
 
 	# Update entanglement visualization
 	_update_entanglement_display()
+
+	# Update purity indicator
+	_update_purity_display()
 
 	# Update selection border
 	selection_border.visible = is_selected
@@ -599,6 +596,42 @@ func _update_entanglement_display():
 
 	# Trigger redraw of entanglement indicator ring
 	entanglement_indicator.queue_redraw()
+
+
+func _update_purity_display():
+	"""Update purity indicator showing Tr(ρ²) quality metric"""
+	if plot_ui_data == null or not plot_ui_data.is_planted:
+		# Hide purity for empty plots
+		purity_label.text = ""
+		return
+
+	# Get purity from plot_ui_data if available
+	var purity = 1.0  # Default to pure state
+	if plot_ui_data.has("purity"):
+		purity = plot_ui_data.purity
+	elif plot_ui_data.has("quantum_state") and plot_ui_data.quantum_state:
+		# Try to get purity from quantum state's bath
+		if plot_ui_data.quantum_state.has("bath") and plot_ui_data.quantum_state.bath:
+			purity = plot_ui_data.quantum_state.bath.get_purity()
+
+	# Format purity as percentage
+	var purity_percent = int(purity * 100)
+
+	# Color-code based on purity level:
+	# - High purity (>80%) → Green (excellent yield)
+	# - Medium purity (50-80%) → Yellow (decent yield)
+	# - Low purity (<50%) → Red (poor yield)
+	var purity_color: Color
+	if purity > 0.8:
+		purity_color = Color(0.0, 1.0, 0.0)  # Green
+	elif purity > 0.5:
+		purity_color = Color(1.0, 1.0, 0.0)  # Yellow
+	else:
+		purity_color = Color(1.0, 0.0, 0.0)  # Red
+
+	# Set label text and color
+	purity_label.text = "Ψ%d%%" % purity_percent  # Ψ symbol for quantum purity
+	purity_label.add_theme_color_override("font_color", purity_color)
 
 
 func _draw_entanglement_ring_inline(rect: Rect2, entangled_count: int):

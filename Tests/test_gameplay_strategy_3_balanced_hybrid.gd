@@ -10,7 +10,7 @@ extends SceneTree
 
 const FarmGrid = preload("res://Core/GameMechanics/FarmGrid.gd")
 const FarmEconomy = preload("res://Core/GameMechanics/FarmEconomy.gd")
-const Biome = preload("res://Core/Environment/Biome.gd")
+const BioticFluxBiome = preload("res://Core/Environment/BioticFluxBiome.gd")
 const MarketBiome = preload("res://Core/Environment/MarketBiome.gd")
 const WheatPlot = preload("res://Core/GameMechanics/WheatPlot.gd")
 

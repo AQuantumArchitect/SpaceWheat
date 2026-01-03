@@ -26,10 +26,10 @@ var get_tile_callback: Callable
 signal action_feedback(message: String, success: bool)
 signal visual_effect_requested(effect_type: String, position: Vector2, data: Dictionary)
 
-# Build configuration - defines all plantable and buildable types
-const BUILD_CONFIGS = {
+# Build configuration - use Farm.BUILD_CONFIGS as source of truth for costs
+# This table only adds UI-specific metadata (colors, messages)
+const BUILD_UI_CONFIGS = {
 	"wheat": {
-		"cost": {"credits": 5},
 		"farm_method": "plant_wheat",
 		"visual_color": Color(0.4, 0.9, 0.4),
 		"success_message": "Planted wheat!",
@@ -37,7 +37,6 @@ const BUILD_CONFIGS = {
 		"updates_quantum_graph": true
 	},
 	"tomato": {
-		"cost": {"credits": 5},
 		"farm_method": "plant_tomato",
 		"visual_color": Color(0.9, 0.2, 0.2),
 		"success_message": "Planted tomato!",
@@ -45,30 +44,45 @@ const BUILD_CONFIGS = {
 		"updates_quantum_graph": false
 	},
 	"mushroom": {
-		"cost": {"credits": 0, "labor": 1},
 		"farm_method": "plant_mushroom",
 		"visual_color": Color(0.6, 0.3, 0.8),
 		"success_message": "Planted mushroom!",
-		"failure_message": "Cannot plant mushroom here (need 1 👥)",
+		"failure_message": "Cannot plant mushroom here",
 		"updates_quantum_graph": false
 	},
 	"mill": {
-		"cost": {"credits": 10},
 		"farm_method": "place_mill",
 		"visual_color": Color(0.8, 0.6, 0.4),
-		"success_message": "🏭 Mill placed! Converts wheat → flour",
-		"failure_message": "Plot must be empty to place mill!",
+		"success_message": "🏭 Mill placed!",
+		"failure_message": "Plot must be empty!",
 		"updates_quantum_graph": false
 	},
 	"market": {
-		"cost": {"credits": 10},
 		"farm_method": "place_market",
 		"visual_color": Color(1.0, 0.85, 0.2),
-		"success_message": "💰 Market placed! Sells flour → credits",
-		"failure_message": "Plot must be empty to place market!",
+		"success_message": "💰 Market placed!",
+		"failure_message": "Plot must be empty!",
+		"updates_quantum_graph": false
+	},
+	"kitchen": {
+		"farm_method": "place_kitchen",
+		"visual_color": Color(0.9, 0.5, 0.3),
+		"success_message": "🍳 Kitchen placed!",
+		"failure_message": "Plot must be empty!",
+		"updates_quantum_graph": false
+	},
+	"energy_tap": {
+		"farm_method": "place_energy_tap",
+		"visual_color": Color(0.3, 0.8, 0.9),
+		"success_message": "🚰 Energy tap placed!",
+		"failure_message": "Plot must be empty!",
 		"updates_quantum_graph": false
 	}
 }
+
+# Import cost configs from Farm (canonical source)
+const Farm = preload("res://Core/Farm.gd")
+const FarmEconomy = preload("res://Core/GameMechanics/FarmEconomy.gd")
 
 
 func _ready():
@@ -82,70 +96,44 @@ func build(pos: Vector2i, build_type: String) -> bool:
 
 	Args:
 		pos: Grid position to build at
-		build_type: Type identifier ("wheat", "tomato", "mushroom", "mill", "market")
+		build_type: Type identifier ("wheat", "tomato", "mushroom", "mill", "market", etc.)
 
 	Returns:
 		bool: True if successful, False if failed
 	"""
-	# 1. Validate build type exists
-	if not BUILD_CONFIGS.has(build_type):
+	# 1. Validate build type exists in both configs
+	if not Farm.BUILD_CONFIGS.has(build_type):
 		push_error("Unknown build type: %s" % build_type)
 		return false
 
-	var config = BUILD_CONFIGS[build_type]
+	if not BUILD_UI_CONFIGS.has(build_type):
+		push_error("Missing UI config for: %s" % build_type)
+		return false
+
+	var cost_config = Farm.BUILD_CONFIGS[build_type]
+	var ui_config = BUILD_UI_CONFIGS[build_type]
 
 	# 2. PRE-VALIDATION: Check if building is possible BEFORE spending money
 	var plot = farm_grid.get_plot(pos)
 	if plot == null or plot.is_planted:
-		action_feedback.emit(config["failure_message"], false)
+		action_feedback.emit(ui_config["failure_message"], false)
 		return false
 
-	# 3. ECONOMY CHECK: Only deduct costs if we passed validation
-	var costs = config["cost"]
+	# 3. ECONOMY CHECK: Use unified emoji-credits API
+	var costs = cost_config["cost"]  # e.g. {"🌾": 10} or {"👥": 10}
 
-	# Check if player can afford all required resources
-	for resource in costs.keys():
-		var amount = costs[resource]
-		if amount <= 0:
-			continue
+	if not economy.can_afford_cost(costs):
+		var missing = _format_missing_resources(costs)
+		action_feedback.emit("Not enough resources! Need: %s" % missing, false)
+		return false
 
-		match resource:
-			"credits":
-				if not economy.can_afford(amount):
-					action_feedback.emit("Not enough credits! (need %d 💰)" % amount, false)
-					return false
-			"labor":
-				if economy.labor_inventory < amount:
-					action_feedback.emit("Not enough labor! (need %d 👥)" % amount, false)
-					return false
-			"flour":
-				if economy.flour_inventory < amount:
-					action_feedback.emit("Not enough flour! (need %d 💨)" % amount, false)
-					return false
-			"wheat":
-				if economy.wheat_inventory < amount:
-					action_feedback.emit("Not enough wheat! (need %d 🌾)" % amount, false)
-					return false
-
-	# Deduct all resources (only if ALL affordability checks passed)
-	for resource in costs.keys():
-		var amount = costs[resource]
-		if amount <= 0:
-			continue
-
-		match resource:
-			"credits":
-				economy.spend_credits(amount, build_type)
-			"labor":
-				economy.remove_labor(amount)
-			"flour":
-				economy.remove_flour(amount)
-			"wheat":
-				economy.remove_wheat(amount)
+	# Spend emoji-credits
+	economy.spend_cost(costs, build_type)
 
 	# 4. FARM OPERATION: Call appropriate farm_grid method
 	var success = false
-	match config["farm_method"]:
+	var farm_method = ui_config["farm_method"]
+	match farm_method:
 		"plant_wheat":
 			success = farm_grid.plant_wheat(pos)
 		"plant_tomato":
@@ -156,24 +144,16 @@ func build(pos: Vector2i, build_type: String) -> bool:
 			success = farm_grid.place_mill(pos)
 		"place_market":
 			success = farm_grid.place_market(pos)
+		"place_kitchen":
+			success = farm_grid.place_kitchen(pos) if farm_grid.has_method("place_kitchen") else false
+		"place_energy_tap":
+			success = farm_grid.place_energy_tap(pos) if farm_grid.has_method("place_energy_tap") else false
 
-	# 5. Handle failure (shouldn't happen after validation, but safety check)
+	# 5. Handle failure - refund emoji-credits
 	if not success:
-		# Refund resources if we charged
-		for resource in costs.keys():
-			var amount = costs[resource]
-			if amount <= 0:
-				continue
-			match resource:
-				"credits":
-					economy.earn_credits(amount, "refund")
-				"labor":
-					economy.add_labor(amount)
-				"flour":
-					economy.add_flour(amount)
-				"wheat":
-					economy.add_wheat(amount)
-		action_feedback.emit(config["failure_message"], false)
+		for emoji in costs.keys():
+			economy.add_resource(emoji, costs[emoji], "refund")
+		action_feedback.emit(ui_config["failure_message"], false)
 		return false
 
 	# 6. POST-PROCESSING: Visual effects and feedback
@@ -181,19 +161,31 @@ func build(pos: Vector2i, build_type: String) -> bool:
 		var tile = get_tile_callback.call(pos)
 		if tile:
 			var effect_pos = tile.global_position + tile.size / 2
-			visual_effect_requested.emit("plant", effect_pos, {"color": config["visual_color"]})
+			visual_effect_requested.emit("plant", effect_pos, {"color": ui_config["visual_color"]})
 
 	# 7. Quantum graph update (only for wheat)
-	if config["updates_quantum_graph"] and quantum_graph:
+	if ui_config["updates_quantum_graph"] and quantum_graph:
 		quantum_graph.print_snapshot("%s at %s" % [build_type.capitalize(), pos])
 
 	# 8. Trigger UI updates
 	_trigger_updates()
 
 	# 9. Success feedback
-	action_feedback.emit(config["success_message"], true)
+	action_feedback.emit(ui_config["success_message"], true)
 
 	return true
+
+
+func _format_missing_resources(costs: Dictionary) -> String:
+	"""Format missing resources for error message"""
+	var missing = []
+	for emoji in costs.keys():
+		var need = costs[emoji]
+		var have = economy.get_resource(emoji)
+		if have < need:
+			var shortfall = (need - have) / FarmEconomy.QUANTUM_TO_CREDITS
+			missing.append("%d %s" % [shortfall, emoji])
+	return ", ".join(missing)
 
 
 func measure_plot(pos: Vector2i) -> String:
@@ -215,59 +207,30 @@ func measure_plot(pos: Vector2i) -> String:
 
 
 func harvest_plot(pos: Vector2i) -> Dictionary:
-	"""Harvest single plot"""
+	"""Harvest single plot - uses generic emoji-credits routing"""
 	var harvest_data = farm_grid.harvest_wheat(pos)
 
 	if harvest_data["success"]:
-		# Record harvest based on outcome type
-		var outcome = harvest_data.get("outcome", "wheat")
-		var yield_amount = harvest_data["yield"]
-		var emoji = ""
+		# Get harvest outcome (emoji) and energy/yield
+		var outcome_emoji = harvest_data.get("outcome", "")
+		var quantum_energy = harvest_data.get("energy", 0.0)
 
-		match outcome:
-			"wheat":
-				# Wheat plot measured as 🌾
-				emoji = "🌾"
-				economy.record_harvest(yield_amount)
-				goals.record_harvest(yield_amount)
-				economy.add_emoji_resource(emoji, yield_amount)
-				action_feedback.emit("✂️ Harvested %d %s!" % [yield_amount, emoji], true)
-				print("✂️ Harvested at %s: %d %s" % [pos, yield_amount, emoji])
-			"labor":
-				# Wheat plot measured as 👥 - add to labor inventory
-				emoji = "👥"
-				economy.add_labor(yield_amount)
-				economy.add_emoji_resource(emoji, yield_amount)
-				action_feedback.emit("✂️ Harvested %d %s!" % [yield_amount, emoji], true)
-				print("✂️ Harvested at %s: %d %s" % [pos, yield_amount, emoji])
-			"mushroom":
-				# Mushroom plot measured as 🍄
-				emoji = "🍄"
-				economy.add_mushroom(yield_amount)
-				economy.add_emoji_resource(emoji, yield_amount)
-				action_feedback.emit("✂️ Harvested %d %s!" % [yield_amount, emoji], true)
-				print("✂️ Harvested at %s: %d %s" % [pos, yield_amount, emoji])
-			"detritus":
-				# Mushroom plot measured as 🍂 (compost)
-				emoji = "🍂"
-				economy.add_detritus(yield_amount)
-				economy.add_emoji_resource(emoji, yield_amount)
-				action_feedback.emit("✂️ Harvested %d %s!" % [yield_amount, emoji], true)
-				print("✂️ Harvested at %s: %d %s" % [pos, yield_amount, emoji])
-			"tomato":
-				# Tomato plot measured as 🍅
-				emoji = "🍅"
-				economy.add_emoji_resource(emoji, yield_amount)
-				economy.earn_credits(yield_amount * 2, "tomato_sale")  # Tomatoes worth 2 credits each
-				action_feedback.emit("✂️ Harvested %d %s!" % [yield_amount, emoji], true)
-				print("✂️ Harvested at %s: %d %s" % [pos, yield_amount, emoji])
-			"sauce":
-				# Tomato plot measured as 🍝 (sauce)
-				emoji = "🍝"
-				economy.add_emoji_resource(emoji, yield_amount)
-				economy.earn_credits(yield_amount * 3, "sauce_sale")  # Sauce worth 3 credits each
-				action_feedback.emit("✂️ Harvested %d %s!" % [yield_amount, emoji], true)
-				print("✂️ Harvested at %s: %d %s" % [pos, yield_amount, emoji])
+		# Fallback: if energy not provided, derive from yield
+		if quantum_energy == 0.0:
+			var yield_amount = harvest_data.get("yield", 1)
+			quantum_energy = float(yield_amount) / float(FarmEconomy.QUANTUM_TO_CREDITS)
+
+		if not outcome_emoji.is_empty():
+			# Generic routing: any emoji → its credits
+			var credits_earned = economy.receive_harvest(outcome_emoji, quantum_energy, "harvest")
+			var units = credits_earned / FarmEconomy.QUANTUM_TO_CREDITS
+
+			# Goal tracking for wheat
+			if outcome_emoji == "🌾":
+				goals.record_harvest(units)
+
+			action_feedback.emit("✂️ Harvested %d %s!" % [units, outcome_emoji], true)
+			print("✂️ Harvested at %s: %d %s" % [pos, units, outcome_emoji])
 
 		# Check contracts
 		if on_contract_check.is_valid():
@@ -358,21 +321,6 @@ func entangle_plots(pos1: Vector2i, pos2: Vector2i, bell_state: String = "phi_pl
 		action_feedback.emit("⚠️ Cannot entangle - both plots must be planted!", false)
 
 	return result
-
-
-func sell_all_wheat() -> Dictionary:
-	"""Sell all wheat inventory"""
-	var wheat_amount = economy.wheat_inventory
-	if wheat_amount == 0:
-		action_feedback.emit("⚠️ No wheat to sell!", false)
-		return {"sold": 0, "credits": 0}
-
-	var credits_earned = economy.sell_wheat(wheat_amount)
-	action_feedback.emit("💰 Sold %d wheat → +%d credits!" % [wheat_amount, credits_earned], true)
-	print("💰 Wheat sold: %d → %d credits" % [wheat_amount, credits_earned])
-
-	_trigger_updates()
-	return {"sold": wheat_amount, "credits": credits_earned}
 
 
 ## Helper Functions

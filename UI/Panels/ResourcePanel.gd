@@ -2,22 +2,26 @@ class_name ResourcePanel
 extends HBoxContainer
 
 ## ResourcePanel - Displays game resources dynamically
-## Top bar showing wheat currency, dynamic resources (sorted by amount)
-## Phase 3: Simplified for keyboard-first UI (removed redundant quick-action buttons)
+## Uses universal resource_changed signal from FarmEconomy
+## Shows all emoji resources with their quantum unit values
 ## Supports arbitrary resources via emoji keys - no hardcoding needed!
+
+const FarmEconomy = preload("res://Core/GameMechanics/FarmEconomy.gd")
 
 # Layout manager reference (for dynamic scaling)
 var layout_manager: Node  # Will be UILayoutManager instance
 
-# Special labels (always shown)
-var wheat_label: Label
-var credits_label: Label  # 💵 Classical economy currency
-var flour_label: Label  # 💨 Intermediate product for production chain
-var sun_moon_label: Label
-var biome_label: Label  # 🌍 Temperature/Biome info
-var tribute_timer_label: Label
+# Dynamic resource displays: emoji -> {container, label}
+var resource_displays: Dictionary = {}
 
-var resources_hbox: HBoxContainer  # Container for all dynamic resources
+# Container for all resource displays
+var resources_hbox: HBoxContainer
+
+# Economy reference for initialization
+var economy_ref: Node = null
+
+# Priority order for resources (displayed first, in this order)
+const PRIORITY_EMOJIS = ["🌾", "👥", "💨", "🍄", "🍂", "💰", "👑", "🌻"]
 
 
 func _ready():
@@ -30,7 +34,7 @@ func set_layout_manager(manager: Node):
 
 
 func connect_to_economy(economy: Node) -> void:
-	"""Connect to economy signals for real-time resource updates
+	"""Connect to economy's universal resource_changed signal
 
 	This is the ONLY way ResourcePanel gets data - directly from the simulation engine.
 	Graphics layer (ResourcePanel) does NOT store state, only displays it.
@@ -39,151 +43,132 @@ func connect_to_economy(economy: Node) -> void:
 		print("⚠️  ResourcePanel: economy is null, cannot connect signals")
 		return
 
-	# Connect to all economy signals for live updates
-	if economy.has_signal("wheat_changed"):
-		economy.wheat_changed.connect(_on_wheat_changed)
-		print("✅ ResourcePanel connected to economy.wheat_changed")
+	economy_ref = economy
 
-	if economy.has_signal("credits_changed"):
-		economy.credits_changed.connect(_on_credits_changed)
-		print("✅ ResourcePanel connected to economy.credits_changed")
+	# Connect to universal resource_changed signal
+	if economy.has_signal("resource_changed"):
+		economy.resource_changed.connect(_on_resource_changed)
+		print("✅ ResourcePanel connected to economy.resource_changed (universal)")
 
-	if economy.has_signal("flour_changed"):
-		economy.flour_changed.connect(_on_flour_changed)
-		print("✅ ResourcePanel connected to economy.flour_changed")
+	# Initialize displays with current values
+	if economy.has_method("get_resource") and "emoji_credits" in economy:
+		for emoji in economy.emoji_credits.keys():
+			var units = economy.get_resource_units(emoji)
+			_ensure_display_exists(emoji)
+			_update_display(emoji, units)
 
-	# Initialize with current values
-	wheat_label.text = str(economy.wheat_inventory)
-	credits_label.text = str(economy.credits)
-	flour_label.text = str(economy.flour_inventory)
-
-
-## Signal handlers - update display when economy changes
-func _on_wheat_changed(new_amount: int) -> void:
-	"""Handle wheat_changed signal from economy"""
-	wheat_label.text = str(new_amount)
+		# Sort displays by priority then amount
+		_sort_displays()
 
 
-func _on_credits_changed(new_amount: int) -> void:
-	"""Handle credits_changed signal from economy"""
-	credits_label.text = str(new_amount)
+func _on_resource_changed(emoji: String, credits_amount: int) -> void:
+	"""Handle universal resource_changed signal from economy"""
+	_ensure_display_exists(emoji)
+
+	# Convert credits to quantum units for display
+	var units = credits_amount / FarmEconomy.QUANTUM_TO_CREDITS
+	_update_display(emoji, units)
 
 
-func _on_flour_changed(new_amount: int) -> void:
-	"""Handle flour_changed signal from economy"""
-	flour_label.text = str(new_amount)
+func _ensure_display_exists(emoji: String) -> void:
+	"""Ensure a display exists for this emoji resource"""
+	if resource_displays.has(emoji):
+		return
+
+	var scale_factor = layout_manager.scale_factor if layout_manager else 1.0
+	var icon_font_size = layout_manager.get_scaled_font_size(24) if layout_manager else 24
+	var label_font_size = layout_manager.get_scaled_font_size(20) if layout_manager else 20
+
+	# Create container for this resource
+	var container = HBoxContainer.new()
+
+	var icon = Label.new()
+	icon.text = emoji
+	icon.add_theme_font_size_override("font_size", icon_font_size)
+	container.add_child(icon)
+
+	var value_label = Label.new()
+	value_label.text = "0"
+	value_label.add_theme_font_size_override("font_size", label_font_size)
+	container.add_child(value_label)
+
+	resources_hbox.add_child(container)
+	resource_displays[emoji] = {"container": container, "label": value_label}
+
+
+func _update_display(emoji: String, units: int) -> void:
+	"""Update the display for an emoji resource"""
+	if not resource_displays.has(emoji):
+		return
+
+	resource_displays[emoji]["label"].text = str(units)
+
+
+func _sort_displays() -> void:
+	"""Sort resource displays: priority emojis first, then by amount"""
+	if not resources_hbox:
+		return
+
+	# Get all emojis and their sort keys
+	var sort_data = []
+	for emoji in resource_displays.keys():
+		var priority = PRIORITY_EMOJIS.find(emoji)
+		if priority == -1:
+			priority = 100  # Non-priority items go last
+
+		var units = 0
+		if economy_ref and economy_ref.has_method("get_resource_units"):
+			units = economy_ref.get_resource_units(emoji)
+
+		sort_data.append({
+			"emoji": emoji,
+			"priority": priority,
+			"units": units,
+			"container": resource_displays[emoji]["container"]
+		})
+
+	# Sort by priority, then by units (descending)
+	sort_data.sort_custom(func(a, b):
+		if a["priority"] != b["priority"]:
+			return a["priority"] < b["priority"]
+		return a["units"] > b["units"]
+	)
+
+	# Reorder children
+	for i in range(sort_data.size()):
+		var container = sort_data[i]["container"]
+		resources_hbox.move_child(container, i)
 
 
 func _create_ui():
 	# Get scale factor from layout manager (or default to 1.0 if not set)
 	var scale_factor = layout_manager.scale_factor if layout_manager else 1.0
-	var icon_font_size = layout_manager.get_scaled_font_size(24) if layout_manager else 24
-	var label_font_size = layout_manager.get_scaled_font_size(20) if layout_manager else 20
-	var small_font_size = layout_manager.get_scaled_font_size(18) if layout_manager else 18
-	var button_font_size = layout_manager.get_scaled_font_size(16) if layout_manager else 16
-
-	var main_spacing = int(20 * scale_factor)
 	var resource_spacing = int(15 * scale_factor)
-	var button_spacing = int(10 * scale_factor)
+	var main_spacing = int(20 * scale_factor)
 
 	add_theme_constant_override("separation", main_spacing)
 
-	# LEFT: Wheat currency + dynamic resources
+	# Create container for all resource displays
 	resources_hbox = HBoxContainer.new()
 	resources_hbox.add_theme_constant_override("separation", resource_spacing)
-
-	# Wheat (primary currency - always shown, special handling)
-	var wheat_container = HBoxContainer.new()
-	var wheat_icon = Label.new()
-	wheat_icon.text = "🌾"
-	wheat_icon.add_theme_font_size_override("font_size", icon_font_size)
-	wheat_container.add_child(wheat_icon)
-	wheat_label = Label.new()
-	wheat_label.text = "0"  # Start at 0, will be updated via signals
-	wheat_label.add_theme_font_size_override("font_size", label_font_size)
-	wheat_container.add_child(wheat_label)
-	resources_hbox.add_child(wheat_container)
-
-	# Credits (classical economy - always shown after wheat)
-	var credits_container = HBoxContainer.new()
-	var credits_icon = Label.new()
-	credits_icon.text = "💵"
-	credits_icon.add_theme_font_size_override("font_size", icon_font_size)
-	credits_container.add_child(credits_icon)
-	credits_label = Label.new()
-	credits_label.text = "0"  # Start at 0, will be updated via signals
-	credits_label.add_theme_font_size_override("font_size", label_font_size)
-	credits_container.add_child(credits_label)
-	resources_hbox.add_child(credits_container)
-
-	# Flour (intermediate product - always shown after credits)
-	var flour_container = HBoxContainer.new()
-	var flour_icon = Label.new()
-	flour_icon.text = "💨"
-	flour_icon.add_theme_font_size_override("font_size", icon_font_size)
-	flour_container.add_child(flour_icon)
-	flour_label = Label.new()
-	flour_label.text = "0"  # Start at 0, will be updated via signals
-	flour_label.add_theme_font_size_override("font_size", label_font_size)
-	flour_container.add_child(flour_label)
-	resources_hbox.add_child(flour_container)
-
-	# Note: Sun/Moon and Biome info moved to BiomeInfoDisplay in farm area
-	# These labels are kept for backward compatibility but not displayed
-
 	add_child(resources_hbox)
 
+	# Note: Individual resource displays are created dynamically
+	# when connect_to_economy() is called or when resources change
 
 
+# Legacy compatibility methods (for code that still uses them)
 
 func update_sun_moon(is_sun: bool, time_remaining: float):
-	"""Update sun/moon cycle display"""
-	if is_sun:
-		sun_moon_label.text = "☀️ Sun"
-		sun_moon_label.modulate = Color(1.0, 0.9, 0.5)  # Golden
-	else:
-		sun_moon_label.text = "🌙 Moon"
-		sun_moon_label.modulate = Color(0.7, 0.7, 1.0)  # Bluish
-
-	# Add timer if space available
-	if sun_moon_label.text.length() < 20:
-		sun_moon_label.text += " (%.0fs)" % time_remaining
+	"""Legacy - sun/moon display moved to BiomeInfoDisplay"""
+	pass
 
 
 func update_biome_info(temperature: float, energy_strength: float = -1.0):
-	"""Update biome display (temperature and energy level)
-
-	Args:
-		temperature: Current biome temperature (Kelvin)
-		energy_strength: Energy level 0.0-1.0 (optional, for color coding)
-	"""
-	biome_label.text = "🌍 %.0fK" % temperature
-
-	# Color code based on temperature
-	if temperature < 250.0:
-		biome_label.modulate = Color(0.5, 0.8, 1.0)  # Cool blue
-	elif temperature < 300.0:
-		biome_label.modulate = Color(0.8, 1.0, 0.8)  # Cool green
-	elif temperature < 350.0:
-		biome_label.modulate = Color(1.0, 1.0, 0.7)  # Warm yellow
-	else:
-		biome_label.modulate = Color(1.0, 0.8, 0.5)  # Hot orange
+	"""Legacy - biome info display moved to BiomeInfoDisplay"""
+	pass
 
 
 func update_tribute_timer(seconds: float, warn_level: int = 0):
-	"""Update tribute timer display
-
-	warn_level:
-	  0 = normal (yellow)
-	  1 = warning (orange)
-	  2 = critical (red)
-	"""
-	tribute_timer_label.text = "%.0fs" % seconds
-
-	match warn_level:
-		0:  # Normal
-			tribute_timer_label.modulate = Color(1.0, 1.0, 0.7)
-		1:  # Warning
-			tribute_timer_label.modulate = Color(1.0, 0.7, 0.3)
-		2:  # Critical
-			tribute_timer_label.modulate = Color(1.0, 0.3, 0.3)
+	"""Legacy - tribute timer moved to dedicated UI"""
+	pass

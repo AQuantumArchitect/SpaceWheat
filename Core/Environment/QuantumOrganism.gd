@@ -62,6 +62,10 @@ var escapes: int = 0
 func _init(icon_str: String, org_type: String, emoji1: String = "", emoji2: String = ""):
 	"""Initialize quantum organism"""
 	icon = icon_str
+
+	# Auto-detect organism type from icon if not provided
+	if org_type == "":
+		org_type = _detect_organism_type(icon_str)
 	organism_type = org_type
 
 	# Create quantum state
@@ -76,6 +80,17 @@ func _init(icon_str: String, org_type: String, emoji1: String = "", emoji2: Stri
 
 	# Set up predator/prey relationships
 	_setup_relationships()
+
+
+func _detect_organism_type(emoji: String) -> String:
+	"""Auto-detect organism type from emoji"""
+	match emoji:
+		"🐺", "🦅", "🐦", "🐱", "🦊":
+			return "predator"
+		"🐰", "🐭", "🐛", "🦔":
+			return "herbivore"
+		_:
+			return ""
 
 
 func _get_companion_emoji(org_type: String) -> String:

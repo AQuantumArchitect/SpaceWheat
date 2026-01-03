@@ -1,0 +1,1950 @@
+{
+  "axial_spine": {
+    "version": "0.4",
+    "axes": [
+      {
+        "bit": 1,
+        "name": "Random/Deterministic",
+        "0": "🎲",
+        "1": "📚"
+      },
+      {
+        "bit": 2,
+        "name": "Material/Mystical",
+        "0": "🔧",
+        "1": "🔮"
+      },
+      {
+        "bit": 3,
+        "name": "Common/Elite",
+        "0": "🌾",
+        "1": "👑"
+      },
+      {
+        "bit": 4,
+        "name": "Local/Cosmic",
+        "0": "🏠",
+        "1": "🌌"
+      },
+      {
+        "bit": 5,
+        "name": "Instant/Eternal",
+        "0": "⚡",
+        "1": "🕰️"
+      },
+      {
+        "bit": 6,
+        "name": "Physical/Mental",
+        "0": "💪",
+        "1": "🧠"
+      },
+      {
+        "bit": 7,
+        "name": "Crystalline/Fluid",
+        "0": "💠",
+        "1": "🌊"
+      },
+      {
+        "bit": 8,
+        "name": "Direct/Subtle",
+        "0": "🗡️",
+        "1": "🎭"
+      },
+      {
+        "bit": 9,
+        "name": "Consumptive/Providing",
+        "0": "🍽️",
+        "1": "🎁"
+      },
+      {
+        "bit": 10,
+        "name": "Monochrome/Prismatic",
+        "0": "⬜",
+        "1": "🌈"
+      },
+      {
+        "bit": 11,
+        "name": "Emergent/Imposed",
+        "0": "🍄",
+        "1": "🏗️"
+      },
+      {
+        "bit": 12,
+        "name": "Scattered/Focused",
+        "0": "🌪️",
+        "1": "🎯"
+      }
+    ]
+  },
+  "factions": [
+    {
+      "name": "Resonance Dancers",
+      "category": "Cosmic Manipulators",
+      "bits": [
+        1,
+        1,
+        1,
+        1,
+        0,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "signature": [
+        "💃",
+        "🎼",
+        "🌟",
+        "🌀",
+        "🧵",
+        "📡",
+        "🌠",
+        "🧿",
+        "👁"
+      ],
+      "description": "Ritual performers who tune social reality by moving bodies through phase, rhythm, and echo."
+    },
+    {
+      "name": "Clan of the Hidden Root",
+      "category": "Defensive Communities",
+      "bits": [
+        1,
+        0,
+        0,
+        1,
+        0,
+        0,
+        1,
+        0,
+        1,
+        0,
+        0,
+        0
+      ],
+      "signature": [
+        "🌱",
+        "🏡",
+        "🛡",
+        "🧱",
+        "🏰",
+        "🔒",
+        "⛓",
+        "🌑"
+      ],
+      "description": "Subterranean network that trades in seedlings, secrets, and patient infiltration."
+    },
+    {
+      "name": "Terrarium Collective",
+      "category": "Defensive Communities",
+      "bits": [
+        1,
+        0,
+        0,
+        0,
+        1,
+        1,
+        1,
+        0,
+        1,
+        1,
+        1,
+        1
+      ],
+      "signature": [
+        "🌿",
+        "🔒",
+        "🛡",
+        "🧱",
+        "🏰",
+        "🏡",
+        "⛓",
+        "🌑"
+      ],
+      "description": "A cooperative project of resilience-builders trying to outgrow empire through living infrastructure."
+    },
+    {
+      "name": "Veiled Sisters",
+      "category": "Defensive Communities",
+      "bits": [
+        0,
+        1,
+        1,
+        0,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        0,
+        0
+      ],
+      "signature": [
+        "👤",
+        "🌑",
+        "🛡",
+        "🧱",
+        "🏰",
+        "🕯",
+        "🧿",
+        "🔒"
+      ],
+      "description": "A covert sisterhood of influence that moves through households, courts, and shrines unseen."
+    },
+    {
+      "name": "Void Serfs",
+      "category": "Defensive Communities",
+      "bits": [
+        0,
+        1,
+        0,
+        0,
+        1,
+        1,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0
+      ],
+      "signature": [
+        "⛓",
+        "🛡",
+        "🧱",
+        "🏰",
+        "🌽",
+        "🪐",
+        "🔒",
+        "🏡"
+      ],
+      "description": "Indentured laborers bound to orbital contracts, worked by distance, debt, and inaccessible law."
+    },
+    {
+      "name": "Chorus of Oblivion",
+      "category": "Horror Cults",
+      "bits": [
+        0,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        0,
+        1
+      ],
+      "signature": [
+        "⚔",
+        "🎶",
+        "💀",
+        "🌀",
+        "📡",
+        "🧿",
+        "🗣",
+        "🔔",
+        "🌙"
+      ],
+      "description": "A mental cosmic choir that harmonizes minds toward forgetting, surrender, and the empty note."
+    },
+    {
+      "name": "Cult of the Drowned Star",
+      "category": "Horror Cults",
+      "bits": [
+        0,
+        1,
+        1,
+        1,
+        1,
+        0,
+        0,
+        1,
+        1,
+        1,
+        0,
+        0
+      ],
+      "signature": [
+        "⚔",
+        "⭐",
+        "👁",
+        "🧿",
+        "💀",
+        "🎶",
+        "📡",
+        "🌀",
+        "💧"
+      ],
+      "description": "A physical cosmic devotion to a sunken intelligence—pressure, drowning, and deep geometry."
+    },
+    {
+      "name": "Flesh Architects",
+      "category": "Horror Cults",
+      "bits": [
+        0,
+        0,
+        1,
+        1,
+        1,
+        0,
+        1,
+        0,
+        1,
+        0,
+        0,
+        1
+      ],
+      "signature": [
+        "⚔",
+        "🧬",
+        "👥",
+        "🧿",
+        "💀",
+        "🎶",
+        "📡",
+        "🌀",
+        "🧱"
+      ],
+      "description": "Bio-engineers who sculpt bodies and habitats as living machines, optimized for survival and control."
+    },
+    {
+      "name": "Laughing Court",
+      "category": "Horror Cults",
+      "bits": [
+        0,
+        1,
+        1,
+        1,
+        0,
+        1,
+        1,
+        1,
+        1,
+        1,
+        0,
+        0
+      ],
+      "signature": [
+        "⚔",
+        "🎪",
+        "💀",
+        "🌀",
+        "📡",
+        "🧿",
+        "🎶",
+        "🃏",
+        "👁"
+      ],
+      "description": "Instant memetic aristocracy that topples certainty with contagious jokes and sharp, cruel delight."
+    },
+    {
+      "name": "Carrion Throne",
+      "category": "Imperial Powers",
+      "bits": [
+        1,
+        0,
+        0,
+        1,
+        1,
+        0,
+        0,
+        0,
+        1,
+        0,
+        1,
+        1
+      ],
+      "signature": [
+        "⚔",
+        "💀",
+        "🏛",
+        "⚖",
+        "🧾",
+        "🛡",
+        "💰",
+        "🪙",
+        "🏰",
+        "🗝"
+      ],
+      "description": "Imperial carcass-court that turns conquest into law, tribute, and ritualized decay."
+    },
+    {
+      "name": "Granary Guilds",
+      "category": "Imperial Powers",
+      "bits": [
+        1,
+        0,
+        0,
+        1,
+        1,
+        1,
+        0,
+        1,
+        1,
+        0,
+        1,
+        1
+      ],
+      "signature": [
+        "⚔",
+        "💰",
+        "🪙",
+        "⚖",
+        "🧾",
+        "🏛",
+        "🛡",
+        "🗝",
+        "🌽",
+        "🏰"
+      ],
+      "description": "Market sovereigns who decide what counts as food, what counts as debt, and who eats."
+    },
+    {
+      "name": "House of Thorns",
+      "category": "Imperial Powers",
+      "bits": [
+        1,
+        1,
+        1,
+        1,
+        1,
+        0,
+        0,
+        1,
+        0,
+        0,
+        1,
+        1
+      ],
+      "signature": [
+        "🌹",
+        "⚖",
+        "🧾",
+        "🏛",
+        "🛡",
+        "💰",
+        "🪙",
+        "⚔",
+        "🏰"
+      ],
+      "description": "A noble garden of coercion: alliances, blood-vows, and barbed diplomacy in velvet gloves."
+    },
+    {
+      "name": "Station Lords",
+      "category": "Imperial Powers",
+      "bits": [
+        1,
+        0,
+        0,
+        1,
+        1,
+        1,
+        0,
+        0,
+        0,
+        0,
+        1,
+        1
+      ],
+      "signature": [
+        "⚔",
+        "🏢",
+        "⚖",
+        "🧾",
+        "🏛",
+        "🛡",
+        "💰",
+        "🪙",
+        "🏰",
+        "🪐"
+      ],
+      "description": "Orbital landlords who control docks, manifests, and the choke-points between farmworld and void."
+    },
+    {
+      "name": "Irrigation Jury",
+      "category": "Local Governance",
+      "bits": [
+        1,
+        0,
+        0,
+        0,
+        0,
+        1,
+        1,
+        1,
+        1,
+        0,
+        1,
+        1
+      ],
+      "signature": [
+        "⚖",
+        "🗝",
+        "🧾",
+        "🏛",
+        "💧",
+        "🚰",
+        "📜",
+        "🛡"
+      ],
+      "description": "Water disputes settled at knife-point."
+    },
+    {
+      "name": "Gearwright Circle",
+      "category": "Local Institutions",
+      "bits": [
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1,
+        1,
+        0,
+        1,
+        1
+      ],
+      "signature": [
+        "⚙",
+        "🏭",
+        "🛠",
+        "🧾",
+        "🗝",
+        "📦",
+        "🔩",
+        "💰"
+      ],
+      "description": "Repair monopolists and machine rites."
+    },
+    {
+      "name": "Ledger Bailiffs",
+      "category": "Local Institutions",
+      "bits": [
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        1,
+        1
+      ],
+      "signature": [
+        "⚖",
+        "🛡",
+        "🗝",
+        "🧾",
+        "⚙",
+        "📦",
+        "🔩",
+        "🛠"
+      ],
+      "description": "Quota enforcement and fair measure."
+    },
+    {
+      "name": "Measure Scribes",
+      "category": "Local Institutions",
+      "bits": [
+        1,
+        0,
+        1,
+        0,
+        0,
+        1,
+        0,
+        1,
+        0,
+        0,
+        1,
+        1
+      ],
+      "signature": [
+        "⚖",
+        "💰",
+        "📦",
+        "🧾",
+        "🗝",
+        "⚙",
+        "🔔",
+        "🔩"
+      ],
+      "description": "Elite auditors of yield and debt."
+    },
+    {
+      "name": "Quarantine Sealwrights",
+      "category": "Local Institutions",
+      "bits": [
+        1,
+        0,
+        1,
+        0,
+        0,
+        1,
+        0,
+        1,
+        1,
+        0,
+        1,
+        1
+      ],
+      "signature": [
+        "🧪",
+        "🦗",
+        "🧾",
+        "🗝",
+        "⚙",
+        "📦",
+        "🔩",
+        "🛠"
+      ],
+      "description": "Pest seals, permits, and burn-marks."
+    },
+    {
+      "name": "Fencebreakers",
+      "category": "Local Insurgents",
+      "bits": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "signature": [
+        "⛓",
+        "🔥",
+        "💀",
+        "🧨",
+        "🪓",
+        "🗝",
+        "⚔",
+        "📣"
+      ],
+      "description": "Rural sabotage and boundary wars."
+    },
+    {
+      "name": "Scythe Provosts",
+      "category": "Local Militia",
+      "bits": [
+        1,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        1,
+        1
+      ],
+      "signature": [
+        "⚔",
+        "🛡",
+        "⚫",
+        "🔥",
+        "⛓",
+        "🏰",
+        "🪓",
+        "🧾"
+      ],
+      "description": "Enforcers for elite estates and mills."
+    },
+    {
+      "name": "Hearth Witches",
+      "category": "Local Mystics",
+      "bits": [
+        0,
+        1,
+        0,
+        0,
+        0,
+        1,
+        1,
+        1,
+        1,
+        1,
+        0,
+        0
+      ],
+      "signature": [
+        "🕯",
+        "🌿",
+        "🌙",
+        "🧿",
+        "🌀",
+        "🌱",
+        "🔔",
+        "🪬"
+      ],
+      "description": "Kitchen hexes and blessing trades."
+    },
+    {
+      "name": "Knot-Shriners",
+      "category": "Local Mystics",
+      "bits": [
+        1,
+        1,
+        1,
+        0,
+        0,
+        1,
+        0,
+        1,
+        1,
+        0,
+        0,
+        0
+      ],
+      "signature": [
+        "🧵",
+        "🧿",
+        "🕯",
+        "🌙",
+        "🌀",
+        "🫖",
+        "🌱",
+        "🔔"
+      ],
+      "description": "Shrine-keepers who tie ritual knots to stabilize luck, oaths, and message integrity."
+    },
+    {
+      "name": "Mossline Brokers",
+      "category": "Local Mystics",
+      "bits": [
+        0,
+        1,
+        1,
+        0,
+        0,
+        1,
+        1,
+        1,
+        1,
+        0,
+        0,
+        0
+      ],
+      "signature": [
+        "🌿",
+        "💰",
+        "🕯",
+        "🧿",
+        "🌙",
+        "🌀",
+        "🌱",
+        "🔔"
+      ],
+      "description": "Grey-market dealers of spores, omens, and rumors—selling soft power by the handful."
+    },
+    {
+      "name": "Lantern Cant",
+      "category": "Local Networks",
+      "bits": [
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        1
+      ],
+      "signature": [
+        "🏮",
+        "📡",
+        "🗣",
+        "🧵",
+        "🗺",
+        "🔭",
+        "🗝",
+        "🪡"
+      ],
+      "description": "Street-visible lantern code that moves urgent news across farms, docks, and checkpoints."
+    },
+    {
+      "name": "Relay Lattice",
+      "category": "Local Networks",
+      "bits": [
+        1,
+        1,
+        0,
+        0,
+        0,
+        0,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "signature": [
+        "🌀",
+        "🌟",
+        "🗝",
+        "📡",
+        "🧵",
+        "🗺",
+        "🔭",
+        "🪡"
+      ],
+      "description": "Fast messages through strange topology."
+    },
+    {
+      "name": "Seedvault Curators",
+      "category": "Local Science",
+      "bits": [
+        1,
+        1,
+        0,
+        0,
+        0,
+        1,
+        0,
+        1,
+        1,
+        1,
+        0,
+        1
+      ],
+      "signature": [
+        "🧬",
+        "🗝",
+        "🧪",
+        "🧫",
+        "🔩",
+        "📦",
+        "🌽",
+        "🔬"
+      ],
+      "description": "Ancient seeds, new crops, hard rules."
+    },
+    {
+      "name": "Quay Rooks",
+      "category": "Local Street",
+      "bits": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        1,
+        1,
+        0,
+        1,
+        1,
+        0,
+        0
+      ],
+      "signature": [
+        "🚢",
+        "🗺",
+        "🔭",
+        "📡",
+        "💰",
+        "⛓",
+        "🧨",
+        "📦"
+      ],
+      "description": "Dock gossip, maps, and opportunism."
+    },
+    {
+      "name": "Salt-Runners",
+      "category": "Local Street",
+      "bits": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1,
+        1,
+        0,
+        1,
+        0,
+        0
+      ],
+      "signature": [
+        "🚢",
+        "⛓",
+        "💰",
+        "🧨",
+        "🗺",
+        "📡",
+        "📦",
+        "🗝"
+      ],
+      "description": "Smugglers through canals and voidlocks."
+    },
+    {
+      "name": "Bone Merchants",
+      "category": "Merchants & Traders",
+      "bits": [
+        0,
+        1,
+        0,
+        1,
+        0,
+        0,
+        1,
+        0,
+        1,
+        0,
+        0,
+        0
+      ],
+      "signature": [
+        "🦴",
+        "💉",
+        "🛒",
+        "📡",
+        "💰",
+        "🪙",
+        "📦",
+        "🧾",
+        "🗝"
+      ],
+      "description": "Pragmatic traders of skeletal salvage: fertilizer, tools, relics, and taboo luxuries."
+    },
+    {
+      "name": "Memory Merchants",
+      "category": "Merchants & Traders",
+      "bits": [
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        0,
+        1,
+        0,
+        0,
+        1,
+        0
+      ],
+      "signature": [
+        "💰",
+        "🪙",
+        "📦",
+        "📡",
+        "🧾",
+        "🗺",
+        "🛂",
+        "🧩",
+        "🗝"
+      ],
+      "description": "Dealers in recollection who buy, sell, and edit lived experience as a commodity."
+    },
+    {
+      "name": "Nexus Wardens",
+      "category": "Merchants & Traders",
+      "bits": [
+        1,
+        1,
+        1,
+        0,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        0
+      ],
+      "signature": [
+        "🍺",
+        "🗝",
+        "📡",
+        "🧵",
+        "💰",
+        "🪙",
+        "📦",
+        "🧾",
+        "⚖"
+      ],
+      "description": "Gatekeepers of crossings and protocols who police how worlds connect and who may pass."
+    },
+    {
+      "name": "Syndicate of Glass",
+      "category": "Merchants & Traders",
+      "bits": [
+        1,
+        1,
+        0,
+        1,
+        1,
+        1,
+        0,
+        1,
+        0,
+        0,
+        1,
+        1
+      ],
+      "signature": [
+        "💎",
+        "⚖",
+        "🛸",
+        "📡",
+        "💰",
+        "🪙",
+        "📦",
+        "🧾",
+        "🗝"
+      ],
+      "description": "Brittle oligarchs of transparency and fracture—spies, mirrors, and precision cruelty."
+    },
+    {
+      "name": "Brotherhood of Ash",
+      "category": "Militant Orders",
+      "bits": [
+        1,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1
+      ],
+      "signature": [
+        "⚔",
+        "⚰",
+        "⚫",
+        "🛡",
+        "⛓",
+        "🔥",
+        "🏰",
+        "🪓"
+      ],
+      "description": "A roaming fraternity of burn-scars and oaths, offering cleansing violence for a price."
+    },
+    {
+      "name": "Children of the Ember",
+      "category": "Militant Orders",
+      "bits": [
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1
+      ],
+      "signature": [
+        "🔥",
+        "✊",
+        "🛡",
+        "⚔",
+        "⛓",
+        "🗝",
+        "🏰",
+        "🪓"
+      ],
+      "description": "Fast-moving local spark-cult that spreads uprisings like wildfire through dry structures."
+    },
+    {
+      "name": "Iron Shepherds",
+      "category": "Militant Orders",
+      "bits": [
+        1,
+        1,
+        0,
+        1,
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1,
+        1
+      ],
+      "signature": [
+        "🛡",
+        "🐑",
+        "🚀",
+        "⚔",
+        "⛓",
+        "🔥",
+        "🏰",
+        "🪓"
+      ],
+      "description": "Hard-handed protectors who herd communities through danger, collecting loyalty as payment."
+    },
+    {
+      "name": "Order of the Crimson Scale",
+      "category": "Militant Orders",
+      "bits": [
+        1,
+        1,
+        1,
+        1,
+        0,
+        1,
+        0,
+        0,
+        1,
+        0,
+        1,
+        1
+      ],
+      "signature": [
+        "⚖",
+        "🐉",
+        "🩸",
+        "🛡",
+        "⚔",
+        "⛓",
+        "🔥",
+        "🏰"
+      ],
+      "description": "A disciplined blood-and-balance order that enforces ‘proper’ exchange with scaled justice."
+    },
+    {
+      "name": "Iron Confessors",
+      "category": "Mystic Orders",
+      "bits": [
+        1,
+        0,
+        1,
+        0,
+        1,
+        1,
+        0,
+        1,
+        0,
+        0,
+        1,
+        1
+      ],
+      "signature": [
+        "🤖",
+        "⛪",
+        "🧿",
+        "🌙",
+        "🌀",
+        "🛠",
+        "🔔",
+        "🧘"
+      ],
+      "description": "Confessional enforcers who extract truth as a resource and punish deviation with steel rituals."
+    },
+    {
+      "name": "Keepers of Silence",
+      "category": "Mystic Orders",
+      "bits": [
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        0,
+        1,
+        0,
+        0,
+        1,
+        1
+      ],
+      "signature": [
+        "🧘",
+        "♂",
+        "⚔",
+        "🔇",
+        "🕯",
+        "🧿",
+        "🌙",
+        "⛪"
+      ],
+      "description": "A disciplined order that weaponizes quiet: censorship, secrecy, and signal starvation."
+    },
+    {
+      "name": "Sacred Flame Keepers",
+      "category": "Mystic Orders",
+      "bits": [
+        1,
+        1,
+        1,
+        0,
+        1,
+        1,
+        0,
+        1,
+        0,
+        0,
+        1,
+        1
+      ],
+      "signature": [
+        "🕯",
+        "🔥",
+        "⛪",
+        "🧿",
+        "🌙",
+        "🌀",
+        "🔔",
+        "🧘"
+      ],
+      "description": "Fire-priests who guard heat, furnaces, and the social right to burn or purify."
+    },
+    {
+      "name": "Yeast Prophets",
+      "category": "Mystic Orders",
+      "bits": [
+        0,
+        1,
+        1,
+        0,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        0,
+        1
+      ],
+      "signature": [
+        "🍞",
+        "🧪",
+        "⛪",
+        "🕯",
+        "🧿",
+        "🌙",
+        "🌀",
+        "🔔"
+      ],
+      "description": "Fermentation mystics who treat growth, rot, and rise as the universe’s holy mathematics."
+    },
+    {
+      "name": "Cartographers",
+      "category": "Scavenger Factions",
+      "bits": [
+        0,
+        1,
+        0,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        0,
+        0
+      ],
+      "signature": [
+        "⚔",
+        "🗺",
+        "🔭",
+        "🚢",
+        "📡",
+        "🪓",
+        "📦",
+        "💀",
+        "⛓"
+      ],
+      "description": "Map-makers of terrain and meaning; they redraw borders by deciding what is ‘real’ on paper."
+    },
+    {
+      "name": "Locusts",
+      "category": "Scavenger Factions",
+      "bits": [
+        0,
+        1,
+        0,
+        1,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "signature": [
+        "⚔",
+        "🦗",
+        "🍃",
+        "💀",
+        "🪓",
+        "📦",
+        "🦴",
+        "⛓",
+        "🚢"
+      ],
+      "description": "Biological extractors that convert ecosystems into fuel, motion, and swarming advantage."
+    },
+    {
+      "name": "Rust Fleet",
+      "category": "Scavenger Factions",
+      "bits": [
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "signature": [
+        "⚔",
+        "🚢",
+        "🦴",
+        "⚙",
+        "🪓",
+        "📦",
+        "💀",
+        "⛓",
+        "🔩"
+      ],
+      "description": "Salvage sailors who live on drifting wrecks, stripping value from dead ships and dead wars."
+    },
+    {
+      "name": "Black Horizon",
+      "category": "Ultimate Cosmic Entities",
+      "bits": [
+        0,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "signature": [
+        "💀",
+        "🌸",
+        "🕳",
+        "🌠",
+        "🪐",
+        "🌀",
+        "👁",
+        "⚫",
+        "🧿",
+        "📡"
+      ],
+      "description": "A cosmic gravity-well of probability: gods of drift who bend outcomes toward dark attractors."
+    },
+    {
+      "name": "Reality Midwives",
+      "category": "Ultimate Cosmic Entities",
+      "bits": [
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "signature": [
+        "🌟",
+        "💫",
+        "🥚",
+        "📡",
+        "🕳",
+        "🌠",
+        "🪐",
+        "🌀",
+        "👁",
+        "⚫"
+      ],
+      "description": "Cosmic facilitators of births and collapses, guiding worlds through thresholds of form."
+    },
+    {
+      "name": "Void Emperors",
+      "category": "Ultimate Cosmic Entities",
+      "bits": [
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        0,
+        0,
+        0,
+        0,
+        1,
+        1
+      ],
+      "signature": [
+        "⚫",
+        "🕳",
+        "🌠",
+        "🪐",
+        "🌀",
+        "👁",
+        "🧿",
+        "📡",
+        "🏰"
+      ],
+      "description": "The old rulers of absence, shaping whole eras by deciding what cannot exist."
+    },
+    {
+      "name": "Gravedigger's Union",
+      "category": "Working Guilds",
+      "bits": [
+        0,
+        1,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1,
+        1
+      ],
+      "signature": [
+        "⚰",
+        "🪦",
+        "🌙",
+        "⚙",
+        "🔩",
+        "🛠",
+        "🏭",
+        "📦"
+      ],
+      "description": "Licensed corpse-handlers who regulate burial, salvage, and the economy of remains."
+    },
+    {
+      "name": "Millwright's Union",
+      "category": "Working Guilds",
+      "bits": [
+        1,
+        1,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1
+      ],
+      "signature": [
+        "⚙",
+        "🏭",
+        "🔩",
+        "🛠",
+        "📦",
+        "🌽",
+        "🧾",
+        "🗝"
+      ],
+      "description": "The people who keep the grinding engines alive—and charge for every turn of the wheel."
+    },
+    {
+      "name": "Obsidian Will",
+      "category": "Working Guilds",
+      "bits": [
+        1,
+        0,
+        0,
+        1,
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1,
+        1
+      ],
+      "signature": [
+        "🏭",
+        "⚙",
+        "🔩",
+        "🛠",
+        "📦",
+        "🧾",
+        "🗝",
+        "🧱"
+      ],
+      "description": "A cold doctrine of obedience that hardens societies into unbreakable, brittle shapes."
+    },
+    {
+      "name": "Seamstress Syndicate",
+      "category": "Working Guilds",
+      "bits": [
+        1,
+        1,
+        0,
+        0,
+        1,
+        1,
+        0,
+        1,
+        0,
+        0,
+        1,
+        1
+      ],
+      "signature": [
+        "🪡",
+        "👘",
+        "📐",
+        "📡",
+        "🧵",
+        "⚙",
+        "🔩",
+        "🕯"
+      ],
+      "description": "Stitchers of garments and signals, weaving rumor, code, and cloth into quiet control."
+    },
+    {
+      "name": "Symphony Smiths",
+      "category": "Working Guilds",
+      "bits": [
+        1,
+        1,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        1,
+        1,
+        1,
+        1
+      ],
+      "signature": [
+        "🎵",
+        "🔨",
+        "⚔",
+        "📡",
+        "⚙",
+        "🔩",
+        "🛠",
+        "🏭"
+      ],
+      "description": "Artisan sound-forgers who build resonant tools, weapons, and machines that sing under load."
+    },
+    {
+      "name": "Tinker Team",
+      "category": "Working Guilds",
+      "bits": [
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        1,
+        0,
+        1,
+        0,
+        0,
+        0
+      ],
+      "signature": [
+        "🛠",
+        "🚐",
+        "⚙",
+        "🔩",
+        "🏭",
+        "📦",
+        "🧾",
+        "🗝"
+      ],
+      "description": "Local fixers and improvisers; they keep broken tech working long past its intended death."
+    },
+    {
+      "name": "NS Sentinel 01",
+      "category": "Negative Space",
+      "bits": [
+        0,
+        0,
+        1,
+        1,
+        0,
+        1,
+        0,
+        0,
+        0,
+        1,
+        1,
+        0
+      ],
+      "signature": [
+        "🪐",
+        "🌠",
+        "⚫",
+        "🕳",
+        "👁",
+        "🌀",
+        "🧿"
+      ],
+      "description": "Negative-space sentinel placeholder; name and lore TBD."
+    },
+    {
+      "name": "NS Sentinel 02",
+      "category": "Negative Space",
+      "bits": [
+        1,
+        0,
+        1,
+        1,
+        1,
+        1,
+        1,
+        0,
+        0,
+        1,
+        0,
+        0
+      ],
+      "signature": [
+        "🌠",
+        "🪐",
+        "⚫",
+        "🕳",
+        "🌀",
+        "🧿",
+        "💫"
+      ],
+      "description": "Negative-space sentinel placeholder; name and lore TBD."
+    },
+    {
+      "name": "NS Sentinel 03",
+      "category": "Negative Space",
+      "bits": [
+        1,
+        1,
+        1,
+        0,
+        1,
+        0,
+        1,
+        0,
+        0,
+        1,
+        1,
+        0
+      ],
+      "signature": [
+        "⚔",
+        "🛡",
+        "⛓",
+        "🔥",
+        "💀",
+        "🪓",
+        "🏰"
+      ],
+      "description": "Negative-space sentinel placeholder; name and lore TBD."
+    },
+    {
+      "name": "NS Sentinel 04",
+      "category": "Negative Space",
+      "bits": [
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        1,
+        0,
+        1,
+        1,
+        0
+      ],
+      "signature": [
+        "🧾",
+        "📦",
+        "💰",
+        "🗝",
+        "⚖",
+        "🏛",
+        "🔒"
+      ],
+      "description": "Negative-space sentinel placeholder; name and lore TBD."
+    },
+    {
+      "name": "NS Sentinel 05",
+      "category": "Negative Space",
+      "bits": [
+        0,
+        0,
+        1,
+        1,
+        0,
+        0,
+        1,
+        1,
+        0,
+        1,
+        0,
+        1
+      ],
+      "signature": [
+        "⛪",
+        "🧪",
+        "🧿",
+        "🔔",
+        "🌙",
+        "🌀",
+        "👁"
+      ],
+      "description": "Negative-space sentinel placeholder; name and lore TBD."
+    },
+    {
+      "name": "NS Sentinel 06",
+      "category": "Negative Space",
+      "bits": [
+        1,
+        0,
+        0,
+        0,
+        1,
+        0,
+        1,
+        1,
+        1,
+        0,
+        0,
+        0
+      ],
+      "signature": [
+        "⚙",
+        "🔩",
+        "🛠",
+        "📦",
+        "🧾",
+        "🗝",
+        "🛡"
+      ],
+      "description": "Negative-space sentinel placeholder; name and lore TBD."
+    },
+    {
+      "name": "NS Sentinel 07",
+      "category": "Negative Space",
+      "bits": [
+        0,
+        0,
+        0,
+        1,
+        1,
+        1,
+        1,
+        0,
+        1,
+        0,
+        0,
+        0
+      ],
+      "signature": [
+        "🪐",
+        "🌠",
+        "🧿",
+        "🌀",
+        "📡",
+        "⛓",
+        "💀"
+      ],
+      "description": "Negative-space sentinel placeholder; name and lore TBD."
+    },
+    {
+      "name": "NS Sentinel 08",
+      "category": "Negative Space",
+      "bits": [
+        0,
+        1,
+        1,
+        0,
+        0,
+        1,
+        1,
+        1,
+        0,
+        0,
+        0,
+        1
+      ],
+      "signature": [
+        "🧿",
+        "🌀",
+        "👤",
+        "🧵",
+        "🪡",
+        "🔇",
+        "🌙"
+      ],
+      "description": "Negative-space sentinel placeholder; name and lore TBD."
+    },
+    {
+      "name": "NS Sentinel 09",
+      "category": "Negative Space",
+      "bits": [
+        0,
+        0,
+        1,
+        0,
+        1,
+        0,
+        0,
+        0,
+        1,
+        1,
+        0,
+        0
+      ],
+      "signature": [
+        "⚔",
+        "🔒",
+        "🧱",
+        "🏰",
+        "⛓",
+        "🪓",
+        "💰"
+      ],
+      "description": "Negative-space sentinel placeholder; name and lore TBD."
+    },
+    {
+      "name": "NS Sentinel 10",
+      "category": "Negative Space",
+      "bits": [
+        0,
+        0,
+        1,
+        1,
+        0,
+        0,
+        0,
+        1,
+        1,
+        0,
+        1,
+        0
+      ],
+      "signature": [
+        "🪐",
+        "🌠",
+        "👁",
+        "🌀",
+        "🧿",
+        "📡",
+        "🧾"
+      ],
+      "description": "Negative-space sentinel placeholder; name and lore TBD."
+    },
+    {
+      "name": "NS Sentinel 11",
+      "category": "Negative Space",
+      "bits": [
+        1,
+        1,
+        0,
+        1,
+        0,
+        1,
+        1,
+        1,
+        0,
+        1,
+        0,
+        1
+      ],
+      "signature": [
+        "🧿",
+        "🌀",
+        "📡",
+        "💫",
+        "🌙",
+        "⛪",
+        "🔔"
+      ],
+      "description": "Negative-space sentinel placeholder; name and lore TBD."
+    },
+    {
+      "name": "NS Sentinel 12",
+      "category": "Negative Space",
+      "bits": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        1,
+        0,
+        1
+      ],
+      "signature": [
+        "🛠",
+        "⚙",
+        "📦",
+        "🧾",
+        "🗝",
+        "⚔",
+        "🪓"
+      ],
+      "description": "Negative-space sentinel placeholder; name and lore TBD."
+    }
+  ],
+  "version": "v0.4"
+}
