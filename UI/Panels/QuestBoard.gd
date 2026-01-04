@@ -135,13 +135,16 @@ func _handle_browser_input(event: InputEvent) -> void:
 
 
 func _create_ui() -> void:
-	"""Create the quest board UI - FLASH GAME / MOBILE GAME STYLE"""
+	"""Create the quest board UI - 2×2 QUADRANT LAYOUT with auto-scaling"""
 	var scale = layout_manager.scale_factor if layout_manager else 1.0
 
-	# FLASH GAME FONTS - BIG AND READABLE!
-	var title_size = layout_manager.get_scaled_font_size(48) if layout_manager else 48
-	var large_size = layout_manager.get_scaled_font_size(24) if layout_manager else 24
-	var normal_size = layout_manager.get_scaled_font_size(20) if layout_manager else 20
+	# Get viewport size for responsive scaling
+	var viewport_size = get_viewport().get_visible_rect().size if get_viewport() else Vector2(1920, 1080)
+
+	# Scale fonts based on viewport height (more conservative)
+	var title_size = int(viewport_size.y * 0.04)  # 4% of screen height
+	var large_size = int(viewport_size.y * 0.022)  # 2.2% of screen height
+	var normal_size = int(viewport_size.y * 0.018)  # 1.8% of screen height
 
 	# Background - fill screen to block interaction
 	background = ColorRect.new()
@@ -158,13 +161,13 @@ func _create_ui() -> void:
 	center.layout_mode = 1
 	add_child(center)
 
-	# Quest board panel - BIGGER for flash game aesthetic
+	# Quest board panel - RESPONSIVE sizing (85% of viewport)
 	menu_panel = PanelContainer.new()
-	menu_panel.custom_minimum_size = Vector2(1200 * scale, 900 * scale)
+	menu_panel.custom_minimum_size = Vector2(viewport_size.x * 0.85, viewport_size.y * 0.85)
 	center.add_child(menu_panel)
 
 	var main_vbox = VBoxContainer.new()
-	main_vbox.add_theme_constant_override("separation", int(20 * scale))  # More space!
+	main_vbox.add_theme_constant_override("separation", int(12 * scale))
 	menu_panel.add_child(main_vbox)
 
 	# Header - BIG and BOLD
@@ -174,9 +177,9 @@ func _create_ui() -> void:
 	title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	main_vbox.add_child(title_label)
 
-	# Simplified controls - ICONS ONLY
+	# Simplified controls - JUST SELECTION + BROWSE (QER shown in toolbar!)
 	controls_label = Label.new()
-	controls_label.text = "🎯 [UIOP] Select  |  ✅ [Q] Accept  |  🔄 [E] Reroll  |  🔒 [R] Lock  |  📚 [C] Browse  |  ✖️ [ESC] Close"
+	controls_label.text = "🎯 [UIOP] Select Quest  |  📚 [C] Browse Factions  |  ✖️ [ESC] Close"
 	controls_label.add_theme_font_size_override("font_size", normal_size)
 	controls_label.modulate = Color(1.0, 0.9, 0.5)  # Gold/yellow for visibility
 	controls_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -191,12 +194,16 @@ func _create_ui() -> void:
 	biome_state_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	main_vbox.add_child(biome_state_label)
 
-	# Quest slots container - MORE SPACE
-	slot_container = VBoxContainer.new()
-	slot_container.add_theme_constant_override("separation", int(16 * scale))  # Double spacing!
+	# Quest slots container - 2×2 GRID LAYOUT!
+	slot_container = GridContainer.new()
+	slot_container.columns = 2  # TWO COLUMNS = QUADRANT LAYOUT!
+	slot_container.add_theme_constant_override("h_separation", int(12 * scale))
+	slot_container.add_theme_constant_override("v_separation", int(12 * scale))
 	main_vbox.add_child(slot_container)
 
-	# Create 4 quest slots
+	# Create 4 quest slots in quadrant pattern:
+	# [U] [I]
+	# [O] [P]
 	for i in range(4):
 		var slot = QuestSlot.new()
 		slot.set_layout_manager(layout_manager)
@@ -206,7 +213,7 @@ func _create_ui() -> void:
 		slot_container.add_child(slot)
 		quest_slots.append(slot)
 
-	# Accessible factions label - BIGGER
+	# Accessible factions label
 	accessible_factions_label = Label.new()
 	accessible_factions_label.text = "📚 Accessible Factions: 0/68"
 	accessible_factions_label.add_theme_font_size_override("font_size", normal_size)
@@ -293,13 +300,32 @@ func _make_bar(value: float, length: int) -> String:
 	return bar
 
 
+# =============================================================================
+# SAFE GAMESTATE ACCESS (avoids compile warnings)
+# =============================================================================
+
+func _get_game_state_manager():
+	"""Safely get GameStateManager autoload (avoids static analyzer warnings)"""
+	if Engine.is_editor_hint():
+		return null
+	return get_node_or_null("/root/GameStateManager")
+
+
+func _get_saved_quest_slots() -> Array:
+	"""Safely load quest slots from GameStateManager"""
+	var gsm = _get_game_state_manager()
+	if gsm and gsm.current_state and gsm.current_state.has("quest_slots"):
+		return gsm.current_state.quest_slots
+	return []
+
+
 func _refresh_slots() -> void:
 	"""Refresh all quest slots from quest manager and game state"""
 	if not quest_manager:
 		return
 
-	# Load slot data from GameStateManager
-	var slot_data = GameStateManager.current_state.quest_slots if GameStateManager.current_state else []
+	# Load slot data from GameStateManager (safe access)
+	var slot_data = _get_saved_quest_slots()
 
 	for i in range(4):
 		var slot = quest_slots[i]
@@ -549,8 +575,9 @@ func _on_quest_completed(quest_id: int, rewards: Dictionary) -> void:
 
 
 func _save_slot_state() -> void:
-	"""Save slot state to GameStateManager"""
-	if not GameStateManager.current_state:
+	"""Save slot state to GameStateManager (safe access)"""
+	var gsm = _get_game_state_manager()
+	if not gsm or not gsm.current_state:
 		return
 
 	var slot_data = []
@@ -565,7 +592,7 @@ func _save_slot_state() -> void:
 				"state": slot.state
 			})
 
-	GameStateManager.current_state.quest_slots = slot_data
+	gsm.current_state.quest_slots = slot_data
 
 
 # =============================================================================
@@ -590,7 +617,7 @@ class QuestSlot extends PanelContainer:
 	var faction_label: Label
 	var details_label: Label
 	var status_label: Label
-	var action_label: Label
+	# NO action_label - actions shown in QER toolbar at bottom!
 
 	func _ready() -> void:
 		_create_ui()
@@ -606,19 +633,25 @@ class QuestSlot extends PanelContainer:
 		layout_manager = manager
 
 	func _create_ui() -> void:
-		"""FLASH GAME SLOT - BIG, BOLD, READABLE"""
+		"""QUADRANT SLOT - Compact for 2×2 layout"""
 		var scale = layout_manager.scale_factor if layout_manager else 1.0
 
-		# FLASH GAME FONTS - MUCH BIGGER!
-		var header_size = layout_manager.get_scaled_font_size(32) if layout_manager else 32
-		var faction_size = layout_manager.get_scaled_font_size(28) if layout_manager else 28
-		var normal_size = layout_manager.get_scaled_font_size(22) if layout_manager else 22
-		var small_size = layout_manager.get_scaled_font_size(18) if layout_manager else 18
+		# Get viewport size for responsive font scaling
+		var viewport_size = get_viewport().get_visible_rect().size if get_viewport() else Vector2(1920, 1080)
 
-		custom_minimum_size = Vector2(0, 180 * scale)  # TALLER slots!
+		# Responsive font sizes (% of viewport height)
+		var header_size = int(viewport_size.y * 0.028)  # 2.8% of screen height
+		var faction_size = int(viewport_size.y * 0.024)  # 2.4% of screen height
+		var normal_size = int(viewport_size.y * 0.018)  # 1.8% of screen height
+		var small_size = int(viewport_size.y * 0.015)  # 1.5% of screen height
+
+		# Slot expands to fill grid cell
+		size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		size_flags_vertical = Control.SIZE_EXPAND_FILL
+		custom_minimum_size = Vector2(200 * scale, 150 * scale)  # Minimum size
 
 		var vbox = VBoxContainer.new()
-		vbox.add_theme_constant_override("separation", int(8 * scale))  # More spacing!
+		vbox.add_theme_constant_override("separation", int(6 * scale))
 		add_child(vbox)
 
 		# Header: [U] 🔒
@@ -626,27 +659,23 @@ class QuestSlot extends PanelContainer:
 		header_label.add_theme_font_size_override("font_size", header_size)
 		vbox.add_child(header_label)
 
-		# Faction emoji and name - BIG!
+		# Faction emoji and name
 		faction_label = Label.new()
 		faction_label.add_theme_font_size_override("font_size", faction_size)
 		vbox.add_child(faction_label)
 
-		# Quest details - READABLE!
+		# Quest details
 		details_label = Label.new()
 		details_label.add_theme_font_size_override("font_size", normal_size)
 		details_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		vbox.add_child(details_label)
 
-		# Status - CLEAR!
+		# Status (alignment, time, rewards)
 		status_label = Label.new()
 		status_label.add_theme_font_size_override("font_size", small_size)
 		vbox.add_child(status_label)
 
-		# Actions - VISIBLE!
-		action_label = Label.new()
-		action_label.add_theme_font_size_override("font_size", small_size)
-		action_label.modulate = Color(1.0, 0.9, 0.5)  # Gold for visibility
-		vbox.add_child(action_label)
+		# NO action_label - actions shown in QER toolbar!
 
 		_refresh_ui()
 
@@ -676,7 +705,7 @@ class QuestSlot extends PanelContainer:
 		_refresh_ui()
 
 	func _refresh_ui() -> void:
-		"""FLASH GAME UI - SIMPLE, BOLD, VISUAL"""
+		"""QUADRANT UI - Compact, no action hints (shown in QER toolbar)"""
 		# Update header - BOLD KEY + LOCK
 		var lock_icon = "🔒" if is_locked else ""
 		header_label.text = "[%s] %s" % [slot_letter, lock_icon]
@@ -684,38 +713,36 @@ class QuestSlot extends PanelContainer:
 		# Update based on state
 		match state:
 			SlotState.EMPTY:
-				faction_label.text = "⭕ EMPTY SLOT"
+				faction_label.text = "⭕ EMPTY"
 				details_label.text = ""
 				status_label.text = ""
-				action_label.text = "Press [E] to generate"
 				_set_bg_color(Color(0.15, 0.15, 0.15, 0.9))
 
 			SlotState.OFFERED:
-				# FACTION - BIG emoji + name
+				# FACTION - emoji + name
 				faction_label.text = "%s %s" % [
 					quest_data.get("faction_emoji", "❓"),
 					quest_data.get("faction", "Unknown")
 				]
 
-				# QUEST - Just the body, drop the motto (too much text!)
+				# QUEST - Just the body
 				details_label.text = quest_data.get("body", "")
 
 				# STATUS - Visual bars for alignment + rewards
 				var alignment = quest_data.get("_alignment", 0.5)
-				var align_bar = _make_bar(alignment, 10)
+				var align_bar = _make_bar(alignment, 8)  # Shorter bar for compact layout
 				var reward_mult = quest_data.get("reward_multiplier", 2.0)
 
 				var time_limit = quest_data.get("time_limit", -1)
 				var time_str = "⏰%ds" % int(time_limit) if time_limit > 0 else "♾️"
 
-				status_label.text = "Match: %s %d%%  |  🎁×%.1f  |  %s" % [
+				status_label.text = "%s %d%%  |  🎁×%.1f  |  %s" % [
 					align_bar,
 					int(alignment * 100),
 					reward_mult,
 					time_str
 				]
 
-				action_label.text = "✅[Q] Accept  |  🔄[E] Reroll  |  🔒[R] %s" % ("Unlock" if is_locked else "Lock")
 				_set_bg_color(_get_alignment_color(alignment))
 
 			SlotState.ACTIVE:
@@ -726,9 +753,8 @@ class QuestSlot extends PanelContainer:
 				details_label.text = quest_data.get("body", "")
 
 				var time_limit = quest_data.get("time_limit", -1)
-				var time_str = "⏰ Time: ???" if time_limit > 0 else "♾️ No limit"
+				var time_str = "⏰ ???" if time_limit > 0 else "♾️"
 				status_label.text = "🔥 ACTIVE  |  %s" % time_str
-				action_label.text = "✅[Q] Complete  |  ❌[E] Abandon"
 				_set_bg_color(Color(0.2, 0.3, 0.5, 0.9))
 
 			SlotState.READY:
@@ -737,19 +763,18 @@ class QuestSlot extends PanelContainer:
 					quest_data.get("faction", "Unknown")
 				]
 				details_label.text = quest_data.get("body", "")
-				status_label.text = "✨ READY TO COMPLETE! ✨"
+				status_label.text = "✨ READY! ✨"
 				status_label.modulate = Color(0.3, 1.0, 0.3)
-				action_label.text = "💰[Q] CLAIM REWARD!"
 				_set_bg_color(Color(0.2, 0.6, 0.2, 0.95))
 
 		# Highlight if selected - THICKER BORDER
 		if is_selected:
 			var current_style = get_theme_stylebox("panel")
 			if current_style:
-				current_style.border_width_left = 8  # THICK!
-				current_style.border_width_right = 8
-				current_style.border_width_top = 8
-				current_style.border_width_bottom = 8
+				current_style.border_width_left = 6  # Thick gold border
+				current_style.border_width_right = 6
+				current_style.border_width_top = 6
+				current_style.border_width_bottom = 6
 				current_style.border_color = Color(1.0, 0.9, 0.0)  # Bright gold
 
 

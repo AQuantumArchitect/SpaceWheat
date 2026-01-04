@@ -49,15 +49,15 @@ const VERBOSE = false
 
 func _get_plot_north_emoji(plot: BiomePlot) -> String:
 	"""Get north emoji safely (handles Model B where quantum_state doesn't exist)"""
-	if plot and plot.quantum_state:
-		return plot.quantum_state.north_emoji
-	# Model B fallback: return placeholder
+	if plot and plot.is_planted and plot.north_emoji:
+		return plot.north_emoji
+	# Fallback: return placeholder
 	return "?"
 
 func _get_plot_south_emoji(plot: BiomePlot) -> String:
 	"""Get south emoji safely"""
-	if plot and plot.quantum_state:
-		return plot.quantum_state.south_emoji
+	if plot and plot.is_planted and plot.south_emoji:
+		return plot.south_emoji
 	return "?"
 
 func _action_disabled_message(action_name: String) -> String:
@@ -1633,12 +1633,17 @@ func _action_inspect_plot(plots: Array[Vector2i]):
 			print("   🌱 Planted: YES")
 			print("      Has been measured: %s" % ("YES" if plot.has_been_measured else "NO"))
 
-			# Quantum state info
-			if plot.quantum_state:
-				var north = plot.quantum_state.north_emoji
-				var south = plot.quantum_state.south_emoji
-				var energy = plot.quantum_state.get_quantum_energy()
-				print("      ⚛️  State: %s ↔ %s | Energy: %.3f" % [north, south, energy])
+			# Quantum state info (Model B)
+			if plot.parent_biome and plot.register_id >= 0:
+				var north = plot.north_emoji
+				var south = plot.south_emoji
+				# Get purity from quantum computer as energy proxy
+				var biome = plot.parent_biome
+				var comp = biome.quantum_computer.get_component_containing(plot.register_id)
+				var purity = 0.5
+				if comp:
+					purity = biome.quantum_computer.get_marginal_purity(comp, plot.register_id)
+				print("      ⚛️  State: %s ↔ %s | Purity: %.3f" % [north, south, purity])
 		else:
 			print("   🌱 Planted: NO")
 

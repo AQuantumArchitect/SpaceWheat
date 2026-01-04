@@ -465,8 +465,7 @@ func _update_bubble_visuals_from_bath() -> void:
 			bubble.color = base_color.lightened(brightness - 0.5)
 
 			# Update dummy qubit phi for angular positioning (no radial orbit)
-			if bubble.plot and bubble.plot.quantum_state:
-				bubble.plot.quantum_state.phi = phase
+			# Model B: quantum_state no longer exists on plots - skip phi update
 
 
 func _apply_skating_rink_forces(delta: float) -> void:
@@ -490,13 +489,11 @@ func _apply_skating_rink_forces(delta: float) -> void:
 		var semi_b = oval.get("semi_b", 60.0)
 
 		for bubble in bubbles:
-			if not bubble.plot or not bubble.plot.quantum_state:
+			if not bubble.plot:
 				continue
 
-			var qubit = bubble.plot.quantum_state
-
-			# Phi → angular position on perimeter
-			var phi = qubit.phi if "phi" in qubit else 0.0
+			# Model B: quantum_state no longer exists - use default phi from position
+			var phi = 0.0
 
 			# Fixed ring at 70% radius (not probability-based!)
 			var ring_distance = 0.7

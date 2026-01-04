@@ -679,8 +679,8 @@ func _update_node_visuals():
 	for node in quantum_nodes:
 		node.update_from_quantum_state()
 
-		# Trigger spawn animation if plot just became planted (with quantum state)
-		if node.plot and node.plot.is_planted and node.plot.quantum_state and not node.is_spawning and node.visual_scale == 0.0:
+		# Trigger spawn animation if plot just became planted (Model B)
+		if node.plot and node.plot.is_planted and node.plot.parent_biome and node.plot.register_id >= 0 and not node.is_spawning and node.visual_scale == 0.0:
 			node.start_spawn_animation(time_accumulator)
 
 	# Update sun qubit node (always visible, no spawn animation needed)
@@ -1010,13 +1010,13 @@ func _apply_semantic_coupling(delta: float):
 
 	for i in range(quantum_nodes.size()):
 		var node_a = quantum_nodes[i]
-		if not node_a.plot or not node_a.plot.is_planted or not node_a.plot.quantum_state:
+		if not node_a.plot or not node_a.plot.is_planted or not node_a.plot.parent_biome or node_a.plot.register_id < 0:
 			continue
 
 		# Find neighboring nodes within coupling distance
 		for j in range(i + 1, quantum_nodes.size()):
 			var node_b = quantum_nodes[j]
-			if not node_b.plot or not node_b.plot.is_planted or not node_b.plot.quantum_state:
+			if not node_b.plot or not node_b.plot.is_planted or not node_b.plot.parent_biome or node_b.plot.register_id < 0:
 				continue
 
 			# Check distance (only couple nearby plots)
@@ -1232,8 +1232,8 @@ func _draw_tether_lines():
 		if not node.has_farm_tether:
 			continue
 
-		# Also require planted state and quantum state
-		if not node.plot or not node.plot.is_planted or not node.plot.quantum_state:
+		# Also require planted state (Model B)
+		if not node.plot or not node.plot.is_planted or not node.plot.parent_biome or node.plot.register_id < 0:
 			continue
 
 		# Draw dashed/dotted line for prettier effect
@@ -1308,10 +1308,17 @@ func _draw_entanglement_lines():
 			# ====================================================================
 			# Calculate interaction strength from node amplitudes
 			var interaction_strength = 0.5  # Fallback
-			if node.plot.quantum_state and partner_node.plot and partner_node.plot.quantum_state:
-				var node_radius = node.plot.quantum_state.radius
-				var partner_radius = partner_node.plot.quantum_state.radius
-				interaction_strength = sqrt(node_radius * partner_radius)  # Geometric mean
+			# Model B: Use purity as proxy for interaction strength
+			if node.plot and node.plot.parent_biome and node.plot.register_id >= 0 and partner_node.plot and partner_node.plot.parent_biome and partner_node.plot.register_id >= 0:
+				# Get purity values from quantum computers
+				var node_biome = node.plot.parent_biome
+				var partner_biome = partner_node.plot.parent_biome
+				var node_comp = node_biome.quantum_computer.get_component_containing(node.plot.register_id)
+				var partner_comp = partner_biome.quantum_computer.get_component_containing(partner_node.plot.register_id)
+				if node_comp and partner_comp:
+					var node_purity = node_biome.quantum_computer.get_marginal_purity(node_comp, node.plot.register_id)
+					var partner_purity = partner_biome.quantum_computer.get_marginal_purity(partner_comp, partner_node.plot.register_id)
+					interaction_strength = sqrt(node_purity * partner_purity)  # Geometric mean
 
 			# Animated pulse based on interaction strength
 			var phase = time_accumulator * 2.0 * (1.0 + interaction_strength)  # Faster pulse for stronger interactions
@@ -2066,9 +2073,7 @@ func _draw_quantum_bubble(node: QuantumNode, is_celestial: bool = false) -> void
 
 	# Calculate visual radius from qubit coherence (don't modify node.radius!)
 	var visual_radius = node.radius  # Default to node's radius
-	if node.plot and node.plot.quantum_state:
-		var qubit = node.plot.quantum_state
-		visual_radius = base_node_radius + qubit.radius * size_range
+	# Model B: quantum_state no longer exists on plots - use default radius
 
 	# Store visual radius for use in all subsequent rendering (don't modify node.radius)
 	# node.radius stays constant for force calculations and other systems
@@ -2082,9 +2087,7 @@ func _draw_quantum_bubble(node: QuantumNode, is_celestial: bool = false) -> void
 
 	# COLOR BRIGHTNESS ENCODING: brightness ∝ qubit.radius (coherence)
 	var brightness_factor = 0.3
-	if node.plot and node.plot.quantum_state:
-		var qubit_radius = node.plot.quantum_state.radius  # [0, 1]
-		brightness_factor = 0.3 + qubit_radius * 0.7  # Range [0.3, 1.0]
+	# Model B: quantum_state no longer exists - use default brightness
 
 	if is_celestial_render:
 		# Celestial: Golden/amber glow
@@ -2286,7 +2289,7 @@ func _draw_quantum_nodes():
 				"grid_pos": node.grid_position,
 				"emoji": node.emoji_north,
 				"opacity": node.emoji_north_opacity,
-				"quantum_state": node.plot.quantum_state != null
+				"is_planted": node.plot.is_planted
 			})
 
 		# Collect debug info for first 3 nodes

@@ -170,14 +170,7 @@ func _process(delta):
 	# Process kitchens (convert flour to bread)
 	_process_kitchens(delta)
 
-	# Process mills and markets (buildings)
-	if farm_economy:
-		for position in plots.keys():
-			var plot = plots[position]
-			if plot.plot_type == FarmPlot.PlotType.MILL:
-				plot.process_mill(delta, self, farm_economy, conspiracy_network)
-			elif plot.plot_type == FarmPlot.PlotType.MARKET:
-				plot.process_market(delta, farm_economy, conspiracy_network)
+	# Mills and markets are now processed via QuantumMill/QuantumMarket objects in the multi-biome system
 
 
 ## MULTI-BIOME REGISTRY (Phase 2b) - Methods for biome management and routing
