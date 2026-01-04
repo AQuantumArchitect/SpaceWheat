@@ -364,6 +364,133 @@ func add_time_dependent_driver(emoji: String, driver_type: String = "cosine", fr
 
 	return true
 
+
+# ============================================================================
+# PHASE 4: Lindblad Channel Operations (Pump/Reset)
+# ============================================================================
+
+func pump_to_emoji(source_emoji: String, target_emoji: String, pump_rate: float = 0.01) -> bool:
+	"""Pump population from source to target via Lindblad pump operator (Model B)
+
+	Creates/modifies a Lindblad pump channel: L_pump = √Γ |target⟩⟨source|
+	This gradually transfers population from source to target emoji.
+
+	Args:
+		source_emoji: Source emoji to pump from
+		target_emoji: Target emoji to pump to
+		pump_rate: Pump rate Γ (typical: 0.01-0.1 per second)
+
+	Returns:
+		true if successful
+	"""
+	if not bath or not bath.active_icons:
+		push_error("Biome %s has no active Icons!" % get_biome_type())
+		return false
+
+	var source_icon: Icon = null
+	for icon in bath.active_icons:
+		if icon.emoji == source_emoji:
+			source_icon = icon
+			break
+
+	if not source_icon:
+		push_warning("Source icon %s not found in biome %s" % [source_emoji, get_biome_type()])
+		return false
+
+	# Add incoming transfer: source loses population to target
+	if not source_icon.lindblad_outgoing.has(target_emoji):
+		source_icon.lindblad_outgoing[target_emoji] = 0.0
+
+	var old_rate = source_icon.lindblad_outgoing[target_emoji]
+	source_icon.lindblad_outgoing[target_emoji] += pump_rate
+
+	# Rebuild Lindblad with new pump channel
+	bath.build_lindblad_from_icons(bath.active_icons)
+	print("✅ Added pump %s → %s (rate: %.4f, total: %.4f)" %
+		[source_emoji, target_emoji, pump_rate, source_icon.lindblad_outgoing[target_emoji]])
+
+	return true
+
+
+func reset_to_pure_state(emoji: String, reset_rate: float = 0.1) -> bool:
+	"""Reset emoji to pure |0⟩ state via Lindblad reset channel (Model B)
+
+	Creates a Lindblad reset channel that mixes state toward |0⟩⟨0|.
+	Parameter: ρ ← (1-α)ρ + α|0⟩⟨0| where α = reset_rate × dt
+
+	Args:
+		emoji: Target emoji
+		reset_rate: Reset strength per second (typical: 0.05-0.5)
+
+	Returns:
+		true if successful
+	"""
+	if not bath or not bath.active_icons:
+		push_error("Biome %s has no active Icons!" % get_biome_type())
+		return false
+
+	var target_icon: Icon = null
+	for icon in bath.active_icons:
+		if icon.emoji == emoji:
+			target_icon = icon
+			break
+
+	if not target_icon:
+		push_warning("Icon %s not found in biome %s" % [emoji, get_biome_type()])
+		return false
+
+	# Store reset target in icon metadata (custom property)
+	if not target_icon.has_meta("reset_target"):
+		target_icon.set_meta("reset_target", "0")
+	if not target_icon.has_meta("reset_rate"):
+		target_icon.set_meta("reset_rate", reset_rate)
+	else:
+		var old_rate = target_icon.get_meta("reset_rate")
+		target_icon.set_meta("reset_rate", old_rate + reset_rate)
+
+	print("✅ Set reset for %s to pure state (rate: %.3f)" % [emoji, reset_rate])
+	return true
+
+
+func reset_to_mixed_state(emoji: String, reset_rate: float = 0.1) -> bool:
+	"""Reset emoji to maximally mixed state via Lindblad reset channel (Model B)
+
+	Creates a Lindblad reset channel that mixes state toward I/N.
+	Parameter: ρ ← (1-α)ρ + α(I/N) where α = reset_rate × dt
+
+	Args:
+		emoji: Target emoji
+		reset_rate: Reset strength per second (typical: 0.05-0.5)
+
+	Returns:
+		true if successful
+	"""
+	if not bath or not bath.active_icons:
+		push_error("Biome %s has no active Icons!" % get_biome_type())
+		return false
+
+	var target_icon: Icon = null
+	for icon in bath.active_icons:
+		if icon.emoji == emoji:
+			target_icon = icon
+			break
+
+	if not target_icon:
+		push_warning("Icon %s not found in biome %s" % [emoji, get_biome_type()])
+		return false
+
+	# Store reset target in icon metadata (custom property)
+	if not target_icon.has_meta("reset_target"):
+		target_icon.set_meta("reset_target", "mixed")
+	if not target_icon.has_meta("reset_rate"):
+		target_icon.set_meta("reset_rate", reset_rate)
+	else:
+		var old_rate = target_icon.get_meta("reset_rate")
+		target_icon.set_meta("reset_rate", old_rate + reset_rate)
+
+	print("✅ Set reset for %s to mixed state (rate: %.3f)" % [emoji, reset_rate])
+	return true
+
 # ============================================================================
 # MODEL B: Gate Operations (Tool 5 Backend)
 # ============================================================================

@@ -1588,34 +1588,121 @@ func _get_overlay_manager():
 ## ═══════════════════════════════════════════════════════════════════════════
 
 func _action_pump_to_wheat(plots: Array[Vector2i]):
-	"""Pump population to wheat (PHASE 4 - Lindblad Operations)
+	"""Pump population to wheat (Model B - Lindblad Operations)
 
 	Transfers population from environment to wheat via Lindblad pump operator.
 	L_pump = √Γ |wheat⟩⟨environment|
-	Deferred to Phase 4 when Lindblad channel framework is implemented.
+	Uses BiomeBase.pump_to_emoji() to add pump channel.
 	"""
-	action_performed.emit("pump_to_wheat", false,
-		"⚠️  Pumping (Phase 4): Lindblad channel operators - deferred")
+	if not farm or not farm.grid:
+		action_performed.emit("pump_to_wheat", false, "⚠️  Farm not loaded yet")
+		return
+
+	if plots.is_empty():
+		action_performed.emit("pump_to_wheat", false, "⚠️  No plots selected")
+		return
+
+	print("⛩️  Pumping to wheat for %d plots..." % plots.size())
+
+	var success_count = 0
+	var pumped = {}
+
+	for pos in plots:
+		var plot = farm.grid.get_plot(pos)
+		if not plot or not plot.is_planted:
+			continue
+
+		# Source is environment (🍂), target is wheat (🌾)
+		var biome = farm.grid.get_biome_for_plot(pos)
+		if biome and biome.pump_to_emoji("🍂", "🌾", 0.05):
+			success_count += 1
+			pumped["🍂→🌾"] = pumped.get("🍂→🌾", 0) + 1
+			print("  ⛩️ Pump established at %s" % pos)
+
+	var summary = ""
+	for pair in pumped.keys():
+		summary += "%s×%d " % [pair, pumped[pair]]
+
+	action_performed.emit("pump_to_wheat", success_count > 0,
+		"%s Pumped wheat on %d/%d plots | %s" % ["✅" if success_count > 0 else "❌", success_count, plots.size(), summary])
 
 
 func _action_reset_to_pure(plots: Array[Vector2i]):
-	"""Reset to pure state (PHASE 4 - Lindblad Operations)
+	"""Reset to pure state (Model B - Lindblad Operations)
 
 	Resets quantum state to pure |0⟩⟨0| via Lindblad reset channel.
 	ρ ← (1-α)ρ + α|0⟩⟨0|
-	Deferred to Phase 4 when reset channel is implemented.
+	Uses BiomeBase.reset_to_pure_state() to add reset channel.
 	"""
-	action_performed.emit("reset_to_pure", false,
-		"⚠️  Pure reset (Phase 4): Lindblad reset channel - deferred")
+	if not farm or not farm.grid:
+		action_performed.emit("reset_to_pure", false, "⚠️  Farm not loaded yet")
+		return
+
+	if plots.is_empty():
+		action_performed.emit("reset_to_pure", false, "⚠️  No plots selected")
+		return
+
+	print("🔄 Resetting to pure state for %d plots..." % plots.size())
+
+	var success_count = 0
+	var reset_emojis = {}
+
+	for pos in plots:
+		var plot = farm.grid.get_plot(pos)
+		if not plot or not plot.is_planted:
+			continue
+
+		var emoji = plot.north_emoji if plot.north_emoji else "🌾"
+		var biome = farm.grid.get_biome_for_plot(pos)
+		if biome and biome.reset_to_pure_state(emoji, 0.1):
+			success_count += 1
+			reset_emojis[emoji] = reset_emojis.get(emoji, 0) + 1
+			print("  🔄 Pure reset for %s at %s" % [emoji, pos])
+
+	var summary = ""
+	for emoji in reset_emojis.keys():
+		summary += "%s×%d " % [emoji, reset_emojis[emoji]]
+
+	action_performed.emit("reset_to_pure", success_count > 0,
+		"%s Reset to pure on %d/%d plots | %s" % ["✅" if success_count > 0 else "❌", success_count, plots.size(), summary])
 
 
 func _action_reset_to_mixed(plots: Array[Vector2i]):
-	"""Reset to mixed state (PHASE 4 - Lindblad Operations)
+	"""Reset to mixed state (Model B - Lindblad Operations)
 
 	Resets quantum state to maximally mixed I/N via Lindblad channel.
 	ρ ← (1-α)ρ + α(I/N)
-	Deferred to Phase 4 when reset channel is implemented.
+	Uses BiomeBase.reset_to_mixed_state() to add reset channel.
 	"""
-	action_performed.emit("reset_to_mixed", false,
-		"⚠️  Mixed reset (Phase 4): Lindblad reset channel - deferred")
+	if not farm or not farm.grid:
+		action_performed.emit("reset_to_mixed", false, "⚠️  Farm not loaded yet")
+		return
+
+	if plots.is_empty():
+		action_performed.emit("reset_to_mixed", false, "⚠️  No plots selected")
+		return
+
+	print("🔀 Resetting to mixed state for %d plots..." % plots.size())
+
+	var success_count = 0
+	var reset_emojis = {}
+
+	for pos in plots:
+		var plot = farm.grid.get_plot(pos)
+		if not plot or not plot.is_planted:
+			continue
+
+		var emoji = plot.north_emoji if plot.north_emoji else "🌾"
+		var biome = farm.grid.get_biome_for_plot(pos)
+		if biome and biome.reset_to_mixed_state(emoji, 0.1):
+			success_count += 1
+			reset_emojis[emoji] = reset_emojis.get(emoji, 0) + 1
+			print("  🔀 Mixed reset for %s at %s" % [emoji, pos])
+
+	var summary = ""
+	for emoji in reset_emojis.keys():
+		summary += "%s×%d " % [emoji, reset_emojis[emoji]]
+
+	action_performed.emit("reset_to_mixed", success_count > 0,
+		"%s Reset to mixed on %d/%d plots | %s" % ["✅" if success_count > 0 else "❌", success_count, plots.size(), summary])
 
