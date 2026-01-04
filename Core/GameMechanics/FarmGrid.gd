@@ -427,10 +427,16 @@ func _process_energy_taps(delta: float) -> void:
 				var flux = fluxes[target_emoji]
 				plot.tap_accumulated_resource += flux
 
+				# Convert accumulated flux to economy credits
+				# Flux is in quantum units, convert to credits (1 quantum = 10 credits)
+				var flux_credits = int(flux * FarmEconomy.QUANTUM_TO_CREDITS)
+				if flux_credits > 0 and farm_economy:
+					farm_economy.add_resource(target_emoji, flux_credits, "energy_tap_drain")
+
 				# Debug output (can be disabled in production)
 				if flux > 0.001:  # Only log meaningful flux
-					print("⚡ Energy tap at %s accumulated %.4f from %s" % [
-						plot.plot_id, flux, target_emoji
+					print("⚡ Energy tap at %s: drained %.4f from %s → %d credits" % [
+						plot.plot_id, flux, target_emoji, flux_credits
 					])
 
 
@@ -513,13 +519,22 @@ func _process_markets(delta: float) -> void:
 
 
 func _process_kitchens(delta: float) -> void:
-	"""Process kitchen buildings each frame - auto-convert flour to bread.
+	"""Process kitchen buildings each frame - 3-qubit Bell state baking.
 
-	Called from _process() to handle automatic bread baking.
-	Each kitchen building automatically converts accumulated flour to bread.
-	Implements the flour → bread conversion step of the production chain (optional).
+	For each kitchen:
+	1. Check if fire (🔥), water (💧), flour (💨) are available in economy
+	2. Create 3-qubit entangled Bell state: |ψ⟩ = α|🔥💧💨⟩ + β|🍞⟩
+	3. Consume inputs from economy
+	4. Measure to produce bread (🍞)
+
+	Requires: Kitchen biome (QuantumKitchen_Biome) in grid
 	"""
 	if not farm_economy or plots.is_empty():
+		return
+
+	# Get Kitchen biome
+	var kitchen_biome = biomes.get("Kitchen")
+	if not kitchen_biome:
 		return
 
 	for position in plots.keys():
@@ -527,25 +542,70 @@ func _process_kitchens(delta: float) -> void:
 		if plot.plot_type != FarmPlot.PlotType.KITCHEN or not plot.is_planted:
 			continue
 
-		# Check if any flour is available for baking
-		var flour_available = farm_economy.get_resource("💨")
-		if flour_available <= 0:
+		# Check availability of all three inputs (in economy credits)
+		var fire_credits = farm_economy.get_resource("🔥")
+		var water_credits = farm_economy.get_resource("💧")
+		var flour_credits = farm_economy.get_resource("💨")
+
+		# Minimum requirement: 10 credits = 1 quantum unit per ingredient
+		if fire_credits < 10 or water_credits < 10 or flour_credits < 10:
 			continue
 
-		# Kitchen operates on integer flour units, convert from quantum units
-		# Quantum to flour ratio: 10 quantum = 1 flour unit
-		var flour_units = int(flour_available / 10.0)
-		if flour_units <= 0:
+		# Convert to quantum units (1 unit = 10 credits)
+		var fire_units = fire_credits / 10
+		var water_units = water_credits / 10
+		var flour_units = flour_credits / 10
+
+		# Create quantum input qubits from resources
+		# Store resource units in metadata (can't use radius - it's computed from quantum computer)
+		var fire_qubit = DualEmojiQubit.new("🔥", "❄️")
+		fire_qubit.theta = 0.0  # Fully in north state (🔥)
+		fire_qubit.phi = 0.0
+		fire_qubit.set_meta("resource_units", fire_units)
+
+		var water_qubit = DualEmojiQubit.new("💧", "🏜️")
+		water_qubit.theta = 0.0  # Fully in north state (💧)
+		water_qubit.phi = 0.0
+		water_qubit.set_meta("resource_units", water_units)
+
+		var flour_qubit = DualEmojiQubit.new("💨", "🌾")
+		flour_qubit.theta = 0.0  # Fully in north state (💨)
+		flour_qubit.phi = 0.0
+		flour_qubit.set_meta("resource_units", flour_units)
+
+		# Set Kitchen's quantum inputs with resource amounts
+		kitchen_biome.set_quantum_inputs_with_units(fire_qubit, water_qubit, flour_qubit,
+			fire_units, water_units, flour_units)
+
+		# Create the 3-qubit Bell state entanglement
+		var bread_qubit = kitchen_biome.create_bread_entanglement()
+		if not bread_qubit:
 			continue
 
-		# Convert flour to bread
-		var result = farm_economy.process_flour_to_bread(flour_units)
+		# Measure to collapse Bell state to bread outcome
+		var measured_bread = kitchen_biome.measure_as_bread()
+		if not measured_bread:
+			continue
 
-		if result.get("success", false):
-			var bread_produced = result.get("bread_produced", 0)
-			print("💨→🍞 Kitchen at %s: baked %d flour → %d bread" % [
-				plot.plot_id, flour_units, bread_produced
-			])
+		# Get bread yield from measured state's metadata
+		var measured_amount = measured_bread.get_meta("bread_radius", 0.0)
+		var bread_produced = int(measured_amount)
+
+		if bread_produced <= 0:
+			continue
+
+		# Consume inputs from economy
+		farm_economy.remove_resource("🔥", fire_credits, "kitchen_bell_state")
+		farm_economy.remove_resource("💧", water_credits, "kitchen_bell_state")
+		farm_economy.remove_resource("💨", flour_credits, "kitchen_bell_state")
+
+		# Produce bread
+		var bread_credits = bread_produced * FarmEconomy.QUANTUM_TO_CREDITS
+		farm_economy.add_resource("🍞", bread_credits, "kitchen_bell_state_measurement")
+
+		print("🍳 Kitchen at %s: Baked (🔥%d + 💧%d + 💨%d) → 🍞%d bread" % [
+			plot.plot_id, fire_units, water_units, flour_units, bread_produced
+		])
 
 
 ## Plot Management
@@ -846,7 +906,16 @@ func place_market(position: Vector2i) -> bool:
 
 
 func place_kitchen(position: Vector2i) -> bool:
-	"""Place kitchen building - converts flour to bread"""
+	"""Place kitchen building - prepares for 3-qubit Bell state baking
+
+	Kitchen will:
+	1. Monitor economy for fire (🔥), water (💧), and flour (💨)
+	2. Create 3-qubit entangled Bell state: |ψ⟩ = α|🔥💧💨⟩ + β|🍞⟩
+	3. Evolve under Hamiltonian (oven heat drives toward bread)
+	4. Measure to collapse to bread outcome
+
+	The Kitchen is connected to QuantumKitchen_Biome which manages the quantum state.
+	"""
 	var plot = get_plot(position)
 	if plot == null or plot.is_planted:
 		return false
@@ -854,9 +923,10 @@ func place_kitchen(position: Vector2i) -> bool:
 	# Mark as occupied (buildings are instantly "mature")
 	plot.plot_type = FarmPlot.PlotType.KITCHEN
 	plot.is_planted = true
+	plot.kitchen_position = position  # Store for later reference
 	plot_planted.emit(position)
 
-	print("🍳 Placed kitchen at %s" % position)
+	print("🍳 Placed kitchen at %s - ready for Bell state baking!" % position)
 	return true
 
 

@@ -155,7 +155,7 @@ func create_overlays(parent: Control) -> void:
 
 	# Create Escape Menu
 	escape_menu = EscapeMenu.new()
-	escape_menu.z_index = 9999  # HIGHEST - ESC menu above all overlays!
+	escape_menu.z_index = 8000  # Above action bar
 	escape_menu.hide_menu()
 	parent.add_child(escape_menu)
 
@@ -181,7 +181,7 @@ func create_overlays(parent: Control) -> void:
 	print("💾 Creating Save/Load menu...")
 	save_load_menu = SaveLoadMenu.new()
 	print("💾 Save/Load menu instantiated, setting properties...")
-	save_load_menu.z_index = 9998  # Just below ESC menu
+	save_load_menu.z_index = 9999  # HIGHEST - above ESC menu!
 	save_load_menu.hide_menu()
 	print("💾 Adding Save/Load menu to parent...")
 	parent.add_child(save_load_menu)
@@ -768,7 +768,7 @@ func _create_vocabulary_overlay() -> Control:
 
 
 func _create_touch_button_bar() -> Control:
-	"""Create touch-friendly button bar for right side of screen"""
+	"""Create touch-friendly button bar for LEFT CENTER of screen"""
 	const PanelTouchButton = preload("res://UI/Components/PanelTouchButton.gd")
 
 	var scale = layout_manager.scale_factor if layout_manager else 1.0
@@ -778,15 +778,31 @@ func _create_touch_button_bar() -> Control:
 	button_bar.name = "TouchButtonBar"
 	button_bar.add_theme_constant_override("separation", int(10 * scale))
 
-	# Position on right side of screen
-	button_bar.anchor_left = 1.0
-	button_bar.anchor_right = 1.0
-	button_bar.anchor_top = 0.3  # Start 30% down screen
-	button_bar.anchor_bottom = 0.3
-	button_bar.offset_left = -80 * scale  # 80px from right edge
-	button_bar.offset_right = -10 * scale  # 10px from edge
-	button_bar.grow_horizontal = Control.GROW_DIRECTION_BEGIN
-	button_bar.z_index = 500  # Below panels but above game
+	# Position on LEFT CENTER of screen (aligned center vertically)
+	button_bar.anchor_left = 0.0
+	button_bar.anchor_right = 0.0
+	button_bar.anchor_top = 0.5  # Center vertically
+	button_bar.anchor_bottom = 0.5
+	button_bar.offset_left = 10 * scale  # 10px from left edge
+	button_bar.offset_right = 80 * scale  # 70px wide
+	button_bar.offset_top = -120 * scale  # Center around middle (240px total height / 2)
+	button_bar.offset_bottom = 120 * scale
+	button_bar.grow_horizontal = Control.GROW_DIRECTION_END
+	button_bar.grow_vertical = Control.GROW_DIRECTION_BOTH
+	button_bar.z_index = 1500  # Above farm UI, below overlays
+
+	# Quest button (C key) - Quest Board
+	var quest_button = PanelTouchButton.new()
+	quest_button.set_layout_manager(layout_manager)
+	quest_button.button_emoji = "📋"
+	quest_button.keyboard_hint = "[C]"
+	quest_button.button_activated.connect(func():
+		# Use PlayerShell's quest board toggle instead
+		var player_shell = get_tree().get_first_node_in_group("player_shell")
+		if player_shell and player_shell.has_method("_toggle_quest_board"):
+			player_shell._toggle_quest_board()
+	)
+	button_bar.add_child(quest_button)
 
 	# Vocabulary button (V key)
 	var vocab_button = PanelTouchButton.new()
@@ -796,21 +812,22 @@ func _create_touch_button_bar() -> Control:
 	vocab_button.button_activated.connect(toggle_vocabulary_overlay)
 	button_bar.add_child(vocab_button)
 
-	# Quest button (C key)
-	var quest_button = PanelTouchButton.new()
-	quest_button.set_layout_manager(layout_manager)
-	quest_button.button_emoji = "📋"
-	quest_button.keyboard_hint = "[C]"
-	quest_button.button_activated.connect(toggle_quest_offers_panel)
-	button_bar.add_child(quest_button)
+	# Biome Inspector button (B key)
+	var biome_button = PanelTouchButton.new()
+	biome_button.set_layout_manager(layout_manager)
+	biome_button.button_emoji = "🌍"
+	biome_button.keyboard_hint = "[B]"
+	biome_button.button_activated.connect(toggle_biome_inspector)
+	button_bar.add_child(biome_button)
 
-	# Menu button (ESC key) - Optional but helpful for touch users
-	var menu_button = PanelTouchButton.new()
-	menu_button.set_layout_manager(layout_manager)
-	menu_button.button_emoji = "☰"
-	menu_button.keyboard_hint = "[ESC]"
-	menu_button.button_activated.connect(toggle_escape_menu)
-	button_bar.add_child(menu_button)
+	# Network button (N key) - Currently disabled
+	# Uncomment when network overlay is ready
+	# var network_button = PanelTouchButton.new()
+	# network_button.set_layout_manager(layout_manager)
+	# network_button.button_emoji = "🕸️"
+	# network_button.keyboard_hint = "[N]"
+	# network_button.button_activated.connect(toggle_network_overlay)
+	# button_bar.add_child(network_button)
 
 	return button_bar
 

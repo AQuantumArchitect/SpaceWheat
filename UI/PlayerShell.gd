@@ -19,6 +19,7 @@ var overlay_manager: OverlayManager = null
 var quest_manager: QuestManager = null
 var farm: Node = null
 var farm_ui_container: Control = null
+var action_preview_row: Control = null  # Cached reference after moving to ActionBarLayer
 
 ## Modal Management
 var modal_stack: Array[Control] = []
@@ -56,6 +57,9 @@ func _handle_shell_action(event: InputEvent) -> bool:
 		KEY_C:
 			_toggle_quest_board()
 			return true
+		KEY_K:
+			_toggle_keyboard_help()
+			return true
 		KEY_ESCAPE:
 			_toggle_escape_menu()
 			return true
@@ -92,6 +96,13 @@ func _toggle_quest_board() -> void:
 			print("   ❌ No biome available!")
 
 
+func _toggle_keyboard_help() -> void:
+	"""Toggle keyboard help overlay"""
+	if not overlay_manager:
+		return
+	overlay_manager.toggle_keyboard_help()
+
+
 func _toggle_escape_menu() -> void:
 	"""Toggle escape menu"""
 	if not overlay_manager or not overlay_manager.escape_menu:
@@ -123,6 +134,9 @@ func _pop_modal(modal: Control) -> void:
 func _ready() -> void:
 	"""Initialize player shell UI - children defined in scene"""
 	print("🎪 PlayerShell initializing...")
+
+	# Add to group so overlay buttons can find us
+	add_to_group("player_shell")
 
 	# CRITICAL: Ensure PlayerShell fills its parent (FarmView)
 	# This is the top of the delegation cascade - everything below depends on this sizing
@@ -185,7 +199,19 @@ func _ready() -> void:
 		overlay_manager.escape_menu.resume_pressed.connect(func():
 			_pop_modal(overlay_manager.escape_menu)
 		)
-		print("   ✅ Escape menu close signal connected")
+		overlay_manager.escape_menu.save_pressed.connect(func():
+			_push_modal(overlay_manager.save_load_menu)
+		)
+		overlay_manager.escape_menu.load_pressed.connect(func():
+			_push_modal(overlay_manager.save_load_menu)
+		)
+		print("   ✅ Escape menu signals connected")
+
+	if overlay_manager.save_load_menu:
+		overlay_manager.save_load_menu.menu_closed.connect(func():
+			_pop_modal(overlay_manager.save_load_menu)
+		)
+		print("   ✅ Save/Load menu signals connected")
 
 	print("   ✅ Overlay manager created")
 	print("✅ PlayerShell ready")
@@ -249,6 +275,10 @@ func load_farm_ui(farm_ui: Control) -> void:
 		farm_ui_container.add_child(farm_ui)
 		print("   ✓ FarmUI mounted in container")
 
+	# Move ActionPreviewRow to ActionBarLayer for correct z-ordering
+	# (Action bar needs to be above overlays)
+	call_deferred("_move_action_bar_to_top_layer")
+
 
 ## OVERLAY SYSTEM INITIALIZATION
 
@@ -283,25 +313,96 @@ func _initialize_overlay_system() -> void:
 
 func _update_action_toolbar_for_quest(slot_state: int = 1, is_locked: bool = false) -> void:
 	"""Update action toolbar to show quest-specific actions"""
-	if not current_farm_ui:
+	if not action_preview_row:
 		return
 
-	var action_preview = current_farm_ui.get_node_or_null("MainContainer/ActionPreviewRow")
-	if action_preview and action_preview.has_method("update_for_quest_board"):
-		action_preview.update_for_quest_board(slot_state, is_locked)
+	if action_preview_row.has_method("update_for_quest_board"):
+		action_preview_row.update_for_quest_board(slot_state, is_locked)
 
 
 func _restore_action_toolbar() -> void:
 	"""Restore action toolbar to normal tool mode"""
-	if not current_farm_ui:
+	if not action_preview_row:
 		return
 
-	var action_preview = current_farm_ui.get_node_or_null("MainContainer/ActionPreviewRow")
-	if action_preview and action_preview.has_method("restore_normal_mode"):
-		action_preview.restore_normal_mode()
+	if action_preview_row.has_method("restore_normal_mode"):
+		action_preview_row.restore_normal_mode()
 
 
 ## QUEST SYSTEM HELPERS
+
+func _move_action_bar_to_top_layer() -> void:
+	"""Move ActionPreviewRow and ToolSelectionRow from FarmUI to ActionBarLayer for correct z-ordering"""
+	if not current_farm_ui:
+		return
+
+	var action_bar_layer = get_node_or_null("ActionBarLayer")
+	if not action_bar_layer:
+		print("⚠️  ActionBarLayer not found in PlayerShell")
+		return
+
+	var main_container = current_farm_ui.get_node_or_null("MainContainer")
+	if not main_container:
+		print("⚠️  MainContainer not found in FarmUI")
+		return
+
+	# Move ActionPreviewRow (QER buttons)
+	var action_bar = current_farm_ui.get_node_or_null("MainContainer/ActionPreviewRow")
+	if action_bar:
+		main_container.remove_child(action_bar)
+
+		# Add to ActionBarLayer FIRST (must be in tree before setting anchors)
+		action_bar_layer.add_child(action_bar)
+
+		# Use call_deferred to avoid anchor/size conflicts (see warning in console)
+		action_bar.call_deferred("_apply_bottom_center_layout")
+
+		# Add helper method to action bar if it doesn't exist
+		if not action_bar.has_method("_apply_bottom_center_layout"):
+			var script_code = """
+func _apply_bottom_center_layout():
+	set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+	offset_top = -80
+	offset_bottom = 0
+	custom_minimum_size = Vector2(0, 80)
+"""
+			# Instead, just set it directly with deferred
+			action_bar.set_deferred("anchor_left", 0.0)
+			action_bar.set_deferred("anchor_right", 1.0)
+			action_bar.set_deferred("anchor_top", 1.0)
+			action_bar.set_deferred("anchor_bottom", 1.0)
+			action_bar.set_deferred("offset_left", 0)
+			action_bar.set_deferred("offset_right", 0)
+			action_bar.set_deferred("offset_top", -80)
+			action_bar.set_deferred("offset_bottom", 0)
+			action_bar.set_deferred("custom_minimum_size", Vector2(0, 80))
+
+		action_preview_row = action_bar
+		print("   ✅ ActionPreviewRow moved to ActionBarLayer (center bottom, deferred)")
+
+	# Move ToolSelectionRow (1-6 tool buttons)
+	var tool_bar = current_farm_ui.get_node_or_null("MainContainer/ToolSelectionRow")
+	if tool_bar:
+		main_container.remove_child(tool_bar)
+
+		# Add to ActionBarLayer FIRST
+		action_bar_layer.add_child(tool_bar)
+
+		# Use set_deferred to avoid anchor/size conflicts
+		tool_bar.set_deferred("anchor_left", 0.0)
+		tool_bar.set_deferred("anchor_right", 1.0)
+		tool_bar.set_deferred("anchor_top", 1.0)
+		tool_bar.set_deferred("anchor_bottom", 1.0)
+		tool_bar.set_deferred("offset_left", 0)
+		tool_bar.set_deferred("offset_right", 0)
+		tool_bar.set_deferred("offset_top", -140)
+		tool_bar.set_deferred("offset_bottom", -80)
+		tool_bar.set_deferred("custom_minimum_size", Vector2(0, 60))
+
+		print("   ✅ ToolSelectionRow moved to ActionBarLayer (above action bar, deferred)")
+
+	print("   ✅ Both toolbars now on ActionBarLayer (z_index 5000 - above overlays)")
+
 
 func _offer_initial_quest() -> void:
 	"""Offer first quest to player when farm loads"""

@@ -102,6 +102,7 @@ func handle_input(event: InputEvent) -> bool:
 		KEY_ESCAPE:
 			close_board()
 			return true
+		# UIOP keys for direct selection
 		KEY_U:
 			select_slot(0)
 			return true
@@ -114,6 +115,20 @@ func handle_input(event: InputEvent) -> bool:
 		KEY_P:
 			select_slot(3)
 			return true
+		# Arrow keys for navigation (2×2 grid layout)
+		KEY_UP:
+			_navigate_up()
+			return true
+		KEY_DOWN:
+			_navigate_down()
+			return true
+		KEY_LEFT:
+			_navigate_left()
+			return true
+		KEY_RIGHT:
+			_navigate_right()
+			return true
+		# Action keys
 		KEY_Q:
 			action_q_on_selected()
 			return true
@@ -183,7 +198,7 @@ func _create_ui() -> void:
 
 	# Simplified controls - JUST SELECTION + BROWSE (QER shown in toolbar!)
 	controls_label = Label.new()
-	controls_label.text = "🎯 [UIOP] Select Quest  |  📚 [C] Browse Factions  |  ✖️ [ESC] Close"
+	controls_label.text = "🎯 [Arrows or UIOP] Select  |  [QER] Actions  |  📚 [C] Browse  |  ✖️ [ESC] Close"
 	controls_label.add_theme_font_size_override("font_size", normal_size)
 	controls_label.modulate = Color(1.0, 0.9, 0.5)  # Gold/yellow for visibility
 	controls_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -421,6 +436,42 @@ func select_slot(index: int) -> void:
 
 	# Emit selection changed for action toolbar update
 	_emit_selection_update()
+
+
+func _navigate_up() -> void:
+	"""Navigate up in 2×2 grid: O→U, P→I"""
+	match selected_slot_index:
+		2:  # O → U
+			select_slot(0)
+		3:  # P → I
+			select_slot(1)
+
+
+func _navigate_down() -> void:
+	"""Navigate down in 2×2 grid: U→O, I→P"""
+	match selected_slot_index:
+		0:  # U → O
+			select_slot(2)
+		1:  # I → P
+			select_slot(3)
+
+
+func _navigate_left() -> void:
+	"""Navigate left in 2×2 grid: I→U, P→O"""
+	match selected_slot_index:
+		1:  # I → U
+			select_slot(0)
+		3:  # P → O
+			select_slot(2)
+
+
+func _navigate_right() -> void:
+	"""Navigate right in 2×2 grid: U→I, O→P"""
+	match selected_slot_index:
+		0:  # U → I
+			select_slot(1)
+		2:  # O → P
+			select_slot(3)
 
 
 func _emit_selection_update() -> void:

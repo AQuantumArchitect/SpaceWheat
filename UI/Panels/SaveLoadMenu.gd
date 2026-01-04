@@ -134,6 +134,50 @@ func _init():
 	set_process_input(false)  # Disable input until menu is shown
 
 
+func handle_input(event: InputEvent) -> bool:
+	"""Modal input handler - called by PlayerShell when on modal stack
+
+	Returns true if input was consumed, false otherwise.
+	"""
+	if not visible:
+		return false
+
+	if not event is InputEventKey or not event.pressed or event.echo:
+		return false
+
+	# Handle keyboard input
+	match event.keycode:
+		KEY_ESCAPE:
+			_on_cancel_pressed()
+			return true  # Consumed!
+
+		KEY_UP:
+			_select_previous_slot()
+			return true
+
+		KEY_DOWN:
+			_select_next_slot()
+			return true
+
+		KEY_1:
+			_select_slot(0)
+			return true
+
+		KEY_2:
+			_select_slot(1)
+			return true
+
+		KEY_3:
+			_select_slot(2)
+			return true
+
+		KEY_ENTER, KEY_KP_ENTER, KEY_SPACE:
+			_confirm_selection()
+			return true
+
+	return false  # Not consumed
+
+
 func _create_slot_button(slot: int) -> Button:
 	var btn = Button.new()
 	btn.name = "SlotButton" + str(slot)

@@ -57,11 +57,14 @@ func _ready() -> void:
 	print("🛁 Creating bath-first quantum visualization...")
 	quantum_viz = BathQuantumViz.new()
 
-	# Add to a CanvasLayer so Node2D renders BEHIND UI
+	# Add to same CanvasLayer as UI (layer 0) so we can control z_index
 	var viz_layer = CanvasLayer.new()
-	viz_layer.layer = -1  # BEHIND UI layer (layer 0) - biomes in back!
+	viz_layer.layer = 0  # Same layer as UI - use z_index for ordering
 	add_child(viz_layer)
 	viz_layer.add_child(quantum_viz)
+
+	# Set z_index to be above plots (-10) but below farm UI (100)
+	quantum_viz.z_index = 50  # Between plots and UI
 
 	# Add biomes to visualization (if available)
 	if farm.biome_enabled:

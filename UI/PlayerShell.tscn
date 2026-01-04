@@ -40,3 +40,12 @@ anchors_top = 0.0
 anchors_right = 1.0
 anchors_bottom = 1.0
 z_index = 1000
+
+[node name="ActionBarLayer" type="Control" parent="."]
+layout_mode = 1
+anchors_left = 0.0
+anchors_top = 0.0
+anchors_right = 1.0
+anchors_bottom = 1.0
+z_index = 5000
+mouse_filter = 2

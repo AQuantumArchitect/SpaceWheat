@@ -22,11 +22,20 @@ func _ready():
 	custom_minimum_size = Vector2(150 * scale_factor, 40 * scale_factor)
 	pressed.connect(_on_button_pressed)
 
+	# Position button in upper right
+	set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	offset_left = -160 * scale_factor  # Offset from right edge
+	offset_top = 10 * scale_factor     # Offset from top
+
+	# Ensure button is clickable and visible above farm UI
+	mouse_filter = Control.MOUSE_FILTER_STOP
+	z_index = 1000
+
 	# Create hints panel (initially hidden)
 	hints_panel = _create_hints_panel()
 	get_parent().add_child(hints_panel)
 
-	print("⌨️  KeyboardHintButton initialized")
+	print("⌨️  KeyboardHintButton initialized (upper right)")
 
 
 func toggle_hints() -> void:
@@ -64,10 +73,11 @@ func _create_hints_panel() -> PanelContainer:
 	# Main panel container
 	var panel = PanelContainer.new()
 	panel.custom_minimum_size = Vector2(500 * scale_factor, 400 * scale_factor)
-	# Position on left side at 1/3 vertical (no longer blocking resources)
-	var viewport_height = get_viewport().size.y if get_viewport() else 1080.0
-	panel.position = Vector2(20 * scale_factor, viewport_height * 0.333 - (400 * scale_factor * 0.5))
-	panel.z_index = 1000
+	# Position in upper right below the button
+	panel.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	panel.offset_left = -520 * scale_factor  # Panel width + margin
+	panel.offset_top = 60 * scale_factor     # Below button
+	panel.z_index = 2000  # Above overlays
 	panel.visible = false
 
 	# VBox for content

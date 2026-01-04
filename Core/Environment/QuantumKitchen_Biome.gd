@@ -231,6 +231,33 @@ func set_quantum_inputs(qubit1: DualEmojiQubit, qubit2: DualEmojiQubit, qubit3: 
 	print("🍳 Kitchen received quantum inputs: %s (still in superposition)" % input_desc)
 
 
+func set_quantum_inputs_with_units(qubit1: DualEmojiQubit, qubit2: DualEmojiQubit, qubit3: DualEmojiQubit,
+	units1: float, units2: float, units3: float):
+	"""
+	Set the three QUANTUM input qubits WITH resource amounts
+
+	Resource units are stored in qubit metadata since radius is a computed property.
+	"""
+	input_qubits = [qubit1, qubit2, qubit3]
+
+	# Build input description from the qubits' emojis
+	var input_desc = "%s%s%s" % [
+		qubit1.north_emoji if qubit1 else "?",
+		qubit2.north_emoji if qubit2 else "?",
+		qubit3.north_emoji if qubit3 else "?",
+	]
+
+	# Store resource amounts in qubit metadata
+	if qubit1:
+		qubit1.set_meta("resource_units", units1)
+	if qubit2:
+		qubit2.set_meta("resource_units", units2)
+	if qubit3:
+		qubit3.set_meta("resource_units", units3)
+
+	print("🍳 Kitchen received quantum inputs: %s (still in superposition)" % input_desc)
+
+
 func configure_bell_state(plot_positions: Array) -> bool:
 	"""
 	Configure Bell state from plot positions
@@ -275,26 +302,33 @@ func create_bread_entanglement() -> DualEmojiQubit:
 	print("\n🍳 CREATING BREAD ENTANGLEMENT")
 	print("═".repeat(60))
 
-	# Calculate combined input resources (radius = amount)
+	# Calculate combined input resources
+	# Resource units are stored in qubit metadata (can't use radius - it's computed from quantum computer)
 	var total_resources = 0.0
 	var input_desc = ""
 	for i in range(3):
 		var q = input_qubits[i]
-		total_resources += q.radius if q else 0.0
+		var units = q.get_meta("resource_units", 0.0) if q else 0.0
+		total_resources += units
 		input_desc += q.north_emoji if q else "?"
-		print("  Input %d: %s/%s (θ=%.2f, R=%.2f)" % [
+		print("  Input %d: %s/%s (θ=%.2f, units=%.1f)" % [
 			i + 1,
 			q.north_emoji if q else "?",
 			q.south_emoji if q else "?",
 			q.theta if q else 0.0,
-			q.radius if q else 0.0,
+			units,
 		])
 
 	# Create bread qubit: 🍞 / (inputs)
 	# Starts at θ=π/2 (equal superposition of bread and inputs)
-	bread_qubit = BiomeUtilities.create_qubit("🍞", "(%s)" % input_desc, PI / 2.0)
+	bread_qubit = DualEmojiQubit.new("🍞", "(%s)" % input_desc)
+	bread_qubit.theta = PI / 2.0  # Equal superposition
 	bread_qubit.phi = 0.0
-	bread_qubit.radius = total_resources * bread_production_efficiency
+
+	# Store resource amount in metadata (can't directly set radius - it's computed)
+	var bread_produced = total_resources * bread_production_efficiency
+	bread_qubit.set_meta("resource_units", bread_produced)
+	bread_qubit.set_meta("bread_radius", bread_produced)  # For measurement
 
 	# Store input references for entanglement correlation
 	bread_qubit.set_meta("entangled_inputs", input_qubits)
@@ -305,7 +339,7 @@ func create_bread_entanglement() -> DualEmojiQubit:
 
 	print("\n  Created: 🍞/(%s)" % input_desc)
 	print("  θ = π/2 (equal superposition)")
-	print("  Radius = %.2f (%.0f%% of inputs)" % [bread_qubit.radius, bread_production_efficiency * 100])
+	print("  Resource units = %.2f (%.0f%% of inputs)" % [bread_produced, bread_production_efficiency * 100])
 	print("  Bread icon will drive toward 🍞 state...")
 	print("═".repeat(60) + "\n")
 
@@ -328,14 +362,16 @@ func measure_as_bread() -> DualEmojiQubit:
 	# Collapse to bread state (theta → 0)
 	bread_qubit.theta = 0.0
 
-	# Clear input qubits (consumed)
+	# Clear input qubits (consumed) - mark them as used
 	for q in input_qubits:
 		if q:
-			q.radius = 0.0
+			q.set_meta("resource_units", 0.0)  # Mark as consumed
 
-	total_bread_produced += bread_qubit.radius
+	# Get bread production amount from metadata (can't use radius - it's computed)
+	var bread_amount = bread_qubit.get_meta("bread_radius", 0.0)
+	total_bread_produced += bread_amount
 
-	print("  → Collapsed to 🍞 (resources: %.2f)" % bread_qubit.radius)
+	print("  → Collapsed to 🍞 (resources: %.2f)" % bread_amount)
 
 	return bread_qubit
 

@@ -71,16 +71,73 @@ func _unhandled_key_input(event: InputEvent) -> void:
 			move_selection(1)
 			get_viewport().set_input_as_handled()
 
-		# Select (Q)
-		KEY_Q:
+		# Arrow keys for navigation
+		KEY_UP:
+			move_selection(-1)  # Up one
+			get_viewport().set_input_as_handled()
+		KEY_DOWN:
+			move_selection(1)   # Down one
+			get_viewport().set_input_as_handled()
+		KEY_PAGEUP:
+			move_selection(-3)  # Page up
+			get_viewport().set_input_as_handled()
+		KEY_PAGEDOWN:
+			move_selection(3)   # Page down
+			get_viewport().set_input_as_handled()
+
+		# Select (Q or Enter)
+		KEY_Q, KEY_ENTER, KEY_KP_ENTER:
 			select_current_faction()
 			get_viewport().set_input_as_handled()
 
 
-func handle_input(event: InputEvent) -> void:
-	"""Legacy method for compatibility - delegates to _unhandled_key_input"""
-	# This is called from QuestBoard but input is now handled via _unhandled_key_input
-	pass
+func handle_input(event: InputEvent) -> bool:
+	"""Modal input handler - called by QuestBoard when on modal stack
+
+	Returns true if input was consumed, false otherwise.
+	"""
+	if not visible or not event is InputEventKey or not event.pressed or event.echo:
+		return false
+
+	match event.keycode:
+		KEY_ESCAPE, KEY_C:
+			close_browser()
+			return true
+
+		# Navigate (UIOP)
+		KEY_U:
+			move_selection(-1)
+			return true
+		KEY_I:
+			move_selection(-3)  # Page up
+			return true
+		KEY_O:
+			move_selection(3)   # Page down
+			return true
+		KEY_P:
+			move_selection(1)
+			return true
+
+		# Arrow keys for navigation
+		KEY_UP:
+			move_selection(-1)  # Up one
+			return true
+		KEY_DOWN:
+			move_selection(1)   # Down one
+			return true
+		KEY_PAGEUP:
+			move_selection(-3)  # Page up
+			return true
+		KEY_PAGEDOWN:
+			move_selection(3)   # Page down
+			return true
+
+		# Select (Q or Enter)
+		KEY_Q, KEY_ENTER, KEY_KP_ENTER:
+			select_current_faction()
+			return true
+
+	return false  # Input not consumed
 
 
 func _create_ui() -> void:
@@ -130,7 +187,7 @@ func _create_ui() -> void:
 
 	# Controls hint
 	var controls = Label.new()
-	controls.text = "[UIOP]Navigate  [Q]Select  [ESC/C]Back"
+	controls.text = "[↑↓ or UIOP] Navigate  [ENTER or Q] Select  [ESC/C] Back"
 	controls.add_theme_font_size_override("font_size", normal_size)
 	controls.modulate = Color(0.8, 0.8, 0.8)
 	main_vbox.add_child(controls)
