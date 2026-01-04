@@ -885,15 +885,14 @@ func _action_place_kitchen(positions: Array[Vector2i]):
 
 
 func _action_batch_boost_energy(positions: Array[Vector2i]):
-	"""Boost quantum energy in selected plots (Model B: feature deprecated)"""
-	if not farm:
-		action_performed.emit("boost_energy", false, "⚠️  Farm not loaded yet")
-		return
+	"""Boost quantum energy in selected plots (DEPRECATED - Model A only)
 
-	# Model B: Energy management moved to quantum_computer evolution
-	# This tool action is not functional in Model B architecture
+	This method implemented fake quantum physics (direct amplitude inflation).
+	Model B uses proper quantum evolution via Hamiltonian coupling.
+	Use harvest operations for resource extraction instead.
+	"""
 	action_performed.emit("boost_energy", false,
-		"⚠️  Energy boost disabled in Model B (use harvest instead)")
+		"⚠️  DEPRECATED: Energy boost removed in Model B (use harvest instead)")
 
 
 func _action_batch_measure_and_harvest(positions: Array[Vector2i]):
@@ -973,69 +972,113 @@ func _action_plant_batch(positions: Array[Vector2i]):
 
 
 func _action_entangle_batch(positions: Array[Vector2i]):
-	"""Batch entangle selected plots (Model B: disabled)"""
+	"""Batch entangle selected plots (PHASE 4 - Gate Infrastructure)
+
+	Creates entanglement between all plot pairs via quantum_computer API.
+	Deferred to Phase 4 when entanglement infrastructure is implemented.
+	"""
 	action_performed.emit("entangle_batch", false,
-		"⚠️  Entanglement not functional in Model B (requires quantum_computer refactor)")
+		"⚠️  Entanglement (Phase 4): Gate infrastructure - deferred")
 
 
 ## NEW Tool 2 (QUANTUM) Actions - PERSISTENT INFRASTRUCTURE
 
 func _action_cluster(positions: Array[Vector2i]):
-	"""Build entanglement gate infrastructure (Model B: disabled)"""
+	"""Build entanglement gate infrastructure (PHASE 4 - Gate Infrastructure)
+
+	Creates multi-qubit cluster state topology for advanced quantum operations.
+	Deferred to Phase 4 when gate infrastructure is implemented.
+	"""
 	action_performed.emit("cluster", false,
-		"⚠️  Gate infrastructure not functional in Model B (requires quantum_computer refactor)")
+		"⚠️  Gate clusters (Phase 4): Infrastructure framework - deferred")
 
 
 func _action_measure_trigger(positions: Array[Vector2i]):
-	"""Build measure trigger (Model B: disabled)"""
+	"""Build measure trigger (PHASE 4 - Gate Infrastructure)
+
+	Creates conditional measurement infrastructure for controlled collapse.
+	Deferred to Phase 4 when trigger framework is implemented.
+	"""
 	action_performed.emit("measure_trigger", false,
-		"⚠️  Measure trigger not functional in Model B (requires quantum_computer refactor)")
+		"⚠️  Measure triggers (Phase 4): Conditional framework - deferred")
 
 
 func _action_remove_gates(positions: Array[Vector2i]):
-	"""Remove gate infrastructure (Model B: disabled)"""
+	"""Remove gate infrastructure (PHASE 4 - Gate Infrastructure)
+
+	Removes entanglement and gate configurations from specified locations.
+	Deferred to Phase 4 when gate decoupling is implemented.
+	"""
 	action_performed.emit("remove_gates", false,
-		"⚠️  Gate removal not functional in Model B (requires quantum_computer refactor)")
+		"⚠️  Gate removal (Phase 4): Decoupling framework - deferred")
 
 
 ## Tool 4 (BIOME EVOLUTION CONTROLLER) - Research-Grade Actions
 
 func _action_boost_coupling(positions: Array[Vector2i]):
-	"""Boost Hamiltonian coupling (Model B: disabled)"""
+	"""Boost Hamiltonian coupling (PHASE 4 - Biome Evolution)
+
+	Increases Hamiltonian coupling strength between emoji states.
+	Requires quantum_computer.modify_icon_coupling() API implementation.
+	"""
 	action_performed.emit("boost_coupling", false,
-		"⚠️  Hamiltonian coupling not functional in Model B (requires quantum_computer refactor)")
+		"⚠️  Coupling control (Phase 4): Icon modification API - deferred")
 
 
 func _action_tune_decoherence(positions: Array[Vector2i]):
-	"""Tune Lindblad decoherence rates (Model B: disabled)"""
+	"""Tune Lindblad decoherence rates (PHASE 4 - Biome Evolution)
+
+	Scales Lindblad decay rates for individual emojis.
+	Requires quantum_computer.modify_icon_decoherence() API implementation.
+	"""
 	action_performed.emit("tune_decoherence", false,
-		"⚠️  Decoherence tuning not functional in Model B (requires quantum_computer refactor)")
+		"⚠️  Decoherence control (Phase 4): Icon modification API - deferred")
 
 
 func _action_add_driver(positions: Array[Vector2i]):
-	"""Add time-dependent driving field (Model B: disabled)"""
+	"""Add time-dependent driving field (PHASE 4 - Biome Evolution)
+
+	Creates oscillating Hamiltonian term (e.g., day/night cycles).
+	Requires quantum_computer.add_time_dependent_driver() API implementation.
+	"""
 	action_performed.emit("add_driver", false,
-		"⚠️  Resonant driving not functional in Model B (requires quantum_computer refactor)")
+		"⚠️  Driven evolution (Phase 4): Time-dependent framework - deferred")
 
 
-## DEPRECATED: Old fake physics methods (kept for backwards compatibility)
+## DEPRECATED: Old fake physics methods (Model A artifacts)
 
 func _action_inject_energy(positions: Array[Vector2i]):
-	"""Inject energy into plots (Model B: disabled)"""
+	"""Inject energy into plots (DEPRECATED - Model A only)
+
+	This method implemented fake quantum physics and is removed from Model B.
+	Use harvest operations for resource management instead.
+	"""
 	action_performed.emit("inject_energy", false,
-		"⚠️  Energy injection not functional in Model B (requires quantum_computer refactor)")
+		"⚠️  DEPRECATED: Energy injection removed in Model B (use harvest instead)")
 
 
 func _action_drain_energy(positions: Array[Vector2i]):
-	"""Drain energy from plots (Model B: disabled)"""
+	"""Drain energy from plots (DEPRECATED - Model A only)
+
+	This method implemented fake quantum physics and is removed from Model B.
+	Use harvest operations for resource management instead.
+	"""
 	action_performed.emit("drain_energy", false,
-		"⚠️  Energy draining not functional in Model B (requires quantum_computer refactor)")
+		"⚠️  DEPRECATED: Energy draining removed in Model B (use harvest instead)")
 
 
 func _action_place_energy_tap(positions: Array[Vector2i]):
-	"""Place energy drain taps (Model B: disabled)"""
+	"""Place energy drain taps (PHASE 4 - Sink State Infrastructure)
+
+	Model B implementation requires:
+	1. Sink state infrastructure (⬇️ emoji)
+	2. Lindblad drain operators L_e = √κ |sink⟩⟨e|
+	3. Flux tracking during evolution
+
+	Deferred to Phase 4 quantum infrastructure work.
+	"""
 	action_performed.emit("place_energy_tap", false,
-		"⚠️  Energy taps not functional in Model B (requires quantum_computer refactor)")
+		"⚠️  Energy taps (Phase 4): Requires sink state infrastructure - deferred")
 
 
 ## NEW Tool 5 (GATES) Actions - INSTANTANEOUS SINGLE-QUBIT
@@ -1450,19 +1493,34 @@ func _get_overlay_manager():
 ## ═══════════════════════════════════════════════════════════════════════════
 
 func _action_pump_to_wheat(plots: Array[Vector2i]):
-	"""Pump population to wheat (Model B: disabled)"""
+	"""Pump population to wheat (PHASE 4 - Lindblad Operations)
+
+	Transfers population from environment to wheat via Lindblad pump operator.
+	L_pump = √Γ |wheat⟩⟨environment|
+	Deferred to Phase 4 when Lindblad channel framework is implemented.
+	"""
 	action_performed.emit("pump_to_wheat", false,
-		"⚠️  Pumping operations not functional in Model B (requires quantum_computer refactor)")
+		"⚠️  Pumping (Phase 4): Lindblad channel operators - deferred")
 
 
 func _action_reset_to_pure(plots: Array[Vector2i]):
-	"""Reset to pure state (Model B: disabled)"""
+	"""Reset to pure state (PHASE 4 - Lindblad Operations)
+
+	Resets quantum state to pure |0⟩⟨0| via Lindblad reset channel.
+	ρ ← (1-α)ρ + α|0⟩⟨0|
+	Deferred to Phase 4 when reset channel is implemented.
+	"""
 	action_performed.emit("reset_to_pure", false,
-		"⚠️  Reset operations not functional in Model B (requires quantum_computer refactor)")
+		"⚠️  Pure reset (Phase 4): Lindblad reset channel - deferred")
 
 
 func _action_reset_to_mixed(plots: Array[Vector2i]):
-	"""Reset to mixed state (Model B: disabled)"""
+	"""Reset to mixed state (PHASE 4 - Lindblad Operations)
+
+	Resets quantum state to maximally mixed I/N via Lindblad channel.
+	ρ ← (1-α)ρ + α(I/N)
+	Deferred to Phase 4 when reset channel is implemented.
+	"""
 	action_performed.emit("reset_to_mixed", false,
-		"⚠️  Reset operations not functional in Model B (requires quantum_computer refactor)")
+		"⚠️  Mixed reset (Phase 4): Lindblad reset channel - deferred")
 
