@@ -1120,8 +1120,10 @@ func harvest_with_topology(position: Vector2i, local_radius: int = 2) -> Diction
 	if biome and biome.quantum_computer and register_id >= 0:
 		var comp = biome.quantum_computer.get_component_containing(register_id)
 		if comp:
-			# Unified measurement - returns emoji outcome (north or south)
-			measurement_result = biome.quantum_computer.measure_register(comp, register_id)
+			# Unified measurement - returns "north" or "south" basis label
+			var basis_outcome = biome.quantum_computer.measure_register(comp, register_id)
+			# Map basis outcome to emoji
+			measurement_result = plot.north_emoji if basis_outcome == "north" else plot.south_emoji
 			print("📊 Harvest measurement at %s: outcome = %s" % [position, measurement_result])
 		else:
 			# Register not in any component - unentangled single qubit
@@ -1227,8 +1229,10 @@ func measure_plot(position: Vector2i) -> String:
 	# 1. Measures primary register
 	# 2. Collapses entire component (all entangled qubits)
 	# 3. Updates all register states
-	# 4. Returns single outcome
-	var result = biome.quantum_computer.measure_register(comp, register_id)
+	# 4. Returns basis outcome ("north" or "south")
+	var basis_outcome = biome.quantum_computer.measure_register(comp, register_id)
+	# Map basis outcome to emoji
+	var result = plot.north_emoji if basis_outcome == "north" else plot.south_emoji
 	print("📊 Measure operation: %s collapsed to %s" % [position, result])
 
 	# For compatibility, still track which plots were in the component
