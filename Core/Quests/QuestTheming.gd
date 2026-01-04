@@ -346,10 +346,16 @@ static func generate_quest(faction: Dictionary, bath, player_vocab: Array = []) 
 
 	# 8. Add faction metadata
 	quest["faction"] = faction.get("name", "Unknown")
-	var signature = faction.get("signature", [])
+	var signature = faction.get("sig", faction.get("signature", []))  # v2.1 uses "sig" not "signature"
 	quest["faction_emoji"] = "".join(signature.slice(0, 3))
 	quest["faction_signature"] = signature
 	quest["bits"] = faction_bits
+
+	# v2.1 fields
+	quest["motto"] = faction.get("motto", null)
+	quest["domain"] = faction.get("domain", "Unknown")
+	quest["ring"] = faction.get("ring", "unknown")
+	quest["description"] = faction.get("description", "")
 
 	# 9. Add vocabulary info
 	quest["faction_vocabulary"] = faction_vocab.all

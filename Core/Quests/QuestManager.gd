@@ -11,7 +11,7 @@ const QuestTheming = preload("res://Core/Quests/QuestTheming.gd")
 const QuestTypes = preload("res://Core/Quests/QuestTypes.gd")
 const QuestRewards = preload("res://Core/Quests/QuestRewards.gd")
 const FactionStateMatcher = preload("res://Core/QuantumSubstrate/FactionStateMatcher.gd")
-const FactionDatabase = preload("res://Core/Quests/FactionDatabase.gd")
+const FactionDatabase = preload("res://Core/Quests/FactionDatabaseV2.gd")
 
 # =============================================================================
 # SIGNALS

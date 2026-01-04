@@ -255,9 +255,16 @@ class QuestOfferItem extends PanelContainer:
 		vbox.add_child(header_hbox)
 
 		var faction_label = Label.new()
-		faction_label.text = "%s %s" % [
+		# Show domain and ring along with faction name
+		var domain = quest_data.get("domain", "")
+		var ring = quest_data.get("ring", "")
+		var ring_display = ""
+		if ring:
+			ring_display = " [%s]" % ring.capitalize()
+		faction_label.text = "%s %s%s" % [
 			quest_data.get("faction_emoji", ""),
-			quest_data.get("faction", "Unknown")
+			quest_data.get("faction", "Unknown"),
+			ring_display
 		]
 		faction_label.add_theme_font_size_override("font_size", faction_size)
 		faction_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -269,6 +276,16 @@ class QuestOfferItem extends PanelContainer:
 		alignment_label.add_theme_font_size_override("font_size", detail_size)
 		alignment_label.modulate = _get_alignment_text_color(alignment)
 		header_hbox.add_child(alignment_label)
+
+		# Motto (if available)
+		var motto = quest_data.get("motto")
+		if motto and motto != "":
+			var motto_label = Label.new()
+			motto_label.text = '"%s"' % motto
+			motto_label.add_theme_font_size_override("font_size", detail_size)
+			motto_label.modulate = Color(0.9, 0.9, 0.7)  # Soft gold
+			motto_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			vbox.add_child(motto_label)
 
 		# Quest details
 		var body_label = Label.new()
