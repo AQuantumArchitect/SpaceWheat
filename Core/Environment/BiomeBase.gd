@@ -657,6 +657,104 @@ func batch_entangle(positions: Array[Vector2i]) -> bool:
 	print("✅ Created %d Bell pairs" % success_count)
 	return success_count > 0
 
+
+# ============================================================================
+# PHASE 4: Energy Tap System (Sink State with Lindblad Drain)
+# ============================================================================
+
+func initialize_energy_tap_system() -> void:
+	"""Initialize sink state infrastructure in bath if not already present"""
+	if not bath or not bath.active_icons:
+		return
+
+	# Check if sink emoji already exists
+	for icon in bath.active_icons:
+		if icon.emoji == "⬇️":
+			return  # Already initialized
+
+	# Create sink state icon if needed (passive, no outgoing transfer)
+	var sink_icon = Icon.new()
+	sink_icon.emoji = "⬇️"
+	sink_icon.display_name = "Sink"
+	sink_icon.description = "Energy dissipation sink state"
+	sink_icon.self_energy = 0.0
+	sink_icon.hamiltonian_couplings = {}
+	sink_icon.lindblad_outgoing = {}
+
+	bath.active_icons.append(sink_icon)
+	print("✅ Energy tap system initialized with sink state")
+
+
+func place_energy_tap(target_emoji: String, drain_rate: float = 0.05) -> bool:
+	"""Place energy drain tap on emoji (Model B - Phase 4)
+
+	Creates Lindblad drain operator: L_drain = √κ |sink⟩⟨target|
+	Population from target_emoji drains to sink state ⬇️.
+
+	Args:
+		target_emoji: Emoji to tap energy from
+		drain_rate: Drain rate κ (typical: 0.01-0.1 per second)
+
+	Returns:
+		true if tap successfully placed
+	"""
+	if not bath or not bath.active_icons:
+		push_error("Biome %s has no active Icons!" % get_biome_type())
+		return false
+
+	# Initialize tap system if needed
+	initialize_energy_tap_system()
+
+	var target_icon: Icon = null
+	for icon in bath.active_icons:
+		if icon.emoji == target_emoji:
+			target_icon = icon
+			break
+
+	if not target_icon:
+		push_warning("Target icon %s not found in biome %s" % [target_emoji, get_biome_type()])
+		return false
+
+	# Add drain operator: target → sink
+	# Store in lindblad_outgoing as if target is losing to sink
+	var sink_emoji = "⬇️"
+	if not target_icon.lindblad_outgoing.has(sink_emoji):
+		target_icon.lindblad_outgoing[sink_emoji] = 0.0
+
+	var old_rate = target_icon.lindblad_outgoing[sink_emoji]
+	target_icon.lindblad_outgoing[sink_emoji] += drain_rate
+
+	# Rebuild Lindblad with new drain operator
+	bath.build_lindblad_from_icons(bath.active_icons)
+
+	print("✅ Energy tap placed on %s (rate: %.4f → sink)" %
+		[target_emoji, target_icon.lindblad_outgoing[sink_emoji]])
+
+	return true
+
+
+func get_tap_flux(emoji: String) -> float:
+	"""Get accumulated energy flux drained from emoji this frame
+
+	Returns flux accumulated by quantum_computer during evolution.
+
+	Args:
+		emoji: Target emoji to check flux for
+
+	Returns:
+		Flux value (energy per second drained)
+	"""
+	if not quantum_computer:
+		return 0.0
+
+	return quantum_computer.sink_flux_per_emoji.get(emoji, 0.0)
+
+
+func clear_tap_flux() -> void:
+	"""Clear accumulated tap flux (call after harvesting)"""
+	if quantum_computer:
+		quantum_computer.sink_flux_per_emoji.clear()
+
 # ============================================================================
 # MODEL B: Gate Operations (Tool 5 Backend)
 # ============================================================================

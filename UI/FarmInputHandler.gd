@@ -1258,17 +1258,46 @@ func _action_drain_energy(positions: Array[Vector2i]):
 
 
 func _action_place_energy_tap(positions: Array[Vector2i]):
-	"""Place energy drain taps (PHASE 4 - Sink State Infrastructure)
+	"""Place energy drain taps (Model B - Energy Tap Infrastructure)
 
-	Model B implementation requires:
-	1. Sink state infrastructure (⬇️ emoji)
-	2. Lindblad drain operators L_e = √κ |sink⟩⟨e|
-	3. Flux tracking during evolution
-
-	Deferred to Phase 4 quantum infrastructure work.
+	Creates Lindblad drain operators for selected plots.
+	Drains population to sink state ⬇️ via L_drain = √κ |sink⟩⟨e|.
+	Uses BiomeBase.place_energy_tap() with drain_rate = 0.05/sec.
 	"""
-	action_performed.emit("place_energy_tap", false,
-		"⚠️  Energy taps (Phase 4): Requires sink state infrastructure - deferred")
+	if not farm or not farm.grid:
+		action_performed.emit("place_energy_tap", false, "⚠️  Farm not loaded yet")
+		return
+
+	if positions.is_empty():
+		action_performed.emit("place_energy_tap", false, "⚠️  No plots selected")
+		return
+
+	print("💧 Placing energy taps on %d plots..." % positions.size())
+
+	var success_count = 0
+	var tapped_emojis = {}
+
+	for pos in positions:
+		var plot = farm.grid.get_plot(pos)
+		if not plot or not plot.is_planted:
+			continue
+
+		# Get the emoji at this plot
+		var emoji = plot.north_emoji if plot.north_emoji else "🌾"
+
+		# Get the biome and place energy tap
+		var biome = farm.grid.get_biome_for_plot(pos)
+		if biome and biome.place_energy_tap(emoji, 0.05):
+			success_count += 1
+			tapped_emojis[emoji] = tapped_emojis.get(emoji, 0) + 1
+			print("  💧 Tap placed on %s at %s" % [emoji, pos])
+
+	var summary = ""
+	for emoji in tapped_emojis.keys():
+		summary += "%s×%d " % [emoji, tapped_emojis[emoji]]
+
+	action_performed.emit("place_energy_tap", success_count > 0,
+		"%s Tapped %d/%d plots | %s" % ["✅" if success_count > 0 else "❌", success_count, positions.size(), summary])
 
 
 ## NEW Tool 5 (GATES) Actions - INSTANTANEOUS SINGLE-QUBIT
