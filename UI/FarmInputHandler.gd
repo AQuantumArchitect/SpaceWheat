@@ -65,6 +65,104 @@ func _action_disabled_message(action_name: String) -> String:
 	return "⚠️  %s not functional in Model B (requires quantum_computer refactor)" % action_name
 
 # ═══════════════════════════════════════════════════════════════
+# Phase 3: Quantum Gate Helper Functions (Model B)
+# ═══════════════════════════════════════════════════════════════
+
+func _apply_single_qubit_gate(position: Vector2i, gate_name: String) -> bool:
+	"""Apply a single-qubit gate via quantum_computer (Model B)
+
+	Args:
+		position: Grid position of plot
+		gate_name: Gate name ("X", "Z", "H", "Y", "S", "T")
+
+	Returns:
+		true if gate applied successfully
+	"""
+	if not farm or not farm.grid:
+		return false
+
+	var plot = farm.grid.get_plot(position)
+	if not plot or not plot.is_planted:
+		return false
+
+	var biome = farm.grid.get_biome_for_plot(position)
+	var register_id = farm.grid.get_register_for_plot(position)
+
+	if not biome or not biome.quantum_computer or register_id < 0:
+		return false
+
+	# Get gate matrix from library
+	var gate_lib = QuantumGateLibrary.new()
+	if not gate_lib.GATES.has(gate_name):
+		push_error("Unknown gate: %s" % gate_name)
+		return false
+
+	var gate_matrix = gate_lib.GATES[gate_name]["matrix"]
+	if not gate_matrix:
+		return false
+
+	# Get component for this register
+	var comp = biome.quantum_computer.get_component_containing(register_id)
+	if not comp:
+		return false
+
+	# Apply the gate
+	return biome.quantum_computer.apply_unitary_1q(comp, register_id, gate_matrix)
+
+func _apply_two_qubit_gate(position_a: Vector2i, position_b: Vector2i, gate_name: String) -> bool:
+	"""Apply a two-qubit gate via quantum_computer (Model B)
+
+	Args:
+		position_a: Grid position of first plot
+		position_b: Grid position of second plot
+		gate_name: Gate name ("CNOT", "CZ", "SWAP")
+
+	Returns:
+		true if gate applied successfully
+	"""
+	if not farm or not farm.grid:
+		return false
+
+	var plot_a = farm.grid.get_plot(position_a)
+	var plot_b = farm.grid.get_plot(position_b)
+
+	if not plot_a or not plot_b or not plot_a.is_planted or not plot_b.is_planted:
+		return false
+
+	var biome_a = farm.grid.get_biome_for_plot(position_a)
+	var biome_b = farm.grid.get_biome_for_plot(position_b)
+	var reg_a = farm.grid.get_register_for_plot(position_a)
+	var reg_b = farm.grid.get_register_for_plot(position_b)
+
+	# Plots must be in same biome for 2Q gates
+	if biome_a != biome_b or not biome_a or not biome_a.quantum_computer:
+		return false
+
+	if reg_a < 0 or reg_b < 0:
+		return false
+
+	# Get gate matrix from library
+	var gate_lib = QuantumGateLibrary.new()
+	if not gate_lib.GATES.has(gate_name):
+		push_error("Unknown gate: %s" % gate_name)
+		return false
+
+	var gate_matrix = gate_lib.GATES[gate_name]["matrix"]
+	if not gate_matrix:
+		return false
+
+	# Get component containing both registers
+	var comp_a = biome_a.quantum_computer.get_component_containing(reg_a)
+	var comp_b = biome_a.quantum_computer.get_component_containing(reg_b)
+
+	if not comp_a or comp_a != comp_b:
+		# Registers not in same component - must entangle first
+		return false
+
+	# Apply the gate
+	return biome_a.quantum_computer.apply_unitary_2q(comp_a, reg_a, reg_b, gate_matrix)
+
+# ═══════════════════════════════════════════════════════════════
 
 # Signals
 signal action_performed(action: String, success: bool, message: String)
@@ -665,9 +763,37 @@ func _action_batch_plant(plant_type: String, positions: Array[Vector2i]):
 
 
 func _action_batch_measure(positions: Array[Vector2i]):
-	"""Measure quantum state of multiple plots (Model B: disabled)"""
-	action_performed.emit("measure", false,
-		"⚠️  Measurement not functional in Model B (requires quantum_computer refactor)")
+	"""Measure quantum state of multiple plots via quantum_computer (Model B)
+
+	Collapses the quantum state of selected plots and reports outcomes.
+	Uses the refactored measure_plot() which is fully Model B compatible.
+	"""
+	if not farm or not farm.grid:
+		action_performed.emit("measure", false, "⚠️  Farm not loaded yet")
+		return
+
+	if positions.is_empty():
+		action_performed.emit("measure", false, "⚠️  No plots selected")
+		return
+
+	print("📊 Measuring %d plots..." % positions.size())
+
+	var success_count = 0
+	var outcomes = {}
+	for pos in positions:
+		var result = farm.grid.measure_plot(pos)
+		if result.has("outcome") and result["outcome"]:
+			success_count += 1
+			var outcome = result["outcome"]
+			outcomes[outcome] = outcomes.get(outcome, 0) + 1
+			print("  📍 %s → %s" % [pos, outcome])
+
+	var summary = ""
+	for emoji in outcomes.keys():
+		summary += "%s×%d " % [emoji, outcomes[emoji]]
+
+	action_performed.emit("measure", success_count > 0,
+		"%s Measured %d/%d plots | %s" % ["✅" if success_count > 0 else "❌", success_count, positions.size(), summary])
 
 
 func _action_batch_harvest(positions: Array[Vector2i]):
@@ -771,9 +897,47 @@ func _action_batch_boost_energy(positions: Array[Vector2i]):
 
 
 func _action_batch_measure_and_harvest(positions: Array[Vector2i]):
-	"""Measure quantum state then harvest plots (Model B: disabled)"""
-	action_performed.emit("harvest", false,
-		"⚠️  Combined measure-harvest not functional in Model B (use harvest only)")
+	"""Measure quantum state then harvest multiple plots (Model B)
+
+	Combines measurement and harvest into single action:
+	1. Measure each plot (collapse state)
+	2. Harvest each plot (calculate yield based on outcome)
+	Both operations use refactored quantum_computer APIs.
+	"""
+	if not farm or not farm.grid:
+		action_performed.emit("harvest", false, "⚠️  Farm not loaded yet")
+		return
+
+	if positions.is_empty():
+		action_performed.emit("harvest", false, "⚠️  No plots selected")
+		return
+
+	print("📊🌾 Measure-Harvest %d plots..." % positions.size())
+
+	var success_count = 0
+	var total_yield = 0
+	var measure_outcomes = {}
+
+	for pos in positions:
+		# Measure first (collapse state)
+		var measure_result = farm.grid.measure_plot(pos)
+		if measure_result.has("outcome") and measure_result["outcome"]:
+			var outcome = measure_result["outcome"]
+			measure_outcomes[outcome] = measure_outcomes.get(outcome, 0) + 1
+
+		# Then harvest (get yield based on outcome)
+		var harvest_result = farm.grid.harvest_with_topology(pos)
+		if harvest_result.has("success") and harvest_result["success"]:
+			success_count += 1
+			total_yield += int(harvest_result.get("yield", 0))
+			print("  ✂️ %s → Yield: %.1f" % [pos, harvest_result.get("yield", 0)])
+
+	var summary = ""
+	for emoji in measure_outcomes.keys():
+		summary += "%s×%d " % [emoji, measure_outcomes[emoji]]
+
+	action_performed.emit("harvest", success_count > 0,
+		"%s Harvested %d/%d plots | Outcomes: %s| Total Yield: %d" % ["✅" if success_count > 0 else "❌", success_count, positions.size(), summary, total_yield])
 
 
 func _action_entangle():
@@ -877,21 +1041,65 @@ func _action_place_energy_tap(positions: Array[Vector2i]):
 ## NEW Tool 5 (GATES) Actions - INSTANTANEOUS SINGLE-QUBIT
 
 func _action_apply_pauli_x(positions: Array[Vector2i]):
-	"""Apply Pauli-X gate (Model B: disabled)"""
-	action_performed.emit("apply_pauli_x", false,
-		"⚠️  Quantum gates not functional in Model B (requires quantum_computer refactor)")
+	"""Apply Pauli-X gate (bit flip) to selected plots - INSTANTANEOUS.
+
+	Flips the qubit state: |0⟩ → |1⟩, |1⟩ → |0⟩
+	Model B: Uses quantum_computer.apply_unitary_1q() with X gate matrix.
+	"""
+	if positions.is_empty():
+		action_performed.emit("apply_pauli_x", false, "⚠️  No plots selected")
+		return
+
+	var success_count = 0
+	for pos in positions:
+		if _apply_single_qubit_gate(pos, "X"):
+			success_count += 1
+			print("  ↔️ Applied Pauli-X at %s" % pos)
+
+	action_performed.emit("apply_pauli_x", success_count > 0,
+		"✅ Applied Pauli-X to %d qubits" % success_count if success_count > 0 else "❌ No gates applied")
 
 
 func _action_apply_hadamard(positions: Array[Vector2i]):
-	"""Apply Hadamard gate (Model B: disabled)"""
-	action_performed.emit("apply_hadamard", false,
-		"⚠️  Quantum gates not functional in Model B (requires quantum_computer refactor)")
+	"""Apply Hadamard gate (superposition) to selected plots - INSTANTANEOUS.
+
+	Creates equal superposition from basis states:
+	|0⟩ → (|0⟩ + |1⟩)/√2, |1⟩ → (|0⟩ - |1⟩)/√2
+	Model B: Uses quantum_computer.apply_unitary_1q() with H gate matrix.
+	"""
+	if positions.is_empty():
+		action_performed.emit("apply_hadamard", false, "⚠️  No plots selected")
+		return
+
+	var success_count = 0
+	for pos in positions:
+		if _apply_single_qubit_gate(pos, "H"):
+			success_count += 1
+			print("  🌀 Applied Hadamard at %s" % pos)
+
+	action_performed.emit("apply_hadamard", success_count > 0,
+		"✅ Applied Hadamard to %d qubits" % success_count if success_count > 0 else "❌ No gates applied")
 
 
 func _action_apply_pauli_z(positions: Array[Vector2i]):
-	"""Apply Pauli-Z gate (Model B: disabled)"""
-	action_performed.emit("apply_pauli_z", false,
-		"⚠️  Quantum gates not functional in Model B (requires quantum_computer refactor)")
+	"""Apply Pauli-Z gate (phase flip) to selected plots - INSTANTANEOUS.
+
+	Applies a phase flip: |0⟩ → |0⟩, |1⟩ → -|1⟩
+	Proper unitary: ρ' = ZρZ† where Z = [[1,0],[0,-1]]
+	Model B: Uses quantum_computer.apply_unitary_1q() with Z gate matrix.
+	"""
+	if positions.is_empty():
+		action_performed.emit("apply_pauli_z", false, "⚠️  No plots selected")
+		return
+
+	var success_count = 0
+	for pos in positions:
+		if _apply_single_qubit_gate(pos, "Z"):
+			success_count += 1
+			print("  ⚡ Applied Pauli-Z at %s" % pos)
+
+	action_performed.emit("apply_pauli_z", success_count > 0,
+		"✅ Applied Pauli-Z to %d qubits" % success_count if success_count > 0 else "❌ No gates applied")
 
 
 ## NEW Tool 4 (ENERGY) - Energy Tap with specific emoji target
@@ -905,21 +1113,72 @@ func _action_place_energy_tap_for(positions: Array[Vector2i], target_emoji: Stri
 ## NEW Tool 5 (GATES) - Two-Qubit Gates
 
 func _action_apply_cnot(positions: Array[Vector2i]):
-	"""Apply CNOT gate (Model B: disabled)"""
-	action_performed.emit("apply_cnot", false,
-		"⚠️  Quantum gates not functional in Model B (requires quantum_computer refactor)")
+	"""Apply CNOT gate via quantum_computer (Model B)
+
+	Applies CNOT gates to sequential position pairs:
+	- Pair (0,1): control=0, target=1
+	- Pair (2,3): control=2, target=3
+	- Odd remaining position ignored
+	"""
+	if positions.is_empty():
+		action_performed.emit("apply_cnot", false, "⚠️  No plots selected")
+		return
+
+	var success_count = 0
+	for i in range(0, positions.size() - 1, 2):
+		var control_pos = positions[i]
+		var target_pos = positions[i + 1]
+		if _apply_two_qubit_gate(control_pos, target_pos, "CNOT"):
+			success_count += 1
+
+	action_performed.emit("apply_cnot", success_count > 0,
+		"✅ Applied CNOT to %d qubit pairs" % success_count if success_count > 0 else "❌ No gates applied")
 
 
 func _action_apply_cz(positions: Array[Vector2i]):
-	"""Apply CZ gate (Model B: disabled)"""
-	action_performed.emit("apply_cz", false,
-		"⚠️  Quantum gates not functional in Model B (requires quantum_computer refactor)")
+	"""Apply CZ gate via quantum_computer (Model B)
+
+	Applies CZ gates to sequential position pairs:
+	- Pair (0,1): first qubit, second qubit
+	- Pair (2,3): first qubit, second qubit
+	- Odd remaining position ignored
+	"""
+	if positions.is_empty():
+		action_performed.emit("apply_cz", false, "⚠️  No plots selected")
+		return
+
+	var success_count = 0
+	for i in range(0, positions.size() - 1, 2):
+		var pos_a = positions[i]
+		var pos_b = positions[i + 1]
+		if _apply_two_qubit_gate(pos_a, pos_b, "CZ"):
+			success_count += 1
+
+	action_performed.emit("apply_cz", success_count > 0,
+		"✅ Applied CZ to %d qubit pairs" % success_count if success_count > 0 else "❌ No gates applied")
 
 
 func _action_apply_swap(positions: Array[Vector2i]):
-	"""Apply SWAP gate (Model B: disabled)"""
-	action_performed.emit("apply_swap", false,
-		"⚠️  Quantum gates not functional in Model B (requires quantum_computer refactor)")
+	"""Apply SWAP gate via quantum_computer (Model B)
+
+	Applies SWAP gates to sequential position pairs:
+	- Pair (0,1): swap qubits
+	- Pair (2,3): swap qubits
+	- Odd remaining position ignored
+	"""
+	if positions.is_empty():
+		action_performed.emit("apply_swap", false, "⚠️  No plots selected")
+		return
+
+	var success_count = 0
+	for i in range(0, positions.size() - 1, 2):
+		var pos_a = positions[i]
+		var pos_b = positions[i + 1]
+		if _apply_two_qubit_gate(pos_a, pos_b, "SWAP"):
+			success_count += 1
+
+	action_performed.emit("apply_swap", success_count > 0,
+		"✅ Applied SWAP to %d qubit pairs" % success_count if success_count > 0 else "❌ No gates applied")
 
 
 func _extract_emoji_from_action(action: String) -> String:

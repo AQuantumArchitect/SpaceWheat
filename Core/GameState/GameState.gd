@@ -44,6 +44,15 @@ extends Resource
 ## This determines which factions are accessible and what quests they can receive
 @export var known_emojis: Array[String] = []
 
+## Quest Slots - 4 persistent quest slots (UIOP)
+## Each slot can be empty (null) or contain quest data
+@export var quest_slots: Array = [null, null, null, null]
+# Each slot dictionary contains:
+#   quest_id: int - ID of active quest (if active)
+#   offered_quest: Dictionary - Quest data (if offered but not accepted)
+#   is_locked: bool - Locked slot won't auto-refresh
+#   state: int - SlotState enum (EMPTY=0, OFFERED=1, ACTIVE=2, READY=3, LOCKED=4)
+
 ## Plots - Array of serialized plot states (from FarmGrid)
 @export var plots: Array[Dictionary] = []
 # Each plot dictionary contains:

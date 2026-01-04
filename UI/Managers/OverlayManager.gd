@@ -7,6 +7,7 @@ extends Node
 # Preload dependencies
 const QuestPanel = preload("res://UI/Panels/QuestPanel.gd")
 const FactionQuestOffersPanel = preload("res://UI/Panels/FactionQuestOffersPanel.gd")
+const QuestBoard = preload("res://UI/Panels/QuestBoard.gd")  # New modal quest board
 const NetworkInfoPanel = preload("res://UI/NetworkInfoPanel.gd")
 const ConspiracyNetworkOverlay = preload("res://UI/ConspiracyNetworkOverlay.gd")
 const SaveLoadMenu = preload("res://UI/Panels/SaveLoadMenu.gd")
@@ -18,7 +19,8 @@ const IconDetailPanel = preload("res://UI/Panels/IconDetailPanel.gd")
 
 # Overlay instances
 var quest_panel: QuestPanel
-var faction_quest_offers_panel: FactionQuestOffersPanel  # New emergent quest system
+var faction_quest_offers_panel: FactionQuestOffersPanel  # Legacy browse-all panel
+var quest_board: QuestBoard  # New modal 4-slot quest board (primary interface)
 var vocabulary_overlay: Control
 var network_overlay: ConspiracyNetworkOverlay
 var network_info_panel: NetworkInfoPanel
@@ -41,7 +43,8 @@ var farm  # Farm reference for biome inspector
 # Track overlay visibility state
 var overlay_states: Dictionary = {
 	"quests": false,
-	"quest_offers": false,  # Emergent faction quest offers
+	"quest_offers": false,  # Legacy browse-all panel
+	"quest_board": false,  # New modal 4-slot quest board
 	"vocabulary": false,
 	"network": false,
 	"escape_menu": false,
@@ -96,7 +99,7 @@ func create_overlays(parent: Control) -> void:
 	parent.add_child(quest_panel)
 	print("📜 Quest panel created (press C to toggle)")
 
-	# Create Faction Quest Offers Panel (Emergent System)
+	# Create Faction Quest Offers Panel (Legacy - kept for compatibility)
 	faction_quest_offers_panel = FactionQuestOffersPanel.new()
 	if layout_manager:
 		faction_quest_offers_panel.set_layout_manager(layout_manager)
@@ -110,7 +113,25 @@ func create_overlays(parent: Control) -> void:
 	faction_quest_offers_panel.quest_offer_accepted.connect(_on_quest_offer_accepted)
 	faction_quest_offers_panel.panel_closed.connect(_on_quest_offers_panel_closed)
 
-	print("⚛️  Faction Quest Offers panel created (press C to toggle)")
+	print("⚛️  Faction Quest Offers panel created (legacy)")
+
+	# Create Quest Board (New Modal 4-Slot System - Primary Interface)
+	quest_board = QuestBoard.new()
+	if layout_manager:
+		quest_board.set_layout_manager(layout_manager)
+	if quest_manager:
+		quest_board.set_quest_manager(quest_manager)
+	quest_board.visible = false
+	quest_board.z_index = 1003  # Above legacy panels
+	parent.add_child(quest_board)
+
+	# Connect signals
+	quest_board.quest_accepted.connect(_on_quest_board_quest_accepted)
+	quest_board.quest_completed.connect(_on_quest_board_quest_completed)
+	quest_board.quest_abandoned.connect(_on_quest_board_quest_abandoned)
+	quest_board.board_closed.connect(_on_quest_board_closed)
+
+	print("📋 Quest Board created (press C to toggle - modal 4-slot system)")
 
 	# Create Vocabulary Overlay
 	vocabulary_overlay = _create_vocabulary_overlay()
@@ -208,10 +229,12 @@ func toggle_overlay(name: String) -> void:
 	"""Toggle visibility of an overlay by name"""
 	match name:
 		"quests":
-			# C key now shows quest offers (emergent system) instead of old active quest panel
-			toggle_quest_offers_panel()
+			# C key now shows quest board (modal 4-slot system)
+			toggle_quest_board()
 		"quest_offers":
-			toggle_quest_offers_panel()
+			toggle_quest_offers_panel()  # Legacy panel
+		"quest_board":
+			toggle_quest_board()
 		"vocabulary":
 			toggle_vocabulary_overlay()
 		"network":
@@ -434,7 +457,7 @@ func toggle_quest_panel() -> void:
 
 
 func toggle_quest_offers_panel() -> void:
-	"""Toggle faction quest offers panel visibility"""
+	"""Toggle faction quest offers panel visibility (legacy)"""
 	print("🔄 toggle_quest_offers_panel() called")
 	if faction_quest_offers_panel:
 		print("  faction_quest_offers_panel exists, visible = %s" % faction_quest_offers_panel.visible)
@@ -446,6 +469,40 @@ func toggle_quest_offers_panel() -> void:
 			show_overlay("quest_offers")
 	else:
 		print("  ❌ faction_quest_offers_panel is null!")
+
+
+func toggle_quest_board() -> void:
+	"""Toggle quest board visibility (modal 4-slot system)"""
+	print("🔄 toggle_quest_board() called")
+	if quest_board:
+		print("  quest_board exists, visible = %s" % quest_board.visible)
+		if quest_board.visible:
+			print("    → Board is visible, closing")
+			quest_board.close_board()
+		else:
+			print("    → Board is hidden, opening")
+			if farm:
+				# Get current biome from farm
+				var biome = farm.biotic_flux_biome if farm.has("biotic_flux_biome") else null
+				if biome:
+					quest_board.set_biome(biome)
+					quest_board.open_board()
+					overlay_states["quest_board"] = true
+					overlay_toggled.emit("quest_board", true)
+					print("  ✅ Quest board opened")
+				else:
+					print("  ❌ No biome available!")
+			else:
+				print("  ❌ Farm reference not set!")
+	else:
+		print("  ❌ quest_board is null!")
+
+
+func open_quest_board_faction_browser() -> void:
+	"""Open faction browser from quest board (C key while board open)"""
+	if quest_board and quest_board.visible:
+		quest_board.open_faction_browser()
+		print("📚 Opened faction browser from quest board")
 
 
 func toggle_vocabulary_overlay() -> void:
@@ -895,4 +952,35 @@ func _on_quest_offer_accepted(quest: Dictionary) -> void:
 func _on_quest_offers_panel_closed() -> void:
 	"""Handle when faction quest offers panel is closed"""
 	overlay_states["quest_offers"] = false
+
+
+func _on_quest_board_quest_accepted(quest: Dictionary) -> void:
+	"""Handle when player accepts a quest from quest board"""
+	print("📋 Quest accepted from board: %s - %s" % [quest.get("faction", ""), quest.get("body", "")])
+	# Quest is already added to active quests by QuestManager
+	# Just refresh the active quests panel if it's visible
+	if quest_panel and quest_panel.visible:
+		quest_panel.refresh_display()
+
+
+func _on_quest_board_quest_completed(quest_id: int, rewards: Dictionary) -> void:
+	"""Handle when player completes a quest from quest board"""
+	print("🎉 Quest completed from board: ID %d" % quest_id)
+	# Refresh quest panel if visible
+	if quest_panel and quest_panel.visible:
+		quest_panel.refresh_display()
+
+
+func _on_quest_board_quest_abandoned(quest_id: int) -> void:
+	"""Handle when player abandons a quest from quest board"""
+	print("❌ Quest abandoned from board: ID %d" % quest_id)
+	# Refresh quest panel if visible
+	if quest_panel and quest_panel.visible:
+		quest_panel.refresh_display()
+
+
+func _on_quest_board_closed() -> void:
+	"""Handle when quest board is closed"""
+	overlay_states["quest_board"] = false
+	overlay_toggled.emit("quest_board", false)
 	overlay_toggled.emit("quest_offers", false)
