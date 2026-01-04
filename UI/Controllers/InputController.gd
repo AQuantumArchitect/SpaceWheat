@@ -52,6 +52,7 @@ signal quantum_config_requested()  # Shift+Q: Toggle quantum rigor config settin
 # Mode state
 var is_entangle_mode: bool = false
 var menu_visible: bool = false
+var quest_board_visible: bool = false  # Quest board blocks game input when open
 
 
 func _ready():
@@ -65,6 +66,13 @@ func _ready():
 func set_entangle_mode(enabled: bool):
 	"""Update entangle mode state"""
 	is_entangle_mode = enabled
+
+
+func _on_overlay_toggled(overlay_name: String, is_visible: bool):
+	"""Called when overlays open/close - block game input for modal overlays"""
+	if overlay_name == "quest_board":
+		quest_board_visible = is_visible
+		print("  → Quest board visibility: %s (game input %s)" % [is_visible, "BLOCKED" if is_visible else "ENABLED"])
 
 
 ## Input Handling
@@ -111,10 +119,13 @@ func _input(event):
 				get_viewport().set_input_as_handled()
 				return
 
-	# BLOCK ALL GAME INPUT when menu is visible
-	# Menu should handle its own navigation (arrow keys, Enter)
+	# BLOCK ALL GAME INPUT when menu or quest board is visible
+	# Modals should handle their own navigation (arrow keys, Enter, UIOP)
 	if menu_visible:
 		print("  → Menu is visible - blocking game input")
+		return
+	if quest_board_visible:
+		print("  → Quest board is visible - blocking game input")
 		return
 
 	# Game input (only processed when menu is NOT visible)

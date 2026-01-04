@@ -6,6 +6,7 @@ extends Node
 const GameState = preload("res://Core/GameState/GameState.gd")
 const VocabularyEvolution = preload("res://Core/QuantumSubstrate/VocabularyEvolution.gd")
 const FactionDatabase = preload("res://Core/Quests/FactionDatabase.gd")
+const QuantumRigorConfig = preload("res://Core/GameState/QuantumRigorConfig.gd")
 
 # Signals
 signal emoji_discovered(emoji: String)
@@ -37,6 +38,11 @@ func _ready():
 	if not dir.dir_exists("saves"):
 		dir.make_dir("saves")
 	print("💾 GameStateManager ready - Save dir: " + SAVE_DIR)
+
+	# Initialize quantum rigor configuration (singleton)
+	if not QuantumRigorConfig.instance:
+		var config = QuantumRigorConfig.new()
+		print("   ⚛️  QuantumRigorConfig initialized: %s" % config.mode_description())
 
 	# Initialize persistent vocabulary evolution system
 	if not vocabulary_evolution:

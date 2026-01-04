@@ -88,7 +88,7 @@ static func extract_observables(bath, biome = null) -> BiomeObservables:
 	obs.scale = _calculate_scale(density_matrix)
 
 	# Dynamics: use tracker if available, else fallback
-	if biome and biome.has("dynamics_tracker") and biome.dynamics_tracker:
+	if biome and "dynamics_tracker" in biome and biome.dynamics_tracker:
 		obs.dynamics = biome.dynamics_tracker.get_dynamics()
 	else:
 		obs.dynamics = 0.5  # Fallback for neutral dynamics

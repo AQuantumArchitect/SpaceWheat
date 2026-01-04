@@ -1,94 +1,75 @@
-## QuantumRigorConfig - Quantum Mechanics Rigor Mode Configuration
-##
-## Implements mode flags from Quantum↔Classical Interface Manifest
-## (llm_inbox/space_wheat_quantum↔classical_interface_manifest_gozintas_gozoutas.md)
-##
-## Purpose: Allow players to choose between:
-## - KID_LIGHT mode: Gentle quantum mechanics (casual gameplay)
-## - LAB_TRUE mode: Full quantum rigor (educational/scientific)
 class_name QuantumRigorConfig
 extends Resource
 
-## READOUT_MODE: How measurement outcomes are presented
+## Quantum Rigor Configuration
+## Controls the mathematical rigor of quantum operations
+## Switches between educational (KID_LIGHT) and rigorous (LAB_TRUE) modes
+
 enum ReadoutMode {
-	HARDWARE,   ## Shot-faithful: Sample single outcome k ~ p(k), show histogram
-	INSPECTOR   ## Simulator privilege: Show exact distribution p(e) from ρ
+	HARDWARE,   # Simulates real quantum hardware imperfections
+	INSPECTOR   # Idealized readout (default, for gameplay)
 }
 
-## BACKACTION_MODE: How measurements affect quantum state
 enum BackactionMode {
-	KID_LIGHT,  ## Gentle: partial_collapse with strength=0.5 (preserves some coherence)
-	LAB_TRUE    ## Rigorous: full projective collapse with strength=1.0 (Born rule)
+	KID_LIGHT,  # Weak measurement: collapse_strength = 0.5
+	LAB_TRUE    # Projective measurement: collapse_strength = 1.0 (strict Manifest compliance)
 }
 
-## SELECTIVE_MEASURE_MODEL: How selective measurements are handled
 enum SelectiveMeasureModel {
-	POSTSELECT_COSTED,  ## Charge cost/time ∝ 1/p(subspace) for selective measurement
-	CLICK_NOCLICK       ## Repeated measurement instrument (future implementation)
+	POSTSELECT_COSTED,  # Measurement cost scales as 1/p_subspace
+	CLICK_NOCLICK       # Binary success/failure (deferred)
 }
 
-## Current readout mode (default: INSPECTOR for smooth gameplay)
+# Current configuration
 @export var readout_mode: ReadoutMode = ReadoutMode.INSPECTOR
-
-## Current backaction mode (default: KID_LIGHT for casual players)
 @export var backaction_mode: BackactionMode = BackactionMode.KID_LIGHT
-
-## Selective measurement model (default: POSTSELECT_COSTED)
 @export var selective_measure_model: SelectiveMeasureModel = SelectiveMeasureModel.POSTSELECT_COSTED
 
-## Enable per-frame physics invariant checks (debug/lab mode only)
-## WARNING: Expensive! Checks Hermitian, Tr(ρ)=1, positive semidefinite every frame
-@export var enable_invariant_checks: bool = false
+# Debug and invariant checking
+@export var enable_invariant_checks: bool = false  # Enable per-frame ρ validation (slow)
+@export var enable_trace_warnings: bool = true     # Warn on trace violations
 
-## Global singleton instance
+# Singleton pattern
 static var instance: QuantumRigorConfig = null
 
-func _init():
-	# Initialize singleton if not already set
+func _init(p_readout: ReadoutMode = ReadoutMode.INSPECTOR,
+           p_backaction: BackactionMode = BackactionMode.KID_LIGHT,
+           p_selective: SelectiveMeasureModel = SelectiveMeasureModel.POSTSELECT_COSTED):
+	readout_mode = p_readout
+	backaction_mode = p_backaction
+	selective_measure_model = p_selective
+
 	if instance == null:
 		instance = self
 
-## Get collapse strength for measurement backaction
-func get_collapse_strength() -> float:
-	match backaction_mode:
-		BackactionMode.LAB_TRUE:
-			return 1.0  # Full projective collapse
-		BackactionMode.KID_LIGHT:
-			return 0.5  # Gentle partial collapse
-		_:
-			return 0.5  # Default to gentle
 
-## Check if Lab Mode is enabled (strict quantum rigor)
-func is_lab_mode() -> bool:
+func is_lab_true_mode() -> bool:
+	"""Check if running in strict mathematical mode"""
 	return backaction_mode == BackactionMode.LAB_TRUE
 
-## Check if Hardware Mode is enabled (shot-based readout)
-func is_hardware_mode() -> bool:
-	return readout_mode == ReadoutMode.HARDWARE
 
-## Serialize configuration for save/load
-func serialize() -> Dictionary:
-	return {
-		"readout_mode": readout_mode,
-		"backaction_mode": backaction_mode,
-		"selective_measure_model": selective_measure_model,
-		"enable_invariant_checks": enable_invariant_checks
-	}
+func get_collapse_strength() -> float:
+	"""Return collapse strength based on backaction mode
 
-## Deserialize configuration from save data
-func deserialize(data: Dictionary) -> void:
-	readout_mode = data.get("readout_mode", ReadoutMode.INSPECTOR)
-	backaction_mode = data.get("backaction_mode", BackactionMode.KID_LIGHT)
-	selective_measure_model = data.get("selective_measure_model", SelectiveMeasureModel.POSTSELECT_COSTED)
-	enable_invariant_checks = data.get("enable_invariant_checks", false)
+	KID_LIGHT: 0.5 (weak measurement, gentler on quantum coherence)
+	LAB_TRUE: 1.0 (projective measurement, strict compliance)
+	"""
+	match backaction_mode:
+		BackactionMode.LAB_TRUE:
+			return 1.0
+		BackactionMode.KID_LIGHT:
+			return 0.5
+		_:
+			return 0.5
 
-## Get user-friendly mode description
-func get_mode_description() -> String:
-	var readout_desc = "Inspector" if readout_mode == ReadoutMode.INSPECTOR else "Hardware"
-	var backaction_desc = "Gentle" if backaction_mode == BackactionMode.KID_LIGHT else "Rigorous"
-	var measure_desc = "Costed" if selective_measure_model == SelectiveMeasureModel.POSTSELECT_COSTED else "Click/NoClick"
 
-	return "Readout:%s | Backaction:%s | Measurement:%s | Invariants:%s" % [
-		readout_desc, backaction_desc, measure_desc,
-		"ON" if enable_invariant_checks else "OFF"
+func mode_description() -> String:
+	"""Human-readable description of current configuration"""
+	var desc = ""
+	desc += "Readout: %s\n" % ["HARDWARE", "INSPECTOR"][readout_mode]
+	desc += "Backaction: %s (collapse_strength=%.1f)\n" % [
+		["KID_LIGHT", "LAB_TRUE"][backaction_mode],
+		get_collapse_strength()
 	]
+	desc += "Selective Measure: %s" % ["POSTSELECT_COSTED", "CLICK_NOCLICK"][selective_measure_model]
+	return desc

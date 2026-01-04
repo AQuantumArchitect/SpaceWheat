@@ -257,7 +257,7 @@ func show_overlay(name: String) -> void:
 			# C key now shows quest offers (emergent system)
 			if faction_quest_offers_panel and farm:
 				print("  → Showing faction quest offers with current biome")
-				var biome = farm.biotic_flux_biome if farm.has("biotic_flux_biome") else null
+				var biome = farm.biotic_flux_biome if "biotic_flux_biome" in farm else null
 				if biome:
 					faction_quest_offers_panel.show_offers(biome)
 					overlay_states["quest_offers"] = true
@@ -273,7 +273,7 @@ func show_overlay(name: String) -> void:
 			if faction_quest_offers_panel and farm:
 				print("  → Showing faction quest offers with current biome")
 				# Get current biome from farm
-				var biome = farm.biotic_flux_biome if farm.has("biotic_flux_biome") else null
+				var biome = farm.biotic_flux_biome if "biotic_flux_biome" in farm else null
 				if biome:
 					faction_quest_offers_panel.show_offers(biome)
 					overlay_states["quest_offers"] = true

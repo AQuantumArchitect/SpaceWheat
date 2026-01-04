@@ -305,7 +305,7 @@ func get_population(emoji: String) -> float:
 ## MANIFEST VIOLATION (Section 1.4): Ad-hoc diagonal tweaks break complete positivity
 func boost_amplitude(emoji: String, amount: float) -> void:
 	# HARD ERROR in LAB_TRUE mode (quantum rigor enforcement)
-	if QuantumRigorConfig.instance and QuantumRigorConfig.instance.is_lab_mode():
+	if QuantumRigorConfig.instance and QuantumRigorConfig.instance.is_lab_true_mode():
 		push_error("❌ boost_amplitude() FORBIDDEN in LAB_TRUE mode! Violates CPTP (Manifest Section 1.4). Use BiomeBase.boost_hamiltonian_coupling() for unitary control.")
 		return
 
@@ -334,7 +334,7 @@ func boost_amplitude(emoji: String, amount: float) -> void:
 ## MANIFEST VIOLATION (Section 1.4): Ad-hoc diagonal tweaks break complete positivity
 func drain_amplitude(emoji: String, amount: float) -> float:
 	# HARD ERROR in LAB_TRUE mode (quantum rigor enforcement)
-	if QuantumRigorConfig.instance and QuantumRigorConfig.instance.is_lab_mode():
+	if QuantumRigorConfig.instance and QuantumRigorConfig.instance.is_lab_true_mode():
 		push_error("❌ drain_amplitude() FORBIDDEN in LAB_TRUE mode! Violates CPTP (Manifest Section 1.4). Use BiomeBase.tune_lindblad_rate() for proper dissipation.")
 		return 0.0
 
