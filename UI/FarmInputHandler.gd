@@ -919,11 +919,10 @@ func _action_batch_measure_and_harvest(positions: Array[Vector2i]):
 	var measure_outcomes = {}
 
 	for pos in positions:
-		# Measure first (collapse state)
-		var measure_result = farm.grid.measure_plot(pos)
-		if measure_result.has("outcome") and measure_result["outcome"]:
-			var outcome = measure_result["outcome"]
-			measure_outcomes[outcome] = measure_outcomes.get(outcome, 0) + 1
+		# Measure first (collapse state) - returns emoji string
+		var outcome_emoji = farm.grid.measure_plot(pos)
+		if outcome_emoji and outcome_emoji != "":
+			measure_outcomes[outcome_emoji] = measure_outcomes.get(outcome_emoji, 0) + 1
 
 		# Then harvest (get yield based on outcome)
 		var harvest_result = farm.grid.harvest_with_topology(pos)
