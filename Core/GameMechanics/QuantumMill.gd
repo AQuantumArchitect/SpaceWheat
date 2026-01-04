@@ -34,6 +34,7 @@ func _process(delta: float):
 	last_measurement_time += delta
 
 	if last_measurement_time >= measurement_interval:
+		print("🏭 Mill at %s: Performing quantum measurement (time=%.2f)" % [grid_position, last_measurement_time])
 		perform_quantum_measurement()
 		last_measurement_time = 0.0
 
@@ -86,8 +87,9 @@ func perform_quantum_measurement() -> void:
 		var purity = biome.quantum_computer.get_marginal_purity(comp, plot.register_id)
 
 		# Get mass (total probability in subspace)
+		var basis_labels: Array[String] = [plot.north_emoji, plot.south_emoji]
 		var mass = biome.quantum_computer.get_marginal_probability_subspace(
-			comp, plot.register_id, [plot.north_emoji, plot.south_emoji]
+			comp, plot.register_id, basis_labels
 		)
 
 		if mass < 1e-6:
@@ -97,12 +99,14 @@ func perform_quantum_measurement() -> void:
 		# Flour outcome: probabilistic based on purity
 		# Higher purity = higher chance of flour outcome
 		var flour_outcome = randf() < purity
+		print("    Plot at %s: purity=%.2f, flour_outcome=%s" % [plot.grid_position, purity, flour_outcome])
 
 		if flour_outcome:
 			total_flour += 1
 			accumulated_wheat += 1
 			plot.has_been_measured = true
 			plot.measured_outcome = plot.south_emoji  # Mark as measured (flour state)
+			print("    ✓ Flour produced!")
 
 	# Update statistics
 	total_measurements += 1
@@ -115,10 +119,14 @@ func perform_quantum_measurement() -> void:
 	})
 
 	# Convert flour to economy resource
+	print("  total_flour=%d, farm_grid=%s" % [total_flour, farm_grid])
 	if total_flour > 0 and farm_grid:
 		# Route through FarmEconomy for proper conversion
 		if farm_grid.has_method("process_mill_flour"):
+			print("  Calling process_mill_flour(%d)" % total_flour)
 			farm_grid.process_mill_flour(total_flour)
+		else:
+			print("  ERROR: farm_grid has no process_mill_flour method!")
 
 
 func get_flow_rate() -> Dictionary:

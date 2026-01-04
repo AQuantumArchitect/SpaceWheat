@@ -168,6 +168,9 @@ func _ready():
 	grid.grid_width = grid_config.grid_width
 	grid.grid_height = grid_config.grid_height
 
+	# Connect economy to grid for mill/market/kitchen flour & bread processing
+	grid.farm_economy = economy
+
 	# Wire all four biomes to the grid
 	if biome_enabled:
 		grid.register_biome("BioticFlux", biotic_flux_biome)
@@ -325,7 +328,12 @@ func enable_simulation() -> void:
 
 
 func _process(delta: float):
-	"""Handle passive effects like mushroom composting"""
+	"""Handle passive effects like mushroom composting and grid processing"""
+	# Process grid (mills, markets, kitchens, etc.)
+	if grid:
+		grid._process(delta)
+
+	# Handle passive composting
 	_process_mushroom_composting(delta)
 
 

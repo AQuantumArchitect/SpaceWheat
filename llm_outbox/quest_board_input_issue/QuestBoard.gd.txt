@@ -77,55 +77,61 @@ func set_biome(biome: Node) -> void:
 	current_biome = biome
 
 
-func handle_input(event: InputEvent) -> bool:
-	"""Modal input handler - called by PlayerShell when on modal stack
+func _unhandled_key_input(event: InputEvent) -> void:
+	"""Modal input handling - hijacks controls when open
 
-	Returns true if input was consumed, false otherwise.
+	Using _unhandled_key_input() ensures proper input order:
+	1. FactionBrowser (child) gets first chance
+	2. Then QuestBoard handles unhandled input
 	"""
-	if not visible:
-		return false
-
-	if not event is InputEventKey or not event.pressed or event.echo:
-		return false
+	if not visible or not event is InputEventKey or not event.pressed or event.echo:
+		return
 
 	# If browser is open, it handles input first
 	if is_browser_open and faction_browser and faction_browser.visible:
-		if faction_browser.has_method("handle_input"):
-			return faction_browser.handle_input(event)
-		return false
+		return
 
-	# Handle quest board actions using keycodes
-	print("  🎯 QuestBoard.handle_input() KEY: %s" % event.keycode)
+	_handle_board_input(event)
+
+
+
+
+func _handle_board_input(event: InputEvent) -> void:
+	"""Handle quest board controls"""
 	match event.keycode:
 		KEY_ESCAPE:
 			close_board()
-			return true
+			get_viewport().set_input_as_handled()
+
+		# Slot selection (UIOP)
 		KEY_U:
 			select_slot(0)
-			return true
+			get_viewport().set_input_as_handled()
 		KEY_I:
 			select_slot(1)
-			return true
+			get_viewport().set_input_as_handled()
 		KEY_O:
 			select_slot(2)
-			return true
+			get_viewport().set_input_as_handled()
 		KEY_P:
 			select_slot(3)
-			return true
+			get_viewport().set_input_as_handled()
+
+		# Actions on selected slot (QER)
 		KEY_Q:
-			action_q_on_selected()
-			return true
+			action_q_on_selected()  # Accept or Complete
+			get_viewport().set_input_as_handled()
 		KEY_E:
-			action_e_on_selected()
-			return true
+			action_e_on_selected()  # Reroll or Abandon
+			get_viewport().set_input_as_handled()
 		KEY_R:
-			action_r_on_selected()
-			return true
+			action_r_on_selected()  # Lock toggle
+			get_viewport().set_input_as_handled()
+
+		# Open faction browser
 		KEY_C:
 			open_faction_browser()
-			return true
-
-	return false  # Input not consumed
+			get_viewport().set_input_as_handled()
 
 
 func _handle_browser_input(event: InputEvent) -> void:
@@ -135,17 +141,14 @@ func _handle_browser_input(event: InputEvent) -> void:
 
 
 func _create_ui() -> void:
-	"""Create the quest board UI - FLASH GAME / MOBILE GAME STYLE"""
+	"""Create the quest board UI - proper modal design like ESC menu"""
 	var scale = layout_manager.scale_factor if layout_manager else 1.0
-
-	# FLASH GAME FONTS - BIG AND READABLE!
-	var title_size = layout_manager.get_scaled_font_size(48) if layout_manager else 48
-	var large_size = layout_manager.get_scaled_font_size(24) if layout_manager else 24
-	var normal_size = layout_manager.get_scaled_font_size(20) if layout_manager else 20
+	var title_size = layout_manager.get_scaled_font_size(20) if layout_manager else 20
+	var normal_size = layout_manager.get_scaled_font_size(12) if layout_manager else 12
 
 	# Background - fill screen to block interaction
 	background = ColorRect.new()
-	background.color = Color(0.0, 0.0, 0.0, 0.8)  # Darker for better contrast
+	background.color = Color(0.0, 0.0, 0.0, 0.7)
 	background.set_anchors_preset(Control.PRESET_FULL_RECT)
 	background.layout_mode = 1
 	add_child(background)
@@ -158,42 +161,48 @@ func _create_ui() -> void:
 	center.layout_mode = 1
 	add_child(center)
 
-	# Quest board panel - BIGGER for flash game aesthetic
+	# Quest board panel
 	menu_panel = PanelContainer.new()
-	menu_panel.custom_minimum_size = Vector2(1200 * scale, 900 * scale)
+	menu_panel.custom_minimum_size = Vector2(800 * scale, 700 * scale)
 	center.add_child(menu_panel)
 
 	var main_vbox = VBoxContainer.new()
-	main_vbox.add_theme_constant_override("separation", int(20 * scale))  # More space!
+	main_vbox.add_theme_constant_override("separation", int(10 * scale))
 	menu_panel.add_child(main_vbox)
 
-	# Header - BIG and BOLD
-	title_label = Label.new()
-	title_label.text = "⚛️ QUEST ORACLE ⚛️"
-	title_label.add_theme_font_size_override("font_size", title_size)
-	title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	main_vbox.add_child(title_label)
+	# Header
+	var header_hbox = HBoxContainer.new()
+	main_vbox.add_child(header_hbox)
 
-	# Simplified controls - ICONS ONLY
+	title_label = Label.new()
+	title_label.text = "⚛️ QUEST BOARD"
+	title_label.add_theme_font_size_override("font_size", title_size)
+	title_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	header_hbox.add_child(title_label)
+
+	var close_button = Button.new()
+	close_button.text = "✖ Close [ESC]"
+	close_button.pressed.connect(close_board)
+	header_hbox.add_child(close_button)
+
+	# Controls hint
 	controls_label = Label.new()
-	controls_label.text = "🎯 [UIOP] Select  |  ✅ [Q] Accept  |  🔄 [E] Reroll  |  🔒 [R] Lock  |  📚 [C] Browse  |  ✖️ [ESC] Close"
+	controls_label.text = "[UIOP]Select  [Q]Accept/Complete  [E]Reroll/Abandon  [R]Lock  [C]Browse Factions"
 	controls_label.add_theme_font_size_override("font_size", normal_size)
-	controls_label.modulate = Color(1.0, 0.9, 0.5)  # Gold/yellow for visibility
-	controls_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	controls_label.modulate = Color(0.8, 0.8, 0.8)
 	main_vbox.add_child(controls_label)
 
-	# Biome state - SIMPLIFIED, BIG, VISUAL
+	# Biome state display
 	biome_state_label = Label.new()
-	biome_state_label.text = "🌾 Biome State: Loading..."
-	biome_state_label.add_theme_font_size_override("font_size", large_size)
-	biome_state_label.modulate = Color(0.5, 1.0, 1.0)  # Cyan - high contrast
-	biome_state_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	biome_state_label.text = "Biome State: Loading..."
+	biome_state_label.add_theme_font_size_override("font_size", normal_size)
+	biome_state_label.modulate = Color(0.7, 0.9, 1.0)
 	biome_state_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	main_vbox.add_child(biome_state_label)
 
-	# Quest slots container - MORE SPACE
+	# Quest slots container
 	slot_container = VBoxContainer.new()
-	slot_container.add_theme_constant_override("separation", int(16 * scale))  # Double spacing!
+	slot_container.add_theme_constant_override("separation", int(8 * scale))
 	main_vbox.add_child(slot_container)
 
 	# Create 4 quest slots
@@ -206,12 +215,11 @@ func _create_ui() -> void:
 		slot_container.add_child(slot)
 		quest_slots.append(slot)
 
-	# Accessible factions label - BIGGER
+	# Accessible factions label
 	accessible_factions_label = Label.new()
 	accessible_factions_label.text = "📚 Accessible Factions: 0/68"
 	accessible_factions_label.add_theme_font_size_override("font_size", normal_size)
-	accessible_factions_label.modulate = Color(0.9, 0.9, 0.5)
-	accessible_factions_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	accessible_factions_label.modulate = Color(0.9, 0.9, 0.7)
 	main_vbox.add_child(accessible_factions_label)
 
 	# Select first slot by default
@@ -267,30 +275,17 @@ func _create_faction_browser() -> void:
 
 
 func _refresh_biome_state() -> void:
-	"""Update biome state display - FLASH GAME STYLE (big, visual, simple)"""
+	"""Update biome state display"""
 	if not quest_manager or not current_biome:
 		return
 
 	var obs = quest_manager.get_biome_observables(current_biome)
-
-	# SIMPLIFIED: Show only the most important stat (purity = order vs chaos)
-	# Visual bar representation using block characters
-	var purity_pct = int(obs.purity * 100)
-	var purity_bar = _make_bar(obs.purity, 10)
-
-	biome_state_label.text = "🌾 Farm State: %s %d%% Order" % [purity_bar, purity_pct]
-
-
-func _make_bar(value: float, length: int) -> String:
-	"""Create a visual bar using block characters"""
-	var filled = int(value * length)
-	var bar = ""
-	for i in range(length):
-		if i < filled:
-			bar += "█"
-		else:
-			bar += "░"
-	return bar
+	biome_state_label.text = "🌾 Biome: Purity %.0f%% | Entropy %.0f%% | Coherence %.0f%% | Scale %.0f%%" % [
+		obs.purity * 100,
+		obs.entropy * 100,
+		obs.coherence * 100,
+		obs.scale * 100
+	]
 
 
 func _refresh_slots() -> void:
@@ -606,46 +601,42 @@ class QuestSlot extends PanelContainer:
 		layout_manager = manager
 
 	func _create_ui() -> void:
-		"""FLASH GAME SLOT - BIG, BOLD, READABLE"""
 		var scale = layout_manager.scale_factor if layout_manager else 1.0
+		var header_size = layout_manager.get_scaled_font_size(14) if layout_manager else 14
+		var normal_size = layout_manager.get_scaled_font_size(12) if layout_manager else 12
+		var small_size = layout_manager.get_scaled_font_size(10) if layout_manager else 10
 
-		# FLASH GAME FONTS - MUCH BIGGER!
-		var header_size = layout_manager.get_scaled_font_size(32) if layout_manager else 32
-		var faction_size = layout_manager.get_scaled_font_size(28) if layout_manager else 28
-		var normal_size = layout_manager.get_scaled_font_size(22) if layout_manager else 22
-		var small_size = layout_manager.get_scaled_font_size(18) if layout_manager else 18
-
-		custom_minimum_size = Vector2(0, 180 * scale)  # TALLER slots!
+		custom_minimum_size = Vector2(0, 120 * scale)
 
 		var vbox = VBoxContainer.new()
-		vbox.add_theme_constant_override("separation", int(8 * scale))  # More spacing!
+		vbox.add_theme_constant_override("separation", int(3 * scale))
 		add_child(vbox)
 
-		# Header: [U] 🔒
+		# Header: [U] Faction Name
 		header_label = Label.new()
 		header_label.add_theme_font_size_override("font_size", header_size)
 		vbox.add_child(header_label)
 
-		# Faction emoji and name - BIG!
+		# Faction emoji and name
 		faction_label = Label.new()
-		faction_label.add_theme_font_size_override("font_size", faction_size)
+		faction_label.add_theme_font_size_override("font_size", normal_size)
 		vbox.add_child(faction_label)
 
-		# Quest details - READABLE!
+		# Quest details
 		details_label = Label.new()
 		details_label.add_theme_font_size_override("font_size", normal_size)
 		details_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		vbox.add_child(details_label)
 
-		# Status - CLEAR!
+		# Status
 		status_label = Label.new()
 		status_label.add_theme_font_size_override("font_size", small_size)
 		vbox.add_child(status_label)
 
-		# Actions - VISIBLE!
+		# Actions
 		action_label = Label.new()
 		action_label.add_theme_font_size_override("font_size", small_size)
-		action_label.modulate = Color(1.0, 0.9, 0.5)  # Gold for visibility
+		action_label.modulate = Color(0.8, 0.8, 0.8)
 		vbox.add_child(action_label)
 
 		_refresh_ui()
@@ -676,111 +667,91 @@ class QuestSlot extends PanelContainer:
 		_refresh_ui()
 
 	func _refresh_ui() -> void:
-		"""FLASH GAME UI - SIMPLE, BOLD, VISUAL"""
-		# Update header - BOLD KEY + LOCK
-		var lock_icon = "🔒" if is_locked else ""
-		header_label.text = "[%s] %s" % [slot_letter, lock_icon]
+		# Update header
+		var lock_icon = "🔒 " if is_locked else ""
+		header_label.text = "[%s] %sSlot %s" % [slot_letter, lock_icon, slot_letter]
 
 		# Update based on state
 		match state:
 			SlotState.EMPTY:
-				faction_label.text = "⭕ EMPTY SLOT"
-				details_label.text = ""
-				status_label.text = ""
-				action_label.text = "Press [E] to generate"
-				_set_bg_color(Color(0.15, 0.15, 0.15, 0.9))
+				faction_label.text = "(Empty)"
+				details_label.text = "Press [E] to generate quest"
+				status_label.text = "Status: EMPTY"
+				action_label.text = ""
+				_set_bg_color(Color(0.15, 0.15, 0.15, 0.8))
 
 			SlotState.OFFERED:
-				# FACTION - BIG emoji + name
-				faction_label.text = "%s %s" % [
-					quest_data.get("faction_emoji", "❓"),
-					quest_data.get("faction", "Unknown")
+				var ring = quest_data.get("ring", "")
+				var ring_display = " [%s]" % ring.capitalize() if ring else ""
+				faction_label.text = "%s %s%s" % [
+					quest_data.get("faction_emoji", ""),
+					quest_data.get("faction", "Unknown"),
+					ring_display
 				]
-
-				# QUEST - Just the body, drop the motto (too much text!)
-				details_label.text = quest_data.get("body", "")
-
-				# STATUS - Visual bars for alignment + rewards
+				details_label.text = '"%s"\n%s' % [
+					quest_data.get("motto", ""),
+					quest_data.get("body", "")
+				]
 				var alignment = quest_data.get("_alignment", 0.5)
-				var align_bar = _make_bar(alignment, 10)
-				var reward_mult = quest_data.get("reward_multiplier", 2.0)
-
 				var time_limit = quest_data.get("time_limit", -1)
-				var time_str = "⏰%ds" % int(time_limit) if time_limit > 0 else "♾️"
-
-				status_label.text = "Match: %s %d%%  |  🎁×%.1f  |  %s" % [
-					align_bar,
+				var time_str = "⏰%ds" % int(time_limit) if time_limit > 0 else "🕰️No limit"
+				status_label.text = "Alignment: %d%% | %s | 🎁%.1fx" % [
 					int(alignment * 100),
-					reward_mult,
-					time_str
+					time_str,
+					quest_data.get("reward_multiplier", 2.0)
 				]
-
-				action_label.text = "✅[Q] Accept  |  🔄[E] Reroll  |  🔒[R] %s" % ("Unlock" if is_locked else "Lock")
+				action_label.text = "[Q]Accept  [E]Reroll  [R]%s" % ("Unlock" if is_locked else "Lock")
 				_set_bg_color(_get_alignment_color(alignment))
 
 			SlotState.ACTIVE:
-				faction_label.text = "%s %s ⚡" % [
-					quest_data.get("faction_emoji", "❓"),
+				faction_label.text = "%s %s (ACTIVE)" % [
+					quest_data.get("faction_emoji", ""),
 					quest_data.get("faction", "Unknown")
 				]
 				details_label.text = quest_data.get("body", "")
-
 				var time_limit = quest_data.get("time_limit", -1)
-				var time_str = "⏰ Time: ???" if time_limit > 0 else "♾️ No limit"
-				status_label.text = "🔥 ACTIVE  |  %s" % time_str
-				action_label.text = "✅[Q] Complete  |  ❌[E] Abandon"
-				_set_bg_color(Color(0.2, 0.3, 0.5, 0.9))
+				var time_str = "⏰Time left: ???" if time_limit > 0 else "🕰️No limit"
+				status_label.text = "Status: ACTIVE | %s" % time_str
+				action_label.text = "[Q]Complete  [E]Abandon"
+				_set_bg_color(Color(0.2, 0.3, 0.4, 0.8))
 
 			SlotState.READY:
-				faction_label.text = "%s %s ✅" % [
-					quest_data.get("faction_emoji", "❓"),
+				faction_label.text = "%s %s ✅ READY" % [
+					quest_data.get("faction_emoji", ""),
 					quest_data.get("faction", "Unknown")
 				]
 				details_label.text = quest_data.get("body", "")
-				status_label.text = "✨ READY TO COMPLETE! ✨"
-				status_label.modulate = Color(0.3, 1.0, 0.3)
-				action_label.text = "💰[Q] CLAIM REWARD!"
-				_set_bg_color(Color(0.2, 0.6, 0.2, 0.95))
+				status_label.text = "Status: READY TO COMPLETE!"
+				status_label.modulate = Color(0.5, 1.0, 0.5)
+				action_label.text = "[Q]Complete!"
+				_set_bg_color(Color(0.2, 0.5, 0.2, 0.9))
 
-		# Highlight if selected - THICKER BORDER
+		# Highlight if selected
 		if is_selected:
 			var current_style = get_theme_stylebox("panel")
 			if current_style:
-				current_style.border_width_left = 8  # THICK!
-				current_style.border_width_right = 8
-				current_style.border_width_top = 8
-				current_style.border_width_bottom = 8
-				current_style.border_color = Color(1.0, 0.9, 0.0)  # Bright gold
-
-
-	func _make_bar(value: float, length: int) -> String:
-		"""Create a visual bar using block characters"""
-		var filled = int(value * length)
-		var bar = ""
-		for i in range(length):
-			if i < filled:
-				bar += "█"
-			else:
-				bar += "░"
-		return bar
+				current_style.border_width_left = 4
+				current_style.border_width_right = 4
+				current_style.border_width_top = 4
+				current_style.border_width_bottom = 4
+				current_style.border_color = Color(1.0, 0.9, 0.3)  # Gold
 
 	func _set_bg_color(color: Color) -> void:
-		"""FLASH GAME STYLE - Chunky borders, more padding"""
 		var style = StyleBoxFlat.new()
 		style.bg_color = color
-		style.border_color = Color(0.7, 0.7, 0.7, 0.8)  # Brighter border
-		style.border_width_left = 4  # THICKER borders!
-		style.border_width_right = 4
-		style.border_width_top = 4
-		style.border_width_bottom = 4
-		style.corner_radius_top_left = 12  # Rounder corners
-		style.corner_radius_top_right = 12
-		style.corner_radius_bottom_left = 12
-		style.corner_radius_bottom_right = 12
-		style.content_margin_left = 20  # MORE PADDING!
-		style.content_margin_right = 20
-		style.content_margin_top = 16
-		style.content_margin_bottom = 16
+		style.border_color = Color(0.5, 0.5, 0.5, 0.5)
+		style.border_width_left = 2
+		style.border_width_right = 2
+		style.border_width_top = 2
+		style.border_width_bottom = 2
+		style.corner_radius_top_left = 8
+		style.corner_radius_top_right = 8
+		style.corner_radius_bottom_left = 8
+		style.corner_radius_bottom_right = 8
+		style.content_margin_left = 10
+		style.content_margin_right = 10
+		style.content_margin_top = 8
+		style.content_margin_bottom = 8
 		add_theme_stylebox_override("panel", style)
 
 	func _get_alignment_color(alignment: float) -> Color:

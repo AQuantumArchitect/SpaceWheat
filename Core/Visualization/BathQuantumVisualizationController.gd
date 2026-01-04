@@ -244,14 +244,14 @@ func request_plot_bubble(biome_name: String, grid_pos: Vector2i, plot) -> void:
 	if not biome or not biome.bath:
 		return
 
-	# Get emojis from plot's quantum state
-	var qubit = plot.quantum_state
-	if not qubit:
-		print("   ⚠️  Plot at %s has no quantum_state!" % grid_pos)
+	# Get emojis from plot (Model B: emojis are plot metadata, not quantum state)
+	if not plot.is_planted or not plot.parent_biome or plot.register_id < 0:
+		print("   ⚠️  Plot at %s not properly initialized!" % grid_pos)
 		return
 
-	var north_emoji = qubit.north_emoji
-	var south_emoji = qubit.south_emoji
+	# Model B: Emojis are measurement basis labels stored on plot
+	var north_emoji = plot.north_emoji
+	var south_emoji = plot.south_emoji
 
 	print("   🌱 Requesting plot bubble at %s: %s/%s" % [grid_pos, north_emoji, south_emoji])
 

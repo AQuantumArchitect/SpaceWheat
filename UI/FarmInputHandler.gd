@@ -218,9 +218,10 @@ func inject_grid_config(config: GridConfig) -> void:
 	print("💉 GridConfig injected into FarmInputHandler (%dx%d grid)" % [grid_width, grid_height])
 
 
-func _input(event: InputEvent):
-	"""Handle input via InputMap actions (Phase 7)
+func _unhandled_input(event: InputEvent):
+	"""Handle gameplay input via InputMap actions (Layer 3 - Low Priority)
 
+	Only processes input that PlayerShell didn't consume (modals, shell actions).
 	Supports keyboard (WASD, QERT, numbers, etc) and gamepad (D-Pad, buttons, sticks)
 	via Godot's InputMap system.
 	"""

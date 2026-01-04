@@ -53,8 +53,8 @@ func _get_marginal_from_computer() -> Dictionary:
 		return {}
 
 	# Extract probabilities
-	var p0 = marginal.get_element(0, 0).real()
-	var p1 = marginal.get_element(1, 1).real()
+	var p0 = marginal.get_element(0, 0).re
+	var p1 = marginal.get_element(1, 1).re
 	var coh = marginal.get_element(0, 1)
 
 	return {

@@ -131,16 +131,16 @@ func _create_menu_button(text: String, color: Color) -> Button:
 	return btn
 
 
-func handle_input(event: InputEvent) -> bool:
-	"""Modal input handler - called by PlayerShell when on modal stack
+func _unhandled_key_input(event):
+	"""Handle keyboard navigation in menu - only if not already handled
 
-	Returns true if input was consumed, false otherwise.
+	Using _unhandled_key_input() instead of _input() ensures proper input order:
+	1. SaveLoadMenu (child) gets first chance to handle input
+	2. Then EscapeMenu (parent) handles unhandled input
+	3. Visibility check is automatic - SaveLoadMenu visible = input handled there
 	"""
-	if not visible:
-		return false
-
-	if not event is InputEventKey or not event.pressed or event.echo:
-		return false
+	if not visible or not event is InputEventKey or not event.pressed or event.echo:
+		return
 
 	# Only process if SaveLoadMenu is NOT visible
 	# (SaveLoadMenu will have already handled input if it's visible)
@@ -149,46 +149,42 @@ func handle_input(event: InputEvent) -> bool:
 		for child in parent.get_children():
 			if child.name == "SaveLoadMenu" and child.visible:
 				# SaveLoadMenu is visible and handling input - don't process
-				return false
-
-	print("  📋 EscapeMenu.handle_input() KEY: %s" % event.keycode)
+				return
 
 	match event.keycode:
 		KEY_ESCAPE:
 			# ESC closes menu (activates Resume)
 			_on_resume_pressed()
-			return true
+			get_viewport().set_input_as_handled()
 		KEY_UP:
 			_navigate_menu(-1)
-			return true
+			get_viewport().set_input_as_handled()
 		KEY_DOWN:
 			_navigate_menu(1)
-			return true
+			get_viewport().set_input_as_handled()
 		KEY_ENTER, KEY_KP_ENTER:
 			_activate_selected_button()
-			return true
+			get_viewport().set_input_as_handled()
 		KEY_S:
 			# S = Save
 			_on_save_pressed()
-			return true
+			get_viewport().set_input_as_handled()
 		KEY_L:
 			# L = Load
 			_on_load_pressed()
-			return true
+			get_viewport().set_input_as_handled()
 		KEY_D:
 			# D = Reload Last Save (D for "do-over")
 			_on_reload_last_save_pressed()
-			return true
+			get_viewport().set_input_as_handled()
 		KEY_R:
 			# R = Restart
 			_on_restart_pressed()
-			return true
+			get_viewport().set_input_as_handled()
 		KEY_Q:
 			# Q = Quit
 			_on_quit_pressed()
-			return true
-
-	return false  # Input not consumed
+			get_viewport().set_input_as_handled()
 
 
 func _navigate_menu(direction: int):

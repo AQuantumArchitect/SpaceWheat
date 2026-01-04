@@ -279,8 +279,8 @@ func measure_register(comp: QuantumComponent, reg_id: int) -> String:
 	For plot with (north_emoji, south_emoji) basis, maps naturally.
 	"""
 	var marginal = comp.get_marginal_2x2(reg_id)
-	var p0 = marginal.get_element(0, 0).real()
-	var p1 = marginal.get_element(1, 1).real()
+	var p0 = marginal.get_element(0, 0).re
+	var p1 = marginal.get_element(1, 1).re
 	var p_total = p0 + p1
 
 	if p_total < 1e-14:
@@ -307,8 +307,8 @@ func inspect_register_distribution(comp: QuantumComponent, reg_id: int) -> Dicti
 	Returns: {north: float, south: float}
 	"""
 	var marginal = comp.get_marginal_2x2(reg_id)
-	var p0 = marginal.get_element(0, 0).real()
-	var p1 = marginal.get_element(1, 1).real()
+	var p0 = marginal.get_element(0, 0).re
+	var p1 = marginal.get_element(1, 1).re
 
 	return {
 		"north": p0,
@@ -408,8 +408,8 @@ func batch_measure_component(comp: QuantumComponent) -> Dictionary:
 	# For each register in component, project to measured outcome
 	for reg_id in comp.register_ids:
 		var marginal = comp.get_marginal_2x2(reg_id)
-		var p0 = marginal.get_element(0, 0).real()
-		var p1 = marginal.get_element(1, 1).real()
+		var p0 = marginal.get_element(0, 0).re
+		var p1 = marginal.get_element(1, 1).re
 		var p_total = p0 + p1
 
 		if p_total < 1e-14:
@@ -448,8 +448,8 @@ func get_marginal_probability_subspace(comp: QuantumComponent, reg_id: int, basi
 	Returns: P(north) + P(south)
 	"""
 	var marginal = comp.get_marginal_2x2(reg_id)
-	var p0 = marginal.get_element(0, 0).real()
-	var p1 = marginal.get_element(1, 1).real()
+	var p0 = marginal.get_element(0, 0).re
+	var p1 = marginal.get_element(1, 1).re
 	return p0 + p1
 
 func get_marginal_purity(comp: QuantumComponent, reg_id: int) -> float:

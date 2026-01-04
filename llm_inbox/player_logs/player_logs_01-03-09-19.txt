@@ -1,0 +1,365 @@
+✅ Created 12 plot tiles: 12 positioned parametrically, 0 without positions
+✅ Tiles created after layout_calculator injection
+  ✓ Layout calculator injected
+  ✓ FarmInputHandler created
+
+⌨️ KEY PRESSED: 80
+⌨️  PlayerShell._input() KEY: 80, modal_stack: 0
+⌨️  Toggle plot (5, 0)
+☑️  Plot (5, 0) selected (total selected: 1)
+✅ 1 plot(s) selected - Q/E/R actions available
+⌨️ KEY PRESSED: 79
+⌨️  PlayerShell._input() KEY: 79, modal_stack: 0
+⌨️  Toggle plot (4, 0)
+☑️  Plot (4, 0) selected (total selected: 2)
+✅ 2 plot(s) selected - Q/E/R actions available
+⌨️ KEY PRESSED: 73
+⌨️  PlayerShell._input() KEY: 73, modal_stack: 0
+⌨️  Toggle plot (3, 0)
+☑️  Plot (3, 0) selected (total selected: 3)
+✅ 3 plot(s) selected - Q/E/R actions available
+⌨️ KEY PRESSED: 85
+⌨️  PlayerShell._input() KEY: 85, modal_stack: 0
+⌨️  Toggle plot (2, 0)
+☑️  Plot (2, 0) selected (total selected: 4)
+✅ 4 plot(s) selected - Q/E/R actions available
+✅ Input processing enabled (UI ready)
+   📊 PlotGridDisplay has 12 tiles ready
+⌨️ KEY PRESSED: 81
+⌨️  PlayerShell._input() KEY: 81, modal_stack: 0
+📂 Entered submenu: Plant Type
+   Q = Wheat
+   E = Mushroom
+   R = Tomato
+📂 Submenu entered: Plant Type
+📂 ActionPreviewRow showing submenu: Plant Type
+⌨️ KEY PRESSED: 81
+⌨️  PlayerShell._input() KEY: 81, modal_stack: 0
+📂 Submenu plant | Key Q | Action: Wheat | Plots: 4
+🌱 Batch planting wheat at 4 plots: [(5, 0), (4, 0), (3, 0), (2, 0)]
+💸 Spent 0 🌾 on wheat
+🌱 Plot (5, 0): allocated register 0 in BioticFlux biome
+🌱 Farm: Emitting plot_planted signal for wheat at (5, 0)
+🔔 BathQuantumViz: Received plot_planted signal for wheat at (5, 0)
+   📍 Plot at (5, 0) assigned to biome: BioticFlux
+SCRIPT ERROR: Invalid access to property or key 'quantum_state' on a base object of type 'Resource (FarmPlot)'.
+          at: BathQuantumVisualizationController.request_plot_bubble (res://Core/Visualization/BathQuantumVisualizationController.gd:248)
+          GDScript backtrace (most recent call first):
+              [0] request_plot_bubble (res://Core/Visualization/BathQuantumVisualizationController.gd:248)
+              [1] _on_plot_planted (res://Core/Visualization/BathQuantumVisualizationController.gd:191)
+              [2] build (res://Core/Farm.gd:578)
+              [3] <anonymous lambda> (res://Core/Farm.gd:827)
+              [4] _batch_operation (res://Core/Farm.gd:816)
+              [5] batch_plant (res://Core/Farm.gd:827)
+              [6] _action_batch_plant (res://UI/FarmInputHandler.gd:749)
+              [7] _execute_submenu_action (res://UI/FarmInputHandler.gd:461)
+              [8] _execute_tool_action (res://UI/FarmInputHandler.gd:574)
+              [9] _unhandled_input (res://UI/FarmInputHandler.gd:322)
+🌱 Farm.plot_planted received at PlotGridDisplay
+   ✓ update_tile_from_farm((5, 0)): found plot, transforming data...
+SCRIPT ERROR: Invalid access to property or key 'quantum_state' on a base object of type 'Resource (FarmPlot)'.
+          at: PlotGridDisplay._transform_plot_to_ui_data (res://UI/PlotGridDisplay.gd:494)
+          GDScript backtrace (most recent call first):
+              [0] _transform_plot_to_ui_data (res://UI/PlotGridDisplay.gd:494)
+              [1] update_tile_from_farm (res://UI/PlotGridDisplay.gd:461)
+              [2] _on_farm_plot_planted (res://UI/PlotGridDisplay.gd:543)
+              [3] build (res://Core/Farm.gd:578)
+              [4] <anonymous lambda> (res://Core/Farm.gd:827)
+              [5] _batch_operation (res://Core/Farm.gd:816)
+              [6] batch_plant (res://Core/Farm.gd:827)
+              [7] _action_batch_plant (res://UI/FarmInputHandler.gd:749)
+              [8] _execute_submenu_action (res://UI/FarmInputHandler.gd:461)
+              [9] _execute_tool_action (res://UI/FarmInputHandler.gd:574)
+              [10] _unhandled_input (res://UI/FarmInputHandler.gd:322)
+SCRIPT ERROR: Invalid access to property or key 'is_planted' on a base object of type 'Dictionary'.
+          at: PlotTile._update_visuals (res://UI/PlotTile.gd:241)
+          GDScript backtrace (most recent call first):
+              [0] _update_visuals (res://UI/PlotTile.gd:241)
+              [1] set_plot_data (res://UI/PlotTile.gd:666)
+              [2] update_tile_from_farm (res://UI/PlotGridDisplay.gd:463)
+              [3] _on_farm_plot_planted (res://UI/PlotGridDisplay.gd:543)
+              [4] build (res://Core/Farm.gd:578)
+              [5] <anonymous lambda> (res://Core/Farm.gd:827)
+              [6] _batch_operation (res://Core/Farm.gd:816)
+              [7] batch_plant (res://Core/Farm.gd:827)
+              [8] _action_batch_plant (res://UI/FarmInputHandler.gd:749)
+              [9] _execute_submenu_action (res://UI/FarmInputHandler.gd:461)
+              [10] _execute_tool_action (res://UI/FarmInputHandler.gd:574)
+              [11] _unhandled_input (res://UI/FarmInputHandler.gd:322)
+  🌾 PlotGridDisplay updating tile for plot (5, 0)
+💸 Spent 0 🌾 on wheat
+🌱 Plot (4, 0): allocated register 11 in BioticFlux biome
+🌱 Farm: Emitting plot_planted signal for wheat at (4, 0)
+🔔 BathQuantumViz: Received plot_planted signal for wheat at (4, 0)
+   📍 Plot at (4, 0) assigned to biome: BioticFlux
+SCRIPT ERROR: Invalid access to property or key 'quantum_state' on a base object of type 'Resource (FarmPlot)'.
+          at: BathQuantumVisualizationController.request_plot_bubble (res://Core/Visualization/BathQuantumVisualizationController.gd:248)
+          GDScript backtrace (most recent call first):
+              [0] request_plot_bubble (res://Core/Visualization/BathQuantumVisualizationController.gd:248)
+              [1] _on_plot_planted (res://Core/Visualization/BathQuantumVisualizationController.gd:191)
+              [2] build (res://Core/Farm.gd:578)
+              [3] <anonymous lambda> (res://Core/Farm.gd:827)
+              [4] _batch_operation (res://Core/Farm.gd:816)
+              [5] batch_plant (res://Core/Farm.gd:827)
+              [6] _action_batch_plant (res://UI/FarmInputHandler.gd:749)
+              [7] _execute_submenu_action (res://UI/FarmInputHandler.gd:461)
+              [8] _execute_tool_action (res://UI/FarmInputHandler.gd:574)
+              [9] _unhandled_input (res://UI/FarmInputHandler.gd:322)
+🌱 Farm.plot_planted received at PlotGridDisplay
+   ✓ update_tile_from_farm((4, 0)): found plot, transforming data...
+SCRIPT ERROR: Invalid access to property or key 'quantum_state' on a base object of type 'Resource (FarmPlot)'.
+          at: PlotGridDisplay._transform_plot_to_ui_data (res://UI/PlotGridDisplay.gd:494)
+          GDScript backtrace (most recent call first):
+              [0] _transform_plot_to_ui_data (res://UI/PlotGridDisplay.gd:494)
+              [1] update_tile_from_farm (res://UI/PlotGridDisplay.gd:461)
+              [2] _on_farm_plot_planted (res://UI/PlotGridDisplay.gd:543)
+              [3] build (res://Core/Farm.gd:578)
+              [4] <anonymous lambda> (res://Core/Farm.gd:827)
+              [5] _batch_operation (res://Core/Farm.gd:816)
+              [6] batch_plant (res://Core/Farm.gd:827)
+              [7] _action_batch_plant (res://UI/FarmInputHandler.gd:749)
+              [8] _execute_submenu_action (res://UI/FarmInputHandler.gd:461)
+              [9] _execute_tool_action (res://UI/FarmInputHandler.gd:574)
+              [10] _unhandled_input (res://UI/FarmInputHandler.gd:322)
+SCRIPT ERROR: Invalid access to property or key 'is_planted' on a base object of type 'Dictionary'.
+          at: PlotTile._update_visuals (res://UI/PlotTile.gd:241)
+          GDScript backtrace (most recent call first):
+              [0] _update_visuals (res://UI/PlotTile.gd:241)
+              [1] set_plot_data (res://UI/PlotTile.gd:666)
+              [2] update_tile_from_farm (res://UI/PlotGridDisplay.gd:463)
+              [3] _on_farm_plot_planted (res://UI/PlotGridDisplay.gd:543)
+              [4] build (res://Core/Farm.gd:578)
+              [5] <anonymous lambda> (res://Core/Farm.gd:827)
+              [6] _batch_operation (res://Core/Farm.gd:816)
+              [7] batch_plant (res://Core/Farm.gd:827)
+              [8] _action_batch_plant (res://UI/FarmInputHandler.gd:749)
+              [9] _execute_submenu_action (res://UI/FarmInputHandler.gd:461)
+              [10] _execute_tool_action (res://UI/FarmInputHandler.gd:574)
+              [11] _unhandled_input (res://UI/FarmInputHandler.gd:322)
+  🌾 PlotGridDisplay updating tile for plot (4, 0)
+💸 Spent 0 🌾 on wheat
+🌱 Plot (3, 0): allocated register 22 in BioticFlux biome
+🌱 Farm: Emitting plot_planted signal for wheat at (3, 0)
+🔔 BathQuantumViz: Received plot_planted signal for wheat at (3, 0)
+   📍 Plot at (3, 0) assigned to biome: BioticFlux
+SCRIPT ERROR: Invalid access to property or key 'quantum_state' on a base object of type 'Resource (FarmPlot)'.
+          at: BathQuantumVisualizationController.request_plot_bubble (res://Core/Visualization/BathQuantumVisualizationController.gd:248)
+          GDScript backtrace (most recent call first):
+              [0] request_plot_bubble (res://Core/Visualization/BathQuantumVisualizationController.gd:248)
+              [1] _on_plot_planted (res://Core/Visualization/BathQuantumVisualizationController.gd:191)
+              [2] build (res://Core/Farm.gd:578)
+              [3] <anonymous lambda> (res://Core/Farm.gd:827)
+              [4] _batch_operation (res://Core/Farm.gd:816)
+              [5] batch_plant (res://Core/Farm.gd:827)
+              [6] _action_batch_plant (res://UI/FarmInputHandler.gd:749)
+              [7] _execute_submenu_action (res://UI/FarmInputHandler.gd:461)
+              [8] _execute_tool_action (res://UI/FarmInputHandler.gd:574)
+              [9] _unhandled_input (res://UI/FarmInputHandler.gd:322)
+🌱 Farm.plot_planted received at PlotGridDisplay
+   ✓ update_tile_from_farm((3, 0)): found plot, transforming data...
+SCRIPT ERROR: Invalid access to property or key 'quantum_state' on a base object of type 'Resource (FarmPlot)'.
+          at: PlotGridDisplay._transform_plot_to_ui_data (res://UI/PlotGridDisplay.gd:494)
+          GDScript backtrace (most recent call first):
+              [0] _transform_plot_to_ui_data (res://UI/PlotGridDisplay.gd:494)
+              [1] update_tile_from_farm (res://UI/PlotGridDisplay.gd:461)
+              [2] _on_farm_plot_planted (res://UI/PlotGridDisplay.gd:543)
+              [3] build (res://Core/Farm.gd:578)
+              [4] <anonymous lambda> (res://Core/Farm.gd:827)
+              [5] _batch_operation (res://Core/Farm.gd:816)
+              [6] batch_plant (res://Core/Farm.gd:827)
+              [7] _action_batch_plant (res://UI/FarmInputHandler.gd:749)
+              [8] _execute_submenu_action (res://UI/FarmInputHandler.gd:461)
+              [9] _execute_tool_action (res://UI/FarmInputHandler.gd:574)
+              [10] _unhandled_input (res://UI/FarmInputHandler.gd:322)
+SCRIPT ERROR: Invalid access to property or key 'is_planted' on a base object of type 'Dictionary'.
+          at: PlotTile._update_visuals (res://UI/PlotTile.gd:241)
+          GDScript backtrace (most recent call first):
+              [0] _update_visuals (res://UI/PlotTile.gd:241)
+              [1] set_plot_data (res://UI/PlotTile.gd:666)
+              [2] update_tile_from_farm (res://UI/PlotGridDisplay.gd:463)
+              [3] _on_farm_plot_planted (res://UI/PlotGridDisplay.gd:543)
+              [4] build (res://Core/Farm.gd:578)
+              [5] <anonymous lambda> (res://Core/Farm.gd:827)
+              [6] _batch_operation (res://Core/Farm.gd:816)
+              [7] batch_plant (res://Core/Farm.gd:827)
+              [8] _action_batch_plant (res://UI/FarmInputHandler.gd:749)
+              [9] _execute_submenu_action (res://UI/FarmInputHandler.gd:461)
+              [10] _execute_tool_action (res://UI/FarmInputHandler.gd:574)
+              [11] _unhandled_input (res://UI/FarmInputHandler.gd:322)
+  🌾 PlotGridDisplay updating tile for plot (3, 0)
+💸 Spent 0 🌾 on wheat
+🌱 Plot (2, 0): allocated register 33 in BioticFlux biome
+🌱 Farm: Emitting plot_planted signal for wheat at (2, 0)
+🔔 BathQuantumViz: Received plot_planted signal for wheat at (2, 0)
+   📍 Plot at (2, 0) assigned to biome: BioticFlux
+SCRIPT ERROR: Invalid access to property or key 'quantum_state' on a base object of type 'Resource (FarmPlot)'.
+          at: BathQuantumVisualizationController.request_plot_bubble (res://Core/Visualization/BathQuantumVisualizationController.gd:248)
+          GDScript backtrace (most recent call first):
+              [0] request_plot_bubble (res://Core/Visualization/BathQuantumVisualizationController.gd:248)
+              [1] _on_plot_planted (res://Core/Visualization/BathQuantumVisualizationController.gd:191)
+              [2] build (res://Core/Farm.gd:578)
+              [3] <anonymous lambda> (res://Core/Farm.gd:827)
+              [4] _batch_operation (res://Core/Farm.gd:816)
+              [5] batch_plant (res://Core/Farm.gd:827)
+              [6] _action_batch_plant (res://UI/FarmInputHandler.gd:749)
+              [7] _execute_submenu_action (res://UI/FarmInputHandler.gd:461)
+              [8] _execute_tool_action (res://UI/FarmInputHandler.gd:574)
+              [9] _unhandled_input (res://UI/FarmInputHandler.gd:322)
+🌱 Farm.plot_planted received at PlotGridDisplay
+   ✓ update_tile_from_farm((2, 0)): found plot, transforming data...
+SCRIPT ERROR: Invalid access to property or key 'quantum_state' on a base object of type 'Resource (FarmPlot)'.
+          at: PlotGridDisplay._transform_plot_to_ui_data (res://UI/PlotGridDisplay.gd:494)
+          GDScript backtrace (most recent call first):
+              [0] _transform_plot_to_ui_data (res://UI/PlotGridDisplay.gd:494)
+              [1] update_tile_from_farm (res://UI/PlotGridDisplay.gd:461)
+              [2] _on_farm_plot_planted (res://UI/PlotGridDisplay.gd:543)
+              [3] build (res://Core/Farm.gd:578)
+              [4] <anonymous lambda> (res://Core/Farm.gd:827)
+              [5] _batch_operation (res://Core/Farm.gd:816)
+              [6] batch_plant (res://Core/Farm.gd:827)
+              [7] _action_batch_plant (res://UI/FarmInputHandler.gd:749)
+              [8] _execute_submenu_action (res://UI/FarmInputHandler.gd:461)
+              [9] _execute_tool_action (res://UI/FarmInputHandler.gd:574)
+              [10] _unhandled_input (res://UI/FarmInputHandler.gd:322)
+SCRIPT ERROR: Invalid access to property or key 'is_planted' on a base object of type 'Dictionary'.
+          at: PlotTile._update_visuals (res://UI/PlotTile.gd:241)
+          GDScript backtrace (most recent call first):
+              [0] _update_visuals (res://UI/PlotTile.gd:241)
+              [1] set_plot_data (res://UI/PlotTile.gd:666)
+              [2] update_tile_from_farm (res://UI/PlotGridDisplay.gd:463)
+              [3] _on_farm_plot_planted (res://UI/PlotGridDisplay.gd:543)
+              [4] build (res://Core/Farm.gd:578)
+              [5] <anonymous lambda> (res://Core/Farm.gd:827)
+              [6] _batch_operation (res://Core/Farm.gd:816)
+              [7] batch_plant (res://Core/Farm.gd:827)
+              [8] _action_batch_plant (res://UI/FarmInputHandler.gd:749)
+              [9] _execute_submenu_action (res://UI/FarmInputHandler.gd:461)
+              [10] _execute_tool_action (res://UI/FarmInputHandler.gd:574)
+              [11] _unhandled_input (res://UI/FarmInputHandler.gd:322)
+  🌾 PlotGridDisplay updating tile for plot (2, 0)
+📁 Exited submenu: plant
+📁 Submenu exited - restoring tool display
+⚡ ActionPreviewRow updated for Tool 1: Grower
+🔄 Tool changed via input: 1 (Grower)
+⚡ ActionPreviewRow updated for Tool 1: Grower
+SCRIPT ERROR: Invalid access to property or key 'is_planted' on a base object of type 'Dictionary'.
+          at: PlotTile._update_visuals (res://UI/PlotTile.gd:241)
+          GDScript backtrace (most recent call first):
+              [0] _update_visuals (res://UI/PlotTile.gd:241)
+              [1] _process (res://UI/PlotTile.gd:227)
+SCRIPT ERROR: Invalid access to property or key 'is_planted' on a base object of type 'Dictionary'.
+          at: PlotTile._update_visuals (res://UI/PlotTile.gd:241)
+          GDScript backtrace (most recent call first):
+              [0] _update_visuals (res://UI/PlotTile.gd:241)
+              [1] _process (res://UI/PlotTile.gd:227)
+SCRIPT ERROR: Invalid access to property or key 'is_planted' on a base object of type 'Dictionary'.
+          at: PlotTile._update_visuals (res://UI/PlotTile.gd:241)
+          GDScript backtrace (most recent call first):
+              [0] _update_visuals (res://UI/PlotTile.gd:241)
+              [1] _process (res://UI/PlotTile.gd:227)
+SCRIPT ERROR: Invalid access to property or key 'is_planted' on a base object of type 'Dictionary'.
+          at: PlotTile._update_visuals (res://UI/PlotTile.gd:241)
+          GDScript backtrace (most recent call first):
+              [0] _update_visuals (res://UI/PlotTile.gd:241)
+              [1] _process (res://UI/PlotTile.gd:227)
+SCRIPT ERROR: Invalid access to property or key 'is_planted' on a base object of type 'Dictionary'.
+          at: PlotTile._update_visuals (res://UI/PlotTile.gd:241)
+          GDScript backtrace (most recent call first):
+              [0] _update_visuals (res://UI/PlotTile.gd:241)
+              [1] _process (res://UI/PlotTile.gd:227)
+SCRIPT ERROR: Invalid access to property or key 'is_planted' on a base object of type 'Dictionary'.
+          at: PlotTile._update_visuals (res://UI/PlotTile.gd:241)
+          GDScript backtrace (most recent call first):
+              [0] _update_visuals (res://UI/PlotTile.gd:241)
+              [1] _process (res://UI/PlotTile.gd:227)
+SCRIPT ERROR: Invalid access to property or key 'is_planted' on a base object of type 'Dictionary'.
+          at: PlotTile._update_visuals (res://UI/PlotTile.gd:241)
+          GDScript backtrace (most recent call first):
+              [0] _update_visuals (res://UI/PlotTile.gd:241)
+              [1] _process (res://UI/PlotTile.gd:227)
+SCRIPT ERROR: Invalid access to property or key 'is_planted' on a base object of type 'Dictionary'.
+          at: PlotTile._update_visuals (res://UI/PlotTile.gd:241)
+          GDScript backtrace (most recent call first):
+              [0] _update_visuals (res://UI/PlotTile.gd:241)
+              [1] _process (res://UI/PlotTile.gd:227)
+SCRIPT ERROR: Invalid access to property or key 'is_planted' on a base object of type 'Dictionary'.
+          at: PlotTile._update_visuals (res://UI/PlotTile.gd:241)
+          GDScript backtrace (most recent call first):
+              [0] _update_visuals (res://UI/PlotTile.gd:241)
+              [1] _process (res://UI/PlotTile.gd:227)
+SCRIPT ERROR: Invalid access to property or key 'is_planted' on a base object of type 'Dictionary'.
+          at: PlotTile._update_visuals (res://UI/PlotTile.gd:241)
+          GDScript backtrace (most recent call first):
+              [0] _update_visuals (res://UI/PlotTile.gd:241)
+              [1] _process (res://UI/PlotTile.gd:227)
+SCRIPT ERROR: Invalid access to property or key 'is_planted' on a base object of type 'Dictionary'.
+          at: PlotTile._update_visuals (res://UI/PlotTile.gd:241)
+          GDScript backtrace (most recent call first):
+              [0] _update_visuals (res://UI/PlotTile.gd:241)
+              [1] _process (res://UI/PlotTile.gd:227)
+SCRIPT ERROR: Invalid access to property or key 'is_planted' on a base object of type 'Dictionary'.
+          at: PlotTile._update_visuals (res://UI/PlotTile.gd:241)
+          GDScript backtrace (most recent call first):
+              [0] _update_visuals (res://UI/PlotTile.gd:241)
+              [1] _process (res://UI/PlotTile.gd:227)
+SCRIPT ERROR: Invalid access to property or key 'is_planted' on a base object of type 'Dictionary'.
+          at: PlotTile._update_visuals (res://UI/PlotTile.gd:241)
+          GDScript backtrace (most recent call first):
+              [0] _update_visuals (res://UI/PlotTile.gd:241)
+              [1] _process (res://UI/PlotTile.gd:227)
+SCRIPT ERROR: Invalid access to property or key 'is_planted' on a base object of type 'Dictionary'.
+          at: PlotTile._update_visuals (res://UI/PlotTile.gd:241)
+          GDScript backtrace (most recent call first):
+              [0] _update_visuals (res://UI/PlotTile.gd:241)
+              [1] _process (res://UI/PlotTile.gd:227)
+SCRIPT ERROR: Invalid access to property or key 'is_planted' on a base object of type 'Dictionary'.
+          at: PlotTile._update_visuals (res://UI/PlotTile.gd:241)
+          GDScript backtrace (most recent call first):
+              [0] _update_visuals (res://UI/PlotTile.gd:241)
+              [1] _process (res://UI/PlotTile.gd:227)
+SCRIPT ERROR: Invalid access to property or key 'is_planted' on a base object of type 'Dictionary'.
+          at: PlotTile._update_visuals (res://UI/PlotTile.gd:241)
+          GDScript backtrace (most recent call first):
+              [0] _update_visuals (res://UI/PlotTile.gd:241)
+              [1] _process (res://UI/PlotTile.gd:227)
+SCRIPT ERROR: Invalid access to property or key 'is_planted' on a base object of type 'Dictionary'.
+          at: PlotTile._update_visuals (res://UI/PlotTile.gd:241)
+          GDScript backtrace (most recent call first):
+              [0] _update_visuals (res://UI/PlotTile.gd:241)
+              [1] _process (res://UI/PlotTile.gd:227)
+SCRIPT ERROR: Invalid access to property or key 'is_planted' on a base object of type 'Dictionary'.
+          at: PlotTile._update_visuals (res://UI/PlotTile.gd:241)
+          GDScript backtrace (most recent call first):
+              [0] _update_visuals (res://UI/PlotTile.gd:241)
+              [1] _process (res://UI/PlotTile.gd:227)
+SCRIPT ERROR: Invalid access to property or key 'is_planted' on a base object of type 'Dictionary'.
+          at: PlotTile._update_visuals (res://UI/PlotTile.gd:241)
+          GDScript backtrace (most recent call first):
+              [0] _update_visuals (res://UI/PlotTile.gd:241)
+              [1] _process (res://UI/PlotTile.gd:227)
+SCRIPT ERROR: Invalid access to property or key 'is_planted' on a base object of type 'Dictionary'.
+          at: PlotTile._update_visuals (res://UI/PlotTile.gd:241)
+          GDScript backtrace (most recent call first):
+              [0] _update_visuals (res://UI/PlotTile.gd:241)
+              [1] _process (res://UI/PlotTile.gd:227)
+SCRIPT ERROR: Invalid access to property or key 'is_planted' on a base object of type 'Dictionary'.
+          at: PlotTile._update_visuals (res://UI/PlotTile.gd:241)
+          GDScript backtrace (most recent call first):
+              [0] _update_visuals (res://UI/PlotTile.gd:241)
+              [1] _process (res://UI/PlotTile.gd:227)
+SCRIPT ERROR: Invalid access to property or key 'is_planted' on a base object of type 'Dictionary'.
+          at: PlotTile._update_visuals (res://UI/PlotTile.gd:241)
+          GDScript backtrace (most recent call first):
+              [0] _update_visuals (res://UI/PlotTile.gd:241)
+              [1] _process (res://UI/PlotTile.gd:227)
+SCRIPT ERROR: Invalid access to property or key 'is_planted' on a base object of type 'Dictionary'.
+          at: PlotTile._update_visuals (res://UI/PlotTile.gd:241)
+          GDScript backtrace (most recent call first):
+              [0] _update_visuals (res://UI/PlotTile.gd:241)
+              [1] _process (res://UI/PlotTile.gd:227)
+SCRIPT ERROR: Invalid access to property or key 'is_planted' on a base object of type 'Dictionary'.
+          at: PlotTile._update_visuals (res://UI/PlotTile.gd:241)
+          GDScript backtrace (most recent call first):
+              [0] _update_visuals (res://UI/PlotTile.gd:241)
+              [1] _process (res://UI/PlotTile.gd:227)
+⌨️ KEY PRESSED: 67

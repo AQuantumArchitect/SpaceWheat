@@ -122,8 +122,14 @@ func _initialize_all_plots() -> void:
 
 
 func _process(delta):
-	# Skip quantum evolution if no biome (simple mode)
-	if not biome:
+	# Debug: Check if grid processing is called
+	if OS.get_environment("DEBUG_GRID") == "1":
+		print("🌾 FarmGrid._process called, delta=%.3f" % delta)
+
+	# In multi-biome mode, always process (mills, markets, kitchens don't depend on legacy biome field)
+	# Only skip full quantum evolution if in single-biome legacy mode with no biome set
+	var has_biomes = not biomes.is_empty()
+	if not biome and not has_biomes:
 		return
 
 	# Apply Icon effects to quantum states (Lindblad evolution)
@@ -462,17 +468,18 @@ func process_mill_flour(flour_amount: int) -> void:
 		flour_amount: Number of flour units produced by mill measurement
 	"""
 	if not farm_economy or flour_amount <= 0:
+		print("    ERROR: process_mill_flour called with invalid params (amount=%d)" % flour_amount)
 		return
 
-	# Convert flour through economy system
-	# 10 quantum units of flour → economy resource
-	var result = farm_economy.process_wheat_to_flour(flour_amount)
+	# Mill produces flour directly from quantum measurement
+	# No wheat consumption needed - flour is a quantum measurement outcome
+	var flour_credits = flour_amount * FarmEconomy.QUANTUM_TO_CREDITS
+	farm_economy.add_resource("💨", flour_credits, "mill_quantum_measurement")
 
-	if result.get("success", false):
-		print("🌾→💨 Mill: %d flour → %d credits" % [
-			flour_amount,
-			result.get("credits_gained", 0)
-		])
+	print("🏭→💨 Mill: Produced %d flour → %d credits" % [
+		flour_amount,
+		flour_credits
+	])
 
 
 func _process_markets(delta: float) -> void:

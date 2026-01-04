@@ -114,6 +114,10 @@ func _stage_ui(farm: Farm, shell: PlayerShell, quantum_viz: BathQuantumVisualiza
 	shell.load_farm_ui(farm_ui)
 	print("  ✓ FarmUI mounted in shell")
 
+	# Set farm reference in PlayerShell (needed for quest board)
+	shell.farm = farm
+	print("  ✓ Farm reference set in PlayerShell")
+
 	# Wait one frame for _ready() to complete
 	await shell.get_tree().process_frame
 

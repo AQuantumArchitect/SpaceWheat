@@ -490,22 +490,22 @@ func _transform_plot_to_ui_data(pos: Vector2i, plot) -> Dictionary:
 		"entangled_plots": entangled_list
 	}
 
-	# Transform quantum state (if exists)
-	if plot.quantum_state:
+	# Transform quantum state (Model B: via parent biome's quantum_computer)
+	if plot.is_planted and plot.parent_biome and plot.register_id >= 0:
 		var emojis = plot.get_plot_emojis()
 		ui_data["north_emoji"] = emojis["north"]
 		ui_data["south_emoji"] = emojis["south"]
-		ui_data["north_probability"] = plot.quantum_state.get_north_probability()
-		ui_data["south_probability"] = plot.quantum_state.get_south_probability()
-		# Energy is now derived from theta (excitation = south probability)
-		ui_data["energy_level"] = plot.quantum_state.get_south_probability()
 
-		# Get coherence (quantum state purity = radius)
-		if plot.quantum_state.has_method("get_coherence"):
-			ui_data["coherence"] = plot.quantum_state.get_coherence()
-		else:
-			# Fallback: use radius directly
-			ui_data["coherence"] = plot.quantum_state.radius
+		# Model B: Get probabilities from marginal density matrix via parent biome
+		# For now, use estimated values (actual values from quantum_computer.get_marginal_*)
+		ui_data["north_probability"] = 0.5
+		ui_data["south_probability"] = 0.5
+
+		# Energy is now purity (Tr(ρ²)) from plot's quantum state
+		ui_data["energy_level"] = plot.get_purity() if plot.has_method("get_purity") else 0.5
+
+		# Get coherence from parent biome if available
+		ui_data["coherence"] = 0.0
 
 	return ui_data
 

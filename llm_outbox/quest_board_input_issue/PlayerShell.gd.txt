@@ -20,105 +20,6 @@ var quest_manager: QuestManager = null
 var farm: Node = null
 var farm_ui_container: Control = null
 
-## Modal Management
-var modal_stack: Array[Control] = []
-
-
-func _input(event: InputEvent) -> void:
-	"""Layer 1: High-priority input routing (modals + shell actions)"""
-	if not event is InputEventKey or not event.pressed or event.echo:
-		return
-
-	print("⌨️  PlayerShell._input() KEY: %s, modal_stack: %d" % [event.keycode, modal_stack.size()])
-
-	# LAYER 1: Modal input (highest priority)
-	if not modal_stack.is_empty():
-		var active_modal = modal_stack[-1]
-		print("  → Routing to modal: %s" % active_modal.name)
-		if active_modal.has_method("handle_input"):
-			var consumed = active_modal.handle_input(event)
-			print("  → Modal consumed: %s" % consumed)
-			if consumed:
-				get_viewport().set_input_as_handled()
-				return
-
-	# LAYER 2: Shell actions
-	if _handle_shell_action(event):
-		get_viewport().set_input_as_handled()
-		return
-
-	# LAYER 3: Fall through to Farm._unhandled_input()
-
-
-func _handle_shell_action(event: InputEvent) -> bool:
-	"""Handle shell-level actions (overlay toggles, menu)"""
-	match event.keycode:
-		KEY_C:
-			_toggle_quest_board()
-			return true
-		KEY_ESCAPE:
-			_toggle_escape_menu()
-			return true
-	return false
-
-
-func _toggle_quest_board() -> void:
-	"""Toggle quest board - pass biome via parameter"""
-	print("🎯 _toggle_quest_board() called")
-	if not overlay_manager:
-		print("   ❌ overlay_manager is null!")
-		return
-	if not overlay_manager.quest_board:
-		print("   ❌ quest_board is null!")
-		return
-	var quest_board = overlay_manager.quest_board
-	if quest_board.visible:
-		print("   → Closing quest board")
-		quest_board.close_board()
-		_pop_modal(quest_board)
-	else:
-		print("   → Opening quest board")
-		var biome = null
-		if farm and "biotic_flux_biome" in farm:
-			biome = farm.biotic_flux_biome
-		print("   → farm: ", farm)
-		print("   → biome: ", biome)
-		if biome:
-			quest_board.set_biome(biome)
-			quest_board.open_board()
-			_push_modal(quest_board)
-			print("   ✅ Quest board opened")
-		else:
-			print("   ❌ No biome available!")
-
-
-func _toggle_escape_menu() -> void:
-	"""Toggle escape menu"""
-	if not overlay_manager or not overlay_manager.escape_menu:
-		return
-	var menu = overlay_manager.escape_menu
-	if menu.visible:
-		menu.hide()
-		_pop_modal(menu)
-	else:
-		menu.show()
-		_push_modal(menu)
-
-
-func _push_modal(modal: Control) -> void:
-	"""Add modal to stack"""
-	if modal not in modal_stack:
-		modal_stack.append(modal)
-		print("📚 Modal stack: ", modal_stack.map(func(m): return m.name))
-
-
-func _pop_modal(modal: Control) -> void:
-	"""Remove modal from stack"""
-	var idx = modal_stack.find(modal)
-	if idx >= 0:
-		modal_stack.remove_at(idx)
-		print("📚 Modal stack: ", modal_stack.map(func(m): return m.name))
-
 
 func _ready() -> void:
 	"""Initialize player shell UI - children defined in scene"""
@@ -127,9 +28,6 @@ func _ready() -> void:
 	# CRITICAL: Ensure PlayerShell fills its parent (FarmView)
 	# This is the top of the delegation cascade - everything below depends on this sizing
 	set_anchors_preset(Control.PRESET_FULL_RECT)
-
-	# Process input even when game is paused (for ESC menu, etc.)
-	process_mode = Node.PROCESS_MODE_ALWAYS
 
 	# Explicitly match parent size (in case anchors don't work due to layout_mode mismatch)
 	if get_parent():
@@ -163,19 +61,6 @@ func _ready() -> void:
 
 	# Initialize overlays (C/V/N/K/ESC menus)
 	overlay_manager.create_overlays(overlay_layer)
-
-	# Connect to overlay signals to manage modal stack
-	if overlay_manager.quest_board:
-		overlay_manager.quest_board.board_closed.connect(func():
-			_pop_modal(overlay_manager.quest_board)
-		)
-		print("   ✅ Quest board close signal connected")
-
-	if overlay_manager.escape_menu:
-		overlay_manager.escape_menu.resume_pressed.connect(func():
-			_pop_modal(overlay_manager.escape_menu)
-		)
-		print("   ✅ Escape menu close signal connected")
 
 	print("   ✅ Overlay manager created")
 	print("✅ PlayerShell ready")

@@ -7,11 +7,12 @@
 extends Control
 
 const Farm = preload("res://Core/Farm.gd")
+const InputController = preload("res://UI/Controllers/InputController.gd")
 const BathQuantumViz = preload("res://Core/Visualization/BathQuantumVisualizationController.gd")
-# BootManager is an autoload singleton - no need to preload
 
 var shell = null  # PlayerShell (from scene)
 var farm: Node = null
+var input_controller: InputController = null
 var quantum_viz: BathQuantumViz = null
 
 
@@ -103,9 +104,73 @@ func _ready() -> void:
 			else:
 				print("   ✅ Touch: Tap-to-measure connected")
 
-	# Input is now handled by PlayerShell._input() → modal stack → FarmInputHandler._unhandled_input()
-	# No need for InputController anymore!
-	print("✅ Input routing handled by PlayerShell modal stack")
+	# Create input controller and wire signals
+	print("🎮 Creating input controller...")
+	input_controller = InputController.new()
+	add_child(input_controller)
+
+	# Wire input controller signals directly to overlay manager
+	print("🔗 Connecting overlay signals...")
+
+	# Get reference to overlay manager from shell
+	if not shell.overlay_manager:
+		print("❌ ERROR: OverlayManager not available in shell!")
+		return
+
+	# Set farm reference for biome inspector
+	shell.overlay_manager.farm = farm
+	print("   ✅ Farm reference set in OverlayManager")
+
+	if input_controller.has_signal("menu_toggled"):
+		input_controller.menu_toggled.connect(shell.overlay_manager.toggle_escape_menu)
+		print("   ✅ ESC key (escape menu) connected")
+
+	if input_controller.has_signal("vocabulary_requested"):
+		input_controller.vocabulary_requested.connect(shell.overlay_manager.toggle_vocabulary_overlay)
+		print("   ✅ V key (vocabulary) connected")
+
+	if input_controller.has_signal("contracts_toggled"):
+		input_controller.contracts_toggled.connect(func(): shell.overlay_manager.toggle_overlay("quests"))
+		print("   ✅ C key (quests) connected")
+
+	if input_controller.has_signal("network_toggled"):
+		input_controller.network_toggled.connect(shell.overlay_manager.toggle_network_overlay)
+		print("   ✅ N key (network) connected")
+
+	if input_controller.has_signal("keyboard_help_requested"):
+		input_controller.keyboard_help_requested.connect(shell.overlay_manager.toggle_keyboard_help)
+		print("   ✅ K key (keyboard help) connected")
+
+	if input_controller.has_signal("biome_inspector_toggled"):
+		input_controller.biome_inspector_toggled.connect(shell.overlay_manager.toggle_biome_inspector)
+		print("   ✅ B key (biome inspector) connected")
+
+	if input_controller.has_signal("quantum_config_requested"):
+		input_controller.quantum_config_requested.connect(shell.overlay_manager.toggle_quantum_config_ui)
+		print("   ✅ Shift+Q (quantum config) connected")
+
+	# Connect quit/restart signals
+	if input_controller.has_signal("quit_requested"):
+		input_controller.quit_requested.connect(_on_quit_requested)
+		print("   ✅ Q key (quit) connected")
+
+	if input_controller.has_signal("restart_requested"):
+		input_controller.restart_requested.connect(_on_restart_requested)
+		print("   ✅ R key (restart) connected")
+
+	# CRITICAL: Listen to overlay state changes to sync InputController.menu_visible
+	# This prevents input from being blocked when menu fails to show
+	if shell.overlay_manager.has_signal("overlay_toggled"):
+		shell.overlay_manager.overlay_toggled.connect(_on_overlay_state_changed)
+		print("   ✅ Overlay state sync connected")
+
+	# CRITICAL: Inject InputController into SaveLoadMenu so it can manage input
+	# SaveLoadMenu needs to disable InputController when it opens to prevent conflicts
+	if shell.overlay_manager.save_load_menu:
+		shell.overlay_manager.save_load_menu.inject_input_controller(input_controller)
+		print("   ✅ InputController injected into SaveLoadMenu")
+	else:
+		print("   ⚠️  SaveLoadMenu not available for input controller injection")
 
 	print("✅ FarmView ready - game started!")
 
@@ -123,9 +188,18 @@ func _on_restart_requested() -> void:
 
 
 func _on_overlay_state_changed(overlay_name: String, visible: bool) -> void:
-	"""Handle overlay state changes (if needed for future features)"""
-	# Input is now handled by PlayerShell modal stack - no sync needed
-	pass
+	"""Sync InputController modal state when overlays change
+
+	CRITICAL: When modal overlays change visibility, update InputController's internal state
+	to block/unblock game input. This prevents the game from receiving input when modals are open.
+	"""
+	if overlay_name == "escape_menu":
+		input_controller.menu_visible = visible
+		print("🔗 Synced InputController.menu_visible = %s" % visible)
+
+	# Forward all overlay changes to InputController for modal blocking
+	if input_controller.has_method("_on_overlay_toggled"):
+		input_controller._on_overlay_toggled(overlay_name, visible)
 
 
 func _on_quantum_node_clicked(grid_pos: Vector2i, button_index: int) -> void:
