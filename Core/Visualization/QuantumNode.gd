@@ -108,10 +108,12 @@ func update_animation(current_time: float, delta: float):
 
 
 func update_from_quantum_state():
-	"""Update visual properties from quantum state"""
+	"""Update visual properties from quantum state (Model B: uses parent biome's quantum_computer)"""
 	var is_transitioning_planted = (radius == MAX_RADIUS)  # Check if this was previously planted
 
-	if not plot or not plot.quantum_state:
+	# Model B: quantum_state is owned by parent biome, not by plot
+	# For now, disable visualization if state not accessible
+	if not plot or not plot.has_method("get_purity"):
 		# Default values for empty/unplanted plot
 		energy = 0.0
 		coherence = 1.0
@@ -131,16 +133,16 @@ func update_from_quantum_state():
 			print("⚠️  Node %s: state changed from PLANTED → UNPLANTED (bubble removed)" % grid_position)
 		return
 
-	# PLANTED PLOT PATH
-	var quantum_state = plot.quantum_state
+	# PLANTED PLOT PATH (Model B: quantum state owned by parent biome)
+	var has_quantum_state = plot.parent_biome != null and plot.register_id >= 0
 
 	# DEBUG: Log when plot becomes planted (only once)
-	if radius == MIN_RADIUS and plot.is_planted and quantum_state:
-		print("✅ Node %s: PLANTED - quantum_state exists" % grid_position)
+	if radius == MIN_RADIUS and plot.is_planted and has_quantum_state:
+		print("✅ Node %s: PLANTED - quantum register allocated" % grid_position)
 		var emojis = plot.get_plot_emojis()
 		print("   emoji_north='%s', emoji_south='%s'" % [emojis["north"], emojis["south"]])
-	elif radius == MIN_RADIUS and plot.is_planted and not quantum_state:
-		print("⚠️  Node %s: is_planted=true but quantum_state=null!" % grid_position)
+	elif radius == MIN_RADIUS and plot.is_planted and not has_quantum_state:
+		print("⚠️  Node %s: is_planted=true but register not allocated!" % grid_position)
 
 	# Energy: Instant full size for planted plots (quantum-only mechanics)
 	# No classical growth - plants appear at full size immediately
@@ -222,18 +224,19 @@ func update_from_quantum_state():
 
 
 func get_entangled_partner_ids() -> Array:
-	"""Get list of plot IDs this node is entangled with"""
-	if not plot or not plot.quantum_state:
+	"""Get list of plot IDs this node is entangled with (Model B: via parent biome)"""
+	# Model B: entanglement managed by biome's quantum_computer
+	# For now, return empty array - will be implemented via biome queries
+	if not plot or not plot.parent_biome:
 		return []
 
-	var partner_ids = []
-	for partner_qubit in plot.quantum_state.entangled_partners:
-		# Find the plot that owns this qubit
-		# We'll need to search through all plots to find the match
-		# This will be handled by the QuantumForceGraph
-		pass
+	# TODO: Query biome's quantum_computer for entangled registers
+	# var partner_ids = []
+	# for reg_id in plot.parent_biome.quantum_computer.get_entangled_registers(plot.register_id):
+	#     partner_ids.append(...)
+	# return partner_ids
 
-	return partner_ids
+	return []  # Empty for now - Model B visualization TODO
 
 
 func apply_force(force: Vector2, delta: float):

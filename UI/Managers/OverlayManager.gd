@@ -483,7 +483,7 @@ func toggle_quest_board() -> void:
 			print("    → Board is hidden, opening")
 			if farm:
 				# Get current biome from farm
-				var biome = farm.biotic_flux_biome if farm.has("biotic_flux_biome") else null
+				var biome = farm.biotic_flux_biome if "biotic_flux_biome" in farm else null
 				if biome:
 					quest_board.set_biome(biome)
 					quest_board.open_board()
