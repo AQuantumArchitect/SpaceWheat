@@ -1028,8 +1028,9 @@ func get_local_network(center_plot: FarmPlot, radius: int = 2) -> Array:
 	Returns:
 		Array of WheatPlot forming the local entanglement network
 	"""
-	if not center_plot or not center_plot.quantum_state:
-		return [center_plot] if center_plot else []
+	# Model B: Use FarmGrid metadata instead of plot.quantum_state
+	if not center_plot:
+		return []
 
 	var local = [center_plot]
 	var visited = {center_plot: true}
@@ -1099,63 +1100,33 @@ func harvest_with_topology(position: Vector2i, local_radius: int = 2) -> Diction
 	# 2. Analyze local topology
 	var local_topology = topology_analyzer.analyze_entanglement_network(local_plots)
 
-	# 3. Check coherence (decoherence reduces yield)
+	# 3. Check coherence via quantum_computer (Model B)
 	var coherence = 1.0
-	if plot.quantum_state:
-		coherence = plot.quantum_state.get_coherence()
+	var biome = get_biome_for_plot(position)
+	var register_id = plot_register_mapping.get(position, -1)
 
-	# 4. Measure quantum state (collapse superposition)
+	if biome and biome.quantum_computer and register_id >= 0:
+		var comp = biome.quantum_computer.get_component_containing(register_id)
+		if comp:
+			coherence = biome.quantum_computer.get_marginal_coherence(comp, register_id)
+			coherence = clamp(coherence, 0.0, 1.0)
+
+	# 4. Measure quantum state via quantum_computer (Model B)
+	# quantum_computer.measure_register() handles ALL cascading internally:
+	# - Cluster collapse (all qubits in component)
+	# - Pair collapse (both qubits)
+	# - Single qubit measurement
 	var measurement_result = ""
-	if plot.quantum_state:
-		# If part of entangled cluster, measure via cluster
-		if plot.quantum_state.is_in_cluster():
-			var cluster = plot.quantum_state.entangled_cluster
-			var index = plot.quantum_state.cluster_qubit_index
-
-			# Measure qubit in cluster (collapses entire cluster!)
-			var outcome = cluster.measure_qubit(index)
-			measurement_result = cluster.qubits[index].north_emoji if outcome == 0 else cluster.qubits[index].south_emoji
-
-			# Handle cluster collapse
-			_handle_cluster_collapse(cluster)
-
-		# If part of entangled pair, measure via pair
-		elif plot.quantum_state.entangled_pair != null:
-			var pair = plot.quantum_state.entangled_pair
-			var is_a = plot.quantum_state.is_qubit_a
-
-			# Measure via pair (collapses density matrix)
-			if is_a:
-				measurement_result = pair.measure_qubit_a()
-			else:
-				measurement_result = pair.measure_qubit_b()
-
-			# CRITICAL: Update partner qubit's Bloch sphere state to match collapsed density matrix
-			var other_plot_id = pair.qubit_b_id if is_a else pair.qubit_a_id
-			var other_pos = _find_plot_by_id(other_plot_id)
-			if other_pos != Vector2i(-1, -1):
-				var other_plot = get_plot(other_pos)
-				if other_plot and other_plot.quantum_state:
-					# Get the collapsed state from density matrix
-					var rho_other = pair._partial_trace_a() if is_a else pair._partial_trace_b()
-
-					# Update other qubit's Bloch sphere to match
-					other_plot.quantum_state.from_density_matrix(rho_other)
-
-					# Unlink from pair
-					other_plot.quantum_state.entangled_pair = null
-
-					print("  ↪ Cascade: Partner qubit %s collapsed to θ=%.2f" % [other_plot_id, other_plot.quantum_state.theta])
-
-			# Remove pair from tracking (measurement breaks entanglement)
-			if pair in entangled_pairs:
-				entangled_pairs.erase(pair)
-
-			# Unlink this qubit
-			plot.quantum_state.entangled_pair = null
+	if biome and biome.quantum_computer and register_id >= 0:
+		var comp = biome.quantum_computer.get_component_containing(register_id)
+		if comp:
+			# Unified measurement - returns emoji outcome (north or south)
+			measurement_result = biome.quantum_computer.measure_register(comp, register_id)
+			print("📊 Harvest measurement at %s: outcome = %s" % [position, measurement_result])
 		else:
-			# Single qubit measurement
-			measurement_result = plot.quantum_state.measure()
+			# Register not in any component - unentangled single qubit
+			# This shouldn't happen in normal gameplay, but handle gracefully
+			measurement_result = plot.north_emoji  # Default to north state
 
 	# 5. Calculate base yield from growth
 	var growth_factor = plot.growth_progress  # 0.0 to 1.0
@@ -1180,7 +1151,14 @@ func harvest_with_topology(position: Vector2i, local_radius: int = 2) -> Diction
 	# 10. Final yield calculation
 	var final_yield = base_yield * state_modifier * topology_bonus * coherence_factor * territory_value_modifier
 
-	# 10. Break entanglements (measurement destroys quantum state)
+	# 10. Break entanglements (Model B: quantum_computer handled collapse)
+	# quantum_computer.measure_register() already handled:
+	# - Cluster/pair collapse at quantum level
+	# - Register state updates
+	# - Component cleanup
+	#
+	# We only clear FarmGrid metadata tracking:
+
 	# Clear WheatPlot entanglement tracking
 	for partner_id in plot.entangled_plots.keys():
 		var partner_pos = _find_plot_by_id(partner_id)
@@ -1190,23 +1168,8 @@ func harvest_with_topology(position: Vector2i, local_radius: int = 2) -> Diction
 				partner_plot.entangled_plots.erase(plot.plot_id)
 	plot.entangled_plots.clear()
 
-	# Clear EntangledPair if exists
-	if plot.quantum_state and plot.quantum_state.entangled_pair:
-		var pair = plot.quantum_state.entangled_pair
-		entangled_pairs.erase(pair)
-		# Also clear partner's reference
-		if plot.quantum_state.is_qubit_a and pair.qubit_b_id:
-			var partner_pos = _find_plot_by_id(pair.qubit_b_id)
-			if partner_pos != Vector2i(-1, -1):
-				var partner = get_plot(partner_pos)
-				if partner and partner.quantum_state:
-					partner.quantum_state.entangled_pair = null
-		elif not plot.quantum_state.is_qubit_a and pair.qubit_a_id:
-			var partner_pos = _find_plot_by_id(pair.qubit_a_id)
-			if partner_pos != Vector2i(-1, -1):
-				var partner = get_plot(partner_pos)
-				if partner and partner.quantum_state:
-					partner.quantum_state.entangled_pair = null
+	# Note: EntangledPair objects no longer tracked - they were Model A artifacts
+	# quantum_computer manages entanglement via register_id and components
 
 	# 11. Reset plot
 	plot.reset()
