@@ -108,119 +108,39 @@ func update_animation(current_time: float, delta: float):
 
 
 func update_from_quantum_state():
-	"""Update visual properties from quantum state (Model B: uses parent biome's quantum_computer)"""
-	var is_transitioning_planted = (radius == MAX_RADIUS)  # Check if this was previously planted
+	"""Update visual properties from quantum state (Model B: visualization disabled for now)"""
+	var is_transitioning_planted = (radius == MAX_RADIUS)
 
-	# Model B: quantum_state is owned by parent biome, not by plot
-	# For now, disable visualization if state not accessible
-	if not plot or not plot.has_method("get_purity"):
-		# Default values for empty/unplanted plot
+	# Model B: Visualization temporarily disabled - quantum state owned by parent biome
+	# This function will be reimplemented to work with parent_biome.quantum_computer
+
+	if not plot or not plot.is_planted or plot.register_id < 0:
+		# Unplanted: invisible
 		energy = 0.0
 		coherence = 1.0
 		radius = MIN_RADIUS
 		color = Color(0.5, 0.5, 0.5, 0.0)  # Transparent
-
-		# No emoji display for unplanted/harvested plots
 		emoji_north_opacity = 0.0
 		emoji_south_opacity = 0.0
-
-		# Make bubble completely invisible (won't render - see _draw_quantum_bubble check)
 		visual_scale = 0.0
 		visual_alpha = 0.0
-
-		# DEBUG: Log state transitions
 		if is_transitioning_planted:
-			print("⚠️  Node %s: state changed from PLANTED → UNPLANTED (bubble removed)" % grid_position)
+			print("⚠️  Node %s: UNPLANTED (visualization disabled)" % grid_position)
 		return
 
-	# PLANTED PLOT PATH (Model B: quantum state owned by parent biome)
-	var has_quantum_state = plot.parent_biome != null and plot.register_id >= 0
-
-	# DEBUG: Log when plot becomes planted (only once)
-	if radius == MIN_RADIUS and plot.is_planted and has_quantum_state:
-		print("✅ Node %s: PLANTED - quantum register allocated" % grid_position)
-		var emojis = plot.get_plot_emojis()
-		print("   emoji_north='%s', emoji_south='%s'" % [emojis["north"], emojis["south"]])
-	elif radius == MIN_RADIUS and plot.is_planted and not has_quantum_state:
-		print("⚠️  Node %s: is_planted=true but register not allocated!" % grid_position)
-
-	# Energy: Instant full size for planted plots (quantum-only mechanics)
-	# No classical growth - plants appear at full size immediately
+	# Planted plot: show basic visualization without quantum details
+	# TODO: Reimplement visualization to query parent_biome.quantum_computer
 	energy = 1.0
-
-	# Coherence from quantum state
-	coherence = quantum_state.get_coherence()
-
-	# Berry phase: Accumulated quantum evolution (experience points)
-	# Raw unbounded value - glow intensifies as evolution accumulates
-	# Acts as visual "measurement apparatus" showing full quantum activity
-	berry_phase = quantum_state.get_berry_phase()
-
-	# Radius: Constant full size for planted plots (no growth scaling)
+	coherence = 0.5  # Placeholder
 	radius = MAX_RADIUS
+	color = Color(0.7, 0.8, 0.9, 0.8)  # Neutral blue-ish color
 
-	# Color from Bloch sphere angles
-	# MEASURED plots: freeze color (wavefunction collapsed, state is classical)
-	# UNMEASURED plots: color evolves with quantum phase
-	if plot.has_been_measured:
-		# Measured: Use fixed color based on collapsed state (theta frozen)
-		# Bright, saturated color to show classical definite state
-		var hue = fmod((quantum_state.phi + PI) / TAU, 1.0)
-		var saturation = 1.0  # Full saturation - definite classical state
-		var brightness = 0.9  # Bright - measured and known
-		var alpha = 0.95
-		color = Color.from_hsv(hue, saturation, brightness, alpha)
-	else:
-		# Unmeasured: Color evolves with quantum phase (superposition)
-		var hue = fmod((quantum_state.phi + PI) / TAU, 1.0)
-		var saturation = clamp(sin(quantum_state.theta), 0.6, 1.0)  # Varies with superposition
-		var brightness = 0.85
-		var alpha = 0.95 if plot.is_planted else 0.3
-		color = Color.from_hsv(hue, saturation, brightness, alpha)
-
-	# Add subtle variation based on plot type
-	if plot.plot_type == FarmPlot.PlotType.TOMATO:
-		# Tomatoes lean toward red/orange
-		color = color.lerp(Color(1.0, 0.3, 0.2), 0.2)
-	elif plot.plot_type == FarmPlot.PlotType.MUSHROOM:
-		# Mushrooms lean toward purple/blue (moon colors)
-		color = color.lerp(Color(0.6, 0.4, 0.9), 0.25)
-	else:
-		# Wheat leans toward golden/green
-		color = color.lerp(Color(0.8, 0.9, 0.3), 0.15)
-
-	# DUAL EMOJI SYSTEM: Show quantum superposition with theta-weighted opacity
-	# Opacity determined by polar angle (theta) on Bloch sphere:
-	# theta = 0 → 100% north emoji, theta = π → 100% south emoji
-	if plot.has_been_measured:
-		# Measured: Show single collapsed emoji
-		var dominant_emoji = plot.get_dominant_emoji()
-		emoji_north = dominant_emoji
-		emoji_south = ""
-		emoji_north_opacity = 1.0
-		emoji_south_opacity = 0.0
-	else:
-		# Unmeasured: Show both emojis with theta-weighted opacity (Bloch sphere polar angle)
-		# Prefer qubit's own emojis (supports custom qubits like sun, organisms)
-		# Fall back to plot_type emojis only if qubit doesn't have them
-		if quantum_state.has_method("get") or "north_emoji" in quantum_state:
-			emoji_north = quantum_state.north_emoji
-			emoji_south = quantum_state.south_emoji
-		else:
-			var emojis = plot.get_plot_emojis()
-			emoji_north = emojis["north"]
-			emoji_south = emojis["south"]
-
-		# Theta-weighted opacity using Born rule (Bloch sphere convention):
-		# |ψ⟩ = cos(θ/2)|0⟩ + e^(iφ)sin(θ/2)|1⟩
-		# θ=0 (north pole): 100% north emoji, θ=π (south pole): 100% south emoji
-		var theta = quantum_state.theta
-		emoji_north_opacity = pow(cos(theta / 2.0), 2.0)  # cos²(θ/2): 1 at θ=0, 0 at θ=π
-		emoji_south_opacity = pow(sin(theta / 2.0), 2.0)  # sin²(θ/2): 0 at θ=0, 1 at θ=π
-
-		# DEBUG: Log emoji opacity when planted (disabled for cleaner console)
-		# if radius == MAX_RADIUS:  # First update after becoming planted
-		#	print("   theta=%f, emoji_north_opacity=%.2f" % [theta, emoji_north_opacity])
+	# Show plot's emojis
+	var emojis = plot.get_plot_emojis()
+	emoji_north = emojis["north"]
+	emoji_south = emojis["south"]
+	emoji_north_opacity = 0.7
+	emoji_south_opacity = 0.3
 
 
 func get_entangled_partner_ids() -> Array:
