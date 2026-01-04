@@ -173,7 +173,7 @@ static func _hadamard() -> ComplexMatrix:
 	m.set_element(0, 0, inv_sqrt2)
 	m.set_element(0, 1, inv_sqrt2)
 	m.set_element(1, 0, inv_sqrt2)
-	m.set_element(1, 1, inv_sqrt2.scale(Complex.new(-1, 0)))
+	m.set_element(1, 1, inv_sqrt2.mul(Complex.new(-1, 0)))
 	return m
 
 static func _s_gate() -> ComplexMatrix:

@@ -1,4 +1,5 @@
-class_name FactionDatabase
+# ARCHIVED - see Core/Quests/FactionDatabase.gd
+# class_name FactionDatabase  # Disabled to avoid conflicts
 extends Resource
 
 ## Complete database of 32 factions with 12-bit classification patterns

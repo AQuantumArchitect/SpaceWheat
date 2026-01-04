@@ -1,4 +1,5 @@
-class_name QuestTypes
+# ARCHIVED - see Core/Quests/QuestTypes.gd
+# class_name QuestTypes  # Disabled to avoid conflicts
 extends RefCounted
 
 ## Quest Type Definitions

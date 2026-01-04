@@ -1,4 +1,5 @@
-class_name FactionStateMatcher
+# ARCHIVED - see Core/QuantumSubstrate/FactionStateMatcher.gd
+# class_name FactionStateMatcher  # Disabled to avoid conflicts
 extends RefCounted
 
 ## ABSTRACT QUANTUM MACHINERY

@@ -15,7 +15,7 @@ const ComplexMatrix = preload("res://Core/QuantumSubstrate/ComplexMatrix.gd")
 
 ## Quantum state representation (choose one per component)
 @export var state_vector: Array = []  # Array[Complex] for pure states
-@export var density_matrix: ComplexMatrix = null  # For mixed states
+var density_matrix: ComplexMatrix = null  # For mixed states
 @export var is_pure: bool = true  # true → use state_vector, false → use density_matrix
 
 ## Scheduled operations queue
