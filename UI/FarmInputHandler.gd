@@ -1016,33 +1016,128 @@ func _action_remove_gates(positions: Array[Vector2i]):
 ## Tool 4 (BIOME EVOLUTION CONTROLLER) - Research-Grade Actions
 
 func _action_boost_coupling(positions: Array[Vector2i]):
-	"""Boost Hamiltonian coupling (PHASE 4 - Biome Evolution)
+	"""Boost Hamiltonian coupling (Model B - Biome Evolution)
 
-	Increases Hamiltonian coupling strength between emoji states.
-	Requires quantum_computer.modify_icon_coupling() API implementation.
+	Increases Hamiltonian coupling strength between emoji states via Icon modification.
+	Uses BiomeBase.boost_coupling() to modify Icon parameters and rebuild Hamiltonian.
 	"""
-	action_performed.emit("boost_coupling", false,
-		"⚠️  Coupling control (Phase 4): Icon modification API - deferred")
+	if not farm or not farm.grid:
+		action_performed.emit("boost_coupling", false, "⚠️  Farm not loaded yet")
+		return
+
+	if positions.is_empty():
+		action_performed.emit("boost_coupling", false, "⚠️  No plots selected")
+		return
+
+	print("⚡ Boosting coupling for %d plots..." % positions.size())
+
+	var success_count = 0
+	var boosted_pairs = []
+
+	for pos in positions:
+		var plot = farm.grid.get_plot(pos)
+		if not plot or not plot.is_planted:
+			continue
+
+		# Get the emoji at this plot
+		var emoji = plot.north_emoji if plot.north_emoji else "🌾"
+
+		# Boost coupling to a default target (e.g., south emoji or neighbor)
+		var target = plot.south_emoji if plot.south_emoji else "🍂"
+
+		# Get the biome and call boost_coupling
+		var biome = farm.grid.get_biome_for_plot(pos)
+		if biome and biome.boost_coupling(emoji, target, 1.5):
+			success_count += 1
+			boosted_pairs.append("%s→%s" % [emoji, target])
+			print("  ⚡ Boosted %s coupling at %s" % [emoji, pos])
+
+	action_performed.emit("boost_coupling", success_count > 0,
+		"%s Boosted coupling on %d/%d plots | %s" % ["✅" if success_count > 0 else "❌", success_count, positions.size(), ", ".join(boosted_pairs) if boosted_pairs else "no changes"])
 
 
 func _action_tune_decoherence(positions: Array[Vector2i]):
-	"""Tune Lindblad decoherence rates (PHASE 4 - Biome Evolution)
+	"""Tune Lindblad decoherence rates (Model B - Biome Evolution)
 
-	Scales Lindblad decay rates for individual emojis.
-	Requires quantum_computer.modify_icon_decoherence() API implementation.
+	Scales Lindblad decay rates for individual emojis via Icon modification.
+	Uses BiomeBase.tune_decoherence() to modify Icon parameters and rebuild Lindblad.
 	"""
-	action_performed.emit("tune_decoherence", false,
-		"⚠️  Decoherence control (Phase 4): Icon modification API - deferred")
+	if not farm or not farm.grid:
+		action_performed.emit("tune_decoherence", false, "⚠️  Farm not loaded yet")
+		return
+
+	if positions.is_empty():
+		action_performed.emit("tune_decoherence", false, "⚠️  No plots selected")
+		return
+
+	print("🔧 Tuning decoherence for %d plots..." % positions.size())
+
+	var success_count = 0
+	var tuned_emojis = {}
+
+	for pos in positions:
+		var plot = farm.grid.get_plot(pos)
+		if not plot or not plot.is_planted:
+			continue
+
+		# Get the emoji at this plot
+		var emoji = plot.north_emoji if plot.north_emoji else "🌾"
+
+		# Get the biome and call tune_decoherence
+		var biome = farm.grid.get_biome_for_plot(pos)
+		if biome and biome.tune_decoherence(emoji, 1.5):
+			success_count += 1
+			tuned_emojis[emoji] = tuned_emojis.get(emoji, 0) + 1
+			print("  🔧 Tuned decoherence for %s at %s" % [emoji, pos])
+
+	var summary = ""
+	for emoji in tuned_emojis.keys():
+		summary += "%s×%d " % [emoji, tuned_emojis[emoji]]
+
+	action_performed.emit("tune_decoherence", success_count > 0,
+		"%s Tuned decoherence on %d/%d plots | %s" % ["✅" if success_count > 0 else "❌", success_count, positions.size(), summary])
 
 
 func _action_add_driver(positions: Array[Vector2i]):
-	"""Add time-dependent driving field (PHASE 4 - Biome Evolution)
+	"""Add time-dependent driving field (Model B - Biome Evolution)
 
-	Creates oscillating Hamiltonian term (e.g., day/night cycles).
-	Requires quantum_computer.add_time_dependent_driver() API implementation.
+	Creates oscillating Hamiltonian term for emojis (e.g., day/night cycles).
+	Uses BiomeBase.add_time_dependent_driver() with cosine modulation.
 	"""
-	action_performed.emit("add_driver", false,
-		"⚠️  Driven evolution (Phase 4): Time-dependent framework - deferred")
+	if not farm or not farm.grid:
+		action_performed.emit("add_driver", false, "⚠️  Farm not loaded yet")
+		return
+
+	if positions.is_empty():
+		action_performed.emit("add_driver", false, "⚠️  No plots selected")
+		return
+
+	print("🌊 Adding time-dependent drivers for %d plots..." % positions.size())
+
+	var success_count = 0
+	var driver_emojis = {}
+
+	for pos in positions:
+		var plot = farm.grid.get_plot(pos)
+		if not plot or not plot.is_planted:
+			continue
+
+		# Get the emoji at this plot
+		var emoji = plot.north_emoji if plot.north_emoji else "🌾"
+
+		# Get the biome and add driver (cosine modulation, 1 Hz frequency)
+		var biome = farm.grid.get_biome_for_plot(pos)
+		if biome and biome.add_time_dependent_driver(emoji, "cosine", 1.0, 1.0):
+			success_count += 1
+			driver_emojis[emoji] = driver_emojis.get(emoji, 0) + 1
+			print("  🌊 Added cosine driver to %s at %s" % [emoji, pos])
+
+	var summary = ""
+	for emoji in driver_emojis.keys():
+		summary += "%s×%d " % [emoji, driver_emojis[emoji]]
+
+	action_performed.emit("add_driver", success_count > 0,
+		"%s Added drivers to %d/%d plots | %s" % ["✅" if success_count > 0 else "❌", success_count, positions.size(), summary])
 
 
 ## DEPRECATED: Old fake physics methods (Model A artifacts)

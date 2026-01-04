@@ -235,6 +235,136 @@ func clear_qubit(position: Vector2i) -> void:
 	clear_register_for_plot(position)
 
 # ============================================================================
+# PHASE 4: Biome Evolution Control (Icon Modification API)
+# ============================================================================
+
+func boost_coupling(emoji: String, target_emoji: String, factor: float = 1.5) -> bool:
+	"""Increase Hamiltonian coupling between two emoji states (Model B)
+
+	Modifies the Icon's hamiltonian_couplings dictionary to scale coupling strength.
+	Rebuilds Hamiltonian for next evolution step.
+
+	Args:
+		emoji: Source emoji
+		target_emoji: Target emoji
+		factor: Multiplication factor (1.5 = 50% increase, 2.0 = double, 0.5 = halve)
+
+	Returns:
+		true if successful, false if Icons not found
+	"""
+	if not bath or not bath.active_icons:
+		push_error("Biome %s has no active Icons!" % get_biome_type())
+		return false
+
+	var source_icon: Icon = null
+	for icon in bath.active_icons:
+		if icon.emoji == emoji:
+			source_icon = icon
+			break
+
+	if not source_icon:
+		push_warning("Icon for %s not found in biome %s" % [emoji, get_biome_type()])
+		return false
+
+	# Modify coupling: scale existing coupling or set to default
+	var current_coupling = source_icon.hamiltonian_couplings.get(target_emoji, 0.5)
+	var new_coupling = current_coupling * factor
+	source_icon.hamiltonian_couplings[target_emoji] = new_coupling
+
+	# Rebuild Hamiltonian with new coupling
+	bath.build_hamiltonian_from_icons(bath.active_icons)
+	print("✅ Boosted coupling %s → %s by %.1f× (%.3f → %.3f)" %
+		[emoji, target_emoji, factor, current_coupling, new_coupling])
+
+	return true
+
+
+func tune_decoherence(emoji: String, factor: float = 1.5) -> bool:
+	"""Tune Lindblad decoherence rates for an emoji (Model B)
+
+	Modifies the Icon's lindblad_outgoing rates to scale decoherence strength.
+	Rebuilds Lindblad operators for next evolution step.
+
+	Args:
+		emoji: Target emoji
+		factor: Multiplication factor (1.5 = 50% faster decay, 0.5 = slower decay)
+
+	Returns:
+		true if successful, false if Icon not found
+	"""
+	if not bath or not bath.active_icons:
+		push_error("Biome %s has no active Icons!" % get_biome_type())
+		return false
+
+	var target_icon: Icon = null
+	for icon in bath.active_icons:
+		if icon.emoji == emoji:
+			target_icon = icon
+			break
+
+	if not target_icon:
+		push_warning("Icon for %s not found in biome %s" % [emoji, get_biome_type()])
+		return false
+
+	# Modify all outgoing Lindblad rates for this emoji
+	var old_rates = {}
+	for target_emoji in target_icon.lindblad_outgoing:
+		old_rates[target_emoji] = target_icon.lindblad_outgoing[target_emoji]
+		target_icon.lindblad_outgoing[target_emoji] *= factor
+
+	# Also scale decay rate
+	target_icon.decay_rate *= factor
+
+	# Rebuild Lindblad with new rates
+	bath.build_lindblad_from_icons(bath.active_icons)
+	print("✅ Tuned decoherence for %s by %.1f× (decay: %.4f)" %
+		[emoji, factor, target_icon.decay_rate])
+
+	return true
+
+
+func add_time_dependent_driver(emoji: String, driver_type: String = "cosine", frequency: float = 1.0, amplitude: float = 1.0) -> bool:
+	"""Add time-dependent driving field to emoji (Model B - Phase 4)
+
+	Enables oscillating Hamiltonian term, e.g., for day/night cycles or external fields.
+	Updates Icon and rebuilds time-dependent Hamiltonian.
+
+	Args:
+		emoji: Target emoji
+		driver_type: "cosine", "sine", "pulse", or "" (disable)
+		frequency: Oscillation frequency in Hz
+		amplitude: Amplitude multiplier for self-energy
+
+	Returns:
+		true if successful
+	"""
+	if not bath or not bath.active_icons:
+		push_error("Biome %s has no active Icons!" % get_biome_type())
+		return false
+
+	var target_icon: Icon = null
+	for icon in bath.active_icons:
+		if icon.emoji == emoji:
+			target_icon = icon
+			break
+
+	if not target_icon:
+		push_warning("Icon for %s not found in biome %s" % [emoji, get_biome_type()])
+		return false
+
+	# Set driving parameters
+	target_icon.self_energy_driver = driver_type
+	target_icon.driver_frequency = frequency
+	target_icon.driver_amplitude = amplitude
+
+	# Rebuild Hamiltonian with time-dependent terms
+	bath.build_hamiltonian_from_icons(bath.active_icons)
+	print("✅ Added %s driver to %s (freq: %.1f Hz, amp: %.1f)" %
+		[driver_type, emoji, frequency, amplitude])
+
+	return true
+
+# ============================================================================
 # MODEL B: Gate Operations (Tool 5 Backend)
 # ============================================================================
 
