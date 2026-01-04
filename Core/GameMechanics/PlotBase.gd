@@ -5,7 +5,8 @@ extends RefCounted
 ## Provides common quantum state and position management
 
 # Core quantum properties
-var quantum_state: Node = null  # DualEmojiQubit or similar
+# MODEL B: quantum_state is owned by parent biome, not by plot
+# var quantum_state: Node = null  # DEPRECATED - use parent_biome.quantum_computer instead
 var has_been_measured: bool = false
 var plot_id: String = ""
 var grid_position: Vector2i = Vector2i.ZERO
