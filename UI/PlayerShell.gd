@@ -145,16 +145,15 @@ func _ready() -> void:
 	# Process input even when game is paused (for ESC menu, etc.)
 	process_mode = Node.PROCESS_MODE_ALWAYS
 
-	# Explicitly match parent size (in case anchors don't work due to layout_mode mismatch)
-	if get_parent():
-		size = get_parent().size
+	# PRESET_FULL_RECT anchors already handle sizing - no need to set size explicitly
+	# (Setting size with anchors causes warning: "size overridden after _ready()")
 
 	# Get reference to containers from scene
 	farm_ui_container = get_node("FarmUIContainer")
 
-	# Also size FarmUIContainer to fill this PlayerShell
-	if farm_ui_container:
-		farm_ui_container.size = size
+	# FarmUIContainer already has PRESET_FULL_RECT anchors from scene file
+	# No need to set size explicitly - anchors handle it
+
 	var overlay_layer = get_node("OverlayLayer")
 
 	# Create and initialize UILayoutManager (needs to be in scene tree for _ready())
@@ -354,31 +353,21 @@ func _move_action_bar_to_top_layer() -> void:
 		# Add to ActionBarLayer FIRST (must be in tree before setting anchors)
 		action_bar_layer.add_child(action_bar)
 
-		# Use call_deferred to avoid anchor/size conflicts (see warning in console)
-		action_bar.call_deferred("_apply_bottom_center_layout")
+		# CRITICAL: Clear container properties from old parent (VBoxContainer)
+		# These properties override anchor positioning!
+		action_bar.layout_mode = 1  # 1 = anchors (not 2 = container child)
+		action_bar.size_flags_horizontal = Control.SIZE_FILL
+		action_bar.size_flags_vertical = Control.SIZE_FILL
 
-		# Add helper method to action bar if it doesn't exist
-		if not action_bar.has_method("_apply_bottom_center_layout"):
-			var script_code = """
-func _apply_bottom_center_layout():
-	set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
-	offset_top = -80
-	offset_bottom = 0
-	custom_minimum_size = Vector2(0, 80)
-"""
-			# Instead, just set it directly with deferred
-			action_bar.set_deferred("anchor_left", 0.0)
-			action_bar.set_deferred("anchor_right", 1.0)
-			action_bar.set_deferred("anchor_top", 1.0)
-			action_bar.set_deferred("anchor_bottom", 1.0)
-			action_bar.set_deferred("offset_left", 0)
-			action_bar.set_deferred("offset_right", 0)
-			action_bar.set_deferred("offset_top", -80)
-			action_bar.set_deferred("offset_bottom", 0)
-			action_bar.set_deferred("custom_minimum_size", Vector2(0, 80))
+		# Now set anchor-based positioning for bottom-center
+		# Using PRESET_BOTTOM_WIDE: anchors (0,1) to (1,1), then offset upward
+		action_bar.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+		action_bar.offset_top = -80
+		action_bar.offset_bottom = 0
+		action_bar.custom_minimum_size = Vector2(0, 80)
 
 		action_preview_row = action_bar
-		print("   ✅ ActionPreviewRow moved to ActionBarLayer (center bottom, deferred)")
+		print("   ✅ ActionPreviewRow moved to ActionBarLayer (center bottom)")
 
 	# Move ToolSelectionRow (1-6 tool buttons)
 	var tool_bar = current_farm_ui.get_node_or_null("MainContainer/ToolSelectionRow")
@@ -388,20 +377,20 @@ func _apply_bottom_center_layout():
 		# Add to ActionBarLayer FIRST
 		action_bar_layer.add_child(tool_bar)
 
-		# Use set_deferred to avoid anchor/size conflicts
-		tool_bar.set_deferred("anchor_left", 0.0)
-		tool_bar.set_deferred("anchor_right", 1.0)
-		tool_bar.set_deferred("anchor_top", 1.0)
-		tool_bar.set_deferred("anchor_bottom", 1.0)
-		tool_bar.set_deferred("offset_left", 0)
-		tool_bar.set_deferred("offset_right", 0)
-		tool_bar.set_deferred("offset_top", -140)
-		tool_bar.set_deferred("offset_bottom", -80)
-		tool_bar.set_deferred("custom_minimum_size", Vector2(0, 60))
+		# CRITICAL: Clear container properties from old parent
+		tool_bar.layout_mode = 1  # 1 = anchors (not 2 = container child)
+		tool_bar.size_flags_horizontal = Control.SIZE_FILL
+		tool_bar.size_flags_vertical = Control.SIZE_FILL
 
-		print("   ✅ ToolSelectionRow moved to ActionBarLayer (above action bar, deferred)")
+		# Set anchor-based positioning (above action bar)
+		tool_bar.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+		tool_bar.offset_top = -140
+		tool_bar.offset_bottom = -80  # Ends 80px from bottom (where action bar starts)
+		tool_bar.custom_minimum_size = Vector2(0, 60)
 
-	print("   ✅ Both toolbars now on ActionBarLayer (z_index 5000 - above overlays)")
+		print("   ✅ ToolSelectionRow moved to ActionBarLayer (above action bar)")
+
+	print("   ✅ Both toolbars now on ActionBarLayer (z_index 3000 - above overlays)")
 
 
 func _offer_initial_quest() -> void:

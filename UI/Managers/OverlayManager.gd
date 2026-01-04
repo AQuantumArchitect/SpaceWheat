@@ -155,7 +155,7 @@ func create_overlays(parent: Control) -> void:
 
 	# Create Escape Menu
 	escape_menu = EscapeMenu.new()
-	escape_menu.z_index = 8000  # Above action bar
+	escape_menu.z_index = 3500  # Above action bar (max z_index is 4096)
 	escape_menu.hide_menu()
 	parent.add_child(escape_menu)
 
@@ -181,7 +181,7 @@ func create_overlays(parent: Control) -> void:
 	print("💾 Creating Save/Load menu...")
 	save_load_menu = SaveLoadMenu.new()
 	print("💾 Save/Load menu instantiated, setting properties...")
-	save_load_menu.z_index = 9999  # HIGHEST - above ESC menu!
+	save_load_menu.z_index = 4000  # HIGHEST - above ESC menu (max is 4096)
 	save_load_menu.hide_menu()
 	print("💾 Adding Save/Load menu to parent...")
 	parent.add_child(save_load_menu)

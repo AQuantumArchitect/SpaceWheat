@@ -73,10 +73,9 @@ const SUBMENUS = {
 		"name": "Energy Tap Target",
 		"emoji": "🚰",
 		"parent_tool": 4,
-		"dynamic": true,  # Generate Q/E/R from discovered vocabulary at runtime
-		"Q": {"action": "tap_wheat", "label": "Tap Wheat", "emoji": "🌾"},
-		"E": {"action": "tap_mushroom", "label": "Tap Mushroom", "emoji": "🍄"},
-		"R": {"action": "tap_tomato", "label": "Tap Tomato", "emoji": "🍅"},
+		"Q": {"action": "tap_fire", "label": "Fire Tap (Kitchen)", "emoji": "🔥"},
+		"E": {"action": "tap_water", "label": "Water Tap (Forest)", "emoji": "💧"},
+		"R": {"action": "tap_flour", "label": "Flour Tap (Market)", "emoji": "💨"},
 	},
 	"pump_reset": {
 		"name": "Pump & Reset Operations",

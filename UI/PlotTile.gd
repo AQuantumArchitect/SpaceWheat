@@ -433,10 +433,9 @@ func _layout_elements():
 	selection_border.size = rect.size - Vector2(border_width * 2, border_width * 2)
 
 	# Emoji labels centered and overlaid (for quantum superposition)
-	emoji_label_north.position = Vector2.ZERO
-	emoji_label_north.size = rect.size
-	emoji_label_south.position = Vector2.ZERO
-	emoji_label_south.size = rect.size
+	# NOTE: emoji labels have PRESET_FULL_RECT anchors, so they automatically
+	# fill the parent. Setting position/size would conflict with anchors.
+	# The anchors handle sizing - no manual position/size needed.
 
 	# Growth bar at bottom
 	var bar_height = 8

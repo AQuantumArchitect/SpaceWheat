@@ -1493,6 +1493,9 @@ func _extract_emoji_from_action(action: String) -> String:
 		"tap_wheat": return "🌾"
 		"tap_mushroom": return "🍄"
 		"tap_tomato": return "🍅"
+		"tap_fire": return "🔥"
+		"tap_water": return "💧"
+		"tap_flour": return "💨"
 		_: return ""
 
 

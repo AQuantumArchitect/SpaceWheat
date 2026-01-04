@@ -923,7 +923,6 @@ func place_kitchen(position: Vector2i) -> bool:
 	# Mark as occupied (buildings are instantly "mature")
 	plot.plot_type = FarmPlot.PlotType.KITCHEN
 	plot.is_planted = true
-	plot.kitchen_position = position  # Store for later reference
 	plot_planted.emit(position)
 
 	print("🍳 Placed kitchen at %s - ready for Bell state baking!" % position)

@@ -47,5 +47,5 @@ anchors_left = 0.0
 anchors_top = 0.0
 anchors_right = 1.0
 anchors_bottom = 1.0
-z_index = 5000
+z_index = 3000
 mouse_filter = 2
