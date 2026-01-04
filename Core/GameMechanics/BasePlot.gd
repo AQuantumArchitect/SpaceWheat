@@ -256,8 +256,13 @@ func harvest() -> Dictionary:
 	if not has_been_measured:
 		return {"success": false, "yield": 0, "energy": 0.0}
 
-	# Get the outcome emoji from the stored measurement
-	outcome = measured_outcome if measured_outcome else "?"
+	# Map basis outcome to emoji (Model B: measured_outcome is basis name, not emoji)
+	if measured_outcome == "north":
+		outcome = north_emoji
+	elif measured_outcome == "south":
+		outcome = south_emoji
+	else:
+		outcome = "?"
 
 	# Get purity from parent biome's quantum computer (Model B)
 	# Purity Tr(ρ²): 1.0 = pure state, 1/N = maximally mixed

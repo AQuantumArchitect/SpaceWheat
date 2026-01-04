@@ -168,8 +168,18 @@ func _ready() -> void:
 	if overlay_manager.quest_board:
 		overlay_manager.quest_board.board_closed.connect(func():
 			_pop_modal(overlay_manager.quest_board)
+			_restore_action_toolbar()
 		)
 		print("   ✅ Quest board close signal connected")
+
+		overlay_manager.quest_board.board_opened.connect(func():
+			_update_action_toolbar_for_quest()
+		)
+
+		overlay_manager.quest_board.selection_changed.connect(func(slot_state: int, is_locked: bool):
+			_update_action_toolbar_for_quest(slot_state, is_locked)
+		)
+		print("   ✅ Quest board action toolbar signals connected")
 
 	if overlay_manager.escape_menu:
 		overlay_manager.escape_menu.resume_pressed.connect(func():
@@ -265,6 +275,30 @@ func _initialize_overlay_system() -> void:
 	overlay_manager.create_overlays(self)
 
 	print("🎭 Overlay system initialized")
+
+
+## QUEST SYSTEM HELPERS
+
+## ACTION TOOLBAR UPDATES (for quest board context)
+
+func _update_action_toolbar_for_quest(slot_state: int = 1, is_locked: bool = false) -> void:
+	"""Update action toolbar to show quest-specific actions"""
+	if not current_farm_ui:
+		return
+
+	var action_preview = current_farm_ui.get_node_or_null("MainContainer/ActionPreviewRow")
+	if action_preview and action_preview.has_method("update_for_quest_board"):
+		action_preview.update_for_quest_board(slot_state, is_locked)
+
+
+func _restore_action_toolbar() -> void:
+	"""Restore action toolbar to normal tool mode"""
+	if not current_farm_ui:
+		return
+
+	var action_preview = current_farm_ui.get_node_or_null("MainContainer/ActionPreviewRow")
+	if action_preview and action_preview.has_method("restore_normal_mode"):
+		action_preview.restore_normal_mode()
 
 
 ## QUEST SYSTEM HELPERS

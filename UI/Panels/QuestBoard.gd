@@ -9,6 +9,8 @@ signal quest_accepted(quest: Dictionary)
 signal quest_completed(quest_id: int, rewards: Dictionary)
 signal quest_abandoned(quest_id: int)
 signal board_closed
+signal board_opened
+signal selection_changed(slot_state: int, is_locked: bool)  # For updating action toolbar
 
 # References
 var layout_manager: Node
@@ -21,7 +23,7 @@ var menu_panel: PanelContainer
 var title_label: Label
 var biome_state_label: Label
 var controls_label: Label
-var slot_container: VBoxContainer
+var slot_container: GridContainer  # Changed to GridContainer for 2×2 quadrant layout
 var accessible_factions_label: Label
 
 # Quest slots (4 slots: U, I, O, P)
@@ -138,8 +140,10 @@ func _create_ui() -> void:
 	"""Create the quest board UI - 2×2 QUADRANT LAYOUT with auto-scaling"""
 	var scale = layout_manager.scale_factor if layout_manager else 1.0
 
-	# Get viewport size for responsive scaling
-	var viewport_size = get_viewport().get_visible_rect().size if get_viewport() else Vector2(1920, 1080)
+	# Get viewport size for responsive scaling (defensive - fallback if not in tree yet)
+	var viewport_size = Vector2(1920, 1080)  # Default fallback
+	if is_inside_tree() and get_viewport():
+		viewport_size = get_viewport().get_visible_rect().size
 
 	# Scale fonts based on viewport height (more conservative)
 	var title_size = int(viewport_size.y * 0.04)  # 4% of screen height
@@ -235,6 +239,10 @@ func open_board() -> void:
 	_refresh_biome_state()
 	_refresh_slots()
 	_update_accessible_count()
+
+	# Emit board opened signal and initial selection
+	board_opened.emit()
+	_emit_selection_update()
 
 
 func close_board() -> void:
@@ -410,6 +418,18 @@ func select_slot(index: int) -> void:
 
 	selected_slot_index = index
 	_update_slot_selection()
+
+	# Emit selection changed for action toolbar update
+	_emit_selection_update()
+
+
+func _emit_selection_update() -> void:
+	"""Emit selection_changed signal with current slot state"""
+	if selected_slot_index < 0 or selected_slot_index >= quest_slots.size():
+		return
+
+	var slot = quest_slots[selected_slot_index]
+	selection_changed.emit(slot.state, slot.is_locked)
 
 
 func _update_slot_selection() -> void:
@@ -636,8 +656,10 @@ class QuestSlot extends PanelContainer:
 		"""QUADRANT SLOT - Compact for 2×2 layout"""
 		var scale = layout_manager.scale_factor if layout_manager else 1.0
 
-		# Get viewport size for responsive font scaling
-		var viewport_size = get_viewport().get_visible_rect().size if get_viewport() else Vector2(1920, 1080)
+		# Get viewport size for responsive font scaling (defensive)
+		var viewport_size = Vector2(1920, 1080)  # Default fallback
+		if is_inside_tree() and get_viewport():
+			viewport_size = get_viewport().get_visible_rect().size
 
 		# Responsive font sizes (% of viewport height)
 		var header_size = int(viewport_size.y * 0.028)  # 2.8% of screen height

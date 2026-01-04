@@ -140,6 +140,88 @@ func update_for_submenu(submenu_name: String, submenu_info: Dictionary) -> void:
 	print("📂 ActionPreviewRow showing submenu: %s%s" % [submenu_label, dynamic_note])
 
 
+func update_for_quest_board(slot_state: int, is_locked: bool = false) -> void:
+	"""Update action buttons to show quest-specific actions
+
+	Called when quest board is open and selection changes.
+	Shows context-aware quest actions based on slot state.
+	"""
+	current_submenu = "quest_board"  # Mark as special mode
+
+	# Quest slot states (from QuestBoard)
+	const EMPTY = 0
+	const OFFERED = 1
+	const ACTIVE = 2
+	const READY = 3
+
+	match slot_state:
+		EMPTY:
+			# Empty slot - only E to generate
+			action_buttons["Q"].text = "[Q] -"
+			action_buttons["Q"].disabled = true
+			action_buttons["Q"].modulate = disabled_color
+
+			action_buttons["E"].text = "[E] 🔄 Generate"
+			action_buttons["E"].disabled = false
+			action_buttons["E"].modulate = enabled_color
+
+			action_buttons["R"].text = "[R] -"
+			action_buttons["R"].disabled = true
+			action_buttons["R"].modulate = disabled_color
+
+		OFFERED:
+			# Offered quest - Q=Accept, E=Reroll, R=Lock/Unlock
+			action_buttons["Q"].text = "[Q] ✅ Accept"
+			action_buttons["Q"].disabled = false
+			action_buttons["Q"].modulate = enabled_color
+
+			action_buttons["E"].text = "[E] 🔄 Reroll"
+			action_buttons["E"].disabled = is_locked
+			action_buttons["E"].modulate = disabled_color if is_locked else button_color
+
+			action_buttons["R"].text = "[R] 🔒 %s" % ("Unlock" if is_locked else "Lock")
+			action_buttons["R"].disabled = false
+			action_buttons["R"].modulate = button_color
+
+		ACTIVE:
+			# Active quest - Q=Complete, E=Abandon
+			action_buttons["Q"].text = "[Q] ✅ Complete"
+			action_buttons["Q"].disabled = false
+			action_buttons["Q"].modulate = enabled_color
+
+			action_buttons["E"].text = "[E] ❌ Abandon"
+			action_buttons["E"].disabled = false
+			action_buttons["E"].modulate = Color(0.6, 0.2, 0.2)  # Red tint for danger
+
+			action_buttons["R"].text = "[R] -"
+			action_buttons["R"].disabled = true
+			action_buttons["R"].modulate = disabled_color
+
+		READY:
+			# Ready to complete - Q=Claim, E=Abandon
+			action_buttons["Q"].text = "[Q] 💰 CLAIM"
+			action_buttons["Q"].disabled = false
+			action_buttons["Q"].modulate = Color(0.2, 0.8, 0.2)  # Bright green for reward
+
+			action_buttons["E"].text = "[E] ❌ Abandon"
+			action_buttons["E"].disabled = false
+			action_buttons["E"].modulate = Color(0.6, 0.2, 0.2)
+
+			action_buttons["R"].text = "[R] -"
+			action_buttons["R"].disabled = true
+			action_buttons["R"].modulate = disabled_color
+
+	print("🎯 ActionPreviewRow showing QUEST actions (state=%d)" % slot_state)
+
+
+func restore_normal_mode() -> void:
+	"""Restore normal tool display (called when quest board closes)"""
+	if current_submenu == "quest_board":
+		current_submenu = ""
+		update_for_tool(current_tool)
+		print("🎯 ActionPreviewRow restored to TOOL mode")
+
+
 func set_action_enabled(action_key: String, enabled: bool) -> void:
 	"""Enable or disable a specific action button"""
 	if not action_buttons.has(action_key):
