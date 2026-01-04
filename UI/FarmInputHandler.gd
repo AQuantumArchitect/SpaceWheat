@@ -665,29 +665,9 @@ func _action_batch_plant(plant_type: String, positions: Array[Vector2i]):
 
 
 func _action_batch_measure(positions: Array[Vector2i]):
-	"""Measure quantum state of multiple plots"""
-	if not farm:
-		action_performed.emit("measure", false, "⚠️  Farm not loaded yet")
-		return
-
-	print("👁️  Batch measuring %d plots: %s" % [positions.size(), positions])
-
-	# Check if farm has batch method
-	if farm.has_method("batch_measure"):
-		var result = farm.batch_measure(positions)
-		var success = result.get("success", false)
-		var count = result.get("count", 0)
-		action_performed.emit("measure", success,
-			"%s Measured %d plots" % ["✅" if success else "❌", count])
-	else:
-		# Fallback: execute individually
-		var success_count = 0
-		for pos in positions:
-			if farm.measure_plot(pos):
-				success_count += 1
-		var success = success_count > 0
-		action_performed.emit("measure", success,
-			"%s Measured %d/%d plots" % ["✅" if success else "❌", success_count, positions.size()])
+	"""Measure quantum state of multiple plots (Model B: disabled)"""
+	action_performed.emit("measure", false,
+		"⚠️  Measurement not functional in Model B (requires quantum_computer refactor)")
 
 
 func _action_batch_harvest(positions: Array[Vector2i]):
@@ -791,27 +771,9 @@ func _action_batch_boost_energy(positions: Array[Vector2i]):
 
 
 func _action_batch_measure_and_harvest(positions: Array[Vector2i]):
-	"""Measure quantum state then harvest plots (combined action)"""
-	if not farm:
-		action_performed.emit("harvest", false, "⚠️  Farm not loaded yet")
-		return
-
-	print("🔬✂️  Batch measuring and harvesting %d plots: %s" % [positions.size(), positions])
-
-	var success_count = 0
-	var total_yield = 0
-	for pos in positions:
-		# Measure first
-		farm.measure_plot(pos)
-		# Then harvest
-		var result = farm.harvest_plot(pos)
-		if result.get("success", false):
-			success_count += 1
-			total_yield += result.get("yield", 0)
-
-	var success = success_count > 0
-	action_performed.emit("harvest", success,
-		"%s Measured and harvested %d/%d plots | Yield: %d" % ["✅" if success else "❌", success_count, positions.size(), total_yield])
+	"""Measure quantum state then harvest plots (Model B: disabled)"""
+	action_performed.emit("harvest", false,
+		"⚠️  Combined measure-harvest not functional in Model B (use harvest only)")
 
 
 func _action_entangle():
@@ -847,156 +809,29 @@ func _action_plant_batch(positions: Array[Vector2i]):
 
 
 func _action_entangle_batch(positions: Array[Vector2i]):
-	"""Batch entangle selected plots in Bell state φ+ - INSTANTANEOUS ONLY.
-
-	Unlike Tool 2 (persistent infrastructure), this creates entanglement
-	directly on current qubits WITHOUT modifying plot infrastructure.
-	Entanglement disappears when qubits are harvested.
-	"""
-	if not farm or not farm.grid:
-		action_performed.emit("entangle_batch", false, "⚠️  Farm not loaded yet")
-		return
-
-	if positions.size() < 2:
-		action_performed.emit("entangle_batch", false, "⚠️  Need at least 2 plots to entangle")
-		return
-
-	print("🔗 Instantaneous entangling %d plots (no persistence)..." % positions.size())
-
-	var success_count = 0
-	# Create pairwise entanglement: 0-1, 1-2, 2-3, etc.
-	# Use _create_quantum_entanglement directly (skips infrastructure setup)
-	for i in range(positions.size() - 1):
-		var plot1 = positions[i]
-		var plot2 = positions[i + 1]
-		# Direct quantum entanglement - NO infrastructure persistence
-		var result = farm.grid._create_quantum_entanglement(plot1, plot2)
-		if result:
-			success_count += 1
-			print("  🔗 Entangled %s ↔ %s (Bell φ+, instantaneous)" % [plot1, plot2])
-
-	action_performed.emit("entangle_batch", success_count > 0,
-		"✅ Created %d instantaneous entanglements (no persistence)" % success_count)
+	"""Batch entangle selected plots (Model B: disabled)"""
+	action_performed.emit("entangle_batch", false,
+		"⚠️  Entanglement not functional in Model B (requires quantum_computer refactor)")
 
 
 ## NEW Tool 2 (QUANTUM) Actions - PERSISTENT INFRASTRUCTURE
 
 func _action_cluster(positions: Array[Vector2i]):
-	"""Build PERSISTENT entanglement gate infrastructure on selected plots.
-
-	Auto-detects gate type based on selection:
-	- 2 plots → Bell gate (persistent pairwise φ+ entanglement)
-	- 3+ plots → Cluster gate (persistent N-qubit entanglement)
-
-	Unlike Tool 1-E (instantaneous), this creates infrastructure that:
-	1. Applies to currently planted qubits immediately
-	2. Auto-applies to future qubits planted in these plots
-	"""
-	if not farm or not farm.grid:
-		action_performed.emit("cluster", false, "⚠️  Farm not loaded yet")
-		return
-
-	if positions.size() < 2:
-		action_performed.emit("cluster", false, "⚠️  Need at least 2 plots for entanglement gate")
-		return
-
-	# Determine gate type based on selection count
-	var gate_type = "bell" if positions.size() == 2 else "cluster"
-	var gate_label = "Bell φ+" if gate_type == "bell" else "Cluster"
-
-	print("🔧 Building persistent %s gate for %d plots: %s" % [gate_label, positions.size(), positions])
-
-	# Add persistent gate infrastructure to each plot
-	var success_gates = 0
-	# Create properly typed array for add_persistent_gate
-	var typed_positions: Array[Vector2i] = []
-	typed_positions.assign(positions)
-
-	for pos in positions:
-		var plot = farm.grid.get_plot(pos)
-		if plot:
-			plot.add_persistent_gate(gate_type, typed_positions)
-			success_gates += 1
-			print("  ✅ Added gate to plot at %s" % pos)
-		else:
-			print("  ⚠️ No plot found at %s" % pos)
-
-	# Also apply to currently planted qubits (if all are planted)
-	var planted_count = 0
-	for pos in positions:
-		var plot = farm.grid.get_plot(pos)
-		if plot and plot.is_planted:
-			planted_count += 1
-
-	if planted_count == positions.size():
-		# All plots planted - create quantum entanglement now
-		var success_count = 0
-		for i in range(positions.size() - 1):
-			var plot1 = positions[i]
-			var plot2 = positions[i + 1]
-			farm.grid.create_entanglement(plot1, plot2)
-			success_count += 1
-		print("  🔗 Created %d immediate %s entanglements" % [success_count, gate_label])
-
-	# Trigger visualization update for gate infrastructure
-	if success_gates > 0 and farm.grid.has_signal("visualization_changed"):
-		farm.grid.visualization_changed.emit()
-
-	action_performed.emit("cluster", true,
-		"✅ Built %s gate on %d plots (planted: %d)" % [gate_label, positions.size(), planted_count])
+	"""Build entanglement gate infrastructure (Model B: disabled)"""
+	action_performed.emit("cluster", false,
+		"⚠️  Gate infrastructure not functional in Model B (requires quantum_computer refactor)")
 
 
 func _action_measure_trigger(positions: Array[Vector2i]):
-	"""Build PERSISTENT measure trigger on selected plots.
-
-	When triggered, these plots will cascade-measure their entangled networks.
-	"""
-	if not farm or not farm.grid:
-		action_performed.emit("measure_trigger", false, "⚠️  Farm not loaded yet")
-		return
-
-	print("👁️ Setting up persistent measure trigger for %d plots..." % positions.size())
-
-	var success_count = 0
-	for pos in positions:
-		var plot = farm.grid.get_plot(pos)
-		if plot:
-			plot.add_persistent_gate("measure_trigger", [])
-			success_count += 1
-			print("  👁️ Measure trigger set on %s" % pos)
-
-	action_performed.emit("measure_trigger", success_count > 0,
-		"✅ Set measure trigger on %d plots" % success_count)
+	"""Build measure trigger (Model B: disabled)"""
+	action_performed.emit("measure_trigger", false,
+		"⚠️  Measure trigger not functional in Model B (requires quantum_computer refactor)")
 
 
 func _action_remove_gates(positions: Array[Vector2i]):
-	"""Remove ALL persistent gate infrastructure from selected plots.
-
-	Clears both persistent gates and current quantum entanglements.
-	"""
-	if not farm or not farm.grid:
-		action_performed.emit("remove_gates", false, "⚠️  Farm not loaded yet")
-		return
-
-	print("💔 Removing gate infrastructure from %d plots..." % positions.size())
-
-	var success_count = 0
-	for pos in positions:
-		var plot = farm.grid.get_plot(pos)
-		if plot:
-			# Clear persistent infrastructure
-			plot.clear_persistent_gates()
-			# Also clear current quantum entanglements
-			plot.entangled_plots.clear()
-			success_count += 1
-			print("  💔 Cleared gates at %s" % pos)
-
-	# Trigger visualization update via FarmGrid signal
-	if success_count > 0 and farm.grid.has_signal("visualization_changed"):
-		farm.grid.visualization_changed.emit()
-
-	action_performed.emit("remove_gates", success_count > 0,
-		"✅ Removed gates from %d plots" % success_count)
+	"""Remove gate infrastructure (Model B: disabled)"""
+	action_performed.emit("remove_gates", false,
+		"⚠️  Gate removal not functional in Model B (requires quantum_computer refactor)")
 
 
 ## Tool 4 (BIOME EVOLUTION CONTROLLER) - Research-Grade Actions
