@@ -172,10 +172,11 @@ func clear_register_for_plot(position: Vector2i) -> void:
 # Common Quantum Operations (Model B API)
 # ============================================================================
 
-func create_quantum_state(position: Vector2i, north: String, south: String, theta: float = PI/2) -> Resource:
+func create_quantum_state(position: Vector2i, north: String, south: String, theta: float = PI/2) -> int:
 	"""Create and store a quantum state at grid position (Model B version)
 
 	Model B: This allocates a register in quantum_computer, not an independent state.
+	Returns: register_id in quantum_computer
 	"""
 	return allocate_register_for_plot(position, north, south)
 
@@ -1493,10 +1494,8 @@ func get_observable_theta(north: String, south: String) -> float:
 		# Project bath and read theta
 		var proj = bath.project_onto_axis(north, south)
 		return proj.theta if proj.valid else PI/2
-	else:
-		# No bath: find qubit with these emojis (backward compatibility)
-		var qubit = _find_qubit_with_emojis(north, south)
-		return qubit.theta if qubit else PI/2
+	# Model B: bath always exists
+	return PI/2
 
 
 func get_observable_phi(north: String, south: String) -> float:
@@ -1516,10 +1515,8 @@ func get_observable_phi(north: String, south: String) -> float:
 		# Project bath and read phi
 		var proj = bath.project_onto_axis(north, south)
 		return proj.phi if proj.valid else 0.0
-	else:
-		# No bath: find qubit and read phi (backward compatibility)
-		var qubit = _find_qubit_with_emojis(north, south)
-		return qubit.phi if qubit else 0.0
+	# Model B: bath always exists
+	return 0.0
 
 
 func get_observable_coherence(north: String, south: String) -> float:
@@ -1556,12 +1553,8 @@ func get_observable_radius(north: String, south: String) -> float:
 		# Project bath and read radius
 		var proj = bath.project_onto_axis(north, south)
 		return proj.radius if proj.valid else 0.0
-	else:
-		# No bath: find qubit and read radius (backward compatibility)
-		var qubit = _find_qubit_with_emojis(north, south)
-		if qubit and qubit.has("radius"):
-			return qubit.radius
-		return 1.0  # Legacy qubits assumed normalized
+	# Model B: bath always exists
+	return 0.0
 
 
 func get_observable_amplitude(emoji: String) -> float:

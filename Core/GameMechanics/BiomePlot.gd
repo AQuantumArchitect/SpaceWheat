@@ -10,9 +10,6 @@ extends "res://Core/GameMechanics/BasePlot.gd"
 enum BiomePlotType { TRANSFORMATION_NODE, MARKET_QUBIT, GUILD_RESOURCE, ENVIRONMENT }
 @export var biome_plot_type: BiomePlotType = BiomePlotType.TRANSFORMATION_NODE
 
-# Biome reference
-var parent_biome = null  # Reference to the biome that owns this plot
-
 
 func _init(type: BiomePlotType = BiomePlotType.TRANSFORMATION_NODE):
 	super._init()
