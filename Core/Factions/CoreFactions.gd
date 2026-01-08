@@ -23,7 +23,7 @@ extends RefCounted
 ##   🐇 → Swift + Pack
 ##   🦌 → Swift + Pack
 
-const IconFaction = preload("res://Core/Factions/Faction.gd")
+const Faction = preload("res://Core/Factions/Faction.gd")
 
 ## Get all core factions
 static func get_all() -> Array:
@@ -46,8 +46,8 @@ static func get_all() -> Array:
 ## These are the eternal drivers that everything else responds to
 ## ========================================
 
-static func create_celestial_archons() -> IconFaction:
-	var f = IconFaction.new()
+static func create_celestial_archons() -> Faction:
+	var f = Faction.new()
 	f.name = "Celestial Archons"
 	f.description = "The eternal substrate. Sun and moon, the four elements. The abiotic foundation."
 	f.ring = "outer"
@@ -124,8 +124,8 @@ static func create_celestial_archons() -> IconFaction:
 ## 🌲 is the stable endpoint for seeds not consumed
 ## ========================================
 
-static func create_verdant_pulse() -> IconFaction:
-	var f = IconFaction.new()
+static func create_verdant_pulse() -> Faction:
+	var f = Faction.new()
 	f.name = "Verdant Pulse"
 	f.description = "The green rhythm of growth and decay. Seeds become grass or trees, grain returns to earth."
 	f.ring = "center"
@@ -236,8 +236,8 @@ static func create_verdant_pulse() -> IconFaction:
 ## Moon-linked decomposition: the recyclers
 ## ========================================
 
-static func create_mycelial_web() -> IconFaction:
-	var f = IconFaction.new()
+static func create_mycelial_web() -> Faction:
+	var f = Faction.new()
 	f.name = "Mycelial Web"
 	f.description = "The hidden network beneath. Moon-touched, death-fed, eternal recyclers. Spooky symbiosis with death itself."
 	f.ring = "center"
@@ -314,8 +314,8 @@ static func create_mycelial_web() -> IconFaction:
 ## Grazing dynamics: prey animals
 ## ========================================
 
-static func create_swift_herd() -> IconFaction:
-	var f = IconFaction.new()
+static func create_swift_herd() -> Faction:
+	var f = Faction.new()
 	f.name = "Swift Herd"
 	f.description = "The gentle grazers. They eat the green and feed the strong."
 	f.ring = "center"
@@ -366,8 +366,8 @@ static func create_swift_herd() -> IconFaction:
 ## Predation and death: apex dynamics
 ## ========================================
 
-static func create_pack_lords() -> IconFaction:
-	var f = IconFaction.new()
+static func create_pack_lords() -> Faction:
+	var f = Faction.new()
 	f.name = "Pack Lords"
 	f.description = "The hunters. They cull the weak and shepherd death."
 	f.ring = "second"
@@ -438,8 +438,8 @@ static func create_pack_lords() -> IconFaction:
 ## Economic oscillations: bull/bear, order/chaos
 ## ========================================
 
-static func create_market_spirits() -> IconFaction:
-	var f = IconFaction.new()
+static func create_market_spirits() -> Faction:
+	var f = Faction.new()
 	f.name = "Market Spirits"
 	f.description = "The invisible hands that push and pull. Greed and fear dance eternal."
 	f.ring = "second"
@@ -529,8 +529,8 @@ static func create_market_spirits() -> IconFaction:
 ## Production: temperature × moisture × substance
 ## ========================================
 
-static func create_hearth_keepers() -> IconFaction:
-	var f = IconFaction.new()
+static func create_hearth_keepers() -> Faction:
+	var f = Faction.new()
 	f.name = "Hearth Keepers"
 	f.description = "The tenders of flame and dough. Where wheat becomes bread."
 	f.ring = "center"
@@ -621,8 +621,8 @@ static func get_factions_for_emoji(emoji: String) -> Array:
 ## The critical link: no pollinators = no grain
 ## ========================================
 
-static func create_pollinator_guild() -> IconFaction:
-	var f = IconFaction.new()
+static func create_pollinator_guild() -> Faction:
+	var f = Faction.new()
 	f.name = "Pollinator Guild"
 	f.description = "The tiny workers without whom no seed sets. Their absence collapses agriculture."
 	f.ring = "center"
@@ -690,8 +690,8 @@ static func create_pollinator_guild() -> IconFaction:
 ## Density-dependent disease, prevents monoculture
 ## ========================================
 
-static func create_plague_vectors() -> IconFaction:
-	var f = IconFaction.new()
+static func create_plague_vectors() -> Faction:
+	var f = Faction.new()
 	f.name = "Plague Vectors"
 	f.description = "The invisible cullers. They thrive on density and crash on scarcity."
 	f.ring = "second"
@@ -776,8 +776,8 @@ static func create_plague_vectors() -> IconFaction:
 ## Fire spreads, burns, fertilizes
 ## ========================================
 
-static func create_wildfire_dynamics() -> IconFaction:
-	var f = IconFaction.new()
+static func create_wildfire_dynamics() -> Faction:
+	var f = Faction.new()
 	f.name = "Wildfire"
 	f.description = "The great destroyer and renewer. Burns hot, leaves fertility behind."
 	f.ring = "second"
@@ -860,7 +860,7 @@ static func get_all_emojis() -> Array:
 	return emojis
 
 ## Get shared emojis between two factions
-static func get_shared_emojis(f1: IconFaction, f2: IconFaction) -> Array:
+static func get_shared_emojis(f1: Faction, f2: Faction) -> Array:
 	var shared: Array = []
 	for emoji in f1.signature:
 		if emoji in f2.signature:

@@ -3,6 +3,7 @@ extends Node
 
 # Access autoload safely (avoids compile-time errors)
 @onready var _verbose = get_node("/root/VerboseConfig")
+@onready var _icon_registry = get_node("/root/IconRegistry")
 
 ## Centralizes management of all overlays (Quests, Vocabulary, Network, Escape Menu, Save/Load)
 ## Handles overlay visibility, positioning, and menu actions
@@ -671,7 +672,7 @@ func _refresh_vocabulary_overlay() -> void:
 
 	for emoji in known_emojis:
 		# Check if Icon exists for this emoji
-		var icon = IconRegistry.get_icon(emoji) if IconRegistry else null
+		var icon = _icon_registry.get_icon(emoji) if IconRegistry else null
 
 		if icon:
 			# Create button for emojis with Icons (clickable)

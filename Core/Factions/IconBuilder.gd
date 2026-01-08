@@ -16,20 +16,21 @@ extends RefCounted
 ##   var biome_factions = [celestial, verdant, mycelial]
 ##   var icons = IconBuilder.build_icons_for_factions(biome_factions)
 
-const IconFaction = preload("res://Core/Factions/Faction.gd")
+const Faction = preload("res://Core/Factions/Faction.gd")
 const CoreFactions = preload("res://Core/Factions/CoreFactions.gd")
+const CivilizationFactions = preload("res://Core/Factions/CivilizationFactions.gd")
 
 ## Build Icons for all emojis across given factions
-static func build_icons_for_factions(factions: Array) -> Array:
+static func build_icons_for_factions(factions: Array) -> Array[Icon]:
 	# Collect all unique emojis
-	var all_emojis: Array = []
+	var all_emojis: Array[String] = []
 	for faction in factions:
 		for emoji in faction.get_all_emojis():
 			if emoji not in all_emojis:
 				all_emojis.append(emoji)
-
+	
 	# Build Icon for each emoji
-	var icons: Array = []
+	var icons: Array[Icon] = []
 	for emoji in all_emojis:
 		var icon = build_icon(emoji, factions)
 		if icon != null:
@@ -43,7 +44,7 @@ static func build_icon(emoji: String, factions: Array) -> Icon:
 	icon.emoji = emoji
 	icon.display_name = emoji  # Default, can be overridden
 	
-	var contributing_factions: Array = []
+	var contributing_factions: Array[String] = []
 	
 	# Gated lindblad needs special handling - collect all gates
 	var all_gated: Array = []
@@ -106,9 +107,20 @@ static func build_icon(emoji: String, factions: Array) -> Icon:
 			icon.driver_amplitude = driver.get("amp", 1.0)
 	
 	# Store gated lindblad as metadata (runtime needs to handle this)
-	# Format: Array of {source, rate, gate, power, faction}
+	# Format: Array of {source, rate, gate, power, inverse, faction}
 	if all_gated.size() > 0:
 		icon.set_meta("gated_lindblad", all_gated)
+	
+	# Store measurement behavior (first faction wins)
+	var measurement = {}
+	for faction in factions:
+		if not faction.speaks(emoji):
+			continue
+		var mb = faction.get_icon_contribution(emoji).get("measurement_behavior", {})
+		if mb.size() > 0 and measurement.size() == 0:
+			measurement = mb
+	if measurement.size() > 0:
+		icon.set_meta("measurement_behavior", measurement)
 	
 	# Set description based on contributing factions
 	if contributing_factions.size() == 0:
@@ -128,9 +140,9 @@ static func build_icon(emoji: String, factions: Array) -> Icon:
 	
 	return icon
 
-## Helper to create tag array
-static func _make_tags(faction_names: Array) -> Array:
-	var tags: Array = []
+## Helper to create typed tag array
+static func _make_tags(faction_names: Array[String]) -> Array[String]:
+	var tags: Array[String] = []
 	for name in faction_names:
 		tags.append(name.to_lower().replace(" ", "_"))
 	return tags
@@ -283,6 +295,124 @@ static func build_market_biome() -> Dictionary:
 	
 	return build_biome_icons(factions, [])
 
+
+## ========================================
+## Civilization Biomes
+## ========================================
+
+## Starter Biome: Minimal 🍞👥 starting point
+## Just Hearth + one civilization faction
+static func build_starter_biome() -> Dictionary:
+	var factions = [
+		CoreFactions.create_hearth_keepers(),
+		CivilizationFactions.create_granary_guilds(),
+	]
+	
+	var cross = [
+		# Basic bread-to-storage
+		{"source": "🧺", "target": "🍞", "type": "lindblad_in", "rate": 0.03},
+	]
+	
+	return build_biome_icons(factions, cross)
+
+
+## Village Biome: Early civilization expansion
+## Hearth + Granary + Millwrights + basic Verdant
+static func build_village_biome() -> Dictionary:
+	var factions = [
+		CoreFactions.create_celestial_archons(),
+		CoreFactions.create_verdant_pulse(),
+		CoreFactions.create_hearth_keepers(),
+		CivilizationFactions.create_granary_guilds(),
+		CivilizationFactions.create_millwrights_union(),
+		CivilizationFactions.create_yeast_prophets(),
+	]
+	
+	var cross = [
+		# Celestial → Verdant (sun/water)
+		{"source": "🌾", "target": "☀", "type": "lindblad_in", "rate": 0.027},
+		{"source": "🌾", "target": "💧", "type": "lindblad_in", "rate": 0.017},
+		
+		# Verdant → Hearth (wheat to flour)
+		{"source": "💨", "target": "🌾", "type": "lindblad_in", "rate": 0.06},
+		
+		# Hearth → Civilization (flour to bread)
+		{"source": "🍞", "target": "💨", "type": "lindblad_in", "rate": 0.05},
+		
+		# Granary storage
+		{"source": "🧺", "target": "🍞", "type": "lindblad_in", "rate": 0.03},
+		{"source": "🧺", "target": "🌱", "type": "lindblad_in", "rate": 0.02},
+		
+		# Millwright needs flour
+		{"source": "🏭", "target": "💨", "type": "hamiltonian", "coupling": 0.4},
+		
+		# Yeast Prophet starter needs water/warmth
+		{"source": "🫙", "target": "💧", "type": "lindblad_in", "rate": 0.02},
+		{"source": "🫙", "target": "🔥", "type": "alignment", "value": 0.15},
+	]
+	
+	return build_biome_icons(factions, cross)
+
+
+## Imperial Biome: Full civilization with extraction
+static func build_imperial_biome() -> Dictionary:
+	var factions = [
+		CoreFactions.create_market_spirits(),
+		CivilizationFactions.create_granary_guilds(),
+		CivilizationFactions.create_millwrights_union(),
+		CivilizationFactions.create_station_lords(),
+		CivilizationFactions.create_void_serfs(),
+		CivilizationFactions.create_carrion_throne(),
+	]
+	
+	var cross = [
+		# Market ↔ Granary (trade flows)
+		{"source": "💰", "target": "🧺", "type": "lindblad_in", "rate": 0.03},
+		{"source": "💰", "target": "🏛", "type": "hamiltonian", "coupling": 0.5},
+		
+		# Station Lords control flows
+		{"source": "🛂", "target": "📋", "type": "lindblad_in", "rate": 0.04},
+		{"source": "🚢", "target": "💰", "type": "lindblad_in", "rate": 0.03},
+		
+		# Imperial extraction
+		{"source": "🩸", "target": "👥", "type": "lindblad_in", "rate": 0.02},
+		{"source": "⚜", "target": "💰", "type": "lindblad_in", "rate": 0.02},
+		
+		# Void grows from exploitation
+		{"source": "🌑", "target": "💸", "type": "lindblad_in", "rate": 0.03},
+		{"source": "🌑", "target": "⛓", "type": "lindblad_in", "rate": 0.02},
+		
+		# Order/chaos dynamics
+		{"source": "🏛", "target": "⚜", "type": "alignment", "value": 0.25},
+		{"source": "🏚", "target": "⚜", "type": "alignment", "value": -0.20},
+	]
+	
+	return build_biome_icons(factions, cross)
+
+
+## Scavenger Biome: Waste economy
+static func build_scavenger_biome() -> Dictionary:
+	var factions = [
+		CoreFactions.create_hearth_keepers(),
+		CivilizationFactions.create_scavenged_psithurism(),
+		CivilizationFactions.create_millwrights_union(),
+	]
+	
+	var cross = [
+		# Waste accumulation
+		{"source": "🗑", "target": "🍞", "type": "lindblad_in", "rate": 0.02},
+		{"source": "🗑", "target": "🔩", "type": "lindblad_in", "rate": 0.03},
+		
+		# Recycling to parts
+		{"source": "🔩", "target": "♻", "type": "lindblad_in", "rate": 0.04},
+		{"source": "⚙", "target": "🔩", "type": "lindblad_in", "rate": 0.02},
+		
+		# Tools from salvage
+		{"source": "🛠", "target": "🔩", "type": "lindblad_in", "rate": 0.03},
+	]
+	
+	return build_biome_icons(factions, cross)
+
 ## ========================================
 ## Debug Utilities
 ## ========================================
@@ -317,12 +447,23 @@ static func debug_print_icon(icon: Icon) -> void:
 		var gated = icon.get_meta("gated_lindblad")
 		print("  GATED Lindblad (multiplicative):")
 		for g in gated:
-			print("    ← %s: %.3f × P(%s)^%.1f [%s]" % [
+			var inverse = g.get("inverse", false)
+			var gate_str = "P(%s)" % g.get("gate", "?")
+			if inverse:
+				gate_str = "(1-P(%s))" % g.get("gate", "?")
+			print("    ← %s: %.3f × %s^%.1f [%s]%s" % [
 				g.get("source", "?"),
 				g.get("rate", 0),
-				g.get("gate", "?"),
+				gate_str,
 				g.get("power", 1.0),
-				g.get("faction", "?")])
+				g.get("faction", "?"),
+				" ⚠️INVERSE" if inverse else ""])
+	
+	# Show measurement behavior
+	if icon.has_meta("measurement_behavior"):
+		var mb = icon.get_meta("measurement_behavior")
+		if mb.get("inverts", false):
+			print("  🔮 MEASUREMENT INVERTS → %s" % mb.get("invert_target", "?"))
 	
 	if icon.energy_couplings.size() > 0:
 		print("  Alignment (energy) couplings:")

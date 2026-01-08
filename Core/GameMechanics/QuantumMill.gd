@@ -1,6 +1,9 @@
 class_name QuantumMill
 extends Node2D
 
+# Access autoloads safely (avoids compile-time errors)
+@onready var _icon_registry = get_node("/root/IconRegistry")
+
 ## QuantumMill v2: Icon Injection Portal
 ##
 ## The Mill is a PASSIVE structure that injects flour dynamics into the parent biome.
@@ -48,7 +51,7 @@ func activate(biome) -> bool:
 		return false
 
 	# Get Flour Icon from registry
-	var flour_icon = IconRegistry.get_icon("💨")
+	var flour_icon = _icon_registry.get_icon("💨")
 	if not flour_icon:
 		push_error("Mill: Flour Icon not registered in IconRegistry!")
 		return false

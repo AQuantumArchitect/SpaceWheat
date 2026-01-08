@@ -1,5 +1,8 @@
 extends Node
 
+# Access autoload safely (avoids compile-time errors)
+@onready var _verbose = get_node("/root/VerboseConfig")
+
 ## GameStateManager - Singleton for save/load operations
 ## Handles 3 save slots, scenarios, and state capture/restore
 
@@ -37,19 +40,19 @@ func _ready():
 	var dir = DirAccess.open("user://")
 	if not dir.dir_exists("saves"):
 		dir.make_dir("saves")
-	VerboseConfig.info("save", "💾", "GameStateManager ready - Save dir: " + SAVE_DIR)
+	_verbose.info("save", "💾", "GameStateManager ready - Save dir: " + SAVE_DIR)
 
 	# Initialize quantum rigor configuration (singleton)
 	if not QuantumRigorConfig.instance:
 		var config = QuantumRigorConfig.new()
-		VerboseConfig.info("quantum", "⚛️", "QuantumRigorConfig initialized: %s" % config.mode_description())
+		_verbose.info("quantum", "⚛️", "QuantumRigorConfig initialized: %s" % config.mode_description())
 
 	# Initialize persistent vocabulary evolution system
 	if not vocabulary_evolution:
 		vocabulary_evolution = VocabularyEvolution.new()
 		vocabulary_evolution._ready()
 		add_child(vocabulary_evolution)
-		VerboseConfig.info("quest", "📚", "Persistent VocabularyEvolution initialized")
+		_verbose.info("quest", "📚", "Persistent VocabularyEvolution initialized")
 
 
 ## Player Vocabulary Discovery
@@ -73,15 +76,15 @@ func discover_emoji(emoji: String) -> void:
 	current_state.known_emojis.append(emoji)
 	emit_signal("emoji_discovered", emoji)
 
-	VerboseConfig.info("quest", "📖", "Discovered emoji: %s (vocabulary: %d emojis)" % [emoji, current_state.known_emojis.size()])
+	_verbose.info("quest", "📖", "Discovered emoji: %s (vocabulary: %d emojis)" % [emoji, current_state.known_emojis.size()])
 
 	# Check if this unlocks new factions
 	var newly_accessible = _check_newly_accessible_factions(emoji)
 	if newly_accessible.size() > 0:
 		emit_signal("factions_unlocked", newly_accessible)
-		VerboseConfig.info("quest", "🔓", "Unlocked %d new faction(s)!" % newly_accessible.size())
+		_verbose.info("quest", "🔓", "Unlocked %d new faction(s)!" % newly_accessible.size())
 		for faction in newly_accessible:
-			VerboseConfig.info("quest", "-", "%s %s" % ["".join(faction.signature.slice(0, 3)), faction.name])
+			_verbose.info("quest", "-", "%s %s" % ["".join(faction.signature.slice(0, 3)), faction.name])
 
 
 func _check_newly_accessible_factions(new_emoji: String) -> Array:
@@ -131,16 +134,16 @@ func get_accessible_factions() -> Array:
 
 func new_game(scenario_id: String = "default") -> GameState:
 	"""Start new game by loading a scenario template"""
-	VerboseConfig.info("quest", "🎮", "Starting new game with scenario: " + scenario_id)
+	_verbose.info("quest", "🎮", "Starting new game with scenario: " + scenario_id)
 	current_scenario_id = scenario_id
 
 	# Try to load scenario file, fall back to default state
 	var scenario_path = SCENARIO_DIR + scenario_id + ".tres"
 	if ResourceLoader.exists(scenario_path):
 		current_state = ResourceLoader.load(scenario_path).duplicate()
-		VerboseConfig.info("quest", "✓", "Loaded scenario from: " + scenario_path)
+		_verbose.info("quest", "✓", "Loaded scenario from: " + scenario_path)
 	else:
-		VerboseConfig.info("quest", "⚠", "Scenario not found, using default state")
+		_verbose.info("quest", "⚠", "Scenario not found, using default state")
 		current_state = GameState.new()
 		current_state.scenario_id = scenario_id
 
@@ -170,7 +173,7 @@ func save_game(slot: int) -> bool:
 
 	if result == OK:
 		last_saved_slot = slot
-		VerboseConfig.info("save", "💾", "Game saved to slot " + str(slot + 1) + ": " + path)
+		_verbose.info("save", "💾", "Game saved to slot " + str(slot + 1) + ": " + path)
 		return true
 	else:
 		push_error("Failed to save game to slot " + str(slot))
@@ -217,12 +220,12 @@ func load_game_state(slot: int) -> GameState:
 
 	var path = get_save_path(slot)
 	if not FileAccess.file_exists(path):
-		VerboseConfig.info("save", "⚠", "No save file in slot " + str(slot + 1))
+		_verbose.info("save", "⚠", "No save file in slot " + str(slot + 1))
 		return null
 
 	var state = ResourceLoader.load(path)
 	if state:
-		VerboseConfig.info("save", "📂", "Loaded save from slot " + str(slot + 1))
+		_verbose.info("save", "📂", "Loaded save from slot " + str(slot + 1))
 		return state
 	else:
 		push_error("Failed to load save from slot " + str(slot))
@@ -264,10 +267,10 @@ func reload_last_save() -> bool:
 
 	# No saves found
 	if latest_slot < 0:
-		VerboseConfig.info("save", "⚠", "No saves found to reload")
+		_verbose.info("save", "⚠", "No saves found to reload")
 		return false
 
-	VerboseConfig.info("save", "🔄", "Reloading most recent save from slot " + str(latest_slot + 1) + " (saved at " + str(latest_timestamp) + ")")
+	_verbose.info("save", "🔄", "Reloading most recent save from slot " + str(latest_slot + 1) + " (saved at " + str(latest_timestamp) + ")")
 	return load_and_apply(latest_slot)
 
 
@@ -390,14 +393,14 @@ func capture_state_from_game() -> GameState:
 	# Vocabulary Evolution State (PERSISTED - player's discovered vocabulary travels with them)
 	if vocabulary_evolution:
 		state.vocabulary_state = vocabulary_evolution.serialize()
-		VerboseConfig.debug("save", "📚", "Captured vocabulary: %d discovered, %d evolving" % [
+		_verbose.debug("save", "📚", "Captured vocabulary: %d discovered, %d evolving" % [
 			state.vocabulary_state.get("discovered_vocabulary", []).size(),
 			state.vocabulary_state.get("evolving_qubits", []).size()
 		])
 
 	# Conspiracy Network NOT saved (dynamic, regenerated each session)
 
-	VerboseConfig.info("save", "📸", "Captured game state: grid=" + str(state.grid_width) + "x" + str(state.grid_height) +
+	_verbose.info("save", "📸", "Captured game state: grid=" + str(state.grid_width) + "x" + str(state.grid_height) +
 		  ", plots=" + str(state.plots.size()) + ", credits=" + str(state.credits))
 	return state
 
@@ -427,7 +430,7 @@ func _capture_all_biome_states(farm: Node) -> Dictionary:
 			state["biome_class"] = biome.get_script().resource_path
 
 			all_states[biome_name] = state
-			VerboseConfig.debug("save", "💾", "Captured %s biome (%s)" % [biome_name, state["biome_class"]])
+			_verbose.debug("save", "💾", "Captured %s biome (%s)" % [biome_name, state["biome_class"]])
 
 	return all_states
 
@@ -559,7 +562,7 @@ func _restore_all_biome_states(farm: Node, biome_states: Dictionary) -> void:
 
 		# Restore state
 		_restore_single_biome_state(biome, biome_state, biome_name)
-		VerboseConfig.debug("save", "📂", "Restored %s biome" % biome_name)
+		_verbose.debug("save", "📂", "Restored %s biome" % biome_name)
 
 
 func _restore_single_biome_state(biome: Node, state: Dictionary, biome_name: String) -> void:
@@ -710,7 +713,7 @@ func _reconnect_plots_to_projections(farm: Node, state: GameState) -> void:
 			reconnected_count += 1
 
 	if reconnected_count > 0:
-		VerboseConfig.debug("farm", "🔗", "Reconnected %d plots to biome projections" % reconnected_count)
+		_verbose.debug("farm", "🔗", "Reconnected %d plots to biome projections" % reconnected_count)
 
 
 ## Phase 3: Bath-First Serialization Helpers
@@ -780,7 +783,7 @@ func apply_state_to_game(state: GameState):
 			])
 			push_warning("Out-of-bounds plots will be skipped")
 
-	VerboseConfig.info("save", "🔄", "Applying game state to farm (" + str(state.grid_width) + "x" + str(state.grid_height) + ")...")
+	_verbose.info("save", "🔄", "Applying game state to farm (" + str(state.grid_width) + "x" + str(state.grid_height) + ")...")
 
 	# Apply Economy (from Farm.economy) - using emoji-based API
 	var economy = farm.economy
@@ -873,7 +876,7 @@ func apply_state_to_game(state: GameState):
 	# Restore Vocabulary Evolution State (PERSISTED - player's discovered vocabulary)
 	if vocabulary_evolution and state.vocabulary_state:
 		vocabulary_evolution.deserialize(state.vocabulary_state)
-		VerboseConfig.debug("save", "📚", "Restored vocabulary evolution from save")
+		_verbose.debug("save", "📚", "Restored vocabulary evolution from save")
 
 	# Conspiracy Network NOT loaded (dynamic, regenerate each session)
 
@@ -893,7 +896,7 @@ func apply_state_to_game(state: GameState):
 	# NOTE: Economy signals are automatically emitted when we set wheat_inventory etc above,
 	# so ResourcePanel updates happen automatically. Other visualizers need explicit rebuild.
 
-	VerboseConfig.info("save", "✓", "State applied to farm successfully - quantum states will regenerate from biome")
+	_verbose.info("save", "✓", "State applied to farm successfully - quantum states will regenerate from biome")
 
 
 ## Scenario Completion Tracking
@@ -904,7 +907,7 @@ func mark_scenario_completed(scenario_id: String):
 	if scenario_id not in completed:
 		completed.append(scenario_id)
 		_save_completed_scenarios(completed)
-		VerboseConfig.info("quest", "🏆", "Scenario completed: " + scenario_id)
+		_verbose.info("quest", "🏆", "Scenario completed: " + scenario_id)
 
 func is_scenario_completed(scenario_id: String) -> bool:
 	"""Check if player has completed this scenario"""
@@ -918,7 +921,7 @@ func get_completed_scenarios() -> Array[String]:
 func clear_completed_scenarios():
 	"""Clear all completed scenarios (for testing/reset)"""
 	_save_completed_scenarios([])
-	VerboseConfig.info("quest", "🔄", "Cleared all completed scenarios")
+	_verbose.info("quest", "🔄", "Cleared all completed scenarios")
 
 func _load_completed_scenarios() -> Array:
 	"""Load completed scenarios from save file"""
@@ -946,7 +949,7 @@ func _save_completed_scenarios(completed: Array):
 
 func restart_current_scenario():
 	"""Restart by reloading current scenario (not scene reload!)"""
-	VerboseConfig.info("quest", "🔄", "Restarting scenario: " + current_scenario_id)
+	_verbose.info("quest", "🔄", "Restarting scenario: " + current_scenario_id)
 	var state = new_game(current_scenario_id)
 	apply_state_to_game(state)
 

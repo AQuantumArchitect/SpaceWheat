@@ -1,7 +1,8 @@
-class_name Faction
+class_name IconFaction
 extends RefCounted
 
-## Faction: A closed dynamical system over 3-7 signature emojis
+## IconFaction: A closed dynamical system over 3-7 signature emojis
+## (Renamed from Faction to avoid conflict with Core/GameMechanics/Faction.gd)
 ##
 ## Factions define coupling terms between their signature emojis ONLY.
 ## An emoji can belong to multiple factions.
@@ -22,7 +23,7 @@ var description: String = ""
 var ring: String = "center"  # "center", "second", "third", "outer"
 
 ## The ONLY emojis this faction speaks (3-7 ideal)
-var signature: Array[String] = []
+var signature: Array = []
 
 ## ========================================
 ## Hamiltonian Terms (Unitary Evolution)
@@ -54,17 +55,11 @@ var lindblad_outgoing: Dictionary = {}
 var lindblad_incoming: Dictionary = {}
 
 ## Gated Lindblad: transfers that REQUIRE a catalyst emoji
-## {target_emoji: [{source: emoji, rate: float, gate: emoji, power: float, inverse: bool}]}
-## Normal: effective_rate = base_rate × P(gate)^power
-## Inverse (inverse=true): effective_rate = base_rate × (1 - P(gate))^power
-## Use inverse for "starvation" mechanics where LOW gate = HIGH transfer
+## {target_emoji: [{source: emoji, rate: float, gate: emoji, power: float}]}
+## effective_rate = base_rate × P(gate)^power
+## When P(gate) = 0, transfer stops entirely. Multiplicative, not additive.
+## Use for dependencies like pollination, fermentation catalysts, etc.
 var gated_lindblad: Dictionary = {}
-
-## Measurement behavior: how this emoji responds to measurement/observation
-## {emoji: {inverts: bool, invert_target: String}}
-## If inverts=true, measuring this emoji collapses it to invert_target instead
-## Use for quantum-resistant refugees, unmeasurable states, etc.
-var measurement_behavior: Dictionary = {}
 
 ## Decay configuration
 ## {emoji: {rate: float, target: String}}
@@ -92,7 +87,7 @@ var alignment_couplings: Dictionary = {}
 ## ========================================
 
 ## Tags for organization
-var tags: Array[String] = []
+var tags: Array = []
 
 ## ========================================
 ## Methods
@@ -103,8 +98,8 @@ func speaks(emoji: String) -> bool:
 	return emoji in signature
 
 ## Get all emojis this faction contributes to (including decay targets)
-func get_all_emojis() -> Array[String]:
-	var result: Array[String] = signature.duplicate()
+func get_all_emojis() -> Array:
+	var result: Array = signature.duplicate()
 	for emoji in decay:
 		var target = decay[emoji].get("target", "")
 		if target != "" and target not in result:
@@ -165,7 +160,6 @@ func get_icon_contribution(emoji: String) -> Dictionary:
 		"decay": decay.get(emoji, {}),
 		"driver": drivers.get(emoji, {}),
 		"alignment_couplings": alignment_couplings.get(emoji, {}),
-		"measurement_behavior": measurement_behavior.get(emoji, {}),
 	}
 	
 	return contribution

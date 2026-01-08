@@ -1,6 +1,9 @@
 class_name BiomeBase
 extends Node
 
+# Access autoloads safely (avoids compile-time errors)
+@onready var _icon_registry = get_node("/root/IconRegistry")
+
 ## Abstract base class for all biomes (Model C - Unified QuantumComputer)
 ##
 ## Model C: Biome owns ONE canonical quantum state (QuantumComputer).
@@ -1093,7 +1096,7 @@ func _initialize_bath() -> void:
 		bath.initialize_uniform()
 
 		var icons: Array[Icon] = []
-		icons.append(IconRegistry.get_icon("☀"))
+		icons.append(_icon_registry.get_icon("☀"))
 		# ... get other icons
 
 		bath.active_icons = icons

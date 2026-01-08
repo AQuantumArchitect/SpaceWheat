@@ -1,6 +1,9 @@
 class_name Farm
 extends Node
 
+# Access autoloads safely (avoids compile-time errors)
+@onready var _icon_registry = get_node("/root/IconRegistry")
+
 ## Farm - Pure simulation manager for quantum wheat farming
 ## Owns all game systems and handles all game logic
 ## Emits signals when state changes (no UI dependencies)
@@ -1173,9 +1176,9 @@ func _ensure_iconregistry() -> void:
 		return
 
 	# Test mode: Create IconRegistry
-	var IconRegistryScript = load("res://Core/QuantumSubstrate/IconRegistry.gd")
+	var IconRegistryScript = load("res://Core/QuantumSubstrate/_icon_registry.gd")
 	if not IconRegistryScript:
-		push_error("Failed to load IconRegistry.gd!")
+		push_error("Failed to load _icon_registry.gd!")
 		return
 
 	icon_registry = IconRegistryScript.new()

@@ -1,8 +1,9 @@
-class_name Faction
 extends Resource
 
-## Faction - Represents one of 32 galactic factions
+## OldFaction - Legacy faction system (replaced by Core/Factions/Faction.gd)
+## Represents one of 32 galactic factions
 ## Each faction has unique personality, contracts, and relationships
+## NOTE: This is kept for backwards compatibility with FactionManager.gd
 
 # Faction identity
 @export var faction_id: String = ""

@@ -1,6 +1,9 @@
 class_name LoggerConfigPanel
 extends Control
 
+# Access autoload safely (avoids compile-time errors)
+@onready var _verbose = get_node("/root/VerboseConfig")
+
 ## Logger Configuration Panel
 ## Runtime UI for configuring log categories and levels
 ## Toggle with 'L' key
@@ -127,28 +130,28 @@ func _create_output_options(parent: VBoxContainer):
 	# Console output
 	console_checkbox = CheckBox.new()
 	console_checkbox.text = "Console Output"
-	console_checkbox.button_pressed = VerboseConfig.enable_console_output
+	console_checkbox.button_pressed = _verbose.enable_console_output
 	console_checkbox.toggled.connect(_on_console_toggled)
 	output_hbox.add_child(console_checkbox)
 
 	# File logging
 	file_checkbox = CheckBox.new()
 	file_checkbox.text = "File Logging"
-	file_checkbox.button_pressed = VerboseConfig.enable_file_logging
+	file_checkbox.button_pressed = _verbose.enable_file_logging
 	file_checkbox.toggled.connect(_on_file_toggled)
 	output_hbox.add_child(file_checkbox)
 
 	# Timestamps
 	timestamps_checkbox = CheckBox.new()
 	timestamps_checkbox.text = "Timestamps"
-	timestamps_checkbox.button_pressed = VerboseConfig.show_timestamps
+	timestamps_checkbox.button_pressed = _verbose.show_timestamps
 	timestamps_checkbox.toggled.connect(_on_timestamps_toggled)
 	output_hbox.add_child(timestamps_checkbox)
 
 
 func _create_category_controls():
 	"""Create checkbox + dropdown for each category"""
-	var categories = VerboseConfig.get_all_categories()
+	var categories = _verbose.get_all_categories()
 	categories.sort()  # Alphabetical order
 
 	for category in categories:
@@ -158,7 +161,7 @@ func _create_category_controls():
 
 		# Checkbox (enable/disable)
 		var checkbox = CheckBox.new()
-		checkbox.button_pressed = VerboseConfig.category_enabled.get(category, true)
+		checkbox.button_pressed = _verbose.category_enabled.get(category, true)
 		checkbox.toggled.connect(func(enabled): _on_category_enabled_changed(category, enabled))
 		row_hbox.add_child(checkbox)
 		category_checkboxes[category] = checkbox
@@ -175,11 +178,11 @@ func _create_category_controls():
 		option_btn.custom_minimum_size = Vector2(100, 0)
 
 		# Add log level options
-		for i in range(VerboseConfig.LogLevel.size()):
-			option_btn.add_item(VerboseConfig.LEVEL_NAMES[i])
+		for i in range(_verbose.LogLevel.size()):
+			option_btn.add_item(_verbose.LEVEL_NAMES[i])
 
 		# Set current level
-		var current_level = VerboseConfig.get_category_level(category)
+		var current_level = _verbose.get_category_level(category)
 		option_btn.selected = current_level
 		option_btn.item_selected.connect(func(idx): _on_category_level_changed(category, idx))
 		row_hbox.add_child(option_btn)
@@ -213,51 +216,51 @@ func _create_buttons(parent: VBoxContainer):
 # ============================================================================
 
 func _on_console_toggled(enabled: bool):
-	VerboseConfig.enable_console_output = enabled
+	_verbose.enable_console_output = enabled
 	print("🔧 Logger: Console output %s" % ("ENABLED" if enabled else "DISABLED"))
 
 
 func _on_file_toggled(enabled: bool):
-	VerboseConfig.enable_file_logging = enabled
-	if enabled and not VerboseConfig._log_file:
-		VerboseConfig._init_file_logging()
+	_verbose.enable_file_logging = enabled
+	if enabled and not _verbose._log_file:
+		_verbose._init_file_logging()
 	print("🔧 Logger: File logging %s" % ("ENABLED" if enabled else "DISABLED"))
 
 
 func _on_timestamps_toggled(enabled: bool):
-	VerboseConfig.show_timestamps = enabled
+	_verbose.show_timestamps = enabled
 	print("🔧 Logger: Timestamps %s" % ("ENABLED" if enabled else "DISABLED"))
 
 
 func _on_category_enabled_changed(category: String, enabled: bool):
-	VerboseConfig.set_category_enabled(category, enabled)
+	_verbose.set_category_enabled(category, enabled)
 
 
 func _on_category_level_changed(category: String, level_idx: int):
-	VerboseConfig.set_category_level(category, level_idx as VerboseConfig.LogLevel)
+	_verbose.set_category_level(category, level_idx as _verbose.LogLevel)
 
 
 func _on_reset_pressed():
 	"""Reset all categories to default levels"""
 	# Reset to defaults
-	VerboseConfig.category_levels = {
-		"ui": VerboseConfig.LogLevel.INFO,
-		"input": VerboseConfig.LogLevel.WARN,
-		"quantum": VerboseConfig.LogLevel.INFO,
-		"farm": VerboseConfig.LogLevel.INFO,
-		"economy": VerboseConfig.LogLevel.INFO,
-		"biome": VerboseConfig.LogLevel.WARN,
-		"save": VerboseConfig.LogLevel.INFO,
-		"quest": VerboseConfig.LogLevel.INFO,
-		"boot": VerboseConfig.LogLevel.INFO,
-		"test": VerboseConfig.LogLevel.TRACE,
-		"perf": VerboseConfig.LogLevel.WARN,
-		"network": VerboseConfig.LogLevel.DEBUG,
+	_verbose.category_levels = {
+		"ui": _verbose.LogLevel.INFO,
+		"input": _verbose.LogLevel.WARN,
+		"quantum": _verbose.LogLevel.INFO,
+		"farm": _verbose.LogLevel.INFO,
+		"economy": _verbose.LogLevel.INFO,
+		"biome": _verbose.LogLevel.WARN,
+		"save": _verbose.LogLevel.INFO,
+		"quest": _verbose.LogLevel.INFO,
+		"boot": _verbose.LogLevel.INFO,
+		"test": _verbose.LogLevel.TRACE,
+		"perf": _verbose.LogLevel.WARN,
+		"network": _verbose.LogLevel.DEBUG,
 	}
 
 	# Enable all categories
-	for category in VerboseConfig.category_enabled.keys():
-		VerboseConfig.category_enabled[category] = true
+	for category in _verbose.category_enabled.keys():
+		_verbose.category_enabled[category] = true
 
 	# Refresh UI
 	_refresh_ui()
@@ -275,15 +278,15 @@ func _refresh_ui():
 	# Update checkboxes and dropdowns
 	for category in category_checkboxes.keys():
 		var checkbox = category_checkboxes[category]
-		checkbox.button_pressed = VerboseConfig.category_enabled.get(category, true)
+		checkbox.button_pressed = _verbose.category_enabled.get(category, true)
 
 		var option_btn = category_option_buttons[category]
-		option_btn.selected = VerboseConfig.get_category_level(category)
+		option_btn.selected = _verbose.get_category_level(category)
 
 	# Update output toggles
-	console_checkbox.button_pressed = VerboseConfig.enable_console_output
-	file_checkbox.button_pressed = VerboseConfig.enable_file_logging
-	timestamps_checkbox.button_pressed = VerboseConfig.show_timestamps
+	console_checkbox.button_pressed = _verbose.enable_console_output
+	file_checkbox.button_pressed = _verbose.enable_file_logging
+	timestamps_checkbox.button_pressed = _verbose.show_timestamps
 
 
 # ============================================================================
