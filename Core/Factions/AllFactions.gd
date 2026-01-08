@@ -14,18 +14,19 @@ extends RefCounted
 ##   var all_factions = AllFactions.get_all()
 ##   var icons = IconBuilder.build_icons_for_factions(all_factions)
 
-# All faction classes are globally available via class_name declarations
-# No need for preload() since CoreFactions, CivilizationFactions, Tier2Factions, and Faction
-# are all registered as global classes
+# Preload faction group scripts
+const CoreFactions = preload("res://Core/Factions/CoreFactions.gd")
+const CivilizationFactions = preload("res://Core/Factions/CivilizationFactions.gd")
+const Tier2Factions = preload("res://Core/Factions/Tier2Factions.gd")
 
 ## ========================================
 ## Faction Collections
 ## ========================================
 
 ## Get ALL factions (Core + Civilization + Tier 2)
-## Returns Array[Faction] with 27 factions total
-static func get_all() -> Array[Faction]:
-	var factions: Array[Faction] = []
+## Returns Array with 27 factions total
+static func get_all() -> Array:
+	var factions: Array = []
 
 	# Core ecosystem factions (10)
 	for f in CoreFactions.get_all():
@@ -42,20 +43,20 @@ static func get_all() -> Array[Faction]:
 	return factions
 
 ## Get core ecosystem factions only (nature, markets, kitchen)
-static func get_core() -> Array[Faction]:
+static func get_core() -> Array:
 	return CoreFactions.get_all()
 
 ## Get civilization factions only (bread/population accessible)
-static func get_civilization() -> Array[Faction]:
+static func get_civilization() -> Array:
 	return CivilizationFactions.get_all()
 
 ## Get tier 2 factions only (commerce, industry, governance)
-static func get_tier2() -> Array[Faction]:
+static func get_tier2() -> Array:
 	return Tier2Factions.get_all()
 
 ## Get factions accessible from starter emojis (🍞 + 👥)
-static func get_starter_accessible() -> Array[Faction]:
-	var factions: Array[Faction] = []
+static func get_starter_accessible() -> Array:
+	var factions: Array = []
 
 	# Hearth Keepers (🍞 producer)
 	factions.append(CoreFactions.create_hearth_keepers())
@@ -71,15 +72,15 @@ static func get_starter_accessible() -> Array[Faction]:
 ## ========================================
 
 ## Find all factions that speak a given emoji
-static func get_factions_for_emoji(emoji: String) -> Array[Faction]:
-	var result: Array[Faction] = []
+static func get_factions_for_emoji(emoji: String) -> Array:
+	var result: Array = []
 	for faction in get_all():
 		if faction.speaks(emoji):
 			result.append(faction)
 	return result
 
 ## Get all unique emojis across all factions
-static func get_all_emojis() -> Array[String]:
+static func get_all_emojis() -> Array:
 	var emojis: Array[String] = []
 	for faction in get_all():
 		for emoji in faction.get_all_emojis():
@@ -102,7 +103,7 @@ static func get_emoji_contestation() -> Dictionary:
 ## ========================================
 
 ## Get factions for a specific biome type
-static func get_biome_factions(biome_type: String) -> Array[Faction]:
+static func get_biome_factions(biome_type: String) -> Array:
 	match biome_type:
 		"BioticFlux":
 			return [

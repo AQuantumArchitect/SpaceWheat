@@ -9,6 +9,7 @@ extends Node
 # Preload Faction system (replaces CoreIcons)
 const AllFactions = preload("res://Core/Factions/AllFactions.gd")
 const IconBuilder = preload("res://Core/Factions/IconBuilder.gd")
+const IconScript = preload("res://Core/QuantumSubstrate/Icon.gd")
 
 ## Dictionary mapping emoji → Icon resource
 var icons: Dictionary = {}
@@ -56,7 +57,7 @@ func get_all_icons() -> Array:
 func get_icons_by_tag(tag: String) -> Array:
 	var result: Array = []
 	for icon_variant in icons.values():
-		var icon = icon_variant as Icon
+		var icon = icon_variant as IconScript
 		if icon and tag in icon.tags:
 			result.append(icon)
 	return result
@@ -65,7 +66,7 @@ func get_icons_by_tag(tag: String) -> Array:
 func get_icons_by_trophic_level(level: int) -> Array:
 	var result: Array = []
 	for icon_variant in icons.values():
-		var icon = icon_variant as Icon
+		var icon = icon_variant as IconScript
 		if icon and icon.trophic_level == level:
 			result.append(icon)
 	return result
@@ -93,7 +94,7 @@ func derive_from_markov(markov: Dictionary, h_scale: float = 0.5, l_scale: float
 		if has_icon(source):
 			continue
 
-		var icon = Icon.new()
+		var icon = IconScript.new()
 		icon.emoji = source
 		icon.display_name = "Markov: " + source
 

@@ -862,7 +862,7 @@ static func create_house_of_thorns() -> Faction:
 ## Utility Functions
 ## ========================================
 
-static func get_all() -> Array[Faction]:
+static func get_all() -> Array:
 	return [
 		# Commerce branch
 		create_ledger_bailiffs(),
@@ -879,7 +879,7 @@ static func get_all() -> Array[Faction]:
 		create_house_of_thorns(),
 	]
 
-static func get_commerce_factions() -> Array[Faction]:
+static func get_commerce_factions() -> Array:
 	return [
 		create_ledger_bailiffs(),
 		create_gilded_legacy(),
@@ -887,22 +887,22 @@ static func get_commerce_factions() -> Array[Faction]:
 		create_bone_merchants(),
 	]
 
-static func get_industry_factions() -> Array[Faction]:
+static func get_industry_factions() -> Array:
 	return [
 		create_kilowatt_collective(),
 		create_gearwright_circle(),
 		create_rocketwright_institute(),
 	]
 
-static func get_governance_factions() -> Array[Faction]:
+static func get_governance_factions() -> Array:
 	return [
 		create_irrigation_jury(),
 		create_indelible_precept(),
 		create_house_of_thorns(),
 	]
 
-static func get_factions_for_emoji(emoji: String) -> Array[Faction]:
-	var result: Array[Faction] = []
+static func get_factions_for_emoji(emoji: String) -> Array:
+	var result: Array = []
 	for faction in get_all():
 		if faction.speaks(emoji):
 			result.append(faction)

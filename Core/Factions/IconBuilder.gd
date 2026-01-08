@@ -19,9 +19,10 @@ extends RefCounted
 const Faction = preload("res://Core/Factions/Faction.gd")
 const CoreFactions = preload("res://Core/Factions/CoreFactions.gd")
 const CivilizationFactions = preload("res://Core/Factions/CivilizationFactions.gd")
+const IconScript = preload("res://Core/QuantumSubstrate/Icon.gd")
 
 ## Build Icons for all emojis across given factions
-static func build_icons_for_factions(factions: Array) -> Array[Icon]:
+static func build_icons_for_factions(factions: Array):
 	# Collect all unique emojis
 	var all_emojis: Array[String] = []
 	for faction in factions:
@@ -30,7 +31,7 @@ static func build_icons_for_factions(factions: Array) -> Array[Icon]:
 				all_emojis.append(emoji)
 	
 	# Build Icon for each emoji
-	var icons: Array[Icon] = []
+	var icons: Array = []
 	for emoji in all_emojis:
 		var icon = build_icon(emoji, factions)
 		if icon != null:
@@ -39,8 +40,8 @@ static func build_icons_for_factions(factions: Array) -> Array[Icon]:
 	return icons
 
 ## Build a single Icon by merging all faction contributions
-static func build_icon(emoji: String, factions: Array) -> Icon:
-	var icon = Icon.new()
+static func build_icon(emoji: String, factions: Array) :
+	var icon = IconScript.new()
 	icon.emoji = emoji
 	icon.display_name = emoji  # Default, can be overridden
 	
@@ -166,7 +167,7 @@ static func inject_cross_faction_couplings(icons: Dictionary, couplings: Array) 
 			push_warning("Cross-faction coupling: source %s not found" % source_emoji)
 			continue
 		
-		var icon: Icon = icons[source_emoji]
+		var icon = icons[source_emoji]
 		
 		match coupling_type:
 			"hamiltonian":
@@ -417,7 +418,7 @@ static func build_scavenger_biome() -> Dictionary:
 ## Debug Utilities
 ## ========================================
 
-static func debug_print_icon(icon: Icon) -> void:
+static func debug_print_icon(icon) -> void:
 	print("\n=== Icon: %s (%s) ===" % [icon.emoji, icon.display_name])
 	print("  Description: %s" % icon.description)
 	print("  Self-energy: %.3f" % icon.self_energy)

@@ -737,7 +737,7 @@ static func create_carrion_throne() -> Faction:
 ## Utility Functions
 ## ========================================
 
-static func get_all() -> Array[Faction]:
+static func get_all() -> Array:
 	return [
 		create_granary_guilds(),
 		create_millwrights_union(),
@@ -748,11 +748,11 @@ static func get_all() -> Array[Faction]:
 		create_carrion_throne(),
 	]
 
-static func get_starter_accessible() -> Array[Faction]:
+static func get_starter_accessible() -> Array:
 	return get_all()
 
-static func get_factions_for_emoji(emoji: String) -> Array[Faction]:
-	var result: Array[Faction] = []
+static func get_factions_for_emoji(emoji: String) -> Array:
+	var result: Array = []
 	for faction in get_all():
 		if faction.speaks(emoji):
 			result.append(faction)

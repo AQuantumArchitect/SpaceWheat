@@ -69,7 +69,7 @@ func build_from_icons(icons: Array, emojis: Array) -> void:
 func _build_matrix(time: float) -> void:
 	# Reset to zeros
 	for i in range(_dimension * _dimension):
-		_matrix._data[i] = Complex.zero()
+		_matrix._data[i] = Complex.new(0.0, 0.0)
 
 	# Reset sparse matrix
 	_sparse_matrix = {}

@@ -56,21 +56,25 @@ func div(other: Complex):
 func scale(s: float):
 	return get_script().new(re * s, im * s)
 
+## NOTE: Static factory methods temporarily disabled due to GDScript class_name circular dependency
+## See: https://github.com/godotengine/godot/issues/52035
+## Workaround: Use Complex.new(re, im) directly or preload the script in tests
+
 ## Create from polar coordinates: r × e^(iθ) = r(cos θ + i sin θ)
-static func from_polar(r: float, theta: float):
-	return Complex.new(r * cos(theta), r * sin(theta))
+#static func from_polar(r: float, theta: float):
+#	return Complex.new(r * cos(theta), r * sin(theta))
 
 ## Imaginary unit: i
-static func i():
-	return Complex.new(0.0, 1.0)
+#static func i():
+#	return Complex.new(0.0, 1.0)
 
 ## Zero
-static func zero():
-	return Complex.new(0.0, 0.0)
+#static func zero():
+#	return Complex.new(0.0, 0.0)
 
 ## One
-static func one():
-	return Complex.new(1.0, 0.0)
+#static func one():
+#	return Complex.new(1.0, 0.0)
 
 ## String representation for debugging
 func _to_string() -> String:
