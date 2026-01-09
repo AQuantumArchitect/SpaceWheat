@@ -390,14 +390,14 @@ func get_player_state_for_contract_evaluation(farm_view: Node) -> Dictionary:
 		state["current_jones_polynomial"] = 0.0
 		state["topological_protection_level"] = 0
 
-	# Get conspiracy data
-	if farm_view.has_node("TomatoConspiracyNetwork") or farm_view.get("conspiracy_network"):
-		var conspiracy_network = farm_view.get("conspiracy_network")
-		state["discovered_conspiracies"] = conspiracy_network.get_discovered_conspiracies() if conspiracy_network.has_method("get_discovered_conspiracies") else []
-		state["active_conspiracies_count"] = conspiracy_network.get_active_conspiracy_count() if conspiracy_network.has_method("get_active_conspiracy_count") else 0
-	else:
-		state["discovered_conspiracies"] = []
-		state["active_conspiracies_count"] = 0
+	# DEPRECATED: Conspiracy data (tomato conspiracy system removed)
+	# if farm_view.has_node("TomatoConspiracyNetwork") or farm_view.get("conspiracy_network"):
+	# 	var conspiracy_network = farm_view.get("conspiracy_network")
+	# 	state["discovered_conspiracies"] = conspiracy_network.get_discovered_conspiracies() if conspiracy_network.has_method("get_discovered_conspiracies") else []
+	# 	state["active_conspiracies_count"] = conspiracy_network.get_active_conspiracy_count() if conspiracy_network.has_method("get_active_conspiracy_count") else 0
+	# else:
+	state["discovered_conspiracies"] = []
+	state["active_conspiracies_count"] = 0
 
 	# Get Icon influence data
 	if farm_view.get("chaos_icon"):

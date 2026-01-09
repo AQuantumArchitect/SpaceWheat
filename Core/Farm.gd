@@ -15,6 +15,7 @@ const PlotConfig = preload("res://Core/GameState/PlotConfig.gd")
 const KeyboardLayoutConfig = preload("res://Core/GameState/KeyboardLayoutConfig.gd")
 
 const FarmGrid = preload("res://Core/GameMechanics/FarmGrid.gd")
+const FarmPlot = preload("res://Core/GameMechanics/FarmPlot.gd")
 const FarmEconomy = preload("res://Core/GameMechanics/FarmEconomy.gd")
 const GoalsSystem = preload("res://Core/GameMechanics/GoalsSystem.gd")
 const BioticFluxBiome = preload("res://Core/Environment/BioticFluxBiome.gd")
@@ -25,10 +26,11 @@ const QuantumKitchen_Biome = preload("res://Core/Environment/QuantumKitchen_Biom
 const FarmUIState = preload("res://Core/GameState/FarmUIState.gd")
 const VocabularyEvolution = preload("res://Core/QuantumSubstrate/VocabularyEvolution.gd")
 
-# Icon Hamiltonians (simulation objects that affect quantum evolution)
-const BioticFluxIcon = preload("res://Core/Icons/BioticFluxIcon.gd")
-const ChaosIcon = preload("res://Core/Icons/ChaosIcon.gd")
-const ImperiumIcon = preload("res://Core/Icons/ImperiumIcon.gd")
+# DEPRECATED: Icon Hamiltonians (simulation objects that affect quantum evolution)
+# These Icon classes have been removed - icons are now data in IconRegistry
+# const BioticFluxIcon = preload("res://Core/Icons/BioticFluxIcon.gd")
+# const ChaosIcon = preload("res://Core/Icons/ChaosIcon.gd")
+# const ImperiumIcon = preload("res://Core/Icons/ImperiumIcon.gd")
 
 # Core simulation systems
 var grid: FarmGrid
@@ -228,16 +230,14 @@ func _ready():
 	# NOTE: Operator rebuild now handled by BootManager in Stage 3A
 	# This ensures deterministic ordering: IconRegistry ready → rebuild operators → verify biomes
 
-	# Create Icons (simulation objects that affect quantum evolution)
-	# These are owned by Farm (simulation) not UI
-	biotic_icon = BioticFluxIcon.new()
-	add_child(biotic_icon)
-
-	chaos_icon = ChaosIcon.new()
-	add_child(chaos_icon)
-
-	imperium_icon = ImperiumIcon.new()
-	add_child(imperium_icon)
+	# DEPRECATED: Icon Hamiltonians (simulation objects that affect quantum evolution)
+	# These Icon classes have been removed - icons are now data in IconRegistry
+	# biotic_icon = BioticFluxIcon.new()
+	# add_child(biotic_icon)
+	# chaos_icon = ChaosIcon.new()
+	# add_child(chaos_icon)
+	# imperium_icon = ImperiumIcon.new()
+	# add_child(imperium_icon)
 
 	# Create grid AFTER biome (or fallback)
 	grid = FarmGrid.new()

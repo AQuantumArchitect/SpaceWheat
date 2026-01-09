@@ -1,5 +1,5 @@
 class_name QuantumKitchen_Biome
-extends BiomeBase
+extends "res://Core/Environment/BiomeBase.gd"  # String path forces compilation order
 
 ## Quantum Kitchen Biome: Bell State Entanglement Factory
 ##

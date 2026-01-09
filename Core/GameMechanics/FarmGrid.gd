@@ -26,8 +26,10 @@ signal visualization_changed()
 
 # Preload classes
 const FarmPlot = preload("res://Core/GameMechanics/FarmPlot.gd")
+const FarmEconomy = preload("res://Core/GameMechanics/FarmEconomy.gd")
 const WheatPlot = preload("res://Core/GameMechanics/WheatPlot.gd")
 const BioticFluxBiome = preload("res://Core/Environment/BioticFluxBiome.gd")
+const QuantumKitchen_Biome = preload("res://Core/Environment/QuantumKitchen_Biome.gd")
 # const Biome = preload("res://Core/Environment/Biome.gd")  # Legacy - REMOVED: file no longer exists
 const DualEmojiQubit = preload("res://Core/QuantumSubstrate/DualEmojiQubit.gd")
 const QuantumMill = preload("res://Core/GameMechanics/QuantumMill.gd")
@@ -35,6 +37,7 @@ const FlowRateCalculator = preload("res://Core/GameMechanics/FlowRateCalculator.
 const TopologyAnalyzer = preload("res://Core/QuantumSubstrate/TopologyAnalyzer.gd")
 const EntangledPair = preload("res://Core/QuantumSubstrate/EntangledPair.gd")
 const EntangledCluster = preload("res://Core/QuantumSubstrate/EntangledCluster.gd")
+const Icon = preload("res://Core/QuantumSubstrate/Icon.gd")
 
 # Grid configuration
 @export var grid_width: int = 5
