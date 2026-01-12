@@ -84,7 +84,7 @@ var vocabulary_evolution = null  # Reference to VocabularyEvolution
 
 # Environmental parameters
 var base_temperature: float = 20.0  # Base farm temperature (Kelvin or relative)
-var active_icons: Array = []  # Array of LindbladIcon affecting the farm
+var active_icons: Array = []  # Array of Icons from IconRegistry affecting the farm
 var icon_scopes: Dictionary = {}  # Icon → Array[String] (biome names the icon affects)
 
 # Stats
@@ -103,8 +103,9 @@ func _ready():
 
 	# Initialize Biome ONLY if not already injected by Farm
 	# Farm will handle Biome creation and pass it if available
-	if not biome:
-		_verbose.info("farm", "ℹ️", "No biome injected - running in simple mode")
+	# NOTE: Check multi-biome system (biomes dictionary) not legacy single biome field
+	if biomes.is_empty() and not biome:
+		_verbose.info("farm", "ℹ️", "No biomes registered - running in simple mode")
 		# Don't create biome here - let Farm control it
 
 	# Pre-initialize all plots for headless testing compatibility
@@ -137,9 +138,8 @@ func _process(delta):
 		_verbose.debug("farm", "🌾", "FarmGrid._process called, delta=%.3f" % delta)
 
 	# In multi-biome mode, always process (mills, markets, kitchens don't depend on legacy biome field)
-	# Only skip full quantum evolution if in single-biome legacy mode with no biome set
-	var has_biomes = not biomes.is_empty()
-	if not biome and not has_biomes:
+	# Skip processing if no biomes are registered (neither multi-biome nor legacy)
+	if biomes.is_empty() and not biome:
 		return
 
 	# Apply Icon effects to quantum states (Lindblad evolution)
@@ -202,7 +202,8 @@ func register_biome(biome_name: String, biome_instance) -> void:
 		return
 
 	biomes[biome_name] = biome_instance
-	_verbose.info("biome", "📍", "Biome registered: %s" % biome_name)
+	if _verbose:
+		_verbose.info("biome", "📍", "Biome registered: %s" % biome_name)
 
 
 func assign_plot_to_biome(position: Vector2i, biome_name: String) -> void:
@@ -698,11 +699,14 @@ func is_plot_mature(position: Vector2i) -> bool:
 ## Farming Operations
 
 func plant(position: Vector2i, plant_type: String, quantum_state: Resource = null) -> bool:
-	"""Generic plant method - handles all crop types
+	"""Generic plant method - handles all crop types (PARAMETRIC - Phase 4)
+
+	Queries biome capabilities to get emoji pairs and validate planting.
+	No more hard-coded plot_type_map - uses biome-defined capabilities.
 
 	Args:
 		position: Grid position to plant at
-		plant_type: "wheat", "tomato", or "mushroom"
+		plant_type: "wheat", "tomato", "mushroom", etc.
 		quantum_state: DEPRECATED - kept for backward compatibility
 
 	Returns: true if planting succeeded, false otherwise
@@ -711,7 +715,26 @@ func plant(position: Vector2i, plant_type: String, quantum_state: Resource = nul
 	if plot == null or plot.is_planted:
 		return false
 
-	# Set plot type
+	# Get plot-specific biome from multi-biome registry
+	var plot_biome = get_biome_for_plot(position)
+	if not plot_biome:
+		push_error("⚠️ Cannot plant: No biome assigned to plot %s" % position)
+		return false
+
+	# PARAMETRIC: Find capability for this plant_type in biome
+	var capability = null
+	for cap in plot_biome.get_plantable_capabilities():
+		if cap.plant_type == plant_type:
+			capability = cap
+			break
+
+	if not capability:
+		push_error("⚠️ %s biome does not support planting %s" % [
+			plot_biome.get_biome_type(), plant_type])
+		return false
+
+	# LEGACY: Still set plot_type enum for backward compatibility (Phase 5 will remove)
+	# Map plant_type string to enum for now
 	var plot_type_map = {
 		"wheat": FarmPlot.PlotType.WHEAT,
 		"tomato": FarmPlot.PlotType.TOMATO,
@@ -724,29 +747,24 @@ func plant(position: Vector2i, plant_type: String, quantum_state: Resource = nul
 		"wolf": FarmPlot.PlotType.WOLF,
 		"bread": FarmPlot.PlotType.BREAD
 	}
-
-	if not plot_type_map.has(plant_type):
-		push_error("Unknown plant type: %s" % plant_type)
-		return false
-
-	plot.plot_type = plot_type_map[plant_type]
-
-	# Get plot-specific biome from multi-biome registry
-	var plot_biome = null
-	if plot_biome_assignments.has(position):
-		var biome_name = plot_biome_assignments[position]
-		plot_biome = biomes.get(biome_name, null)
+	if plot_type_map.has(plant_type):
+		plot.plot_type = plot_type_map[plant_type]
 	else:
-		# Fallback to BioticFlux if no assignment
-		plot_biome = biomes.get("BioticFlux", biome)
+		# If enum doesn't exist, just use WHEAT as default (Phase 5 will remove enum entirely)
+		plot.plot_type = FarmPlot.PlotType.WHEAT
 
-	# VALIDATION: Check if biome supports this plant's emoji pair
-	var emojis = plot.get_plot_emojis()
-	if plot_biome and plot_biome.has_method("supports_emoji_pair"):
-		if not plot_biome.supports_emoji_pair(emojis.north, emojis.south):
-			push_warning("⚠️ Biome %s doesn't support %s/%s pair - plant may not function correctly" % [
-				plot_biome.get_biome_type() if plot_biome.has_method("get_biome_type") else "unknown",
-				emojis.north, emojis.south])
+	# PARAMETRIC: Set emoji pairs from capability (not hard-coded get_plot_emojis())
+	plot.north_emoji = capability.emoji_pair.north
+	plot.south_emoji = capability.emoji_pair.south
+
+	# PHASE 5 (PARAMETRIC): Set plot_type_name from plant_type string
+	plot.plot_type_name = plant_type
+
+	# VALIDATION: Check if biome quantum system supports this emoji pair
+	if plot_biome.has_method("supports_emoji_pair"):
+		if not plot_biome.supports_emoji_pair(plot.north_emoji, plot.south_emoji):
+			push_warning("⚠️ Biome %s quantum system doesn't have %s/%s axis - plant may not function correctly" % [
+				plot_biome.get_biome_type(), plot.north_emoji, plot.south_emoji])
 			# Don't block planting, but warn - allows player experimentation
 
 	# Special handling for tomato: assign conspiracy node
@@ -1802,10 +1820,32 @@ func create_entanglement(pos_a: Vector2i, pos_b: Vector2i, bell_type: String = "
 	if plot_a == null or plot_b == null:
 		return false
 
+	# CRITICAL: Cross-biome entanglement prevention (Semantic Revolution requirement)
+	# Each biome is an isolated quantum system - entanglement cannot span biomes
+	var biome_id_a = plot_biome_assignments.get(pos_a, "")
+	var biome_id_b = plot_biome_assignments.get(pos_b, "")
+
+	if biome_id_a != biome_id_b:
+		push_warning("❌ FORBIDDEN: Cannot entangle plots from different biomes!")
+		push_warning("   Plot %s biome: %s" % [pos_a, biome_id_a if biome_id_a != "" else "unassigned"])
+		push_warning("   Plot %s biome: %s" % [pos_b, biome_id_b if biome_id_b != "" else "unassigned"])
+		if _verbose:
+			_verbose.warn("farm", "❌", "Cross-biome entanglement blocked: %s (%s) ↔ %s (%s)" % [
+				pos_a, biome_id_a, pos_b, biome_id_b
+			])
+		return false
+
+	if biome_id_a == "":
+		push_warning("❌ Cannot entangle plots with no biome assignment")
+		if _verbose:
+			_verbose.warn("farm", "❌", "Entanglement blocked: plots must be assigned to a biome")
+		return false
+
 	# NEW: Set up plot infrastructure FIRST (works even if not planted)
 	if not plot_a.plot_infrastructure_entanglements.has(pos_b):
 		plot_a.plot_infrastructure_entanglements.append(pos_b)
-		_verbose.debug("farm", "🏗️", "Plot infrastructure: %s ↔ %s (entanglement gate installed)" % [pos_a, pos_b])
+		if _verbose:
+			_verbose.debug("farm", "🏗️", "Plot infrastructure: %s ↔ %s (entanglement gate installed)" % [pos_a, pos_b])
 
 	if not plot_b.plot_infrastructure_entanglements.has(pos_a):
 		plot_b.plot_infrastructure_entanglements.append(pos_a)
@@ -1817,7 +1857,8 @@ func create_entanglement(pos_a: Vector2i, pos_b: Vector2i, bell_type: String = "
 
 	# If both plots are NOT planted, just set up infrastructure and return
 	if not plot_a.is_planted or not plot_b.is_planted:
-		_verbose.info("farm", "→", "Infrastructure ready. Quantum entanglement will auto-activate when both plots are planted.")
+		if _verbose:
+			_verbose.info("farm", "→", "Infrastructure ready. Quantum entanglement will auto-activate when both plots are planted.")
 		entanglement_created.emit(pos_a, pos_b)
 		# Emit generic signals
 		plot_changed.emit(pos_a, "entangled", {"partner": pos_b})
@@ -1863,6 +1904,24 @@ func create_triplet_entanglement(pos_a: Vector2i, pos_b: Vector2i, pos_c: Vector
 	var plot_c = get_plot(pos_c)
 
 	if plot_a == null or plot_b == null or plot_c == null:
+		return false
+
+	# CRITICAL: Cross-biome entanglement prevention (triplet version)
+	var biome_id_a = plot_biome_assignments.get(pos_a, "")
+	var biome_id_b = plot_biome_assignments.get(pos_b, "")
+	var biome_id_c = plot_biome_assignments.get(pos_c, "")
+
+	if biome_id_a != biome_id_b or biome_id_b != biome_id_c:
+		push_warning("❌ FORBIDDEN: Cannot create triplet entanglement across different biomes!")
+		push_warning("   Plot %s biome: %s" % [pos_a, biome_id_a])
+		push_warning("   Plot %s biome: %s" % [pos_b, biome_id_b])
+		push_warning("   Plot %s biome: %s" % [pos_c, biome_id_c])
+		if _verbose:
+			_verbose.warn("farm", "❌", "Cross-biome triplet entanglement blocked")
+		return false
+
+	if biome_id_a == "":
+		push_warning("❌ Cannot create triplet entanglement with unassigned plots")
 		return false
 
 	# Mark as triplet Bell gate in biome (kitchen can query these)

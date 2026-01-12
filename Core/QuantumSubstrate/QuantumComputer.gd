@@ -655,6 +655,27 @@ func get_population(emoji: String) -> float:
 	return get_marginal(q, p)
 
 
+func get_all_populations() -> Dictionary:
+	"""Get populations for all registered emojis.
+
+	Returns:
+	    Dictionary: {emoji: float} for all registered emojis
+
+	Example:
+	    {"🔥": 0.7, "❄️": 0.3, "💧": 0.5, "🏜️": 0.5}
+	"""
+	var populations: Dictionary = {}
+
+	if register_map == null:
+		return populations
+
+	# Iterate over all registered emojis
+	for emoji in register_map.coordinates.keys():
+		populations[emoji] = get_population(emoji)
+
+	return populations
+
+
 func measure_axis(north_emoji: String, south_emoji: String) -> String:
 	"""Projective measurement on a north/south emoji axis.
 

@@ -2546,7 +2546,7 @@ func _draw_strange_attractor():
 	if not imperium_icon:
 		return
 
-	# Check if this is a CarrionThroneIcon with attractor data
+	# Check if this icon has attractor tracking
 	if not imperium_icon.has_method("get_attractor_history"):
 		return
 

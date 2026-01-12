@@ -10,11 +10,7 @@ extends "res://Core/Environment/BiomeBase.gd"
 var sun_qubit: DualEmojiQubit = null  # (☀️, 🌙) - immutable celestial anchor
 var sun_moon_period: float = 20.0  # seconds for full day-night cycle
 
-# Icon Hamiltonians (environmental modifiers with quantum state and coupling terms)
-var wheat_icon = null  # WheatIcon - defines Hamiltonian terms and influence
-var mushroom_icon = null  # MushroomIcon - defines Hamiltonian terms and influence
-var biotic_flux_icon = null  # Reference to Biotic Flux Icon (environmental error correction)
-var imperium_icon = null  # Reference to Imperium Icon (order/extraction)
+# Icon system moved to faction-based IconRegistry (deprecated variables removed)
 
 # Energy transfer parameters (non-Hamiltonian, affects radius/energy only)
 # Tuned for 3-day growth: 0.3→0.9 in 60 seconds (3 full sun-moon cycles)
@@ -66,6 +62,12 @@ func _ready():
 	register_emoji_pair("🍄", "🍂")  # Mushroom ↔ Detritus (for mushroom plots)
 	register_emoji_pair("☀", "🌙")   # Sun ↔ Moon (Celestial axis - qubit 0)
 	register_emoji_pair("🍂", "💀")  # Detritus ↔ Death (Matter axis - qubit 2)
+
+	# Register planting capabilities (Parametric System - Phase 1)
+	# Costs from BUILD_CONFIGS, emoji pairs for quantum superposition
+	register_planting_capability("🌾", "👥", "wheat", {"🌾": 1}, "Wheat", false)
+	register_planting_capability("🍄", "🍂", "mushroom", {"🍄": 10, "🍂": 10}, "Mushroom", false)
+	register_planting_capability("🍅", "🌌", "tomato", {"🌾": 1}, "Tomato", false)
 
 	# Configure visual properties for QuantumForceGraph
 	# Layout: BioticFlux (UIOP) in bottom-center
@@ -177,16 +179,8 @@ func _initialize_bath() -> void:
 		mushroom_icon_ref.lindblad_incoming["🌙"] = 0.40
 		print("  🍄 Mushroom: Lindblad incoming from 🌙 = 0.40")
 
-	# Build operators using HamiltonianBuilder and LindbladBuilder
-	var HamBuilder = load("res://Core/QuantumSubstrate/HamiltonianBuilder.gd")
-	var LindBuilder = load("res://Core/QuantumSubstrate/LindbladBuilder.gd")
-
-	quantum_computer.hamiltonian = HamBuilder.build(icons, quantum_computer.register_map)
-
-	# LindbladBuilder now returns {operators, gated_configs}
-	var lindblad_result = LindBuilder.build(icons, quantum_computer.register_map)
-	quantum_computer.lindblad_operators = lindblad_result.get("operators", [])
-	quantum_computer.gated_lindblad_configs = lindblad_result.get("gated_configs", [])
+	# Build operators using cached method
+	build_operators_cached("BioticFluxBiome", icons)
 
 	print("  ✅ Hamiltonian: %dx%d matrix" % [
 		quantum_computer.hamiltonian.n if quantum_computer.hamiltonian else 0,
@@ -234,16 +228,8 @@ func rebuild_quantum_operators() -> void:
 	if mushroom:
 		mushroom.lindblad_incoming["🌙"] = 0.40  # Mushroom gains from moon
 
-	# Rebuild operators using HamiltonianBuilder and LindbladBuilder
-	var HamBuilder = load("res://Core/QuantumSubstrate/HamiltonianBuilder.gd")
-	var LindBuilder = load("res://Core/QuantumSubstrate/LindbladBuilder.gd")
-
-	quantum_computer.hamiltonian = HamBuilder.build(icons, quantum_computer.register_map)
-
-	# LindbladBuilder returns {operators, gated_configs}
-	var lindblad_result = LindBuilder.build(icons, quantum_computer.register_map)
-	quantum_computer.lindblad_operators = lindblad_result.get("operators", [])
-	quantum_computer.gated_lindblad_configs = lindblad_result.get("gated_configs", [])
+	# Rebuild operators using cached method
+	build_operators_cached("BioticFluxBiome", icons)
 
 	print("  ✅ BioticFlux: Hamiltonian %dx%d, Lindblad %d operators + %d gated" % [
 		quantum_computer.hamiltonian.n if quantum_computer.hamiltonian else 0,
@@ -261,6 +247,9 @@ func _update_quantum_substrate(dt: float) -> void:
 	# MODEL C: Evolve quantum computer under Lindblad master equation
 	if quantum_computer:
 		quantum_computer.evolve(dt)
+
+		# SEMANTIC TOPOLOGY: Record phase space trajectory
+		_record_attractor_snapshot()
 
 	# Update visualizations from quantum state
 	_update_sun_visualization_from_quantum()
@@ -356,9 +345,6 @@ func inject_planting(position: Vector2i, wheat_amount: float, labor_amount: floa
 
 	Returns: Qubit representing the planting
 	"""
-	if not wheat_icon:
-		return null
-
 	# Create a hybrid qubit (🌾, 👥) representing the planting
 	# Start at balanced superposition (50/50 wheat/labor)
 	var planting_qubit = BiomeUtilities.create_qubit("🌾", "👥", PI / 2.0)  # π/2 = balanced
@@ -449,11 +435,7 @@ func _reset_custom() -> void:
 		sun_qubit.theta = 0.0
 		sun_qubit.radius = 1.0
 
-	# Reset icons
-	if wheat_icon and wheat_icon is Dictionary:
-		wheat_icon["stable_theta"] = PI / 4.0
-	if mushroom_icon and mushroom_icon is Dictionary:
-		mushroom_icon["stable_theta"] = PI
+	# Icon system now managed by IconRegistry (deprecated icon variables removed)
 
 	# Model B: Quantum state management handled by quantum_computer
 	temperature_grid.clear()

@@ -20,7 +20,7 @@ var quantum_viz: BathQuantumViz = null
 @onready var _game_state = get_node("/root/GameStateManager")
 
 
-func _ready() -> void:
+func _ready():
 	"""Initialize: create farm and shell, wire them together"""
 	_verbose.info("ui", "🌾", "FarmView starting...")
 
@@ -53,8 +53,7 @@ func _ready() -> void:
 	else:
 		_verbose.warn("farm", "⚠️", "GameStateManager not available (test mode)")
 
-	# Wait for farm._ready() to complete
-	await get_tree().process_frame
+	# Wait for farm._ready() to complete (one frame is enough)
 	await get_tree().process_frame
 
 	# Create quantum visualization

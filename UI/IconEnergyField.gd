@@ -3,8 +3,8 @@ extends CanvasLayer
 ## Renders background particle systems that encode Icon influence
 ## Zero-waste design: every particle property = data
 
-# Icon reference
-var icon = null  # BioticIcon, ChaosIcon, or ImperiumIcon
+# Icon reference (from faction-based IconRegistry)
+var icon = null
 
 # Visual properties
 var icon_color: Color = Color.WHITE

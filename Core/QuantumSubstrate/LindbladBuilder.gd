@@ -14,12 +14,13 @@ const Complex = preload("res://Core/QuantumSubstrate/Complex.gd")
 const RegisterMap = preload("res://Core/QuantumSubstrate/RegisterMap.gd")
 
 
-static func build(icons: Dictionary, register_map: RegisterMap) -> Dictionary:
+static func build(icons: Dictionary, register_map: RegisterMap, verbose = null) -> Dictionary:
 	"""Build Lindblad operators and gated configs from Icons dictionary.
 
 	Args:
 	    icons: Dictionary[emoji] → Icon (containing lindblad couplings)
 	    register_map: This biome's RegisterMap
+	    verbose: Optional VerboseConfig for logging (default: print to console)
 
 	Returns:
 	    Dictionary with:
@@ -32,7 +33,20 @@ static func build(icons: Dictionary, register_map: RegisterMap) -> Dictionary:
 	var dim = register_map.dim()
 	var num_qubits = register_map.num_qubits
 
-	print("🔨 Building Lindblad operators: %d qubits (%dD)..." % [num_qubits, dim])
+	# Statistics tracking
+	var stats = {
+		"outgoing_added": 0,
+		"outgoing_skipped": 0,
+		"incoming_added": 0,
+		"incoming_skipped": 0,
+		"gated_added": 0,
+		"gated_skipped": 0
+	}
+
+	if verbose:
+		verbose.info("quantum", "🔨", "Building Lindblad operators: %d qubits (%dD)" % [num_qubits, dim])
+	else:
+		print("🔨 Building Lindblad operators: %d qubits (%dD)..." % [num_qubits, dim])
 
 	for source_emoji in icons:
 		var icon = icons[source_emoji]
@@ -50,7 +64,9 @@ static func build(icons: Dictionary, register_map: RegisterMap) -> Dictionary:
 			for target_emoji in icon.lindblad_outgoing:
 				# Filter: skip if target not in this biome
 				if not register_map.has(target_emoji):
-					print("  ⚠️ L %s→%s skipped (no coordinate)" % [source_emoji, target_emoji])
+					stats.outgoing_skipped += 1
+					if verbose:
+						verbose.debug("quantum-build", "⚠️", "L %s→%s skipped (no coordinate)" % [source_emoji, target_emoji])
 					continue
 
 				var target_q = register_map.qubit(target_emoji)
@@ -63,8 +79,12 @@ static func build(icons: Dictionary, register_map: RegisterMap) -> Dictionary:
 				var L = _build_jump(source_q, source_p, target_q, target_p,
 									amplitude, num_qubits)
 				operators.append(L)
+				stats.outgoing_added += 1
 
-				print("  ✓ L %s→%s (γ=%.3f)" % [source_emoji, target_emoji, rate])
+				if verbose:
+					verbose.debug("quantum-build", "✓", "L %s→%s (γ=%.3f)" % [source_emoji, target_emoji, rate])
+				else:
+					print("  ✓ L %s→%s (γ=%.3f)" % [source_emoji, target_emoji, rate])
 
 		# --- Incoming Lindblad: target gains amplitude from source ---
 		# lindblad_incoming: {source_emoji: rate (float)}
@@ -72,7 +92,9 @@ static func build(icons: Dictionary, register_map: RegisterMap) -> Dictionary:
 			for from_emoji in icon.lindblad_incoming:
 				# Filter: skip if source not in this biome
 				if not register_map.has(from_emoji):
-					print("  ⚠️ L %s→%s skipped (no coordinate)" % [from_emoji, source_emoji])
+					stats.incoming_skipped += 1
+					if verbose:
+						verbose.debug("quantum-build", "⚠️", "L %s→%s skipped (no coordinate)" % [from_emoji, source_emoji])
 					continue
 
 				var from_q = register_map.qubit(from_emoji)
@@ -85,8 +107,12 @@ static func build(icons: Dictionary, register_map: RegisterMap) -> Dictionary:
 				var L = _build_jump(from_q, from_p, source_q, source_p,
 									amplitude, num_qubits)
 				operators.append(L)
+				stats.incoming_added += 1
 
-				print("  ✓ L %s→%s (γ=%.3f)" % [from_emoji, source_emoji, rate])
+				if verbose:
+					verbose.debug("quantum-build", "✓", "L %s→%s (γ=%.3f)" % [from_emoji, source_emoji, rate])
+				else:
+					print("  ✓ L %s→%s (γ=%.3f)" % [from_emoji, source_emoji, rate])
 
 		# --- Gated Lindblad: extract configs for runtime evaluation ---
 		# Format from IconBuilder: [{source, rate, gate, power, faction}]
@@ -100,10 +126,14 @@ static func build(icons: Dictionary, register_map: RegisterMap) -> Dictionary:
 
 				# Filter: skip if source or gate not in this biome
 				if not register_map.has(source_e):
-					print("  ⚠️ Gated L %s→%s skipped (source %s not in biome)" % [source_e, source_emoji, source_e])
+					stats.gated_skipped += 1
+					if verbose:
+						verbose.debug("quantum-build", "⚠️", "Gated L %s→%s skipped (source %s not in biome)" % [source_e, source_emoji, source_e])
 					continue
 				if not register_map.has(gate_e):
-					print("  ⚠️ Gated L %s→%s skipped (gate %s not in biome)" % [source_e, source_emoji, gate_e])
+					stats.gated_skipped += 1
+					if verbose:
+						verbose.debug("quantum-build", "⚠️", "Gated L %s→%s skipped (gate %s not in biome)" % [source_e, source_emoji, gate_e])
 					continue
 
 				# Store config for runtime evaluation
@@ -114,10 +144,37 @@ static func build(icons: Dictionary, register_map: RegisterMap) -> Dictionary:
 					"gate": gate_e,
 					"power": power,
 				})
-				print("  ✓ Gated L %s→%s (γ=%.3f × P(%s)^%.1f)" % [
-					source_e, source_emoji, rate, gate_e, power])
+				stats.gated_added += 1
 
-	print("🔨 Built %d Lindblad operators + %d gated configs" % [operators.size(), gated_configs.size()])
+				if verbose:
+					verbose.debug("quantum-build", "✓", "Gated L %s→%s (γ=%.3f × P(%s)^%.1f)" % [
+						source_e, source_emoji, rate, gate_e, power])
+				else:
+					print("  ✓ Gated L %s→%s (γ=%.3f × P(%s)^%.1f)" % [
+						source_e, source_emoji, rate, gate_e, power])
+
+	# Print summary
+	var total_added = stats.outgoing_added + stats.incoming_added
+	var total_skipped = stats.outgoing_skipped + stats.incoming_skipped + stats.gated_skipped
+
+	if verbose:
+		verbose.info("quantum", "✅",
+			"Lindblad built: %d operators + %d gated | Added: %d out + %d in + %d gated | Skipped: %d" % [
+				operators.size(),
+				gated_configs.size(),
+				stats.outgoing_added,
+				stats.incoming_added,
+				stats.gated_added,
+				total_skipped
+			])
+	else:
+		print("🔨 Built %d Lindblad operators + %d gated configs (added: %d, skipped: %d)" % [
+			operators.size(),
+			gated_configs.size(),
+			total_added + stats.gated_added,
+			total_skipped
+		])
+
 	return {"operators": operators, "gated_configs": gated_configs}
 
 

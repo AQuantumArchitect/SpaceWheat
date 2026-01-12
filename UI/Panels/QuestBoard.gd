@@ -11,6 +11,17 @@ signal quest_abandoned(quest_id: int)
 signal board_closed
 signal board_opened
 signal selection_changed(slot_state: int, is_locked: bool)  # For updating action toolbar
+signal action_performed(action: String, data: Dictionary)  # v2 overlay compatibility
+
+# v2 Overlay Interface
+var overlay_name: String = "quests"
+var overlay_icon: String = "📜"
+var action_labels: Dictionary = {
+	"Q": "Accept/Complete",
+	"E": "Reroll/Abandon",
+	"R": "Lock/Unlock",
+	"F": "Browse Factions"
+}
 
 # References
 var layout_manager: Node
@@ -117,16 +128,16 @@ func handle_input(event: InputEvent) -> bool:
 			select_slot(3)
 			return true
 		# Arrow keys for navigation (2×2 grid layout)
-		KEY_UP:
+		KEY_UP, KEY_W:
 			_navigate_up()
 			return true
-		KEY_DOWN:
+		KEY_DOWN, KEY_S:
 			_navigate_down()
 			return true
-		KEY_LEFT:
+		KEY_LEFT, KEY_A:
 			_navigate_left()
 			return true
-		KEY_RIGHT:
+		KEY_RIGHT, KEY_D:
 			_navigate_right()
 			return true
 		# Action keys
@@ -138,6 +149,9 @@ func handle_input(event: InputEvent) -> bool:
 			return true
 		KEY_R:
 			action_r_on_selected()
+			return true
+		KEY_F:
+			on_f_pressed()
 			return true
 		KEY_C:
 			open_faction_browser()
@@ -667,6 +681,85 @@ func _save_slot_state() -> void:
 			})
 
 	gsm.current_state.quest_slots = slot_data
+
+
+# =============================================================================
+# V2 OVERLAY INTERFACE
+# =============================================================================
+
+func activate() -> void:
+	"""v2 overlay lifecycle: Called when overlay opens."""
+	open_board()
+
+
+func deactivate() -> void:
+	"""v2 overlay lifecycle: Called when overlay closes."""
+	close_board()
+
+
+func on_q_pressed() -> void:
+	"""v2 overlay action: Q key handler."""
+	action_q_on_selected()
+	action_performed.emit("quest_action_q", {"slot": selected_slot_index})
+
+
+func on_e_pressed() -> void:
+	"""v2 overlay action: E key handler."""
+	action_e_on_selected()
+	action_performed.emit("quest_action_e", {"slot": selected_slot_index})
+
+
+func on_r_pressed() -> void:
+	"""v2 overlay action: R key handler."""
+	action_r_on_selected()
+	action_performed.emit("quest_action_r", {"slot": selected_slot_index})
+
+
+func on_f_pressed() -> void:
+	"""v2 overlay action: F key opens faction browser."""
+	open_faction_browser()
+	action_performed.emit("quest_browse_factions", {"slot": selected_slot_index})
+
+
+func get_action_labels() -> Dictionary:
+	"""v2 overlay interface: Get context-sensitive QER+F labels.
+
+	Labels change based on selected slot state.
+	"""
+	if selected_slot_index < 0 or selected_slot_index >= quest_slots.size():
+		return action_labels
+
+	var slot = quest_slots[selected_slot_index]
+	var labels = action_labels.duplicate()
+
+	# Context-sensitive Q and E labels
+	match slot.state:
+		SlotState.EMPTY:
+			labels["Q"] = "—"
+			labels["E"] = "—"
+		SlotState.OFFERED:
+			labels["Q"] = "Accept"
+			labels["E"] = "Reroll" if not slot.is_locked else "—"
+		SlotState.ACTIVE:
+			labels["Q"] = "Check"
+			labels["E"] = "Abandon"
+		SlotState.READY:
+			labels["Q"] = "Complete"
+			labels["E"] = "—"
+
+	# R label based on lock state
+	labels["R"] = "Unlock" if slot.is_locked else "Lock"
+
+	return labels
+
+
+func get_overlay_info() -> Dictionary:
+	"""v2 overlay interface: Get overlay metadata for registration."""
+	return {
+		"name": overlay_name,
+		"icon": overlay_icon,
+		"action_labels": get_action_labels()
+	}
 
 
 # =============================================================================

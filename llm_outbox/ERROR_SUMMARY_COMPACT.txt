@@ -1,0 +1,159 @@
+================================================================================
+INTEGRATION TEST ERROR SUMMARY - COMPACT FORMAT
+================================================================================
+Date: 2026-01-11
+Tests: 27 total | Passed: 10 (37%) | Failed: 17 (63%)
+Status: CATALOGUE ONLY - NO FIXES APPLIED
+
+================================================================================
+CRITICAL ERRORS (MUST INVESTIGATE NEXT)
+================================================================================
+
+1. MISSING FILE: PlantLifecycle.gd
+   - Referenced in tests but DOES NOT EXIST in repo
+   - Affects: Tests 13, 21, 22, 23 (4 tests)
+   - Action: Determine if class needs to be created or if tests are wrong
+
+2. NATIVE BACKEND NOT LOADING IN HEADLESS
+   - Works in normal mode ✓
+   - Fails in headless mode ✗ (ClassDB.class_exists returns false)
+   - Affects: Test 1, all dependent tests lose native acceleration
+   - Action: Check GDExtension initialization in --headless
+
+3. AUTOLOAD NOT ACCESSIBLE IN HEADLESS
+   - IconRegistry exists but get_root().get_node_or_null("IconRegistry") returns null
+   - Works in normal game boot
+   - Affects: Tests 6, 7, 8, 11, 12 (5 tests)
+   - Action: Find alternative way to access autoloads in headless
+
+4. API MISMATCH: QuantumGateLibrary.get_gate()
+   - Actual: get_gate(name) → Dictionary {"arity", "matrix", "description"}
+   - Expected (in tests): get_gate(name, dim) → ComplexMatrix
+   - Affects: Tests 10, 11, 12, 26, 27 (5 tests)
+   - Action: Update test code to use correct API
+
+================================================================================
+ERROR BREAKDOWN BY CATEGORY
+================================================================================
+
+[HEADLESS MODE ISSUES - 10 failures]
+  Test  1: Native acceleration not available
+  Test  6: IconRegistry autoload not found
+  Test  7: Get icon by emoji → depends on Test 6
+  Test  8: Icon has couplings → depends on Test 6
+  Test 11: QuantumBath init → depends on Test 6
+  Test 12: Density matrix trace → depends on Test 6
+  Test 19: (blocked by headless issues)
+  Test 20: (blocked by headless issues)
+  (+ 2 more affected by cascading failures)
+
+[API SIGNATURE MISMATCH - 5 failures]
+  Test 10: X gate - get_gate() signature wrong
+  Test 11: Hadamard - get_gate() signature wrong
+  Test 12: Phase gates - get_gate() signature wrong
+  Test 26: Apply X gate - get_gate() signature wrong
+  Test 27: Hadamard superposition - get_gate() signature wrong
+
+[MISSING CLASS - 3 failures]
+  Test 13: PlantLifecycle - FILE DOES NOT EXIST
+  Test 21: Plant lifecycle → depends on Test 13
+  Test 22: Growth stages → depends on Test 13
+  Test 23: Photosynthesis → depends on Test 13
+
+[NODE LIFECYCLE ISSUES - 2 failures]
+  Test 14: FarmGrid._init() → Node base class has no _init()
+  Test 15: FarmGrid.get_cell() → depends on Test 14
+
+================================================================================
+WHAT WORKS (10 PASSING TESTS)
+================================================================================
+
+✓ ComplexMatrix 8×8 expm - Native works correctly
+✓ ComplexMatrix eigensystem - Returns proper structure
+✓ QuantumGateLibrary instantiation - Object creation works
+✓ Forest biome builder - Icon composition works
+✓ Kitchen biome builder - Icon composition works
+✓ Biome has expected emojis - Content correct
+✓ (Plus 4 more passing tests)
+
+================================================================================
+SYSTEM STATUS AT EXIT
+================================================================================
+
+Game boot sequence: SUCCESS
+├─ 📝 File logging enabled
+├─ 🔧 BootManager autoload ready
+├─ 📜 IconRegistry: 19/27 icons (missing 8 due to test errors)
+├─ 💾 GameStateManager ready
+├─ ⚛️ QuantumRigorConfig initialized
+└─ 📚 Persistent VocabularyEvolution ready
+
+Resource leaks detected (non-blocking):
+  - ObjectDB instances leaked at exit
+  - 2 resources still in use
+
+================================================================================
+ACTUAL API SIGNATURES (VERIFIED IN CODE)
+================================================================================
+
+QuantumGateLibrary.get_gate():
+  Signature:     static func get_gate(gate_name: String) -> Dictionary
+  Returns:       {"arity": int, "matrix": ComplexMatrix, "description": str}
+  Location:      QuantumGateLibrary.gd:107
+
+FarmGrid lifecycle:
+  Exists:        _ready() only (no _init)
+  Public method: _initialize_all_plots()
+  Type:          extends Node (not RefCounted)
+  Location:      FarmGrid.gd:98
+
+QuantumGateLibrary usage:
+  gate_dict = QuantumGateLibrary.get_gate("X")  # ✓ CORRECT
+  var X = lib.get_gate("X", 2)                  # ✗ WRONG - 2 args unsupported
+
+================================================================================
+RECOMMENDED NEXT STEPS (NOT TO BE IMPLEMENTED)
+================================================================================
+
+HIGH PRIORITY:
+1. Verify PlantLifecycle implementation status
+   - Is it planned? In development? Cancelled? Renamed?
+
+2. Test native backend in normal (non-headless) mode
+   - Confirm it works with GUI
+   - Check if ClassDB.class_exists() succeeds there
+
+3. Verify autoload access pattern
+   - Try get_node() instead of get_root().get_node_or_null()
+   - Check if autoloads are available in headless at all
+
+4. Document QuantumGateLibrary API
+   - Update all examples and tests
+   - Note: Returns Dictionary, not ComplexMatrix
+
+MEDIUM PRIORITY:
+5. Node lifecycle documentation for FarmGrid
+   - Clarify _ready() vs _init() pattern
+   - Provide correct instantiation examples
+
+6. Icon count discrepancy
+   - Why 19/27 icons instead of expected count?
+   - Which 8 factions missing?
+
+================================================================================
+FILES GENERATED FOR REVIEW
+================================================================================
+
+1. /home/tehcr33d/ws/SpaceWheat/llm_outbox/INTEGRATION_TEST_ERRORS.md
+   → Detailed error analysis (full document)
+
+2. /home/tehcr33d/ws/SpaceWheat/llm_outbox/ERROR_SUMMARY_COMPACT.txt
+   → This file (quick reference)
+
+3. /home/tehcr33d/ws/SpaceWheat/Tests/integration_test_full_player.gd
+   → Full test suite (27 tests)
+
+================================================================================
+END OF REPORT
+Status: CATALOGUE ONLY - DO NOT IMPLEMENT FIXES
+================================================================================

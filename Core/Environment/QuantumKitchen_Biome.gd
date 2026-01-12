@@ -66,6 +66,12 @@ func _ready():
 	register_emoji_pair("💨", "🌾")  # Flour ↔ Wheat (axis 2)
 	register_resource("🍞", true, false)  # Bread is producible
 
+	# Register planting capabilities (Parametric System - Phase 1)
+	# Kitchen-exclusive ingredients
+	register_planting_capability("🔥", "❄️", "fire", {"🔥": 10}, "Fire", true)
+	register_planting_capability("💧", "🏜️", "water", {"💧": 10}, "Water", true)
+	register_planting_capability("💨", "🌾", "flour", {"💨": 10}, "Flour", false)
+
 	# Configure visual properties for QuantumForceGraph
 	visual_color = Color(0.9, 0.7, 0.4, 0.3)  # Warm bread color
 	visual_label = "🍳 Kitchen"
@@ -153,7 +159,7 @@ func _initialize_bath_kitchen() -> void:
 		push_error("🍳 IconRegistry not available!")
 		return
 
-	var icon_emojis = ["🔥", "❄️", "💧", "🏜️", "💨", "🌾"]
+	var icon_emojis = ["🔥", "❄️", "💧", "🏜️", "💨", "🌾", "🍞"]
 	var icons = {}
 
 	for emoji in icon_emojis:
@@ -164,22 +170,13 @@ func _initialize_bath_kitchen() -> void:
 			push_warning("🍳 Icon not found: %s" % emoji)
 
 	# Tune Kitchen-specific Icon parameters
-	var bread_icon_ref = icon_registry.get_icon("🍞")
-	if bread_icon_ref:
+	if icons.has("🍞"):
 		# Bread gains from wheat (baking process)
-		bread_icon_ref.lindblad_incoming["🌾"] = 0.15  # Moderate baking rate
+		icons["🍞"].lindblad_incoming["🌾"] = 0.15  # Moderate baking rate
 		print("  🍞 Bread: Lindblad incoming from 🌾 = 0.15")
 
-	# Build operators using HamiltonianBuilder and LindbladBuilder
-	var HamBuilder = load("res://Core/QuantumSubstrate/HamiltonianBuilder.gd")
-	var LindBuilder = load("res://Core/QuantumSubstrate/LindbladBuilder.gd")
-
-	quantum_computer.hamiltonian = HamBuilder.build(icons, quantum_computer.register_map)
-
-	# LindbladBuilder now returns {operators, gated_configs}
-	var lindblad_result = LindBuilder.build(icons, quantum_computer.register_map)
-	quantum_computer.lindblad_operators = lindblad_result.get("operators", [])
-	quantum_computer.gated_lindblad_configs = lindblad_result.get("gated_configs", [])
+	# Build operators with caching
+	build_operators_cached("QuantumKitchen_Biome", icons)
 
 	print("  ✅ Hamiltonian: %dx%d matrix" % [
 		quantum_computer.hamiltonian.n if quantum_computer.hamiltonian else 0,
@@ -191,7 +188,7 @@ func _initialize_bath_kitchen() -> void:
 	print("  ✅ Kitchen Model C ready (analog evolution enabled)")
 
 
-func rebuild_quantum_operators() -> void:
+func rebuild_quantum_operators(verbose = null) -> void:
 	"""Rebuild Hamiltonian and Lindblad operators after IconRegistry is ready.
 
 	Called by BootManager in Stage 3A to ensure operators are built with
@@ -200,7 +197,10 @@ func rebuild_quantum_operators() -> void:
 	if not quantum_computer:
 		return
 
-	print("  🔧 Kitchen: Rebuilding quantum operators...")
+	if verbose:
+		verbose.info("quantum", "🔧", "Kitchen: Rebuilding quantum operators...")
+	else:
+		print("  🔧 Kitchen: Rebuilding quantum operators...")
 
 	# Get Icons from IconRegistry (now guaranteed to be ready)
 	var icon_registry = get_node_or_null("/root/IconRegistry")
@@ -228,18 +228,25 @@ func rebuild_quantum_operators() -> void:
 	var HamBuilder = load("res://Core/QuantumSubstrate/HamiltonianBuilder.gd")
 	var LindBuilder = load("res://Core/QuantumSubstrate/LindbladBuilder.gd")
 
-	quantum_computer.hamiltonian = HamBuilder.build(icons, quantum_computer.register_map)
+	# Pass verbose logger to builders for detailed logging
+	quantum_computer.hamiltonian = HamBuilder.build(icons, quantum_computer.register_map, verbose)
 
 	# LindbladBuilder returns {operators, gated_configs}
-	var lindblad_result = LindBuilder.build(icons, quantum_computer.register_map)
+	var lindblad_result = LindBuilder.build(icons, quantum_computer.register_map, verbose)
 	quantum_computer.lindblad_operators = lindblad_result.get("operators", [])
 	quantum_computer.gated_lindblad_configs = lindblad_result.get("gated_configs", [])
 
-	print("  ✅ Kitchen: Hamiltonian %dx%d, Lindblad %d operators + %d gated" % [
-		quantum_computer.hamiltonian.n if quantum_computer.hamiltonian else 0,
-		quantum_computer.hamiltonian.n if quantum_computer.hamiltonian else 0,
-		quantum_computer.lindblad_operators.size(),
-		quantum_computer.gated_lindblad_configs.size()])
+	var h_dim = quantum_computer.hamiltonian.n if quantum_computer.hamiltonian else 0
+	if verbose:
+		verbose.info("quantum", "✅", "Kitchen: H (%dx%d) + %d Lindblad + %d gated [REBUILT]" % [
+			h_dim, h_dim,
+			quantum_computer.lindblad_operators.size(),
+			quantum_computer.gated_lindblad_configs.size()])
+	else:
+		print("  ✅ Kitchen: Hamiltonian %dx%d, Lindblad %d operators + %d gated" % [
+			h_dim, h_dim,
+			quantum_computer.lindblad_operators.size(),
+			quantum_computer.gated_lindblad_configs.size()])
 
 
 func _update_quantum_substrate(dt: float) -> void:
@@ -247,6 +254,9 @@ func _update_quantum_substrate(dt: float) -> void:
 	# MODEL C: Evolve quantum computer under Lindblad master equation
 	if quantum_computer:
 		quantum_computer.evolve(dt)
+
+		# SEMANTIC TOPOLOGY: Record phase space trajectory
+		_record_attractor_snapshot()
 
 
 func _apply_oven_oscillation(delta: float):

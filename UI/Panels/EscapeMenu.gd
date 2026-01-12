@@ -10,6 +10,7 @@ signal quit_pressed()
 signal save_pressed()
 signal load_pressed()
 signal reload_last_save_pressed()
+signal quantum_settings_pressed()
 
 var background: ColorRect
 var menu_vbox: VBoxContainer
@@ -84,6 +85,12 @@ func _init():
 	load_btn.pressed.connect(_on_load_pressed)
 	menu_vbox.add_child(load_btn)
 	menu_buttons.append(load_btn)
+
+	# Quantum Settings button
+	var quantum_btn = _create_menu_button("Quantum Settings [X]", Color(0.2, 0.6, 0.8))
+	quantum_btn.pressed.connect(_on_quantum_settings_pressed)
+	menu_vbox.add_child(quantum_btn)
+	menu_buttons.append(quantum_btn)
 
 	# Reload Last Save button
 	var reload_btn = _create_menu_button("Reload Last Save [D]", Color(0.7, 0.4, 0.2))
@@ -200,6 +207,10 @@ func handle_input(event: InputEvent) -> bool:
 			# D = Reload Last Save (D for "do-over")
 			_on_reload_last_save_pressed()
 			return true
+		KEY_X:
+			# X = Quantum Settings
+			_on_quantum_settings_pressed()
+			return true
 		KEY_R:
 			# R = Restart
 			_on_restart_pressed()
@@ -290,3 +301,9 @@ func _on_load_pressed():
 func _on_reload_last_save_pressed():
 	print("🔄 Reload last save pressed")
 	reload_last_save_pressed.emit()
+
+
+func _on_quantum_settings_pressed():
+	print("🔬 Quantum settings pressed")
+	quantum_settings_pressed.emit()
+	hide_menu()

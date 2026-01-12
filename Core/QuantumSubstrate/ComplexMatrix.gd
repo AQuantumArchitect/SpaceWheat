@@ -6,6 +6,66 @@ const Complex = preload("res://Core/QuantumSubstrate/Complex.gd")
 # Self-reference helper for internal constructors (avoid circular reference issues)
 static var _class_ref = null
 
+#region Native Backend (GDExtension Acceleration)
+
+## Native backend detection - checked once, cached
+static var _native_available: bool = false
+static var _native_checked: bool = false
+
+static func _check_native() -> void:
+	if _native_checked:
+		return
+	_native_checked = true
+
+	if ClassDB.class_exists("QuantumMatrixNative"):
+		_native_available = true
+		print("ComplexMatrix: Native acceleration enabled (Eigen)")
+	else:
+		_native_available = false
+		print("ComplexMatrix: Using pure GDScript")
+
+static func is_native_available() -> bool:
+	_check_native()
+	return _native_available
+
+## Instance-level native backend
+var _native_backend = null
+
+func _get_native():
+	if _native_backend == null and _native_available and n > 0:
+		_native_backend = ClassDB.instantiate("QuantumMatrixNative")
+	return _native_backend
+
+## Marshal GDScript data to PackedFloat64Array for native
+func _to_packed() -> PackedFloat64Array:
+	var packed = PackedFloat64Array()
+	packed.resize(n * n * 2)
+	for i in range(n * n):
+		packed[i * 2] = _data[i].re
+		packed[i * 2 + 1] = _data[i].im
+	return packed
+
+## Unmarshal PackedFloat64Array back to GDScript
+func _from_packed(packed: PackedFloat64Array, dim: int) -> void:
+	n = dim
+	_data = []
+	for i in range(n * n):
+		_data.append(Complex.new(packed[i * 2], packed[i * 2 + 1]))
+
+## Sync current matrix to native backend
+func _sync_to_native() -> void:
+	var native = _get_native()
+	if native and n > 0:
+		native.from_packed(_to_packed(), n)
+
+## Create result matrix from packed native output
+func _result_from_packed(packed: PackedFloat64Array, dim: int):
+	var result = load("res://Core/QuantumSubstrate/ComplexMatrix.gd").new(dim)
+	result._from_packed(packed, dim)
+	return result
+
+#endregion
+
 ## N×N Complex Matrix for quantum mechanics
 ## Supports density matrices, Hamiltonians, and unitary operators
 ##
@@ -18,6 +78,7 @@ var n: int = 0  # Dimension
 var _data: Array = []  # Flat array: element (i,j) at index i*n + j
 
 func _init(dimension: int = 0):
+	_check_native()
 	n = dimension
 	_data = []
 	for i in range(n * n):
@@ -99,6 +160,15 @@ func mul(other):
 	if other.n != n:
 		push_error("Matrix dimension mismatch in mul: %d vs %d" % [n, other.n])
 		return load("res://Core/QuantumSubstrate/ComplexMatrix.gd").new(n)
+
+	# Use native acceleration if available
+	var native = _get_native()
+	if native:
+		_sync_to_native()
+		var result_packed = native.mul(other._to_packed(), n)
+		return _result_from_packed(result_packed, n)
+
+	# Fallback: pure GDScript O(n³)
 	var result = load("res://Core/QuantumSubstrate/ComplexMatrix.gd").new(n)
 	for i in range(n):
 		for j in range(n):
@@ -137,6 +207,50 @@ func trace():
 		sum = sum.add(get_element(i, i))
 	return sum
 
+
+func compute_energy_split() -> Dictionary:
+	"""Split total energy into Real (diagonal) + Imaginary (off-diagonal)
+
+	For density matrices:
+	- Real energy = observable populations (diagonal elements)
+	- Imaginary energy = quantum coherence (off-diagonal elements)
+
+	The imaginary energy represents "potential" that can be extracted
+	via the Sparks mechanic (coherence → observable conversion).
+
+	Returns:
+		{
+			"real": float,           # Sum of diagonal probabilities
+			"imaginary": float,      # Sum of |off-diagonal| coherences
+			"total": float,          # real + imaginary
+			"coherence_ratio": float # imaginary / total (0.0 to 1.0)
+		}
+	"""
+	var real_energy = 0.0
+	var imaginary_energy = 0.0
+
+	# Real: sum of diagonal (populations)
+	for i in range(n):
+		real_energy += get_element(i, i).re
+
+	# Imaginary: sum of |off-diagonal| (coherences)
+	# Only count upper triangle and multiply by 2 (matrix is Hermitian)
+	for i in range(n):
+		for j in range(i + 1, n):
+			var coherence = get_element(i, j)
+			imaginary_energy += coherence.abs() * 2.0  # *2 for symmetry
+
+	var total = real_energy + imaginary_energy
+	var ratio = imaginary_energy / total if total > 0.0 else 0.0
+
+	return {
+		"real": real_energy,
+		"imaginary": imaginary_energy,
+		"total": total,
+		"coherence_ratio": ratio
+	}
+
+
 func commutator(other):
 	return mul(other).sub(other.mul(self))
 
@@ -159,7 +273,14 @@ static func outer_product(ket: Array, bra: Array):
 #region Matrix Exponential (Padé Approximation)
 
 func expm():
-	# Matrix exponential via Padé [6/6] approximation with scaling and squaring
+	# Use native acceleration if available (Eigen's optimized Padé approximation)
+	var native = _get_native()
+	if native:
+		_sync_to_native()
+		var result_packed = native.expm()
+		return _result_from_packed(result_packed, n)
+
+	# Fallback: pure GDScript Padé [6/6] approximation with scaling and squaring
 	# exp(A) = exp(A/2^k)^(2^k) where k chosen so ||A/2^k|| < 1
 
 	# Find scaling factor
@@ -216,6 +337,14 @@ func inverse():
 	if n == 0:
 		return load("res://Core/QuantumSubstrate/ComplexMatrix.gd").new(0)
 
+	# Use native acceleration if available (Eigen's LU decomposition)
+	var native = _get_native()
+	if native:
+		_sync_to_native()
+		var result_packed = native.inverse()
+		return _result_from_packed(result_packed, n)
+
+	# Fallback: pure GDScript Gauss-Jordan elimination
 	# Create augmented matrix [A | I]
 	var aug = []
 	for i in range(n):
@@ -271,12 +400,22 @@ func inverse():
 #region Eigenvalue Decomposition (Jacobi for Hermitian)
 
 func eigensystem() -> Dictionary:
-	# Jacobi iteration for Hermitian matrices
 	# Returns { "eigenvalues": Array[float], "eigenvectors": ComplexMatrix }
 
 	if not is_hermitian():
 		push_warning("eigensystem() called on non-Hermitian matrix - results may be unreliable")
 
+	# Use native acceleration if available (Eigen's SelfAdjointEigenSolver)
+	var native = _get_native()
+	if native:
+		_sync_to_native()
+		var result = native.eigensystem()
+		return {
+			"eigenvalues": result["eigenvalues"],
+			"eigenvectors": _result_from_packed(result["eigenvectors"], n)
+		}
+
+	# Fallback: pure GDScript Jacobi iteration for Hermitian matrices
 	# Initialize: V = I, A = self
 	var V = load("res://Core/QuantumSubstrate/ComplexMatrix.gd").identity(n)
 	var A = duplicate()

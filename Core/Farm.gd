@@ -26,11 +26,7 @@ const QuantumKitchen_Biome = preload("res://Core/Environment/QuantumKitchen_Biom
 const FarmUIState = preload("res://Core/GameState/FarmUIState.gd")
 const VocabularyEvolution = preload("res://Core/QuantumSubstrate/VocabularyEvolution.gd")
 
-# DEPRECATED: Icon Hamiltonians (simulation objects that affect quantum evolution)
-# These Icon classes have been removed - icons are now data in IconRegistry
-# const BioticFluxIcon = preload("res://Core/Icons/BioticFluxIcon.gd")
-# const ChaosIcon = preload("res://Core/Icons/ChaosIcon.gd")
-# const ImperiumIcon = preload("res://Core/Icons/ImperiumIcon.gd")
+# Icon system moved to faction-based IconRegistry (no preload needed)
 
 # Core simulation systems
 var grid: FarmGrid
@@ -44,10 +40,7 @@ var vocabulary_evolution: VocabularyEvolution  # Vocabulary evolution system
 var ui_state: FarmUIState  # UI State abstraction layer
 var grid_config: GridConfig = null  # Single source of truth for grid layout
 
-# Icon Hamiltonians (simulation objects)
-var biotic_icon = null
-var chaos_icon = null
-var imperium_icon = null
+# Icon system now managed by faction-based IconRegistry (deprecated variables removed)
 
 # PERFORMANCE: Cached mushroom count (avoid O(n) iteration every frame)
 var _cached_mushroom_count: int = 0
@@ -62,113 +55,22 @@ func invalidate_mushroom_cache() -> void:
 # Biome availability (may fail to load if icon dependencies are missing)
 var biome_enabled: bool = false
 
-# Build configuration - all plantable/buildable types
+# PHASE 6 (PARAMETRIC): Infrastructure building costs
+# Plant costs are queried from biome capabilities, not hard-coded here
 # Costs are in emoji-credits (1 quantum unit = 10 credits)
-const BUILD_CONFIGS = {
-	"wheat": {
-		"cost": {"🌾": 1},  # 1 wheat credit - agricultural economy
-		"type": "plant",
-		"plant_type": "wheat",
-		"north_emoji": "🌾",  # Wheat (growth/harvest)
-		"south_emoji": "👥"   # Labor (work/cultivation)
-	},
-	"tomato": {
-		"cost": {"🌾": 1},  # 1 wheat credit to plant
-		"type": "plant",
-		"plant_type": "tomato",
-		"north_emoji": "🍅",  # Tomato (life/creation/conspiracy)
-		"south_emoji": "🌌"   # Cosmic Chaos (void/entropy) - COUNTER-AXIAL
-	},
-	"mushroom": {
-		"cost": {"🍄": 10, "🍂": 10},  # 1 mushroom + 1 detritus (50/50 split) - fungal cycle
-		"type": "plant",
-		"plant_type": "mushroom",
-		"north_emoji": "🍄",  # Mushroom (fruiting body)
-		"south_emoji": "🍂"   # Detritus (decomposition)
-	},
-	"mill": {
-		"cost": {"🌾": 30},  # 3 wheat = 30 wheat-credits
-		"type": "build"
-	},
-	"market": {
-		"cost": {"🌾": 30},  # 3 wheat = 30 wheat-credits
-		"type": "build"
-	},
-	"kitchen": {
-		"cost": {"🌾": 30, "💨": 10},  # 3 wheat + 1 flour
-		"type": "build"
-	},
-	"energy_tap": {
-		"cost": {"🌾": 20},  # 2 wheat = 20 wheat-credits
-		"type": "build"
-	},
+const INFRASTRUCTURE_COSTS = {
+	"mill": {"🌾": 30},      # 3 wheat = 30 wheat-credits
+	"market": {"🌾": 30},    # 3 wheat = 30 wheat-credits
+	"kitchen": {"🌾": 30, "💨": 10},  # 3 wheat + 1 flour
+	"energy_tap": {"🌾": 20},  # 2 wheat = 20 wheat-credits
+}
+
+# Special gather actions (not plantable, not buildings)
+const GATHER_ACTIONS = {
 	"forest_harvest": {
 		"cost": {},  # Free - gather natural detritus from forest
-		"type": "gather",
 		"yields": {"🍂": 5},  # Collect 5 detritus (leaf litter, deadwood)
 		"biome_required": "Forest"  # Only works in Forest biome
-	},
-
-	# Kitchen ingredients (planted on Kitchen plots for quantum baking)
-	"fire": {
-		"cost": {"🔥": 10},  # 1 fire unit (10 credits)
-		"type": "plant",
-		"plant_type": "fire",
-		"north_emoji": "🔥",  # Hot (fire present)
-		"south_emoji": "❄️",  # Cold (no fire)
-		"biome_required": "Kitchen"
-	},
-	"water": {
-		"cost": {"💧": 10},  # 1 water unit (10 credits)
-		"type": "plant",
-		"plant_type": "water",
-		"north_emoji": "💧",  # Wet (water present)
-		"south_emoji": "🏜️",  # Dry (no water)
-		"biome_required": "Kitchen"
-	},
-	"flour": {
-		"cost": {"💨": 10},  # 1 flour unit (10 credits)
-		"type": "plant",
-		"plant_type": "flour",
-		"north_emoji": "💨",  # Flour (processed)
-		"south_emoji": "🌾"  # Grain (unprocessed)
-		# Note: No biome_required - can plant in Kitchen or Market
-	},
-
-	# Forest organisms (planted on Forest plots for ecosystem dynamics)
-	"vegetation": {
-		"cost": {"🌿": 10},  # 1 vegetation unit (10 credits)
-		"type": "plant",
-		"plant_type": "vegetation",
-		"north_emoji": "🌿",  # Vegetation (green/healthy)
-		"south_emoji": "🍂",  # Detritus (brown/decayed)
-		"biome_required": "Forest"
-	},
-	"rabbit": {
-		"cost": {"🐇": 10},  # 1 rabbit unit (10 credits)
-		"type": "plant",
-		"plant_type": "rabbit",
-		"north_emoji": "🐇",  # Rabbit (alive/thriving)
-		"south_emoji": "🍂",  # Detritus (death/decay)
-		"biome_required": "Forest"
-	},
-	"wolf": {
-		"cost": {"🐺": 10},  # 1 wolf unit (10 credits)
-		"type": "plant",
-		"plant_type": "wolf",
-		"north_emoji": "🐺",  # Wolf (apex predator)
-		"south_emoji": "🍂",  # Detritus (death/decay)
-		"biome_required": "Forest"
-	},
-
-	# Market commodities (planted on Market plots for trading)
-	"bread": {
-		"cost": {"🍞": 10},  # 1 bread unit (10 credits)
-		"type": "plant",
-		"plant_type": "bread",
-		"north_emoji": "🍞",  # Bread (finished product)
-		"south_emoji": "💨"  # Flour (ingredient)
-		# Note: No biome_required - can plant in Market or elsewhere
 	}
 }
 
@@ -230,14 +132,7 @@ func _ready():
 	# NOTE: Operator rebuild now handled by BootManager in Stage 3A
 	# This ensures deterministic ordering: IconRegistry ready → rebuild operators → verify biomes
 
-	# DEPRECATED: Icon Hamiltonians (simulation objects that affect quantum evolution)
-	# These Icon classes have been removed - icons are now data in IconRegistry
-	# biotic_icon = BioticFluxIcon.new()
-	# add_child(biotic_icon)
-	# chaos_icon = ChaosIcon.new()
-	# add_child(chaos_icon)
-	# imperium_icon = ImperiumIcon.new()
-	# add_child(imperium_icon)
+	# Icon system now managed by faction-based IconRegistry
 
 	# Create grid AFTER biome (or fallback)
 	grid = FarmGrid.new()
@@ -612,18 +507,54 @@ func _create_grid_config() -> GridConfig:
 ## Public API - Game Operations
 
 func build(pos: Vector2i, build_type: String) -> bool:
-	"""Build/plant at position - unified method for all types
+	"""Build/plant at position - unified method for all types (PARAMETRIC - Phase 6)
+
+	PHASE 6: Queries biome capabilities for plant costs instead of BUILD_CONFIGS.
+	Infrastructure buildings use INFRASTRUCTURE_COSTS constant.
 
 	Returns: true if successful, false if failed
 	Emits: action_result signal with success/failure message
 	"""
-	# Validate build type
-	if not BUILD_CONFIGS.has(build_type):
-		action_result.emit("build", false, "Unknown build type: %s" % build_type)
-		return false
+	# Determine action type and get cost (PARAMETRIC)
+	var action_type = ""  # "plant", "build", or "gather"
+	var cost = {}
+	var config = {}
 
-	var config = BUILD_CONFIGS[build_type]
-	var cost = config["cost"]
+	# Check if it's an infrastructure building
+	if INFRASTRUCTURE_COSTS.has(build_type):
+		action_type = "build"
+		cost = INFRASTRUCTURE_COSTS[build_type]
+		config = {"type": "build"}
+
+	# Check if it's a gather action
+	elif GATHER_ACTIONS.has(build_type):
+		action_type = "gather"
+		config = GATHER_ACTIONS[build_type]
+		cost = config.get("cost", {})
+
+	# Otherwise, assume it's a plant type - query biome capabilities
+	else:
+		action_type = "plant"
+		# PARAMETRIC: Query biome for plant cost
+		var plot_biome = grid.get_biome_for_plot(pos)
+		if not plot_biome:
+			action_result.emit("build", false, "No biome at position %s" % pos)
+			return false
+
+		# Find capability for this plant type
+		var capability = null
+		for cap in plot_biome.get_plantable_capabilities():
+			if cap.plant_type == build_type:
+				capability = cap
+				break
+
+		if not capability:
+			action_result.emit("build", false, "%s biome doesn't support planting %s" % [
+				plot_biome.get_biome_type(), build_type])
+			return false
+
+		cost = capability.cost
+		config = {"type": "plant", "plant_type": build_type}
 
 	# 1. PRE-VALIDATION: Check if we can build here (skip for gather actions)
 	var plot = grid.get_plot(pos)
@@ -635,7 +566,9 @@ func build(pos: Vector2i, build_type: String) -> bool:
 			return false
 
 	# 1b. BIOME VALIDATION: Check if gather action is in correct biome
-	if config.has("biome_required"):
+	# PHASE 6 (PARAMETRIC): Biome validation is already done for plant types above
+	# Only check for gather actions that require specific biomes
+	if action_type == "gather" and config.has("biome_required"):
 		# Get biome name from plot_biome_assignments (in grid)
 		var biome_name = ""
 		if grid and grid.plot_biome_assignments.has(pos):

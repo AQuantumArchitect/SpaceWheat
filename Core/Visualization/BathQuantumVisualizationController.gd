@@ -244,7 +244,8 @@ func request_plot_bubble(biome_name: String, grid_pos: Vector2i, plot) -> void:
 		return
 
 	var biome = biomes.get(biome_name)
-	if not biome or not biome.bath:
+	# Model C: Check for quantum_computer OR legacy bath
+	if not biome or (not biome.bath and not biome.quantum_computer):
 		return
 
 	# Get emojis from plot (Model C: emojis are plot metadata, not quantum state)
@@ -302,13 +303,17 @@ func request_emoji_bubble(biome_name: String, emoji: String) -> void:
 		return
 
 	var biome = biomes[biome_name]
-	if not biome or not biome.bath:
+	# Model C: Check for quantum_computer OR legacy bath
+	if not biome or (not biome.bath and not biome.quantum_computer):
 		return
 
-	# Check if emoji is in this biome's bath
-	if not biome.bath.emoji_list.has(emoji):
+	# Check if emoji is in this biome's bath (legacy only - skip for Model C)
+	if biome.bath and not biome.bath.emoji_list.has(emoji):
 		push_warning("BathQuantumViz: Emoji %s not in %s bath" % [emoji, biome_name])
 		return
+	elif not biome.bath:
+		# Model C: quantum_computer doesn't track individual emojis, skip validation
+		pass
 
 	# Skip if already requested
 	if requested_emojis[biome_name].has(emoji):
@@ -339,7 +344,8 @@ func _create_plot_bubble(biome_name: String, grid_pos: Vector2i, plot) -> Quantu
 	Returns: The created QuantumNode, or null if creation failed
 	"""
 	var biome = biomes.get(biome_name)
-	if not biome or not biome.bath:
+	# Model C: Check for quantum_computer OR legacy bath
+	if not biome or (not biome.bath and not biome.quantum_computer):
 		return null
 
 	# Determine initial position (scatter around oval perimeter)
@@ -377,7 +383,8 @@ func _create_single_bubble(biome_name: String, emoji: String, grid_pos: Vector2i
 	Returns: The created QuantumNode, or null if creation failed
 	"""
 	var biome = biomes.get(biome_name)
-	if not biome or not biome.bath:
+	# Model C: Check for quantum_computer OR legacy bath
+	if not biome or (not biome.bath and not biome.quantum_computer):
 		return null
 
 	# Create dummy qubit for interface compatibility (QuantumNode expects one)
@@ -411,8 +418,13 @@ func _create_single_bubble(biome_name: String, emoji: String, grid_pos: Vector2i
 	bubble.biome_name = biome_name
 
 	# Set initial visual properties
-	var prob = biome.bath.get_probability(emoji)
-	bubble.radius = base_bubble_size + pow(prob, size_exponent) * size_scale
+	if biome.bath:
+		# Legacy bath mode: size based on probability
+		var prob = biome.bath.get_probability(emoji)
+		bubble.radius = base_bubble_size + pow(prob, size_exponent) * size_scale
+	else:
+		# Model C: use default size (no bath probability available)
+		bubble.radius = 40.0
 	bubble.color = _get_emoji_color(emoji)
 
 	# Store in graph arrays (don't add_child - QuantumNode extends RefCounted, not Node)
@@ -449,12 +461,18 @@ func _update_bubble_visuals_from_bath() -> void:
 	"""
 	for biome_name in basis_bubbles:
 		var biome = biomes.get(biome_name)
-		if not biome or not biome.bath:
+		# Model C: Check for quantum_computer OR legacy bath
+		if not biome or (not biome.bath and not biome.quantum_computer):
 			continue
 
 		var bubbles = basis_bubbles[biome_name]
 		for bubble in bubbles:
 			var emoji = bubble.emoji_north
+
+			# Model C: Skip probability updates (bath not available)
+			if not biome.bath:
+				continue
+
 			var prob = biome.bath.get_probability(emoji)
 			var amp = biome.bath.get_amplitude(emoji)
 

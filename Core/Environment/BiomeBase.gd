@@ -19,14 +19,20 @@ const QuantumGateLibrary = preload("res://Core/QuantumSubstrate/QuantumGateLibra
 const BiomeUtilities = preload("res://Core/Environment/BiomeUtilities.gd")
 const BiomeTimeTracker = preload("res://Core/Environment/BiomeTimeTracker.gd")
 const BiomeDynamicsTracker = preload("res://Core/QuantumSubstrate/BiomeDynamicsTracker.gd")
+const StrangeAttractorAnalyzer = preload("res://Core/QuantumSubstrate/StrangeAttractorAnalyzer.gd")
 const Icon = preload("res://Core/QuantumSubstrate/Icon.gd")
 const Complex = preload("res://Core/QuantumSubstrate/Complex.gd")
 const ComplexMatrix = preload("res://Core/QuantumSubstrate/ComplexMatrix.gd")
 const DensityMatrix = preload("res://Core/QuantumSubstrate/DensityMatrix.gd")
 
+# Operator caching system
+const CacheKey = preload("res://Core/QuantumSubstrate/CacheKey.gd")
+const OperatorCache = preload("res://Core/QuantumSubstrate/OperatorCache.gd")
+
 # Common infrastructure
 var time_tracker: BiomeTimeTracker = BiomeTimeTracker.new()
 var dynamics_tracker: BiomeDynamicsTracker = null  # Tracks quantum state evolution rate
+var attractor_analyzer: StrangeAttractorAnalyzer = null  # Tracks phase space trajectories
 var grid = null  # Injected FarmGrid reference
 
 # ============================================================================
@@ -68,6 +74,22 @@ var bell_gates: Array = []  # Array of Vector2i arrays (triplets or pairs)
 var producible_emojis: Array[String] = []  # Emojis this biome can produce via harvest
 var consumable_emojis: Array[String] = []  # Emojis this biome can consume via costs
 var emoji_pairings: Dictionary = {}  # North ↔ South emoji pairs for quantum states
+
+# Planting Capability System (Parametric Plant Types)
+# Defines what can be planted in this biome with costs and metadata
+class PlantingCapability:
+	"""Defines a plantable emoji pair with costs and metadata
+
+	This makes the planting system parametric - biomes define what can be planted
+	instead of hard-coding plant types across multiple files.
+	"""
+	var emoji_pair: Dictionary  # {"north": "🌾", "south": "👥"}
+	var plant_type: String      # "wheat" (for routing/identification)
+	var cost: Dictionary        # {"🌾": 1} - emoji → credits cost
+	var display_name: String    # "Wheat" (UI labels)
+	var requires_biome: bool    # true if only plantable in this biome
+
+var planting_capabilities: Array[PlantingCapability] = []  # Registered plant types for this biome
 
 # Signals - common interface for all biomes
 signal qubit_created(position: Vector2i, qubit: Resource)
@@ -121,6 +143,9 @@ func _ready() -> void:
 	# Initialize quantum computer (child classes override _initialize_bath())
 	# Note: Method still called _initialize_bath for compatibility, but sets up quantum_computer
 	_initialize_bath()
+
+	# Initialize strange attractor tracking (after bath setup)
+	_initialize_attractor_tracking()
 
 	# Processing will be enabled by BootManager in Stage 3D after all deps verified
 	set_process(false)
@@ -1800,6 +1825,75 @@ func register_emoji_pair(north: String, south: String) -> void:
 	register_resource(south, true, false)
 
 
+func register_planting_capability(north: String, south: String, plant_type: String,
+                                   cost: Dictionary, display_name: String = "",
+                                   exclusive: bool = false) -> void:
+	"""Register a plantable emoji pair with costs and metadata (Parametric System)
+
+	This makes the planting system parametric - biomes define what can be planted
+	instead of hard-coding plant types. Tools query these capabilities dynamically.
+
+	Args:
+		north: North pole emoji (e.g., "🌾")
+		south: South pole emoji (e.g., "👥")
+		plant_type: Type identifier (e.g., "wheat") for routing/identification
+		cost: Dictionary of emoji → credits required to plant (e.g., {"🌾": 1})
+		display_name: UI label (defaults to capitalized plant_type if empty)
+		exclusive: If true, only plantable in this biome (e.g., Forest wolves)
+	"""
+	var cap = PlantingCapability.new()
+	cap.emoji_pair = {"north": north, "south": south}
+	cap.plant_type = plant_type
+	cap.cost = cost
+	cap.display_name = display_name if display_name != "" else plant_type.capitalize()
+	cap.requires_biome = exclusive
+	planting_capabilities.append(cap)
+
+	# Register cost emojis as consumable
+	for emoji in cost.keys():
+		if emoji not in consumable_emojis:
+			register_resource(emoji, false, true)
+
+
+func get_plantable_capabilities() -> Array[PlantingCapability]:
+	"""Get all plantable capabilities for this biome
+
+	Tools query this to generate dynamic plant menus based on biome context.
+	Returns Array of PlantingCapability objects with emoji pairs, costs, names.
+	"""
+	return planting_capabilities
+
+
+func get_planting_cost(plant_type: String) -> Dictionary:
+	"""Get planting cost for a specific plant type
+
+	Args:
+		plant_type: Plant identifier (e.g., "wheat", "mushroom")
+
+	Returns:
+		Dictionary of emoji → credits cost, or {} if not plantable
+	"""
+	for cap in planting_capabilities:
+		if cap.plant_type == plant_type:
+			return cap.cost
+	return {}  # Not plantable in this biome
+
+
+func supports_plant_type(plant_type: String) -> bool:
+	"""Check if this biome supports planting a specific type
+
+	Args:
+		plant_type: Plant identifier (e.g., "wheat", "mushroom")
+
+	Returns:
+		true if plantable, false otherwise
+	"""
+	for cap in planting_capabilities:
+		if cap.plant_type == plant_type:
+			return true
+	return false
+
+
 func get_producible_emojis() -> Array[String]:
 	"""Get all emojis this biome can produce"""
 	return producible_emojis
@@ -2154,6 +2248,77 @@ func _calculate_bath_coherence() -> float:
 
 
 # ============================================================================
+# Strange Attractor Analysis
+# ============================================================================
+
+func _initialize_attractor_tracking() -> void:
+	"""Initialize strange attractor analysis for this biome
+
+	Called by _ready() after bath/quantum_computer is initialized.
+	Child classes can override _select_key_emojis_for_attractor() to customize.
+	"""
+	attractor_analyzer = StrangeAttractorAnalyzer.new()
+
+	# Choose 3 key emojis for this biome's phase space
+	var key_emojis = _select_key_emojis_for_attractor()
+
+	if key_emojis.size() >= 3:
+		attractor_analyzer.initialize(key_emojis)
+		_verbose_log("info", "attractor", "📊", "%s: Attractor tracking %s" % [get_biome_type(), str(key_emojis)])
+	else:
+		push_warning("BiomeBase: Insufficient emojis for attractor tracking (%d < 3)" % key_emojis.size())
+
+
+func _select_key_emojis_for_attractor() -> Array[String]:
+	"""Choose 3 most important emojis for this biome's phase space
+
+	Override in child classes for biome-specific selection.
+	Default: pick first 3 from quantum_computer's emoji list.
+
+	Returns:
+		Array of 3 emoji strings (or fewer if not enough available)
+	"""
+	var emojis: Array[String] = []
+
+	# Try to get from quantum_computer (Model C)
+	if quantum_computer and quantum_computer.register_map:
+		var emoji_list = quantum_computer.register_map.coordinates.keys()
+		for i in range(min(3, emoji_list.size())):
+			emojis.append(emoji_list[i])
+
+	# Fallback: try bath (legacy compatibility)
+	elif bath and bath.emoji_list.size() >= 3:
+		for i in range(3):
+			emojis.append(bath.emoji_list[i])
+
+	return emojis
+
+
+func _record_attractor_snapshot() -> void:
+	"""Record current quantum state as point in phase space trajectory
+
+	Called by child class evolution methods after quantum_computer.evolve()
+	"""
+	if not attractor_analyzer:
+		return
+
+	# Get observable populations from quantum computer
+	var observables: Dictionary = {}
+
+	if quantum_computer and quantum_computer.density_matrix:
+		observables = quantum_computer.get_all_populations()
+	elif bath:
+		# Fallback to bath (legacy compatibility)
+		for emoji in bath.emoji_list:
+			var prob = bath.get_probability(emoji)
+			observables[emoji] = prob
+
+	# Record snapshot
+	if not observables.is_empty():
+		attractor_analyzer.record_snapshot(observables)
+
+
+# ============================================================================
 # Reset & Lifecycle
 # ============================================================================
 
@@ -2484,9 +2649,269 @@ func _gates_equal(gate1: Array, gate2: Array) -> bool:
 	return true
 
 
+## Build quantum operators with caching
+## Call this after quantum_computer and register_map are initialized
+func build_operators_cached(biome_name: String, icons: Dictionary) -> void:
+	"""
+	Build Hamiltonian and Lindblad operators with caching.
+
+	Args:
+		biome_name: Name of the biome (e.g. "BioticFluxBiome")
+		icons: Dictionary of emoji → Icon used by this biome
+
+	First boot: Builds operators and caches them (~8s per biome)
+	Subsequent boots: Loads from cache (~0.01s per biome)
+	"""
+	# Generate cache key from Icon configs
+	var cache_key = CacheKey.for_biome(biome_name, _icon_registry)
+
+	# Safe VerboseConfig access (autoload may not be available during compilation)
+	var verbose = get_node_or_null("/root/VerboseConfig")
+	if verbose:
+		verbose.info("cache", "🔑", "%s cache key: %s" % [biome_name, cache_key])
+
+	# Try to load from cache (user cache first, then bundled cache)
+	var cache = OperatorCache.get_instance()
+	var bundled_hit_before = cache.bundled_hit_count
+	var cached_ops = cache.try_load(biome_name, cache_key)
+
+	if not cached_ops.is_empty():
+		# Cache HIT - use cached operators
+		quantum_computer.hamiltonian = cached_ops.hamiltonian
+		quantum_computer.lindblad_operators = cached_ops.lindblad_operators
+		if verbose:
+			var h_dim = quantum_computer.hamiltonian.n if quantum_computer.hamiltonian else 0
+			var l_count = quantum_computer.lindblad_operators.size()
+			# Check if this was a bundled cache hit
+			var from_bundled = cache.bundled_hit_count > bundled_hit_before
+			var cache_source = "[BUNDLED]" if from_bundled else "[USER CACHE]"
+			verbose.info("cache", "✅", "Cache HIT: Loaded H (%dx%d) + %d Lindblad operators %s" % [h_dim, h_dim, l_count, cache_source])
+	else:
+		# Cache MISS - build operators
+		if verbose:
+			verbose.info("cache", "🔨", "Cache MISS: Building operators from scratch...")
+		var start_time = Time.get_ticks_msec()
+
+		# Build using HamiltonianBuilder and LindbladBuilder
+		var HamBuilder = load("res://Core/QuantumSubstrate/HamiltonianBuilder.gd")
+		var LindBuilder = load("res://Core/QuantumSubstrate/LindbladBuilder.gd")
+
+		# Pass verbose logger to builders for detailed logging
+		quantum_computer.hamiltonian = HamBuilder.build(icons, quantum_computer.register_map, verbose)
+		var lindblad_result = LindBuilder.build(icons, quantum_computer.register_map, verbose)
+		quantum_computer.lindblad_operators = lindblad_result.get("operators", [])
+		quantum_computer.gated_lindblad_configs = lindblad_result.get("gated_configs", [])
+
+		var elapsed = Time.get_ticks_msec() - start_time
+		if verbose:
+			verbose.info("cache", "💾", "Built in %d ms - saving to cache for next boot" % elapsed)
+
+		# Save to cache for next time
+		cache.save(biome_name, cache_key, quantum_computer.hamiltonian, quantum_computer.lindblad_operators)
+
+
 func _format_positions(positions: Array) -> String:
 	"""Format position array as readable string"""
 	var parts = []
 	for pos in positions:
 		parts.append(str(pos))
 	return "[" + ", ".join(parts) + "]"
+
+
+# ============================================================================
+# V2 ARCHITECTURE: REGISTER BINDING TRACKING (Tool Architecture v2.1)
+# ============================================================================
+# Tracks which registers are bound to Terminals via PlotPool.
+# Used by EXPLORE action for probability-weighted register discovery.
+
+## Bound register tracking: register_id → terminal_id
+var _bound_registers: Dictionary = {}
+
+
+func get_unbound_registers() -> Array[int]:
+	"""Get all register IDs not currently bound to a terminal.
+
+	Used by EXPLORE action for probability-weighted discovery.
+	Returns registers available for new terminal binding.
+	"""
+	if not quantum_computer or not quantum_computer.register_map:
+		return []
+
+	var all_ids = quantum_computer.register_map.get_all_register_ids()
+	var unbound: Array[int] = []
+
+	for reg_id in all_ids:
+		if not _bound_registers.has(reg_id):
+			unbound.append(reg_id)
+
+	return unbound
+
+
+func get_register_probability(register_id: int) -> float:
+	"""Get probability amplitude for a specific register from density matrix diagonal.
+
+	Used by EXPLORE for weighted random selection.
+	Returns P(register) = ⟨register|ρ|register⟩
+	"""
+	if not quantum_computer:
+		return 0.0
+
+	# Get density matrix diagonal element for this register
+	var rho = quantum_computer.get_density_matrix()
+	if not rho or register_id < 0 or register_id >= rho.get_dimension():
+		return 0.0
+
+	# Return diagonal element (probability)
+	var diag = rho.get_element(register_id, register_id)
+	return diag.re if diag else 0.0
+
+
+func get_register_probabilities() -> Dictionary:
+	"""Get probability distribution over all unbound registers.
+
+	Returns: {register_id: probability} for unbound registers only.
+	Used by EXPLORE for weighted selection.
+	"""
+	var probs: Dictionary = {}
+	var unbound = get_unbound_registers()
+
+	for reg_id in unbound:
+		probs[reg_id] = get_register_probability(reg_id)
+
+	return probs
+
+
+func is_register_bound(register_id: int) -> bool:
+	"""Check if a register is currently bound to a terminal."""
+	return _bound_registers.has(register_id)
+
+
+func mark_register_bound(register_id: int, terminal_id: String = "") -> void:
+	"""Mark a register as bound to a terminal.
+
+	Called by PlotPool when binding a terminal to this biome's register.
+	"""
+	_bound_registers[register_id] = terminal_id
+
+
+func mark_register_unbound(register_id: int) -> void:
+	"""Mark a register as unbound (available for exploration).
+
+	Called by PlotPool when unbinding a terminal.
+	"""
+	_bound_registers.erase(register_id)
+
+
+func get_bound_register_count() -> int:
+	"""Get count of currently bound registers."""
+	return _bound_registers.size()
+
+
+func get_total_register_count() -> int:
+	"""Get total number of registers in this biome."""
+	if not quantum_computer or not quantum_computer.register_map:
+		return 0
+	return quantum_computer.register_map.get_register_count()
+
+
+func get_register_emoji_pair(register_id: int) -> Dictionary:
+	"""Get the north/south emoji pair for a register.
+
+	Returns: {"north": "🌾", "south": "👥"} or empty dict if not found.
+	"""
+	if not quantum_computer or not quantum_computer.register_map:
+		return {}
+
+	var reg = quantum_computer.register_map.get_register(register_id)
+	if not reg:
+		return {}
+
+	return {
+		"north": reg.north_emoji if reg.has("north_emoji") else reg.get("north", "?"),
+		"south": reg.south_emoji if reg.has("south_emoji") else reg.get("south", "?")
+	}
+
+
+# ============================================================================
+# V2 ARCHITECTURE: EVOLUTION PAUSE CONTROL
+# ============================================================================
+
+func set_evolution_paused(paused: bool) -> void:
+	"""Set evolution pause state (called by FarmInputHandler on Spacebar).
+
+	When paused:
+	- Quantum evolution stops (density matrix frozen)
+	- Player actions still work (EXPLORE, MEASURE, POP, gates)
+	- Visual indicators should show paused state
+	"""
+	quantum_evolution_enabled = not paused
+
+
+func is_evolution_paused() -> bool:
+	"""Check if evolution is currently paused."""
+	return not quantum_evolution_enabled
+
+
+# ============================================================================
+# V2 ARCHITECTURE: DENSITY MATRIX COLLAPSE (for MEASURE action)
+# ============================================================================
+
+func collapse_register(register_id: int, is_north: bool) -> void:
+	"""Collapse density matrix for a measured register.
+
+	Applies projection operator P = |outcome><outcome| to density matrix.
+	This zeros off-diagonal elements involving this register.
+
+	Args:
+		register_id: The register that was measured
+		is_north: True if collapsed to north state, False for south
+	"""
+	if not quantum_computer:
+		return
+
+	# Get the density matrix
+	var rho = quantum_computer.get_density_matrix()
+	if not rho:
+		return
+
+	# Project to measured state
+	# For single-qubit register: zero off-diagonal and normalize diagonal
+	var outcome_index = 0 if is_north else 1
+
+	# This is a simplified collapse - full implementation would use
+	# proper projection operators on the multi-qubit density matrix
+	if quantum_computer.has_method("project_register"):
+		quantum_computer.project_register(register_id, outcome_index)
+	else:
+		# Fallback: just mark that collapse happened (logging)
+		print("BiomeBase: collapse_register(%d, %s) - no quantum handler" % [
+			register_id, "north" if is_north else "south"
+		])
+
+
+func get_coherence_with_other_registers(register_id: int) -> float:
+	"""Get total coherence (entanglement indicator) between this register and others.
+
+	Returns sum of |ρ_ij| for off-diagonal elements involving this register.
+	High value indicates entanglement that will break on measurement.
+	"""
+	if not quantum_computer:
+		return 0.0
+
+	var rho = quantum_computer.get_density_matrix()
+	if not rho:
+		return 0.0
+
+	var dim = rho.get_dimension()
+	if register_id < 0 or register_id >= dim:
+		return 0.0
+
+	# Sum off-diagonal magnitudes for this row/column
+	var coherence: float = 0.0
+	for i in range(dim):
+		if i != register_id:
+			var elem = rho.get_element(register_id, i)
+			if elem:
+				coherence += sqrt(elem.re * elem.re + elem.im * elem.im)
+
+	return coherence

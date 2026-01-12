@@ -70,20 +70,27 @@ func _create_hints_panel() -> PanelContainer:
 	var font_size = layout_manager.get_scaled_font_size(14) if layout_manager else 14
 	var title_font_size = layout_manager.get_scaled_font_size(18) if layout_manager else 18
 
-	# Main panel container
+	# Main panel container with scroll support
 	var panel = PanelContainer.new()
-	panel.custom_minimum_size = Vector2(500 * scale_factor, 400 * scale_factor)
+	panel.custom_minimum_size = Vector2(600 * scale_factor, 500 * scale_factor)
 	# Position in upper right below the button
 	panel.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-	panel.offset_left = -520 * scale_factor  # Panel width + margin
+	panel.offset_left = -620 * scale_factor  # Panel width + margin
 	panel.offset_top = 60 * scale_factor     # Below button
 	panel.z_index = 2000  # Above overlays
 	panel.visible = false
 
-	# VBox for content
+	# Add scroll container for long content
+	var scroll = ScrollContainer.new()
+	scroll.custom_minimum_size = Vector2(580 * scale_factor, 480 * scale_factor)
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	panel.add_child(scroll)
+
+	# VBox for content inside scroll
 	var vbox = VBoxContainer.new()
 	vbox.add_theme_constant_override("separation", int(8 * scale_factor))
-	panel.add_child(vbox)
+	scroll.add_child(vbox)
 
 	# Title
 	var title = Label.new()
@@ -104,10 +111,12 @@ func _create_hints_panel() -> PanelContainer:
 	vbox.add_child(tool_section)
 
 	var tool_help = Label.new()
-	tool_help.text = """  1 = Plant Tool (Wheat, Mushroom, Tomato)
-  2 = Quantum Tool (Entangle, Measure, Harvest)
-  3 = Economy Tool (Mill, Market, Sell)
-  4-6 = Future tools"""
+	tool_help.text = """  1 = Grower 🌱 (Plant, Entangle, Measure+Harvest)
+  2 = Quantum ⚛️ (Cluster, Peek, Measure)
+  3 = Industry 🏭 (Build Market/Kitchen)
+  4 = Biome Control ⚡ (Energy Tap, Lindblad, Pump/Reset)
+  5 = Gates 🔄 (1-Qubit Gates, 2-Qubit Gates, Remove)
+  6 = Biome 🌍 (Assign Biome, Clear, Inspect)"""
 	tool_help.add_theme_font_size_override("font_size", font_size)
 	tool_help.autowrap_mode = TextServer.AUTOWRAP_WORD
 	vbox.add_child(tool_help)
@@ -157,23 +166,96 @@ func _create_hints_panel() -> PanelContainer:
 
 	# Overlays section
 	var overlay_section = Label.new()
-	overlay_section.text = "📋 OVERLAYS:"
+	overlay_section.text = "📋 OVERLAYS & MENUS:"
 	overlay_section.add_theme_font_size_override("font_size", title_font_size)
 	vbox.add_child(overlay_section)
 
 	var overlay_help = Label.new()
-	overlay_help.text = """  C = Contracts panel
+	overlay_help.text = """  C = Quest Board
   V = Vocabulary panel
-  N = Network visualization
-  ESC = Pause menu"""
+  L = Logger config (debug)
+  ESC = Pause menu
+    In Pause Menu:
+    • S = Save Game
+    • L = Load Game
+    • X = Quantum Settings
+    • D = Reload Last Save
+    • R = Restart
+    • Q = Quit"""
 	overlay_help.add_theme_font_size_override("font_size", font_size)
 	overlay_help.autowrap_mode = TextServer.AUTOWRAP_WORD
 	vbox.add_child(overlay_help)
 
 	# Separator
 	var sep5 = Control.new()
-	sep5.custom_minimum_size.y = int(8 * scale_factor)
+	sep5.custom_minimum_size.y = int(5 * scale_factor)
 	vbox.add_child(sep5)
+
+	# Quantum UI section
+	var quantum_section = Label.new()
+	quantum_section.text = "🔬 QUANTUM UI (Always Visible):"
+	quantum_section.add_theme_font_size_override("font_size", title_font_size)
+	vbox.add_child(quantum_section)
+
+	var quantum_help = Label.new()
+	quantum_help.text = """  Left Side:
+    • Quantum HUD Panel (collapsible)
+      - Energy Meter (real vs imaginary)
+      - Uncertainty Meter (precision/flexibility)
+      - Semantic Context (octant/region)
+      - Attractor Personality
+
+  Top Right:
+    • Quantum Mode Indicator
+      Shows: HARDWARE/INSPECTOR mode
+      Configure: ESC → X (Quantum Settings)"""
+	quantum_help.add_theme_font_size_override("font_size", font_size)
+	quantum_help.autowrap_mode = TextServer.AUTOWRAP_WORD
+	vbox.add_child(quantum_help)
+
+	# Separator
+	var sep6 = Control.new()
+	sep6.custom_minimum_size.y = int(5 * scale_factor)
+	vbox.add_child(sep6)
+
+	# Advanced tool actions section
+	var advanced_section = Label.new()
+	advanced_section.text = "⚡ ADVANCED TOOL ACTIONS:"
+	advanced_section.add_theme_font_size_override("font_size", title_font_size)
+	vbox.add_child(advanced_section)
+
+	var advanced_help = Label.new()
+	advanced_help.text = """  Tool 2 (Quantum):
+    • E = Peek State (no collapse)
+      Shows probabilities without measurement
+    • R = Batch Measure
+      Measures entire entangled components
+
+  Tool 4 (Biome Control):
+    • E → Q/E/R = Lindblad Operations
+      Drive (+pop), Decay (-pop), Transfer
+    • R → Q/E/R = Pump/Reset
+      Pump to wheat, Reset pure, Reset mixed
+
+  Tool 5 (Gates):
+    • Q → Q/E/R = Basic 1-Qubit Gates
+      Pauli-X (flip), Hadamard (superposition), Pauli-Z (phase)
+    • E → Q/E/R = Phase Gates
+      Pauli-Y, S-gate (π/2), T-gate (π/4)
+    • R → Q/E/R = 2-Qubit Gates
+      CNOT, CZ, SWAP
+
+  Tool 6 (Biome):
+    • R = Inspect Plot
+      Opens detailed biome inspector"""
+	advanced_help.add_theme_font_size_override("font_size", font_size)
+	advanced_help.autowrap_mode = TextServer.AUTOWRAP_WORD
+	vbox.add_child(advanced_help)
+
+	# Separator
+	var sep7 = Control.new()
+	sep7.custom_minimum_size.y = int(8 * scale_factor)
+	vbox.add_child(sep7)
 
 	# Close button
 	var close_btn = Button.new()

@@ -9,8 +9,13 @@ extends "res://Core/GameMechanics/BasePlot.gd"
 const PhaseConstraint = preload("res://Core/GameMechanics/PhaseConstraint.gd")
 
 # Plot type
+# DEPRECATED (Phase 5): Use plot_type_name instead of enum
+# Enum kept for backward compatibility until Phase 6
 enum PlotType { WHEAT, TOMATO, MUSHROOM, MILL, MARKET, KITCHEN, ENERGY_TAP, FIRE, WATER, FLOUR, VEGETATION, RABBIT, WOLF, BREAD }
-@export var plot_type: PlotType = PlotType.WHEAT
+@export var plot_type: PlotType = PlotType.WHEAT  # DEPRECATED - use plot_type_name
+
+# PHASE 5 (PARAMETRIC): String-based plot type (replaces enum)
+@export var plot_type_name: String = "wheat"
 
 # Phase constraint (for plots that restrict Bloch sphere movement)
 var phase_constraint: PhaseConstraint = null
@@ -41,48 +46,24 @@ var tap_last_flux_check: float = 0.0     # Timestamp of last flux read from bath
 func _init():
 	super._init()
 	# FarmPlot-specific initialization (subclasses will override this)
-	plot_type = PlotType.WHEAT  # Default plot type
+	plot_type = PlotType.WHEAT  # DEPRECATED - kept for backward compatibility
+	plot_type_name = "wheat"  # PHASE 5 (PARAMETRIC): String-based type
 
 
 ## Helper Functions
 
 
 func get_plot_emojis() -> Dictionary:
-	"""Get the dual-emoji pair for this plot type"""
-	match plot_type:
-		PlotType.WHEAT:
-			return {"north": "🌾", "south": "🍄"}  # Wheat ↔ Mushroom (BioticFlux Flora axis)
-		PlotType.TOMATO:
-			return {"north": "🍅", "south": "🌌"}  # Tomato ↔ Cosmic Chaos (counter-axial: life vs entropy)
-		PlotType.MUSHROOM:
-			return {"north": "🍄", "south": "🍂"}  # Mushroom ↔ Detritus (decomposition cycle)
-		PlotType.MILL:
-			return {"north": "🏭", "south": "💨"}  # Mill ↔ Flour
-		PlotType.MARKET:
-			return {"north": "🏪", "south": "💰"}  # Market ↔ Credits
-		PlotType.KITCHEN:
-			return {"north": "🍳", "south": "🍞"}  # Kitchen ↔ Bread
-		PlotType.ENERGY_TAP:
-			return {"north": "🚰", "south": "⚡"}  # Energy Tap ↔ Power
-		# Kitchen ingredients (quantum baking qubits)
-		PlotType.FIRE:
-			return {"north": "🔥", "south": "❄️"}  # Temperature: Hot ↔ Cold (qubit 1)
-		PlotType.WATER:
-			return {"north": "💧", "south": "🏜️"}  # Moisture: Wet ↔ Dry (qubit 2)
-		PlotType.FLOUR:
-			return {"north": "💨", "south": "🌾"}  # Substance: Flour ↔ Grain (qubit 3)
-		# Forest organisms (ecosystem dynamics)
-		PlotType.VEGETATION:
-			return {"north": "🌿", "south": "🍂"}  # Vegetation ↔ Detritus (growth/decay)
-		PlotType.RABBIT:
-			return {"north": "🐇", "south": "🍂"}  # Rabbit ↔ Detritus (life/death)
-		PlotType.WOLF:
-			return {"north": "🐺", "south": "🍂"}  # Wolf ↔ Detritus (predator/decay)
-		# Market commodities (trading goods)
-		PlotType.BREAD:
-			return {"north": "🍞", "south": "💨"}  # Bread ↔ Flour (product/ingredient)
-		_:
-			return {"north": "?", "south": "?"}
+	"""Get the dual-emoji pair for this plot type
+
+	PHASE 5 (PARAMETRIC): Queries parent biome for emoji pair via plot_type_name.
+	Delegates to BasePlot.get_plot_emojis() which queries biome capabilities.
+
+	OLD (Hard-Coded): Match statement on PlotType enum
+	NEW (Parametric): Query biome.get_plantable_capabilities() for plot_type_name
+	"""
+	# PARAMETRIC: Delegate to BasePlot which queries parent biome
+	return super.get_plot_emojis()
 
 
 func get_semantic_emoji() -> String:
@@ -111,7 +92,8 @@ func grow(delta: float, biome = null, territory_manager = null, icon_network = n
 	# This method is called each frame for plot growth logic
 
 	# Process energy tap if applicable (Manifest Section 4.1)
-	if plot_type == PlotType.ENERGY_TAP:
+	# PHASE 5 (PARAMETRIC): Check plot_type_name instead of enum
+	if plot_type_name == "energy_tap":
 		process_energy_tap(delta, biome)
 
 	return 0.0
@@ -130,7 +112,8 @@ func process_energy_tap(delta: float, biome = null) -> void:
 		delta: Time step in seconds
 		biome: BiomeBase reference for accessing bath
 	"""
-	if plot_type != PlotType.ENERGY_TAP or not tap_target_emoji:
+	# PHASE 5 (PARAMETRIC): Check plot_type_name instead of enum
+	if plot_type_name != "energy_tap" or not tap_target_emoji:
 		return
 
 	if not biome or not biome.bath:

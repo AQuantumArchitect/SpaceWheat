@@ -1,0 +1,187 @@
+================================================================================
+                    SPACEWHEAT TOOLS & OVERLAYS STATUS CHART
+                             Test Date: 2026-01-12
+================================================================================
+
+SYSTEM BOOT STATUS
+================================================================================
+Status:  ✅ PASSING - No critical errors during startup
+Console: Clean boot sequence complete - all systems ready
+Errors:  None critical (only anchor warnings + RID leaks at exit)
+
+
+OVERLAY SYSTEM STATUS (5 Overlays)
+================================================================================
+
+┌──────────────────┬──────────┬────────────┬──────────────┬─────────────────┐
+│ Overlay          │ Created  │ Registered │ Implemented  │ Testing Status  │
+├──────────────────┼──────────┼────────────┼──────────────┼─────────────────┤
+│ 📊 Inspector     │ ✅ YES   │ ✅ YES     │ ✅ Complete  │ ⏳ NEEDS TEST   │
+│ ⌨️ Controls      │ ✅ YES   │ ✅ YES     │ ✅ Complete  │ ⏳ NEEDS TEST   │
+│ 🧭 Semantic Map  │ ✅ YES   │ ✅ YES     │ ⚠️ Partial   │ ⏳ NEEDS TEST   │
+│ 📜 Quests        │ ✅ ADAPT │ ✅ YES     │ ⚠️ Partial   │ ⏳ NEEDS TEST   │
+│ 🔬 Biome Detail  │ ✅ ADAPT │ ✅ YES     │ ✅ Complete  │ ⏳ NEEDS TEST   │
+└──────────────────┴──────────┴────────────┴──────────────┴─────────────────┘
+
+Legend: ✅ Complete  ⚠️ Partial/Issue  ❌ Missing/Broken  ⏳ Needs Testing
+
+
+TOOLS STATUS (6 Tools)
+================================================================================
+
+┌────┬──────────────────┬─────────────────────┬────────────┬──────────────────┐
+│ #  │ Tool Name        │ Actions             │ Submenus   │ Status           │
+├────┼──────────────────┼─────────────────────┼────────────┼──────────────────┤
+│ 1  │ 🌱 Grower        │ Q=Plant             │ None       │ ⏳ UNTESTED      │
+│    │                  │ E=Entangle          │            │                  │
+│    │                  │ R=Measure+Harvest   │            │                  │
+├────┼──────────────────┼─────────────────────┼────────────┼──────────────────┤
+│ 2  │ ⚛️ Quantum       │ Q=Cluster           │ None       │ ⏳ UNTESTED      │
+│    │                  │ E=Peek              │            │                  │
+│    │                  │ R=Measure           │            │                  │
+├────┼──────────────────┼─────────────────────┼────────────┼──────────────────┤
+│ 3  │ 🏭 Industry      │ Q=Build Market      │ None       │ ⏳ UNTESTED      │
+│    │                  │ E=Build Kitchen     │            │                  │
+│    │                  │ R=Unknown           │            │                  │
+├────┼──────────────────┼─────────────────────┼────────────┼──────────────────┤
+│ 4  │ ⚡ Biome Ctrl    │ Q=Energy Tap        │ Yes        │ ⏳ UNTESTED      │
+│    │                  │ E=Lindblad (→menu)  │ (3 opts)   │                  │
+│    │                  │ R=Pump/Reset (→menu)│ (3 opts)   │                  │
+├────┼──────────────────┼─────────────────────┼────────────┼──────────────────┤
+│ 5  │ 🔄 Gates         │ Q=1-Qubit (→menu)   │ Yes        │ ⏳ UNTESTED      │
+│    │                  │ E=2-Qubit (→menu)   │ (3+3 opts) │                  │
+│    │                  │ R=Remove            │            │                  │
+├────┼──────────────────┼─────────────────────┼────────────┼──────────────────┤
+│ 6  │ 🌍 Biome         │ Q=Assign            │ None       │ ⏳ UNTESTED      │
+│    │                  │ E=Clear             │            │                  │
+│    │                  │ R=Inspect (overlay) │            │                  │
+└────┴──────────────────┴─────────────────────┴────────────┴──────────────────┘
+
+ALL TOOLS: ⏳ UNTESTED - Functionality unclear (need interactive testing)
+
+
+FEATURE COMPLETION MATRIX
+================================================================================
+
+Feature                          Implementation    Testing      Overall
+────────────────────────────────────────────────────────────────────────────
+v2 Overlay Infrastructure        ✅ Complete        ✅ Working   ✅ GOOD
+Overlay Open/Close               ✅ Complete        ✅ Working   ✅ GOOD
+WASD Navigation in Overlays      ✅ Complete        ⏳ Unknown   ⏳ UNKNOWN
+QER+F Key Remapping             ✅ Complete        ⏳ Unknown   ⏳ UNKNOWN
+Input Routing Priority          ✅ Complete        ✅ Working   ✅ GOOD
+ESC to Close Overlays           ✅ Complete        ⏳ Unknown   ⏳ UNKNOWN
+────────────────────────────────────────────────────────────────────────────
+Inspector Data Binding          ❌ Missing         ⏳ Unknown   ❌ BLOCKED
+Semantic Map Vocab Loading      ❌ Missing         ⏳ Unknown   ❌ BLOCKED
+Quest Board Quest Data          ⚠️ Partial         ⏳ Unknown   ⏳ UNKNOWN
+Biome Detail Biome Data         ⏳ Unknown         ⏳ Unknown   ⏳ UNKNOWN
+────────────────────────────────────────────────────────────────────────────
+Tool Input Capture              ✅ Complete        ⏳ Unknown   ⏳ UNKNOWN
+Tool 1-6 Selection              ✅ Complete        ⏳ Unknown   ⏳ UNKNOWN
+Action Label Display            ✅ Complete        ⏳ Unknown   ⏳ UNKNOWN
+Action Execution (Q/E/R)        ✅ Complete        ⏳ Unknown   ⏳ UNKNOWN
+Plot Selection                  ✅ Complete        ⏳ Unknown   ⏳ UNKNOWN
+
+
+KNOWN ISSUES SUMMARY
+================================================================================
+
+REPORTED BY USER:
+├─ "All tools are broken" ...................... ⏳ NOT YET VERIFIED
+├─ "Quest overlays seems old" .................. ⏳ NOT YET VERIFIED
+└─ "Script errors on boot up" .................. ✅ VERIFIED FALSE (none found)
+
+CODE ANALYSIS ISSUES:
+├─ Semantic Map: Vocabulary not loading ........ ✅ CONFIRMED
+├─ Inspector: No quantum computer data set ..... ✅ CONFIRMED
+├─ Quest Board: Possible stale references ...... ⏳ NEEDS VERIFICATION
+└─ Tool Actions: Dependencies unclear .......... ⏳ NEEDS VERIFICATION
+
+
+WHAT'S ACTUALLY WORKING
+================================================================================
+
+✅ CONFIRMED WORKING:
+   • Game boots without errors
+   • All 5 overlays created and registered
+   • Overlay manager operational
+   • Input system initialized
+   • Quest system initialized
+   • Farm created with 12 plots
+   • All biome quantum computers ready
+   • v2 overlay open/close mechanism
+   • Input routing hierarchy implemented
+
+⏳ NOT YET TESTED (But code exists):
+   • Tool selection (1-6 keys)
+   • Action triggering (Q/E/R keys)
+   • Overlay WASD navigation
+   • Overlay QER+F remapping
+   • ESC closing overlays
+   • Quest board opening/closing
+   • Quest data loading/display
+   • Biome detail biome data display
+   • Inspector quantum data display
+   • Semantic map vocab display
+
+❌ KNOWN BROKEN/INCOMPLETE:
+   • Semantic Map vocabulary loading (no code)
+   • Inspector quantum data binding (no code)
+   • Octant emoji mapping (no code)
+   • Attractor visualization (placeholder only)
+
+
+RECOMMENDED IMMEDIATE ACTIONS
+================================================================================
+
+PRIORITY 1 - CONFIRM TOOL STATUS:
+   1. Launch game
+   2. Press number keys 1-6
+   3. For each tool, check if action labels appear
+   4. Press Q/E/R keys
+   5. Report if actions execute or fail
+   6. Check console for errors
+
+PRIORITY 2 - CONFIRM QUEST BOARD:
+   1. Press C to open quest board
+   2. Check if quests populate slots
+   3. Try WASD to navigate
+   4. Try Q/E/R actions
+   5. Try F to open faction browser
+   6. Report findings
+
+PRIORITY 3 - TEST OVERLAYS:
+   1. Open each overlay manually
+   2. Try WASD navigation
+   3. Try QER+F actions
+   4. Try ESC to close
+   5. Verify no input leaks
+
+PRIORITY 4 - FIX DATA BINDING:
+   1. Connect Inspector to active biome
+   2. Load Vocabulary into Semantic Map
+   3. Implement octant emoji mapping
+   4. Test data displays correctly
+
+
+NEXT CHECKPOINT
+================================================================================
+
+Once above testing complete, generate:
+   1. Detailed error log (copy console output)
+   2. List of broken actions (Q/E/R failures)
+   3. Missing data sources (vocab, quantum data)
+   4. Input routing issues
+   5. Comprehensive issue priority list
+
+Files to create tests in:
+   • Tests/test_all_tools_overlays.gd
+   • Tests/test_gameplay_detailed.gd
+
+Expected output: Chart with ✅/⏳/❌ for each component
+
+
+================================================================================
+                              END OF STATUS CHART
+================================================================================

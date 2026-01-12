@@ -74,6 +74,12 @@ func _ready():
 	register_emoji_pair("💧", "🔥")  # Resource axis
 	register_emoji_pair("🌲", "🏡")  # Structure axis
 
+	# Register planting capabilities (Parametric System - Phase 1)
+	# Forest-exclusive organisms (require Forest biome)
+	register_planting_capability("🌿", "🍂", "vegetation", {"🌿": 10}, "Vegetation", true)
+	register_planting_capability("🐇", "🍂", "rabbit", {"🐇": 10}, "Rabbit", true)
+	register_planting_capability("🐺", "🍂", "wolf", {"🐺": 10}, "Wolf", true)
+
 	# Configure visual properties for QuantumForceGraph
 	visual_color = Color(0.3, 0.7, 0.3, 0.3)
 	visual_label = "🌲 Forest"
@@ -128,15 +134,8 @@ func _initialize_bath() -> void:
 	# Configure forest-specific dynamics
 	_configure_forest_dynamics(icons, icon_registry)
 
-	# Build operators using HamiltonianBuilder and LindbladBuilder
-	var HamBuilder = load("res://Core/QuantumSubstrate/HamiltonianBuilder.gd")
-	var LindBuilder = load("res://Core/QuantumSubstrate/LindbladBuilder.gd")
-
-	quantum_computer.hamiltonian = HamBuilder.build(icons, quantum_computer.register_map)
-
-	var lindblad_result = LindBuilder.build(icons, quantum_computer.register_map)
-	quantum_computer.lindblad_operators = lindblad_result.get("operators", [])
-	quantum_computer.gated_lindblad_configs = lindblad_result.get("gated_configs", [])
+	# Build operators using cached method
+	build_operators_cached("ForestEcosystem_Biome", icons)
 
 	print("  ✅ Hamiltonian: %dx%d matrix" % [
 		quantum_computer.hamiltonian.n if quantum_computer.hamiltonian else 0,
@@ -239,14 +238,7 @@ func rebuild_quantum_operators() -> void:
 
 	_configure_forest_dynamics(icons, icon_registry)
 
-	var HamBuilder = load("res://Core/QuantumSubstrate/HamiltonianBuilder.gd")
-	var LindBuilder = load("res://Core/QuantumSubstrate/LindbladBuilder.gd")
-
-	quantum_computer.hamiltonian = HamBuilder.build(icons, quantum_computer.register_map)
-
-	var lindblad_result = LindBuilder.build(icons, quantum_computer.register_map)
-	quantum_computer.lindblad_operators = lindblad_result.get("operators", [])
-	quantum_computer.gated_lindblad_configs = lindblad_result.get("gated_configs", [])
+	build_operators_cached("ForestEcosystem_Biome", icons)
 
 	print("  ✅ Forest: Rebuilt operators")
 
@@ -255,6 +247,9 @@ func _update_quantum_substrate(dt: float) -> void:
 	"""Evolve forest quantum state."""
 	if quantum_computer:
 		quantum_computer.evolve(dt)
+
+		# SEMANTIC TOPOLOGY: Record phase space trajectory
+		_record_attractor_snapshot()
 
 	# Update legacy weather qubits from quantum state
 	_update_weather_from_quantum()

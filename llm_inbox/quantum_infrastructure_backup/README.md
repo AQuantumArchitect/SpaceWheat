@@ -1,95 +1,128 @@
-# Quantum Infrastructure Backup
+# SpaceWheat Quantum Mechanics - LLM Export
 
-**Date**: 2026-01-08
-**Status**: Complete working system with all 27 factions and 78 icons
+**19 files** showing the complete quantum mechanics flow:
+Factions → Icons → Hamiltonians/Lindblads → QuantumComputer simulation
 
-This directory contains a complete backup of the quantum computing infrastructure, faction system, and icon registry from SpaceWheat.
+## File Index
 
-## What's Included
+### Layer 1: Factions (Define Dynamics)
+| File | Purpose |
+|------|---------|
+| `01_Faction.gd` | Base faction class - defines emoji signatures + Hamiltonian/Lindblad terms |
+| `01_CoreFactions.gd` | 10 core factions (Celestial, Verdant, Mycelial, etc.) |
+| `01_IconBuilder.gd` | Merges faction contributions → builds Icons |
 
-### QuantumSubstrate/ (30 files)
-Core quantum computing engine:
-- **QuantumComputer.gd** - Main quantum simulator (density matrix evolution)
-- **QuantumComponent.gd** - Base class for quantum system components
-- **QuantumGateLibrary.gd** - Library of quantum gates (Pauli, Hadamard, CNOT, etc.)
-- **HamiltonianBuilder.gd** - Constructs Hamiltonian from faction icons
-- **LindbladBuilder.gd** - Builds Lindblad operators for dissipative evolution
-- **QuantumRegister.gd** - Manages qubits and basis states
-- **RegisterMap.gd** - Maps emoji pairs to qubit axes
-- **Icon.gd** - Icon class (hamiltonian couplings, lindblad transfers, drivers)
-- **IconRegistry.gd** - Registry of all 78 icons built from factions
-- **DensityMatrix.gd** - Density matrix representation
-- **Complex.gd** - Complex number arithmetic
-- Plus 19 more supporting files
+### Layer 2: Icons (Output of Faction System)
+| File | Purpose |
+|------|---------|
+| `03_Icon.gd` | Icon data structure - holds merged Hamiltonian/Lindblad terms |
+| `03_IconRegistry.gd` | Autoload singleton - stores and retrieves icons by emoji |
 
-### Factions/ (6 files)
-Complete faction system with all 27 factions:
-- **Faction.gd** - Base faction class (NEW: supports typed arrays, gated lindblad, measurement inversion)
-- **CoreFactions.gd** - 10 core ecosystem factions (Celestial, Verdant, Mycelial, Swift Herd, Pack Lords, Market Spirits, Hearth Keepers, Pollinator Guild, Plague Vectors, Wildfire)
-- **CivilizationFactions.gd** - 7 civilization factions (Granary Guilds, Millwright's Union, Scavenged Psithurism, Yeast Prophets, Station Lords, Void Serfs, Carrion Throne)
-- **Tier2Factions.gd** - 10 tier 2 factions (4 Commerce, 3 Industry, 3 Governance)
-- **AllFactions.gd** - Unified access to all 27 factions
-- **IconBuilder.gd** - Merges faction contributions to build icons
+### Layer 3: Quantum Operators
+| File | Purpose |
+|------|---------|
+| `03_HamiltonianBuilder.gd` | Builds Hamiltonian from Icons |
+| `03_Hamiltonian.gd` | Hamiltonian class - unitary evolution terms |
+| `03_LindbladBuilder.gd` | Builds Lindblad operators from Icons |
+| `03_LindbladSuperoperator.gd` | Lindblad class - dissipation/decoherence terms |
 
-### Icons/ (12 files)
-Individual icon specifications (legacy):
-- BioticFluxIcon.gd
-- ForestEcosystemIcon.gd
-- WheatIcon.gd
-- And 9 more custom icons
+### Layer 4: Simulation Engine
+| File | Purpose |
+|------|---------|
+| `03_QuantumComputer.gd` | Main simulation engine - evolves density matrix |
+| `03_QuantumBath.gd` | Bath modes for biome simulation |
+| `03_DensityMatrix.gd` | Quantum state representation (ρ matrix) |
+| `03_QuantumGateLibrary.gd` | All quantum gates (Pauli-X, Hadamard, CNOT, etc.) |
 
-Note: Most icons are now built dynamically from factions via IconBuilder
+### Layer 5: Foundation
+| File | Purpose |
+|------|---------|
+| `03_Complex.gd` | Complex number math |
+| `03_ComplexMatrix.gd` | Matrix operations |
+| `03_DualEmojiQubit.gd` | Qubit representation (emoji poles) |
+| `03_RegisterMap.gd` | Maps emojis → qubit indices |
 
-### GameMechanics/ (1 file)
-- **QuantumMill.gd** - Quantum gate application tool for gameplay
+### Layer 6: Game Integration
+| File | Purpose |
+|------|---------|
+| `02_QuantumMill.gd` | Example quantum structure (Mill) |
+| `04_ToolConfig.gd` | Tools (1-6) and quantum gate UI |
 
-## Key Mechanics Implemented
+## Data Flow
 
-### 1. Inverted Sine Wave Oscillators (Unified)
-All time-dependent drivers use the same mechanic: `sin(ωt)` vs `sin(ωt + π)`
-- 🔌 @ 1.0 Hz (AC power grid, 1 sec)
-- 🔥❄️ @ 0.067 Hz (Kitchen cycle, 15 sec)
-- ☀🌙 @ 0.05 Hz (Celestial clock, 20 sec)
-- 🐂🐻 @ 0.033 Hz (Market cycle, 30 sec)
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    FACTION → ICON PIPELINE                      │
+├─────────────────────────────────────────────────────────────────┤
+│  CoreFactions.gd                                                │
+│    │                                                            │
+│    ├─ Celestial Archons: ☀🌙 + day/night Hamiltonian           │
+│    ├─ Verdant Pulse: 🌱🌿🌾 + growth Lindblad                   │
+│    ├─ Mycelial Web: 🍄💀🌿 + decomposition Lindblad             │
+│    └─ ... 7 more factions                                       │
+│                                                                 │
+│  IconBuilder.build_icons_for_factions(all_factions)             │
+│    │                                                            │
+│    └─ For each emoji (🌾, 🍄, ☀, ...):                          │
+│        └─ Merge all faction contributions → Icon                │
+│                                                                 │
+│  IconRegistry.register_icon(icon)                               │
+│    └─ 78+ icons available for biomes                            │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                    ICON → OPERATORS                             │
+├─────────────────────────────────────────────────────────────────┤
+│  Biome requests icons: icon_registry.get_icon("🌾")             │
+│                                                                 │
+│  HamiltonianBuilder.build(icons, register_map)                  │
+│    └─ Builds rotation terms (population oscillations)           │
+│                                                                 │
+│  LindbladBuilder.build(icons, register_map)                     │
+│    └─ Builds jump operators (irreversible transfers)            │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                    QUANTUM SIMULATION                           │
+├─────────────────────────────────────────────────────────────────┤
+│  QuantumComputer.evolve(dt)                                     │
+│    │                                                            │
+│    ├─ Hamiltonian: dρ/dt = -i[H, ρ]  (unitary rotation)         │
+│    │                                                            │
+│    └─ Lindblad: Σ(L ρ L† - ½{L†L, ρ}) (dissipation)             │
+│                                                                 │
+│  Result: Updated DensityMatrix with new populations             │
+└─────────────────────────────────────────────────────────────────┘
+```
 
-### 2. Measurement Inversion (Quantum Mask)
-Emoji 🧤 has inverts=true, so measuring it collapses to the OPPOSITE pole of its axis:
-- On axis (🧤, 🗑): measure 🧤 → reveals 🗑
-- On axis (🧤, 💀): measure 🧤 → reveals 💀
-- Enables "basis state smuggling" in biome design
+## Key Concepts
 
-### 3. Gated Lindblad
-Transfers with multiplicative dependencies:
-- Normal: `effective_rate = base_rate × P(gate)^power`
-- Inverse: `effective_rate = base_rate × (1 - P(gate))^power` (starvation)
+### Factions
+- Define **closed dynamical systems** over 3-7 emojis
+- Specify Hamiltonian couplings (reversible oscillations)
+- Specify Lindblad transfers (irreversible flows)
+- Example: Verdant Pulse defines 🌱→🌿→🌾 growth dynamics
 
-### 4. Negative Self-Energy
-Debt emoji (💸) with negative energy for annihilation dynamics:
-- Wealth and debt in same system cancel each other
-- Creates economic constraint gameplay
+### Icons
+- Built by **merging** faction contributions
+- One icon per emoji (🌾, 🍄, ☀, etc.)
+- Contains combined Hamiltonian + Lindblad terms from all factions
 
-## System Status
+### Gated Lindblad
+- Multiplicative dependencies: `rate × P(gate)^power`
+- Example: No bees (🐝 = 0) → no grain production
+- Inverse gating also supported: `rate × (1 - P(gate))^power`
 
-✅ All 27 factions compile and load
-✅ IconBuilder creates 78 icons from faction contributions
-✅ IconRegistry successfully initializes
-✅ Quantum simulator fully operational
-✅ All oscillators unified to inverted sine wave mechanic
+### Bath Modes
+- Oscillating drive terms (inverted sine wave)
+- Examples: day/night (☀🌙), seasons, market cycles
+- All use **unified oscillator** architecture
 
-## File Format
+## Synced With
+- `Core/Factions/` - faction definitions
+- `Core/QuantumSubstrate/` - simulation engine
+- `Core/GameState/` - tool configuration
 
-All .gd files are renamed to .gd.txt to prevent Godot from parsing them during game compilation. These are backup files for reference and version control.
-
-## Related Documentation
-
-See llm_outbox/ for:
-- FACTION_UPGRADE_STATUS.md - Complete upgrade status
-- INVERTED_SINE_OSCILLATORS.md - Unified oscillator mechanic
-- FACTION_COMPILATION_FIXED.md - Fixes applied to make system compile
-- measurement_inversion_implementation.gd - Reference implementation
-
-## Total Files
-
-- 49 files backed up
-- Organized into 4 categories
-- Complete working quantum simulation system
+Last synced: 2026-01-08

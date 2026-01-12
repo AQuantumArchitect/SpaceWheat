@@ -15,12 +15,13 @@ const Complex = preload("res://Core/QuantumSubstrate/Complex.gd")
 const RegisterMap = preload("res://Core/QuantumSubstrate/RegisterMap.gd")
 
 
-static func build(icons: Dictionary, register_map: RegisterMap) -> ComplexMatrix:
+static func build(icons: Dictionary, register_map: RegisterMap, verbose = null) -> ComplexMatrix:
 	"""Build Hamiltonian matrix from Icons dictionary.
 
 	Args:
 	    icons: Dictionary[emoji] → Icon (containing hamiltonian_couplings)
 	    register_map: This biome's RegisterMap
+	    verbose: Optional VerboseConfig for logging (default: print to console)
 
 	Returns:
 	    Hermitian matrix H of dimension 2^(num_qubits)
@@ -29,7 +30,17 @@ static func build(icons: Dictionary, register_map: RegisterMap) -> ComplexMatrix
 	var num_qubits = register_map.num_qubits
 	var H = ComplexMatrix.zeros(dim)
 
-	print("🔨 Building Hamiltonian: %d qubits (%dD)..." % [num_qubits, dim])
+	# Statistics tracking
+	var stats = {
+		"self_energies_added": 0,
+		"couplings_added": 0,
+		"couplings_skipped": 0
+	}
+
+	if verbose:
+		verbose.info("quantum", "🔨", "Building Hamiltonian: %d qubits (%dD)" % [num_qubits, dim])
+	else:
+		print("🔨 Building Hamiltonian: %d qubits (%dD)..." % [num_qubits, dim])
 
 	for source_emoji in icons:
 		var icon = icons[source_emoji]
@@ -46,14 +57,20 @@ static func build(icons: Dictionary, register_map: RegisterMap) -> ComplexMatrix
 		if icon.self_energy != null and abs(icon.self_energy) > 1e-10:
 			var energy_complex = Complex.new(icon.self_energy, 0.0)
 			_add_self_energy(H, source_q, source_p, energy_complex, num_qubits)
-			print("  ✓ %s self-energy: %.3f" % [source_emoji, icon.self_energy])
+			stats.self_energies_added += 1
+			if verbose:
+				verbose.debug("quantum-build", "✓", "%s self-energy: %.3f" % [source_emoji, icon.self_energy])
+			else:
+				print("  ✓ %s self-energy: %.3f" % [source_emoji, icon.self_energy])
 
 		# --- Couplings: emoji → float (coupling strength) ---
 		if icon.hamiltonian_couplings:
 			for target_emoji in icon.hamiltonian_couplings:
 				# Filter: skip if target not in this biome
 				if not register_map.has(target_emoji):
-					print("  ⚠️ %s→%s skipped (no coordinate)" % [source_emoji, target_emoji])
+					stats.couplings_skipped += 1
+					if verbose:
+						verbose.debug("quantum-build", "⚠️", "%s→%s skipped (no coordinate)" % [source_emoji, target_emoji])
 					continue
 
 				var target_q = register_map.qubit(target_emoji)
@@ -63,13 +80,33 @@ static func build(icons: Dictionary, register_map: RegisterMap) -> ComplexMatrix
 				var coupling = Complex.new(strength, 0.0) if strength is float else strength
 
 				_add_coupling(H, source_q, source_p, target_q, target_p, coupling, num_qubits)
+				stats.couplings_added += 1
 
-				print("  ✓ %s→%s coupling: %.3f" % [source_emoji, target_emoji, strength])
+				if verbose:
+					verbose.debug("quantum-build", "✓", "%s→%s coupling: %.3f" % [source_emoji, target_emoji, strength])
+				else:
+					print("  ✓ %s→%s coupling: %.3f" % [source_emoji, target_emoji, strength])
 
 	# Ensure Hermiticity: H = (H + H†)/2
 	H = _hermitianize(H)
 
-	print("🔨 Hamiltonian built: %dx%d" % [dim, dim])
+	# Print summary
+	if verbose:
+		verbose.info("quantum", "✅",
+			"Hamiltonian built: %dx%d | Added: %d self-energies + %d couplings | Skipped: %d couplings" % [
+				dim, dim,
+				stats.self_energies_added,
+				stats.couplings_added,
+				stats.couplings_skipped
+			])
+	else:
+		print("🔨 Hamiltonian built: %dx%d (added: %d self-energies + %d couplings, skipped: %d)" % [
+			dim, dim,
+			stats.self_energies_added,
+			stats.couplings_added,
+			stats.couplings_skipped
+		])
+
 	return H
 
 

@@ -22,6 +22,12 @@ const QuantumRigorConfigUI = preload("res://UI/Panels/QuantumRigorConfigUI.gd")
 const IconDetailPanel = preload("res://UI/Panels/IconDetailPanel.gd")
 # const SaveDataAdapter = preload("res://UI/SaveDataAdapter.gd")  # Legacy - unused, commented out to fix compilation error
 
+# v2 Overlay System
+const V2OverlayBase = preload("res://UI/Overlays/V2OverlayBase.gd")
+const InspectorOverlay = preload("res://UI/Overlays/InspectorOverlay.gd")
+const ControlsOverlay = preload("res://UI/Overlays/ControlsOverlay.gd")
+const SemanticMapOverlay = preload("res://UI/Overlays/SemanticMapOverlay.gd")
+
 # Overlay instances
 var quest_panel: QuestPanel
 var faction_quest_offers_panel: FactionQuestOffersPanel  # Legacy browse-all panel
@@ -37,6 +43,13 @@ var biome_inspector: BiomeInspectorOverlay  # Biome inspection overlay
 var quantum_config_ui: QuantumRigorConfigUI  # Quantum rigor mode settings panel
 var touch_button_bar: Control  # Touch-friendly panel buttons on right side
 var icon_detail_panel  # Icon information detail panel
+
+# v2 Overlay System
+var v2_overlays: Dictionary = {}  # name → V2OverlayBase instance
+var active_v2_overlay = null  # Currently open v2 overlay (V2OverlayBase)
+var inspector_overlay = null  # Density matrix inspector
+var controls_overlay = null  # Keyboard controls reference
+var semantic_map_overlay = null  # Semantic octant visualization
 
 # Dependencies
 var layout_manager
@@ -68,6 +81,9 @@ signal restart_requested()
 signal quit_requested()
 signal menu_resumed()
 signal debug_scenario_requested(name: String)
+
+# v2 Overlay System signals
+signal v2_overlay_changed(overlay_name: String, is_open: bool)
 
 # HAUNTED UI FIX: Prevent duplicate overlay creation
 var _overlays_created: bool = false
@@ -237,6 +253,9 @@ func create_overlays(parent: Control) -> void:
 	parent.add_child(icon_detail_panel)
 	icon_detail_panel.panel_closed.connect(_on_icon_detail_panel_closed)
 	_verbose.info("ui", "📖", "Icon detail panel created (click emojis in vocab to view)")
+
+	# Create v2 Overlays
+	_create_v2_overlays(parent)
 
 	# Update positions after layout is ready
 	await get_tree().process_frame
@@ -1063,3 +1082,137 @@ func _on_quest_board_closed() -> void:
 	overlay_states["quest_board"] = false
 	overlay_toggled.emit("quest_board", false)
 	overlay_toggled.emit("quest_offers", false)
+
+
+# ============================================================================
+# V2 OVERLAY SYSTEM
+# ============================================================================
+# New overlay architecture with QER remapping and unified input handling.
+# v2 overlays extend V2OverlayBase and are registered here for management.
+
+func _create_v2_overlays(parent: Control) -> void:
+	"""Create and register all v2 overlays."""
+	_verbose.info("ui", "📊", "Creating v2 overlay system...")
+
+	# Create Inspector Overlay (density matrix visualization)
+	inspector_overlay = InspectorOverlay.new()
+	inspector_overlay.z_index = 2000  # Above regular overlays
+	parent.add_child(inspector_overlay)
+	register_v2_overlay("inspector", inspector_overlay)
+
+	# Create Controls Overlay (keyboard reference)
+	controls_overlay = ControlsOverlay.new()
+	controls_overlay.z_index = 2000
+	parent.add_child(controls_overlay)
+	register_v2_overlay("controls", controls_overlay)
+
+	# Create Semantic Map Overlay (vocabulary + octants)
+	semantic_map_overlay = SemanticMapOverlay.new()
+	semantic_map_overlay.z_index = 2000
+	parent.add_child(semantic_map_overlay)
+	register_v2_overlay("semantic_map", semantic_map_overlay)
+
+	# Register existing overlays with v2 interface
+	# QuestBoard already has v2 interface methods
+	if quest_board:
+		register_v2_overlay("quests", quest_board)
+
+	# BiomeInspectorOverlay has v2 interface methods
+	if biome_inspector:
+		register_v2_overlay("biome_detail", biome_inspector)
+
+	_verbose.info("ui", "📊", "v2 overlay system created with %d overlays" % v2_overlays.size())
+
+
+func register_v2_overlay(name: String, overlay) -> void:
+	"""Register a v2 overlay for management.
+
+	Args:
+		name: Unique identifier (e.g., "inspector", "quests")
+		overlay: V2OverlayBase instance
+	"""
+	if v2_overlays.has(name):
+		_verbose.warn("ui", "⚠️", "v2 overlay '%s' already registered, replacing" % name)
+
+	v2_overlays[name] = overlay
+	_verbose.info("ui", "📋", "Registered v2 overlay: %s" % name)
+
+
+func unregister_v2_overlay(name: String) -> void:
+	"""Unregister a v2 overlay."""
+	if v2_overlays.has(name):
+		v2_overlays.erase(name)
+		_verbose.info("ui", "📋", "Unregistered v2 overlay: %s" % name)
+
+
+func open_v2_overlay(name: String) -> bool:
+	"""Open a v2 overlay by name.
+
+	Closes any currently open v2 overlay first.
+	Returns true if overlay was opened successfully.
+	"""
+	if not v2_overlays.has(name):
+		_verbose.warn("ui", "❌", "v2 overlay '%s' not registered" % name)
+		return false
+
+	# Close current overlay first
+	if active_v2_overlay:
+		close_v2_overlay()
+
+	active_v2_overlay = v2_overlays[name]
+	active_v2_overlay.activate()
+
+	_verbose.info("ui", "📖", "Opened v2 overlay: %s" % name)
+	v2_overlay_changed.emit(name, true)
+	return true
+
+
+func close_v2_overlay() -> void:
+	"""Close the currently open v2 overlay."""
+	if not active_v2_overlay:
+		return
+
+	var overlay_name = active_v2_overlay.overlay_name
+	active_v2_overlay.deactivate()
+	active_v2_overlay = null
+
+	_verbose.info("ui", "📕", "Closed v2 overlay: %s" % overlay_name)
+	v2_overlay_changed.emit(overlay_name, false)
+
+
+func toggle_v2_overlay(name: String) -> void:
+	"""Toggle a v2 overlay open/closed."""
+	if active_v2_overlay and active_v2_overlay.overlay_name == name:
+		close_v2_overlay()
+	else:
+		open_v2_overlay(name)
+
+
+func is_v2_overlay_active() -> bool:
+	"""Check if any v2 overlay is currently open."""
+	return active_v2_overlay != null
+
+
+func get_active_v2_overlay():
+	"""Get the currently active v2 overlay, or null."""
+	return active_v2_overlay
+
+
+func get_active_overlay_actions() -> Dictionary:
+	"""Get QER+F action labels for current overlay (for ActionPreviewRow).
+
+	Returns empty dict if no overlay active.
+	"""
+	if active_v2_overlay and active_v2_overlay.has_method("get_action_labels"):
+		return active_v2_overlay.get_action_labels()
+	return {}
+
+
+func get_v2_overlay(name: String):
+	"""Get a registered v2 overlay by name, or null."""
+	return v2_overlays.get(name, null)
+
+
+func get_registered_v2_overlays() -> Array:
+	"""Get list of all registered v2 overlay names."""
+	return v2_overlays.keys()

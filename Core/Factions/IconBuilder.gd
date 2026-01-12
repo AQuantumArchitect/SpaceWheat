@@ -21,39 +21,91 @@ const CoreFactions = preload("res://Core/Factions/CoreFactions.gd")
 const CivilizationFactions = preload("res://Core/Factions/CivilizationFactions.gd")
 const IconScript = preload("res://Core/QuantumSubstrate/Icon.gd")
 
-## Build Icons for all emojis across given factions
-static func build_icons_for_factions(factions: Array):
-	# Collect all unique emojis
-	var all_emojis: Array[String] = []
+#region Pre-Indexed Faction Lookup (Performance Optimization)
+
+## Pre-computed index: emoji → [factions that speak it]
+## Avoids O(N) faction scan for each emoji → O(1) dictionary lookup
+static var _emoji_to_factions: Dictionary = {}
+static var _index_built: bool = false
+
+## Build the emoji → factions index (call once before building icons)
+static func build_faction_index(factions: Array) -> void:
+	_emoji_to_factions.clear()
+
 	for faction in factions:
 		for emoji in faction.get_all_emojis():
-			if emoji not in all_emojis:
-				all_emojis.append(emoji)
-	
-	# Build Icon for each emoji
+			if not _emoji_to_factions.has(emoji):
+				_emoji_to_factions[emoji] = []
+			_emoji_to_factions[emoji].append(faction)
+
+	_index_built = true
+
+## Get factions that speak a given emoji (O(1) lookup)
+static func get_factions_for_emoji(emoji: String) -> Array:
+	if not _index_built:
+		return []
+	return _emoji_to_factions.get(emoji, [])
+
+## Check if index is built
+static func is_index_built() -> bool:
+	return _index_built
+
+## Clear the index (for testing or biome switching)
+static func clear_faction_index() -> void:
+	_emoji_to_factions.clear()
+	_index_built = false
+
+#endregion
+
+## Build Icons for all emojis across given factions
+static func build_icons_for_factions(factions: Array):
+	# Build index if not already built (enables O(1) faction lookup)
+	if not _index_built:
+		build_faction_index(factions)
+
+	# Get all unique emojis from the index
+	var all_emojis = _emoji_to_factions.keys()
+
+	# Build Icon for each emoji using indexed factions
 	var icons: Array = []
 	for emoji in all_emojis:
-		var icon = build_icon(emoji, factions)
+		var icon = build_icon_indexed(emoji)
 		if icon != null:
 			icons.append(icon)
-	
+
 	return icons
 
-## Build a single Icon by merging all faction contributions
+## Build Icon using pre-indexed factions (O(1) lookup per emoji)
+static func build_icon_indexed(emoji: String):
+	var factions = get_factions_for_emoji(emoji)
+	if factions.is_empty():
+		return null
+	return _build_icon_from_factions(emoji, factions)
+
+## Build a single Icon by merging all faction contributions (legacy interface)
+## Prefer build_icon_indexed() when index is built for better performance
 static func build_icon(emoji: String, factions: Array) :
+	# Use indexed version if available and factions match
+	if _index_built:
+		var indexed_factions = get_factions_for_emoji(emoji)
+		if not indexed_factions.is_empty():
+			return _build_icon_from_factions(emoji, indexed_factions)
+	# Fallback to scanning factions
+	return _build_icon_from_factions(emoji, factions)
+
+## Internal: Build Icon from known contributing factions (no speaks() check needed)
+static func _build_icon_from_factions(emoji: String, faction_list: Array) :
 	var icon = IconScript.new()
 	icon.emoji = emoji
 	icon.display_name = emoji  # Default, can be overridden
-	
+
 	var contributing_factions: Array[String] = []
-	
+
 	# Gated lindblad needs special handling - collect all gates
 	var all_gated: Array = []
-	
-	for faction in factions:
-		if not faction.speaks(emoji):
-			continue
-		
+
+	# Iterate only factions that speak this emoji (already filtered by index)
+	for faction in faction_list:
 		contributing_factions.append(faction.name)
 		var contribution = faction.get_icon_contribution(emoji)
 		
@@ -114,9 +166,7 @@ static func build_icon(emoji: String, factions: Array) :
 	
 	# Store measurement behavior (first faction wins)
 	var measurement = {}
-	for faction in factions:
-		if not faction.speaks(emoji):
-			continue
+	for faction in faction_list:
 		var mb = faction.get_icon_contribution(emoji).get("measurement_behavior", {})
 		if mb.size() > 0 and measurement.size() == 0:
 			measurement = mb

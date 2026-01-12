@@ -4,10 +4,33 @@ extends CanvasLayer
 ## Biome Inspector Overlay
 ## Main controller for biome inspection system
 ## Manages display of BiomeOvalPanels over game view
+##
+## v2 Overlay Integration:
+##   Q = Select icon for details
+##   E = Show icon parameters
+##   R = Show registers
+##   F = Cycle display mode (single → all → single)
+##   WASD = Navigate biomes/icons
 
 signal overlay_closed
+signal action_performed(action: String, data: Dictionary)  # v2 overlay compatibility
 
 const BiomeOvalPanel = preload("res://UI/Panels/BiomeOvalPanel.gd")
+
+# v2 Overlay Interface
+var overlay_name: String = "biome_detail"
+var overlay_icon: String = "🔬"
+var action_labels: Dictionary = {
+	"Q": "Select Icon",
+	"E": "Parameters",
+	"R": "Registers",
+	"F": "Cycle Mode"
+}
+
+# v2 Navigation State
+var selected_biome_index: int = 0
+var selected_icon_index: int = 0
+var is_active: bool = false
 
 # Mode
 enum DisplayMode {
@@ -244,6 +267,181 @@ func _on_emoji_tapped(emoji: String) -> void:
 	"""Handle emoji tap - show icon details (Tier 3)"""
 	print("🔍 BiomeInspectorOverlay: Emoji tapped: %s (Tier 3 not yet implemented)" % emoji)
 	# TODO: Phase 3 - Open IconDetailPanel
+
+
+# ============================================================================
+# V2 OVERLAY INTERFACE
+# ============================================================================
+
+func handle_input(event: InputEvent) -> bool:
+	"""Modal input handler for v2 overlay system.
+
+	Returns true if input was consumed, false otherwise.
+	"""
+	if not visible or current_mode == DisplayMode.HIDDEN:
+		return false
+
+	if not event is InputEventKey or not event.pressed or event.echo:
+		return false
+
+	match event.keycode:
+		KEY_ESCAPE:
+			hide_overlay()
+			return true
+		# WASD/Arrow navigation
+		KEY_W, KEY_UP:
+			_navigate_up()
+			return true
+		KEY_S, KEY_DOWN:
+			_navigate_down()
+			return true
+		KEY_A, KEY_LEFT:
+			_navigate_left()
+			return true
+		KEY_D, KEY_RIGHT:
+			_navigate_right()
+			return true
+		# QER+F actions
+		KEY_Q:
+			on_q_pressed()
+			return true
+		KEY_E:
+			on_e_pressed()
+			return true
+		KEY_R:
+			on_r_pressed()
+			return true
+		KEY_F:
+			on_f_pressed()
+			return true
+
+	return false
+
+
+func activate() -> void:
+	"""v2 overlay lifecycle: Called when overlay opens."""
+	is_active = true
+	# Default to showing all biomes
+	if farm:
+		show_all_biomes(farm)
+
+
+func deactivate() -> void:
+	"""v2 overlay lifecycle: Called when overlay closes."""
+	is_active = false
+	hide_overlay()
+
+
+func on_q_pressed() -> void:
+	"""Q = Select current icon for details."""
+	var biome = _get_selected_biome()
+	if biome and biome.icon_registry:
+		var icons = biome.icon_registry.get_all_icons()
+		if selected_icon_index >= 0 and selected_icon_index < icons.size():
+			var icon = icons[selected_icon_index]
+			action_performed.emit("select_icon", {"icon": icon, "biome": biome.biome_name})
+			print("🔬 Selected icon: %s" % icon.get("emoji", "?"))
+
+
+func on_e_pressed() -> void:
+	"""E = Show icon parameters (hamiltonians, lindblads)."""
+	var biome = _get_selected_biome()
+	if biome:
+		action_performed.emit("show_parameters", {"biome": biome.biome_name})
+		print("🔬 Parameters for: %s" % biome.biome_name)
+
+
+func on_r_pressed() -> void:
+	"""R = Show register mappings."""
+	var biome = _get_selected_biome()
+	if biome and biome.quantum_computer:
+		action_performed.emit("show_registers", {"biome": biome.biome_name})
+		print("🔬 Registers for: %s" % biome.biome_name)
+
+
+func on_f_pressed() -> void:
+	"""F = Cycle display mode (single biome ↔ all biomes)."""
+	if current_mode == DisplayMode.SINGLE_BIOME:
+		if farm:
+			show_all_biomes(farm)
+	elif current_mode == DisplayMode.ALL_BIOMES:
+		# Switch to first biome single view
+		var biome = _get_selected_biome()
+		if biome and farm:
+			show_biome(biome, farm)
+	action_performed.emit("cycle_mode", {"mode": current_mode})
+
+
+func get_action_labels() -> Dictionary:
+	"""v2 overlay interface: Get current QER+F labels."""
+	return action_labels
+
+
+func get_overlay_info() -> Dictionary:
+	"""v2 overlay interface: Get overlay metadata for registration."""
+	return {
+		"name": overlay_name,
+		"icon": overlay_icon,
+		"action_labels": get_action_labels()
+	}
+
+
+func _navigate_up() -> void:
+	"""Navigate up in icon/biome list."""
+	if current_mode == DisplayMode.ALL_BIOMES:
+		selected_biome_index = maxi(0, selected_biome_index - 1)
+		_update_selection_highlight()
+	elif current_mode == DisplayMode.SINGLE_BIOME:
+		selected_icon_index = maxi(0, selected_icon_index - 1)
+		_update_selection_highlight()
+
+
+func _navigate_down() -> void:
+	"""Navigate down in icon/biome list."""
+	if current_mode == DisplayMode.ALL_BIOMES:
+		selected_biome_index = mini(all_biome_panels.size() - 1, selected_biome_index + 1)
+		_update_selection_highlight()
+	elif current_mode == DisplayMode.SINGLE_BIOME:
+		var biome = _get_selected_biome()
+		if biome and biome.icon_registry:
+			var max_idx = biome.icon_registry.get_all_icons().size() - 1
+			selected_icon_index = mini(max_idx, selected_icon_index + 1)
+		_update_selection_highlight()
+
+
+func _navigate_left() -> void:
+	"""Navigate left (previous biome in all mode)."""
+	if current_mode == DisplayMode.ALL_BIOMES:
+		selected_biome_index = maxi(0, selected_biome_index - 1)
+		_update_selection_highlight()
+
+
+func _navigate_right() -> void:
+	"""Navigate right (next biome in all mode)."""
+	if current_mode == DisplayMode.ALL_BIOMES:
+		selected_biome_index = mini(all_biome_panels.size() - 1, selected_biome_index + 1)
+		_update_selection_highlight()
+
+
+func _get_selected_biome():
+	"""Get currently selected biome based on mode."""
+	if current_mode == DisplayMode.SINGLE_BIOME and current_biome_panel:
+		return current_biome_panel.biome
+	elif current_mode == DisplayMode.ALL_BIOMES:
+		if selected_biome_index >= 0 and selected_biome_index < all_biome_panels.size():
+			return all_biome_panels[selected_biome_index].biome
+	return null
+
+
+func _update_selection_highlight() -> void:
+	"""Update visual selection indicators."""
+	# Highlight selected biome panel
+	for i in range(all_biome_panels.size()):
+		var panel = all_biome_panels[i]
+		if panel.has_method("set_selected"):
+			panel.set_selected(i == selected_biome_index)
+
+	# TODO: Highlight selected icon within panel
 
 
 # ============================================================================

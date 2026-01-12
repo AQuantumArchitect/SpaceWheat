@@ -148,9 +148,22 @@ func get_dominant_emoji() -> String:
 func get_plot_emojis() -> Dictionary:
 	"""Get the dual-emoji pair for this plot type
 
-	Default implementation returns current basis labels.
+	PHASE 5 (PARAMETRIC): Queries parent biome capabilities for emoji pair.
+	Falls back to current north/south emojis if no biome or capability found.
+
 	Subclasses can override to customize per-plot basis.
 	"""
+	# PARAMETRIC: Query parent biome for capability if plot_type_name is set
+	if parent_biome and parent_biome.has_method("get_plantable_capabilities"):
+		# Get plot_type_name from subclass (FarmPlot has this property)
+		var type_name = get("plot_type_name")
+		if type_name:
+			# Find capability matching plot_type_name
+			for cap in parent_biome.get_plantable_capabilities():
+				if cap.plant_type == type_name:
+					return cap.emoji_pair
+
+	# Fallback: Return current basis labels (set during planting)
 	return {"north": north_emoji, "south": south_emoji}
 
 

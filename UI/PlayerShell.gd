@@ -17,6 +17,8 @@ const OverlayManager = preload("res://UI/Managers/OverlayManager.gd")
 const QuestManager = preload("res://Core/Quests/QuestManager.gd")
 const FactionDatabase = preload("res://Core/Quests/FactionDatabaseV2.gd")
 const LoggerConfigPanel = preload("res://UI/Panels/LoggerConfigPanel.gd")
+const QuantumHUDPanel = preload("res://UI/Panels/QuantumHUDPanel.gd")
+const QuantumModeStatusIndicator = preload("res://UI/Panels/QuantumModeStatusIndicator.gd")
 
 var current_farm_ui = null  # FarmUI instance (from scene)
 var overlay_manager: OverlayManager = null
@@ -26,6 +28,8 @@ var farm_ui_container: Control = null
 var action_bar_manager = null  # ActionBarManager - manages bottom toolbars
 var action_preview_row: Control = null  # Cached reference from ActionBarManager
 var logger_config_panel: LoggerConfigPanel = null  # Logger configuration UI
+var quantum_hud_panel: QuantumHUDPanel = null  # Quantum state visualization HUD
+var quantum_mode_indicator: QuantumModeStatusIndicator = null  # Current quantum mode display
 
 ## Modal Management
 var modal_stack: Array[Control] = []
@@ -231,6 +235,24 @@ func _ready() -> void:
 	)
 	_verbose.info("ui", "✅", "Logger config panel created (press L to toggle)")
 
+	# Create quantum HUD panel (left side, collapsible)
+	quantum_hud_panel = QuantumHUDPanel.new()
+	quantum_hud_panel.name = "QuantumHUDPanel"
+	overlay_layer.add_child(quantum_hud_panel)
+	# Position on left side of screen
+	quantum_hud_panel.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	quantum_hud_panel.position = Vector2(10, 80)  # Below any top bars
+	_verbose.info("ui", "✅", "Quantum HUD panel created")
+
+	# Create quantum mode status indicator (top-right corner)
+	quantum_mode_indicator = QuantumModeStatusIndicator.new()
+	quantum_mode_indicator.name = "QuantumModeIndicator"
+	overlay_layer.add_child(quantum_mode_indicator)
+	# Position in top-right
+	quantum_mode_indicator.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	quantum_mode_indicator.position = Vector2(-200, 10)  # Offset from right edge
+	_verbose.info("ui", "✅", "Quantum mode indicator created")
+
 	# Connect overlay signals
 	_connect_overlay_signals()
 
@@ -262,6 +284,11 @@ func _connect_overlay_signals() -> void:
 		)
 		overlay_manager.escape_menu.load_pressed.connect(func():
 			_push_modal(overlay_manager.save_load_menu)
+		)
+		overlay_manager.escape_menu.quantum_settings_pressed.connect(func():
+			_pop_modal(overlay_manager.escape_menu)
+			if overlay_manager.quantum_config_ui:
+				overlay_manager.toggle_quantum_config()
 		)
 		_verbose.info("ui", "✅", "Escape menu signals connected")
 
@@ -387,6 +414,15 @@ func _connect_to_farm_input_handler() -> void:
 						action_row.update_action_availability()
 				)
 				_verbose.info("ui", "✔", "Action buttons will update on resource changes")
+
+		# Connect quantum HUD panel to farm
+		if quantum_hud_panel and farm_ui.farm:
+			quantum_hud_panel.set_farm(farm_ui.farm)
+			# Try to get active biome (BioticFluxBiome is the default/primary biome)
+			if farm_ui.farm.biotic_flux_biome:
+				quantum_hud_panel.set_biome(farm_ui.farm.biotic_flux_biome)
+				_verbose.info("ui", "✔", "Quantum HUD panel connected to BioticFlux biome")
+			_verbose.info("ui", "✔", "Quantum HUD panel connected to farm")
 
 
 ## OVERLAY SYSTEM INITIALIZATION
