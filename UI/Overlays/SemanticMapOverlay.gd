@@ -279,11 +279,45 @@ func activate() -> void:
 
 func _load_vocabulary_data() -> void:
 	"""Load vocabulary from game state."""
+	vocabulary_data = {}
+
 	var gsm = get_node_or_null("/root/GameStateManager")
-	if gsm and gsm.current_state and gsm.current_state.has("vocabulary"):
-		vocabulary_data = gsm.current_state.vocabulary
-	else:
-		vocabulary_data = {}
+	if not gsm:
+		return
+
+	# Get vocabulary evolution system
+	var vocab_evolution = gsm.get_vocabulary_evolution()
+	if not vocab_evolution:
+		return
+
+	# Get discovered vocabulary (array of {north, south, stability, ...} dicts)
+	var discovered = vocab_evolution.get_discovered_vocabulary()
+
+	# Map emojis to octants based on simple heuristic
+	# Vocabulary items have "north" and "south" emojis
+	for vocab_item in discovered:
+		var north_emoji = vocab_item.get("north", "")
+		var south_emoji = vocab_item.get("south", "")
+		var stability = vocab_item.get("stability", 0.5)
+
+		if north_emoji and south_emoji:
+			# Create combined emoji pair as key
+			var key = "%s↔%s" % [north_emoji, south_emoji]
+
+			# Determine octant using simple heuristic
+			# We'll use stability and emoji properties to assign octants
+			var octant = _assign_emoji_to_octant(north_emoji, south_emoji, stability)
+
+			# Store in vocabulary data
+			if not vocabulary_data.has(octant):
+				vocabulary_data[octant] = []
+
+			vocabulary_data[octant].append({
+				"pair": key,
+				"north": north_emoji,
+				"south": south_emoji,
+				"stability": stability
+			})
 
 
 func _update_octant_counts() -> void:
@@ -298,9 +332,31 @@ func _update_octant_counts() -> void:
 
 func _get_octant_emoji_count(octant_index: int) -> int:
 	"""Get number of discovered emojis in an octant."""
-	# TODO: Map vocabulary to octants based on semantic position
-	# For now, return placeholder count
-	return vocabulary_data.size() / 8 if octant_index == 0 else 0
+	if vocabulary_data.has(octant_index):
+		var octant_items = vocabulary_data[octant_index]
+		if octant_items is Array:
+			return octant_items.size()
+	return 0
+
+
+func _assign_emoji_to_octant(north_emoji: String, south_emoji: String, stability: float) -> int:
+	"""Assign an emoji pair to an octant based on heuristic.
+
+	Uses stability and emoji properties to determine octant assignment (0-7).
+	Simple heuristic: uses string hash to distribute emojis.
+	"""
+	# Simple hash-based distribution for now
+	# In a full implementation, could use emoji semantic meaning or learned associations
+	var hash_value = hash(north_emoji + south_emoji)
+	var octant = abs(hash_value) % 8
+
+	# Adjust based on stability for more semantic meaning
+	if stability > 0.7:
+		octant = (octant + 1) % 8  # Shift toward positive regions
+	elif stability < 0.3:
+		octant = (octant + 4) % 8  # Shift toward negative regions
+
+	return octant
 
 
 func _update_view() -> void:
@@ -385,14 +441,51 @@ func _populate_vocabulary_grid() -> void:
 	var header = vocab_container.find_child("OctantHeader", true, false)
 	if header:
 		var region = REGIONS[selected_octant]
-		header.text = "%s Vocabulary - %s" % [region.icon, region.name]
+		var count = _get_octant_emoji_count(selected_octant)
+		header.text = "%s %s - %d vocabulary items" % [region.icon, region.name, count]
 
-	# Add emojis (placeholder - real implementation would filter by octant)
-	for emoji in vocabulary_data.keys():
-		var label = Label.new()
-		label.text = emoji
-		label.add_theme_font_size_override("font_size", 24)
-		emoji_grid.add_child(label)
+	# Add vocabulary pairs for selected octant
+	if vocabulary_data.has(selected_octant):
+		var octant_vocab = vocabulary_data[selected_octant]
+		if octant_vocab is Array:
+			for vocab_item in octant_vocab:
+				# Create a pair display
+				var hbox = HBoxContainer.new()
+				hbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+
+				# North emoji
+				var north_label = Label.new()
+				north_label.text = vocab_item.get("north", "?")
+				north_label.add_theme_font_size_override("font_size", 20)
+				hbox.add_child(north_label)
+
+				# Arrow
+				var arrow_label = Label.new()
+				arrow_label.text = "↔"
+				arrow_label.add_theme_font_size_override("font_size", 16)
+				hbox.add_child(arrow_label)
+
+				# South emoji
+				var south_label = Label.new()
+				south_label.text = vocab_item.get("south", "?")
+				south_label.add_theme_font_size_override("font_size", 20)
+				hbox.add_child(south_label)
+
+				# Stability indicator
+				var stability = vocab_item.get("stability", 0.5)
+				var stability_label = Label.new()
+				stability_label.text = "★" * int(stability * 5)
+				stability_label.add_theme_color_override("font_color", Color.YELLOW)
+				hbox.add_child(stability_label)
+
+				emoji_grid.add_child(hbox)
+	else:
+		# Show placeholder if no vocabulary in this octant
+		var placeholder = Label.new()
+		placeholder.text = "No vocabulary discovered\nin this octant yet"
+		placeholder.add_theme_font_size_override("font_size", 16)
+		placeholder.add_theme_color_override("font_color", Color.GRAY)
+		emoji_grid.add_child(placeholder)
 
 
 func get_action_labels() -> Dictionary:

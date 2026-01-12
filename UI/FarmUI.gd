@@ -104,11 +104,10 @@ func setup_farm(farm_ref: Node) -> void:
 	# Action bars (ToolSelectionRow, ActionPreviewRow) are now managed by PlayerShell's ActionBarManager
 	# Signal connections are handled in PlayerShell.load_farm_ui()
 
-	# Create input handler
-	input_handler = FarmInputHandler.new()
-	add_child(input_handler)
+	# Input handler is created in BootManager and injected here
+	# Do not try to create it with .new() as FarmInputHandler extends Node
 
-	# Wire input handler
+	# Wire input handler (will be set by BootManager after creation)
 	if farm and input_handler:
 		input_handler.farm = farm
 		input_handler.plot_grid_display = plot_grid_display

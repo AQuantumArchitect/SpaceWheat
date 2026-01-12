@@ -1160,6 +1160,15 @@ func open_v2_overlay(name: String) -> bool:
 		close_v2_overlay()
 
 	active_v2_overlay = v2_overlays[name]
+
+	# Bind data to overlays that need it
+	if name == "inspector" and active_v2_overlay.has_method("set_biome"):
+		var farm = get_tree().root.get_node_or_null("/root/FarmView/Farm")
+		if farm and farm.has_method("get_current_biome"):
+			var biome = farm.get_current_biome()
+			if biome:
+				active_v2_overlay.set_biome(biome)
+
 	active_v2_overlay.activate()
 
 	_verbose.info("ui", "📖", "Opened v2 overlay: %s" % name)

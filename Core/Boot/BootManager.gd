@@ -168,11 +168,17 @@ func _stage_ui(farm: Node, shell: Node, quantum_viz: Node) -> void:
 			print("  ✓ Layout calculator injected")
 
 	# Create and inject FarmInputHandler
+	# FarmInputHandler extends Node, so we create a generic Node and attach the script
+	var input_handler = Node.new()
 	var FarmInputHandlerScript = load("res://UI/FarmInputHandler.gd")
-	var input_handler = FarmInputHandlerScript.new()
+	input_handler.set_script(FarmInputHandlerScript)
+	input_handler.name = "FarmInputHandler"
+	player_shell.add_child(input_handler)
+
 	input_handler.farm = farm
-	input_handler.plot_grid_display = plot_grid_display
+	input_handler.plot_grid_display = farm_ui.plot_grid_display
 	farm_ui.input_handler = input_handler
+	player_shell.input_handler = input_handler
 	print("  ✓ FarmInputHandler created\n")
 
 	ui_ready.emit()
