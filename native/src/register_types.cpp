@@ -1,5 +1,7 @@
 #include "register_types.h"
 #include "quantum_matrix_native.h"
+#include "quantum_sparse_native.h"
+#include "quantum_evolution_engine.h"
 
 #include <gdextension_interface.h>
 #include <godot_cpp/core/defs.hpp>
@@ -12,6 +14,8 @@ void initialize_quantum_matrix_module(ModuleInitializationLevel p_level) {
         return;
     }
     ClassDB::register_class<QuantumMatrixNative>();
+    ClassDB::register_class<QuantumSparseMatrixNative>();
+    ClassDB::register_class<QuantumEvolutionEngine>();
 }
 
 void uninitialize_quantum_matrix_module(ModuleInitializationLevel p_level) {
