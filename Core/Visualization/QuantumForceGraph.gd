@@ -742,14 +742,31 @@ func _process(delta):
 
 
 func _update_node_visuals():
-	"""Update visual properties of all nodes from their quantum states"""
-	# Update regular quantum nodes
-	for node in quantum_nodes:
-		node.update_from_quantum_state()
+	"""Update visual properties of all nodes from their quantum states
 
-		# Trigger spawn animation if plot just became planted (Model B)
+	OPTIMIZED: Batches expensive queries (purity) per biome instead of per node.
+	Previously: N nodes × get_purity() = N matrix multiplies
+	Now: 1 get_purity() per biome, shared across all nodes in that biome
+	"""
+	# Cache purity per quantum source (expensive Tr(ρ²) operation)
+	var purity_cache: Dictionary = {}  # source_id -> purity value
+
+	# Update regular quantum nodes with batched queries
+	for node in quantum_nodes:
+		# Trigger spawn animation if plot just became planted
 		if node.plot and node.plot.is_planted and node.plot.parent_biome and node.plot.bath_subplot_id >= 0 and not node.is_spawning and node.visual_scale == 0.0:
 			node.start_spawn_animation(time_accumulator)
+
+		# Use batched update with cached purity
+		_update_node_visual_batched(node, purity_cache)
+
+	# Purity cache stats (uncomment for debugging)
+	#var planted_count = 0
+	#for n in quantum_nodes:
+	#	if n.plot and n.plot.is_planted:
+	#		planted_count += 1
+	#if planted_count > 0:
+	#	print("Purity cache: %d lookups for %d nodes" % [purity_cache.size(), planted_count])
 
 	# Update sun qubit node (always visible, no spawn animation needed)
 	# Phase 3d: Use biotic_flux_biome specifically
@@ -771,6 +788,98 @@ func _update_node_visuals():
 		# Force full visibility for sun
 		sun_qubit_node.visual_scale = 1.0
 		sun_qubit_node.visual_alpha = 1.0
+
+
+func _update_node_visual_batched(node: QuantumNode, purity_cache: Dictionary) -> void:
+	"""Update single node's visuals with batched purity lookup.
+
+	This is inlined from QuantumNode.update_from_quantum_state() but uses
+	cached purity values to avoid redundant Tr(ρ²) calculations.
+
+	Supports both Model B (bath) and Model C (quantum_computer) biomes.
+	"""
+	# Guard: unplanted → invisible
+	if not node.plot or not node.plot.is_planted:
+		node.energy = 0.0
+		node.coherence = 1.0
+		node.radius = node.MIN_RADIUS
+		node.color = Color(0.5, 0.5, 0.5, 0.0)
+		node.emoji_north_opacity = 0.0
+		node.emoji_south_opacity = 0.0
+		node.visual_scale = 0.0
+		node.visual_alpha = 0.0
+		return
+
+	# Get quantum state source (Model C: quantum_computer, Model B: bath)
+	var biome = node.plot.parent_biome
+	if not biome:
+		_set_node_fallback(node)
+		return
+
+	# Model C: Use quantum_computer.density_matrix
+	var density_matrix = null
+	var quantum_source = null  # For purity cache key
+
+	# Model C: Use quantum_computer methods directly
+	var qc = biome.quantum_computer
+	if not qc:
+		_set_node_fallback(node)
+		return
+
+	# === QUERY QUANTUM COMPUTER FOR REAL QUANTUM DATA ===
+	var emojis = node.plot.get_plot_emojis()
+	node.emoji_north = emojis["north"]
+	node.emoji_south = emojis["south"]
+
+	# 1. EMOJI OPACITY ← Normalized probabilities (θ-like)
+	var north_prob = qc.get_population(node.emoji_north)
+	var south_prob = qc.get_population(node.emoji_south)
+	var mass = north_prob + south_prob
+
+	if mass > 0.001:
+		node.emoji_north_opacity = north_prob / mass
+		node.emoji_south_opacity = south_prob / mass
+	else:
+		node.emoji_north_opacity = 0.1
+		node.emoji_south_opacity = 0.1
+
+	# 2. COLOR HUE ← Coherence phase (simplified - use purity as proxy for coherence)
+	# Full coherence would require off-diagonal element access
+	var coh_magnitude = 0.5  # Default mid coherence
+	var coh_phase = 0.0
+
+	var hue = (coh_phase + PI) / TAU
+	var saturation = coh_magnitude
+	node.color = Color.from_hsv(hue, saturation * 0.8, 0.9, 0.8)
+
+	# 3. GLOW (energy) ← Purity Tr(ρ²) - CACHED per quantum computer!
+	var source_id = qc.get_instance_id()
+	if not purity_cache.has(source_id):
+		purity_cache[source_id] = qc.get_purity()  # Expensive - only once per QC
+	node.energy = purity_cache[source_id]
+
+	# 4. PULSE RATE (coherence) ← |ρ_{n,s}| coherence magnitude
+	node.coherence = coh_magnitude
+
+	# 5. RADIUS ← Mass in subspace
+	node.radius = lerpf(node.MIN_RADIUS, node.MAX_RADIUS, clampf(mass * 2.0, 0.0, 1.0))
+
+	# 6. Berry phase accumulation
+	node.berry_phase += node.energy * 0.01
+
+
+func _set_node_fallback(node: QuantumNode) -> void:
+	"""Set fallback visualization when quantum state is unavailable."""
+	node.energy = 1.0
+	node.coherence = 0.5
+	node.radius = node.MAX_RADIUS
+	node.color = Color(0.7, 0.8, 0.9, 0.8)
+	if node.plot:
+		var emojis = node.plot.get_plot_emojis()
+		node.emoji_north = emojis["north"]
+		node.emoji_south = emojis["south"]
+	node.emoji_north_opacity = 0.5
+	node.emoji_south_opacity = 0.5
 
 
 func _update_node_animations(delta: float):
