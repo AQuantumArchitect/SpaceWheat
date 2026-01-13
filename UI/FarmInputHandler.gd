@@ -727,18 +727,18 @@ func _execute_tool_action(action_key: String):
 		_execute_submenu_action(action_key)
 		return
 
-	if not TOOL_ACTIONS.has(current_tool):
-		_verbose.warn("input", "⚠️", "Current tool not found")
+	# Use ToolConfig API to get action (handles F-cycling and nested structure)
+	var action_info = ToolConfig.get_action(current_tool, action_key)
+	if action_info.is_empty():
+		_verbose.warn("input", "⚠️", "Action %s not available for tool %d" % [action_key, current_tool])
 		return
 
-	var tool = TOOL_ACTIONS[current_tool]
-	if not tool.has(action_key):
-		_verbose.warn("input", "⚠️", "Action %s not available for tool %d (%s)" % [action_key, current_tool, tool.get("name", "unknown")])
-		return
+	var action = action_info.get("action", "")
+	var label = action_info.get("label", "")
 
-	var action_info = tool[action_key]
-	var action = action_info["action"]
-	var label = action_info["label"]
+	if action == "":
+		_verbose.warn("input", "⚠️", "Action %s has no action defined for tool %d" % [action_key, current_tool])
+		return
 
 	# Check if this action opens a submenu
 	if action_info.has("submenu"):
@@ -762,7 +762,8 @@ func _execute_tool_action(action_key: String):
 			action_performed.emit(action, false, "⚠️  No plots selected")
 			return
 
-	_verbose.info("input", "⚡", "Tool %d (%s) | Key %s | Action: %s | Plots: %d selected" % [current_tool, tool.get("name", "?"), action_key, label, selected_plots.size()])
+	var tool_name = ToolConfig.get_tool_name(current_tool)
+	_verbose.info("input", "⚡", "Tool %d (%s) | Key %s | Action: %s | Plots: %d selected" % [current_tool, tool_name, action_key, label, selected_plots.size()])
 
 	# Execute the action based on type (now with multi-select support)
 	match action:

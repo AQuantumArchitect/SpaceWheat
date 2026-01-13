@@ -31,70 +31,42 @@ const PLAY_TOOLS = {
 		"description": "Explore quantum soup, measure, harvest",
 		"has_f_cycling": false,
 		"actions": {
-			"Q": {"action": "explore", "label": "Explore", "emoji": "🔍"},
-			"E": {"action": "measure", "label": "Measure", "emoji": "👁️"},
-			"R": {"action": "pop", "label": "Pop/Harvest", "emoji": "✂️"}
+			"Q": {"action": "plant_batch", "label": "Explore", "emoji": "🔍"},
+			"E": {"action": "measure_batch", "label": "Measure", "emoji": "👁️"},
+			"R": {"action": "measure_and_harvest", "label": "Pop/Harvest", "emoji": "✂️"}
 		}
 	},
-	2: {  # GATES - F-cycles through 3 modes
+	2: {  # GATES - Simplified to match implemented actions
 		"name": "Gates",
 		"emoji": "🔄",
-		"description": "Quantum gate operations (F to cycle modes)",
-		"has_f_cycling": true,
-		"modes": ["basic", "phase", "two_qubit"],
-		"mode_labels": ["Basic", "Phase", "2-Qubit"],
-		"actions": {
-			"basic": {
-				"Q": {"action": "gate_x", "label": "Pauli-X (Flip)", "emoji": "↔️"},
-				"E": {"action": "gate_y", "label": "Pauli-Y", "emoji": "🔄"},
-				"R": {"action": "gate_h", "label": "Hadamard", "emoji": "🌀"}
-			},
-			"phase": {
-				"Q": {"action": "gate_s", "label": "S-Gate (π/2)", "emoji": "🌊"},
-				"E": {"action": "gate_t", "label": "T-Gate (π/4)", "emoji": "✨"},
-				"R": {"action": "gate_z", "label": "Pauli-Z", "emoji": "⚡"}
-			},
-			"two_qubit": {
-				"Q": {"action": "gate_cnot", "label": "CNOT", "emoji": "⊕"},
-				"E": {"action": "gate_cz", "label": "Control-Z", "emoji": "⚡"},
-				"R": {"action": "gate_swap", "label": "SWAP", "emoji": "⇄"}
-			}
-		}
-	},
-	3: {  # ENTANGLE - F-cycles through 3 modes
-		"name": "Entangle",
-		"emoji": "🔗",
-		"description": "Entanglement operations (F to cycle modes)",
-		"has_f_cycling": true,
-		"modes": ["bell", "cluster", "manipulate"],
-		"mode_labels": ["Bell", "Cluster", "Manipulate"],
-		"actions": {
-			"bell": {
-				"Q": {"action": "bell_phi_plus", "label": "Bell φ+", "emoji": "🔔"},
-				"E": {"action": "bell_phi_minus", "label": "Bell φ-", "emoji": "🔕"},
-				"R": {"action": "bell_psi", "label": "Bell ψ±", "emoji": "🎐"}
-			},
-			"cluster": {
-				"Q": {"action": "cluster_ghz", "label": "GHZ State", "emoji": "🕸️"},
-				"E": {"action": "cluster_w", "label": "W State", "emoji": "🌐"},
-				"R": {"action": "cluster_graph", "label": "Graph State", "emoji": "📊"}
-			},
-			"manipulate": {
-				"Q": {"action": "manip_phase", "label": "Phase Align", "emoji": "🎯"},
-				"E": {"action": "manip_disentangle", "label": "Disentangle", "emoji": "✂️"},
-				"R": {"action": "manip_transfer", "label": "Transfer", "emoji": "↔️"}
-			}
-		}
-	},
-	4: {  # INJECT - Expansion operations
-		"name": "Inject",
-		"emoji": "💉",
-		"description": "Inject/remove qubits, drive biome",
+		"description": "Quantum gate operations",
 		"has_f_cycling": false,
 		"actions": {
-			"Q": {"action": "seed", "label": "Seed (New Qubit)", "emoji": "🌱"},
-			"E": {"action": "drive", "label": "Drive (Bias)", "emoji": "📈"},
-			"R": {"action": "purge", "label": "Purge (Remove)", "emoji": "🗑️"}
+			"Q": {"action": "cluster", "label": "Cluster", "emoji": "🕸️"},
+			"E": {"action": "measure_trigger", "label": "Measure", "emoji": "👁️"},
+			"R": {"action": "remove_gates", "label": "Remove", "emoji": "✂️"}
+		}
+	},
+	3: {  # INDUSTRY - Simplified to match implemented actions
+		"name": "Industry",
+		"emoji": "🏭",
+		"description": "Economy & automation",
+		"has_f_cycling": false,
+		"actions": {
+			"Q": {"action": "place_mill", "label": "Mill", "emoji": "⚙️"},
+			"E": {"action": "place_market", "label": "Market", "emoji": "🏪"},
+			"R": {"action": "place_kitchen", "label": "Kitchen", "emoji": "🍳"}
+		}
+	},
+	4: {  # GATES - Single-qubit operations
+		"name": "Gates",
+		"emoji": "⚡",
+		"description": "Quantum gate operations",
+		"has_f_cycling": false,
+		"actions": {
+			"Q": {"action": "apply_pauli_x", "label": "Pauli-X", "emoji": "↔️"},
+			"E": {"action": "apply_hadamard", "label": "Hadamard", "emoji": "🌀"},
+			"R": {"action": "apply_pauli_z", "label": "Pauli-Z", "emoji": "⚡"}
 		}
 	}
 }
