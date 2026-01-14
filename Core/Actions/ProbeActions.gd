@@ -20,7 +20,7 @@ const WeightedRandom = preload("res://Core/Utilities/WeightedRandom.gd")
 ## EXPLORE ACTION - Bind terminal to register with probability weighting
 ## ============================================================================
 
-static func action_explore(plot_pool: RefCounted, biome: RefCounted) -> Dictionary:
+static func action_explore(plot_pool, biome) -> Dictionary:
 	"""Execute EXPLORE action: discover a register in the quantum soup.
 
 	Algorithm:
@@ -107,7 +107,7 @@ static func action_explore(plot_pool: RefCounted, biome: RefCounted) -> Dictiona
 ## MEASURE ACTION - Collapse quantum state via Born rule
 ## ============================================================================
 
-static func action_measure(terminal: RefCounted, biome: RefCounted) -> Dictionary:
+static func action_measure(terminal, biome) -> Dictionary:
 	"""Execute MEASURE action: collapse the quantum state.
 
 	Algorithm:
@@ -188,7 +188,7 @@ static func action_measure(terminal: RefCounted, biome: RefCounted) -> Dictionar
 	}
 
 
-static func _check_entanglement(register_id: int, biome: RefCounted) -> bool:
+static func _check_entanglement(register_id: int, biome) -> bool:
 	"""Check if register has significant off-diagonal coherence (entanglement)."""
 	# This would check the density matrix for off-diagonal elements
 	# involving this register. For now, return false as placeholder.
@@ -199,7 +199,7 @@ static func _check_entanglement(register_id: int, biome: RefCounted) -> bool:
 	return false
 
 
-static func _collapse_density_matrix(register_id: int, is_north: bool, biome: RefCounted) -> void:
+static func _collapse_density_matrix(register_id: int, is_north: bool, biome) -> void:
 	"""Collapse density matrix for measured register.
 
 	Applies projection operator P = |outcome><outcome| to density matrix.
@@ -219,7 +219,7 @@ static func _collapse_density_matrix(register_id: int, is_north: bool, biome: Re
 ## POP ACTION - Harvest resource and unbind terminal
 ## ============================================================================
 
-static func action_pop(terminal: RefCounted, plot_pool: RefCounted, economy: RefCounted = null) -> Dictionary:
+static func action_pop(terminal, plot_pool, economy = null) -> Dictionary:
 	"""Execute POP action: harvest measured outcome and free terminal.
 
 	Algorithm:
@@ -294,7 +294,7 @@ static func action_pop(terminal: RefCounted, plot_pool: RefCounted, economy: Ref
 ## UTILITY FUNCTIONS
 ## ============================================================================
 
-static func get_explore_preview(plot_pool: RefCounted, biome: RefCounted) -> Dictionary:
+static func get_explore_preview(plot_pool, biome) -> Dictionary:
 	"""Get preview info for EXPLORE action (for UI display).
 
 	Returns:
@@ -328,7 +328,7 @@ static func get_explore_preview(plot_pool: RefCounted, biome: RefCounted) -> Dic
 	}
 
 
-static func get_measure_preview(terminal: RefCounted, biome: RefCounted) -> Dictionary:
+static func get_measure_preview(terminal, biome) -> Dictionary:
 	"""Get preview info for MEASURE action (for UI display).
 
 	Returns:

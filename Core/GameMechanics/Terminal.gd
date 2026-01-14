@@ -17,7 +17,7 @@ extends RefCounted
 ##   Register = DualEmojiQubit within a biome's quantum bath
 
 signal state_changed(terminal: Terminal)
-signal bound(register_id: int, biome: RefCounted)
+signal bound(register_id: int, biome: Variant)
 signal unbound()
 signal measured(outcome: String)
 
@@ -28,7 +28,7 @@ var terminal_id: String = ""
 var bound_register_id: int = -1
 
 ## Reference to the biome this terminal is probing
-var bound_biome: RefCounted = null  # BiomeBase
+var bound_biome = null  # BiomeBase (Node)
 
 ## Current emoji being displayed (from register or measurement outcome)
 var current_emoji: String = ""
@@ -53,7 +53,7 @@ func _init(id: String = ""):
 
 
 ## Bind this terminal to a register in a biome
-func bind_to_register(register_id: int, biome: RefCounted, emoji_pair: Dictionary = {}) -> void:
+func bind_to_register(register_id: int, biome, emoji_pair: Dictionary = {}) -> void:
 	if is_bound:
 		push_warning("Terminal %s already bound to register %d" % [terminal_id, bound_register_id])
 		return

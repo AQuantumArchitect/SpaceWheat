@@ -98,7 +98,7 @@ func get_terminal_for_register(register_id: int, biome_name: String) -> RefCount
 
 ## Bind a terminal to a register in a biome
 ## Returns true if binding succeeded, false if constraint violated
-func bind_terminal(terminal: RefCounted, register_id: int, biome: RefCounted, emoji_pair: Dictionary = {}) -> bool:
+func bind_terminal(terminal: RefCounted, register_id: int, biome, emoji_pair: Dictionary = {}) -> bool:
 	if terminal.is_bound:
 		push_warning("Terminal %s already bound" % terminal.terminal_id)
 		return false
