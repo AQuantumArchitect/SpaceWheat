@@ -1,0 +1,138 @@
+class_name SparseMatrix
+extends RefCounted
+
+## Sparse matrix wrapper for quantum operator optimization
+##
+## Used to detect sparsity of Hamiltonians and Lindblad operators.
+## When sparsity > threshold, the native evolution engine can use
+## optimized sparse algorithms (CSR format) for 10-50x speedup.
+##
+## NOTE: This is a minimal implementation that wraps ComplexMatrix
+## and provides sparsity metrics. Full sparse operations are done
+## in the native C++ backend (QuantumSparseNative).
+
+const Complex = preload("res://Core/QuantumSubstrate/Complex.gd")
+const ComplexMatrix = preload("res://Core/QuantumSubstrate/ComplexMatrix.gd")
+
+## The underlying dense matrix data (stored for fallback operations)
+var _dense: ComplexMatrix = null
+
+## Cached sparsity metrics
+var _nnz: int = 0            # Number of non-zero elements
+var _total: int = 0          # Total elements (n*n)
+var _sparsity: float = 0.0   # Ratio of zeros (0.0 to 1.0)
+
+## Threshold for considering an element "zero" (numerical tolerance)
+const ZERO_THRESHOLD = 1e-12
+
+
+func _init(dense_matrix: ComplexMatrix = null):
+	if dense_matrix:
+		_set_from_dense(dense_matrix)
+
+
+func _set_from_dense(matrix: ComplexMatrix) -> void:
+	"""Analyze dense matrix and cache sparsity metrics"""
+	_dense = matrix
+	_total = matrix.n * matrix.n
+	_nnz = 0
+
+	for i in range(_total):
+		var c = matrix._data[i]
+		var mag_sq = c.re * c.re + c.im * c.im
+		if mag_sq > ZERO_THRESHOLD * ZERO_THRESHOLD:
+			_nnz += 1
+
+	_sparsity = 1.0 - (float(_nnz) / float(_total)) if _total > 0 else 0.0
+
+
+static func from_dense(matrix: ComplexMatrix) -> SparseMatrix:
+	"""Create a SparseMatrix from a dense ComplexMatrix
+
+	This is the primary factory method. Analyzes the dense matrix
+	to compute sparsity metrics used for optimization decisions.
+
+	Args:
+		matrix: ComplexMatrix to analyze
+
+	Returns:
+		New SparseMatrix wrapping the dense data with sparsity info
+	"""
+	var sparse = SparseMatrix.new()
+	sparse._set_from_dense(matrix)
+	return sparse
+
+
+func get_sparsity() -> float:
+	"""Get the sparsity ratio (0.0 = all non-zero, 1.0 = all zeros)
+
+	Returns:
+		Ratio of zero elements to total elements
+	"""
+	return _sparsity
+
+
+func get_nnz() -> int:
+	"""Get the number of non-zero elements
+
+	Returns:
+		Count of elements with magnitude > ZERO_THRESHOLD
+	"""
+	return _nnz
+
+
+func get_dimension() -> int:
+	"""Get matrix dimension (n for n×n matrix)"""
+	return _dense.n if _dense else 0
+
+
+func get_dense() -> ComplexMatrix:
+	"""Get the underlying dense matrix
+
+	Returns:
+		The wrapped ComplexMatrix
+	"""
+	return _dense
+
+
+func to_csr_arrays() -> Dictionary:
+	"""Convert to CSR (Compressed Sparse Row) format
+
+	Returns arrays for CSR representation:
+	- data: Array of {re, im} for non-zero values
+	- col_indices: Column index for each non-zero
+	- row_ptrs: Start index in data/col_indices for each row
+
+	Returns:
+		Dictionary with "data", "col_indices", "row_ptrs"
+	"""
+	if not _dense:
+		return {"data": [], "col_indices": [], "row_ptrs": [0]}
+
+	var n = _dense.n
+	var data = []
+	var col_indices = []
+	var row_ptrs = [0]
+
+	for i in range(n):
+		for j in range(n):
+			var c = _dense._data[i * n + j]
+			var mag_sq = c.re * c.re + c.im * c.im
+			if mag_sq > ZERO_THRESHOLD * ZERO_THRESHOLD:
+				data.append({"re": c.re, "im": c.im})
+				col_indices.append(j)
+		row_ptrs.append(data.size())
+
+	return {
+		"data": data,
+		"col_indices": col_indices,
+		"row_ptrs": row_ptrs
+	}
+
+
+func _to_string() -> String:
+	if not _dense:
+		return "SparseMatrix(null)"
+	return "SparseMatrix(%dx%d, nnz=%d, sparsity=%.1f%%)" % [
+		_dense.n, _dense.n, _nnz, _sparsity * 100
+	]

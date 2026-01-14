@@ -14,7 +14,6 @@ extends Node
 const DualEmojiQubit = preload("res://Core/QuantumSubstrate/DualEmojiQubit.gd")
 const QuantumRegister = preload("res://Core/QuantumSubstrate/QuantumRegister.gd")
 const QuantumComputer = preload("res://Core/QuantumSubstrate/QuantumComputer.gd")
-const QuantumBath = preload("res://Core/QuantumSubstrate/QuantumBath.gd")
 const QuantumGateLibrary = preload("res://Core/QuantumSubstrate/QuantumGateLibrary.gd")
 const BiomeUtilities = preload("res://Core/Environment/BiomeUtilities.gd")
 const BiomeTimeTracker = preload("res://Core/Environment/BiomeTimeTracker.gd")
@@ -1110,24 +1109,20 @@ func batch_measure_plots(position: Vector2i) -> Dictionary:
 	return outcomes
 
 # ============================================================================
-# Bath-First Projection Management (Phase 3 - Legacy, to be deprecated)
+# Quantum Computer Initialization (Model C)
 # ============================================================================
 
 func _initialize_bath() -> void:
-	"""Override in subclasses to set up the quantum bath
+	"""Override in subclasses to set up the quantum computer.
 
-	Example:
-		bath = QuantumBath.new()
-		bath.initialize_with_emojis(["☀", "🌾", "🍄", "💀"])
-		bath.initialize_uniform()
+	NOTE: Method name is legacy - it initializes quantum_computer, not bath.
 
-		var icons: Array[Icon] = []
-		icons.append(_icon_registry.get_icon("☀"))
-		# ... get other icons
-
-		bath.active_icons = icons
-		bath.build_hamiltonian_from_icons(icons)
-		bath.build_lindblad_from_icons(icons)
+	Example (from BioticFluxBiome):
+		quantum_computer = QuantumComputer.new("MyBiome")
+		quantum_computer.allocate_axis(0, "☀", "🌙")  # Qubit 0
+		quantum_computer.allocate_axis(1, "🌾", "🍄")  # Qubit 1
+		quantum_computer.initialize_basis(0)  # Start in |00...0⟩
+		# Then build operators from IconRegistry...
 	"""
 	pass
 
@@ -1177,50 +1172,13 @@ static func merge_emoji_sets(set_a: Array[String], set_b: Array[String]) -> Arra
 	return result
 
 
-func initialize_bath_from_emojis(emojis: Array[String], initial_weights: Dictionary = {}) -> void:
-	"""Initialize bath with emoji set + auto-build operators from Icons
+func initialize_bath_from_emojis(_emojis: Array[String], _initial_weights: Dictionary = {}) -> void:
+	"""DEPRECATED: Bath architecture removed. Use quantum_computer instead.
 
-	This is the compositional initialization - Icons define all physics.
-
-	Args:
-		emojis: List of emoji strings to include in bath
-		initial_weights: Optional initial population weights (emoji → float)
-
-	Example:
-		initialize_bath_from_emojis(["☀", "🌾", "🍄"], {
-			"☀": 0.5,
-			"🌾": 0.3,
-			"🍄": 0.2
-		})
+	All biomes now use QuantumComputer with RegisterMap (Model C).
+	See _initialize_bath() overrides in biome subclasses.
 	"""
-	bath = QuantumBath.new()
-	bath.initialize_with_emojis(emojis)
-
-	# Apply initial weights (if provided)
-	if not initial_weights.is_empty():
-		bath.initialize_weighted(initial_weights)
-
-	# Get Icons from IconRegistry
-	var icon_registry = get_node_or_null("/root/IconRegistry")
-	if not icon_registry:
-		push_error("🛁 IconRegistry not available - bath init failed!")
-		return
-
-	var icons: Array[Icon] = []
-	for emoji in emojis:
-		var icon = icon_registry.get_icon(emoji)
-		if icon:
-			icons.append(icon)
-		else:
-			push_warning("No Icon found for emoji: %s" % emoji)
-
-	# Build operators from Icon composition
-	if not icons.is_empty():
-		bath.active_icons = icons
-		bath.build_hamiltonian_from_icons(icons)
-		bath.build_lindblad_from_icons(icons)
-
-	_verbose_log("info","biome", "🛁", "Bath initialized: %d emojis, %d icons" % [emojis.size(), icons.size()])
+	push_error("❌ initialize_bath_from_emojis() is DEPRECATED. Use quantum_computer architecture.")
 
 
 func hot_drop_emoji(emoji: String, initial_amplitude: Complex = null) -> bool:
@@ -2733,14 +2691,18 @@ func get_unbound_registers() -> Array[int]:
 
 	Used by EXPLORE action for probability-weighted discovery.
 	Returns registers available for new terminal binding.
+
+	NOTE: In v2 architecture, a "register" is a qubit axis (0, 1, 2, ...).
+	Each register has a north/south emoji pair from RegisterMap.
 	"""
 	if not quantum_computer or not quantum_computer.register_map:
 		return []
 
-	var all_ids = quantum_computer.register_map.get_all_register_ids()
+	# Register IDs are qubit indices: 0 to num_qubits-1
+	var num_qubits = quantum_computer.register_map.num_qubits
 	var unbound: Array[int] = []
 
-	for reg_id in all_ids:
+	for reg_id in range(num_qubits):
 		if not _bound_registers.has(reg_id):
 			unbound.append(reg_id)
 
@@ -2748,22 +2710,39 @@ func get_unbound_registers() -> Array[int]:
 
 
 func get_register_probability(register_id: int) -> float:
-	"""Get probability amplitude for a specific register from density matrix diagonal.
+	"""Get probability of |0⟩ (north) state for a qubit (register).
 
 	Used by EXPLORE for weighted random selection.
-	Returns P(register) = ⟨register|ρ|register⟩
+	Returns P(|0⟩) for the specified qubit by tracing out other qubits.
 	"""
 	if not quantum_computer:
-		return 0.0
+		return 0.5  # Default: equal probability
 
-	# Get density matrix diagonal element for this register
-	var rho = quantum_computer.get_density_matrix()
-	if not rho or register_id < 0 or register_id >= rho.get_dimension():
-		return 0.0
+	# Access density_matrix property directly
+	var rho = quantum_computer.density_matrix
+	if not rho:
+		return 0.5
 
-	# Return diagonal element (probability)
-	var diag = rho.get_element(register_id, register_id)
-	return diag.re if diag else 0.0
+	var num_qubits = quantum_computer.register_map.num_qubits
+	if register_id < 0 or register_id >= num_qubits:
+		return 0.5
+
+	# Sum probabilities of all basis states where this qubit is |0⟩
+	var dim = rho.n  # ComplexMatrix.n is the dimension
+	var prob_north: float = 0.0
+
+	for basis_idx in range(dim):
+		# Check if qubit `register_id` is |0⟩ in this basis state
+		# Bit position: leftmost qubit is highest bit
+		var shift = num_qubits - 1 - register_id
+		var bit = (basis_idx >> shift) & 1
+
+		if bit == 0:  # North state (|0⟩)
+			var diag = rho.get_element(basis_idx, basis_idx)
+			if diag:
+				prob_north += diag.re
+
+	return prob_north
 
 
 func get_register_probabilities() -> Dictionary:
@@ -2808,27 +2787,28 @@ func get_bound_register_count() -> int:
 
 
 func get_total_register_count() -> int:
-	"""Get total number of registers in this biome."""
+	"""Get total number of registers (qubits) in this biome."""
 	if not quantum_computer or not quantum_computer.register_map:
 		return 0
-	return quantum_computer.register_map.get_register_count()
+	return quantum_computer.register_map.num_qubits
 
 
 func get_register_emoji_pair(register_id: int) -> Dictionary:
-	"""Get the north/south emoji pair for a register.
+	"""Get the north/south emoji pair for a register (qubit).
 
-	Returns: {"north": "🌾", "south": "👥"} or empty dict if not found.
+	Returns: {"north": "🌾", "south": "🍄"} or empty dict if not found.
 	"""
 	if not quantum_computer or not quantum_computer.register_map:
 		return {}
 
-	var reg = quantum_computer.register_map.get_register(register_id)
-	if not reg:
+	# Use RegisterMap.axis() to get the emoji pair for this qubit
+	var axis = quantum_computer.register_map.axis(register_id)
+	if axis.is_empty():
 		return {}
 
 	return {
-		"north": reg.north_emoji if reg.has("north_emoji") else reg.get("north", "?"),
-		"south": reg.south_emoji if reg.has("south_emoji") else reg.get("south", "?")
+		"north": axis.get("north", "?"),
+		"south": axis.get("south", "?")
 	}
 
 

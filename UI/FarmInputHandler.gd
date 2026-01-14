@@ -23,6 +23,7 @@ const ToolConfig = preload("res://Core/GameState/ToolConfig.gd")
 const QuantumAlgorithms = preload("res://Core/QuantumSubstrate/QuantumAlgorithms.gd")
 const QuantumGateLibrary = preload("res://Core/QuantumSubstrate/QuantumGateLibrary.gd")
 const Farm = preload("res://Core/Farm.gd")
+const ProbeActions = preload("res://Core/Actions/ProbeActions.gd")
 
 # Tool actions from shared config (single source of truth)
 const TOOL_ACTIONS = ToolConfig.TOOL_ACTIONS
@@ -50,30 +51,23 @@ var grid_height: int = 2
 const VERBOSE = false
 
 # ═══════════════════════════════════════════════════════════════
-# MODEL B COMPATIBILITY LAYER
+# Plot Emoji Accessors (Model C)
 # ═══════════════════════════════════════════════════════════════
-# These helper functions provide safe fallbacks for Model A code
-# that tries to access quantum_state on plots (which don't exist in Model B)
 
 func _get_plot_north_emoji(plot) -> String:
-	"""Get north emoji safely (handles Model B where quantum_state doesn't exist)"""
+	"""Get north emoji for a plot (returns '?' if not planted)"""
 	if plot and plot.is_planted and plot.north_emoji:
 		return plot.north_emoji
-	# Fallback: return placeholder
 	return "?"
 
 func _get_plot_south_emoji(plot) -> String:
-	"""Get south emoji safely"""
+	"""Get south emoji for a plot (returns '?' if not planted)"""
 	if plot and plot.is_planted and plot.south_emoji:
 		return plot.south_emoji
 	return "?"
 
-func _action_disabled_message(action_name: String) -> String:
-	"""Return standard message for disabled actions"""
-	return "⚠️  %s not functional in Model B (requires quantum_computer refactor)" % action_name
-
 # ═══════════════════════════════════════════════════════════════
-# Phase 3: Quantum Gate Helper Functions (Model B)
+# Quantum Gate Helper Functions (Model C)
 # ═══════════════════════════════════════════════════════════════
 
 func _apply_single_qubit_gate(position: Vector2i, gate_name: String) -> bool:
@@ -767,7 +761,15 @@ func _execute_tool_action(action_key: String):
 
 	# Execute the action based on type (now with multi-select support)
 	match action:
-		# Tool 1: GROWER - Core farming
+		# Tool 1: PROBE - v2 EXPLORE/MEASURE/POP (Quantum Tomography Paradigm)
+		"explore":
+			_action_explore()
+		"measure":
+			_action_measure(selected_plots)
+		"pop":
+			_action_pop(selected_plots)
+
+		# Legacy actions (deprecated but kept for backwards compatibility)
 		"plant_batch":
 			_action_plant_batch(selected_plots)
 		"entangle_batch":
@@ -1311,7 +1313,154 @@ func _action_process_flour():
 		action_performed.emit("process_flour", false, "⚠️  Not enough wheat to process")
 
 
-## NEW Tool 1 (GROWER) Actions
+## V2 Tool 1 (PROBE) Actions - Quantum Tomography Paradigm
+
+func _action_explore():
+	"""EXPLORE: Probe the quantum soup to discover a register.
+
+	Uses probability-weighted selection from the density matrix.
+	Binds an unbound terminal to the selected register.
+	"""
+	if not farm or not farm.plot_pool:
+		action_performed.emit("explore", false, "⚠️  Farm not ready")
+		return
+
+	# Get biome for current selection
+	var biome = farm.grid.get_biome_for_plot(current_selection)
+	if not biome:
+		action_performed.emit("explore", false, "⚠️  No biome at current selection")
+		return
+
+	# Execute EXPLORE via ProbeActions
+	var result = ProbeActions.action_explore(farm.plot_pool, biome)
+
+	if result.success:
+		var terminal = result.terminal
+		var emoji = result.emoji_pair.get("north", "?")
+		var prob = result.probability
+
+		# Emit signal for visualization (bubble spawn)
+		farm.plot_planted.emit(current_selection, emoji)
+
+		action_performed.emit("explore", true, "🔍 Discovered %s (p=%.0f%%)" % [emoji, prob * 100])
+		_verbose.info("action", "🔍", "EXPLORE: Bound terminal %s to register %d (%s)" % [
+			terminal.terminal_id, result.register_id, emoji
+		])
+	else:
+		var msg = result.get("message", "Explore failed")
+		action_performed.emit("explore", false, "⚠️  %s" % msg)
+
+
+func _action_measure(positions: Array[Vector2i]):
+	"""MEASURE: Collapse an explored register via Born rule.
+
+	Finds the first bound-but-not-measured terminal in the selected biome
+	and performs quantum measurement.
+	"""
+	if not farm or not farm.plot_pool:
+		action_performed.emit("measure", false, "⚠️  Farm not ready")
+		return
+
+	# Get biome for current selection
+	var biome = farm.grid.get_biome_for_plot(current_selection)
+	if not biome:
+		action_performed.emit("measure", false, "⚠️  No biome at current selection")
+		return
+
+	# Find first active terminal (bound but not measured) in this biome
+	var terminal = _find_active_terminal_in_biome(biome)
+	if not terminal:
+		action_performed.emit("measure", false, "⚠️  No terminals to measure. EXPLORE first.")
+		return
+
+	# Execute MEASURE via ProbeActions
+	var result = ProbeActions.action_measure(terminal, biome)
+
+	if result.success:
+		var outcome = result.outcome
+		var prob = result.probability
+
+		# Emit signal for visualization (bubble freeze/collapse)
+		farm.plot_measured.emit(current_selection, outcome)
+
+		action_performed.emit("measure", true, "👁️ Measured: %s (p=%.0f%%)" % [outcome, prob * 100])
+		_verbose.info("action", "👁️", "MEASURE: Terminal %s collapsed to %s" % [
+			terminal.terminal_id, outcome
+		])
+	else:
+		var msg = result.get("message", "Measure failed")
+		action_performed.emit("measure", false, "⚠️  %s" % msg)
+
+
+func _action_pop(positions: Array[Vector2i]):
+	"""POP: Harvest a measured terminal and free it for reuse.
+
+	Finds the first measured terminal in the selected biome,
+	adds the resource to economy, and unbinds the terminal.
+	"""
+	if not farm or not farm.plot_pool:
+		action_performed.emit("pop", false, "⚠️  Farm not ready")
+		return
+
+	# Get biome for current selection
+	var biome = farm.grid.get_biome_for_plot(current_selection)
+	if not biome:
+		action_performed.emit("pop", false, "⚠️  No biome at current selection")
+		return
+
+	# Find first measured terminal in this biome
+	var terminal = _find_measured_terminal_in_biome(biome)
+	if not terminal:
+		action_performed.emit("pop", false, "⚠️  No measured terminals. MEASURE first.")
+		return
+
+	# Execute POP via ProbeActions
+	var result = ProbeActions.action_pop(terminal, farm.plot_pool, farm.economy)
+
+	if result.success:
+		var resource = result.resource
+
+		# Emit signal for visualization (bubble pop, particle effect)
+		farm.plot_harvested.emit(current_selection, {"emoji": resource, "amount": 1})
+
+		action_performed.emit("pop", true, "✂️ Harvested: %s" % resource)
+		_verbose.info("action", "✂️", "POP: Harvested %s from terminal %s" % [
+			resource, result.terminal_id
+		])
+	else:
+		var msg = result.get("message", "Pop failed")
+		action_performed.emit("pop", false, "⚠️  %s" % msg)
+
+
+func _find_active_terminal_in_biome(biome) -> RefCounted:
+	"""Find the first bound-but-not-measured terminal in a biome."""
+	if not farm or not farm.plot_pool:
+		return null
+
+	var biome_name = biome.get_biome_type() if biome else ""
+
+	for terminal in farm.plot_pool.get_active_terminals():
+		if terminal.bound_biome and terminal.bound_biome.get_biome_type() == biome_name:
+			return terminal
+
+	return null
+
+
+func _find_measured_terminal_in_biome(biome) -> RefCounted:
+	"""Find the first measured terminal in a biome."""
+	if not farm or not farm.plot_pool:
+		return null
+
+	var biome_name = biome.get_biome_type() if biome else ""
+
+	for terminal in farm.plot_pool.get_measured_terminals():
+		if terminal.bound_biome and terminal.bound_biome.get_biome_type() == biome_name:
+			return terminal
+
+	return null
+
+
+## Legacy Tool 1 (GROWER) Actions - Deprecated
 
 func _action_plant_batch(positions: Array[Vector2i]):
 	"""Batch plant crops - context-aware based on biome

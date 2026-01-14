@@ -17,12 +17,12 @@ const KeyboardLayoutConfig = preload("res://Core/GameState/KeyboardLayoutConfig.
 const FarmGrid = preload("res://Core/GameMechanics/FarmGrid.gd")
 const FarmPlot = preload("res://Core/GameMechanics/FarmPlot.gd")
 const FarmEconomy = preload("res://Core/GameMechanics/FarmEconomy.gd")
+const PlotPoolClass = preload("res://Core/GameMechanics/PlotPool.gd")
 const GoalsSystem = preload("res://Core/GameMechanics/GoalsSystem.gd")
 const BioticFluxBiome = preload("res://Core/Environment/BioticFluxBiome.gd")
 const MarketBiome = preload("res://Core/Environment/MarketBiome.gd")
 const ForestBiome = preload("res://Core/Environment/ForestEcosystem_Biome.gd")
 const QuantumKitchen_Biome = preload("res://Core/Environment/QuantumKitchen_Biome.gd")
-# const TestBiome = preload("res://Core/Environment/TestBiome.gd")  # Removed - file doesn't exist
 const FarmUIState = preload("res://Core/GameState/FarmUIState.gd")
 const VocabularyEvolution = preload("res://Core/QuantumSubstrate/VocabularyEvolution.gd")
 
@@ -39,6 +39,7 @@ var kitchen_biome: QuantumKitchen_Biome
 var vocabulary_evolution: VocabularyEvolution  # Vocabulary evolution system
 var ui_state: FarmUIState  # UI State abstraction layer
 var grid_config: GridConfig = null  # Single source of truth for grid layout
+var plot_pool: PlotPoolClass = null  # v2 Architecture: Terminal pool for EXPLORE/MEASURE/POP
 
 # Icon system now managed by faction-based IconRegistry (deprecated variables removed)
 
@@ -165,6 +166,11 @@ func _ready():
 
 	add_child(grid)
 
+	# v2 Architecture: Create terminal pool for EXPLORE/MEASURE/POP actions
+	# Pool size = total plots (12) to allow one terminal per plot position
+	var total_plots = grid_config.grid_width * grid_config.grid_height
+	plot_pool = PlotPoolClass.new(total_plots)
+
 	# Register all four biomes as metadata for UI systems (QuantumForceGraph visualization)
 	set_meta("grid", grid)
 	if biome_enabled:
@@ -196,32 +202,6 @@ func _ready():
 		grid.assign_plot_to_biome(Vector2i(3, 1), "Kitchen")
 		grid.assign_plot_to_biome(Vector2i(4, 1), "Kitchen")
 		grid.assign_plot_to_biome(Vector2i(5, 1), "Kitchen")
-
-		# Create TestBiomes for any unassigned plots
-		# DISABLED: TestBiome has IconRegistry dependency issues in headless mode
-		# All plots are already assigned to main biomes anyway
-		#print("🧪 Checking for unassigned plots...")
-		#var test_biome_count = 0
-		#for y in range(grid.grid_height):
-		#	for x in range(grid.grid_width):
-		#		var pos = Vector2i(x, y)
-		#		if not grid.plot_biome_assignments.has(pos):
-		#			# Create isolated TestBiome for this plot
-		#			var test_biome = TestBiome.new(test_biome_count, pos)
-		#			test_biome.name = "TestBiome_%d" % test_biome_count
-		#			add_child(test_biome)
-		#
-		#			# Assign plot to this test biome
-		#			grid.assign_plot_to_biome(pos, test_biome.name)
-		#
-		#			# Register with grid's biomes dict
-		#			grid.biomes[test_biome.name] = test_biome
-		#
-		#			test_biome_count += 1
-		#			print("  🧪 Created TestBiome #%d for plot %s" % [test_biome_count - 1, pos])
-		#
-		#if test_biome_count > 0:
-		#	print("  ✅ Created %d TestBiomes for unassigned plots" % test_biome_count)
 
 	# Get persistent vocabulary evolution from GameStateManager
 	# The vocabulary persists across farms/biomes and travels with the player
