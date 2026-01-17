@@ -513,12 +513,13 @@ func _create_bubble_for_terminal(biome_name: String, grid_pos: Vector2i, north_e
 	bubble.biome_name = biome_name
 	bubble.emoji_north = north_emoji
 	bubble.emoji_south = south_emoji
-	bubble.emoji_north_opacity = 0.7  # Show both in superposition
-	bubble.emoji_south_opacity = 0.3
+	# DO NOT HARDCODE OPACITIES - let them be computed from real quantum state!
+	# bubble.emoji_north_opacity = 0.7  ← REMOVED (was fake)
+	# bubble.emoji_south_opacity = 0.3  ← REMOVED (was fake)
 	bubble.radius = 40.0
 	bubble.color = Color(0.8, 0.8, 0.8, 0.8)
 	bubble.has_farm_tether = true  # Show tether to grid position
-	bubble.is_terminal_bubble = true  # CRITICAL: Mark as terminal so opacities don't get reset!
+	bubble.is_terminal_bubble = true  # V2 architecture marker
 
 	# V2.2: Store terminal reference (single source of truth for state queries)
 	bubble.terminal = terminal

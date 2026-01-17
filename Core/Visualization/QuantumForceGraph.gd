@@ -2607,10 +2607,8 @@ func _draw_quantum_nodes():
 			continue
 
 		# REFACTOR: Update node from current Farm state before drawing
-		# (Only for plot-based nodes - terminal nodes already have emoji data)
-		# CRITICAL: Skip update_from_quantum_state() for terminal bubbles!
-		# Terminal opacities are set during creation and should NOT be reset
-		if node.plot and not node.is_terminal_bubble:
+		# Compute visual properties from quantum state for ALL plot-based nodes
+		if node.plot:
 			node.update_from_quantum_state()
 
 		# Track planted plots for debugging

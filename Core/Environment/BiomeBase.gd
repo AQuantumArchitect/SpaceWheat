@@ -3169,7 +3169,7 @@ func get_emoji_coherence(north_emoji: String, south_emoji: String):
 	Returns Complex or null if not computable.
 	Used by QuantumNode for color phase visualization.
 	"""
-	if not quantum_computer or not quantum_computer.register_map or not quantum_computer.density_matrix:
+	if not quantum_computer or not quantum_computer.register_map:
 		return null
 
 	# Both emojis should be on same qubit
@@ -3184,11 +3184,10 @@ func get_emoji_coherence(north_emoji: String, south_emoji: String):
 	if north_q != south_q:
 		return null  # Not on same qubit
 
-	# Get coherence DIRECTLY from density matrix via RegisterMap
-	# ρ_{north,south} is the off-diagonal element between north|qubit and south|qubit basis states
-	var coh = quantum_computer.density_matrix.get_coherence(north_emoji, south_emoji)
-	if coh:
-		return coh
+	# Get coherence for this qubit from quantum_computer component
+	var comp = quantum_computer.get_component_containing(north_q)
+	if comp:
+		return comp.get_coherence_complex(north_q)
 
 	return null
 
