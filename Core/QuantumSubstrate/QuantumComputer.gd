@@ -100,6 +100,11 @@ func allocate_register(north_emoji: String = "🌾", south_emoji: String = "🌽
 	comp.is_pure = true
 
 	add_component(comp)
+
+	# CRITICAL FIX: Register the emoji axis in RegisterMap for visualization
+	# This allows get_emoji_probability() and get_emoji_coherence() to find these emojis
+	allocate_axis(_next_component_id, north_emoji, south_emoji)
+
 	_next_component_id += 1
 
 	return reg_id
