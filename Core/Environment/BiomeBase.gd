@@ -2945,15 +2945,6 @@ func build_operators_cached(biome_name: String, icons: Dictionary) -> void:
 		quantum_computer.hamiltonian = cached_ops.hamiltonian
 		quantum_computer.lindblad_operators = cached_ops.lindblad_operators
 
-		# ALSO create a Hamiltonian object for time-dependent driver updates (cached path)
-		var HamiltonianClass = load("res://Core/QuantumSubstrate/Hamiltonian.gd")
-		var ham_obj = HamiltonianClass.new()
-		var emoji_list = []
-		for emoji in icons:
-			emoji_list.append(emoji)
-		ham_obj.build_from_icons(emoji_list.map(func(e): return icons[e]), emoji_list)
-		quantum_computer.hamiltonian_object = ham_obj
-
 		# CRITICAL: Set up native evolution engine for batched performance
 		# (This is normally done by set_lindblad_operators, which is bypassed when loading from cache)
 		quantum_computer.setup_native_evolution()
@@ -2974,19 +2965,9 @@ func build_operators_cached(biome_name: String, icons: Dictionary) -> void:
 		# Build using HamiltonianBuilder and LindbladBuilder
 		var HamBuilder = load("res://Core/QuantumSubstrate/HamiltonianBuilder.gd")
 		var LindBuilder = load("res://Core/QuantumSubstrate/LindbladBuilder.gd")
-		var HamiltonianClass = load("res://Core/QuantumSubstrate/Hamiltonian.gd")
 
 		# Pass verbose logger to builders for detailed logging
 		quantum_computer.hamiltonian = HamBuilder.build(icons, quantum_computer.register_map, verbose)
-
-		# ALSO create a Hamiltonian object for time-dependent driver updates
-		var ham_obj = HamiltonianClass.new()
-		# Get emoji list from icons (needed for build_from_icons)
-		var emoji_list = []
-		for emoji in icons:
-			emoji_list.append(emoji)
-		ham_obj.build_from_icons(emoji_list.map(func(e): return icons[e]), emoji_list)
-		quantum_computer.hamiltonian_object = ham_obj
 
 		var lindblad_result = LindBuilder.build(icons, quantum_computer.register_map, verbose)
 		quantum_computer.lindblad_operators = lindblad_result.get("operators", [])
