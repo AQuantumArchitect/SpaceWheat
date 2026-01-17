@@ -141,35 +141,35 @@ func update_from_quantum_state():
 	- Pulse rate (coherence) ← |ρ_{n,s}| coherence magnitude (decoherence threat)
 	- Radius ← Mass P(n)+P(s) (probability in measurement subspace)
 	"""
-	# REMOVED: Terminal bubbles SHOULD update from quantum state to get real opacities!
-	# if is_terminal_bubble:
-	#     return
-
 	var is_transitioning_planted = (radius == MAX_RADIUS)
 
-	# Guard: unplanted or no bath connection → invisible
-	if not plot or not plot.is_planted or plot.bath_subplot_id < 0:
-		energy = 0.0
-		coherence = 1.0
-		radius = MIN_RADIUS
-		color = Color(0.5, 0.5, 0.5, 0.0)  # Transparent
-		emoji_north_opacity = 0.0
-		emoji_south_opacity = 0.0
-		visual_scale = 0.0
-		visual_alpha = 0.0
-		return
+	# === DETERMINE BIOME SOURCE ===
+	# Terminal bubbles use terminal.bound_biome, plot bubbles use plot.parent_biome
+	var biome = null
+	if terminal and terminal.is_bound:
+		# V2 Terminal architecture: get biome from terminal
+		biome = terminal.bound_biome
+	elif plot and plot.is_planted:
+		# V1 Plot architecture: get biome from plot
+		biome = plot.parent_biome
 
-	# Guard: no parent_biome or no quantum_computer → LIFELESS fallback (no wiggle)
-	var biome = plot.parent_biome
+	# Guard: no biome or no quantum_computer → LIFELESS fallback (no wiggle)
 	if not biome or not biome.quantum_computer:
 		is_lifeless = true  # Mark as frozen - no physics
 		energy = 0.0       # No glow - lifeless
 		coherence = 0.0    # No pulse - static
 		radius = MIN_RADIUS  # Small - minimal presence
 		color = Color(0.4, 0.4, 0.5, 0.5)  # Dim gray - disconnected
-		var emojis = plot.get_plot_emojis()
-		emoji_north = emojis["north"]
-		emoji_south = emojis["south"]
+
+		# Try to get emojis from either source
+		var emojis_dict = {}
+		if terminal and terminal.is_bound:
+			emojis_dict = {"north": terminal.north_emoji, "south": terminal.south_emoji}
+		elif plot:
+			emojis_dict = plot.get_plot_emojis()
+
+		emoji_north = emojis_dict.get("north", emoji_north)
+		emoji_south = emojis_dict.get("south", emoji_south)
 		emoji_north_opacity = 0.3  # Dim
 		emoji_south_opacity = 0.3
 		return
@@ -178,9 +178,15 @@ func update_from_quantum_state():
 	is_lifeless = false
 
 	# === QUERY BIOME FOR REAL QUANTUM DATA ===
-	var emojis = plot.get_plot_emojis()
-	emoji_north = emojis["north"]
-	emoji_south = emojis["south"]
+	# Get emojis from either terminal or plot
+	var emojis = {}
+	if terminal and terminal.is_bound:
+		emojis = {"north": terminal.north_emoji, "south": terminal.south_emoji}
+	elif plot:
+		emojis = plot.get_plot_emojis()
+
+	emoji_north = emojis.get("north", emoji_north)
+	emoji_south = emojis.get("south", emoji_south)
 
 	# 1. EMOJI OPACITY ← Normalized probabilities (θ-like)
 	var north_prob = biome.get_emoji_probability(emoji_north)
