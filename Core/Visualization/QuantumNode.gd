@@ -41,6 +41,12 @@ var parametric_ring: float = 0.5   # Radial parameter [0, 1] (0=center, 1=edge)
 # When false, this is a free-floating biome bubble (no tether)
 var has_farm_tether: bool = false
 
+# Terminal bubble flag (v2 architecture)
+# When true, this bubble represents a bound terminal (EXPLORE action)
+# Emojis come from terminal binding, not plot data
+# Should NOT call update_from_quantum_state() which would zero out opacities
+var is_terminal_bubble: bool = false
+
 # Lifeless mode - no quantum data available, should not wiggle
 var is_lifeless: bool = false
 

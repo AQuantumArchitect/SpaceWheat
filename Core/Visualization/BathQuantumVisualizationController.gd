@@ -473,6 +473,7 @@ func _create_bubble_for_terminal(biome_name: String, grid_pos: Vector2i, north_e
 	bubble.radius = 40.0
 	bubble.color = Color(0.8, 0.8, 0.8, 0.8)
 	bubble.has_farm_tether = true  # Show tether to grid position
+	bubble.is_terminal_bubble = true  # CRITICAL: Mark as terminal so opacities don't get reset!
 
 	# Add to tracking
 	if not basis_bubbles.has(biome_name):
@@ -484,6 +485,9 @@ func _create_bubble_for_terminal(biome_name: String, grid_pos: Vector2i, north_e
 	# Register by plot_id for entanglement lookup (only if plot provided)
 	if plot and bubble.plot_id:
 		graph.node_by_plot_id[bubble.plot_id] = bubble
+
+	# Start spawn animation so visual_scale/alpha go from 0→1
+	bubble.start_spawn_animation(Time.get_ticks_msec() / 1000.0)
 
 	print("   🔵 Created terminal bubble (%s/%s) at grid %s%s" % [
 		north_emoji, south_emoji, grid_pos,

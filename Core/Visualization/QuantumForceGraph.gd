@@ -746,7 +746,9 @@ func _update_node_visuals():
 				node.start_spawn_animation(time_accumulator)
 
 		# Use batched update with cached purity
-		_update_node_visual_batched(node, purity_cache)
+		# CRITICAL: Skip for terminal bubbles - they have their own emoji data
+		if not node.is_terminal_bubble:
+			_update_node_visual_batched(node, purity_cache)
 
 	# Purity cache stats (uncomment for debugging)
 	#var planted_count = 0
@@ -1088,7 +1090,7 @@ func _update_forces(delta: float):
 			continue
 
 		# Check if node is measured (legacy plot-based OR v2 terminal-based)
-		var is_measured = node.plot.has_been_measured
+		var is_measured = node.plot and node.plot.has_been_measured
 		if not is_measured and plot_pool and node.grid_position != Vector2i(-1, -1):
 			var terminal = plot_pool.get_terminal_at_grid_pos(node.grid_position)
 			if terminal and terminal.is_measured:
@@ -2606,7 +2608,9 @@ func _draw_quantum_nodes():
 
 		# REFACTOR: Update node from current Farm state before drawing
 		# (Only for plot-based nodes - terminal nodes already have emoji data)
-		if node.plot:
+		# CRITICAL: Skip update_from_quantum_state() for terminal bubbles!
+		# Terminal opacities are set during creation and should NOT be reset
+		if node.plot and not node.is_terminal_bubble:
 			node.update_from_quantum_state()
 
 		# Track planted plots for debugging
