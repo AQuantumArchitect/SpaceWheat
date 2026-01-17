@@ -74,14 +74,14 @@ static func create_celestial_archons() -> Faction:
 	# Hamiltonian: elemental couplings (the classical element wheel)
 	f.hamiltonian = {
 		"☀": {
-			"🌙": 0.8,   # Sun-Moon opposition (day/night)
+			"🌙": 0.025,   # Sun-Moon opposition (day/night) - 20 second oscillation period
 			"🔥": 0.7,   # Sun feeds fire
 			"💧": 0.4,   # Sun evaporates water
 			"⛰": 0.3,   # Sun warms earth
 			"🌬": 0.4,   # Sun drives wind
 		},
 		"🌙": {
-			"☀": 0.8,   # Opposition
+			"☀": 0.025,   # Opposition - 20 second oscillation period
 			"💧": 0.5,   # Moon affects tides
 			"🌬": 0.3,   # Moon affects air
 		},
