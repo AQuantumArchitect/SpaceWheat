@@ -2945,6 +2945,15 @@ func build_operators_cached(biome_name: String, icons: Dictionary) -> void:
 		quantum_computer.hamiltonian = cached_ops.hamiltonian
 		quantum_computer.lindblad_operators = cached_ops.lindblad_operators
 
+		# ALSO create a Hamiltonian object for time-dependent driver updates (cached path)
+		var HamiltonianClass = load("res://Core/QuantumSubstrate/Hamiltonian.gd")
+		var ham_obj = HamiltonianClass.new()
+		var emoji_list = []
+		for emoji in icons:
+			emoji_list.append(emoji)
+		ham_obj.build_from_icons(emoji_list.map(func(e): return icons[e]), emoji_list)
+		quantum_computer.hamiltonian_object = ham_obj
+
 		# CRITICAL: Set up native evolution engine for batched performance
 		# (This is normally done by set_lindblad_operators, which is bypassed when loading from cache)
 		quantum_computer.setup_native_evolution()
@@ -2965,9 +2974,20 @@ func build_operators_cached(biome_name: String, icons: Dictionary) -> void:
 		# Build using HamiltonianBuilder and LindbladBuilder
 		var HamBuilder = load("res://Core/QuantumSubstrate/HamiltonianBuilder.gd")
 		var LindBuilder = load("res://Core/QuantumSubstrate/LindbladBuilder.gd")
+		var HamiltonianClass = load("res://Core/QuantumSubstrate/Hamiltonian.gd")
 
 		# Pass verbose logger to builders for detailed logging
 		quantum_computer.hamiltonian = HamBuilder.build(icons, quantum_computer.register_map, verbose)
+
+		# ALSO create a Hamiltonian object for time-dependent driver updates
+		var ham_obj = HamiltonianClass.new()
+		# Get emoji list from icons (needed for build_from_icons)
+		var emoji_list = []
+		for emoji in icons:
+			emoji_list.append(emoji)
+		ham_obj.build_from_icons(emoji_list.map(func(e): return icons[e]), emoji_list)
+		quantum_computer.hamiltonian_object = ham_obj
+
 		var lindblad_result = LindBuilder.build(icons, quantum_computer.register_map, verbose)
 		quantum_computer.lindblad_operators = lindblad_result.get("operators", [])
 		quantum_computer.gated_lindblad_configs = lindblad_result.get("gated_configs", [])
@@ -3155,7 +3175,7 @@ func get_emoji_coherence(north_emoji: String, south_emoji: String):
 	Returns Complex or null if not computable.
 	Used by QuantumNode for color phase visualization.
 	"""
-	if not quantum_computer or not quantum_computer.register_map:
+	if not quantum_computer or not quantum_computer.register_map or not quantum_computer.density_matrix:
 		return null
 
 	# Both emojis should be on same qubit
@@ -3170,12 +3190,47 @@ func get_emoji_coherence(north_emoji: String, south_emoji: String):
 	if north_q != south_q:
 		return null  # Not on same qubit
 
-	# Get coherence for this qubit from quantum_computer component
-	var comp = quantum_computer.get_component_containing(north_q)
-	if comp:
-		return comp.get_coherence_complex(north_q)
+	# DIRECT COMPUTATION: Compute reduced 2×2 density matrix for this qubit
+	# ρ_marginal[i,j] = Σ_{other qubits} ρ[i⊗*..*, j⊗*..*]
+	var num_qubits = quantum_computer.register_map.num_qubits
+	if num_qubits == 0:
+		return null
 
-	return null
+	var dim_full = quantum_computer.density_matrix.n
+	var north_pole = quantum_computer.register_map.pole(north_emoji)  # 0 for north
+	var south_pole = quantum_computer.register_map.pole(south_emoji)  # 1 for south
+
+	# Ensure poles are different
+	if north_pole == south_pole:
+		return null
+
+	# Build reduced density matrix: ρ_marginal[a,b] where a,b in {0,1}
+	var rho_marginal = ComplexMatrix.new(2)
+
+	for a in range(2):  # a = 0 (north) or 1 (south)
+		for b in range(2):  # b = 0 (north) or 1 (south)
+			var element = Complex.zero()
+
+			# Trace over all other qubits
+			# ρ[i,j] where i has north_q=a, j has north_q=b
+			for basis_i in range(dim_full):
+				for basis_j in range(dim_full):
+					# Check if north_q bit matches a in basis_i, b in basis_j
+					var shift = num_qubits - 1 - north_q
+					var bit_i = (basis_i >> shift) & 1
+					var bit_j = (basis_j >> shift) & 1
+
+					if bit_i == a and bit_j == b:
+						# Check if other qubits are the same
+						var mask = (1 << num_qubits) - 1 - (1 << shift)
+						if (basis_i & mask) == (basis_j & mask):
+							element = element.add(quantum_computer.density_matrix.get_element(basis_i, basis_j))
+
+			rho_marginal.set_element(a, b, element)
+
+	# Return the off-diagonal element ρ[0,1] (coherence from north to south)
+	var coherence = rho_marginal.get_element(0, 1)
+	return coherence if coherence and coherence.abs() > 1e-15 else null
 
 
 func get_purity() -> float:

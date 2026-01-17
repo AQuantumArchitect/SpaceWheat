@@ -22,6 +22,7 @@ var density_matrix: ComplexMatrix = null
 
 ## Lindblad evolution operators (set by biome via HamiltonianBuilder/LindbladBuilder)
 var hamiltonian: ComplexMatrix = null         # H matrix (Hermitian, dim×dim)
+var hamiltonian_object = null                 # Hamiltonian object for time-dependent updates (if needed)
 var lindblad_operators: Array = []            # Array of L_k matrices (ComplexMatrix)
 
 ## SPARSE optimized operators (10-50x faster for sparse Hamiltonians/Lindblad)
@@ -954,8 +955,13 @@ func evolve(dt: float) -> void:
 	# UPDATE TIME-DEPENDENT HAMILTONIAN TERMS (e.g., sun/moon oscillation)
 	# This must be done before evolution so drivers are applied correctly
 	elapsed_time += dt
-	if hamiltonian != null:
-		hamiltonian.update(elapsed_time)
+	if hamiltonian_object != null:
+		hamiltonian_object.update(elapsed_time)
+		# After update, copy the matrix back to hamiltonian for use in evolution
+		hamiltonian = hamiltonian_object._matrix
+	elif sparse_hamiltonian != null and hamiltonian_object != null:
+		hamiltonian_object.update(elapsed_time)
+		# Sparse path will use sparse_hamiltonian which is converted from hamiltonian
 
 	# ==========================================================================
 	# BATCHED NATIVE PATH: 100x faster (single C++ call with internal subcycling)
