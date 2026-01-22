@@ -86,10 +86,15 @@ func set_layout_manager(manager: Node) -> void:
 func set_quest_manager(manager: Node) -> void:
 	quest_manager = manager
 
-	# Connect to quest manager signals
+	# Connect to quest manager signals (check if not already connected)
 	if quest_manager:
-		quest_manager.quest_completed.connect(_on_quest_completed)
-		quest_manager.active_quests_changed.connect(_refresh_slots)
+		if not quest_manager.quest_completed.is_connected(_on_quest_completed):
+			quest_manager.quest_completed.connect(_on_quest_completed)
+		if not quest_manager.active_quests_changed.is_connected(_refresh_slots):
+			quest_manager.active_quests_changed.connect(_refresh_slots)
+		if quest_manager.has_signal("quest_ready_to_claim"):
+			if not quest_manager.quest_ready_to_claim.is_connected(_on_quest_ready_to_claim):
+				quest_manager.quest_ready_to_claim.connect(_on_quest_ready_to_claim)
 
 
 func set_biome(biome: Node) -> void:
@@ -114,7 +119,6 @@ func handle_input(event: InputEvent) -> bool:
 		return false
 
 	# Handle quest board actions using keycodes
-	print("  🎯 QuestBoard.handle_input() KEY: %s" % event.keycode)
 	match event.keycode:
 		KEY_ESCAPE:
 			close_board()
@@ -566,25 +570,35 @@ func _on_slot_selected(slot_index: int) -> void:
 # =============================================================================
 
 func action_q_on_selected() -> void:
-	"""Q action: Accept (OFFERED) or Complete (READY)"""
+	"""Q action: Accept (OFFERED), Deliver (ACTIVE DELIVERY), or Claim (READY)"""
 	var slot = quest_slots[selected_slot_index]
+	var quest_type = slot.quest_data.get("type", 0)  # 0 = DELIVERY
 
 	match slot.state:
 		SlotState.OFFERED:
 			_accept_quest(slot)
 		SlotState.READY:
-			_complete_quest(slot)
+			# Claim rewards (works for both DELIVERY and non-DELIVERY)
+			if quest_type == 0:
+				_deliver_quest(slot)  # DELIVERY: deduct resources, grant rewards
+			else:
+				_claim_quest(slot)  # Non-DELIVERY: just grant rewards
 		SlotState.ACTIVE:
-			# Check if ready to complete
-			if _check_can_complete(slot):
-				slot.state = SlotState.READY
-				slot._refresh_ui()
-				_complete_quest(slot)
+			if quest_type == 0:  # DELIVERY
+				# Check if player has resources to deliver
+				var can_deliver = _check_can_complete(slot)
+				if can_deliver:
+					_deliver_quest(slot)
+				else:
+					print("  ⚠️ Not enough resources to deliver")
+			else:  # Non-DELIVERY (SHAPE_ACHIEVE etc.)
+				print("  ℹ️ This quest tracks automatically - watch the biome state!")
 
 
 func action_e_on_selected() -> void:
-	"""E action: Reroll (OFFERED) or Abandon (ACTIVE)"""
+	"""E action: Reroll (OFFERED), Abandon (ACTIVE), or Reject (READY non-DELIVERY)"""
 	var slot = quest_slots[selected_slot_index]
+	var quest_type = slot.quest_data.get("type", 0)  # 0 = DELIVERY
 
 	match slot.state:
 		SlotState.OFFERED:
@@ -592,6 +606,11 @@ func action_e_on_selected() -> void:
 				_reroll_quest(slot)
 		SlotState.ACTIVE:
 			_abandon_quest(slot)
+		SlotState.READY:
+			if quest_type != 0:  # Non-DELIVERY: can reject
+				_reject_quest(slot)
+			else:  # DELIVERY: can still abandon
+				_abandon_quest(slot)
 
 
 func action_r_on_selected() -> void:
@@ -606,16 +625,26 @@ func _accept_quest(slot: QuestSlot) -> void:
 	if not quest_manager:
 		return
 
-	var success = quest_manager.accept_quest(slot.quest_data)
+	# CRITICAL: Save quest data and set slot to ACTIVE *before* calling accept_quest
+	# because accept_quest emits active_quests_changed which triggers _refresh_slots,
+	# and we need the slot to be pinned (ACTIVE) so it doesn't get overwritten!
+	var quest_data_copy = slot.quest_data.duplicate(true)
+	slot.set_quest_active(quest_data_copy)
+
+	var success = quest_manager.accept_quest(quest_data_copy)
 	if success:
-		slot.set_quest_active(slot.quest_data)
-		quest_accepted.emit(slot.quest_data)
+		quest_accepted.emit(quest_data_copy)
 		_save_slot_state()
-		print("✅ Accepted quest: %s" % slot.quest_data.get("faction", "Unknown"))
+		# CRITICAL: Update action labels after state change!
+		_emit_selection_update()
+		print("✅ Accepted quest: %s (ID: %d)" % [quest_data_copy.get("faction", "Unknown"), quest_data_copy.get("id", -1)])
+	else:
+		# Revert slot state if accept failed
+		slot.set_quest_offered(quest_data_copy, slot.is_locked)
 
 
-func _complete_quest(slot: QuestSlot) -> void:
-	"""Complete an active quest"""
+func _deliver_quest(slot: QuestSlot) -> void:
+	"""Deliver a DELIVERY quest - deducts resources and grants rewards"""
 	if not quest_manager:
 		return
 
@@ -625,8 +654,41 @@ func _complete_quest(slot: QuestSlot) -> void:
 
 	var success = quest_manager.complete_quest(quest_id)
 	if success:
-		print("🎉 Completed quest: %s" % slot.quest_data.get("faction", "Unknown"))
+		print("📦 Delivered quest: %s" % slot.quest_data.get("faction", "Unknown"))
+		_emit_selection_update()
 		# Slot will be auto-filled on next refresh
+
+
+func _claim_quest(slot: QuestSlot) -> void:
+	"""Claim rewards for a READY non-DELIVERY quest"""
+	if not quest_manager:
+		return
+
+	var quest_id = slot.quest_data.get("id", -1)
+	if quest_id < 0:
+		return
+
+	var success = quest_manager.claim_quest(quest_id)
+	if success:
+		print("🎁 Claimed quest rewards: %s" % slot.quest_data.get("faction", "Unknown"))
+		_emit_selection_update()
+		# Slot will be auto-filled on next refresh
+
+
+func _reject_quest(slot: QuestSlot) -> void:
+	"""Reject a READY non-DELIVERY quest without claiming rewards"""
+	if not quest_manager:
+		return
+
+	var quest_id = slot.quest_data.get("id", -1)
+	if quest_id < 0:
+		return
+
+	quest_manager.reject_quest(quest_id)
+	quest_abandoned.emit(quest_id)
+	_auto_fill_slot(slot.slot_index)
+	_save_slot_state()
+	print("🚫 Rejected quest: %s" % slot.quest_data.get("faction", "Unknown"))
 
 
 func _abandon_quest(slot: QuestSlot) -> void:
@@ -710,6 +772,21 @@ func _on_quest_completed(quest_id: int, rewards: Dictionary) -> void:
 			break
 
 	quest_completed.emit(quest_id, rewards)
+
+
+func _on_quest_ready_to_claim(quest_id: int) -> void:
+	"""Handle quest ready to claim signal from manager (non-DELIVERY quest conditions met)"""
+	# Find slot with this quest and update to READY state
+	for i in range(4):
+		var slot = quest_slots[i]
+		if slot.quest_data.get("id", -1) == quest_id:
+			slot.state = SlotState.READY
+			slot._refresh_ui()
+			print("✨ Quest ready to claim: %s" % slot.quest_data.get("faction", "Unknown"))
+			# Update action labels if this slot is selected
+			if i == selected_slot_index:
+				_emit_selection_update()
+			break
 
 
 func _save_slot_state() -> void:
@@ -807,7 +884,9 @@ func get_action_labels() -> Dictionary:
 	var slot = quest_slots[selected_slot_index]
 	var labels = action_labels.duplicate()
 
-	# Context-sensitive Q and E labels
+	# Context-sensitive Q and E labels based on quest type and state
+	var quest_type = slot.quest_data.get("type", 0)  # 0 = DELIVERY, 1+ = SHAPE_ACHIEVE etc.
+
 	match slot.state:
 		SlotState.EMPTY:
 			labels["Q"] = "—"
@@ -816,11 +895,18 @@ func get_action_labels() -> Dictionary:
 			labels["Q"] = "Accept"
 			labels["E"] = "Reroll" if not slot.is_locked else "—"
 		SlotState.ACTIVE:
-			labels["Q"] = "Check"
+			if quest_type == 0:  # DELIVERY - player delivers resources
+				labels["Q"] = "Deliver"
+			else:  # SHAPE_ACHIEVE etc. - auto-tracks biome state
+				labels["Q"] = "Tracking"
 			labels["E"] = "Abandon"
 		SlotState.READY:
-			labels["Q"] = "Complete"
-			labels["E"] = "—"
+			if quest_type == 0:  # DELIVERY ready to turn in
+				labels["Q"] = "Deliver"
+				labels["E"] = "Abandon"
+			else:  # SHAPE_ACHIEVE conditions met - claim rewards
+				labels["Q"] = "Claim"
+				labels["E"] = "Reject"
 
 	# R label based on lock state
 	labels["R"] = "Unlock" if slot.is_locked else "Lock"

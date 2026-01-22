@@ -20,6 +20,7 @@ const FactionDatabase = preload("res://Core/Quests/FactionDatabaseV2.gd")
 
 signal quest_offered(quest_data: Dictionary)
 signal quest_accepted(quest_id: int)
+signal quest_ready_to_claim(quest_id: int)  # Non-delivery quest conditions met, awaiting player claim
 signal quest_completed(quest_id: int, rewards: Dictionary)
 signal quest_failed(quest_id: int, reason: String)
 signal quest_expired(quest_id: int)
@@ -31,7 +32,7 @@ signal vocabulary_pair_learned(north: String, south: String, faction: String)
 # STATE
 # =============================================================================
 
-var active_quests: Dictionary = {}  # quest_id -> quest_data
+var active_quests: Dictionary = {}  # quest_id -> quest_data (status: "active" or "ready")
 var completed_quests: Array = []
 var failed_quests: Array = []
 var next_quest_id: int = 0
@@ -65,6 +66,10 @@ func _physics_process(delta: float) -> void:
 		return
 
 	for quest in active_quests.values():
+		# Skip quests already ready to claim
+		if quest.get("status") == "ready":
+			continue
+
 		var quest_type = quest.get("type", QuestTypes.Type.DELIVERY)
 
 		# Only track quest types that need continuous monitoring
@@ -322,7 +327,8 @@ func check_quest_completion(quest_id: int) -> bool:
 
 	# Check if player has enough resources
 	var player_amount = economy.get_resource(required_emoji)
-	return player_amount >= required_qty * EconomyConstants.QUANTUM_TO_CREDITS
+	var needed_credits = required_qty * EconomyConstants.QUANTUM_TO_CREDITS
+	return player_amount >= needed_credits
 
 func complete_quest(quest_id: int) -> bool:
 	"""Complete an active quest
@@ -428,6 +434,135 @@ func fail_quest(quest_id: int, reason: String = "player_action") -> void:
 
 	quest_failed.emit(quest_id, reason)
 	active_quests_changed.emit()
+
+# =============================================================================
+# QUEST READY/CLAIM (Non-delivery quests)
+# =============================================================================
+
+func mark_quest_ready(quest_id: int, completion_reason: String = "conditions_met") -> void:
+	"""Mark a non-delivery quest as ready to claim (conditions met)
+
+	The quest stays in active_quests but with status="ready".
+	Player must press Claim to receive rewards.
+	"""
+	if not active_quests.has(quest_id):
+		return
+
+	var quest = active_quests[quest_id]
+
+	# Don't re-mark if already ready
+	if quest.get("status") == "ready":
+		return
+
+	quest["status"] = "ready"
+	quest["ready_at"] = Time.get_ticks_msec()
+	quest["completion_reason"] = completion_reason
+
+	quest_ready_to_claim.emit(quest_id)
+	active_quests_changed.emit()
+
+
+func claim_quest(quest_id: int) -> bool:
+	"""Claim rewards for a ready non-delivery quest
+
+	Returns:
+		true if claimed successfully
+	"""
+	if not active_quests.has(quest_id):
+		push_error("Cannot claim quest %d: not active" % quest_id)
+		return false
+
+	var quest = active_quests[quest_id]
+
+	# Must be in ready state
+	if quest.get("status") != "ready":
+		push_warning("Cannot claim quest %d: not ready (status=%s)" % [quest_id, quest.get("status", "?")])
+		return false
+
+	# Generate and grant rewards
+	var bath = current_biome.bath if current_biome and current_biome.get("bath") else null
+	var player_vocab = GameStateManager.current_state.known_emojis if GameStateManager.current_state else []
+	var reward = QuestRewards.generate_reward(quest, bath, player_vocab)
+
+	# Override money for state-shaping quests
+	var reward_multiplier = quest.get("reward_multiplier", 2.0)
+	var base_money = 100
+	reward.money_amount = int(base_money * reward_multiplier)
+
+	# Grant money rewards
+	if reward.money_amount > 0 and economy:
+		economy.add_resource("💰", reward.money_amount, "quest_reward")
+
+	# Grant vocabulary rewards
+	var faction_name = quest.get("faction", "Unknown")
+
+	for pair in reward.learned_pairs:
+		var north = pair.get("north", "")
+		var south = pair.get("south", "")
+		if north != "" and south != "":
+			GameStateManager.discover_pair(north, south)
+			vocabulary_pair_learned.emit(north, south, faction_name)
+			vocabulary_learned.emit(north, faction_name)
+			vocabulary_learned.emit(south, faction_name)
+			print("📖 %s taught you: %s/%s axis" % [faction_name, north, south])
+
+	if reward.learned_pairs.is_empty():
+		for emoji in reward.learned_vocabulary:
+			GameStateManager.discover_emoji(emoji)
+			vocabulary_learned.emit(emoji, faction_name)
+			print("📖 %s taught you: %s" % [faction_name, emoji])
+
+	# Update quest status
+	quest["status"] = "completed"
+	quest["completed_at"] = Time.get_ticks_msec()
+	quest["reward"] = reward
+
+	# Move to completed list
+	active_quests.erase(quest_id)
+	completed_quests.append(quest)
+
+	# Stop timer
+	_stop_quest_timer(quest_id)
+
+	var legacy_rewards = {"💰": reward.money_amount}
+	quest_completed.emit(quest_id, legacy_rewards)
+	active_quests_changed.emit()
+	return true
+
+
+func reject_quest(quest_id: int) -> void:
+	"""Reject a ready quest without claiming rewards
+
+	Used when player doesn't want the rewards from a completed non-delivery quest.
+	"""
+	if not active_quests.has(quest_id):
+		return
+
+	var quest = active_quests[quest_id]
+
+	# Must be in ready state to reject
+	if quest.get("status") != "ready":
+		push_warning("Cannot reject quest %d: not ready" % quest_id)
+		return
+
+	quest["status"] = "rejected"
+	quest["rejected_at"] = Time.get_ticks_msec()
+
+	# Move to failed list (rejected = voluntary failure)
+	active_quests.erase(quest_id)
+	failed_quests.append(quest)
+
+	_stop_quest_timer(quest_id)
+
+	quest_failed.emit(quest_id, "rejected")
+	active_quests_changed.emit()
+
+
+func is_quest_ready(quest_id: int) -> bool:
+	"""Check if a quest is ready to claim"""
+	if not active_quests.has(quest_id):
+		return false
+	return active_quests[quest_id].get("status") == "ready"
 
 # =============================================================================
 # QUEST TIMERS
@@ -640,10 +775,10 @@ func _update_shape_achieve_quest(quest: Dictionary, delta: float) -> void:
 		target_met = current_value >= target_value
 
 	if target_met:
-		# Auto-complete quest!
+		# Mark quest as ready to claim (player must press Claim)
 		var quest_id = quest.get("id", -1)
 		if quest_id >= 0:
-			_complete_non_delivery_quest(quest_id, "target_achieved")
+			mark_quest_ready(quest_id, "target_achieved")
 
 
 func _update_shape_maintain_quest(quest: Dictionary, delta: float) -> void:
@@ -682,7 +817,7 @@ func _update_shape_maintain_quest(quest: Dictionary, delta: float) -> void:
 			# Auto-complete quest!
 			var quest_id = quest.get("id", -1)
 			if quest_id >= 0:
-				_complete_non_delivery_quest(quest_id, "maintained_duration")
+				mark_quest_ready(quest_id, "maintained_duration")
 	else:
 		# Reset timer if dropped outside target
 		quest["elapsed"] = 0.0
@@ -725,7 +860,7 @@ func _update_evolution_quest(quest: Dictionary, delta: float) -> void:
 		# Auto-complete quest!
 		var quest_id = quest.get("id", -1)
 		if quest_id >= 0:
-			_complete_non_delivery_quest(quest_id, "evolution_achieved")
+			mark_quest_ready(quest_id, "evolution_achieved")
 
 
 func _update_entanglement_quest(quest: Dictionary, delta: float) -> void:
@@ -746,7 +881,7 @@ func _update_entanglement_quest(quest: Dictionary, delta: float) -> void:
 		# Auto-complete quest!
 		var quest_id = quest.get("id", -1)
 		if quest_id >= 0:
-			_complete_non_delivery_quest(quest_id, "entanglement_created")
+			mark_quest_ready(quest_id, "entanglement_created")
 
 
 func _update_achieve_eigenstate_quest(quest: Dictionary, delta: float) -> void:
@@ -768,7 +903,7 @@ func _update_achieve_eigenstate_quest(quest: Dictionary, delta: float) -> void:
 	if current_purity >= target_purity:
 		var quest_id = quest.get("id", -1)
 		if quest_id >= 0:
-			_complete_non_delivery_quest(quest_id, "eigenstate_achieved")
+			mark_quest_ready(quest_id, "eigenstate_achieved")
 
 
 func _update_maintain_coherence_quest(quest: Dictionary, delta: float) -> void:
@@ -795,7 +930,7 @@ func _update_maintain_coherence_quest(quest: Dictionary, delta: float) -> void:
 		if quest["elapsed"] >= required_duration:
 			var quest_id = quest.get("id", -1)
 			if quest_id >= 0:
-				_complete_non_delivery_quest(quest_id, "coherence_maintained")
+				mark_quest_ready(quest_id, "coherence_maintained")
 	else:
 		# Reset timer if coherence drops
 		quest["elapsed"] = 0.0
@@ -843,7 +978,7 @@ func _update_induce_bell_state_quest(quest: Dictionary, delta: float) -> void:
 	if coherence >= threshold:
 		var quest_id = quest.get("id", -1)
 		if quest_id >= 0:
-			_complete_non_delivery_quest(quest_id, "bell_state_achieved")
+			mark_quest_ready(quest_id, "bell_state_achieved")
 
 
 func _update_prevent_decoherence_quest(quest: Dictionary, delta: float) -> void:
@@ -870,7 +1005,7 @@ func _update_prevent_decoherence_quest(quest: Dictionary, delta: float) -> void:
 		if quest["elapsed"] >= required_duration:
 			var quest_id = quest.get("id", -1)
 			if quest_id >= 0:
-				_complete_non_delivery_quest(quest_id, "decoherence_prevented")
+				mark_quest_ready(quest_id, "decoherence_prevented")
 	else:
 		# Purity dropped too low - fail the quest!
 		var quest_id = quest.get("id", -1)
@@ -920,72 +1055,8 @@ func _update_collapse_deliberately_quest(quest: Dictionary, delta: float) -> voi
 	if probability >= target_probability and purity >= 0.8:
 		var quest_id = quest.get("id", -1)
 		if quest_id >= 0:
-			_complete_non_delivery_quest(quest_id, "state_collapsed")
+			mark_quest_ready(quest_id, "state_collapsed")
 
-
-func _complete_non_delivery_quest(quest_id: int, completion_reason: String) -> void:
-	"""Complete a non-delivery quest (shape/evolution/entanglement)
-
-	These quests don't require resource deduction - they auto-complete
-	when quantum state conditions are met. Also grants vocabulary rewards!
-	"""
-	if not active_quests.has(quest_id):
-		return
-
-	var quest = active_quests[quest_id]
-
-	# Generate rewards (including vocabulary!)
-	var bath = current_biome.bath if current_biome and current_biome.get("bath") else null
-	var player_vocab = GameStateManager.current_state.known_emojis if GameStateManager.current_state else []
-	var reward = QuestRewards.generate_reward(quest, bath, player_vocab)
-
-	# Override 💰-credits for quantum state quests (state-shaping is valuable!)
-	var reward_multiplier = quest.get("reward_multiplier", 2.0)
-	var base_money = 100  # Base reward for state-shaping
-	reward.money_amount = int(base_money * reward_multiplier)
-
-	# Grant 💰-credits rewards
-	if reward.money_amount > 0 and economy:
-		economy.add_resource("💰", reward.money_amount, "quest_reward")
-
-	# Grant vocabulary rewards
-	var faction_name = quest.get("faction", "Unknown")
-
-	# Paired vocabulary (preferred - uses discover_pair which handles both emojis)
-	for pair in reward.learned_pairs:
-		var north = pair.get("north", "")
-		var south = pair.get("south", "")
-		if north != "" and south != "":
-			GameStateManager.discover_pair(north, south)
-			vocabulary_pair_learned.emit(north, south, faction_name)
-			vocabulary_learned.emit(north, faction_name)
-			vocabulary_learned.emit(south, faction_name)
-			print("📖 %s taught you: %s/%s axis (for mastering quantum state!)" % [faction_name, north, south])
-
-	# Single emojis (fallback for emojis without connections)
-	if reward.learned_pairs.is_empty():
-		for emoji in reward.learned_vocabulary:
-			GameStateManager.discover_emoji(emoji)
-			vocabulary_learned.emit(emoji, faction_name)
-			print("📖 %s taught you: %s (for mastering quantum state!)" % [faction_name, emoji])
-
-	# Update quest status
-	quest["status"] = "completed"
-	quest["completed_at"] = Time.get_ticks_msec()
-	quest["completion_reason"] = completion_reason
-	quest["reward"] = reward
-
-	# Move to completed list
-	active_quests.erase(quest_id)
-	completed_quests.append(quest)
-
-	# Stop timer
-	_stop_quest_timer(quest_id)
-
-	# Emit with legacy format for compatibility
-	var legacy_rewards = {"💰": reward.money_amount}
-	quest_completed.emit(quest_id, legacy_rewards)
-	active_quests_changed.emit()
 
 # =============================================================================
 # QUERY FUNCTIONS
