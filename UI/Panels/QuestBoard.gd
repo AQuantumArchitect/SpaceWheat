@@ -176,10 +176,10 @@ func _create_ui() -> void:
 	"""Create the quest board UI - 2×2 QUADRANT LAYOUT with auto-scaling"""
 	var scale = layout_manager.scale_factor if layout_manager else 1.0
 
-	# Fixed font sizes for 960×540 base resolution
-	var title_size = 28
-	var large_size = 16
-	var normal_size = 13
+	# UPGRADED font sizes - much larger for readability
+	var title_size = 36
+	var large_size = 22
+	var normal_size = 18
 
 	# Background - fill screen to block interaction
 	background = ColorRect.new()
@@ -203,9 +203,9 @@ func _create_ui() -> void:
 	center.layout_mode = 1
 	add_child(center)
 
-	# Quest board panel - Fixed size for 960×540 base resolution (~85%)
+	# Quest board panel - Larger size for better readability
 	menu_panel = PanelContainer.new()
-	menu_panel.custom_minimum_size = Vector2(800, 450)
+	menu_panel.custom_minimum_size = Vector2(900, 520)
 	center.add_child(menu_panel)
 
 	var main_vbox = VBoxContainer.new()
@@ -966,23 +966,29 @@ class QuestSlot extends PanelContainer:
 	func set_layout_manager(manager: Node) -> void:
 		layout_manager = manager
 
+	# Additional UI elements for vocabulary display
+	var signature_label: Label
+	var objective_label: Label
+	var reward_label: Label
+
 	func _create_ui() -> void:
-		"""QUADRANT SLOT - Compact for 2×2 layout"""
+		"""QUADRANT SLOT - Larger fonts, vocabulary-focused display"""
 		var scale = layout_manager.scale_factor if layout_manager else 1.0
 
-		# Fixed font sizes for 960×540 base resolution
-		var header_size = 18
-		var faction_size = 16
-		var normal_size = 13
-		var small_size = 11
+		# UPGRADED font sizes - much larger for readability
+		var header_size = 22
+		var signature_size = 28  # Large emoji signature display
+		var faction_size = 20
+		var objective_size = 18
+		var reward_size = 16
 
 		# Slot expands to fill grid cell
 		size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		size_flags_vertical = Control.SIZE_EXPAND_FILL
-		custom_minimum_size = Vector2(200 * scale, 150 * scale)  # Minimum size
+		custom_minimum_size = Vector2(280 * scale, 200 * scale)  # Larger minimum
 
 		var vbox = VBoxContainer.new()
-		vbox.add_theme_constant_override("separation", int(6 * scale))
+		vbox.add_theme_constant_override("separation", int(4 * scale))
 		add_child(vbox)
 
 		# Header: [U] 🔒
@@ -990,23 +996,44 @@ class QuestSlot extends PanelContainer:
 		header_label.add_theme_font_size_override("font_size", header_size)
 		vbox.add_child(header_label)
 
-		# Faction emoji and name
+		# Faction signature emojis (BIG)
+		signature_label = Label.new()
+		signature_label.add_theme_font_size_override("font_size", signature_size)
+		signature_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		vbox.add_child(signature_label)
+
+		# Faction name
 		faction_label = Label.new()
 		faction_label.add_theme_font_size_override("font_size", faction_size)
+		faction_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		vbox.add_child(faction_label)
 
-		# Quest details
+		# Quest objective (clear description)
+		objective_label = Label.new()
+		objective_label.add_theme_font_size_override("font_size", objective_size)
+		objective_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		objective_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		vbox.add_child(objective_label)
+
+		# Details (for backward compat, may be hidden)
 		details_label = Label.new()
-		details_label.add_theme_font_size_override("font_size", normal_size)
+		details_label.add_theme_font_size_override("font_size", reward_size)
 		details_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		details_label.visible = false  # Hide - using objective_label instead
 		vbox.add_child(details_label)
 
-		# Status (alignment, time, rewards)
-		status_label = Label.new()
-		status_label.add_theme_font_size_override("font_size", small_size)
-		vbox.add_child(status_label)
+		# Reward preview
+		reward_label = Label.new()
+		reward_label.add_theme_font_size_override("font_size", reward_size)
+		reward_label.modulate = Color(1.0, 0.9, 0.5)  # Gold
+		reward_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		vbox.add_child(reward_label)
 
-		# NO action_label - actions shown in QER toolbar!
+		# Status (time remaining, faction mood)
+		status_label = Label.new()
+		status_label.add_theme_font_size_override("font_size", reward_size)
+		status_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		vbox.add_child(status_label)
 
 		_refresh_ui()
 
@@ -1036,7 +1063,7 @@ class QuestSlot extends PanelContainer:
 		_refresh_ui()
 
 	func _refresh_ui() -> void:
-		"""QUADRANT UI - Compact, no action hints (shown in QER toolbar)"""
+		"""UPGRADED UI - Large text, vocabulary display, clear objectives"""
 		# Update header - BOLD KEY + LOCK
 		var lock_icon = "🔒" if is_locked else ""
 		header_label.text = "[%s] %s" % [slot_letter, lock_icon]
@@ -1044,59 +1071,21 @@ class QuestSlot extends PanelContainer:
 		# Update based on state
 		match state:
 			SlotState.EMPTY:
-				faction_label.text = "⭕ EMPTY"
-				details_label.text = ""
+				signature_label.text = "⭕"
+				faction_label.text = "EMPTY SLOT"
+				objective_label.text = "Press [F] for more quests"
+				reward_label.text = ""
 				status_label.text = ""
 				_set_bg_color(Color(0.15, 0.15, 0.15, 0.9))
 
 			SlotState.OFFERED:
-				# FACTION - emoji + name
-				faction_label.text = "%s %s" % [
-					quest_data.get("faction_emoji", "❓"),
-					quest_data.get("faction", "Unknown")
-				]
-
-				# QUEST - Just the body
-				details_label.text = quest_data.get("body", "")
-
-				# STATUS - Visual bars for alignment + rewards
-				var alignment = quest_data.get("_alignment", 0.5)
-				var align_bar = _make_bar(alignment, 8)  # Shorter bar for compact layout
-				var reward_mult = quest_data.get("reward_multiplier", 2.0)
-
-				var time_limit = quest_data.get("time_limit", -1)
-				var time_str = "⏰%ds" % int(time_limit) if time_limit > 0 else "♾️"
-
-				status_label.text = "%s %d%%  |  🎁×%.1f  |  %s" % [
-					align_bar,
-					int(alignment * 100),
-					reward_mult,
-					time_str
-				]
-
-				_set_bg_color(_get_alignment_color(alignment))
+				_refresh_offered_ui()
 
 			SlotState.ACTIVE:
-				faction_label.text = "%s %s ⚡" % [
-					quest_data.get("faction_emoji", "❓"),
-					quest_data.get("faction", "Unknown")
-				]
-				details_label.text = quest_data.get("body", "")
-
-				var time_limit = quest_data.get("time_limit", -1)
-				var time_str = "⏰ ???" if time_limit > 0 else "♾️"
-				status_label.text = "🔥 ACTIVE  |  %s" % time_str
-				_set_bg_color(Color(0.2, 0.3, 0.5, 0.9))
+				_refresh_active_ui()
 
 			SlotState.READY:
-				faction_label.text = "%s %s ✅" % [
-					quest_data.get("faction_emoji", "❓"),
-					quest_data.get("faction", "Unknown")
-				]
-				details_label.text = quest_data.get("body", "")
-				status_label.text = "✨ READY! ✨"
-				status_label.modulate = Color(0.3, 1.0, 0.3)
-				_set_bg_color(Color(0.2, 0.6, 0.2, 0.95))
+				_refresh_ready_ui()
 
 		# Highlight if selected - THICKER BORDER
 		if is_selected:
@@ -1107,6 +1096,157 @@ class QuestSlot extends PanelContainer:
 				current_style.border_width_top = 6
 				current_style.border_width_bottom = 6
 				current_style.border_color = Color(1.0, 0.9, 0.0)  # Bright gold
+
+
+	func _refresh_offered_ui() -> void:
+		"""Display offered quest with vocabulary and clear objective"""
+		# Faction signature (BIG emoji display)
+		var sig = quest_data.get("faction_signature", quest_data.get("sig", []))
+		if sig.size() > 0:
+			signature_label.text = "".join(sig.slice(0, 5))  # Show up to 5 signature emojis
+		else:
+			signature_label.text = quest_data.get("faction_emoji", "❓")
+
+		# Faction name
+		faction_label.text = quest_data.get("faction", "Unknown Faction")
+
+		# Quest objective - varies by type
+		var quest_type = quest_data.get("type", 0)
+		objective_label.text = _format_objective(quest_type)
+
+		# Reward preview
+		reward_label.text = _format_reward_preview()
+
+		# Status - Faction mood (alignment) + time
+		var alignment = quest_data.get("_alignment", 0.5)
+		var mood = _alignment_to_mood(alignment)
+		var time_limit = quest_data.get("time_limit", -1)
+		var time_str = "⏰ %ds" % int(time_limit) if time_limit > 0 else "♾️ No rush"
+
+		status_label.text = "%s  |  %s" % [mood, time_str]
+		status_label.modulate = Color(0.8, 0.8, 0.8)
+
+		_set_bg_color(_get_alignment_color(alignment))
+
+
+	func _refresh_active_ui() -> void:
+		"""Display active quest with progress"""
+		# Faction signature
+		var sig = quest_data.get("faction_signature", quest_data.get("sig", []))
+		if sig.size() > 0:
+			signature_label.text = "".join(sig.slice(0, 5))
+		else:
+			signature_label.text = quest_data.get("faction_emoji", "❓")
+
+		# Faction name with ACTIVE indicator
+		faction_label.text = "⚡ %s" % quest_data.get("faction", "Unknown")
+
+		# Quest objective
+		var quest_type = quest_data.get("type", 0)
+		objective_label.text = _format_objective(quest_type)
+
+		# Reward preview
+		reward_label.text = _format_reward_preview()
+
+		# Status - time and state
+		var time_limit = quest_data.get("time_limit", -1)
+		var time_str = "⏰ Active" if time_limit > 0 else "♾️ Take your time"
+		status_label.text = "🔥 IN PROGRESS  |  %s" % time_str
+		status_label.modulate = Color(1.0, 0.7, 0.3)
+
+		_set_bg_color(Color(0.2, 0.3, 0.5, 0.9))
+
+
+	func _refresh_ready_ui() -> void:
+		"""Display ready-to-claim quest"""
+		# Faction signature
+		var sig = quest_data.get("faction_signature", quest_data.get("sig", []))
+		if sig.size() > 0:
+			signature_label.text = "".join(sig.slice(0, 5))
+		else:
+			signature_label.text = quest_data.get("faction_emoji", "❓")
+
+		# Faction name with READY indicator
+		faction_label.text = "✅ %s" % quest_data.get("faction", "Unknown")
+
+		# Quest objective (completed)
+		var quest_type = quest_data.get("type", 0)
+		objective_label.text = "✨ " + _format_objective(quest_type)
+
+		# Reward preview (highlighted)
+		reward_label.text = "🎁 " + _format_reward_preview()
+		reward_label.modulate = Color(0.3, 1.0, 0.5)  # Bright green
+
+		# Status
+		status_label.text = "✨ READY TO CLAIM! ✨"
+		status_label.modulate = Color(0.3, 1.0, 0.3)
+
+		_set_bg_color(Color(0.2, 0.6, 0.2, 0.95))
+
+
+	func _format_objective(quest_type: int) -> String:
+		"""Format quest objective based on type"""
+		match quest_type:
+			0:  # DELIVERY
+				var resource = quest_data.get("resource", "?")
+				var quantity = quest_data.get("quantity", 1)
+				return "Deliver: %s × %d" % [resource, quantity]
+			1:  # SHAPE_ACHIEVE
+				var obs = quest_data.get("observable", "purity")
+				var target = quest_data.get("target", 0.7)
+				var comp = quest_data.get("comparison", ">")
+				var comp_str = "≥" if comp == ">" else "≤"
+				return "Reach %s %s %d%%" % [obs, comp_str, int(target * 100)]
+			2:  # SHAPE_MAINTAIN
+				var obs = quest_data.get("observable", "purity")
+				var target = quest_data.get("target", 0.7)
+				var duration = quest_data.get("duration", 30)
+				var comp = quest_data.get("comparison", ">")
+				var comp_str = "≥" if comp == ">" else "≤"
+				return "Hold %s %s %d%% for %ds" % [obs, comp_str, int(target * 100), int(duration)]
+			3:  # EVOLUTION
+				var obs = quest_data.get("observable", "purity")
+				var delta = quest_data.get("delta", 0.2)
+				var direction = quest_data.get("direction", "increase")
+				var dir_str = "+" if direction == "increase" else "-"
+				return "%s %s by %s%d%%" % [direction.capitalize(), obs, dir_str, int(delta * 100)]
+			4:  # ENTANGLEMENT
+				var target = quest_data.get("target_coherence", 0.6)
+				return "Create coherence ≥ %d%%" % int(target * 100)
+			_:
+				return quest_data.get("body", "Complete the quest")
+
+
+	func _format_reward_preview() -> String:
+		"""Format reward preview showing 💰 and potential vocabulary PAIR"""
+		var base_money = quest_data.get("quantity", 5) * 10
+		var multiplier = quest_data.get("reward_multiplier", 1.0)
+		var money = int(base_money * multiplier)
+
+		# Get faction signature (emojis that could be the "north" of a learned pair)
+		var faction_sig = quest_data.get("faction_signature", quest_data.get("sig", []))
+
+		var vocab_str = ""
+		if faction_sig.size() > 0:
+			# Show potential "north" emojis - partner is rolled from quantum physics
+			var preview = faction_sig.slice(0, 2)
+			vocab_str = "  📖 %s/? pair" % " or ".join(preview)
+
+		return "💰 ~%d%s" % [money, vocab_str]
+
+
+	func _alignment_to_mood(alignment: float) -> String:
+		"""Convert alignment to readable faction mood"""
+		if alignment > 0.8:
+			return "😊 Very Pleased"
+		elif alignment > 0.6:
+			return "🙂 Favorable"
+		elif alignment > 0.4:
+			return "😐 Neutral"
+		elif alignment > 0.2:
+			return "😕 Uneasy"
+		else:
+			return "😠 Displeased"
 
 
 	func _make_bar(value: float, length: int) -> String:
