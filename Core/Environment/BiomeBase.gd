@@ -328,122 +328,6 @@ func is_evolution_paused() -> bool:
 
 
 # ============================================================================
-# VOCABULARY INJECTION (BUILD Mode Feature)
-# ============================================================================
-
-func can_inject_vocabulary(emoji: String) -> Dictionary:
-	"""Check if a new emoji can be injected into this biome.
-
-	Args:
-		emoji: The emoji to inject
-
-	Returns:
-		Dictionary with:
-		- can_inject: bool
-		- reason: String (error message if can_inject is false)
-		- cost: Dictionary (emoji-credits cost if can_inject is true)
-	"""
-	# Must be in BUILD mode (evolution paused)
-	if not evolution_paused:
-		return {"can_inject": false, "reason": "Must be in BUILD mode (TAB to toggle)"}
-
-	# Check if emoji already exists in biome
-	if emoji in producible_emojis:
-		return {"can_inject": false, "reason": "%s already exists in this biome" % emoji}
-
-	# Get cost from unified EconomyConstants
-	var cost = EconomyConstants.get_vocab_injection_cost(emoji)
-	var cost_credits = cost.get("💰", 0)
-
-	# Check if player can afford the injection
-	if grid and grid.farm_economy:
-		var current_credits = grid.farm_economy.get_resource("💰")
-		if current_credits < cost_credits:
-			return {
-				"can_inject": false,
-				"reason": "Need %d 💰-credits but only have %d" % [cost_credits, current_credits],
-				"cost": cost
-			}
-
-	return {"can_inject": true, "reason": "", "cost": cost}
-
-
-func inject_vocabulary(emoji: String) -> Dictionary:
-	"""Inject a new emoji into this biome's quantum vocabulary.
-
-	REQUIREMENT: Evolution must be paused (BUILD mode)
-
-	This expands the biome's producible_emojis list.
-	NOTE: Full qubit expansion (adding to Hilbert space) is more complex
-	and would require rebuilding the density matrix. This simplified
-	version just adds to the vocabulary list for future harvests.
-
-	Args:
-		emoji: The emoji to inject
-
-	Returns:
-		Dictionary with:
-		- success: bool
-		- error: String (if success is false)
-		- emoji: String (the injected emoji)
-	"""
-	# Validate injection
-	var check = can_inject_vocabulary(emoji)
-	if not check.can_inject:
-		return {"success": false, "error": check.reason}
-
-	# Get the cost and enforce resource deduction
-	var cost = EconomyConstants.get_vocab_injection_cost(emoji)
-	var cost_credits = cost.get("💰", 0)
-
-	# Check if economy is available and player can afford it
-	if grid and grid.farm_economy:
-		var current_credits = grid.farm_economy.get_resource("💰")
-		if current_credits < cost_credits:
-			return {
-				"success": false,
-				"error": "insufficient_resources",
-				"message": "Need %d 💰-credits but only have %d" % [cost_credits, current_credits],
-				"required": cost_credits,
-				"available": current_credits
-			}
-
-		# Deduct the cost before injection
-		grid.farm_economy.remove_resource("💰", cost_credits, "vocabulary_injection_%s" % emoji)
-	else:
-		# No economy context - allow injection but warn
-		push_warning("BiomeBase.inject_vocabulary: No grid/farm_economy context - cannot enforce costs")
-
-	# Add to producible emojis
-	producible_emojis.append(emoji)
-
-	# Add to emoji_pairings with a default opposite (can be configured later)
-	if emoji not in emoji_pairings:
-		emoji_pairings[emoji] = "❓"  # Unknown opposite until configured
-
-	print("✨ Injected %s into %s vocabulary" % [emoji, get_biome_type()])
-	print("   New producible emojis: %s" % str(producible_emojis))
-
-	return {"success": true, "emoji": emoji, "cost": cost}
-
-
-func get_injectable_emojis(player_vocab: Array) -> Array:
-	"""Get list of emojis that can be injected from player vocabulary.
-
-	Args:
-		player_vocab: Player's known emojis
-
-	Returns:
-		Array of emojis that can be injected (not already in biome)
-	"""
-	var injectable = []
-	for emoji in player_vocab:
-		if emoji not in producible_emojis:
-			injectable.append(emoji)
-	return injectable
-
-
-# ============================================================================
 # QUANTUM SYSTEM EXPANSION (BUILD Mode)
 # ============================================================================
 
@@ -596,16 +480,15 @@ func inject_coupling(emoji_a: String, emoji_b: String, strength: float) -> Dicti
 
 
 # ============================================================================
-# MODEL B: Register & Quantum Computer API
+# Qubit Allocation API (Model C)
 # ============================================================================
 
 func allocate_register_for_plot(position: Vector2i, north_emoji: String = "🌾", south_emoji: String = "🌽") -> int:
-	"""
-	Allocate a new logical qubit register for a planted plot.
+	"""Allocate a new qubit for a planted plot.
 
-	Model C: Uses allocate_qubit() to add axis to RegisterMap, stores metadata in plot_registers.
+	Uses allocate_qubit() to add axis to RegisterMap, stores metadata in plot_registers.
 
-	Returns: register_id (qubit index, unique per biome)
+	Returns: qubit index (unique per biome)
 	"""
 	if not quantum_computer:
 		push_error("QuantumComputer not initialized!")
@@ -627,39 +510,8 @@ func allocate_register_for_plot(position: Vector2i, north_emoji: String = "🌾"
 
 
 # ============================================================================
-# MODEL C: Bath & Subplot API (Analog Model Support)
+# Plot Register Metadata (Model C)
 # ============================================================================
-
-func allocate_subplot_for_plot(position: Vector2i, north_emoji: String = "🔥", south_emoji: String = "❄️") -> int:
-	"""
-	Allocate a subplot for a planted plot (Model C - QuantumComputer).
-
-	Model C: QuantumComputer manages full composite state - plots define measurement axes.
-	This method tracks subplot metadata without creating independent quantum states.
-
-	Args:
-		position: Grid position of the plot
-		north_emoji: North pole measurement basis
-		south_emoji: South pole measurement basis
-
-	Returns:
-		subplot_id (0 for success, -1 for failure)
-	"""
-	if not quantum_computer:
-		push_warning("BiomeBase.allocate_subplot_for_plot: quantum_computer not available!")
-		return -1
-
-	# Model C: QuantumComputer manages the full state - plots just track their measurement axis
-	# Store metadata in plot_registers for compatibility
-	var qubit_reg = QuantumRegister.new(0, get_biome_type(), 0)
-	qubit_reg.north_emoji = north_emoji
-	qubit_reg.south_emoji = south_emoji
-	qubit_reg.is_planted = true
-	plot_registers[position] = qubit_reg
-
-	qubit_created.emit(position, qubit_reg)
-	return 0
-
 
 func clear_subplot_for_plot(position: Vector2i) -> void:
 	"""
@@ -701,14 +553,13 @@ func clear_register_for_plot(position: Vector2i) -> void:
 		plot_registers.erase(position)
 
 # ============================================================================
-# Common Quantum Operations (Model B API)
+# Common Quantum Operations (Model C)
 # ============================================================================
 
-func create_quantum_state(position: Vector2i, north: String, south: String, theta: float = PI/2) -> int:
-	"""Create and store a quantum state at grid position (Model B version)
+func create_quantum_state(position: Vector2i, north: String, south: String, _theta: float = PI/2) -> int:
+	"""Create and store a quantum state at grid position.
 
-	Model B: This allocates a register in quantum_computer, not an independent state.
-	Returns: register_id in quantum_computer
+	Allocates qubit in quantum_computer, returns qubit index.
 	"""
 	return allocate_register_for_plot(position, north, south)
 
@@ -765,46 +616,64 @@ func clear_qubit(position: Vector2i) -> void:
 	clear_register_for_plot(position)
 
 # ============================================================================
-# PHASE 4: Biome Evolution Control (DEPRECATED - Icon API requires bath)
+# Hamiltonian Modification (Model C)
 # ============================================================================
 
-func boost_coupling(_emoji: String, _target_emoji: String, _factor: float = 1.5) -> bool:
-	"""DEPRECATED: Icon modification API requires bath which was removed."""
-	push_warning("boost_coupling is deprecated - Icon API disabled")
-	return false
+func boost_coupling(emoji: String, target_emoji: String, factor: float = 1.5) -> bool:
+	"""Boost Hamiltonian coupling strength between two emojis.
+
+	Uses inject_coupling() to add/increase ZZ interaction term.
+	"""
+	var result = inject_coupling(emoji, target_emoji, factor)
+	return result.get("success", false)
 
 
 func tune_decoherence(_emoji: String, _factor: float = 1.5) -> bool:
-	"""DEPRECATED: Icon modification API requires bath which was removed."""
-	push_warning("tune_decoherence is deprecated - Icon API disabled")
+	"""Tune decoherence rate for an emoji axis.
+
+	TODO: Implement via LindbladBuilder rebuild with modified rates.
+	"""
+	push_warning("tune_decoherence not yet implemented for Model C")
 	return false
 
 
 func add_time_dependent_driver(_emoji: String, _driver_type: String = "cosine", _frequency: float = 1.0, _amplitude: float = 1.0) -> bool:
-	"""DEPRECATED: Icon modification API requires bath which was removed."""
-	push_warning("add_time_dependent_driver is deprecated - Icon API disabled")
+	"""Add time-dependent driver to an emoji axis.
+
+	TODO: Implement via quantum_computer.set_driven_icons()
+	"""
+	push_warning("add_time_dependent_driver not yet implemented for Model C")
 	return false
 
 
 # ============================================================================
-# PHASE 4: Lindblad Channel Operations (DEPRECATED - requires bath)
+# Lindblad Channel Operations (Model C)
 # ============================================================================
 
 func pump_to_emoji(_source_emoji: String, _target_emoji: String, _pump_rate: float = 0.01) -> bool:
-	"""DEPRECATED: Lindblad channel API requires bath which was removed."""
-	push_warning("pump_to_emoji is deprecated - Lindblad API disabled")
+	"""Add pump channel from source to target emoji.
+
+	TODO: Implement via LindbladBuilder with custom pump operator.
+	"""
+	push_warning("pump_to_emoji not yet implemented for Model C")
 	return false
 
 
 func reset_to_pure_state(_emoji: String, _reset_rate: float = 0.1) -> bool:
-	"""DEPRECATED: Lindblad channel API requires bath which was removed."""
-	push_warning("reset_to_pure_state is deprecated - Lindblad API disabled")
+	"""Add reset-to-pure-state channel for emoji.
+
+	TODO: Implement via amplitude damping Lindblad operator.
+	"""
+	push_warning("reset_to_pure_state not yet implemented for Model C")
 	return false
 
 
 func reset_to_mixed_state(_emoji: String, _reset_rate: float = 0.1) -> bool:
-	"""DEPRECATED: Lindblad channel API requires bath which was removed."""
-	push_warning("reset_to_mixed_state is deprecated - Lindblad API disabled")
+	"""Add dephasing channel for emoji (drives toward maximally mixed state).
+
+	TODO: Implement via dephasing Lindblad operator.
+	"""
+	push_warning("reset_to_mixed_state not yet implemented for Model C")
 	return false
 
 
