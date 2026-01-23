@@ -44,7 +44,6 @@ func _get_marginal_from_computer() -> Dictionary:
 	"""Query marginal from parent biome's quantum computer.
 
 	Model C: Uses get_population() and get_coherence() directly.
-	Falls back to Model B component queries if Model C not available.
 	"""
 	if not parent_biome:
 		return {}
@@ -53,7 +52,7 @@ func _get_marginal_from_computer() -> Dictionary:
 	if not qc:
 		return {}
 
-	# Model C: Use RegisterMap-based queries if available
+	# Model C: Use RegisterMap-based queries
 	if qc.density_matrix != null and north_emoji != "" and south_emoji != "":
 		var p0 = qc.get_population(north_emoji) if qc.has_method("get_population") else 0.5
 		var p1 = qc.get_population(south_emoji) if qc.has_method("get_population") else 0.5
@@ -66,32 +65,7 @@ func _get_marginal_from_computer() -> Dictionary:
 			"p_subspace": p0 + p1
 		}
 
-	# Model B fallback: Component-based query (deprecated)
-	if register_id < 0:
-		return {}
-
-	if not qc.has_method("get_component_containing"):
-		return {}
-
-	var comp = qc.get_component_containing(register_id)
-	if not comp:
-		return {}
-
-	var marginal = qc.get_marginal_density_matrix(comp, register_id) if qc.has_method("get_marginal_density_matrix") else null
-	if not marginal:
-		return {}
-
-	# Extract probabilities
-	var p0 = marginal.get_element(0, 0).re
-	var p1 = marginal.get_element(1, 1).re
-	var coh = marginal.get_element(0, 1)
-
-	return {
-		"p_north": p0,
-		"p_south": p1,
-		"coherence": coh,
-		"p_subspace": p0 + p1
-	}
+	return {}
 
 ## Theta: polar angle on Bloch sphere [0, π] (computed from marginal)
 var theta: float:
@@ -211,30 +185,13 @@ var order: float:
 ## Get reduced 2×2 density matrix ρ_sub
 ## Returns the block [[ρ_nn, ρ_ns], [ρ_sn, ρ_ss]] from parent biome's quantum computer
 func get_rho_subspace() -> ComplexMatrix:
-	# Model B: Query from parent_biome's quantum computer
+	# Model C: Query marginal from parent_biome's quantum computer
 	if parent_biome and register_id >= 0:
-		var comp = parent_biome.quantum_computer.get_component_containing(register_id)
-		if comp:
-			var rho_sub = parent_biome.quantum_computer.get_marginal_density_matrix(comp, register_id)
+		var qc = parent_biome.quantum_computer
+		if qc and qc.has_method("get_marginal_density_matrix"):
+			var rho_sub = qc.get_marginal_density_matrix(null, register_id)
 			if rho_sub:
 				return rho_sub
-
-	# Fallback: legacy bath (backward compat)
-	if bath and bath._density_matrix:
-		var n_idx = bath._density_matrix.emoji_to_index.get(north_emoji, -1)
-		var s_idx = bath._density_matrix.emoji_to_index.get(south_emoji, -1)
-
-		if n_idx >= 0 and s_idx >= 0:
-			var full_rho = bath._density_matrix.get_matrix()
-			var rho_sub = ComplexMatrix.new(2)
-
-			# Extract 2×2 block
-			rho_sub.set_element(0, 0, full_rho.get_element(n_idx, n_idx))  # ρ_nn
-			rho_sub.set_element(0, 1, full_rho.get_element(n_idx, s_idx))  # ρ_ns
-			rho_sub.set_element(1, 0, full_rho.get_element(s_idx, n_idx))  # ρ_sn
-			rho_sub.set_element(1, 1, full_rho.get_element(s_idx, s_idx))  # ρ_ss
-
-			return rho_sub
 
 	# Ultimate fallback: maximally mixed 2×2 state
 	var fallback = ComplexMatrix.new(2)
@@ -353,28 +310,22 @@ func get_coherence() -> float:
 ## Measure qubit in {north, south} basis
 ## Collapses the quantum state and returns the outcome (MEASURE operation)
 func measure() -> String:
-	# Model B: Measure via parent_biome's quantum computer
-	if parent_biome and register_id >= 0:
-		var comp = parent_biome.quantum_computer.get_component_containing(register_id)
-		if comp:
-			var outcome = parent_biome.quantum_computer.measure_register(comp, register_id)
-			return outcome
+	# Model C: Measure via parent_biome's quantum computer
+	if parent_biome and north_emoji != "" and south_emoji != "":
+		var qc = parent_biome.quantum_computer
+		if qc and qc.has_method("measure_axis"):
+			var outcome_emoji = qc.measure_axis(north_emoji, south_emoji)
+			return "north" if outcome_emoji == north_emoji else "south"
 
-	# Fallback: legacy bath measurement (backward compat)
-	if bath:
-		var outcome = bath.measure_axis(north_emoji, south_emoji, 1.0)  # Full collapse
-		return outcome
-
-	push_warning("DualEmojiQubit.measure(): No quantum computer or bath reference")
+	push_warning("DualEmojiQubit.measure(): No quantum computer reference")
 	return ""
 
 
-## Inspect qubit WITHOUT collapsing state (INSPECT operation - Phase 2)
+## Inspect qubit WITHOUT collapsing state (INSPECT operation)
 func inspect() -> Dictionary:
 	"""Non-destructive inspection of measurement probabilities.
 
 	Returns probabilities without affecting quantum state.
-	Model B: Phase 2 - INSPECT operation.
 
 	Returns:
 		Dictionary with:
@@ -382,17 +333,15 @@ func inspect() -> Dictionary:
 		- "south": Probability in south basis
 		- "total": Total probability in subspace
 	"""
-	# Model B: Inspect via parent_biome's quantum computer
+	# Model C: Inspect via parent_biome's quantum computer
 	if parent_biome and register_id >= 0:
-		var comp = parent_biome.quantum_computer.get_component_containing(register_id)
-		if comp:
-			return parent_biome.quantum_computer.inspect_register_distribution(comp, register_id)
+		var qc = parent_biome.quantum_computer
+		if qc:
+			var p_north = qc.get_marginal(register_id, 0)
+			var p_south = qc.get_marginal(register_id, 1)
+			return {"north": p_north, "south": p_south, "total": p_north + p_south}
 
-	# Fallback: legacy bath inspection (backward compat)
-	if bath:
-		return bath.inspect_axis(north_emoji, south_emoji)
-
-	push_warning("DualEmojiQubit.inspect(): No quantum computer or bath reference")
+	push_warning("DualEmojiQubit.inspect(): No quantum computer reference")
 	return {"north": 0.0, "south": 0.0, "total": 0.0}
 
 
@@ -400,28 +349,22 @@ func inspect() -> Dictionary:
 func batch_measure() -> Dictionary:
 	"""Measure entire entangled component when one qubit is measured.
 
-	Manifest Section 4.2: Batch measurement - one measurement collapses entire component.
+	Model C: Uses entanglement_graph to find connected qubits.
 	Implements "spooky action at a distance": all qubits in component are measured.
 
 	Returns:
 		Dictionary mapping qubit positions to outcomes (legacy format)
 		For single qubit: returns self outcome in {"0": outcome} format
 	"""
-	# Model B: Batch measure via parent_biome's quantum computer
-	if parent_biome and register_id >= 0:
-		var comp = parent_biome.quantum_computer.get_component_containing(register_id)
-		if comp:
-			var all_outcomes = parent_biome.quantum_computer.batch_measure_component(comp)
-			# Return just this qubit's outcome in legacy format
-			var my_outcome = all_outcomes.get(register_id, "")
-			return {"0": my_outcome}
+	# Model C: Measure this qubit via measure_axis
+	if parent_biome and north_emoji != "" and south_emoji != "":
+		var qc = parent_biome.quantum_computer
+		if qc and qc.has_method("measure_axis"):
+			var outcome_emoji = qc.measure_axis(north_emoji, south_emoji)
+			var outcome = "north" if outcome_emoji == north_emoji else "south"
+			return {"0": outcome}
 
-	# Fallback: single qubit measurement via bath
-	if bath:
-		var outcome = bath.measure_axis(north_emoji, south_emoji, 1.0)
-		return {"0": outcome}
-
-	push_warning("DualEmojiQubit.batch_measure(): No quantum computer or bath reference")
+	push_warning("DualEmojiQubit.batch_measure(): No quantum computer reference")
 	return {}
 
 ## ========================================

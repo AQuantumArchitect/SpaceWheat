@@ -280,11 +280,13 @@ Changes:
 - [ ] Verify v2 architecture works without plot planting
 
 ### Phase 5 (Remove Components) ✅ COMPLETE
-Component system replaced with lightweight shims:
+Component system fully removed:
 - [x] All tests verified with no breakage (7/7 pass)
 - [x] Manual gameplay testing complete
-- [x] QuantumComponent.gd retained as minimal compatibility shim
-- [x] QuantumComputer component code replaced with ComponentView inner class
+- [x] QuantumComponent.gd DELETED
+- [x] ComponentView inner class REMOVED from QuantumComputer
+- [x] Deprecated methods (add_component, allocate_register, get_component_containing, merge_components, apply_unitary_1q, apply_unitary_2q, batch_measure_component) REMOVED
+- [x] All callers updated to use Model C API (apply_gate, apply_gate_2q, measure_axis, allocate_qubit)
 - [x] Update visualization code (already done)
 
 ---
@@ -312,11 +314,11 @@ Component system replaced with lightweight shims:
 
 ## Files Summary
 
-### Retained as Minimal Shims
-- `Core/QuantumSubstrate/QuantumComponent.gd` (reduced to ~150 lines, legacy compatibility)
+### Deleted
+- `Core/QuantumSubstrate/QuantumComponent.gd` - FULLY REMOVED
 
 ### Major Changes
-- `Core/QuantumSubstrate/QuantumComputer.gd` (ComponentView inner class, Model C API)
+- `Core/QuantumSubstrate/QuantumComputer.gd` (Model C API only, deprecated methods removed)
 - `UI/FarmInputHandler.gd` (simplify gate paths)
 - `Core/Environment/BiomeBase.gd` (remove component methods)
 

@@ -15,10 +15,6 @@ const RegisterMap = preload("res://Core/QuantumSubstrate/RegisterMap.gd")
 
 @export var biome_name: String = ""
 
-class ComponentView:
-	var component_id: int = -1
-	var register_ids: Array[int] = []
-
 ## Model C (Analog Upgrade): RegisterMap-based architecture
 var register_map: RegisterMap = RegisterMap.new()
 var density_matrix: ComplexMatrix = null
@@ -61,83 +57,6 @@ var elapsed_time: float = 0.0  # Total time elapsed since biome initialization
 func _init(name: String = ""):
 	biome_name = name
 
-func add_component(_comp) -> void:
-	"""DEPRECATED: Model B component system removed in Model C."""
-	push_warning("DEPRECATED: add_component() uses Model B. No-op in Model C.")
-
-func allocate_register(north_emoji: String = "🌾", south_emoji: String = "🌽") -> int:
-	"""
-	Allocate a new single-qubit register (for a newly planted plot).
-
-	DEPRECATED: Model B allocation. Use allocate_qubit() for Model C.
-
-	Kitchen v2: Validates basis states are orthogonal and registered.
-
-	Creates 1-qubit component initialized to |0⟩.
-	Returns: register_id (unique per biome)
-
-	Args:
-	    north_emoji: North pole of qubit axis (|0⟩ basis label)
-	    south_emoji: South pole of qubit axis (|1⟩ basis label)
-
-	Guardrails:
-	    - north_emoji must != south_emoji (orthogonal basis states)
-	    - Both emojis must be registered in IconRegistry
-	"""
-	push_warning("DEPRECATED: allocate_register() uses Model B. Use allocate_qubit() for Model C.")
-	var reg_id = allocate_qubit(north_emoji, south_emoji)
-	if reg_id >= 0:
-		_ensure_entanglement_node(reg_id)
-	return reg_id
-
-func get_component_containing(reg_id: int):
-	"""Get the entangled component containing a register (Model C metadata)."""
-	push_warning("DEPRECATED: get_component_containing() uses Model B. Use get_qubit_for_emoji() for Model C.")
-	if reg_id < 0:
-		return null
-	var register_ids = _collect_component_registers(reg_id)
-	return _make_component_view(register_ids)
-
-func merge_components(comp_a, comp_b):
-	"""Merge two components by connecting their registers in the entanglement graph."""
-	push_warning("DEPRECATED: merge_components() uses Model B. Use apply_gate_2q() for Model C.")
-	if not comp_a or not comp_b:
-		return null
-	if comp_a.component_id == comp_b.component_id:
-		return comp_a
-
-	for reg_id in comp_a.register_ids:
-		_ensure_entanglement_node(reg_id)
-	for reg_id in comp_b.register_ids:
-		_ensure_entanglement_node(reg_id)
-
-	for reg_a in comp_a.register_ids:
-		for reg_b in comp_b.register_ids:
-			if reg_b not in entanglement_graph[reg_a]:
-				entanglement_graph[reg_a].append(reg_b)
-			if reg_a not in entanglement_graph[reg_b]:
-				entanglement_graph[reg_b].append(reg_a)
-
-	var merged_ids = comp_a.register_ids.duplicate()
-	for reg_id in comp_b.register_ids:
-		if reg_id not in merged_ids:
-			merged_ids.append(reg_id)
-	return _make_component_view(merged_ids)
-
-
-func _make_component_view(register_ids: Array[int]) -> ComponentView:
-	var view = ComponentView.new()
-	view.register_ids = register_ids.duplicate()
-	view.component_id = _component_id_for_registers(view.register_ids)
-	return view
-
-
-func _component_id_for_registers(register_ids: Array[int]) -> int:
-	if register_ids.is_empty():
-		return -1
-	register_ids.sort()
-	return register_ids[0]
-
 
 func _ensure_entanglement_node(reg_id: int) -> void:
 	if not entanglement_graph.has(reg_id):
@@ -164,26 +83,8 @@ func _collect_component_registers(reg_id: int) -> Array[int]:
 	return result
 
 ## ============================================================================
-## UNITARY GATE OPERATIONS (Tool 5 Backend)
+## UNITARY GATE OPERATIONS (Model C)
 ## ============================================================================
-
-func apply_unitary_1q(_comp, reg_id: int, U: ComplexMatrix) -> bool:
-	"""
-	Apply 1-qubit unitary gate to one register.
-
-	DEPRECATED: Model B gate application. Use apply_gate() for Model C.
-	"""
-	push_warning("DEPRECATED: apply_unitary_1q() uses Model B. Use apply_gate() for Model C.")
-	return apply_gate(reg_id, U)
-
-func apply_unitary_2q(_comp, reg_a: int, reg_b: int, U: ComplexMatrix) -> bool:
-	"""
-	Apply 2-qubit unitary gate to two registers.
-
-	DEPRECATED: Model B gate application. Use apply_gate_2q() for Model C.
-	"""
-	push_warning("DEPRECATED: apply_unitary_2q() uses Model B. Use apply_gate_2q() for Model C.")
-	return apply_gate_2q(reg_a, reg_b, U)
 
 func _embed_1q_unitary(U: ComplexMatrix, target_index: int, num_qubits: int) -> ComplexMatrix:
 	"""
@@ -377,45 +278,10 @@ func entangle_plots(reg_a: int, reg_b: int) -> bool:
 
 func get_entangled_component(reg_id: int) -> Array[int]:
 	"""Get all registers entangled with this one (in same component)."""
-	var comp = get_component_containing(reg_id)
-	if not comp:
+	if reg_id < 0:
 		return []
-	return comp.register_ids
+	return _collect_component_registers(reg_id)
 
-
-func batch_measure_component(comp) -> Dictionary:
-	"""Measure all registers in an entangled component (Manifest Section 4.2: Batch Measurement)
-
-	Implements "spooky action at a distance": Measuring one qubit collapses entire component.
-	Returns all measurement outcomes for registers in this component.
-
-	Args:
-		comp: QuantumComponent to measure
-
-	Returns:
-		Dictionary: {register_id → outcome_string}
-		Example: {0: "north", 1: "south", 2: "north"}
-	"""
-	var outcomes: Dictionary = {}
-	if not comp or not ("register_ids" in comp):
-		return outcomes
-
-	for reg_id in comp.register_ids:
-		var p0 = get_marginal(reg_id, 0)
-		var p1 = get_marginal(reg_id, 1)
-		var p_total = p0 + p1
-
-		if p_total < 1e-14:
-			outcomes[reg_id] = "?"
-			continue
-
-		var outcome_idx = 0 if (randf() < p0 / p_total) else 1
-		var outcome = "south" if outcome_idx == 1 else "north"
-
-		_project_component_state(null, reg_id, outcome_idx)
-		outcomes[reg_id] = outcome
-
-	return outcomes
 
 ## ============================================================================
 ## UTILITY METHODS

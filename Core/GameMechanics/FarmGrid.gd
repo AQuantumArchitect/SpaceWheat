@@ -1170,32 +1170,25 @@ func harvest_with_topology(position: Vector2i, local_radius: int = 2) -> Diction
 	# 2. Analyze local topology
 	var local_topology = topology_analyzer.analyze_entanglement_network(local_plots)
 
-	# 3. Check coherence from quantum_computer
+	# 3. Check coherence from quantum_computer (Model C)
 	var coherence = 1.0
 	var biome = get_biome_for_plot(position)
 
 	if biome and biome.quantum_computer:
 		var reg_id = plot_register_mapping.get(position, -1)
 		if reg_id >= 0:
-			var comp = biome.quantum_computer.get_component_containing(reg_id)
-			if comp:
-				coherence = biome.quantum_computer.get_marginal_coherence(comp, reg_id)
-				coherence = clamp(coherence, 0.0, 1.0)
+			# Model C: get_marginal_coherence takes (null, reg_id)
+			coherence = biome.quantum_computer.get_marginal_coherence(null, reg_id)
+			coherence = clamp(coherence, 0.0, 1.0)
 
-	# 4. Measure quantum state
+	# 4. Measure quantum state (Model C)
 	var measurement_result = ""
 
 	if biome and biome.quantum_computer:
-		var reg_id = plot_register_mapping.get(position, -1)
-		if reg_id >= 0:
-			var comp = biome.quantum_computer.get_component_containing(reg_id)
-			if comp:
-				var basis_outcome = biome.quantum_computer.measure_register(comp, reg_id)
-				measurement_result = plot.north_emoji if basis_outcome == "north" else plot.south_emoji
-				_verbose.debug("farm", "📊", "Harvest measurement at %s: outcome = %s" % [position, measurement_result])
-			else:
-				# Register not in any component - unentangled single qubit
-				measurement_result = plot.north_emoji  # Default to north state
+		if plot.north_emoji != "" and plot.south_emoji != "":
+			var outcome_emoji = biome.quantum_computer.measure_axis(plot.north_emoji, plot.south_emoji)
+			measurement_result = outcome_emoji if outcome_emoji != "" else plot.north_emoji
+			_verbose.debug("farm", "📊", "Harvest measurement at %s: outcome = %s" % [position, measurement_result])
 
 	# Fallback if no quantum system available
 	if measurement_result == "":
@@ -1296,23 +1289,20 @@ func measure_plot(position: Vector2i) -> String:
 
 	var result = ""
 
-	var register_id = plot_register_mapping.get(position, -1)
-
-	if not biome.quantum_computer or register_id < 0:
-		_verbose.warn("farm", "⚠️", "No quantum system for plot at %s - no register allocated" % position)
+	if not biome.quantum_computer:
+		_verbose.warn("farm", "⚠️", "No quantum system for plot at %s" % position)
 		return plot.north_emoji  # Default fallback
 
-	var comp = biome.quantum_computer.get_component_containing(register_id)
-	if not comp:
-		return plot.north_emoji
+	if plot.north_emoji == "" or plot.south_emoji == "":
+		return plot.north_emoji  # Default fallback
 
-	# Single unified measurement call handles ALL cascading (entangled qubits collapse together)
-	var basis_outcome = biome.quantum_computer.measure_register(comp, register_id)
-	# Map basis outcome to emoji
-	result = plot.north_emoji if basis_outcome == "north" else plot.south_emoji
-	_verbose.debug("farm", "📊", "Measure operation (quantum_computer): %s collapsed to %s" % [position, result])
+	# Model C: Use measure_axis directly
+	var outcome_emoji = biome.quantum_computer.measure_axis(plot.north_emoji, plot.south_emoji)
+	result = outcome_emoji if outcome_emoji != "" else plot.north_emoji
+	var basis_outcome = "north" if outcome_emoji == plot.north_emoji else "south"
+	_verbose.debug("farm", "📊", "Measure operation (Model C): %s collapsed to %s" % [position, result])
 
-	# UPDATE PLOT STATE (was missing - causing has_been_measured to remain false)
+	# UPDATE PLOT STATE
 	plot.has_been_measured = true
 	plot.measured_outcome = basis_outcome  # "north" or "south"
 
@@ -1585,19 +1575,19 @@ func _auto_cluster_from_gate(position: Vector2i, linked_plots: Array) -> void:
 				_verbose.info("quantum", "🔗", "Cluster gate: entangled %s ↔ %s" % [position, linked_pos])
 
 
-func _create_quantum_entanglement(pos_a: Vector2i, pos_b: Vector2i, bell_type: String = "phi_plus") -> bool:
-	"""Create quantum state entanglement (internal helper) - Model C: quantum_computer wiring"""
+func _create_quantum_entanglement(pos_a: Vector2i, pos_b: Vector2i, _bell_type: String = "phi_plus") -> bool:
+	"""Create quantum state entanglement (internal helper) - Model C: apply CNOT gate"""
 	var plot_a = get_plot(pos_a)
 	var plot_b = get_plot(pos_b)
 
 	if not plot_a or not plot_b or not plot_a.is_planted or not plot_b.is_planted:
 		return false
 
-	# MODEL C: Entanglement via quantum_computer component merging
+	# MODEL C: Entanglement via apply_gate_2q
 	var biome_a = get_biome_for_plot(pos_a)
 	var biome_b = get_biome_for_plot(pos_b)
 
-	# Ensure both plots are in same biome (required for quantum_computer entanglement)
+	# Ensure both plots are in same biome
 	if biome_a != biome_b:
 		push_error("Cannot entangle plots from different biomes - each biome has its own quantum_computer")
 		return false
@@ -1610,26 +1600,26 @@ func _create_quantum_entanglement(pos_a: Vector2i, pos_b: Vector2i, bell_type: S
 		push_error("Cannot entangle: plots don't have valid register allocations")
 		return false
 
-	# Merge components in quantum_computer to create entanglement
+	# Model C: Apply entangling gate (CNOT) and update entanglement graph
 	if biome_a and biome_a.quantum_computer:
-		var comp_a = biome_a.quantum_computer.get_component_containing(reg_id_a)
-		var comp_b = biome_a.quantum_computer.get_component_containing(reg_id_b)
-
-		if not comp_a or not comp_b:
-			push_error("Cannot entangle: components not found in quantum_computer")
-			return false
-
-		# If already in same component, already entangled
-		if comp_a.component_id == comp_b.component_id:
-			_verbose.info("quantum", "ℹ️", "Plots already in same quantum component (already entangled)")
+		var qc = biome_a.quantum_computer
+		# Check if already entangled via entanglement_graph
+		var entangled_ids = qc.get_entangled_component(reg_id_a)
+		if reg_id_b in entangled_ids:
+			_verbose.info("quantum", "ℹ️", "Plots already entangled")
 			plot_a.add_entanglement(plot_b.plot_id, 1.0)
 			plot_b.add_entanglement(plot_a.plot_id, 1.0)
 			return true
 
-		# Merge components to create entanglement
-		var merged_comp = biome_a.quantum_computer.merge_components(comp_a, comp_b)
-		_verbose.info("quantum", "🔗", "Merged components %d + %d → %d for entanglement" % [
-			comp_a.component_id, comp_b.component_id, merged_comp.component_id])
+		# Apply H then CNOT to create Bell state
+		var QuantumGateLibrary = preload("res://Core/QuantumSubstrate/QuantumGateLibrary.gd")
+		var H = QuantumGateLibrary.get_gate("H")["matrix"]
+		var CNOT = QuantumGateLibrary.get_gate("CNOT")["matrix"]
+
+		qc.apply_gate(reg_id_a, H)  # Put first qubit in superposition
+		qc.apply_gate_2q(reg_id_a, reg_id_b, CNOT)  # Entangle
+
+		_verbose.info("quantum", "🔗", "Created entanglement via H + CNOT: %d ↔ %d" % [reg_id_a, reg_id_b])
 	else:
 		push_error("Biome has no quantum_computer for entanglement")
 		return false

@@ -603,16 +603,16 @@ func allocate_register_for_plot(position: Vector2i, north_emoji: String = "🌾"
 	"""
 	Allocate a new logical qubit register for a planted plot.
 
-	Model B: Creates 1-qubit component in quantum_computer, stores metadata in plot_registers.
+	Model C: Uses allocate_qubit() to add axis to RegisterMap, stores metadata in plot_registers.
 
-	Returns: register_id (unique per biome)
+	Returns: register_id (qubit index, unique per biome)
 	"""
 	if not quantum_computer:
 		push_error("QuantumComputer not initialized!")
 		return -1
 
-	# Allocate register in quantum computer
-	var reg_id = quantum_computer.allocate_register(north_emoji, south_emoji)
+	# Model C: Allocate qubit in quantum computer
+	var reg_id = quantum_computer.allocate_qubit(north_emoji, south_emoji)
 
 	# Create metadata register
 	var qubit_reg = QuantumRegister.new(reg_id, get_biome_type(), 0)
@@ -678,12 +678,15 @@ func get_register_for_plot(position: Vector2i) -> QuantumRegister:
 	"""Get the QuantumRegister metadata for a plot."""
 	return plot_registers.get(position, null)
 
-func get_component_for_plot(position: Vector2i) -> Resource:  # Returns ComponentView
-	"""Get the connected component containing this plot's register (Model C: lightweight view)."""
+func get_component_for_plot(position: Vector2i) -> Dictionary:
+	"""Get the qubit info for this plot's register (Model C: returns qubit metadata).
+
+	Returns: {register_id: int, north: String, south: String} or empty dict
+	"""
 	var reg = get_register_for_plot(position)
 	if not reg:
-		return null
-	return quantum_computer.get_component_containing(reg.register_id)
+		return {}
+	return {"register_id": reg.register_id, "north": reg.north_emoji, "south": reg.south_emoji}
 
 func get_register_id_for_plot(position: Vector2i) -> int:
 	"""Get the logical register ID for a plot."""
@@ -716,20 +719,18 @@ func get_qubit(position: Vector2i) -> Resource:
 
 
 func measure_qubit(position: Vector2i) -> String:
-	"""Measure (collapse) quantum register at position (Model B version)
+	"""Measure (collapse) quantum register at position.
 
-	Physical projective measurement via QuantumComputer (MEASURE operation).
+	Model C: Uses measure_axis() for projective measurement.
 	Collapses quantum state to measurement outcome.
 	"""
 	var reg = get_register_for_plot(position)
 	if not reg:
 		return ""
 
-	var comp = quantum_computer.get_component_containing(reg.register_id)
-	if not comp:
-		return ""
-
-	var outcome = quantum_computer.measure_register(comp, reg.register_id)
+	# Model C: Use measure_axis directly
+	var outcome_emoji = quantum_computer.measure_axis(reg.north_emoji, reg.south_emoji)
+	var outcome = "north" if outcome_emoji == reg.north_emoji else "south"
 	reg.measurement_outcome = outcome
 	reg.has_been_measured = true
 
@@ -753,11 +754,10 @@ func inspect_qubit(position: Vector2i) -> Dictionary:
 	if not reg:
 		return {"north": 0.0, "south": 0.0}
 
-	var comp = quantum_computer.get_component_containing(reg.register_id)
-	if not comp:
-		return {"north": 0.0, "south": 0.0}
-
-	return quantum_computer.inspect_register_distribution(comp, reg.register_id)
+	# Model C: Get marginal probabilities directly
+	var p_north = quantum_computer.get_marginal(reg.register_id, 0)
+	var p_south = quantum_computer.get_marginal(reg.register_id, 1)
+	return {"north": p_north, "south": p_south}
 
 
 func clear_qubit(position: Vector2i) -> void:
@@ -857,10 +857,10 @@ func create_cluster_state(positions: Array[Vector2i]) -> bool:
 
 
 func set_measurement_trigger(trigger_pos: Vector2i, target_positions: Array[Vector2i]) -> bool:
-	"""Set up conditional measurement trigger (Model B - Phase 4 Infrastructure)
+	"""Set up conditional measurement trigger.
 
+	Model C: Uses entanglement_graph to verify qubits are connected.
 	When trigger_pos is measured, its outcome affects measurements at target_positions.
-	Requires both trigger and targets to be in same entangled component.
 
 	Args:
 		trigger_pos: Plot whose measurement triggers condition
@@ -877,10 +877,10 @@ func set_measurement_trigger(trigger_pos: Vector2i, target_positions: Array[Vect
 		push_warning("Invalid trigger register at %s" % trigger_pos)
 		return false
 
-	# Verify all targets are in same component as trigger
-	var trigger_comp = quantum_computer.get_component_containing(trigger_reg)
-	if not trigger_comp:
-		push_warning("Trigger not in valid component")
+	# Model C: Get entangled qubits from entanglement graph
+	var entangled_ids = quantum_computer.get_entangled_component(trigger_reg)
+	if entangled_ids.is_empty():
+		push_warning("Trigger not in entanglement graph")
 		return false
 
 	var valid_targets = 0
@@ -889,8 +889,8 @@ func set_measurement_trigger(trigger_pos: Vector2i, target_positions: Array[Vect
 		if target_reg < 0:
 			continue
 
-		var target_comp = quantum_computer.get_component_containing(target_reg)
-		if target_comp and target_comp.component_id == trigger_comp.component_id:
+		# Check if target is in same entangled component
+		if target_reg in entangled_ids:
 			valid_targets += 1
 
 	if valid_targets == 0:
@@ -1017,10 +1017,9 @@ func clear_tap_flux() -> void:
 # ============================================================================
 
 func apply_gate_1q(position: Vector2i, gate_name: String) -> bool:
-	"""Apply 1-qubit unitary gate to a plot's register (Model B version)
+	"""Apply 1-qubit unitary gate to a plot's register.
 
-	Model B: Validates plot is unmeasured, gets component from quantum_computer,
-	applies gate via QuantumComputer.apply_unitary_1q().
+	Model C: Validates plot is unmeasured, applies gate via apply_gate().
 
 	Args:
 		position: Plot position
@@ -1047,14 +1046,8 @@ func apply_gate_1q(position: Vector2i, gate_name: String) -> bool:
 
 	var U = gate_dict["matrix"]
 
-	# Get component
-	var comp = quantum_computer.get_component_containing(reg.register_id)
-	if not comp:
-		push_error("Register %d not in any component!" % reg.register_id)
-		return false
-
-	# Apply gate
-	var success = quantum_computer.apply_unitary_1q(comp, reg.register_id, U)
+	# Model C: Apply gate directly using qubit index
+	var success = quantum_computer.apply_gate(reg.register_id, U)
 
 	if success:
 		reg.record_gate_application(gate_name, time_tracker.turn_count)
@@ -1062,10 +1055,9 @@ func apply_gate_1q(position: Vector2i, gate_name: String) -> bool:
 	return success
 
 func apply_gate_2q(position_a: Vector2i, position_b: Vector2i, gate_name: String) -> bool:
-	"""Apply 2-qubit unitary gate to two plots' registers (Model B version)
+	"""Apply 2-qubit unitary gate to two plots' registers.
 
-	Model B: Validates both plots are unmeasured, merges components if needed,
-	applies gate via QuantumComputer.apply_unitary_2q().
+	Model C: Validates both plots are unmeasured, applies gate via apply_gate_2q().
 
 	Args:
 		position_a: Control plot position
@@ -1095,24 +1087,8 @@ func apply_gate_2q(position_a: Vector2i, position_b: Vector2i, gate_name: String
 
 	var U = gate_dict["matrix"]
 
-	# Get components (may be different)
-	var comp_a = quantum_computer.get_component_containing(reg_a.register_id)
-	var comp_b = quantum_computer.get_component_containing(reg_b.register_id)
-
-	if not comp_a or not comp_b:
-		push_error("Invalid component for registers!")
-		return false
-
-	# Merge components if different
-	if comp_a.component_id != comp_b.component_id:
-		var merged = quantum_computer.merge_components(comp_a, comp_b)
-		if not merged:
-			push_error("Failed to merge components!")
-			return false
-		comp_a = merged
-
-	# Apply gate
-	var success = quantum_computer.apply_unitary_2q(comp_a, reg_a.register_id, reg_b.register_id, U)
+	# Model C: Apply gate directly using qubit indices
+	var success = quantum_computer.apply_gate_2q(reg_a.register_id, reg_b.register_id, U)
 
 	if success:
 		reg_a.record_gate_application(gate_name + "(ctrl)", time_tracker.turn_count)
@@ -1171,7 +1147,7 @@ func batch_measure_plots(position: Vector2i) -> Dictionary:
 	When you measure one qubit in an entangled component, all qubits in that component collapse.
 	This implements batch measurement across the entire entangled network.
 
-	Manifest Section 4.2: Batch measurement - one measurement collapses entire component.
+	Model C: Uses entanglement_graph to find connected qubits, measures each with measure_axis().
 
 	Args:
 		position: Position of plot to trigger measurement
@@ -1184,25 +1160,27 @@ func batch_measure_plots(position: Vector2i) -> Dictionary:
 	if not reg:
 		return {}
 
-	var comp = quantum_computer.get_component_containing(reg.register_id)
-	if not comp:
-		return {}
+	# Model C: Get entangled qubits from entanglement graph
+	var entangled_ids = quantum_computer.get_entangled_component(reg.register_id)
+	if entangled_ids.is_empty():
+		entangled_ids = [reg.register_id]
 
-	# Batch measure entire component
-	var outcomes = quantum_computer.batch_measure_component(comp)
-
-	# Update all registers in component with their outcomes
-	for reg_id in outcomes.keys():
-		# Find which plot owns this register
+	# Measure all qubits in the entangled component
+	var outcomes: Dictionary = {}
+	for reg_id in entangled_ids:
+		# Find the plot register with this ID to get emoji pair
 		for plot_pos in plot_registers.keys():
 			var plot_reg = plot_registers[plot_pos]
 			if plot_reg and plot_reg.register_id == reg_id:
-				plot_reg.measurement_outcome = outcomes[reg_id]
+				var outcome_emoji = quantum_computer.measure_axis(plot_reg.north_emoji, plot_reg.south_emoji)
+				var outcome = "north" if outcome_emoji == plot_reg.north_emoji else "south"
+				outcomes[reg_id] = outcome
+				plot_reg.measurement_outcome = outcome
 				plot_reg.has_been_measured = true
-				qubit_measured.emit(plot_pos, outcomes[reg_id])
+				qubit_measured.emit(plot_pos, outcome)
 				break
 
-	_verbose_log("debug","quantum", "🌀", "Batch measurement on component %d: %s" % [comp.component_id, outcomes])
+	_verbose_log("debug","quantum", "🌀", "Batch measurement: %s" % outcomes)
 	return outcomes
 
 # ============================================================================
@@ -1280,8 +1258,8 @@ func initialize_bath_from_emojis(_emojis: Array[String], _initial_weights: Dicti
 
 func hot_drop_emoji(_emoji: String, _initial_amplitude: Complex = null) -> bool:
 	"""DEPRECATED: Hot drop requires bath which was removed.
-	Use quantum_computer.allocate_register() for adding new qubits."""
-	push_warning("hot_drop_emoji is deprecated - use quantum_computer.allocate_register()")
+	Use quantum_computer.allocate_qubit() for adding new qubits."""
+	push_warning("hot_drop_emoji is deprecated - use quantum_computer.allocate_qubit()")
 	return false
 
 

@@ -209,12 +209,12 @@ func plant(biome_or_labor = null, wheat_cost: float = 0.0, optional_biome = null
 	north_emoji = emojis.get("north", "🌾")
 	south_emoji = emojis.get("south", "🌽")
 
-	# Allocate register in biome's quantum computer
+	# Model C: Allocate qubit in biome's quantum computer
 	if not biome.quantum_computer:
 		push_error("Biome has no quantum_computer for plot %s!" % grid_position)
 		return false
 
-	register_id = biome.quantum_computer.allocate_register(north_emoji, south_emoji)
+	register_id = biome.quantum_computer.allocate_qubit(north_emoji, south_emoji)
 	if register_id < 0:
 		push_error("Failed to allocate quantum register for plot %s!" % grid_position)
 		return false

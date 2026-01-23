@@ -2821,8 +2821,9 @@ func _action_disentangle(positions: Array[Vector2i]):
 			continue
 
 		# Measure to collapse entanglement (measurement breaks superposition)
-		var measure_result = biome.measure_register(reg.register_id)
-		if measure_result != null:
+		# Model C: Use measure_axis directly
+		var measure_result = biome.quantum_computer.measure_axis(reg.north_emoji, reg.south_emoji)
+		if measure_result != "":
 			success_count += 1
 
 	action_performed.emit("disentangle", success_count > 0,
