@@ -1551,10 +1551,10 @@ func _action_bake_bread(positions: Array[Vector2i]):
 		action_performed.emit("bake_bread", false, "⚠️  No quantum system in biome")
 		return
 
-	# Get P(🍞) if bread axis exists, otherwise use coherence
+	# Get P(🍞) if bread axis exists, otherwise use coherence (Model C)
 	var bread_prob = 0.5
 	if biome.quantum_computer.register_map.has("🍞"):
-		bread_prob = biome.quantum_computer.get_emoji_probability("🍞")
+		bread_prob = biome.quantum_computer.get_population("🍞")
 	else:
 		# Use overall coherence as proxy
 		bread_prob = biome.quantum_computer.get_purity()
