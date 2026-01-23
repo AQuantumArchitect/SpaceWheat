@@ -20,7 +20,6 @@ extends Node
 # Preloads
 const GridConfig = preload("res://Core/GameState/GridConfig.gd")
 const ToolConfig = preload("res://Core/GameState/ToolConfig.gd")
-const QuantumAlgorithms = preload("res://Core/QuantumSubstrate/QuantumAlgorithms.gd")
 const QuantumGateLibrary = preload("res://Core/QuantumSubstrate/QuantumGateLibrary.gd")
 const Farm = preload("res://Core/Farm.gd")
 const ProbeActions = preload("res://Core/Actions/ProbeActions.gd")
@@ -2448,7 +2447,7 @@ func _action_apply_pauli_x(positions: Array[Vector2i]):
 	"""Apply Pauli-X gate (bit flip) to selected plots - INSTANTANEOUS.
 
 	Flips the qubit state: |0⟩ → |1⟩, |1⟩ → |0⟩
-	Model B: Uses quantum_computer.apply_unitary_1q() with X gate matrix.
+	Model C: Uses quantum_computer.apply_gate() with X gate matrix.
 	"""
 	if positions.is_empty():
 		action_performed.emit("apply_pauli_x", false, "⚠️  No plots selected")
@@ -2469,7 +2468,7 @@ func _action_apply_hadamard(positions: Array[Vector2i]):
 
 	Creates equal superposition from basis states:
 	|0⟩ → (|0⟩ + |1⟩)/√2, |1⟩ → (|0⟩ - |1⟩)/√2
-	Model B: Uses quantum_computer.apply_unitary_1q() with H gate matrix.
+	Model C: Uses quantum_computer.apply_gate() with H gate matrix.
 	"""
 	if positions.is_empty():
 		action_performed.emit("apply_hadamard", false, "⚠️  No plots selected")
@@ -2490,7 +2489,7 @@ func _action_apply_pauli_z(positions: Array[Vector2i]):
 
 	Applies a phase flip: |0⟩ → |0⟩, |1⟩ → -|1⟩
 	Proper unitary: ρ' = ZρZ† where Z = [[1,0],[0,-1]]
-	Model B: Uses quantum_computer.apply_unitary_1q() with Z gate matrix.
+	Model C: Uses quantum_computer.apply_gate() with Z gate matrix.
 	"""
 	if positions.is_empty():
 		action_performed.emit("apply_pauli_z", false, "⚠️  No plots selected")
@@ -2511,7 +2510,7 @@ func _action_apply_pauli_y(positions: Array[Vector2i]):
 
 	Combines X and Z rotations: |0⟩ → i|1⟩, |1⟩ → -i|0⟩
 	Proper unitary: ρ' = YρY† where Y = [[0,-i],[i,0]]
-	Model B: Uses quantum_computer.apply_unitary_1q() with Y gate matrix.
+	Model C: Uses quantum_computer.apply_gate() with Y gate matrix.
 	"""
 	if positions.is_empty():
 		action_performed.emit("apply_pauli_y", false, "⚠️  No plots selected")
@@ -2532,7 +2531,7 @@ func _action_apply_s_gate(positions: Array[Vector2i]):
 
 	Applies phase shift: |0⟩ → |0⟩, |1⟩ → i|1⟩
 	S = [[1, 0], [0, i]] (square root of Z gate, S² = Z)
-	Model B: Uses quantum_computer.apply_unitary_1q() with S gate matrix.
+	Model C: Uses quantum_computer.apply_gate() with S gate matrix.
 	"""
 	if positions.is_empty():
 		action_performed.emit("apply_s_gate", false, "⚠️  No plots selected")
@@ -2553,7 +2552,7 @@ func _action_apply_t_gate(positions: Array[Vector2i]):
 
 	Applies phase shift: |0⟩ → |0⟩, |1⟩ → e^(iπ/4)|1⟩
 	T = [[1, 0], [0, e^(iπ/4)]] (square root of S gate, enables universal computation)
-	Model B: Uses quantum_computer.apply_unitary_1q() with T gate matrix.
+	Model C: Uses quantum_computer.apply_gate() with T gate matrix.
 	"""
 	if positions.is_empty():
 		action_performed.emit("apply_t_gate", false, "⚠️  No plots selected")
@@ -2701,7 +2700,7 @@ func _action_place_energy_tap_for(positions: Array[Vector2i], target_emoji: Stri
 ## NEW Tool 5 (GATES) - Two-Qubit Gates
 
 func _action_apply_cnot(positions: Array[Vector2i]):
-	"""Apply CNOT gate via quantum_computer (Model B)
+	"""Apply CNOT gate via quantum_computer (Model C)
 
 	Applies CNOT gates to sequential position pairs:
 	- Pair (0,1): control=0, target=1
@@ -2724,7 +2723,7 @@ func _action_apply_cnot(positions: Array[Vector2i]):
 
 
 func _action_apply_cz(positions: Array[Vector2i]):
-	"""Apply CZ gate via quantum_computer (Model B)
+	"""Apply CZ gate via quantum_computer (Model C)
 
 	Applies CZ gates to sequential position pairs:
 	- Pair (0,1): first qubit, second qubit
@@ -2747,7 +2746,7 @@ func _action_apply_cz(positions: Array[Vector2i]):
 
 
 func _action_apply_swap(positions: Array[Vector2i]):
-	"""Apply SWAP gate via quantum_computer (Model B)
+	"""Apply SWAP gate via quantum_computer (Model C)
 
 	Applies SWAP gates to sequential position pairs:
 	- Pair (0,1): swap qubits

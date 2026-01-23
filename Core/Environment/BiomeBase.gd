@@ -39,7 +39,7 @@ var attractor_analyzer: StrangeAttractorAnalyzer = null  # Tracks phase space tr
 var grid = null  # Injected FarmGrid reference
 
 # ============================================================================
-# MODEL B: QUANTUM COMPUTER OWNERSHIP (Physics-Correct)
+# MODEL C: QUANTUM COMPUTER OWNERSHIP (Physics-Correct)
 # ============================================================================
 
 ## Central quantum state manager for this biome (ONLY source of truth)
