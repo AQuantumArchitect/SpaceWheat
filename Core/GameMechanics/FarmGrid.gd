@@ -168,22 +168,8 @@ func _process(delta):
 	if _mill_market_accumulator >= MILL_MARKET_UPDATE_INTERVAL:
 		var accumulated_dt = _mill_market_accumulator
 		_mill_market_accumulator = 0.0
-
-		# PHASE 4: Process energy taps (collect Lindblad drain flux)
-		_process_energy_taps(accumulated_dt)
-
-		# Update vocabulary mutation pressure from active energy taps
-		if vocabulary_evolution:
-			var tap_boost = get_tap_mutation_pressure_boost()
-
-			# Apply boost (additive, capped at 2.0)
-			vocabulary_evolution.mutation_pressure = min(
-				0.15 + tap_boost,  # Base 0.15 + tap boost
-				2.0  # Max cap
-			)
-
-		# Process quantum mills (QuantumMill objects with non-destructive measurement)
-		_process_quantum_mills(accumulated_dt)
+		# NOTE: Energy tap and quantum mills processing removed (2026-01)
+		# Mills are now passive (activated on placement, no per-frame processing)
 
 		# Process markets (sell flour for credits)
 		_process_markets(accumulated_dt)
@@ -417,75 +403,7 @@ func _build_icon_network() -> Dictionary:
 	return icon_network
 
 
-func _process_energy_taps(delta: float) -> void:
-	"""Process energy taps: collect Lindblad drain flux and accumulate in plots.
-
-	Called each frame to harvest energy from active drain operators in the quantum bath.
-	For each tapped emoji, queries the biome's quantum computer for accumulated flux
-	and adds it to the corresponding energy tap plot's accumulated resource pool.
-
-	Manifest Section 4.1: Implements gozouta ("energy exit") from quantum system.
-	"""
-	# For each biome, process its energy taps
-	for biome_name in biomes.keys():
-		var plot_biome = biomes[biome_name]
-		if not plot_biome:
-			continue
-
-		# Call biome's process_energy_taps to collect Lindblad flux
-		var fluxes = plot_biome.process_energy_taps(delta)
-		if fluxes.is_empty():
-			continue
-
-		# Accumulate flux in corresponding energy tap plots
-		for position in plots.keys():
-			var plot = plots[position]
-			if plot.plot_type != FarmPlot.PlotType.ENERGY_TAP or not plot.is_planted:
-				continue
-
-			# Check if this plot is in the current biome
-			var plot_biome_check = get_biome_for_plot(position)
-			if plot_biome_check != plot_biome:
-				continue
-
-			# Get target emoji for this tap
-			var target_emoji = plot.tap_target_emoji
-			if target_emoji == "":
-				continue
-
-			# Add accumulated flux to plot's resource pool
-			if fluxes.has(target_emoji):
-				var flux = fluxes[target_emoji]
-				plot.tap_accumulated_resource += flux
-
-				# Convert accumulated flux to economy credits
-				# Flux is in quantum units, convert to credits (1 quantum = 10 credits)
-				var flux_credits = int(flux * EconomyConstants.QUANTUM_TO_CREDITS)
-				if flux_credits > 0 and farm_economy:
-					farm_economy.add_resource(target_emoji, flux_credits, "energy_tap_drain")
-
-				# Debug output (can be disabled in production)
-				if flux > 0.001:  # Only log meaningful flux
-					_verbose.debug("energy", "⚡", "Energy tap at %s: drained %.4f from %s → %d credits" % [
-						plot.plot_id, flux, target_emoji, flux_credits
-					])
-
-
-func _process_quantum_mills(delta: float) -> void:
-	"""Process quantum mills each frame - trigger measurement cycles.
-
-	Called from _process() to run QuantumMill measurement routines.
-	Each mill performs periodic quantum measurements on adjacent wheat plots
-	and accumulates flour through the game loop.
-	"""
-	if quantum_mills.is_empty():
-		return
-
-	for position in quantum_mills.keys():
-		var mill = quantum_mills[position]
-		if mill:
-			# QuantumMill is passive (no _process cycle needed)
-			pass
+# NOTE: _process_energy_taps removed (2026-01) - energy tap system deprecated
 
 
 func process_mill_flour(flour_amount: int) -> void:
@@ -662,14 +580,8 @@ func plant(position: Vector2i, plant_type: String, quantum_state: Resource = nul
 			capability = cap
 			break
 
-	# BUILD MODE: Dynamic capability creation if capability doesn't exist
+	# Dynamic capability creation if capability doesn't exist
 	if not capability:
-		# Check if biome is in BUILD mode
-		if not plot_biome.evolution_paused:
-			push_warning("⚠️ Cannot plant %s in %s - requires BUILD mode (TAB) to add new plant type" % [
-				plant_type, plot_biome.get_biome_type()])
-			return false
-
 		# Get emoji pair from central registry
 		var emoji_pair = EconomyConstants.get_plant_type_emojis(plant_type)
 		if emoji_pair.is_empty():
@@ -699,55 +611,21 @@ func plant(position: Vector2i, plant_type: String, quantum_state: Resource = nul
 			return false
 		farm_economy.remove_resource("💰", planting_cost, "planting_%s" % plant_type)
 
-	# LEGACY: Still set plot_type enum for backward compatibility (Phase 5 will remove)
-	# Map plant_type string to enum for now
-	var plot_type_map = {
-		"wheat": FarmPlot.PlotType.WHEAT,
-		"tomato": FarmPlot.PlotType.TOMATO,
-		"mushroom": FarmPlot.PlotType.MUSHROOM,
-		"fire": FarmPlot.PlotType.FIRE,
-		"water": FarmPlot.PlotType.WATER,
-		"flour": FarmPlot.PlotType.FLOUR,
-		"vegetation": FarmPlot.PlotType.VEGETATION,
-		"rabbit": FarmPlot.PlotType.RABBIT,
-		"wolf": FarmPlot.PlotType.WOLF,
-		"bread": FarmPlot.PlotType.BREAD
-	}
-	if plot_type_map.has(plant_type):
-		plot.plot_type = plot_type_map[plant_type]
-	else:
-		# If enum doesn't exist, just use WHEAT as default (Phase 5 will remove enum entirely)
-		plot.plot_type = FarmPlot.PlotType.WHEAT
-
-	# PARAMETRIC: Set emoji pairs from capability (not hard-coded get_plot_emojis())
+	# Set emoji pairs from capability
 	plot.north_emoji = capability.emoji_pair.north
 	plot.south_emoji = capability.emoji_pair.south
-
-	# PHASE 5 (PARAMETRIC): Set plot_type_name from plant_type string
 	plot.plot_type_name = plant_type
 
 	# AUTO-EXPANSION: If biome doesn't support this emoji pair, expand its quantum system
 	if plot_biome.has_method("supports_emoji_pair"):
 		if not plot_biome.supports_emoji_pair(plot.north_emoji, plot.south_emoji):
-			# Axis doesn't exist - try to expand the quantum system
 			if plot_biome.has_method("expand_quantum_system"):
 				var expand_result = plot_biome.expand_quantum_system(plot.north_emoji, plot.south_emoji)
 				if not expand_result.success:
-					# Expansion failed - check if it's because we need BUILD mode
-					if expand_result.error == "build_mode_required":
-						push_warning("⚠️ Cannot plant %s/%s - requires BUILD mode (TAB) to expand quantum system" % [
-							plot.north_emoji, plot.south_emoji])
-						return false
-					else:
-						push_error("❌ Failed to expand quantum system: %s" % expand_result.get("message", expand_result.error))
-						return false
-				# Expansion succeeded - continue with planting
+					push_error("❌ Failed to expand quantum system: %s" % expand_result.get("message", expand_result.error))
+					return false
 				_verbose.info("farm", "🔬", "Expanded %s quantum system to include %s/%s axis" % [
 					plot_biome.get_biome_type(), plot.north_emoji, plot.south_emoji])
-			else:
-				# Biome doesn't support expansion - warn but allow (for backward compatibility)
-				push_warning("⚠️ Biome %s doesn't support quantum expansion - plant may not function correctly" % [
-					plot_biome.get_biome_type()])
 
 	# Special handling for tomato: assign conspiracy node
 	if plant_type == "tomato":
@@ -757,9 +635,8 @@ func plant(position: Vector2i, plant_type: String, quantum_state: Resource = nul
 		plot.conspiracy_node_id = node_ids[node_index]
 		_verbose.info("farm", "🍅", "Planted tomato at %s connected to node: %s" % [plot.plot_id, plot.conspiracy_node_id])
 
-	# Plant through biome's quantum computer (Model C)
-	# Note: plot_biome already resolved above for validation
-	plot.plant(plot_biome)  # Biome handles quantum state registration
+	# Register plot in biome's quantum computer
+	plot.register_in_biome(plot_biome)
 
 	# Track register allocation in quantum computer
 	if "register_id" in plot and plot.register_id >= 0:
@@ -786,15 +663,7 @@ func plant(position: Vector2i, plant_type: String, quantum_state: Resource = nul
 	return true
 
 
-# REMOVED: Deprecated plant_wheat/plant_tomato/plant_mushroom wrappers
-# Use plant(position, "wheat"|"tomato"|"mushroom") instead
-
-
-func plant_energy_tap(_position: Vector2i, _target_emoji: String, _drain_rate: float = 0.1) -> bool:
-	"""DEPRECATED: Energy tap system disabled (requires bath which was removed).
-	Returns false. Use alternative resource collection methods."""
-	push_warning("plant_energy_tap is deprecated - energy tap system disabled")
-	return false
+# NOTE: plant_energy_tap removed (2026-01) - energy tap system deprecated
 
 
 func place_mill(position: Vector2i) -> bool:
@@ -1025,67 +894,8 @@ func harvest_wheat(position: Vector2i) -> Dictionary:
 	return yield_data
 
 
-func harvest_energy_tap(_position: Vector2i) -> Dictionary:
-	"""DEPRECATED: Energy tap system disabled (requires bath which was removed).
-	Returns failure. Use alternative resource collection methods."""
-	push_warning("harvest_energy_tap is deprecated - energy tap system disabled")
-	return {"success": false, "error": "Energy tap system disabled"}
-
-
-func get_available_tap_emojis() -> Array[String]:
-	"""Get list of emojis that can be tapped (from discovered vocabulary)
-
-	Returns array of emojis from discovered vocabulary plus basic fallback emojis.
-	This ensures energy taps can only target emojis the player has encountered through
-	the vocabulary evolution system (progression mechanic).
-
-	Returns:
-		Array[String] of emoji characters available for tapping
-	"""
-	var available_emojis: Array[String] = []
-
-	if vocabulary_evolution:
-		# Extract emojis from discovered vocabulary
-		for vocab in vocabulary_evolution.discovered_vocabulary:
-			# Add both north and south emoji from each vocabulary pair
-			if not available_emojis.has(vocab["north"]):
-				available_emojis.append(vocab["north"])
-			if not available_emojis.has(vocab["south"]):
-				available_emojis.append(vocab["south"])
-
-	# Always include basic game emojis (starting vocabulary)
-	for basic in ["🌾", "👥", "🍅", "🍄"]:
-		if not available_emojis.has(basic):
-			available_emojis.append(basic)
-
-	return available_emojis
-
-
-func _count_active_energy_taps() -> Dictionary:
-	"""DEPRECATED: Energy tap system disabled. Always returns zeros."""
-	return {"count": 0, "total_energy": 0.0, "target_emojis": []}
-
-
-func get_tap_mutation_pressure_boost() -> float:
-	"""Calculate mutation pressure boost from active energy taps
-
-	Active taps accelerate vocabulary evolution by increasing mutation_pressure.
-	Formula: boost = active_taps × 0.02 + (total_energy / 100) × 0.01
-
-	This creates positive feedback: More taps → Faster vocabulary discovery → More tap targets
-
-	Returns:
-		float - Mutation pressure boost to add to base vocabulary mutation rate
-	"""
-	var tap_stats = _count_active_energy_taps()
-
-	# Base boost from number of active taps (0.02 per tap)
-	var count_boost = tap_stats["count"] * 0.02
-
-	# Energy boost from accumulated resources (0.01 per 100 energy units)
-	var energy_boost = (tap_stats["total_energy"] / 100.0) * 0.01
-
-	return count_boost + energy_boost
+# NOTE: Energy tap functions removed (2026-01):
+# - harvest_energy_tap, get_available_tap_emojis, _count_active_energy_taps, get_tap_mutation_pressure_boost
 
 
 func get_local_network(center_plot: FarmPlot, radius: int = 2) -> Array:

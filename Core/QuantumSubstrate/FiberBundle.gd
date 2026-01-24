@@ -314,12 +314,7 @@ static func create_biome_bundle() -> FiberBundle:
 	var bundle = FiberBundleScript.new(4)
 
 	bundle.base_actions = {
-		"Q": {
-			"action": "energy_tap",
-			"label": "Energy Tap",
-			"emoji": "⚡",
-			"description": "Extract quantum potential as observable energy"
-		},
+		# NOTE: energy_tap ("Q") removed (2026-01) - system deprecated
 		"E": {
 			"action": "inspect",
 			"label": "Inspect",
@@ -334,29 +329,7 @@ static func create_biome_bundle() -> FiberBundle:
 		}
 	}
 
-	# PHOENIX: Aggressive extraction
-	bundle.add_variant(SemanticOctant.Region.PHOENIX, "Q", {
-		"label": "Fire Tap",
-		"emoji": "🔥⚡",
-		"description": "Aggressive extraction. High yield, high decoherence.",
-		"modifier": {"extraction_efficiency": 1.5, "decoherence_rate": 1.5}
-	})
-
-	# SAGE: Gentle extraction
-	bundle.add_variant(SemanticOctant.Region.SAGE, "Q", {
-		"label": "Wisdom Tap",
-		"emoji": "📿⚡",
-		"description": "Gentle extraction. Lower yield, preserves coherence.",
-		"modifier": {"extraction_efficiency": 0.7, "decoherence_rate": 0.5}
-	})
-
-	# MERCHANT: Profitable extraction
-	bundle.add_variant(SemanticOctant.Region.MERCHANT, "Q", {
-		"label": "Trade Tap",
-		"emoji": "💰⚡",
-		"description": "Optimized for value. Converts to tradeable resources.",
-		"modifier": {"extraction_efficiency": 1.2, "trade_value": 1.3}
-	})
+	# NOTE: Energy tap variants for "Q" removed (2026-01) - system deprecated
 
 	return bundle
 

@@ -90,18 +90,9 @@ func grow(delta: float, biome = null, territory_manager = null, icon_network = n
 
 	# Model B: Quantum evolution is handled by parent biome's quantum computer
 	# This method is called each frame for plot growth logic
-
-	# Process energy tap if applicable (Manifest Section 4.1)
-	# PHASE 5 (PARAMETRIC): Check plot_type_name instead of enum
-	if plot_type_name == "energy_tap":
-		process_energy_tap(delta, biome)
+	# NOTE: energy_tap processing removed (2026-01) - system deprecated
 
 	return 0.0
-
-
-func process_energy_tap(_delta: float, _biome = null) -> void:
-	"""DEPRECATED: Energy tap system disabled (requires bath which was removed)."""
-	pass
 
 
 ## Entanglement

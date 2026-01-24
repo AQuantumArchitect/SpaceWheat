@@ -73,13 +73,7 @@ const BUILD_UI_CONFIGS = {
 		"failure_message": "Plot must be empty!",
 		"updates_quantum_graph": false
 	},
-	"energy_tap": {
-		"farm_method": "place_energy_tap",
-		"visual_color": Color(0.3, 0.8, 0.9),
-		"success_message": "🚰 Energy tap placed!",
-		"failure_message": "Plot must be empty!",
-		"updates_quantum_graph": false
-	}
+	# NOTE: energy_tap removed (2026-01) - energy tap system deprecated
 }
 
 # Import cost configs from Farm (canonical source)
@@ -148,8 +142,7 @@ func build(pos: Vector2i, build_type: String) -> bool:
 			success = farm_grid.place_market(pos)
 		"place_kitchen":
 			success = farm_grid.place_kitchen(pos) if farm_grid.has_method("place_kitchen") else false
-		"place_energy_tap":
-			success = farm_grid.place_energy_tap(pos) if farm_grid.has_method("place_energy_tap") else false
+		# NOTE: place_energy_tap case removed (2026-01) - energy tap system deprecated
 
 	# 5. Handle failure - refund emoji-credits
 	if not success:

@@ -64,7 +64,7 @@ const INFRASTRUCTURE_COSTS = {
 	"mill": {"🌾": 30},      # 3 wheat = 30 wheat-credits
 	"market": {"🌾": 30},    # 3 wheat = 30 wheat-credits
 	"kitchen": {"🌾": 30, "💨": 10},  # 3 wheat + 1 flour
-	"energy_tap": {"🌾": 20},  # 2 wheat = 20 wheat-credits
+	# NOTE: energy_tap removed (2026-01) - energy tap system deprecated
 }
 
 # Special gather actions (not plantable, not buildings)
@@ -594,9 +594,6 @@ func build(pos: Vector2i, build_type: String) -> bool:
 	var success = false
 	match config["type"]:
 		"plant":
-			# Bath-first mode: Don't pre-create qubit, let grid.plant() handle it
-			# This ensures BasePlot.plant() uses the new API path which calls
-			# biome.create_projection() and properly registers in active_projections
 			success = grid.plant(pos, config["plant_type"])
 		"build":
 			# Route to specific building
@@ -607,11 +604,7 @@ func build(pos: Vector2i, build_type: String) -> bool:
 					success = grid.place_market(pos)
 				"kitchen":
 					success = grid.place_kitchen(pos)
-				"energy_tap":
-					# Energy tap requires target emoji - not supported in simple build() API
-					# Use grid.plant_energy_tap(pos, target_emoji) directly instead
-					print("⚠️  energy_tap requires target emoji - use grid.plant_energy_tap() instead")
-					success = false
+				# NOTE: energy_tap case removed (2026-01) - energy tap system deprecated
 		"gather":
 			# Gather resources directly from environment
 			if config.has("yields"):
@@ -977,10 +970,10 @@ func apply_state(state: Dictionary) -> void:
 	if state.has("plots"):
 		for plot_state in state["plots"]:
 			var pos = plot_state.get("position")
-			var plot = grid.get_plot(pos)
-			if plot and plot_state.get("is_planted", false):
-				# Recreate wheat at this position
-				plot.plant()
+			if plot_state.get("is_planted", false):
+				# Restore planted plot using grid.plant()
+				var plant_type = plot_state.get("plant_type", "wheat")
+				grid.plant(pos, plant_type)
 
 	_emit_state_changed()
 

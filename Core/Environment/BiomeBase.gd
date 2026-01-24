@@ -9,203 +9,239 @@ extends Node
 ## Model C: Biome owns ONE canonical quantum state (QuantumComputer).
 ## Plots are hardware attachments (RegisterIds) that reference it.
 ## No per-plot independent quantum states.
-## Bath deprecated - all biomes use QuantumComputer + RegisterMap.
+##
+## Architecture: Composition with Facade
+## BiomeBase delegates to 7 composable components while maintaining
+## the same public API for backward compatibility with subclasses.
 
+# Component imports
+const BiomeResourceRegistry = preload("res://Core/Environment/Components/BiomeResourceRegistry.gd")
+const BiomeBellGateTracker = preload("res://Core/Environment/Components/BiomeBellGateTracker.gd")
+const BiomeQuantumObserver = preload("res://Core/Environment/Components/BiomeQuantumObserver.gd")
+const BiomePlotRegisterManager = preload("res://Core/Environment/Components/BiomePlotRegisterManager.gd")
+const BiomeGateOperations = preload("res://Core/Environment/Components/BiomeGateOperations.gd")
+const BiomeQuantumSystemBuilder = preload("res://Core/Environment/Components/BiomeQuantumSystemBuilder.gd")
+const BiomeDensityMatrixMutator = preload("res://Core/Environment/Components/BiomeDensityMatrixMutator.gd")
+
+# Core imports
 const DualEmojiQubit = preload("res://Core/QuantumSubstrate/DualEmojiQubit.gd")
 const QuantumRegister = preload("res://Core/QuantumSubstrate/QuantumRegister.gd")
 const QuantumComputer = preload("res://Core/QuantumSubstrate/QuantumComputer.gd")
-const QuantumGateLibrary = preload("res://Core/QuantumSubstrate/QuantumGateLibrary.gd")
+# QuantumGateLibrary - moved to BiomeGateOperations component
 const BiomeUtilities = preload("res://Core/Environment/BiomeUtilities.gd")
 const BiomeTimeTracker = preload("res://Core/Environment/BiomeTimeTracker.gd")
 const BiomeDynamicsTracker = preload("res://Core/QuantumSubstrate/BiomeDynamicsTracker.gd")
 const StrangeAttractorAnalyzer = preload("res://Core/QuantumSubstrate/StrangeAttractorAnalyzer.gd")
-const Icon = preload("res://Core/QuantumSubstrate/Icon.gd")
+# Icon - accessed via _icon_registry autoload
 const Complex = preload("res://Core/QuantumSubstrate/Complex.gd")
 const ComplexMatrix = preload("res://Core/QuantumSubstrate/ComplexMatrix.gd")
-const DensityMatrix = preload("res://Core/QuantumSubstrate/DensityMatrix.gd")
-const EconomyConstants = preload("res://Core/GameMechanics/EconomyConstants.gd")
-
-# Operator caching system
-const CacheKey = preload("res://Core/QuantumSubstrate/CacheKey.gd")
-const OperatorCache = preload("res://Core/QuantumSubstrate/OperatorCache.gd")
-
-# Quantum game mechanics (Phase 6: Semantic Drift)
+# DensityMatrix - accessed via quantum_computer
+# EconomyConstants - unused, economy handled by EconomyManager
 const SemanticDrift = preload("res://Core/QuantumSubstrate/SemanticDrift.gd")
+
+# ============================================================================
+# COMPONENT INSTANCES
+# ============================================================================
+
+var _resource_registry: BiomeResourceRegistry
+var _bell_gate_tracker: BiomeBellGateTracker
+var _quantum_observer: BiomeQuantumObserver
+var _register_manager: BiomePlotRegisterManager
+var _gate_operations: BiomeGateOperations
+var _system_builder: BiomeQuantumSystemBuilder
+var _density_mutator: BiomeDensityMatrixMutator
+
+# ============================================================================
+# CORE STATE (remains in BiomeBase)
+# ============================================================================
 
 # Common infrastructure
 var time_tracker: BiomeTimeTracker = BiomeTimeTracker.new()
-var dynamics_tracker: BiomeDynamicsTracker = null  # Tracks quantum state evolution rate
-var attractor_analyzer: StrangeAttractorAnalyzer = null  # Tracks phase space trajectories
+var dynamics_tracker: BiomeDynamicsTracker = null
+var attractor_analyzer: StrangeAttractorAnalyzer = null
 var grid = null  # Injected FarmGrid reference
 
-# ============================================================================
-# MODEL C: QUANTUM COMPUTER OWNERSHIP (Physics-Correct)
-# ============================================================================
-
-## Central quantum state manager for this biome (ONLY source of truth)
+# Central quantum state manager for this biome (ONLY source of truth)
 var quantum_computer = null  # QuantumComputer type
 
-## Plot register mapping: Vector2i → QuantumRegister
-var plot_registers: Dictionary = {}  # Vector2i → QuantumRegister (metadata only)
-
-## Active projections (legacy - to be removed)
+# Active projections (legacy - to be removed)
 var active_projections: Dictionary = {}
 
 # Visual Properties for QuantumForceGraph rendering
-var visual_color: Color = Color(0.5, 0.5, 0.5, 0.3)  # Default gray
-var visual_label: String = ""  # Display name with emoji (defaults to get_biome_type())
-var visual_center_offset: Vector2 = Vector2.ZERO  # Position offset in graph
-var visual_circle_radius: float = 150.0  # Circle radius override
-var visual_enabled: bool = true  # Whether to show in force graph
-
-# Oval shape properties for QuantumForceGraph rendering
-var visual_oval_width: float = 300.0   # Horizontal semi-axis (a)
-var visual_oval_height: float = 185.0  # Vertical semi-axis (b) - golden ratio: 300/1.618
-
-# Bell Gates: Historical entanglement relationships
-# Tracks which plots have been entangled together in the past
-# Structure: Array of [pos1, pos2, pos3] triplets (for kitchen) or [pos1, pos2] pairs (for 2-qubit)
-var bell_gates: Array = []  # Array of Vector2i arrays (triplets or pairs)
-
-# Resource Registration System
-# Biomes declare which emojis they can produce or consume
-# Used for wide design space - any biome can define its own resources
-var producible_emojis: Array[String] = []  # Emojis this biome can produce via harvest
-var consumable_emojis: Array[String] = []  # Emojis this biome can consume via costs
-var emoji_pairings: Dictionary = {}  # North ↔ South emoji pairs for quantum states
-
-# Planting Capability System (Parametric Plant Types)
-# Defines what can be planted in this biome with costs and metadata
-class PlantingCapability:
-	"""Defines a plantable emoji pair with costs and metadata
-
-	This makes the planting system parametric - biomes define what can be planted
-	instead of hard-coding plant types across multiple files.
-	"""
-	var emoji_pair: Dictionary  # {"north": "🌾", "south": "👥"}
-	var plant_type: String      # "wheat" (for routing/identification)
-	var cost: Dictionary        # {"🌾": 1} - emoji → credits cost
-	var display_name: String    # "Wheat" (UI labels)
-	var requires_biome: bool    # true if only plantable in this biome
-
-var planting_capabilities: Array[PlantingCapability] = []  # Registered plant types for this biome
+var visual_color: Color = Color(0.5, 0.5, 0.5, 0.3)
+var visual_label: String = ""
+var visual_center_offset: Vector2 = Vector2.ZERO
+var visual_circle_radius: float = 150.0
+var visual_enabled: bool = true
+var visual_oval_width: float = 300.0
+var visual_oval_height: float = 185.0
 
 # Signals - common interface for all biomes
 signal qubit_created(position: Vector2i, qubit: Resource)
 signal qubit_measured(position: Vector2i, outcome: String)
 signal qubit_evolved(position: Vector2i)
 signal coupling_updated(emoji_a: String, emoji_b: String, strength: float)
-signal bell_gate_created(positions: Array)  # New: emitted when plots are entangled
+signal bell_gate_created(positions: Array)
 signal resource_registered(emoji: String, is_producible: bool, is_consumable: bool)
 
-# HAUNTED UI FIX: Prevent double-initialization when _ready() called multiple times
+# Initialization guards
 var _is_initialized: bool = false
 var _qc_recovery_attempted: bool = false
 var _qc_missing_warned: bool = false
 
 # Performance: Control quantum evolution frequency
 var quantum_evolution_accumulator: float = 0.0
-var quantum_evolution_timestep: float = 0.1  # 10 Hz - standardized across all systems
-var quantum_evolution_enabled: bool = true  # Can be toggled for debugging
+var quantum_evolution_timestep: float = 0.1
+var quantum_evolution_enabled: bool = true
 
-# BUILD mode pause: Evolution stops when player enters BUILD mode (TAB)
-# This allows safe modification of biome structure (adding qubits, etc.)
+# BUILD mode pause
 var evolution_paused: bool = false
 
-# Performance: Lazy evolution for idle biomes
-# Lazy = no active farm plots (user not involved)
+# Idle optimization
 var is_idle: bool = false
-var active_plot_count: int = 0  # Tracked by plot system
+var active_plot_count: int = 0
 
+# ============================================================================
+# FACADE PROPERTY ACCESSORS (for backward compatibility)
+# ============================================================================
 
-## Safe VerboseConfig access wrapper (works even during compilation)
+# Forward property access to components for backward compatibility
+var plot_registers: Dictionary:
+	get: return _register_manager.plot_registers if _register_manager else {}
+	set(v): if _register_manager: _register_manager.plot_registers = v
+
+var bell_gates: Array:
+	get: return _bell_gate_tracker.bell_gates if _bell_gate_tracker else []
+	set(v): if _bell_gate_tracker: _bell_gate_tracker.bell_gates = v
+
+var producible_emojis: Array[String]:
+	get: return _resource_registry.producible_emojis if _resource_registry else []
+	set(v): if _resource_registry: _resource_registry.producible_emojis = v
+
+var consumable_emojis: Array[String]:
+	get: return _resource_registry.consumable_emojis if _resource_registry else []
+	set(v): if _resource_registry: _resource_registry.consumable_emojis = v
+
+var emoji_pairings: Dictionary:
+	get: return _resource_registry.emoji_pairings if _resource_registry else {}
+	set(v): if _resource_registry: _resource_registry.emoji_pairings = v
+
+var planting_capabilities: Array:
+	get: return _resource_registry.planting_capabilities if _resource_registry else []
+	set(v): if _resource_registry: _resource_registry.planting_capabilities = v
+
+# PlantingCapability alias for backward compatibility (static const)
+const PlantingCapability = BiomeResourceRegistry.PlantingCapability
+
+# ============================================================================
+# INITIALIZATION
+# ============================================================================
+
 func _verbose_log(level: String, category: String, emoji: String, message: String) -> void:
-	"""Safely log to VerboseConfig if available (avoids compile-time errors)"""
+	"""Safely log to VerboseConfig if available"""
 	if not has_node("/root/VerboseConfig"):
 		return
-
 	var logger = get_node("/root/VerboseConfig")
 	match level:
-		"debug":
-			logger.debug(category, emoji, message)
-		"info":
-			logger.info(category, emoji, message)
-		"warn":
-			logger.warn(category, emoji, message)
-		"error":
-			logger.error(category, emoji, message)
+		"debug": logger.debug(category, emoji, message)
+		"info": logger.info(category, emoji, message)
+		"warn": logger.warn(category, emoji, message)
+		"error": logger.error(category, emoji, message)
 
 
 func _ready() -> void:
 	"""Initialize biome - called by Godot when node enters scene tree"""
-	# Guard: Only initialize once (prevents double-init from manual calls)
 	if _is_initialized:
 		return
 	_is_initialized = true
 
-	# Initialize Model B quantum computer (new)
-	quantum_computer = QuantumComputer.new(get_biome_type())
+	# Initialize components
+	_resource_registry = BiomeResourceRegistry.new()
+	_bell_gate_tracker = BiomeBellGateTracker.new()
+	_quantum_observer = BiomeQuantumObserver.new()
+	_register_manager = BiomePlotRegisterManager.new()
+	_gate_operations = BiomeGateOperations.new()
+	_system_builder = BiomeQuantumSystemBuilder.new()
+	_density_mutator = BiomeDensityMatrixMutator.new()
 
-	# Initialize quantum computer (child classes override _initialize_bath())
-	# Note: Method still called _initialize_bath for compatibility, but sets up quantum_computer
+	# Forward signals from components FIRST (before _initialize_bath emits signals)
+	_bell_gate_tracker.bell_gate_created.connect(_on_bell_gate_created)
+	_resource_registry.resource_registered.connect(_on_resource_registered)
+	_register_manager.qubit_created.connect(_on_qubit_created)
+	_system_builder.coupling_updated.connect(_on_coupling_updated)
+
+	# Initialize biome-specific quantum computer via virtual method
+	# NOTE: Subclasses like BioticFluxBiome create their own quantum_computer here
 	_initialize_bath()
 
-	# Initialize strange attractor tracking (after bath setup)
+	# Wire component dependencies AFTER _initialize_bath() creates the real quantum_computer
+	if quantum_computer:
+		_quantum_observer.set_quantum_computer(quantum_computer)
+		_register_manager.set_quantum_computer(quantum_computer, get_biome_type())
+		_density_mutator.set_quantum_computer(quantum_computer)
+
+	# Initialize strange attractor tracking
 	_initialize_attractor_tracking()
 
-	# Processing will be enabled by BootManager in Stage 3D after all deps verified
+	# Processing will be enabled by BootManager
 	set_process(false)
 
 
+func _wire_component_dependencies() -> void:
+	"""Wire dependencies for components that need IconRegistry (call after _ready)"""
+	_system_builder.set_dependencies(quantum_computer, _resource_registry, _icon_registry)
+	_gate_operations.set_dependencies(quantum_computer, _register_manager, _bell_gate_tracker, time_tracker)
+	_gate_operations.set_verbose_log_callback(_verbose_log)
+
+
+# ============================================================================
+# SIGNAL FORWARDING (from components to BiomeBase)
+# ============================================================================
+
+func _on_bell_gate_created(positions: Array) -> void:
+	bell_gate_created.emit(positions)
+
+func _on_resource_registered(emoji: String, is_producible: bool, is_consumable: bool) -> void:
+	resource_registered.emit(emoji, is_producible, is_consumable)
+
+func _on_qubit_created(position: Vector2i, qubit: Resource) -> void:
+	qubit_created.emit(position, qubit)
+
+func _on_coupling_updated(emoji_a: String, emoji_b: String, strength: float) -> void:
+	coupling_updated.emit(emoji_a, emoji_b, strength)
+
+
+# ============================================================================
+# MAIN PROCESS LOOP
+# ============================================================================
+
 func _process(dt: float) -> void:
-	"""Main process loop - delegates to biome-specific evolution"""
 	advance_simulation(dt)
 
 
 func advance_simulation(dt: float) -> void:
-	"""Advance simulation by dt seconds (for manual time control in tests)"""
+	"""Advance simulation by dt seconds"""
 	time_tracker.update(dt)
 
-	# OPTIMIZATION: Skip evolution for idle biomes (no active plots)
-	# DISABLED FOR NOW - we want to see baseline evolution even without plots
-	#update_idle_status()
-	#if is_idle:
-	#	if Engine.get_frames_drawn() % 300 == 0:  # Print every 5 seconds
-	#		print("⏸️ %s: IDLE (skipping evolution)" % get_biome_type())
-	#	return  # Skip quantum evolution entirely
-
-	# BUILD MODE PAUSE: Skip evolution entirely when paused (allows safe biome modification)
 	if evolution_paused:
 		return
 
-	# OPTIMIZATION: Accumulate time and evolve at lower frequency (30 Hz instead of 60 Hz)
 	if quantum_evolution_enabled:
 		quantum_evolution_accumulator += dt
-
-		# Only evolve when accumulated time exceeds timestep
 		if quantum_evolution_accumulator >= quantum_evolution_timestep:
 			var actual_dt = quantum_evolution_accumulator
 			quantum_evolution_accumulator = 0.0
 
-			# Model C: QuantumComputer-based evolution (unified architecture)
 			if _ensure_quantum_computer():
 				_update_quantum_substrate(actual_dt)
-
-				# Track quantum state evolution for dynamics calculation (lazy init)
 				if not dynamics_tracker:
 					dynamics_tracker = BiomeDynamicsTracker.new()
 				if dynamics_tracker:
 					_track_dynamics()
-			else:
-				# Warning already emitted in _ensure_quantum_computer()
-				pass
-	else:
-		# Evolution disabled (for debugging/testing)
-		pass
 
 
 func _ensure_quantum_computer() -> bool:
-	"""Ensure quantum_computer exists, with a one-time recovery attempt."""
+	"""Ensure quantum_computer exists"""
 	if quantum_computer:
 		_qc_recovery_attempted = false
 		_qc_missing_warned = false
@@ -217,62 +253,29 @@ func _ensure_quantum_computer() -> bool:
 		_initialize_bath()
 
 	if not quantum_computer and not _qc_missing_warned:
-		push_warning("Biome %s has no quantum_computer - evolution disabled" % get_biome_type())
+		push_warning("Biome %s has no quantum_computer" % get_biome_type())
 		_qc_missing_warned = true
 
 	return quantum_computer != null
 
 
 func _update_quantum_substrate(dt: float) -> void:
-	"""Virtual method: Override in child classes for Model C evolution.
-
-	Called by advance_simulation() when quantum_computer exists.
-	Default implementation applies semantic drift (🌀) game mechanics.
-	Child classes should call super._update_quantum_substrate(dt) to apply drift.
-
-	Semantic Drift (Phase 6):
-	When 🌀 population is high, nearby icon couplings are randomly perturbed.
-	✨ (sparkle) counteracts drift, providing stability.
-	"""
-	# Apply semantic drift game mechanic (🌀 chaos vs ✨ stability)
+	"""Virtual method: Override for Model C evolution"""
 	_apply_semantic_drift(dt)
 
 
 func _apply_semantic_drift(dt: float) -> void:
-	"""Apply semantic drift based on 🌀 population.
-
-	Semantic drift causes nearby icons to have their couplings randomly perturbed
-	when 🌀 (spiral) population exceeds a threshold. The ✨ (sparkle) emoji
-	counteracts this effect, providing stability.
-
-	This is called at 10Hz (not 60Hz) to reduce computational overhead.
-	The drift strength is accumulated over the actual timestep.
-
-	Integration note: This method uses the static SemanticDrift class which
-	operates on icons' hamiltonian_couplings and lindblad rates. Changes
-	persist until operators are rebuilt (which happens rarely).
-	"""
+	"""Apply semantic drift based on 🌀 population"""
 	if not _icon_registry:
 		return
-
-	# SemanticDrift needs a bath-like interface with get_probability()
-	# QuantumComputer provides get_population() which serves the same purpose
 	if quantum_computer:
 		SemanticDrift.apply_drift(quantum_computer, _icon_registry, dt)
 
 
 func get_drift_status() -> Dictionary:
-	"""Get current semantic drift status for UI display.
-
-	Returns:
-		Dictionary with:
-		- active: bool - whether drift is currently affecting the system
-		- intensity: float - drift intensity (0-1 scale)
-		- status_text: String - human-readable status
-	"""
+	"""Get current semantic drift status for UI display"""
 	if not quantum_computer:
 		return {"active": false, "intensity": 0.0, "status_text": "No quantum state"}
-
 	return {
 		"active": SemanticDrift.is_drift_active(quantum_computer),
 		"intensity": SemanticDrift.get_drift_intensity(quantum_computer),
@@ -280,41 +283,29 @@ func get_drift_status() -> Dictionary:
 	}
 
 
+# ============================================================================
+# EVOLUTION CONTROL
+# ============================================================================
+
 func update_idle_status() -> void:
-	"""Check if biome should go idle (no active plots = user not involved)"""
-	# Biome is idle if no active plots (nothing planted or growing)
 	if active_plot_count == 0:
-		if not is_idle:
-			is_idle = true
-			# Optional debug: print("💤 Biome %s going idle (no active plots)" % get_biome_type())
+		if not is_idle: is_idle = true
 	else:
-		if is_idle:
-			is_idle = false
-			# Optional debug: print("⚡ Biome %s waking up (%d active plots)" % [get_biome_type(), active_plot_count])
+		if is_idle: is_idle = false
 
 
 func on_plot_planted(position: Vector2i) -> void:
-	"""Called when a plot is planted in this biome"""
 	active_plot_count += 1
 	is_idle = false
 
 
 func on_plot_harvested(position: Vector2i) -> void:
-	"""Called when a plot is harvested in this biome"""
 	active_plot_count = max(0, active_plot_count - 1)
 
 
 func set_evolution_paused(paused: bool) -> void:
-	"""Pause or resume quantum evolution (used by BUILD mode).
-
-	When paused:
-	- Quantum state stops evolving (Hamiltonian + Lindblad frozen)
-	- Safe to modify biome structure (add qubits, rebuild operators)
-	- Time accumulator is NOT reset (evolution continues from same point)
-	"""
 	if evolution_paused == paused:
-		return  # No change
-
+		return
 	evolution_paused = paused
 	if paused:
 		print("⏸️ %s: Quantum evolution PAUSED (BUILD mode)" % get_biome_type())
@@ -323,1330 +314,325 @@ func set_evolution_paused(paused: bool) -> void:
 
 
 func is_evolution_paused() -> bool:
-	"""Check if quantum evolution is paused."""
 	return evolution_paused
 
 
 # ============================================================================
-# QUANTUM SYSTEM EXPANSION (BUILD Mode)
+# FACADE: Resource Registry Methods
 # ============================================================================
 
-func expand_quantum_system(north_emoji: String, south_emoji: String) -> Dictionary:
-	"""Expand the biome's quantum computer to include a new emoji axis.
+func register_resource(emoji: String, is_producible: bool = true, is_consumable: bool = false) -> void:
+	_resource_registry.register_resource(emoji, is_producible, is_consumable)
 
-	BUILD MODE ONLY: This is a computer-altering operation that requires
-	evolution to be paused. Adds a new qubit axis to the quantum system,
-	rebuilds Hamiltonian and Lindblad operators with coupling terms from
-	the faction/icon system.
+func register_emoji_pair(north: String, south: String) -> void:
+	_resource_registry.register_emoji_pair(north, south)
 
-	Args:
-		north_emoji: North pole emoji (|0⟩ basis state)
-		south_emoji: South pole emoji (|1⟩ basis state)
+func register_planting_capability(north: String, south: String, plant_type: String,
+                                   cost: Dictionary, display_name: String = "",
+                                   exclusive: bool = false) -> void:
+	_resource_registry.register_planting_capability(north, south, plant_type, cost, display_name, exclusive)
 
-	Returns:
-		Dictionary with:
-		- success: bool
-		- error: String (if failure)
-		- qubit_index: int (new qubit index if success)
-		- old_dim: int (dimension before expansion)
-		- new_dim: int (dimension after expansion)
-	"""
-	# 1. Require BUILD mode (evolution paused)
-	if not evolution_paused:
-		return {
-			"success": false,
-			"error": "build_mode_required",
-			"message": "Quantum expansion requires BUILD mode (TAB to toggle)"
-		}
+func get_plantable_capabilities() -> Array:
+	return _resource_registry.get_plantable_capabilities()
 
-	# 2. Check if quantum_computer exists
-	if not quantum_computer:
-		return {
-			"success": false,
-			"error": "no_quantum_computer",
-			"message": "Biome has no quantum computer to expand"
-		}
+func get_planting_cost(plant_type: String) -> Dictionary:
+	return _resource_registry.get_planting_cost(plant_type)
 
-	# 3. Check if axis already exists (use register_map.has() method)
-	if quantum_computer.register_map.has(north_emoji) and quantum_computer.register_map.has(south_emoji):
-		# Axis already exists - no expansion needed
-		return {
-			"success": true,
-			"already_exists": true,
-			"message": "Axis %s/%s already exists in quantum system" % [north_emoji, south_emoji]
-		}
+func supports_plant_type(plant_type: String) -> bool:
+	return _resource_registry.supports_plant_type(plant_type)
 
-	# 4. Get IconRegistry for coupling terms
-	var icon_registry = get_node_or_null("/root/IconRegistry")
-	if not icon_registry:
-		push_warning("expand_quantum_system: IconRegistry not available - using default couplings")
+func get_producible_emojis() -> Array[String]:
+	return _resource_registry.get_producible_emojis()
 
-	# 5. Record old dimension
-	var old_dim = quantum_computer.register_map.dim()
-	var old_num_qubits = quantum_computer.register_map.num_qubits
+func get_consumable_emojis() -> Array[String]:
+	return _resource_registry.get_consumable_emojis()
 
-	# 6. Add new axis to quantum computer
-	var new_qubit_index = old_num_qubits
-	quantum_computer.allocate_axis(new_qubit_index, north_emoji, south_emoji)
+func get_emoji_pairings() -> Dictionary:
+	return _resource_registry.get_emoji_pairings()
 
-	# 7. Update producible_emojis and emoji_pairings
-	if north_emoji not in producible_emojis:
-		producible_emojis.append(north_emoji)
-	if south_emoji not in producible_emojis:
-		producible_emojis.append(south_emoji)
-	emoji_pairings[north_emoji] = south_emoji
-	emoji_pairings[south_emoji] = north_emoji
+func can_produce(emoji: String) -> bool:
+	return _resource_registry.can_produce(emoji)
 
-	# 8. Gather ALL icons for this biome (existing + new)
-	var all_icons = {}
-	if icon_registry:
-		# Get icons for all emojis in the quantum system
-		for emoji in quantum_computer.register_map.coordinates.keys():
-			var icon = icon_registry.get_icon(emoji)
-			if icon:
-				all_icons[emoji] = icon
+func can_consume(emoji: String) -> bool:
+	return _resource_registry.can_consume(emoji)
 
-	# 9. Rebuild Hamiltonian and Lindblad operators with new coupling terms
-	var HamBuilder = load("res://Core/QuantumSubstrate/HamiltonianBuilder.gd")
-	var LindBuilder = load("res://Core/QuantumSubstrate/LindbladBuilder.gd")
-	var verbose = get_node_or_null("/root/VerboseConfig")
+func supports_emoji_pair(north: String, south: String) -> bool:
+	return _resource_registry.supports_emoji_pair(north, south, quantum_computer)
 
-	quantum_computer.hamiltonian = HamBuilder.build(all_icons, quantum_computer.register_map, verbose)
-	var lindblad_result = LindBuilder.build(all_icons, quantum_computer.register_map, verbose)
-	quantum_computer.lindblad_operators = lindblad_result.get("operators", [])
-	quantum_computer.gated_lindblad_configs = lindblad_result.get("gated_configs", [])
-
-	# 9b. Extract and set time-dependent driver configurations
-	var driven_configs = HamBuilder.get_driven_icons(all_icons, quantum_computer.register_map)
-	quantum_computer.set_driven_icons(driven_configs)
-
-	# 10. Set up native evolution engine
-	quantum_computer.setup_native_evolution()
-
-	var new_dim = quantum_computer.register_map.dim()
-
-	print("🔬 Expanded %s quantum system: %d → %d qubits (%dD → %dD)" % [
-		get_biome_type(), old_num_qubits, new_qubit_index + 1, old_dim, new_dim])
-	print("   New axis: %s ↔ %s (qubit %d)" % [north_emoji, south_emoji, new_qubit_index])
-
-	return {
-		"success": true,
-		"qubit_index": new_qubit_index,
-		"old_dim": old_dim,
-		"new_dim": new_dim,
-		"north_emoji": north_emoji,
-		"south_emoji": south_emoji
-	}
-
-
-func inject_coupling(emoji_a: String, emoji_b: String, strength: float) -> Dictionary:
-	"""Inject a Hamiltonian coupling between two existing axes.
-
-	Unlike expand_quantum_system(), this does NOT add new qubits.
-	It modifies the Hamiltonian to create ZZ dynamics between existing axes.
-
-	Args:
-		emoji_a: First emoji (must exist in register_map)
-		emoji_b: Second emoji (must exist in register_map)
-		strength: Coupling strength J (ZZ interaction term)
-
-	Returns:
-		Dictionary with success/error keys
-	"""
-	if not quantum_computer:
-		return {"success": false, "error": "no_quantum_computer"}
-
-	var rm = quantum_computer.register_map
-	if not rm.has(emoji_a):
-		return {"success": false, "error": "missing_emoji", "emoji": emoji_a}
-	if not rm.has(emoji_b):
-		return {"success": false, "error": "missing_emoji", "emoji": emoji_b}
-
-	# Get qubit indices for the emojis
-	var qubit_a = rm.qubit(emoji_a)
-	var qubit_b = rm.qubit(emoji_b)
-
-	if qubit_a == -1 or qubit_b == -1:
-		return {"success": false, "error": "qubit_lookup_failed"}
-
-	# Add coupling to Hamiltonian via QuantumComputer
-	var result = quantum_computer.add_coupling(qubit_a, qubit_b, strength)
-
-	if result.success:
-		coupling_updated.emit(emoji_a, emoji_b, strength)
-		print("🔗 Injected coupling: %s ↔ %s (J=%.3f)" % [emoji_a, emoji_b, strength])
-
-	return result
+func get_harvestable_emojis() -> Array[String]:
+	return _resource_registry.get_harvestable_emojis()
 
 
 # ============================================================================
-# Qubit Allocation API (Model C)
+# FACADE: Bell Gate Tracker Methods
+# ============================================================================
+
+func mark_bell_gate(positions: Array) -> void:
+	_bell_gate_tracker.mark_bell_gate(positions)
+
+func get_bell_gate(index: int) -> Array:
+	return _bell_gate_tracker.get_bell_gate(index)
+
+func get_all_bell_gates() -> Array:
+	return _bell_gate_tracker.get_all_bell_gates()
+
+func get_bell_gates_of_size(size: int) -> Array:
+	return _bell_gate_tracker.get_bell_gates_of_size(size)
+
+func get_triplet_bell_gates() -> Array:
+	return _bell_gate_tracker.get_triplet_bell_gates()
+
+func get_pair_bell_gates() -> Array:
+	return _bell_gate_tracker.get_pair_bell_gates()
+
+func has_bell_gates() -> bool:
+	return _bell_gate_tracker.has_bell_gates()
+
+func bell_gate_count() -> int:
+	return _bell_gate_tracker.bell_gate_count()
+
+
+# ============================================================================
+# FACADE: Quantum Observer Methods
+# ============================================================================
+
+func get_observable_theta(north: String, south: String) -> float:
+	return _quantum_observer.get_observable_theta(north, south)
+
+func get_observable_phi(north: String, south: String) -> float:
+	return _quantum_observer.get_observable_phi(north, south)
+
+func get_observable_coherence(north: String, south: String) -> float:
+	return _quantum_observer.get_observable_coherence(north, south)
+
+func get_observable_radius(north: String, south: String) -> float:
+	return _quantum_observer.get_observable_radius(north, south)
+
+func get_observable_amplitude(emoji: String) -> float:
+	return _quantum_observer.get_observable_amplitude(emoji)
+
+func get_observable_phase(emoji: String) -> float:
+	return _quantum_observer.get_observable_phase(emoji)
+
+func get_emoji_probability(emoji: String) -> float:
+	return _quantum_observer.get_emoji_probability(emoji)
+
+func get_emoji_coherence(north_emoji: String, south_emoji: String):
+	return _quantum_observer.get_emoji_coherence(north_emoji, south_emoji)
+
+func get_purity() -> float:
+	return _quantum_observer.get_purity()
+
+func get_register_emoji_pair(register_id: int) -> Dictionary:
+	return _quantum_observer.get_register_emoji_pair(register_id)
+
+func get_coherence_with_other_registers(register_id: int) -> float:
+	return _quantum_observer.get_coherence_with_other_registers(register_id)
+
+
+# ============================================================================
+# FACADE: Plot Register Manager Methods
 # ============================================================================
 
 func allocate_register_for_plot(position: Vector2i, north_emoji: String = "🌾", south_emoji: String = "🌽") -> int:
-	"""Allocate a new qubit for a planted plot.
-
-	Uses allocate_qubit() to add axis to RegisterMap, stores metadata in plot_registers.
-
-	Returns: qubit index (unique per biome)
-	"""
-	if not quantum_computer:
-		push_error("QuantumComputer not initialized!")
-		return -1
-
-	# Model C: Allocate qubit in quantum computer
-	var reg_id = quantum_computer.allocate_qubit(north_emoji, south_emoji)
-
-	# Create metadata register
-	var qubit_reg = QuantumRegister.new(reg_id, get_biome_type(), 0)
-	qubit_reg.north_emoji = north_emoji
-	qubit_reg.south_emoji = south_emoji
-	qubit_reg.is_planted = true
-
-	plot_registers[position] = qubit_reg
-
-	qubit_created.emit(position, qubit_reg)
-	return reg_id
-
-
-# ============================================================================
-# Plot Register Metadata (Model C)
-# ============================================================================
+	return _register_manager.allocate_register_for_plot(position, north_emoji, south_emoji)
 
 func clear_subplot_for_plot(position: Vector2i) -> void:
-	"""
-	Clear subplot metadata when plot is unplanted (Model C).
-
-	Model C: QuantumComputer state persists - this only clears the measurement axis metadata.
-	The underlying quantum state continues evolving with all emojis intact.
-
-	Args:
-		position: Grid position of the plot to clear
-	"""
-	if position in plot_registers:
-		plot_registers.erase(position)
+	_register_manager.clear_subplot_for_plot(position)
 
 func get_register_for_plot(position: Vector2i) -> QuantumRegister:
-	"""Get the QuantumRegister metadata for a plot."""
-	return plot_registers.get(position, null)
+	return _register_manager.get_register_for_plot(position)
 
 func get_component_for_plot(position: Vector2i) -> Dictionary:
-	"""Get the qubit info for this plot's register (Model C: returns qubit metadata).
-
-	Returns: {register_id: int, north: String, south: String} or empty dict
-	"""
-	var reg = get_register_for_plot(position)
-	if not reg:
-		return {}
-	return {"register_id": reg.register_id, "north": reg.north_emoji, "south": reg.south_emoji}
+	return _register_manager.get_component_for_plot(position)
 
 func get_register_id_for_plot(position: Vector2i) -> int:
-	"""Get the logical register ID for a plot."""
-	var reg = get_register_for_plot(position)
-	if not reg:
-		return -1
-	return reg.register_id
+	return _register_manager.get_register_id_for_plot(position)
 
 func clear_register_for_plot(position: Vector2i) -> void:
-	"""Remove register metadata when plot is unplanted."""
-	if position in plot_registers:
-		plot_registers.erase(position)
+	_register_manager.clear_register_for_plot(position)
+
+func get_unbound_registers(plot_pool = null) -> Array[int]:
+	return _register_manager.get_unbound_registers(plot_pool)
+
+func get_register_probability(register_id: int) -> float:
+	return _quantum_observer.get_register_probability(register_id)
+
+func get_register_probabilities(plot_pool = null) -> Dictionary:
+	return _register_manager.get_register_probabilities(plot_pool, _quantum_observer)
+
+func get_total_register_count() -> int:
+	return _register_manager.get_total_register_count()
+
+func get_available_registers_v2(plot_pool) -> Array[int]:
+	return _register_manager.get_available_registers_v2(plot_pool, self)
+
 
 # ============================================================================
-# Common Quantum Operations (Model C)
+# FACADE: Gate Operations Methods
+# ============================================================================
+
+func apply_gate_1q(position: Vector2i, gate_name: String) -> bool:
+	_wire_component_dependencies()
+	return _gate_operations.apply_gate_1q(position, gate_name)
+
+func apply_gate_2q(position_a: Vector2i, position_b: Vector2i, gate_name: String) -> bool:
+	_wire_component_dependencies()
+	return _gate_operations.apply_gate_2q(position_a, position_b, gate_name)
+
+func entangle_plots(position_a: Vector2i, position_b: Vector2i) -> bool:
+	_wire_component_dependencies()
+	return _gate_operations.entangle_plots(position_a, position_b)
+
+func create_cluster_state(positions: Array[Vector2i]) -> bool:
+	_wire_component_dependencies()
+	return _gate_operations.create_cluster_state(positions)
+
+func batch_entangle(positions: Array[Vector2i]) -> bool:
+	_wire_component_dependencies()
+	return _gate_operations.batch_entangle(positions)
+
+func set_measurement_trigger(trigger_pos: Vector2i, target_positions: Array[Vector2i]) -> bool:
+	_wire_component_dependencies()
+	return _gate_operations.set_measurement_trigger(trigger_pos, target_positions)
+
+func remove_entanglement(pos_a: Vector2i, pos_b: Vector2i) -> bool:
+	_wire_component_dependencies()
+	return _gate_operations.remove_entanglement(pos_a, pos_b)
+
+func batch_measure_plots(position: Vector2i) -> Dictionary:
+	_wire_component_dependencies()
+	return _gate_operations.batch_measure_plots(position, func(pos, outcome): qubit_measured.emit(pos, outcome))
+
+
+# ============================================================================
+# FACADE: Quantum System Builder Methods
+# ============================================================================
+
+func expand_quantum_system(north_emoji: String, south_emoji: String) -> Dictionary:
+	_wire_component_dependencies()
+	return _system_builder.expand_quantum_system(north_emoji, south_emoji)
+
+func inject_coupling(emoji_a: String, emoji_b: String, strength: float) -> Dictionary:
+	_wire_component_dependencies()
+	return _system_builder.inject_coupling(emoji_a, emoji_b, strength)
+
+func build_operators_cached(biome_name: String, icons: Dictionary) -> void:
+	_wire_component_dependencies()
+	_system_builder.build_operators_cached(biome_name, icons)
+
+
+# ============================================================================
+# FACADE: Density Matrix Mutator Methods
+# ============================================================================
+
+func collapse_register(register_id: int, is_north: bool) -> void:
+	_density_mutator.collapse_register(register_id, is_north)
+
+func drain_register_probability(register_id: int, is_north: bool, drain_factor: float) -> void:
+	_density_mutator.drain_register_probability(register_id, is_north, drain_factor)
+
+
+# ============================================================================
+# COMMON QUANTUM OPERATIONS (Model C)
 # ============================================================================
 
 func create_quantum_state(position: Vector2i, north: String, south: String, _theta: float = PI/2) -> int:
-	"""Create and store a quantum state at grid position.
-
-	Allocates qubit in quantum_computer, returns qubit index.
-	"""
 	return allocate_register_for_plot(position, north, south)
 
-
 func get_qubit(position: Vector2i) -> Resource:
-	"""Retrieve quantum register at position (legacy interface)"""
 	return get_register_for_plot(position)
 
-
 func measure_qubit(position: Vector2i) -> String:
-	"""Measure (collapse) quantum register at position.
-
-	Model C: Uses measure_axis() for projective measurement.
-	Collapses quantum state to measurement outcome.
-	"""
 	var reg = get_register_for_plot(position)
 	if not reg:
 		return ""
-
-	# Model C: Use measure_axis directly
 	var outcome_emoji = quantum_computer.measure_axis(reg.north_emoji, reg.south_emoji)
 	var outcome = "north" if outcome_emoji == reg.north_emoji else "south"
 	reg.measurement_outcome = outcome
 	reg.has_been_measured = true
-
 	qubit_measured.emit(position, outcome)
 	return outcome
 
-
 func inspect_qubit(position: Vector2i) -> Dictionary:
-	"""Inspect quantum register WITHOUT collapsing state (Model B - Phase 2)
-
-	Non-destructive measurement probability inspection (INSPECT operation).
-	Returns probabilities without affecting quantum state.
-
-	Args:
-		position: Plot position
-
-	Returns:
-		Dictionary with marginal probabilities {"north": P0, "south": P1}
-	"""
 	var reg = get_register_for_plot(position)
 	if not reg:
 		return {"north": 0.0, "south": 0.0}
-
-	# Model C: Get marginal probabilities directly
 	var p_north = quantum_computer.get_marginal(reg.register_id, 0)
 	var p_south = quantum_computer.get_marginal(reg.register_id, 1)
 	return {"north": p_north, "south": p_south}
 
-
 func clear_qubit(position: Vector2i) -> void:
-	"""Remove quantum register at position"""
 	clear_register_for_plot(position)
 
-# ============================================================================
-# Hamiltonian Modification (Model C)
-# ============================================================================
-
 func boost_coupling(emoji: String, target_emoji: String, factor: float = 1.5) -> bool:
-	"""Boost Hamiltonian coupling strength between two emojis.
-
-	Uses inject_coupling() to add/increase ZZ interaction term.
-	"""
 	var result = inject_coupling(emoji, target_emoji, factor)
 	return result.get("success", false)
 
 
-func tune_decoherence(_emoji: String, _factor: float = 1.5) -> bool:
-	"""Tune decoherence rate for an emoji axis.
-
-	TODO: Implement via LindbladBuilder rebuild with modified rates.
-	"""
-	push_warning("tune_decoherence not yet implemented for Model C")
-	return false
-
-
-func add_time_dependent_driver(_emoji: String, _driver_type: String = "cosine", _frequency: float = 1.0, _amplitude: float = 1.0) -> bool:
-	"""Add time-dependent driver to an emoji axis.
-
-	TODO: Implement via quantum_computer.set_driven_icons()
-	"""
-	push_warning("add_time_dependent_driver not yet implemented for Model C")
-	return false
-
-
 # ============================================================================
-# Lindblad Channel Operations (Model C)
+# PROJECTIONS (Legacy Support)
 # ============================================================================
-
-func pump_to_emoji(_source_emoji: String, _target_emoji: String, _pump_rate: float = 0.01) -> bool:
-	"""Add pump channel from source to target emoji.
-
-	TODO: Implement via LindbladBuilder with custom pump operator.
-	"""
-	push_warning("pump_to_emoji not yet implemented for Model C")
-	return false
-
-
-func reset_to_pure_state(_emoji: String, _reset_rate: float = 0.1) -> bool:
-	"""Add reset-to-pure-state channel for emoji.
-
-	TODO: Implement via amplitude damping Lindblad operator.
-	"""
-	push_warning("reset_to_pure_state not yet implemented for Model C")
-	return false
-
-
-func reset_to_mixed_state(_emoji: String, _reset_rate: float = 0.1) -> bool:
-	"""Add dephasing channel for emoji (drives toward maximally mixed state).
-
-	TODO: Implement via dephasing Lindblad operator.
-	"""
-	push_warning("reset_to_mixed_state not yet implemented for Model C")
-	return false
-
-
-# ============================================================================
-# PHASE 4: Gate Infrastructure (Entanglement Management)
-# ============================================================================
-
-func create_cluster_state(positions: Array[Vector2i]) -> bool:
-	"""Create multi-qubit cluster state from selected plots (Model B)
-
-	Entangles multiple plots into a chain topology (linear cluster).
-	Uses sequential Bell pair entanglement: plot[0]↔plot[1]↔plot[2]↔...
-
-	Args:
-		positions: Array of plot positions to cluster
-
-	Returns:
-		true if cluster successfully created
-	"""
-	if not quantum_computer or positions.size() < 2:
-		return false
-
-	_verbose_log("debug","quantum", "🌐", "Creating cluster state with %d plots" % positions.size())
-
-	var success_count = 0
-	for i in range(positions.size() - 1):
-		var pos_a = positions[i]
-		var pos_b = positions[i + 1]
-
-		# Get register IDs
-		var reg_a = get_register_id_for_plot(pos_a)
-		var reg_b = get_register_id_for_plot(pos_b)
-
-		if reg_a < 0 or reg_b < 0:
-			push_warning("Invalid registers for cluster: %d, %d" % [reg_a, reg_b])
-			continue
-
-		# Create Bell pair entanglement
-		if quantum_computer.entangle_plots(reg_a, reg_b):
-			success_count += 1
-			_verbose_log("debug","quantum", "🔗", "Entangled %s ↔ %s" % [pos_a, pos_b])
-
-	# Store in bell_gates history for UI visualization
-	if success_count > 0:
-		bell_gates.append(positions.duplicate())
-		bell_gate_created.emit(positions)
-
-	_verbose_log("info","quantum", "✅", "Cluster created with %d entanglements" % success_count)
-	return success_count > 0
-
-
-func set_measurement_trigger(trigger_pos: Vector2i, target_positions: Array[Vector2i]) -> bool:
-	"""Set up conditional measurement trigger.
-
-	Model C: Uses entanglement_graph to verify qubits are connected.
-	When trigger_pos is measured, its outcome affects measurements at target_positions.
-
-	Args:
-		trigger_pos: Plot whose measurement triggers condition
-		target_positions: Plots affected by trigger measurement
-
-	Returns:
-		true if trigger successfully set up
-	"""
-	if not quantum_computer:
-		return false
-
-	var trigger_reg = get_register_id_for_plot(trigger_pos)
-	if trigger_reg < 0:
-		push_warning("Invalid trigger register at %s" % trigger_pos)
-		return false
-
-	# Model C: Get entangled qubits from entanglement graph
-	var entangled_ids = quantum_computer.get_entangled_component(trigger_reg)
-	if entangled_ids.is_empty():
-		push_warning("Trigger not in entanglement graph")
-		return false
-
-	var valid_targets = 0
-	for target_pos in target_positions:
-		var target_reg = get_register_id_for_plot(target_pos)
-		if target_reg < 0:
-			continue
-
-		# Check if target is in same entangled component
-		if target_reg in entangled_ids:
-			valid_targets += 1
-
-	if valid_targets == 0:
-		push_warning("No valid targets in trigger component")
-		return false
-
-	_verbose_log("info","quantum", "✅", "Measurement trigger set: %s → %d targets" % [trigger_pos, valid_targets])
-	return true
-
-
-func remove_entanglement(pos_a: Vector2i, pos_b: Vector2i) -> bool:
-	"""Remove entanglement between two plots (Model B - Phase 4 Infrastructure)
-
-	Decouples two plots by clearing their entanglement metadata.
-	Actual quantum state remains entangled (full disentanglement requires projection).
-
-	Args:
-		pos_a: First plot
-		pos_b: Second plot
-
-	Returns:
-		true if decouplng successful
-	"""
-	if not quantum_computer:
-		return false
-
-	var reg_a = get_register_id_for_plot(pos_a)
-	var reg_b = get_register_id_for_plot(pos_b)
-
-	if reg_a < 0 or reg_b < 0:
-		push_warning("Invalid registers for removal: %d, %d" % [reg_a, reg_b])
-		return false
-
-	# Clear entanglement graph edges
-	if quantum_computer.entanglement_graph.has(reg_a):
-		quantum_computer.entanglement_graph[reg_a].erase(reg_b)
-	if quantum_computer.entanglement_graph.has(reg_b):
-		quantum_computer.entanglement_graph[reg_b].erase(reg_a)
-
-	_verbose_log("info","quantum", "✅", "Removed entanglement between %s and %s" % [pos_a, pos_b])
-	return true
-
-
-func batch_entangle(positions: Array[Vector2i]) -> bool:
-	"""Create Bell pairs between all adjacent plot pairs (Model B)
-
-	Entangles all consecutive plot pairs in the selection.
-	Creates multiple independent Bell pairs: (0,1), (1,2), (2,3), etc.
-
-	Args:
-		positions: Array of plot positions
-
-	Returns:
-		true if at least one entanglement succeeded
-	"""
-	if not quantum_computer or positions.size() < 2:
-		return false
-
-	_verbose_log("debug","quantum", "🔗", "Batch entangling %d plots" % positions.size())
-
-	var success_count = 0
-	for i in range(positions.size() - 1):
-		var pos_a = positions[i]
-		var pos_b = positions[i + 1]
-
-		var reg_a = get_register_id_for_plot(pos_a)
-		var reg_b = get_register_id_for_plot(pos_b)
-
-		if reg_a < 0 or reg_b < 0:
-			continue
-
-		if quantum_computer.entangle_plots(reg_a, reg_b):
-			success_count += 1
-			_verbose_log("debug","quantum", "🔗", "Entangled %s ↔ %s" % [pos_a, pos_b])
-
-	if success_count > 0:
-		bell_gates.append(positions.duplicate())
-		bell_gate_created.emit(positions)
-
-	_verbose_log("info","quantum", "✅", "Created %d Bell pairs" % success_count)
-	return success_count > 0
-
-
-# ============================================================================
-# PHASE 4: Energy Tap System (DEPRECATED - bath removed)
-# ============================================================================
-
-func initialize_energy_tap_system() -> void:
-	"""DEPRECATED: Energy tap system disabled (requires bath which was removed)."""
-	pass
-
-
-func place_energy_tap(_target_emoji: String, _drain_rate: float = 0.05) -> bool:
-	"""DEPRECATED: Energy tap system disabled (requires bath which was removed).
-	Returns false. Use alternative resource collection methods."""
-	push_warning("place_energy_tap is deprecated - energy tap system disabled")
-	return false
-
-
-func get_tap_flux(emoji: String) -> float:
-	"""Get accumulated energy flux drained from emoji this frame
-
-	Returns flux accumulated by quantum_computer during evolution.
-
-	Args:
-		emoji: Target emoji to check flux for
-
-	Returns:
-		Flux value (energy per second drained)
-	"""
-	if not quantum_computer:
-		return 0.0
-
-	return quantum_computer.sink_flux_per_emoji.get(emoji, 0.0)
-
-
-func clear_tap_flux() -> void:
-	"""Clear accumulated tap flux (call after harvesting)"""
-	if quantum_computer:
-		quantum_computer.sink_flux_per_emoji.clear()
-
-# ============================================================================
-# MODEL B: Gate Operations (Tool 5 Backend)
-# ============================================================================
-
-func apply_gate_1q(position: Vector2i, gate_name: String) -> bool:
-	"""Apply 1-qubit unitary gate to a plot's register.
-
-	Model C: Validates plot is unmeasured, applies gate via apply_gate().
-
-	Args:
-		position: Plot position
-		gate_name: Gate name (e.g., "X", "H", "Z")
-
-	Returns:
-		true if successful, false if failed
-	"""
-	var reg = get_register_for_plot(position)
-	if not reg or not reg.is_planted:
-		push_error("Plot %s not planted!" % position)
-		return false
-
-	# Validate: no gates on measured plots
-	if reg.has_been_measured:
-		push_error("Cannot apply gates to measured plots!")
-		return false
-
-	# Get gate matrix from library
-	var gate_dict = QuantumGateLibrary.get_gate(gate_name)
-	if not gate_dict or not gate_dict.has("matrix"):
-		push_error("Gate not found: %s" % gate_name)
-		return false
-
-	var U = gate_dict["matrix"]
-
-	# Model C: Apply gate directly using qubit index
-	var success = quantum_computer.apply_gate(reg.register_id, U)
-
-	if success:
-		reg.record_gate_application(gate_name, time_tracker.turn_count)
-
-	return success
-
-func apply_gate_2q(position_a: Vector2i, position_b: Vector2i, gate_name: String) -> bool:
-	"""Apply 2-qubit unitary gate to two plots' registers.
-
-	Model C: Validates both plots are unmeasured, applies gate via apply_gate_2q().
-
-	Args:
-		position_a: Control plot position
-		position_b: Target plot position
-		gate_name: Gate name (e.g., "CNOT", "CZ", "SWAP")
-
-	Returns:
-		true if successful, false if failed
-	"""
-	var reg_a = get_register_for_plot(position_a)
-	var reg_b = get_register_for_plot(position_b)
-
-	if not reg_a or not reg_a.is_planted or not reg_b or not reg_b.is_planted:
-		push_error("One or both plots not planted!")
-		return false
-
-	# Validate: no gates on measured plots
-	if reg_a.has_been_measured or reg_b.has_been_measured:
-		push_error("Cannot apply gates to measured plots!")
-		return false
-
-	# Get gate matrix from library
-	var gate_dict = QuantumGateLibrary.get_gate(gate_name)
-	if not gate_dict or gate_dict["arity"] != 2:
-		push_error("Invalid 2-qubit gate: %s" % gate_name)
-		return false
-
-	var U = gate_dict["matrix"]
-
-	# Model C: Apply gate directly using qubit indices
-	var success = quantum_computer.apply_gate_2q(reg_a.register_id, reg_b.register_id, U)
-
-	if success:
-		reg_a.record_gate_application(gate_name + "(ctrl)", time_tracker.turn_count)
-		reg_b.record_gate_application(gate_name + "(tgt)", time_tracker.turn_count)
-
-	return success
-
-# ============================================================================
-# MODEL B: Entanglement Operations (Tool 1 Backend)
-# ============================================================================
-
-func entangle_plots(position_a: Vector2i, position_b: Vector2i) -> bool:
-	"""Entangle two plots using Bell circuit (Model B version)
-
-	Creates Bell Φ+ = (|00⟩ + |11⟩)/√2 between two registers.
-	Automatically merges their components into one.
-
-	Args:
-		position_a: First plot
-		position_b: Second plot
-
-	Returns:
-		true if successful, false if failed
-	"""
-	var reg_a = get_register_for_plot(position_a)
-	var reg_b = get_register_for_plot(position_b)
-
-	if not reg_a or not reg_b or not reg_a.is_planted or not reg_b.is_planted:
-		push_error("Both plots must be planted to entangle!")
-		return false
-
-	# Validate: no entangling measured plots
-	if reg_a.has_been_measured or reg_b.has_been_measured:
-		push_error("Cannot entangle measured plots!")
-		return false
-
-	# Call quantum_computer entanglement
-	var success = quantum_computer.entangle_plots(reg_a.register_id, reg_b.register_id)
-
-	if success:
-		# Record entanglement
-		reg_a.entangled_with.append(reg_b.register_id)
-		reg_b.entangled_with.append(reg_a.register_id)
-
-		# Emit signal for visualization/tracking
-		bell_gate_created.emit([position_a, position_b])
-
-		_verbose_log("info","quantum", "🔗", "Entangled plots %s ↔ %s" % [position_a, position_b])
-
-	return success
-
-
-func batch_measure_plots(position: Vector2i) -> Dictionary:
-	"""Measure entire entangled component when one plot is measured (Phase 3 - Spooky Action at Distance)
-
-	When you measure one qubit in an entangled component, all qubits in that component collapse.
-	This implements batch measurement across the entire entangled network.
-
-	Model C: Uses entanglement_graph to find connected qubits, measures each with measure_axis().
-
-	Args:
-		position: Position of plot to trigger measurement
-
-	Returns:
-		Dictionary mapping register_ids to measurement outcomes
-		Example: {reg_0: "north", reg_1: "south", reg_2: "north"}
-	"""
-	var reg = get_register_for_plot(position)
-	if not reg:
-		return {}
-
-	# Model C: Get entangled qubits from entanglement graph
-	var entangled_ids = quantum_computer.get_entangled_component(reg.register_id)
-	if entangled_ids.is_empty():
-		entangled_ids = [reg.register_id]
-
-	# Measure all qubits in the entangled component
-	var outcomes: Dictionary = {}
-	for reg_id in entangled_ids:
-		# Find the plot register with this ID to get emoji pair
-		for plot_pos in plot_registers.keys():
-			var plot_reg = plot_registers[plot_pos]
-			if plot_reg and plot_reg.register_id == reg_id:
-				var outcome_emoji = quantum_computer.measure_axis(plot_reg.north_emoji, plot_reg.south_emoji)
-				var outcome = "north" if outcome_emoji == plot_reg.north_emoji else "south"
-				outcomes[reg_id] = outcome
-				plot_reg.measurement_outcome = outcome
-				plot_reg.has_been_measured = true
-				qubit_measured.emit(plot_pos, outcome)
-				break
-
-	_verbose_log("debug","quantum", "🌀", "Batch measurement: %s" % outcomes)
-	return outcomes
-
-# ============================================================================
-# Quantum Computer Initialization (Model C)
-# ============================================================================
-
-func _initialize_bath() -> void:
-	"""Override in subclasses to set up the quantum computer.
-
-	NOTE: Method name is legacy - it initializes quantum_computer, not bath.
-
-	Example (from BioticFluxBiome):
-		quantum_computer = QuantumComputer.new("MyBiome")
-		quantum_computer.allocate_axis(0, "☀", "🌙")  # Qubit 0
-		quantum_computer.allocate_axis(1, "🌾", "🍄")  # Qubit 1
-		quantum_computer.initialize_basis(0)  # Start in |00...0⟩
-		# Then build operators from IconRegistry...
-	"""
-	pass
-
-
-func rebuild_quantum_operators() -> void:
-	"""Rebuild Hamiltonian operators (call after IconRegistry is ready)
-
-	This is needed when biomes initialize before IconRegistry is available.
-	Child classes can override to implement custom rebuild logic.
-	"""
-	if quantum_computer:
-		# Rebuild if quantum_computer exists
-		_rebuild_quantum_operators_impl()
-
-
-func _rebuild_quantum_operators_impl() -> void:
-	"""Attempt to rebuild quantum operators (override in child classes)"""
-	pass
-
-
-# ============================================================================
-# Compositional Bath Helpers
-# ============================================================================
-
-static func merge_emoji_sets(set_a: Array[String], set_b: Array[String]) -> Array[String]:
-	"""Merge two emoji sets (union with deduplication)
-
-	Example:
-		var bioticflux = ["☀", "🌾", "🌿"]
-		var forest = ["🌿", "🐺", "🐰"]
-		var merged = merge_emoji_sets(bioticflux, forest)
-		# Result: ["☀", "🌾", "🌿", "🐺", "🐰"]
-	"""
-	var merged_dict: Dictionary = {}
-
-	for emoji in set_a:
-		merged_dict[emoji] = true
-
-	for emoji in set_b:
-		merged_dict[emoji] = true
-
-	# Convert to typed array
-	var result: Array[String] = []
-	for emoji in merged_dict.keys():
-		result.append(emoji)
-
-	return result
-
-
-func initialize_bath_from_emojis(_emojis: Array[String], _initial_weights: Dictionary = {}) -> void:
-	"""DEPRECATED: Bath architecture removed. Use quantum_computer instead.
-
-	All biomes now use QuantumComputer with RegisterMap (Model C).
-	See _initialize_bath() overrides in biome subclasses.
-	"""
-	push_error("❌ initialize_bath_from_emojis() is DEPRECATED. Use quantum_computer architecture.")
-
-
-func hot_drop_emoji(_emoji: String, _initial_amplitude: Complex = null) -> bool:
-	"""DEPRECATED: Hot drop requires bath which was removed.
-	Use quantum_computer.allocate_qubit() for adding new qubits."""
-	push_warning("hot_drop_emoji is deprecated - use quantum_computer.allocate_qubit()")
-	return false
-
-
-# ============================================================================
-# EVOLUTION CONTROL METHODS (Tool 4: Biome Evolution Controller)
-# ============================================================================
-# These methods allow players to tune quantum dynamics WITHOUT directly
-# manipulating the density matrix. They modify evolution PARAMETERS:
-# - Hamiltonian couplings (coherent dynamics)
-# - Lindblad rates (decoherence/dissipation)
-# - Time-dependent drivers (AC fields)
-#
-# This is how real quantum control works in laboratories!
-# ============================================================================
-
-func boost_hamiltonian_coupling(_emoji_a: String, _emoji_b: String, _boost_factor: float) -> bool:
-	"""DEPRECATED: Evolution control API requires bath which was removed."""
-	push_warning("boost_hamiltonian_coupling is deprecated - Evolution control disabled")
-	return false
-
-
-func tune_lindblad_rate(_source: String, _target: String, _rate_factor: float) -> bool:
-	"""DEPRECATED: Evolution control API requires bath which was removed."""
-	push_warning("tune_lindblad_rate is deprecated - Evolution control disabled")
-	return false
-
-
-func add_time_driver(_emoji: String, _frequency: float, _amplitude: float, _phase: float = 0.0) -> bool:
-	"""DEPRECATED: Evolution control API requires bath which was removed."""
-	push_warning("add_time_driver is deprecated - Evolution control disabled")
-	return false
-
 
 func create_projection(position: Vector2i, north: String, south: String) -> Resource:
-	"""Create a projection using quantum_computer (replaces bath projection)
-
-	Creates a DualEmojiQubit that represents a measurement axis.
-	Uses quantum_computer for state management.
-	"""
-	# Create qubit without bath reference
 	var qubit = DualEmojiQubit.new(north, south, PI/2.0, null)
 	qubit.plot_position = position
-
-	# Store projection metadata
-	active_projections[position] = {
-		"qubit": qubit,
-		"north": north,
-		"south": south
-	}
-
+	active_projections[position] = {"qubit": qubit, "north": north, "south": south}
 	qubit_created.emit(position, qubit)
 	return qubit
 
-
 func update_projections(_dt: float = 0.016) -> void:
-	"""Update all projections - emit signals for UI refresh"""
 	for position in active_projections:
 		qubit_evolved.emit(position)
 
-
-func evaluate_energy_coupling(_emoji: String, _bath_observables: Dictionary = {}) -> float:
-	"""DEPRECATED: Energy coupling is now handled in Lindblad evolution
-
-	The old energy_couplings system on Icons has been replaced with
-	proper Lindblad transfer terms that directly affect the density matrix.
-
-	This method is kept for backwards compatibility but always returns 0.0.
-	"""
-	return 0.0
-
-
-func _query_bath_observables() -> Dictionary:
-	"""Query all quantum observable probabilities
-
-	Returns dictionary mapping emoji → probability
-	"""
-	var obs = {}
-	if quantum_computer and quantum_computer.has_method("get_population"):
-		for emoji in quantum_computer.register_map.keys():
-			obs[emoji] = quantum_computer.get_population(emoji)
-	return obs
-
-
-func _get_lindblad_growth_rate(_emoji: String) -> float:
-	"""DEPRECATED: Lindblad evolution is now handled in QuantumBath
-
-	Lindblad transfer rates are now properly applied via the
-	LindbladSuperoperator in the density matrix evolution.
-
-	This method is kept for backwards compatibility but always returns 0.0.
-	"""
-	return 0.0
-
-
 func measure_projection(position: Vector2i) -> String:
-	"""Measure a projection using quantum_computer
-
-	Args:
-		position: Grid position to measure
-
-	Returns:
-		Outcome emoji (north or south)
-	"""
 	if not active_projections.has(position):
 		return ""
-
 	var data = active_projections[position]
-	var north: String = data.north
-	var south: String = data.south
-
-	# Measure using quantum_computer
 	var outcome = ""
 	if quantum_computer:
-		outcome = quantum_computer.measure_axis(north, south)
+		outcome = quantum_computer.measure_axis(data.north, data.south)
 	else:
-		# Fallback: random choice
-		outcome = north if randf() < 0.5 else south
-
+		outcome = data.north if randf() < 0.5 else data.south
 	update_projections()
 	qubit_measured.emit(position, outcome)
 	return outcome
 
-
 func remove_projection(position: Vector2i) -> void:
-	"""Remove a projection (e.g., after harvest)
-
-	This doesn't affect the bath - just removes the observation window.
-	Model B: Quantum state remains in quantum_computer, only observation window removed.
-	"""
 	active_projections.erase(position)
 
-
 func get_projection_qubit(position: Vector2i) -> Resource:
-	"""Get the qubit for a projection (for backward compatibility)"""
 	if active_projections.has(position):
 		return active_projections[position].qubit
 	return null
 
 
 # ============================================================================
-# Quest System Observable Readers (Phase 4)
+# BATH INITIALIZATION (Virtual - Override in subclasses)
 # ============================================================================
-# Safe read-only methods that work in both bath-first and legacy modes
-# Used by quest system to track quantum state progress
 
-func get_observable_theta(north: String, south: String) -> float:
-	"""Get polar angle θ for projection [0, π]
+func _initialize_bath() -> void:
+	"""Override in subclasses to set up the quantum computer."""
+	pass
 
-	Physical meaning: θ=0 is pure north, θ=π is pure south, θ=π/2 is equal superposition
-	Safe read-only method that works in both bath and legacy modes.
+func rebuild_quantum_operators() -> void:
+	"""Rebuild Hamiltonian operators (call after IconRegistry is ready)"""
+	if quantum_computer:
+		_rebuild_quantum_operators_impl()
 
-	Args:
-		north: North pole emoji (e.g., "🌾")
-		south: South pole emoji (e.g., "👥")
-
-	Returns:
-		Polar angle in radians [0, π], or π/2 if projection doesn't exist
-	"""
-	if quantum_computer and quantum_computer.has_method("get_population"):
-		var p_north = quantum_computer.get_population(north)
-		var p_south = quantum_computer.get_population(south)
-		var mass = p_north + p_south
-		if mass > 0.001:
-			# theta = 2 * acos(sqrt(p_north / mass))
-			return 2.0 * acos(sqrt(p_north / mass))
-	return PI/2
-
-
-func get_observable_phi(_north: String, _south: String) -> float:
-	"""Get azimuthal phase φ for projection [0, 2π]
-
-	Physical meaning: relative quantum phase between north and south states
-	Note: Phase information not available from populations alone, return 0.
-
-	Args:
-		north: North pole emoji
-		south: South pole emoji
-
-	Returns:
-		Azimuthal angle in radians [0, 2π], or 0.0 if unavailable
-	"""
-	# Phase requires off-diagonal elements which aren't easily accessible
-	return 0.0
-
-
-func get_observable_coherence(north: String, south: String) -> float:
-	"""Get coherence (superposition strength) [0, 1]
-
-	Physical meaning: How much in superposition vs classical mixture
-	coherence = sin(θ), maximized at θ=π/2 (equal superposition)
-
-	Args:
-		north: North pole emoji
-		south: South pole emoji
-
-	Returns:
-		Coherence value [0, 1], where 1.0 is maximum superposition
-	"""
-	var theta = get_observable_theta(north, south)
-	return abs(sin(theta))
-
-
-func get_observable_radius(north: String, south: String) -> float:
-	"""Get amplitude radius in projection subspace [0, 1]
-
-	Physical meaning: How much "spirit" lives in this north/south axis
-	radius = √(|α_north|² + |α_south|²)
-	"""
-	if quantum_computer and quantum_computer.has_method("get_population"):
-		var p_north = quantum_computer.get_population(north)
-		var p_south = quantum_computer.get_population(south)
-		return sqrt(p_north + p_south)
-	return 0.0
-
-
-func get_observable_amplitude(emoji: String) -> float:
-	"""Get probability of specific emoji in quantum_computer [0, 1]
-
-	Returns sqrt of population as amplitude proxy.
-	"""
-	if quantum_computer and quantum_computer.has_method("get_population"):
-		return sqrt(quantum_computer.get_population(emoji))
-	return 0.0
-
-
-func get_observable_phase(_emoji: String) -> float:
-	"""Get phase of specific emoji [-π, π]
-
-	Phase information not directly available from quantum_computer populations.
-	Returns 0.0.
-	"""
-	return 0.0
+func _rebuild_quantum_operators_impl() -> void:
+	"""Override in child classes"""
+	pass
 
 
 # ============================================================================
-# Helper for Observable Readers
-# ============================================================================
-
-# REMOVED: _find_qubit_with_emojis() - Legacy Model A method
-# Model B: All qubit discovery goes through quantum_computer, not cached quantum_states dictionary
-
-
-# ============================================================================
-# Resource Registration System
-# ============================================================================
-
-func register_resource(emoji: String, is_producible: bool = true, is_consumable: bool = false) -> void:
-	"""Register an emoji as a resource this biome works with
-
-	Called during biome initialization to declare what resources
-	can be harvested from or spent in this biome.
-
-	Args:
-		emoji: The emoji string (e.g., "🌾", "🐺", "💧")
-		is_producible: Can this biome produce this resource via harvest?
-		is_consumable: Does this biome accept this resource as cost?
-	"""
-	if is_producible and emoji not in producible_emojis:
-		producible_emojis.append(emoji)
-
-	if is_consumable and emoji not in consumable_emojis:
-		consumable_emojis.append(emoji)
-
-	resource_registered.emit(emoji, is_producible, is_consumable)
-
-
-func register_emoji_pair(north: String, south: String) -> void:
-	"""Register a quantum emoji pairing (north pole ↔ south pole)
-
-	This defines what emojis can appear when measuring quantum states
-	in this biome. Both emojis are automatically registered as producible.
-
-	Args:
-		north: North pole emoji (e.g., "🌾")
-		south: South pole emoji (e.g., "👥")
-	"""
-	emoji_pairings[north] = south
-	emoji_pairings[south] = north
-
-	# Both ends of the pairing can be produced
-	register_resource(north, true, false)
-	register_resource(south, true, false)
-
-
-func register_planting_capability(north: String, south: String, plant_type: String,
-                                   cost: Dictionary, display_name: String = "",
-                                   exclusive: bool = false) -> void:
-	"""Register a plantable emoji pair with costs and metadata (Parametric System)
-
-	This makes the planting system parametric - biomes define what can be planted
-	instead of hard-coding plant types. Tools query these capabilities dynamically.
-
-	Args:
-		north: North pole emoji (e.g., "🌾")
-		south: South pole emoji (e.g., "👥")
-		plant_type: Type identifier (e.g., "wheat") for routing/identification
-		cost: Dictionary of emoji → credits required to plant (e.g., {"🌾": 1})
-		display_name: UI label (defaults to capitalized plant_type if empty)
-		exclusive: If true, only plantable in this biome (e.g., Forest wolves)
-	"""
-	var cap = PlantingCapability.new()
-	cap.emoji_pair = {"north": north, "south": south}
-	cap.plant_type = plant_type
-	cap.cost = cost
-	cap.display_name = display_name if display_name != "" else plant_type.capitalize()
-	cap.requires_biome = exclusive
-	planting_capabilities.append(cap)
-
-	# Register cost emojis as consumable
-	for emoji in cost.keys():
-		if emoji not in consumable_emojis:
-			register_resource(emoji, false, true)
-
-
-func get_plantable_capabilities() -> Array[PlantingCapability]:
-	"""Get all plantable capabilities for this biome
-
-	Tools query this to generate dynamic plant menus based on biome context.
-	Returns Array of PlantingCapability objects with emoji pairs, costs, names.
-	"""
-	return planting_capabilities
-
-
-func get_planting_cost(plant_type: String) -> Dictionary:
-	"""Get planting cost for a specific plant type
-
-	Args:
-		plant_type: Plant identifier (e.g., "wheat", "mushroom")
-
-	Returns:
-		Dictionary of emoji → credits cost, or {} if not plantable
-	"""
-	for cap in planting_capabilities:
-		if cap.plant_type == plant_type:
-			return cap.cost
-	return {}  # Not plantable in this biome
-
-
-func supports_plant_type(plant_type: String) -> bool:
-	"""Check if this biome supports planting a specific type
-
-	Args:
-		plant_type: Plant identifier (e.g., "wheat", "mushroom")
-
-	Returns:
-		true if plantable, false otherwise
-	"""
-	for cap in planting_capabilities:
-		if cap.plant_type == plant_type:
-			return true
-	return false
-
-
-func get_producible_emojis() -> Array[String]:
-	"""Get all emojis this biome can produce"""
-	return producible_emojis
-
-
-func get_consumable_emojis() -> Array[String]:
-	"""Get all emojis this biome accepts as cost"""
-	return consumable_emojis
-
-
-func get_emoji_pairings() -> Dictionary:
-	"""Get all north/south emoji pairings for this biome"""
-	return emoji_pairings.duplicate()
-
-
-func can_produce(emoji: String) -> bool:
-	"""Check if this biome can produce the given emoji"""
-	return emoji in producible_emojis
-
-
-func can_consume(emoji: String) -> bool:
-	"""Check if this biome accepts the given emoji as cost"""
-	return emoji in consumable_emojis
-
-
-func supports_emoji_pair(north: String, south: String) -> bool:
-	"""Check if this biome supports a north/south emoji pair for quantum states.
-
-	Checks both emoji_pairings (registered pairs) and bath.emoji_list (Model B).
-
-	Args:
-		north: North pole emoji
-		south: South pole emoji
-
-	Returns:
-		true if biome can handle this pairing, false otherwise
-	"""
-	# Check registered pairings
-	if emoji_pairings.has(north) and emoji_pairings[north] == south:
-		return true
-
-	# Check quantum_computer register_map
-	if quantum_computer and quantum_computer.has_method("has_emoji"):
-		if quantum_computer.has_emoji(north) and quantum_computer.has_emoji(south):
-			return true
-
-	return false
-
-
-## ========================================
-## Harvestable Resource Filtering
-## ========================================
-
-## Environmental icons that exist in bath but cannot be harvested from plots
-## These are observable influences (sun/moon cycles, weather) not farm products
-const ENVIRONMENTAL_ICONS = ["☀", "☀️", "🌙", "🌑", "💧", "🌊", "🔥", "⚡", "🌬️"]
-
-func get_harvestable_emojis() -> Array[String]:
-	"""Get only emojis that can be harvested from plots
-
-	Filters out environmental icons (sun, moon, water, fire) that affect
-	quantum evolution but cannot be obtained through farming.
-
-	Used by quest generation to ensure quests only request farmable resources.
-
-	Returns:
-		Array of emoji strings that can be obtained via planting/measuring/harvesting
-
-	Example:
-		var harvestable = biome.get_harvestable_emojis()
-		# BioticFlux returns: ["🌾", "🍄", "💀", "🍂"]
-		# Excludes: ["☀", "🌙"] (environmental)
-	"""
-	var harvestable: Array[String] = []
-
-	for emoji in producible_emojis:
-		if not emoji in ENVIRONMENTAL_ICONS:
-			harvestable.append(emoji)
-
-	return harvestable
-
-
-# ============================================================================
-# Bell Gates - Historical Entanglement Relationships
-# ============================================================================
-
-func mark_bell_gate(positions: Array) -> void:
-	"""
-	Mark plots as having been entangled (creates a Bell gate)
-
-	This records the historical relationship - even if plots are no longer
-	entangled now, they can be used as a measurement target later.
-
-	NOTE: Biome subclasses can override to apply energy boosts to entangled qubits.
-
-	Args:
-		positions: [Vector2i, Vector2i] for 2-qubit OR [Vector2i, Vector2i, Vector2i] for 3-qubit
-	"""
-	if positions.size() < 2:
-		push_error("Bell gate requires at least 2 positions")
-		return
-
-	# Check if this exact gate already exists
-	for existing_gate in bell_gates:
-		if _gates_equal(existing_gate, positions):
-			return  # Already recorded
-
-	bell_gates.append(positions.duplicate())
-	bell_gate_created.emit(positions)
-
-	_verbose_log("info","quantum", "🔔", "Bell gate created at biome %s: %s" % [get_biome_type(), _format_positions(positions)])
-
-
-func get_bell_gate(index: int) -> Array:
-	"""Get a specific Bell gate by index"""
-	if index >= 0 and index < bell_gates.size():
-		return bell_gates[index]
-	return []
-
-
-func get_all_bell_gates() -> Array:
-	"""Get all Bell gates in this biome"""
-	return bell_gates.duplicate()
-
-
-func get_bell_gates_of_size(size: int) -> Array:
-	"""Get all Bell gates with specific size (2 for pairs, 3 for triplets)"""
-	var filtered = []
-	for gate in bell_gates:
-		if gate.size() == size:
-			filtered.append(gate)
-	return filtered
-
-
-func get_triplet_bell_gates() -> Array:
-	"""Get all 3-qubit Bell gates (for kitchen use)"""
-	return get_bell_gates_of_size(3)
-
-
-func get_pair_bell_gates() -> Array:
-	"""Get all 2-qubit Bell gates"""
-	return get_bell_gates_of_size(2)
-
-
-func has_bell_gates() -> bool:
-	"""Check if any Bell gates exist"""
-	return bell_gates.size() > 0
-
-
-func bell_gate_count() -> int:
-	"""Get number of Bell gates"""
-	return bell_gates.size()
-
-
-# ============================================================================
-# Status & Debug
+# STATUS & DEBUG
 # ============================================================================
 
 func get_status() -> Dictionary:
-	"""Get current biome status (override to add custom fields)"""
-	# Get quantum system size from quantum_computer
 	var quantum_size = 0
 	if quantum_computer and quantum_computer.register_map:
 		quantum_size = quantum_computer.register_map.num_qubits
-
 	return BiomeUtilities.create_status_dict({
 		"type": get_biome_type(),
 		"qubits": quantum_size,
@@ -1654,833 +640,177 @@ func get_status() -> Dictionary:
 		"cycles": time_tracker.cycle_count
 	})
 
-
 func get_biome_type() -> String:
-	"""Override in subclasses to return biome type name"""
 	return "Base"
 
-
 func get_visual_config() -> Dictionary:
-	"""Get visual configuration for QuantumForceGraph rendering
-
-	Override to customize appearance (or set visual_* properties in _ready())
-
-	Returns: {color, label, center_offset, circle_radius, oval_width, oval_height, enabled}
-	"""
 	return {
 		"color": visual_color,
 		"label": visual_label if visual_label != "" else get_biome_type(),
 		"center_offset": visual_center_offset,
-		"circle_radius": visual_circle_radius,  # LEGACY - kept for compatibility
+		"circle_radius": visual_circle_radius,
 		"oval_width": visual_oval_width,
 		"oval_height": visual_oval_height,
 		"enabled": visual_enabled
 	}
 
-
 func render_biome_content(graph: Node2D, center: Vector2, radius: float) -> void:
-	"""Render custom biome-specific content inside biome region circle
-
-	Override in subclasses to draw custom visualizations.
-	Called during QuantumForceGraph._draw() for each biome.
-
-	Args:
-		graph: QuantumForceGraph instance (access to draw_* methods)
-		center: Screen position of biome circle center
-		radius: Radius of the biome circle
-
-	Default: does nothing (generic biomes have no custom rendering)
-	"""
-	pass  # Subclasses override to add custom drawing
-
+	pass
 
 func get_plot_positions_in_oval(plot_count: int, center: Vector2, viewport_scale: float = 1.0) -> Array[Vector2]:
-	"""Calculate parametric ring pattern positions for plots within this biome's oval
-
-	Returns Array[Vector2] of screen positions arranged in concentric oval rings.
-	Uses golden ratio proportions (visual_oval_width : visual_oval_height)
-
-	Args:
-		plot_count: Number of plots to position
-		center: Center point of the biome oval
-		viewport_scale: Scale factor based on graph_radius (default 1.0 for no scaling)
-
-	Returns: Array of screen positions for each plot
-	"""
 	var positions: Array[Vector2] = []
-
 	if plot_count == 0:
 		return positions
 
-	# Apply viewport scaling to oval dimensions for consistency with rendering
-	# CRITICAL: Divide by 2 to get semi-axes (visual_oval_width/height are DIAMETERS)
 	var semi_a = (visual_oval_width * viewport_scale) / 2.0
 	var semi_b = (visual_oval_height * viewport_scale) / 2.0
-
-	# Calculate number of rings needed (inner to outer)
-	# Rule: innermost ring has 1-3 plots, each ring adds ~6 plots
 	var rings = max(1, ceil(sqrt(float(plot_count) / 3.0)))
 	var plots_per_ring = []
 	var remaining = plot_count
 
-	# Distribute plots across rings (outer rings have more plots)
 	for ring_idx in range(rings):
 		var plots_in_ring = int(ceil(float(remaining) / float(rings - ring_idx)))
 		plots_per_ring.append(plots_in_ring)
 		remaining -= plots_in_ring
 
-	# Generate positions for each ring
 	var ring_idx = 0
 	for num_plots in plots_per_ring:
-		# Ring scale factor (0.3 for innermost, 0.9 for outermost)
 		var scale = 0.3 + (0.6 * float(ring_idx) / float(max(1, rings - 1)))
-
-		# Parametric oval equation: x = a*cos(t), y = b*sin(t)
-		# Uses semi-axes (NOT full width/height)
 		for plot_in_ring in range(num_plots):
 			var t = (float(plot_in_ring) / float(num_plots)) * TAU
 			var x = center.x + semi_a * cos(t) * scale
 			var y = center.y + semi_b * sin(t) * scale
 			positions.append(Vector2(x, y))
-
 		ring_idx += 1
 
-	# Sort positions left-to-right so keyboard order matches visual order
-	# Without this, oval parametric positioning starts at angle 0 (right side)
-	# and goes counter-clockwise, scrambling the order
 	positions.sort_custom(func(a, b): return a.x < b.x)
-
 	return positions
 
 
 # ============================================================================
-# Dynamics Tracking
+# DYNAMICS TRACKING
 # ============================================================================
 
 func _track_dynamics() -> void:
-	"""Record current quantum observables for dynamics tracking"""
 	if not quantum_computer or not dynamics_tracker:
 		return
-
-	# Calculate current observables
 	var purity = quantum_computer.get_purity() if quantum_computer.has_method("get_purity") else 0.5
 	var entropy = _calculate_quantum_entropy()
 	var coherence = _calculate_quantum_coherence()
-
-	# Record snapshot
-	dynamics_tracker.add_snapshot({
-		"purity": purity,
-		"entropy": entropy,
-		"coherence": coherence
-	})
-
+	dynamics_tracker.add_snapshot({"purity": purity, "entropy": entropy, "coherence": coherence})
 
 func _calculate_quantum_entropy() -> float:
-	"""Calculate normalized entropy of quantum state"""
 	if not quantum_computer or not quantum_computer.density_matrix:
 		return 0.5
-
 	var purity = quantum_computer.get_purity() if quantum_computer.has_method("get_purity") else 0.5
 	var dim = quantum_computer.density_matrix.dimension() if quantum_computer.density_matrix.has_method("dimension") else 1
-
 	if purity <= 0 or dim <= 1:
 		return 0.0
-
 	var max_entropy = log(dim)
 	if max_entropy <= 0:
 		return 0.0
-
 	return clamp(-log(purity) / max_entropy, 0.0, 1.0)
 
-
 func _calculate_quantum_coherence() -> float:
-	"""Calculate total off-diagonal magnitude squared"""
 	if not quantum_computer or not quantum_computer.density_matrix:
 		return 0.0
-
 	var dm = quantum_computer.density_matrix
 	var dim = dm.dimension() if dm.has_method("dimension") else 0
 	if dim < 2:
 		return 0.0
-
 	var mat = dm.get_matrix() if dm.has_method("get_matrix") else null
 	if not mat:
 		return 0.0
-
 	var total = 0.0
-
 	for i in range(dim):
 		for j in range(dim):
 			if i != j:
 				var element = mat.get_element(i, j)
 				if element:
 					total += element.re * element.re + element.im * element.im
-
-	# Normalize by maximum possible coherence
 	var max_coherence = float(dim * (dim - 1))
 	return clamp(total / max_coherence, 0.0, 1.0) if max_coherence > 0 else 0.0
 
 
 # ============================================================================
-# Strange Attractor Analysis
+# STRANGE ATTRACTOR ANALYSIS
 # ============================================================================
 
 func _initialize_attractor_tracking() -> void:
-	"""Initialize strange attractor analysis for this biome
-
-	Called by _ready() after bath/quantum_computer is initialized.
-	Child classes can override _select_key_emojis_for_attractor() to customize.
-	"""
 	attractor_analyzer = StrangeAttractorAnalyzer.new()
-
-	# Choose 3 key emojis for this biome's phase space
 	var key_emojis = _select_key_emojis_for_attractor()
-
 	if key_emojis.size() >= 3:
 		attractor_analyzer.initialize(key_emojis)
 		_verbose_log("info", "attractor", "📊", "%s: Attractor tracking %s" % [get_biome_type(), str(key_emojis)])
 	else:
 		push_warning("BiomeBase: Insufficient emojis for attractor tracking (%d < 3)" % key_emojis.size())
 
-
 func _select_key_emojis_for_attractor() -> Array[String]:
-	"""Choose 3 most important emojis for this biome's phase space
-
-	Override in child classes for biome-specific selection.
-	Default: pick first 3 from quantum_computer's emoji list.
-
-	Returns:
-		Array of 3 emoji strings (or fewer if not enough available)
-	"""
 	var emojis: Array[String] = []
-
-	# Get from quantum_computer
 	if quantum_computer and quantum_computer.register_map:
 		var emoji_list = quantum_computer.register_map.coordinates.keys()
 		for i in range(min(3, emoji_list.size())):
 			emojis.append(emoji_list[i])
-
 	return emojis
 
-
 func _record_attractor_snapshot() -> void:
-	"""Record current quantum state as point in phase space trajectory
-
-	Called by child class evolution methods after quantum_computer.evolve()
-	"""
 	if not attractor_analyzer:
 		return
-
-	# Get observable populations from quantum computer
 	var observables: Dictionary = {}
-
 	if quantum_computer and quantum_computer.density_matrix:
 		observables = quantum_computer.get_all_populations()
-
-	# Record snapshot
 	if not observables.is_empty():
 		attractor_analyzer.record_snapshot(observables)
 
 
 # ============================================================================
-# Reset & Lifecycle
+# RESET & LIFECYCLE
 # ============================================================================
 
 func reset() -> void:
-	"""Reset biome to initial state"""
-	# Model B: quantum_computer manages the state, clear it if needed
 	if quantum_computer:
 		quantum_computer.clear()
 	active_projections.clear()
-	bell_gates.clear()
+	if _bell_gate_tracker:
+		_bell_gate_tracker.clear()
+	if _register_manager:
+		_register_manager.clear()
 	time_tracker.reset()
-
-	# Clear dynamics tracking history
 	if dynamics_tracker:
 		dynamics_tracker.clear_history()
-
 	_reset_custom()
 
-
 func _reset_custom() -> void:
-	"""Override in subclasses for biome-specific reset logic"""
 	pass
 
 
 # ============================================================================
-# Gozinta Operations (Input Channels - Manifest Section 3)
-# ============================================================================
-
-func pump_emoji(_rest_emoji: String, _target_emoji: String, _pump_rate: float, _duration: float) -> float:
-	"""DEPRECATED: Reservoir pumping requires bath which was removed.
-	Returns 0.0. Use quantum_computer operations instead."""
-	push_warning("pump_emoji is deprecated - bath was removed")
-	return 0.0
-
-
-func apply_reset(_alpha: float, _ref_state: String = "pure") -> void:
-	"""DEPRECATED: Reset channel requires bath which was removed.
-	No-op function. Use quantum_computer operations instead."""
-	push_warning("apply_reset is deprecated - bath was removed")
-
-
-# ============================================================================
-# Vector Harvest Operations (Manifest Section 4.4)
+# VECTOR HARVEST OPERATIONS
 # ============================================================================
 
 func harvest_all_plots() -> Array:
-	"""Harvest all plots in this biome in vector fashion
-
-	Manifest Section 4.4: Bulk harvest operation for entire biome.
-	This is more efficient than harvesting plots individually.
-
-	Returns: Array of harvest result dictionaries
-		Each element is {success, outcome, yield, ...} from FarmPlot.harvest()
-	"""
 	if not grid:
 		push_warning("BiomeBase.harvest_all_plots(): No grid reference")
 		return []
 
 	var results: Array = []
-
-	# Get all plots in the grid that belong to this biome
 	for position in active_projections.keys():
 		var plot = grid.get_plot(position)
 		if plot and plot.is_planted:
-			# Harvest this plot
 			var result = plot.harvest()
 			results.append(result)
-			_verbose_log("debug","farm", "📍", "Harvested plot at %s: yield=%d" % [position, result.get("yield", 0)])
+			_verbose_log("debug", "farm", "📍", "Harvested plot at %s: yield=%d" % [position, result.get("yield", 0)])
 
-	# Aggregate results
 	var total_yield = 0
 	var successful_harvests = 0
-
 	for result in results:
 		if result.get("success", false):
 			successful_harvests += 1
 			total_yield += result.get("yield", 0)
 
-	_verbose_log("info","farm", "✂️", "BiomeBase.harvest_all_plots(): %d harvested, %d credits total" % [
-		successful_harvests, total_yield
-	])
-
+	_verbose_log("info", "farm", "✂️", "BiomeBase.harvest_all_plots(): %d harvested, %d credits total" % [successful_harvests, total_yield])
 	return results
 
 
-# ============================================================================
-# PHASE 4: Energy Tap Processing (Lindblad Drain Channels)
-# ============================================================================
-
-func process_energy_taps(delta: float = 0.016) -> Dictionary:
-	"""
-	Process energy taps: collect accumulated flux from sink state.
-
-	This is called each frame to harvest energy from active Lindblad drain operators.
-	The energy accumulated in the sink state is converted to classical resources.
-
-	Manifest Section 4.1: Implements gozouta ("energy exit") for the quantum system.
-
-	Args:
-		delta: Time step for this frame (used for rate calculations)
-
-	Returns:
-		Dictionary: {emoji: accumulated_flux_this_frame}
-			Used to update energy tap plots' accumulated resources.
-	"""
-	if not quantum_computer:
-		return {}
-
-	# Query accumulated flux from QuantumComputer
-	# (which aggregates from QuantumBath's Lindblad evolution)
-	var fluxes = quantum_computer.get_all_sink_fluxes()
-
-	# Reset flux counter for next frame
-	quantum_computer.reset_sink_flux()
-
-	return fluxes
-
-
-func setup_energy_tap(_target_emoji: String, _drain_rate: float = 0.1) -> bool:
-	"""DEPRECATED: Energy tap system disabled (requires bath which was removed).
-	Returns false. Use alternative resource collection methods."""
-	push_warning("setup_energy_tap is deprecated - energy tap system disabled")
-	return false
-
-
-# ============================================================================
-# Helper Functions - Bell Gate Utilities
-# ============================================================================
-
-func _gates_equal(gate1: Array, gate2: Array) -> bool:
-	"""Check if two gates are equal (same positions, any order)"""
-	if gate1.size() != gate2.size():
-		return false
-
-	var g1_sorted = gate1.duplicate()
-	var g2_sorted = gate2.duplicate()
-	g1_sorted.sort()
-	g2_sorted.sort()
-
-	for i in range(g1_sorted.size()):
-		if g1_sorted[i] != g2_sorted[i]:
-			return false
-
-	return true
-
-
-## Build quantum operators with caching
-## Call this after quantum_computer and register_map are initialized
-func build_operators_cached(biome_name: String, icons: Dictionary) -> void:
-	"""
-	Build Hamiltonian and Lindblad operators with caching.
-
-	Args:
-		biome_name: Name of the biome (e.g. "BioticFluxBiome")
-		icons: Dictionary of emoji → Icon used by this biome
-
-	First boot: Builds operators and caches them (~8s per biome)
-	Subsequent boots: Loads from cache (~0.01s per biome)
-	"""
-	# Generate cache key from Icon configs
-	var cache_key = CacheKey.for_biome(biome_name, _icon_registry)
-
-	# Safe VerboseConfig access (autoload may not be available during compilation)
-	var verbose = get_node_or_null("/root/VerboseConfig")
-	if verbose:
-		verbose.info("cache", "🔑", "%s cache key: %s" % [biome_name, cache_key])
-
-	# Try to load from cache (user cache first, then bundled cache)
-	var cache = OperatorCache.get_instance()
-	var bundled_hit_before = cache.bundled_hit_count
-	var cached_ops = cache.try_load(biome_name, cache_key)
-
-	if not cached_ops.is_empty():
-		# Cache HIT - use cached operators
-		quantum_computer.hamiltonian = cached_ops.hamiltonian
-		quantum_computer.lindblad_operators = cached_ops.lindblad_operators
-
-		# Set up time-dependent drivers (not cached - must always be extracted from icons)
-		var HamBuilder = load("res://Core/QuantumSubstrate/HamiltonianBuilder.gd")
-		var driven_configs = HamBuilder.get_driven_icons(icons, quantum_computer.register_map)
-		quantum_computer.set_driven_icons(driven_configs)
-
-		# CRITICAL: Set up native evolution engine for batched performance
-		# (This is normally done by set_lindblad_operators, which is bypassed when loading from cache)
-		quantum_computer.setup_native_evolution()
-
-		if verbose:
-			var h_dim = quantum_computer.hamiltonian.n if quantum_computer.hamiltonian else 0
-			var l_count = quantum_computer.lindblad_operators.size()
-			# Check if this was a bundled cache hit
-			var from_bundled = cache.bundled_hit_count > bundled_hit_before
-			var cache_source = "[BUNDLED]" if from_bundled else "[USER CACHE]"
-			verbose.info("cache", "✅", "Cache HIT: Loaded H (%dx%d) + %d Lindblad operators %s" % [h_dim, h_dim, l_count, cache_source])
-	else:
-		# Cache MISS - build operators
-		if verbose:
-			verbose.info("cache", "🔨", "Cache MISS: Building operators from scratch...")
-		var start_time = Time.get_ticks_msec()
-
-		# Build using HamiltonianBuilder and LindbladBuilder
-		var HamBuilder = load("res://Core/QuantumSubstrate/HamiltonianBuilder.gd")
-		var LindBuilder = load("res://Core/QuantumSubstrate/LindbladBuilder.gd")
-
-		# Pass verbose logger to builders for detailed logging
-		quantum_computer.hamiltonian = HamBuilder.build(icons, quantum_computer.register_map, verbose)
-
-		var lindblad_result = LindBuilder.build(icons, quantum_computer.register_map, verbose)
-		quantum_computer.lindblad_operators = lindblad_result.get("operators", [])
-		quantum_computer.gated_lindblad_configs = lindblad_result.get("gated_configs", [])
-
-		# Set up time-dependent drivers for oscillating self-energies
-		var driven_configs = HamBuilder.get_driven_icons(icons, quantum_computer.register_map)
-		quantum_computer.set_driven_icons(driven_configs)
-
-		var elapsed = Time.get_ticks_msec() - start_time
-		if verbose:
-			verbose.info("cache", "💾", "Built in %d ms - saving to cache for next boot" % elapsed)
-
-		# Save to cache for next time
-		cache.save(biome_name, cache_key, quantum_computer.hamiltonian, quantum_computer.lindblad_operators)
-
-		# CRITICAL: Set up native evolution engine (same as cache HIT path)
-		quantum_computer.setup_native_evolution()
-
-
-func _format_positions(positions: Array) -> String:
-	"""Format position array as readable string"""
-	var parts = []
-	for pos in positions:
-		parts.append(str(pos))
-	return "[" + ", ".join(parts) + "]"
-
-
-# ============================================================================
-# V2 ARCHITECTURE: REGISTER BINDING TRACKING (Tool Architecture v2.1)
-# ============================================================================
-# Tracks which registers are bound to Terminals via PlotPool.
-# Used by EXPLORE action for probability-weighted register discovery.
-#
-# DEPRECATED: _bound_registers is redundant with Terminal state.
-# V2.2 Architecture: Query PlotPool.get_terminals_in_biome() instead.
-# Terminal is the single source of truth for binding state.
-
-## V2 Architecture: Terminal is the single source of truth for binding state.
-## No longer maintain separate _bound_registers dictionary.
-
-
-func get_unbound_registers(plot_pool = null) -> Array[int]:
-	"""Get all register IDs not currently bound to a terminal.
-
-	Used by EXPLORE action for probability-weighted discovery.
-	Returns registers available for new terminal binding.
-
-	NOTE: In v2 architecture, a "register" is a qubit axis (0, 1, 2, ...).
-	Each register has a north/south emoji pair from RegisterMap.
-
-	Args:
-		plot_pool: PlotPool instance (needed to query Terminal binding state)
-	"""
-	if not quantum_computer or not quantum_computer.register_map:
-		return []
-
-	# Register IDs are qubit indices: 0 to num_qubits-1
-	var num_qubits = quantum_computer.register_map.num_qubits
-	var unbound: Array[int] = []
-
-	for reg_id in range(num_qubits):
-		# Query PlotPool to check if register is bound to ANY terminal
-		if not plot_pool or not plot_pool.is_register_bound(reg_id, self):
-			unbound.append(reg_id)
-
-	return unbound
-
-
-func get_register_probability(register_id: int) -> float:
-	"""Get probability of |0⟩ (north) state for a qubit (register).
-
-	Used by EXPLORE for weighted random selection.
-	Returns P(|0⟩) for the specified qubit by tracing out other qubits.
-	"""
-	if not quantum_computer:
-		return 0.5  # Default: equal probability
-
-	# Access density_matrix property directly
-	var rho = quantum_computer.density_matrix
-	if not rho:
-		return 0.5
-
-	var num_qubits = quantum_computer.register_map.num_qubits
-	if register_id < 0 or register_id >= num_qubits:
-		return 0.5
-
-	# Sum probabilities of all basis states where this qubit is |0⟩
-	var dim = rho.n  # ComplexMatrix.n is the dimension
-	var prob_north: float = 0.0
-
-	for basis_idx in range(dim):
-		# Check if qubit `register_id` is |0⟩ in this basis state
-		# Bit position: leftmost qubit is highest bit
-		var shift = num_qubits - 1 - register_id
-		var bit = (basis_idx >> shift) & 1
-
-		if bit == 0:  # North state (|0⟩)
-			var diag = rho.get_element(basis_idx, basis_idx)
-			if diag:
-				prob_north += diag.re
-
-	# Clamp to valid probability range (numerical precision can cause small negatives)
-	return clamp(prob_north, 0.0, 1.0)
-
-
-func get_register_probabilities(plot_pool = null) -> Dictionary:
-	"""Get probability distribution over all unbound registers.
-
-	Returns: {register_id: probability} for unbound registers only.
-	Used by EXPLORE for weighted selection.
-
-	Args:
-		plot_pool: PlotPool instance (needed to query Terminal binding state)
-	"""
-	var probs: Dictionary = {}
-	var unbound = get_unbound_registers(plot_pool)
-
-	for reg_id in unbound:
-		probs[reg_id] = get_register_probability(reg_id)
-
-	return probs
-
-
-## REMOVED: is_register_bound() - was redundant with PlotPool.is_register_bound()
-## REMOVED: mark_register_bound() - Terminal is now the single source of truth
-## REMOVED: mark_register_unbound() - Terminal unbind is the only state mutation
-## REMOVED: get_bound_register_count() - Query PlotPool instead
-
-
-func get_total_register_count() -> int:
-	"""Get total number of registers (qubits) in this biome."""
-	if not quantum_computer or not quantum_computer.register_map:
-		return 0
-	return quantum_computer.register_map.num_qubits
-
-
-## V2.2 Architecture: Query PlotPool for available registers (single source of truth)
-func get_available_registers_v2(plot_pool) -> Array[int]:
-	"""Get registers not currently bound to any terminal (V2 Architecture).
-
-	V2.2: Queries PlotPool directly instead of relying on _bound_registers.
-	This ensures Terminal is the single source of truth.
-
-	Args:
-		plot_pool: PlotPool instance to query
-
-	Returns:
-		Array of register IDs available for binding
-	"""
-	if not quantum_computer or not quantum_computer.register_map:
-		return []
-
-	var num_qubits = quantum_computer.register_map.num_qubits
-	var available: Array[int] = []
-
-	for reg_id in range(num_qubits):
-		if not plot_pool.is_register_bound_v2(self, reg_id):
-			available.append(reg_id)
-
-	return available
-
-
-# ============================================================================
-# QUANTUM DATA ACCESS (for QuantumNode visualization)
-# ============================================================================
-
-func get_emoji_probability(emoji: String) -> float:
-	"""Get probability of seeing this emoji when measured.
-
-	Maps emoji to its register and pole, then computes marginal probability.
-	Used by QuantumNode for opacity visualization.
-	"""
-	if not quantum_computer or not quantum_computer.register_map:
-		return 0.5
-
-	if not quantum_computer.register_map.has(emoji):
-		return 0.0
-
-	var qubit = quantum_computer.register_map.qubit(emoji)
-	var pole = quantum_computer.register_map.pole(emoji)
-
-	# Get probability of |0⟩ (north) for this qubit
-	var p_north = get_register_probability(qubit)
-
-	# Return probability based on pole (0 = north, 1 = south)
-	return p_north if pole == 0 else (1.0 - p_north)
-
-
-func get_emoji_coherence(north_emoji: String, south_emoji: String):
-	"""Get coherence (off-diagonal element) between north and south states.
-
-	Returns Complex or null if not computable.
-	Used by QuantumNode for color phase visualization.
-	"""
-	if not quantum_computer or not quantum_computer.register_map or not quantum_computer.density_matrix:
-		return null
-
-	# Both emojis should be on same qubit
-	if not quantum_computer.register_map.has(north_emoji):
-		return null
-	if not quantum_computer.register_map.has(south_emoji):
-		return null
-
-	var north_q = quantum_computer.register_map.qubit(north_emoji)
-	var south_q = quantum_computer.register_map.qubit(south_emoji)
-
-	if north_q != south_q:
-		return null  # Not on same qubit
-
-	# DIRECT COMPUTATION: Compute reduced 2×2 density matrix for this qubit
-	# ρ_marginal[i,j] = Σ_{other qubits} ρ[i⊗*..*, j⊗*..*]
-	var num_qubits = quantum_computer.register_map.num_qubits
-	if num_qubits == 0:
-		return null
-
-	var dim_full = quantum_computer.density_matrix.n
-	var north_pole = quantum_computer.register_map.pole(north_emoji)  # 0 for north
-	var south_pole = quantum_computer.register_map.pole(south_emoji)  # 1 for south
-
-	# Ensure poles are different
-	if north_pole == south_pole:
-		return null
-
-	# Build reduced density matrix: ρ_marginal[a,b] where a,b in {0,1}
-	var rho_marginal = ComplexMatrix.new(2)
-
-	for a in range(2):  # a = 0 (north) or 1 (south)
-		for b in range(2):  # b = 0 (north) or 1 (south)
-			var element = Complex.zero()
-
-			# Trace over all other qubits
-			# ρ[i,j] where i has north_q=a, j has north_q=b
-			for basis_i in range(dim_full):
-				for basis_j in range(dim_full):
-					# Check if north_q bit matches a in basis_i, b in basis_j
-					var shift = num_qubits - 1 - north_q
-					var bit_i = (basis_i >> shift) & 1
-					var bit_j = (basis_j >> shift) & 1
-
-					if bit_i == a and bit_j == b:
-						# Check if other qubits are the same
-						var mask = (1 << num_qubits) - 1 - (1 << shift)
-						if (basis_i & mask) == (basis_j & mask):
-							element = element.add(quantum_computer.density_matrix.get_element(basis_i, basis_j))
-
-			rho_marginal.set_element(a, b, element)
-
-	# Return the off-diagonal element ρ[0,1] (coherence from north to south)
-	var coherence = rho_marginal.get_element(0, 1)
-	return coherence if coherence and coherence.abs() > 1e-15 else null
-
-
-func get_purity() -> float:
-	"""Get purity Tr(ρ²) of the quantum state.
-
-	Pure state = 1.0 (bright glow), maximally mixed = 1/N (dim).
-	Used by QuantumNode for glow intensity.
-	"""
-	if quantum_computer:
-		return quantum_computer.get_purity()
-	return 0.5  # Default: partially mixed
-
-
-func get_register_emoji_pair(register_id: int) -> Dictionary:
-	"""Get the north/south emoji pair for a register (qubit).
-
-	Returns: {"north": "🌾", "south": "🍄"} or empty dict if not found.
-	"""
-	if not quantum_computer or not quantum_computer.register_map:
-		return {}
-
-	# Use RegisterMap.axis() to get the emoji pair for this qubit
-	var axis = quantum_computer.register_map.axis(register_id)
-	if axis.is_empty():
-		return {}
-
-	return {
-		"north": axis.get("north", "?"),
-		"south": axis.get("south", "?")
-	}
-
-
-# ============================================================================
-# V2 ARCHITECTURE: DENSITY MATRIX COLLAPSE (for MEASURE action)
-# ============================================================================
-
-func collapse_register(register_id: int, is_north: bool) -> void:
-	"""Collapse density matrix for a measured register.
-
-	Applies projection operator P = |outcome><outcome| to density matrix.
-	This zeros off-diagonal elements involving this register.
-
-	Args:
-		register_id: The register that was measured
-		is_north: True if collapsed to north state, False for south
-	"""
-	if not quantum_computer:
-		return
-
-	# Get the density matrix
-	var rho = quantum_computer.get_density_matrix()
-	if not rho:
-		return
-
-	# Project to measured state
-	# For single-qubit register: zero off-diagonal and normalize diagonal
-	var outcome_index = 0 if is_north else 1
-
-	# This is a simplified collapse - full implementation would use
-	# proper projection operators on the multi-qubit density matrix
-	if quantum_computer.has_method("project_register"):
-		quantum_computer.project_register(register_id, outcome_index)
-	else:
-		# Fallback: just mark that collapse happened (logging)
-		print("BiomeBase: collapse_register(%d, %s) - no quantum handler" % [
-			register_id, "north" if is_north else "south"
-		])
-
-
-func drain_register_probability(register_id: int, is_north: bool, drain_factor: float) -> void:
-	"""Drain probability from measured outcome (Ensemble model).
-
-	Reduces probability in ρ for the measured state without full collapse.
-	Used by MEASURE action to simulate extracting from the ensemble.
-
-	Args:
-		register_id: Which qubit was measured
-		is_north: True if outcome was north (|0⟩)
-		drain_factor: Fraction to drain (e.g., 0.5 = reduce by half)
-	"""
-	if not quantum_computer:
-		return
-
-	var rho = quantum_computer.get_density_matrix()
-	if not rho:
-		return
-
-	var num_qubits = quantum_computer.register_map.num_qubits
-	if register_id < 0 or register_id >= num_qubits:
-		return
-
-	var dim = rho.n
-	var outcome_pole = 0 if is_north else 1
-	var shift = num_qubits - 1 - register_id
-
-	# Drain diagonal elements where this qubit is in the measured state
-	for basis_idx in range(dim):
-		var bit = (basis_idx >> shift) & 1
-		if bit == outcome_pole:
-			var diag = rho.get_element(basis_idx, basis_idx)
-			if diag:
-				# Reduce by drain_factor (e.g., 0.5 means halve it)
-				var new_re = diag.re * (1.0 - drain_factor)
-				rho.set_element(basis_idx, basis_idx, Complex.new(new_re, diag.im))
-
-	# Renormalize to maintain trace = 1
-	var trace: float = 0.0
-	for i in range(dim):
-		var elem = rho.get_element(i, i)
-		if elem:
-			trace += elem.re
-
-	if trace > 0.0:
-		for i in range(dim):
-			var elem = rho.get_element(i, i)
-			if elem:
-				rho.set_element(i, i, Complex.new(elem.re / trace, elem.im))
-
-
-func get_coherence_with_other_registers(register_id: int) -> float:
-	"""Get total coherence (entanglement indicator) between this register and others.
-
-	Returns sum of |ρ_ij| for off-diagonal elements involving this register.
-	High value indicates entanglement that will break on measurement.
-	"""
-	if not quantum_computer:
-		return 0.0
-
-	var rho = quantum_computer.get_density_matrix()
-	if not rho:
-		return 0.0
-
-	var dim = rho.n  # ComplexMatrix uses .n for dimension
-	if register_id < 0 or register_id >= dim:
-		return 0.0
-
-	# Sum off-diagonal magnitudes for this row/column
-	var coherence: float = 0.0
-	for i in range(dim):
-		if i != register_id:
-			var elem = rho.get_element(register_id, i)
-			if elem:
-				coherence += sqrt(elem.re * elem.re + elem.im * elem.im)
-
-	return coherence
+# NOTE: Energy tap system removed (2026-01) - was half-disabled and confusing
+# Use plot-based quantum measurement + economy credits instead
