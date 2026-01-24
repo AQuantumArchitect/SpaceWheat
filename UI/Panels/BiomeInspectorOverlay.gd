@@ -78,6 +78,11 @@ func _ready() -> void:
 	_build_ui()
 	_hide_all()
 
+	# Connect to biome changes so we update when user switches with ,/.
+	var active_biome_manager = get_node_or_null("/root/ActiveBiomeManager")
+	if active_biome_manager:
+		active_biome_manager.active_biome_changed.connect(_on_active_biome_changed)
+
 
 func _build_ui() -> void:
 	"""Build UI structure once. Panels are added/removed dynamically."""
@@ -122,6 +127,10 @@ func _hide_all() -> void:
 	visible = false
 	if render_layer:
 		render_layer.visible = false
+		# CRITICAL FIX: Reset dimmer mouse_filter when hiding
+		# If dimmer has MOUSE_FILTER_STOP, it will block input even when invisible
+		if dimmer:
+			dimmer.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	if center_container:
 		center_container.visible = false
 	if scroll_container:
@@ -165,6 +174,9 @@ func show_biome(biome: Node, farm_node: Node) -> void:
 	render_layer.visible = true
 	center_container.visible = true
 	scroll_container.visible = false
+	# CRITICAL FIX: Reset dimmer mouse_filter when showing
+	if dimmer:
+		dimmer.mouse_filter = Control.MOUSE_FILTER_STOP
 
 
 ## Show all biomes
@@ -204,6 +216,9 @@ func show_all_biomes(farm_node: Node) -> void:
 	render_layer.visible = true
 	center_container.visible = false
 	scroll_container.visible = true
+	# CRITICAL FIX: Reset dimmer mouse_filter when showing
+	if dimmer:
+		dimmer.mouse_filter = Control.MOUSE_FILTER_STOP
 
 
 ## Hide overlay
@@ -299,6 +314,30 @@ func _on_emoji_tapped(emoji: String) -> void:
 	"""Handle emoji tap - show icon details (Tier 3)"""
 	print("🔍 BiomeInspectorOverlay: Emoji tapped: %s (Tier 3 not yet implemented)" % emoji)
 	# TODO: Phase 3 - Open IconDetailPanel
+
+
+func _on_active_biome_changed(new_biome: String, _old_biome: String) -> void:
+	"""Handle biome switch via ,/. keys while overlay is open.
+
+	Updates display to show the newly selected biome.
+	"""
+	if current_mode != DisplayMode.SINGLE_BIOME:
+		return  # Only update in single biome mode
+
+	if not farm or not farm.grid or not farm.grid.biomes:
+		return
+
+	var biome = farm.grid.biomes.get(new_biome)
+	if not biome:
+		return
+
+	# Update selected_biome_index to match new biome
+	selected_biome_index = BIOME_ORDER.find(new_biome)
+	if selected_biome_index < 0:
+		selected_biome_index = 0
+
+	# Refresh display with new biome
+	show_biome(biome, farm)
 
 
 # ============================================================================
