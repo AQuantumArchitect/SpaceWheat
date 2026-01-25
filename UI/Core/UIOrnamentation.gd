@@ -106,7 +106,7 @@ static func create_corner(
 	rect.texture = texture
 	rect.custom_minimum_size = corner_size
 	rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	rect.stretch_mode = TextureRect.STRETCH_SCALE
 	rect.flip_h = flip_h
 	rect.flip_v = flip_v
 	rect.modulate = tint
@@ -230,7 +230,7 @@ static func _apply_wedges_to_panel(panel: Control, tint: Color) -> Dictionary:
 		top_wedge.texture = top_tex
 		top_wedge.custom_minimum_size = Vector2(100, 20)
 		top_wedge.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		top_wedge.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		top_wedge.stretch_mode = TextureRect.STRETCH_SCALE
 		top_wedge.modulate = tint
 		top_wedge.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		top_wedge.set_anchors_preset(Control.PRESET_CENTER_TOP)
@@ -243,7 +243,7 @@ static func _apply_wedges_to_panel(panel: Control, tint: Color) -> Dictionary:
 		btm_wedge.texture = btm_tex
 		btm_wedge.custom_minimum_size = Vector2(100, 20)
 		btm_wedge.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		btm_wedge.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		btm_wedge.stretch_mode = TextureRect.STRETCH_SCALE
 		btm_wedge.modulate = tint
 		btm_wedge.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		btm_wedge.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
@@ -267,7 +267,7 @@ static func _apply_brackets_to_panel(panel: Control, tint: Color) -> Dictionary:
 	left_bracket.texture = bracket_tex
 	left_bracket.custom_minimum_size = Vector2(16, 60)
 	left_bracket.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	left_bracket.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	left_bracket.stretch_mode = TextureRect.STRETCH_SCALE
 	left_bracket.modulate = tint
 	left_bracket.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	left_bracket.set_anchors_preset(Control.PRESET_CENTER_LEFT)
@@ -280,7 +280,7 @@ static func _apply_brackets_to_panel(panel: Control, tint: Color) -> Dictionary:
 	right_bracket.texture = bracket_tex
 	right_bracket.custom_minimum_size = Vector2(16, 60)
 	right_bracket.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	right_bracket.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	right_bracket.stretch_mode = TextureRect.STRETCH_SCALE
 	right_bracket.flip_h = true
 	right_bracket.modulate = tint
 	right_bracket.mouse_filter = Control.MOUSE_FILTER_IGNORE
