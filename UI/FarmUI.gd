@@ -184,17 +184,24 @@ func _on_selection_changed(count: int) -> void:
 
 
 func _apply_parametric_sizing() -> void:
-	"""Apply parametric sizing to UI components based on viewport dimensions"""
+	"""Apply parametric sizing to UI components based on viewport dimensions.
+
+	Uses UILayoutManager constants for consistent layout proportions.
+	"""
 	var viewport_size = get_viewport_rect().size
 	var viewport_height = viewport_size.y
+
+	# Use UILayoutManager constants for consistent proportions across all UI
+	const UILayoutManager = preload("res://UI/Managers/UILayoutManager.gd")
+	var top_bar_percent = UILayoutManager.TOP_BAR_HEIGHT_PERCENT  # 0.06 (6%)
 
 	# Parametric layout: divide viewport into zones
 	# 0-6% (Top): ResourcePanel
 	# 6-100% (Middle): PlotGridDisplay
 	# Action bars are now in PlayerShell's ActionBarLayer (bottom, fixed 140px)
 
-	var resource_panel_height = viewport_height * 0.06
-	var plot_grid_height = viewport_height * 0.94  # Rest of viewport
+	var resource_panel_height = viewport_height * top_bar_percent
+	var plot_grid_height = viewport_height * (1.0 - top_bar_percent)
 
 	# Apply to MainContainer children
 	if resource_panel:

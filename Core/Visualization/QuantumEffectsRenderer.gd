@@ -281,7 +281,18 @@ func _draw_life_cycle_effects(graph: Node2D, ctx: Dictionary) -> void:
 
 		var ghost_pos = pos + Vector2(0, -progress * 30.0)
 		var emoji_alpha = alpha * 0.8
-		graph.draw_string(font, ghost_pos, icon, HORIZONTAL_ALIGNMENT_CENTER, -1, 24, Color(1, 1, 1, emoji_alpha))
+
+		# Try SVG glyph, fallback to emoji text (safe autoload access)
+		var texture: Texture2D = null
+		if is_instance_valid(VisualAssetRegistry) and VisualAssetRegistry.has_method("get_texture"):
+			texture = VisualAssetRegistry.get_texture(icon)
+
+		if texture:
+			var glyph_size = Vector2(28.8, 28.8)  # 24 * 1.2
+			var glyph_pos = ghost_pos - glyph_size / 2.0
+			graph.draw_texture_rect(texture, Rect2(glyph_pos, glyph_size), false, Color(1, 1, 1, emoji_alpha))
+		else:
+			graph.draw_string(font, ghost_pos, icon, HORIZONTAL_ALIGNMENT_CENTER, -1, 24, Color(1, 1, 1, emoji_alpha))
 
 		for i in range(6):
 			var angle = i * TAU / 6.0 + t * 2.0

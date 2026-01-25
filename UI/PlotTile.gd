@@ -1,6 +1,9 @@
 class_name PlotTile
 extends Control
 
+# Preload EmojiDisplay to ensure it's available at parse time
+const EmojiDisplay = preload("res://UI/Core/EmojiDisplay.gd")
+
 ## PlotTile - Visual representation of a single farm plot
 ## Part of the emoji lattice grid
 ## Phase 4: Decoupled from WheatPlot - uses PlotUIData (display snapshots)
@@ -25,8 +28,8 @@ const LONG_PRESS_TIME = 0.5
 
 # UI elements (will be created in _ready)
 var background: ColorRect
-var emoji_label_north: Label  # North pole emoji (quantum superposition)
-var emoji_label_south: Label  # South pole emoji (quantum superposition)
+var emoji_label_north: EmojiDisplay  # North pole emoji (quantum superposition) - auto SVG/text fallback
+var emoji_label_south: EmojiDisplay  # South pole emoji (quantum superposition) - auto SVG/text fallback
 var growth_bar: ProgressBar
 var selection_border: ColorRect
 var territory_border: ColorRect  # Shows Icon control
@@ -124,23 +127,20 @@ func _create_ui_elements():
 	selection_border.z_index = 2  # Above territory border
 	add_child(selection_border)
 
-	# Emoji display - DUAL LABEL SYSTEM for quantum superposition
+	# Emoji display - DUAL EMOJI DISPLAY for quantum superposition
+	# Uses EmojiDisplay component for automatic SVG glyph / emoji text fallback
 	# North pole emoji (e.g., 🌾 for wheat)
-	emoji_label_north = Label.new()
-	emoji_label_north.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	emoji_label_north.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	emoji_label_north = EmojiDisplay.new()
+	emoji_label_north.font_size = 36
 	emoji_label_north.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	emoji_label_north.add_theme_font_size_override("font_size", 36)
 	emoji_label_north.z_index = 3  # Above selection border
 	emoji_label_north.set_anchors_preset(Control.PRESET_FULL_RECT)  # Fill parent
 	add_child(emoji_label_north)
 
 	# South pole emoji (e.g., 👥 for wheat, 🍂 for mushroom)
-	emoji_label_south = Label.new()
-	emoji_label_south.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	emoji_label_south.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	emoji_label_south = EmojiDisplay.new()
+	emoji_label_south.font_size = 36
 	emoji_label_south.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	emoji_label_south.add_theme_font_size_override("font_size", 36)
 	emoji_label_south.z_index = 3  # Same layer as north (overlaid)
 	emoji_label_south.set_anchors_preset(Control.PRESET_FULL_RECT)  # Fill parent
 	add_child(emoji_label_south)
@@ -278,8 +278,8 @@ func _update_territory_border():
 
 
 func _show_empty_state():
-	emoji_label_north.text = ""
-	emoji_label_south.text = ""
+	emoji_label_north.emoji = ""
+	emoji_label_south.emoji = ""
 	emoji_label_north.modulate.a = 0.0
 	emoji_label_south.modulate.a = 0.0
 	growth_bar.visible = false
@@ -301,60 +301,60 @@ func _show_mature_state():
 	# Phase 4: Use PlotUIData - no plot_type enum, use string instead
 	match plot_ui_data.get("plot_type", ""):
 		"tomato":
-			emoji_label_north.text = "🍅"
-			emoji_label_south.text = ""
+			emoji_label_north.emoji = "🍅"
+			emoji_label_south.emoji = ""
 			emoji_label_north.modulate.a = 1.0
 			emoji_label_south.modulate.a = 0.0
 		"mushroom":
-			emoji_label_north.text = "🍄"
-			emoji_label_south.text = ""
+			emoji_label_north.emoji = "🍄"
+			emoji_label_south.emoji = ""
 			emoji_label_north.modulate.a = 1.0
 			emoji_label_south.modulate.a = 0.0
 		"mill":
-			emoji_label_north.text = "🏭"
-			emoji_label_south.text = ""
+			emoji_label_north.emoji = "🏭"
+			emoji_label_south.emoji = ""
 			emoji_label_north.modulate.a = 1.0
 			emoji_label_south.modulate.a = 0.0
 		"market":
-			emoji_label_north.text = "💰"
-			emoji_label_south.text = ""
+			emoji_label_north.emoji = "💰"
+			emoji_label_south.emoji = ""
 			emoji_label_north.modulate.a = 1.0
 			emoji_label_south.modulate.a = 0.0
 		"fire", "water", "flour":
 			# Kitchen ingredients: QUANTUM SUPERPOSITION - dual label with probability-weighted opacity
 			if not plot_ui_data.get("has_been_measured", false):
 				# Show both emojis with probability-weighted opacity
-				emoji_label_north.text = plot_ui_data.get("north_emoji", "")
-				emoji_label_south.text = plot_ui_data.get("south_emoji", "")
+				emoji_label_north.emoji = plot_ui_data.get("north_emoji", "")
+				emoji_label_south.emoji = plot_ui_data.get("south_emoji", "")
 				emoji_label_north.modulate.a = plot_ui_data.get("north_probability", 0.5)
 				emoji_label_south.modulate.a = plot_ui_data.get("south_probability", 0.5)
 			else:
 				# Measured - show single dominant emoji
 				if plot_ui_data.get("north_probability", 0.5) > plot_ui_data.get("south_probability", 0.5):
-					emoji_label_north.text = plot_ui_data.get("north_emoji", "")
-					emoji_label_south.text = ""
+					emoji_label_north.emoji = plot_ui_data.get("north_emoji", "")
+					emoji_label_south.emoji = ""
 				else:
-					emoji_label_north.text = plot_ui_data.get("south_emoji", "")
-					emoji_label_south.text = ""
+					emoji_label_north.emoji = plot_ui_data.get("south_emoji", "")
+					emoji_label_south.emoji = ""
 				emoji_label_north.modulate.a = 1.0
 				emoji_label_south.modulate.a = 0.0
 		_:
 			# Wheat: QUANTUM SUPERPOSITION - dual label with probability-weighted opacity
 			if not plot_ui_data.get("has_been_measured", false):
 				# Show both emojis with probability-weighted opacity
-				emoji_label_north.text = plot_ui_data.get("north_emoji", "")
-				emoji_label_south.text = plot_ui_data.get("south_emoji", "")
+				emoji_label_north.emoji = plot_ui_data.get("north_emoji", "")
+				emoji_label_south.emoji = plot_ui_data.get("south_emoji", "")
 				emoji_label_north.modulate.a = plot_ui_data.get("north_probability", 0.5)
 				emoji_label_south.modulate.a = plot_ui_data.get("south_probability", 0.5)
 			else:
 				# Measured - show single dominant emoji
 				# (choose dominant based on which has higher probability)
 				if plot_ui_data.get("north_probability", 0.5) > plot_ui_data.get("south_probability", 0.5):
-					emoji_label_north.text = plot_ui_data.get("north_emoji", "")
-					emoji_label_south.text = ""
+					emoji_label_north.emoji = plot_ui_data.get("north_emoji", "")
+					emoji_label_south.emoji = ""
 				else:
-					emoji_label_north.text = plot_ui_data.get("south_emoji", "")
-					emoji_label_south.text = ""
+					emoji_label_north.emoji = plot_ui_data.get("south_emoji", "")
+					emoji_label_south.emoji = ""
 				emoji_label_north.modulate.a = 1.0
 				emoji_label_south.modulate.a = 0.0
 

@@ -1,6 +1,9 @@
 class_name PlotGridDisplay
 extends Control
 
+# Preload PlotTile to ensure it's available for instantiation
+const PlotTile = preload("res://UI/PlotTile.gd")
+
 # Access autoload safely (avoids compile-time errors)
 @onready var _verbose = get_node("/root/VerboseConfig")
 
@@ -20,8 +23,6 @@ extends Control
 ##
 ## Architecture: Plots are the FOUNDATION (fixed parametric positions)
 ## QuantumForceGraph reads these positions and tethers quantum bubbles to them
-
-const PlotTile = preload("res://UI/PlotTile.gd")
 const GridConfig = preload("res://Core/GameState/GridConfig.gd")
 const BiomeLayoutCalculator = preload("res://Core/Visualization/BiomeLayoutCalculator.gd")
 

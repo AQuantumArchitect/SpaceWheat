@@ -16,8 +16,6 @@ extends "res://UI/Overlays/V2OverlayBase.gd"
 ##   WASD = Navigate within octant emojis
 ##   ESC = Close overlay
 
-const V2OverlayBaseClass = preload("res://UI/Overlays/V2OverlayBase.gd")
-
 # Semantic octant regions (from SemanticOctant.gd)
 const REGIONS = [
 	{"name": "Phoenix", "icon": "🔥", "desc": "Abundance & transformation", "color": Color(1.0, 0.6, 0.2)},
@@ -39,7 +37,6 @@ var selected_octant: int = 0
 var vocabulary_data: Dictionary = {}  # Loaded from game state
 
 # UI elements
-var title_label: Label
 var view_mode_label: Label
 var vocab_list_container: Control  # Simple vocabulary list (default view)
 var vocab_list_grid: GridContainer  # Grid for vocab list items
@@ -50,14 +47,20 @@ var octant_panels: Array = []  # References to octant panel nodes
 var emoji_grid: GridContainer
 
 # Layout
-const PANEL_WIDTH: int = 650
-const PANEL_HEIGHT: int = 500
 const OCTANT_SIZE: int = 140
 
 
 func _init():
 	overlay_name = "semantic_map"
 	overlay_icon = "🧭"
+	overlay_title = "🧭 Semantic Map"
+	fallback_panel_width = 650
+	fallback_panel_height = 500
+	panel_border_color = Color(0.4, 0.3, 0.6, 0.8)  # Purple border
+	main_vbox_separation = UIStyleFactory.VBOX_SPACING_RELAXED
+	# Enable corner ornamentation
+	use_ornamentation = true
+	ornamentation_tint = UIOrnamentation.TINT_PURPLE
 	action_labels = {
 		"Q": "Prev Octant",
 		"E": "Next Octant",
@@ -73,28 +76,17 @@ func _ready() -> void:
 
 func _build_ui() -> void:
 	"""Build the semantic map overlay UI."""
-	custom_minimum_size = Vector2(PANEL_WIDTH, PANEL_HEIGHT)
+	# Use base class to create standard panel (handles sizing, background, vbox)
+	var vbox = _build_standard_panel()
 
-	# Create background panel (Control doesn't render panel stylebox, so use PanelContainer)
-	var background_panel = PanelContainer.new()
-	background_panel.set_anchors_preset(Control.PRESET_FULL_RECT)
-	var panel_style = StyleBoxFlat.new()
-	panel_style.bg_color = Color(0.08, 0.10, 0.14, 0.95)
-	panel_style.border_color = Color(0.4, 0.3, 0.6, 0.8)
-	panel_style.set_border_width_all(2)
-	panel_style.set_corner_radius_all(12)
-	panel_style.set_content_margin_all(16)
-	background_panel.add_theme_stylebox_override("panel", panel_style)
-	add_child(background_panel)
-
-	# Main layout inside the background panel
-	var vbox = VBoxContainer.new()
-	vbox.add_theme_constant_override("separation", 10)
-	background_panel.add_child(vbox)
-
-	# Title bar
-	var title_bar = _create_title_bar()
+	# Replace simple title with title bar (has mode indicator)
+	if _title_label:
+		_main_vbox.remove_child(_title_label)
+		_title_label.queue_free()
+	var title_bar = _build_title_bar_with_mode("[F] %s" % VIEW_MODE_NAMES[current_view_mode])
+	view_mode_label = title_bar.get_node("ModeLabel")
 	vbox.add_child(title_bar)
+	vbox.move_child(title_bar, 0)
 
 	# Content area
 	var content = Control.new()
@@ -123,33 +115,6 @@ func _build_ui() -> void:
 	attractor_container.set_anchors_preset(Control.PRESET_FULL_RECT)
 	attractor_container.visible = false
 	content.add_child(attractor_container)
-
-
-func _create_title_bar() -> Control:
-	"""Create title bar with overlay name and view mode."""
-	var hbox = HBoxContainer.new()
-	hbox.add_theme_constant_override("separation", 16)
-
-	# Title
-	title_label = Label.new()
-	title_label.text = "🧭 Semantic Map"
-	title_label.add_theme_font_size_override("font_size", 20)
-	title_label.add_theme_color_override("font_color", Color(0.9, 0.95, 1.0))
-	hbox.add_child(title_label)
-
-	# Spacer
-	var spacer = Control.new()
-	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	hbox.add_child(spacer)
-
-	# View mode indicator
-	view_mode_label = Label.new()
-	view_mode_label.text = "[F] %s" % VIEW_MODE_NAMES[current_view_mode]
-	view_mode_label.add_theme_font_size_override("font_size", 14)
-	view_mode_label.add_theme_color_override("font_color", Color(0.6, 0.7, 0.8))
-	hbox.add_child(view_mode_label)
-
-	return hbox
 
 
 func _create_octant_grid() -> GridContainer:

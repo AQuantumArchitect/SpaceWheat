@@ -20,9 +20,11 @@ config/features=PackedStringArray("4.5")
 VerboseConfig="*res://Core/Config/VerboseConfig.gd"
 BootManager="*res://Core/Boot/BootManager.gd"
 IconRegistry="*res://Core/QuantumSubstrate/IconRegistry.gd"
+VisualAssetRegistry="*res://Core/QuantumSubstrate/VisualAssetRegistry.gd"
 GameStateManager="*res://Core/GameState/GameStateManager.gd"
 TouchInputManager="*res://UI/Input/TouchInputManager.gd"
 ActiveBiomeManager="*res://Core/GameState/ActiveBiomeManager.gd"
+MusicManager="*res://Core/Audio/MusicManager.gd"
 
 [display]
 

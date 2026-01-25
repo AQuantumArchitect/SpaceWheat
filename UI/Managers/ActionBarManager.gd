@@ -5,12 +5,38 @@ extends RefCounted
 ##
 ## This manager creates ToolSelectionRow and ActionPreviewRow directly in
 ## ActionBarLayer. NO REPARENTING - nodes are created in their final parent.
+##
+## Layout: Delegates sizing to UILayoutManager for consistent responsive behavior.
 
 const ToolSelectionRow = preload("res://UI/Panels/ToolSelectionRow.gd")
 const ActionPreviewRow = preload("res://UI/Panels/ActionPreviewRow.gd")
 
 var tool_selection_row: Control = null
 var action_preview_row: Control = null
+var layout_manager: Node = null  # UILayoutManager reference for responsive sizing
+
+
+func set_layout_manager(manager: Node) -> void:
+	"""Set the UILayoutManager reference for responsive sizing.
+
+	Args:
+		manager: UILayoutManager instance
+	"""
+	layout_manager = manager
+	if layout_manager and layout_manager.has_signal("layout_changed"):
+		if not layout_manager.layout_changed.is_connected(_on_layout_changed):
+			layout_manager.layout_changed.connect(_on_layout_changed)
+
+
+func _on_layout_changed(_data: Dictionary) -> void:
+	"""Handle layout_changed signal from UILayoutManager.
+
+	Repositions action bars when viewport or scale changes.
+	"""
+	if tool_selection_row and tool_selection_row.is_inside_tree():
+		_position_tool_row()
+	if action_preview_row and action_preview_row.is_inside_tree():
+		_position_action_row()
 
 
 func create_action_bars(parent: Control) -> void:
@@ -81,18 +107,24 @@ func _position_tool_row() -> void:
 	# Use anchors for bottom-wide positioning
 	tool_selection_row.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
 
-	# RESPONSIVE: Calculate offsets based on parent height
-	# Use 13% of height for each toolbar (~87-100% and ~72-87% for 720p window)
+	# RESPONSIVE: Delegate sizing to UILayoutManager (single source of truth)
 	var parent_height = parent.size.y
-	var action_row_height = max(60, parent_height * 0.13)  # 13% or min 60px
-	var tool_row_height = max(55, parent_height * 0.13)    # 13% or min 55px
-	var total_toolbar_height = action_row_height + tool_row_height
+	var action_row_height: float
+	var tool_row_height: float
 
-	# Clamp to ensure toolbars fit in viewport
-	if total_toolbar_height > parent_height * 0.4:  # Max 40% of viewport
-		var scale = (parent_height * 0.4) / total_toolbar_height
-		action_row_height *= scale
-		tool_row_height *= scale
+	if layout_manager and layout_manager.has_method("get_action_row_height"):
+		# Use UILayoutManager for consistent responsive sizing
+		action_row_height = layout_manager.get_action_row_height()
+		tool_row_height = action_row_height  # Same height for both rows
+	else:
+		# Fallback: hardcoded values (legacy behavior)
+		action_row_height = max(60, parent_height * 0.13)
+		tool_row_height = max(55, parent_height * 0.13)
+		var total_toolbar_height = action_row_height + tool_row_height
+		if total_toolbar_height > parent_height * 0.4:
+			var scale_factor = (parent_height * 0.4) / total_toolbar_height
+			action_row_height *= scale_factor
+			tool_row_height *= scale_factor
 
 	# Position tool row above action row (reduced margins for more button space)
 	tool_selection_row.offset_top = -(action_row_height + tool_row_height)
@@ -120,13 +152,18 @@ func _position_action_row() -> void:
 	# Use anchors for bottom-wide positioning
 	action_preview_row.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
 
-	# RESPONSIVE: Calculate height based on parent height
+	# RESPONSIVE: Delegate sizing to UILayoutManager (single source of truth)
 	var parent_height = parent.size.y
-	var action_row_height = max(60, parent_height * 0.13)  # 13% or min 60px
+	var action_row_height: float
 
-	# Clamp to ensure toolbar fits
-	if action_row_height > parent_height * 0.25:  # Max 25% of viewport
-		action_row_height = parent_height * 0.25
+	if layout_manager and layout_manager.has_method("get_action_row_height"):
+		# Use UILayoutManager for consistent responsive sizing
+		action_row_height = layout_manager.get_action_row_height()
+	else:
+		# Fallback: hardcoded values (legacy behavior)
+		action_row_height = max(60, parent_height * 0.13)
+		if action_row_height > parent_height * 0.25:
+			action_row_height = parent_height * 0.25
 
 	# Position at very bottom (reduced margins for more button space)
 	action_preview_row.offset_top = -action_row_height

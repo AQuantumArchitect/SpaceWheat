@@ -343,6 +343,7 @@ static func get_quantum_detail(biome: BiomeBase) -> Dictionary:
 			"hamiltonian": Dictionary,  # Self-energies + couplings
 			"lindblad": Array,  # Dissipation channels
 			"entanglement": Dictionary,  # Component structure
+			"populations": Dictionary,  # {emoji: probability} for all icons
 		}
 	"""
 	if not biome:
@@ -361,7 +362,22 @@ static func get_quantum_detail(biome: BiomeBase) -> Dictionary:
 		"hamiltonian": _get_hamiltonian_info(qc),
 		"lindblad": _get_lindblad_info(qc),
 		"entanglement": _get_entanglement_info(qc),
+		"populations": _get_icon_populations(qc),
 	}
+
+
+static func _get_icon_populations(qc) -> Dictionary:
+	"""Get probability amplitudes for all registered icons.
+
+	This is the actual quantum state probability - the likelihood of
+	harvesting each icon when the state is measured.
+
+	Returns:
+		Dictionary: {emoji: probability} for all registered emojis
+	"""
+	if qc and qc.has_method("get_all_populations"):
+		return qc.get_all_populations()
+	return {}
 
 
 static func _get_qubit_axes(qc) -> Array:
@@ -579,4 +595,5 @@ static func _empty_quantum_detail() -> Dictionary:
 		"hamiltonian": {"self_energies": {}, "couplings": []},
 		"lindblad": [],
 		"entanglement": {"num_components": 0, "component_sizes": [], "is_fully_entangled": false},
+		"populations": {},
 	}

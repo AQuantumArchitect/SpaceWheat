@@ -1,6 +1,8 @@
 class_name QuestBoard
 extends Control
 
+const UIStyleFactory = preload("res://UI/Core/UIStyleFactory.gd")
+
 ## Modal Quest Board with 4 Slots (UIOP)
 ## Controls hijacked when open (like ESC menu)
 ## Press C to drill into faction browser
@@ -173,20 +175,30 @@ func _handle_browser_input(event: InputEvent) -> void:
 
 
 func _create_ui() -> void:
-	"""Create the quest board UI - 2×2 QUADRANT LAYOUT with auto-scaling"""
+	"""Create the quest board UI - 2×2 QUADRANT LAYOUT with auto-scaling.
+
+	Uses UILayoutManager constants for consistent layout proportions.
+	"""
+	const UILayoutManager = preload("res://UI/Managers/UILayoutManager.gd")
+
 	var scale = layout_manager.scale_factor if layout_manager else 1.0
+
+	# Use UILayoutManager constants for consistent proportions
+	var top_bar_percent = UILayoutManager.TOP_BAR_HEIGHT_PERCENT  # 0.06 (6%)
+	var play_area_percent = UILayoutManager.PLAY_AREA_PERCENT     # 0.665 (66.5%)
+	var bottom_percent = top_bar_percent + play_area_percent      # ~0.725 (72.5%)
 
 	# Balanced font sizes - readable but compact
 	var title_size = 24
 	var large_size = 16
 	var normal_size = 14
 
-	# Background - starts BELOW resource bar so player can see resources
+	# Background dimmer - starts BELOW resource bar so player can see resources
 	background = ColorRect.new()
-	background.color = Color(0.0, 0.0, 0.0, 0.92)
+	background.color = UIStyleFactory.COLOR_MODAL_DIMMER
 	background.anchor_left = 0.0
 	background.anchor_right = 1.0
-	background.anchor_top = 0.06  # Start at 6% (below resource bar)
+	background.anchor_top = top_bar_percent  # Start at 6% (below resource bar)
 	background.anchor_bottom = 1.0
 	background.layout_mode = 1
 	add_child(background)
@@ -195,8 +207,8 @@ func _create_ui() -> void:
 	var center = CenterContainer.new()
 	center.anchor_left = 0.0
 	center.anchor_right = 1.0
-	center.anchor_top = 0.06  # Start right at 6% (below resource bar)
-	center.anchor_bottom = 0.72  # End at 72% (above tool selection)
+	center.anchor_top = top_bar_percent  # Start right at 6% (below resource bar)
+	center.anchor_bottom = bottom_percent  # End at ~72.5% (above tool selection)
 	center.offset_left = 0
 	center.offset_right = 0
 	center.offset_top = 0  # No extra margin - start right below resources
@@ -209,6 +221,11 @@ func _create_ui() -> void:
 	# Quest board panel - compact, fits in play zone
 	menu_panel = PanelContainer.new()
 	menu_panel.custom_minimum_size = Vector2(880, 340)
+	var panel_style = UIStyleFactory.create_panel_style(
+		UIStyleFactory.COLOR_PANEL_BG,
+		Color(0.5, 0.4, 0.6, 0.8)  # Purple border for quests
+	)
+	menu_panel.add_theme_stylebox_override("panel", panel_style)
 	center.add_child(menu_panel)
 
 	var main_vbox = VBoxContainer.new()
@@ -216,9 +233,7 @@ func _create_ui() -> void:
 	menu_panel.add_child(main_vbox)
 
 	# Header - compact
-	title_label = Label.new()
-	title_label.text = "⚛️ QUEST ORACLE ⚛️"
-	title_label.add_theme_font_size_override("font_size", title_size)
+	title_label = UIStyleFactory.create_title_label("⚛️ QUEST ORACLE ⚛️", title_size)
 	title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	main_vbox.add_child(title_label)
 
@@ -1335,29 +1350,8 @@ class QuestSlot extends PanelContainer:
 
 	func _set_bg_color(color: Color) -> void:
 		"""Set background with clean style"""
-		var style = StyleBoxFlat.new()
-		style.bg_color = color
-		style.border_color = Color(0.5, 0.5, 0.5, 0.6)
-		style.border_width_left = 3
-		style.border_width_right = 3
-		style.border_width_top = 3
-		style.border_width_bottom = 3
-		style.corner_radius_top_left = 6
-		style.corner_radius_top_right = 6
-		style.corner_radius_bottom_left = 6
-		style.corner_radius_bottom_right = 6
-		style.content_margin_left = 8
-		style.content_margin_right = 8
-		style.content_margin_top = 4
-		style.content_margin_bottom = 4
+		var style = UIStyleFactory.create_slot_style(color)
 		add_theme_stylebox_override("panel", style)
 
 	func _get_alignment_color(alignment: float) -> Color:
-		if alignment > 0.7:
-			return Color(0.2, 0.4, 0.2, 0.8)  # Green
-		elif alignment > 0.5:
-			return Color(0.3, 0.3, 0.2, 0.8)  # Neutral
-		elif alignment > 0.3:
-			return Color(0.4, 0.3, 0.2, 0.8)  # Orange
-		else:
-			return Color(0.4, 0.2, 0.2, 0.8)  # Red
+		return UIStyleFactory.get_alignment_color(alignment)

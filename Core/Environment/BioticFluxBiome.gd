@@ -20,14 +20,7 @@ var base_energy_rate: float = 2.45
 var wheat_energy_influence: float = 0.034  # cos²(165°/2) - weak (wheat grows minimally alone) - 2x for better growth
 var mushroom_energy_influence: float = 0.983  # cos²(15°/2) - strong (mushrooms grow well)
 
-# Plot type system: Biome owns ALL qubits regardless of type
-enum PlotType { CELESTIAL, NATIVE, FARM }
-var plots_by_type: Dictionary = {  # PlotType -> Array[Vector2i]
-	PlotType.CELESTIAL: [],
-	PlotType.NATIVE: [],
-	PlotType.FARM: []
-}
-var plot_types: Dictionary = {}  # Vector2i -> PlotType (to look up type of position)
+# DEPRECATED: PlotType enum, plots_by_type, plot_types removed (unused)
 
 # Static mode flag (for testing without quantum evolution)
 var is_static: bool = false  # If true, disable all quantum evolution
@@ -65,10 +58,10 @@ func _ready():
 	register_emoji_pair("🍂", "💀")  # Detritus ↔ Death (Matter axis - qubit 2)
 
 	# Register planting capabilities (Parametric System - Phase 1)
-	# Costs from BUILD_CONFIGS, emoji pairs for quantum superposition
-	register_planting_capability("🌾", "👥", "wheat", {"🌾": 1}, "Wheat", false)
+	# Costs from BUILD_CONFIGS, emoji pairs must match quantum_computer axes
+	register_planting_capability("🌾", "🍄", "wheat", {"🌾": 1}, "Wheat", false)
 	register_planting_capability("🍄", "🍂", "mushroom", {"🍄": 10, "🍂": 10}, "Mushroom", false)
-	register_planting_capability("🍅", "🌌", "tomato", {"🌾": 1}, "Tomato", false)
+	register_planting_capability("🍅", "🌿", "tomato", {"🌾": 1}, "Tomato", false)
 
 	# Configure visual properties for QuantumForceGraph
 	# Layout: BioticFlux (UIOP) in bottom-center
@@ -95,27 +88,7 @@ func get_paired_emoji(emoji: String) -> String:
 	return emoji_pairings.get(emoji, "?")
 
 
-func _update_sun_visualization() -> void:
-	"""Update sun color based on quantum state - yellow (day) to deep blue/purple (night)"""
-	if not sun_qubit:
-		return
-
-	sun_display_theta = sun_qubit.theta
-
-	# Color transition: θ=0 (yellow ☀️) → θ=π (deep purple/blue 🌙)
-	# Using HSV interpolation for smooth color shift
-	var day_night_progress = sun_display_theta / PI  # 0.0 (day) to 1.0 (night)
-
-	# Yellow (day): HSV(60°, 1.0, 1.0)
-	# Deep purple (night): HSV(270°, 0.8, 0.3)
-	var day_hue = 60.0 / 360.0  # Yellow
-	var night_hue = 270.0 / 360.0  # Deep purple
-
-	var hue = lerp(day_hue, night_hue, day_night_progress)
-	var saturation = lerp(1.0, 0.8, day_night_progress)
-	var brightness = lerp(1.0, 0.3, day_night_progress)
-
-	sun_color = Color.from_hsv(hue, saturation, brightness, 1.0)
+# REMOVED: _update_sun_visualization() - dead code, superseded by _update_sun_visualization_from_quantum()
 
 
 func _initialize_bath() -> void:
@@ -150,6 +123,10 @@ func _initialize_bath() -> void:
 	# Initialize to balanced state (½☀ + ½🌙)(½🌾 + ½🍄)(½🍂 + ½💀)
 	# For simplicity, start with |000⟩ = ☀🌾🍂 (sunny, wheat, organic)
 	quantum_computer.initialize_basis(0)
+
+	# Initialize sun_qubit for visualization bridge (synced from quantum_computer)
+	sun_qubit = DualEmojiQubit.new("☀", "🌙", 0.0, null)
+	sun_qubit.radius = 1.0
 
 	print("  📊 RegisterMap configured (3 qubits, 8 basis states)")
 
@@ -342,99 +319,11 @@ func get_T2_rate(position: Vector2i) -> float:
 ## Quantum Substrate Management (Emoji Math)
 ## NOTE: create_quantum_state, get_qubit, measure_qubit, clear_qubit are inherited from BiomeBase
 
-func inject_planting(position: Vector2i, wheat_amount: float, labor_amount: float, plot_type: int) -> Resource:
-	"""
-	Inject wheat directly into farming biome (new universal planting system)
-
-	FARMING BIOME GAMEPLAY:
-	- Player plants: 0.22🌾 + 0.08👥
-	- Farming converts to quantum superposition (wheat/labor split)
-	- Growth through Bloch sphere evolution
-	- Harvest = measure qubit, get wheat or labor based on probability
-
-	Returns: Qubit representing the planting
-	"""
-	# Create a hybrid qubit (🌾, 👥) representing the planting
-	# Start at balanced superposition (50/50 wheat/labor)
-	var planting_qubit = BiomeUtilities.create_qubit("🌾", "👥", PI / 2.0)  # π/2 = balanced
-
-	# Radius represents total resource amount
-	planting_qubit.radius = (wheat_amount * 100.0) + (labor_amount * 50.0)
-
-	print("🌾 Farming injection: %.2f🌾 + %.2f👥 → quantum superposition (%.1f resources)" %
-		[wheat_amount, labor_amount, planting_qubit.radius])
-
-	return planting_qubit
+# REMOVED: inject_planting() - legacy planting system, never called
+# REMOVED: harvest_quantum_planting() - legacy harvest system, never called
 
 
-func harvest_quantum_planting(planting_qubit: Resource) -> Dictionary:
-	"""
-	Harvest quantum planting from farming biome
-	Measure the qubit to collapse superposition
-
-	Returns: {
-		"success": bool,
-		"wheat": float,
-		"labor": float,
-		"energy": float
-	}
-	"""
-	if not planting_qubit or not planting_qubit is DualEmojiQubit:
-		return {"success": false, "wheat": 0.0, "labor": 0.0, "energy": 0.0}
-
-	var qubit = planting_qubit as DualEmojiQubit
-
-	# Measurement: collapse based on theta position
-	# sin²(θ/2) = probability of 👥 (labor)
-	# cos²(θ/2) = probability of 🌾 (wheat)
-	var theta = qubit.theta
-	var labor_prob = sin(theta / 2.0) * sin(theta / 2.0)
-	var wheat_prob = cos(theta / 2.0) * cos(theta / 2.0)
-
-	# Radius distributed based on probability
-	var labor_yield = qubit.radius * labor_prob / 100.0  # Convert radius back to resource
-	var wheat_yield = qubit.radius * wheat_prob / 100.0
-
-	print("🌾 Farming harvest: %.2f🌾 + %.2f👥 (θ=%.2f)" % [wheat_yield, labor_yield, theta])
-
-	return {
-		"success": true,
-		"wheat": wheat_yield,
-		"labor": labor_yield,
-		"energy": qubit.radius  # Legacy key for backward compat
-	}
-
-
-func mark_bell_gate(positions: Array) -> void:
-	"""
-	Override: Mark Bell gate and apply BioticFlux entanglement energy boost
-
-	In BioticFlux biome, entangled qubits receive a 10% energy boost per
-	involved emoji, representing the cooperative energy generation from
-	entanglement relationships.
-
-	Example:
-	- 2-qubit gate: each qubit gets +10% boost (1.10x multiplier)
-	- 3-qubit gate: each qubit gets +10% boost (1.10x multiplier)
-
-	Args:
-		positions: Array of Vector2i positions to entangle
-	"""
-	# Call parent to record the Bell gate
-	super.mark_bell_gate(positions)
-
-	# Apply energy boost: 10% per emoji in the entanglement
-	var boost_multiplier = 1.10
-	var total_boost = 0.0
-
-	# Model B: Entanglement bonuses are applied through quantum computer mechanisms
-	# Direct plot.quantum_state access is no longer supported in Model B
-
-	if total_boost > 0.001:
-		print("  ⚡ Total BioticFlux entanglement boost: +%.3f energy (%.1f%%)" % [
-			total_boost,
-			(boost_multiplier - 1.0) * 100
-		])
+# REMOVED: mark_bell_gate() override - was dead code, just called super with unused boost logic
 
 
 func _reset_custom() -> void:

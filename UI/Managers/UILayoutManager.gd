@@ -21,6 +21,22 @@ const ACTIONS_ROW_HEIGHT_PERCENT = 0.125  # 12.5% action buttons row
 const PLAY_AREA_MARGIN_PERCENT = 0.05   # 5% margin inside play area
 const PANEL_SPACING_PERCENT = 0.01      # 1% spacing between panels
 
+# Overlay sizing constants (consolidated from scattered hardcoded values)
+const OVERLAY_WIDTH_PERCENT = 0.55      # 55% of viewport width
+const OVERLAY_HEIGHT_PERCENT = 0.7      # 70% of viewport height
+const OVERLAY_MIN_WIDTH = 500           # Minimum width in pixels
+const OVERLAY_MIN_HEIGHT = 400          # Minimum height in pixels
+const OVERLAY_MAX_WIDTH = 800           # Maximum width in pixels
+const OVERLAY_MAX_HEIGHT = 600          # Maximum height in pixels
+
+# Action bar constants (consolidated from ActionBarManager)
+const ACTION_ROW_HEIGHT_PERCENT = 0.13  # 13% of viewport height
+const ACTION_ROW_MIN_HEIGHT = 55        # Minimum height in pixels
+const ACTION_ROW_MAX_PERCENT = 0.40     # Max 40% of viewport for both rows combined
+
+# Component constants
+const TAB_BAR_MIN_HEIGHT = 40           # Minimum tab bar height
+
 # Current viewport dimensions (updated on resize)
 var viewport_size: Vector2
 var scale_factor: float = 1.0
@@ -324,3 +340,60 @@ func get_debug_info() -> Dictionary:
 		"plots_row_size": plots_row_rect.size,
 		"actions_row_size": actions_row_rect.size,
 	}
+
+
+## Overlay and Action Bar Sizing API
+## Consolidated from scattered hardcoded values across UI components
+
+func get_overlay_size() -> Vector2:
+	"""Calculate responsive overlay size based on viewport.
+
+	Returns a size that is:
+	- 55% of viewport width, clamped to 500-800px
+	- 70% of viewport height, clamped to 400-600px
+	"""
+	var w = clampf(viewport_size.x * OVERLAY_WIDTH_PERCENT, OVERLAY_MIN_WIDTH, OVERLAY_MAX_WIDTH)
+	var h = clampf(viewport_size.y * OVERLAY_HEIGHT_PERCENT, OVERLAY_MIN_HEIGHT, OVERLAY_MAX_HEIGHT)
+	return Vector2(w, h)
+
+
+func center_overlay(overlay: Control, size: Vector2 = Vector2.ZERO) -> void:
+	"""Center an overlay in the viewport using anchor-based positioning.
+
+	Args:
+		overlay: The Control node to center
+		size: Optional size override. If Vector2.ZERO, uses get_overlay_size()
+	"""
+	var actual_size = size if size != Vector2.ZERO else get_overlay_size()
+
+	# Set anchors to center
+	overlay.anchor_left = 0.5
+	overlay.anchor_right = 0.5
+	overlay.anchor_top = 0.5
+	overlay.anchor_bottom = 0.5
+
+	# Center the overlay around the anchor point
+	overlay.offset_left = -actual_size.x / 2
+	overlay.offset_right = actual_size.x / 2
+	overlay.offset_top = -actual_size.y / 2
+	overlay.offset_bottom = actual_size.y / 2
+
+	# Ensure it grows from center
+	overlay.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	overlay.grow_vertical = Control.GROW_DIRECTION_BOTH
+
+
+func get_action_row_height() -> float:
+	"""Calculate responsive action row height.
+
+	Returns:
+		Height in pixels, based on 13% of viewport height,
+		clamped to min 55px and max 20% of viewport (so 2 rows = 40% max).
+	"""
+	var h = max(ACTION_ROW_MIN_HEIGHT, viewport_size.y * ACTION_ROW_HEIGHT_PERCENT)
+
+	# Clamp so both rows don't exceed 40% of viewport
+	if h * 2 > viewport_size.y * ACTION_ROW_MAX_PERCENT:
+		h = viewport_size.y * ACTION_ROW_MAX_PERCENT / 2
+
+	return h

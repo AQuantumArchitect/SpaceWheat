@@ -174,58 +174,38 @@ func is_occupied() -> bool:
 	return bound_terminal != null and bound_terminal.is_bound
 
 
-func plant(biome_or_labor = null, wheat_cost: float = 0.0, optional_biome = null) -> bool:
-	"""Plant this plot - register measurement axis in biome's quantum computer
+func register_in_biome(biome: Node) -> bool:
+	"""Register this plot's measurement axis in the biome's quantum computer.
 
-	DEPRECATED: Model B allocation via BasePlot.plant().
-	Use Terminal + ProbeActions for v2 architecture (EXPLORE → MEASURE → POP).
-
-	Model C: Planting registers this plot as a qubit axis in the biome's
-	QuantumComputer. Does NOT create independent quantum state - it's shared.
+	Called by FarmGrid.plant() after emoji pairs are set.
+	Assumes north_emoji and south_emoji are already configured.
 
 	Args:
-		biome_or_labor: BiomeBase (preferred), or labor amount (legacy)
-		wheat_cost: Wheat cost (legacy parameter, ignored)
-		optional_biome: BiomeBase if first arg is labor amount (legacy)
+		biome: BiomeBase with quantum_computer
 
 	Returns:
 		true if successful, false if failed
 	"""
-	push_warning("DEPRECATED: BasePlot.plant() uses Model B allocation. Use Terminal + ProbeActions for v2.")
-	# Determine parent biome
-	var biome = null
-	if biome_or_labor is Node and "quantum_computer" in biome_or_labor:
-		biome = biome_or_labor
-	elif optional_biome and "quantum_computer" in optional_biome:
-		biome = optional_biome
-	else:
-		push_error("No valid biome with quantum_computer provided for planting!")
+	if not biome or not "quantum_computer" in biome or not biome.quantum_computer:
+		push_error("Biome has no quantum_computer for plot %s!" % grid_position)
 		return false
 
 	parent_biome = biome
 
-	# Get basis labels for this plot
-	var emojis = get_plot_emojis()
-	north_emoji = emojis.get("north", "🌾")
-	south_emoji = emojis.get("south", "🌽")
-
-	# Model C: Allocate qubit in biome's quantum computer
-	if not biome.quantum_computer:
-		push_error("Biome has no quantum_computer for plot %s!" % grid_position)
+	# Get register_id - axis should already exist from expand_quantum_system
+	if biome.quantum_computer.register_map.has(north_emoji):
+		register_id = biome.quantum_computer.register_map.qubit(north_emoji)
+	else:
+		push_error("Axis %s/%s not found in quantum computer - was expand_quantum_system called?" % [
+			north_emoji, south_emoji])
 		return false
 
-	register_id = biome.quantum_computer.allocate_qubit(north_emoji, south_emoji)
-	if register_id < 0:
-		push_error("Failed to allocate quantum register for plot %s!" % grid_position)
-		return false
-
-	# Mark as planted
 	is_planted = true
 	has_been_measured = false
 	measured_outcome = ""
 
-	print("🌱 Plot %s: registered measurement axis (%s/%s) in %s biome" % [
-		grid_position, north_emoji, south_emoji, biome.get_biome_type()])
+	print("🌱 Plot %s: registered axis %d (%s/%s) in %s" % [
+		grid_position, register_id, north_emoji, south_emoji, biome.get_biome_type()])
 	return true
 
 

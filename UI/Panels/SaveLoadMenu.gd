@@ -62,16 +62,17 @@ func _init():
 	background.layout_mode = 1
 	add_child(background)
 
-	# Menu panel - positioned near top with max height
+	# Menu panel - positioned near top with viewport-relative height
+	# Uses percentage-based sizing to work across resolutions (540p, 720p, 1080p)
 	var menu_panel = PanelContainer.new()
 	menu_panel.anchor_left = 0.5
 	menu_panel.anchor_right = 0.5
-	menu_panel.anchor_top = 0.0
-	menu_panel.anchor_bottom = 0.0
+	menu_panel.anchor_top = 0.02  # 2% from top
+	menu_panel.anchor_bottom = 0.98  # 98% down (leaves 2% margin at bottom)
 	menu_panel.offset_left = -300
 	menu_panel.offset_right = 300
-	menu_panel.offset_top = 10
-	menu_panel.offset_bottom = 530  # 10 + 520 = fits in 540 screen
+	menu_panel.offset_top = 0
+	menu_panel.offset_bottom = 0
 	menu_panel.layout_mode = 1
 	add_child(menu_panel)
 

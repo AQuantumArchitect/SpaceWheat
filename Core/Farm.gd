@@ -177,10 +177,8 @@ func _ready():
 
 	# Icon system now managed by faction-based IconRegistry
 
-	# Create grid AFTER biome (or fallback)
-	grid = FarmGrid.new()
-	grid.grid_width = grid_config.grid_width
-	grid.grid_height = grid_config.grid_height
+	# Create grid AFTER biome (or fallback) - pass dimensions to constructor
+	grid = FarmGrid.new(grid_config.grid_width, grid_config.grid_height)
 
 	# PERFORMANCE: Connect grid signals to invalidate mushroom cache
 	grid.plot_planted.connect(func(_pos): invalidate_mushroom_cache())

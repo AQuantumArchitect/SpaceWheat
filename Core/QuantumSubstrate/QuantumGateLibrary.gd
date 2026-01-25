@@ -80,6 +80,14 @@ static func _init_gates() -> void:
 		"requires_unmeasured": true
 	}
 
+	# T-dagger gate: [[1, 0], [0, e^(-iπ/4)]] (inverse of T)
+	GATES["Tdg"] = {
+		"arity": 1,
+		"matrix": _tdg_gate(),
+		"description": "T-dagger gate (inverse of T)",
+		"requires_unmeasured": true
+	}
+
 	# Rx rotation gate: default θ = π/4
 	GATES["Rx"] = {
 		"arity": 1,
@@ -274,6 +282,16 @@ static func _sdg_gate() -> ComplexMatrix:
 	var m = ComplexMatrix.new(2)
 	m.set_element(0, 0, Complex.one())
 	m.set_element(1, 1, Complex.new(0, -1))
+	return m
+
+
+static func _tdg_gate() -> ComplexMatrix:
+	"""T-dagger gate (inverse of T): [[1, 0], [0, e^(-iπ/4)]]"""
+	var m = ComplexMatrix.new(2)
+	m.set_element(0, 0, Complex.one())
+	# e^(-iπ/4) = cos(-π/4) + i*sin(-π/4) = 1/√2 - i/√2
+	var phase = Complex.new(1.0 / SQRT2, -1.0 / SQRT2)
+	m.set_element(1, 1, phase)
 	return m
 
 

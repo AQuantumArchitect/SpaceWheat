@@ -1,14 +1,26 @@
 class_name FarmGrid
 extends Node
 
+## FarmGrid - Orchestrator for farm grid management (Decomposed)
+##
+## This is a FACADE that delegates to focused components:
+## - GridPlotManager: Plot lifecycle and queries
+## - BiomeRoutingManager: Multi-biome registry and routing
+## - EntanglementManager: Quantum entanglement operations
+## - PlantingManager: Crop planting with parametric capabilities
+## - BuildingManager: Mill, market, kitchen placement
+## - HarvestMeasurementManager: Harvest and measurement operations
+##
+## All public methods are preserved for backward compatibility.
+
 # Access autoload safely (avoids compile-time errors)
 @onready var _verbose = get_node("/root/VerboseConfig")
 
-## Farm Grid Manager
-## Manages a grid of wheat plots and their interactions
-## NOTE: plot_planted/plot_harvested signals are internal (Farm.gd is the public API)
+# ═══════════════════════════════════════════════════════════════════════════════
+# SIGNALS (unchanged API)
+# ═══════════════════════════════════════════════════════════════════════════════
 
-# Internal signals (for FarmGrid-level operations, not listened to by UI)
+# Internal signals (for FarmGrid-level operations)
 signal plot_planted(position: Vector2i)
 signal plot_harvested(position: Vector2i, yield_data: Dictionary)
 
@@ -16,1615 +28,441 @@ signal entanglement_created(from: Vector2i, to: Vector2i)
 signal entanglement_removed(from: Vector2i, to: Vector2i)
 
 # Generic signals for visualization and biome updates
-# plot_changed: Unified signal for any plot state change (plant, harvest, gate, entangle)
-#   change_type: "planted", "harvested", "gate_added", "gate_removed", "entangled", "disentangled"
-#   details: {"plant_type": "wheat"} or {"gate_type": "cluster"} etc.
 signal plot_changed(position: Vector2i, change_type: String, details: Dictionary)
-
-# visualization_changed: Simple trigger for UI components that just need to redraw
 signal visualization_changed()
 
-# Preload classes
+# ═══════════════════════════════════════════════════════════════════════════════
+# COMPONENT PRELOADS
+# ═══════════════════════════════════════════════════════════════════════════════
+
+const GridPlotManager = preload("res://Core/GameMechanics/Grid/GridPlotManager.gd")
+const BiomeRoutingManager = preload("res://Core/GameMechanics/Grid/BiomeRoutingManager.gd")
+const EntanglementManager = preload("res://Core/GameMechanics/Grid/EntanglementManager.gd")
+const PlantingManager = preload("res://Core/GameMechanics/Grid/PlantingManager.gd")
+const BuildingManager = preload("res://Core/GameMechanics/Grid/BuildingManager.gd")
+const HarvestMeasurementManager = preload("res://Core/GameMechanics/Grid/HarvestMeasurementManager.gd")
+
 const FarmPlot = preload("res://Core/GameMechanics/FarmPlot.gd")
-const FarmEconomy = preload("res://Core/GameMechanics/FarmEconomy.gd")
-const EconomyConstants = preload("res://Core/GameMechanics/EconomyConstants.gd")
-const WheatPlot = preload("res://Core/GameMechanics/WheatPlot.gd")
-const BiomeBase = preload("res://Core/Environment/BiomeBase.gd")
-const BioticFluxBiome = preload("res://Core/Environment/BioticFluxBiome.gd")
-# const Biome = preload("res://Core/Environment/Biome.gd")  # Legacy - REMOVED: file no longer exists
-const DualEmojiQubit = preload("res://Core/QuantumSubstrate/DualEmojiQubit.gd")
-const QuantumMill = preload("res://Core/GameMechanics/QuantumMill.gd")
-const QuantumMarket = preload("res://Core/GameMechanics/QuantumMarket.gd")
-const FlowRateCalculator = preload("res://Core/GameMechanics/FlowRateCalculator.gd")
 const TopologyAnalyzer = preload("res://Core/QuantumSubstrate/TopologyAnalyzer.gd")
-const EntangledPair = preload("res://Core/QuantumSubstrate/EntangledPair.gd")
-const EntangledCluster = preload("res://Core/QuantumSubstrate/EntangledCluster.gd")
 const Icon = preload("res://Core/QuantumSubstrate/Icon.gd")
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# COMPONENTS (internal)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+var _plot_manager: GridPlotManager
+var _biome_routing: BiomeRoutingManager
+var _entanglement: EntanglementManager
+var _planting: PlantingManager
+var _buildings: BuildingManager
+var _harvest: HarvestMeasurementManager
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# CONFIGURATION & STATE (preserved for backward compatibility)
+# ═══════════════════════════════════════════════════════════════════════════════
 
 # Grid configuration
 @export var grid_width: int = 5
 @export var grid_height: int = 5
 
-# Plot storage
-var plots: Dictionary = {}  # Vector2i -> FarmPlot (or subclasses: WheatPlot, etc.)
-
-# Entangled pairs (NEW - density matrix representation)
-var entangled_pairs: Array = []  # Array of EntangledPair objects
-
-# Entangled clusters (N-qubit states via sequential gates)
-var entangled_clusters: Array = []  # Array of EntangledCluster objects
-
-# Quantum Mills (for non-destructive measurement)
-var quantum_mills: Dictionary = {}  # Vector2i -> QuantumMill
-
-# Quantum Markets (for X ↔ 💰 pairing and sales)
-var quantum_markets: Dictionary = {}  # Vector2i -> QuantumMarket
-
-# Conspiracy network (for tomato growth)
+# External references (injected by Farm.gd)
 var conspiracy_network = null
-
-# Faction territory manager (for territorial effects)
 var faction_territory_manager = null
-
-# Farm economy (for mill/market processing)
 var farm_economy = null
+var vocabulary_evolution = null
 
-# Topology analyzer (for knot bonuses)
+# Topology analyzer
 var topology_analyzer: TopologyAnalyzer
 
-# BIOME - Environmental layer (sun/moon, temperature, decoherence)
-# Can be Biome or NullBiome (or any compatible biome implementation)
-var biome = null  # Legacy: kept for backward compatibility
-
-# MULTI-BIOME SUPPORT (Phase 2)
-var biomes: Dictionary = {}  # String → BiomeBase (registry of all biomes)
-var plot_biome_assignments: Dictionary = {}  # Vector2i → String (plot position → biome name)
-
-# MODEL B: Register allocation (Phase 0.5)
-var plot_register_mapping: Dictionary = {}  # Vector2i → int (plot position → register_id in biome)
-var plot_to_biome_quantum_computer: Dictionary = {}  # Vector2i → QuantumComputer reference
-
-# VOCABULARY EVOLUTION - Quantum concept discovery system (injected by Farm)
-var vocabulary_evolution = null  # Reference to VocabularyEvolution
+# Legacy biome reference (for backward compatibility)
+var biome = null
 
 # Environmental parameters
-var base_temperature: float = 20.0  # Base farm temperature (Kelvin or relative)
-var active_icons: Array = []  # Array of Icons from IconRegistry affecting the farm
-var icon_scopes: Dictionary = {}  # Icon → Array[String] (biome names the icon affects)
+var base_temperature: float = 20.0
+var active_icons: Array = []
+var icon_scopes: Dictionary = {}  # Icon → Array[String]
 
 # Stats
 var total_plots_planted: int = 0
 
-# PERFORMANCE: Throttle slower subsystems (don't need 60Hz)
-const MILL_MARKET_UPDATE_INTERVAL: float = 0.1  # 10 Hz for mills/markets/kitchens
+# PERFORMANCE: Throttle slower subsystems
+const MILL_MARKET_UPDATE_INTERVAL: float = 0.1
 var _mill_market_accumulator: float = 0.0
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# FACADE ACCESSORS (for direct access when needed)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+## Direct access to plots dictionary (for backward compatibility)
+var plots: Dictionary:
+	get:
+		return _plot_manager.plots if _plot_manager else {}
+
+## Direct access to biomes dictionary
+var biomes: Dictionary:
+	get:
+		return _biome_routing.biomes if _biome_routing else {}
+
+## Direct access to plot_biome_assignments
+var plot_biome_assignments: Dictionary:
+	get:
+		return _biome_routing.plot_biome_assignments if _biome_routing else {}
+
+## Direct access to plot_register_mapping
+var plot_register_mapping: Dictionary:
+	get:
+		return _biome_routing.plot_register_mapping if _biome_routing else {}
+
+## Direct access to plot_to_biome_quantum_computer
+var plot_to_biome_quantum_computer: Dictionary:
+	get:
+		return _biome_routing.plot_to_biome_quantum_computer if _biome_routing else {}
+
+## Direct access to entangled_pairs
+var entangled_pairs: Array:
+	get:
+		return _entanglement.entangled_pairs if _entanglement else []
+
+## Direct access to entangled_clusters
+var entangled_clusters: Array:
+	get:
+		return _entanglement.entangled_clusters if _entanglement else []
+
+## Direct access to quantum_mills
+var quantum_mills: Dictionary:
+	get:
+		return _buildings.quantum_mills if _buildings else {}
+
+## Direct access to quantum_markets
+var quantum_markets: Dictionary:
+	get:
+		return _buildings.quantum_markets if _buildings else {}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# LIFECYCLE
+# ═══════════════════════════════════════════════════════════════════════════════
+
+func _init(width: int = 6, height: int = 4):
+	# Set dimensions BEFORE creating GridPlotManager
+	grid_width = width
+	grid_height = height
+
+	# Create components EARLY so they're available before _ready()
+	# This fixes initialization order issues where Farm._ready() calls
+	# register_biome() before FarmGrid._ready() runs.
+	topology_analyzer = TopologyAnalyzer.new()
+	_plot_manager = GridPlotManager.new(grid_width, grid_height)
+	_biome_routing = BiomeRoutingManager.new()
+	_entanglement = EntanglementManager.new()
+	_planting = PlantingManager.new()
+	_buildings = BuildingManager.new()
+	_harvest = HarvestMeasurementManager.new()
 
 
 func _ready():
 	_verbose.info("farm", "🌾", "FarmGrid initialized: %dx%d = %d plots" % [grid_width, grid_height, grid_width * grid_height])
 
-	# Initialize topology analyzer
-	topology_analyzer = TopologyAnalyzer.new()
+	# Wire verbose logger to all components (requires @onready _verbose)
+	_plot_manager.set_verbose(_verbose)
+	_biome_routing.set_verbose(_verbose)
+	_entanglement.set_verbose(_verbose)
+	_planting.set_verbose(_verbose)
+	_buildings.set_verbose(_verbose)
+	_harvest.set_verbose(_verbose)
 
-	# Initialize Biome ONLY if not already injected by Farm
-	# Farm will handle Biome creation and pass it if available
-	# NOTE: Check multi-biome system (biomes dictionary) not legacy single biome field
-	if biomes.is_empty() and not biome:
+	# Wire component dependencies
+	_entanglement.set_dependencies(_plot_manager, _biome_routing)
+	_planting.set_dependencies(_plot_manager, _biome_routing, farm_economy, _entanglement)
+	_buildings.set_dependencies(_plot_manager, _biome_routing, _entanglement)
+	_buildings.set_parent_node(self)
+	_harvest.set_dependencies(_plot_manager, _biome_routing, farm_economy, _entanglement, topology_analyzer)
+
+	# Wire external references
+	_plot_manager.faction_territory_manager = faction_territory_manager
+	_harvest.set_faction_territory_manager(faction_territory_manager)
+
+	# Forward signals from components
+	_entanglement.entanglement_created.connect(func(a, b): entanglement_created.emit(a, b))
+	_entanglement.entanglement_removed.connect(func(a, b): entanglement_removed.emit(a, b))
+
+	_planting.plot_planted.connect(func(pos): plot_planted.emit(pos))
+	_planting.plot_changed.connect(func(pos, t, d): plot_changed.emit(pos, t, d))
+	_planting.visualization_changed.connect(func(): visualization_changed.emit())
+
+	_harvest.plot_harvested.connect(func(pos, data): plot_harvested.emit(pos, data))
+	_harvest.plot_changed.connect(func(pos, t, d): plot_changed.emit(pos, t, d))
+	_harvest.visualization_changed.connect(func(): visualization_changed.emit())
+
+	# Pre-initialize all plots
+	_plot_manager.initialize_all_plots()
+
+	# Check biome state
+	if _biome_routing.is_biomes_empty() and not biome:
 		_verbose.info("farm", "ℹ️", "No biomes registered - running in simple mode")
-		# Don't create biome here - let Farm control it
-
-	# Pre-initialize all plots for headless testing compatibility
-	_initialize_all_plots()
-
-	# Note: Quantum states are initialized later in FarmView after plots are created
 
 	set_process(true)
 
 
-func _initialize_all_plots() -> void:
-	"""Pre-initialize all plots in the grid for headless testing compatibility.
-	Without this, the plots dictionary is only populated on-demand via get_plot(),
-	causing tests that check plots.size() to fail."""
-	for y in range(grid_height):
-		for x in range(grid_width):
-			var pos = Vector2i(x, y)
-			if not plots.has(pos):
-				var plot = FarmPlot.new()
-				plot.plot_id = "plot_%d_%d" % [x, y]
-				plot.grid_position = pos
-				plots[pos] = plot
-				if faction_territory_manager:
-					faction_territory_manager.register_plot(pos)
-
-
 func _process(delta):
-	# Debug: Check if grid processing is called
-	if OS.get_environment("DEBUG_GRID") == "1":
-		_verbose.debug("farm", "🌾", "FarmGrid._process called, delta=%.3f" % delta)
-
-	# In multi-biome mode, always process (mills, markets, kitchens don't depend on legacy biome field)
-	# Skip processing if no biomes are registered (neither multi-biome nor legacy)
-	if biomes.is_empty() and not biome:
+	# Skip processing if no biomes registered
+	if _biome_routing.is_biomes_empty() and not biome:
 		return
 
-	# Apply Icon effects to quantum states (Lindblad evolution)
-	_apply_icon_effects(delta)
-
-	# Apply decoherence to entangled pairs
-	_apply_entangled_pair_decoherence(delta)
-
-	# Build icon_network for growth modifiers (QUANTUM LAYER)
+	# Build icon_network for growth modifiers
 	var icon_network = _build_icon_network()
 
-	# Grow all planted plots (needs every frame for smooth visuals)
-	for position in plots.keys():
-		var plot = plots[position]
+	# Grow all planted plots
+	for position in _plot_manager.plots.keys():
+		var plot = _plot_manager.plots[position]
 		if plot.is_planted:
-			var plot_biome = get_biome_for_plot(position)  # Phase 2c: Route to correct biome
+			var plot_biome = _biome_routing.get_biome_for_plot(position)
 			plot.grow(delta, plot_biome, faction_territory_manager, icon_network, conspiracy_network)
 
 	# PERFORMANCE: Throttle slower subsystems to 10 Hz
 	_mill_market_accumulator += delta
 	if _mill_market_accumulator >= MILL_MARKET_UPDATE_INTERVAL:
-		var accumulated_dt = _mill_market_accumulator
 		_mill_market_accumulator = 0.0
-		# NOTE: Energy tap and quantum mills processing removed (2026-01)
-		# Mills are now passive (activated on placement, no per-frame processing)
-
-		# Process markets (sell flour for credits)
-		_process_markets(accumulated_dt)
-
-		# Process kitchens (convert flour to bread)
-		_process_kitchens(accumulated_dt)
-
-	# Mills and markets are now processed via QuantumMill/QuantumMarket objects in the multi-biome system
+		# Mills and markets are now passive (no per-frame processing needed)
 
 
-## MULTI-BIOME REGISTRY (Phase 2b) - Methods for biome management and routing
+# ═══════════════════════════════════════════════════════════════════════════════
+# MULTI-BIOME REGISTRY (delegates to BiomeRoutingManager)
+# ═══════════════════════════════════════════════════════════════════════════════
 
 func register_biome(biome_name: String, biome_instance) -> void:
-	"""Register a biome in the grid's biome registry
-
-	Called by Farm._ready() during initialization.
-	Enables the grid to route plot operations to the correct biome.
-	"""
-	if not biome_name or not biome_instance:
-		push_error("Cannot register biome: invalid name or instance")
-		return
-
-	biomes[biome_name] = biome_instance
-	if _verbose:
-		_verbose.info("biome", "📍", "Biome registered: %s" % biome_name)
+	"""Register a biome in the grid's biome registry"""
+	_biome_routing.register_biome(biome_name, biome_instance)
 
 
 func assign_plot_to_biome(position: Vector2i, biome_name: String) -> void:
-	"""Assign a specific plot to a biome
-
-	Called by Farm._ready() during initialization.
-	Configures which biome manages each plot's quantum evolution.
-	"""
-	if not is_valid_position(position):
+	"""Assign a specific plot to a biome"""
+	if not _plot_manager.is_valid_position(position):
 		push_error("Cannot assign plot at invalid position: %s" % position)
 		return
-
-	if not biomes.has(biome_name):
-		push_error("Cannot assign to unregistered biome: %s" % biome_name)
-		return
-
-	plot_biome_assignments[position] = biome_name
+	_biome_routing.assign_plot_to_biome(position, biome_name)
 
 
 func get_biome_for_plot(position: Vector2i):
-	"""Get the biome responsible for a specific plot
+	"""Get the biome responsible for a specific plot"""
+	return _biome_routing.get_biome_for_plot(position)
 
-	Returns the biome instance for the given plot position.
-	If no assignment exists, returns the BioticFlux biome (default).
-	"""
-	# Check if plot has explicit assignment
-	if plot_biome_assignments.has(position):
-		var biome_name = plot_biome_assignments[position]
-		if biomes.has(biome_name):
-			return biomes[biome_name]
-
-	# Fallback to BioticFlux (default biome)
-	if biomes.has("BioticFlux"):
-		return biomes["BioticFlux"]
-
-	# Final fallback to legacy biome variable (for backward compatibility)
-	return biome
-
-
-## MODEL B: REGISTER ALLOCATION (Phase 0.5) - DEPRECATED
-
-func allocate_register_for_plot(position: Vector2i, north_emoji: String, south_emoji: String) -> int:
-	"""Allocate a quantum register for a plot in its biome's quantum computer
-
-	DEPRECATED: Model B register allocation. Use Terminal + ProbeActions for v2.
-
-	Model B: Each plot gets a logical qubit RegisterId in the parent biome's QuantumComputer.
-	Called by BasePlot.plant() during planting.
-
-	Args:
-		position: Grid position of the plot
-		north_emoji: Basis label for |0⟩ state
-		south_emoji: Basis label for |1⟩ state
-
-	Returns:
-		Register ID (int) if successful, -1 if failed
-	"""
-	push_warning("DEPRECATED: allocate_register_for_plot() uses Model B. Use Terminal + ProbeActions for v2.")
-	# Get biome for this plot
-	var plot_biome = get_biome_for_plot(position)
-	if not plot_biome or not plot_biome.has_method("allocate_register_for_plot"):
-		push_error("Cannot allocate register: biome missing quantum_computer for plot %s" % position)
-		return -1
-
-	# Delegate to biome's quantum computer
-	var register_id = plot_biome.allocate_register_for_plot(position, north_emoji, south_emoji)
-
-	if register_id < 0:
-		push_error("Failed to allocate register for plot %s" % position)
-		return -1
-
-	# Track mapping for FarmGrid (visualization team)
-	plot_register_mapping[position] = register_id
-	plot_to_biome_quantum_computer[position] = plot_biome.quantum_computer
-
-	return register_id
-
-
-func get_register_for_plot(position: Vector2i) -> int:
-	"""Get the RegisterId for a plot
-
-	DEPRECATED: Model B register lookup. Use get_qubit_for_emoji() on QuantumComputer.
-
-	Returns:
-		Register ID (int) if plot is planted, -1 if not found
-	"""
-	push_warning("DEPRECATED: get_register_for_plot() uses Model B. Use QuantumComputer.get_qubit_for_emoji().")
-	return plot_register_mapping.get(position, -1)
-
-
-func clear_register_for_plot(position: Vector2i) -> void:
-	"""Clear register allocation for a plot (called after harvest)
-
-	DEPRECATED: Model B register cleanup. Fixed bath architecture doesn't deallocate qubits.
-
-	Model B: Removes register from biome's quantum computer and clears FarmGrid tracking.
-	"""
-	push_warning("DEPRECATED: clear_register_for_plot() uses Model B. Fixed bath doesn't deallocate.")
-	var register_id = plot_register_mapping.get(position, -1)
-	if register_id < 0:
-		return
-
-	# Get biome and delegate cleanup
-	var plot_biome = get_biome_for_plot(position)
-	if plot_biome and plot_biome.has_method("clear_register_for_plot"):
-		plot_biome.clear_register_for_plot(position)
-
-	# Clear FarmGrid tracking
-	plot_register_mapping.erase(position)
-	plot_to_biome_quantum_computer.erase(position)
-
-
-## ENTANGLEMENT GRAPH EXPORT (Phase 0.5 - for Visualization Team)
 
 func get_entanglement_graph() -> Dictionary:
-	"""Export aggregated entanglement graph from all biomes
-
-	Returns a consolidated entanglement_graph showing which registers are entangled across all biomes.
-	Format: {register_id → Array[register_id]} (adjacency list)
-
-	Used by visualization team to render entanglement relationships.
-	"""
-	var consolidated_graph: Dictionary = {}
-
-	# Collect entanglement graphs from all biomes
-	for biome_name in biomes.keys():
-		var biome = biomes[biome_name]
-		if biome and biome.has_method("quantum_computer"):
-			var quantum_comp = biome.quantum_computer
-			if quantum_comp and quantum_comp.entanglement_graph:
-				# Merge this biome's graph into consolidated graph
-				for reg_id in quantum_comp.entanglement_graph.keys():
-					var entangled_with = quantum_comp.entanglement_graph[reg_id]
-					if not consolidated_graph.has(reg_id):
-						consolidated_graph[reg_id] = []
-
-					# Add unique entanglements
-					for partner_id in entangled_with:
-						if not consolidated_graph[reg_id].has(partner_id):
-							consolidated_graph[reg_id].append(partner_id)
-
-	return consolidated_graph
+	"""Export aggregated entanglement graph from all biomes"""
+	return _biome_routing.get_entanglement_graph()
 
 
 func get_plot_to_register_mapping() -> Dictionary:
-	"""Export plot position → register_id mapping for visualization team
-
-	Returns: {Vector2i position → int register_id}
-	Used to correlate visual grid with quantum register structure.
-	"""
-	return plot_register_mapping.duplicate()
+	"""Export plot position → register_id mapping"""
+	return _biome_routing.get_plot_to_register_mapping()
 
 
 func get_quantum_computer_for_plot(position: Vector2i) -> Resource:
-	"""Get the QuantumComputer instance for a plot's biome
-
-	Returns: QuantumComputer resource, or null if not available
-	"""
-	return plot_to_biome_quantum_computer.get(position, null)
+	"""Get the QuantumComputer instance for a plot's biome"""
+	return _biome_routing.get_quantum_computer_for_plot(position)
 
 
-func _apply_icon_effects(delta: float):
-	"""Model B: Quantum evolution now handled by BiomeBase.quantum_computer
-
-	This method is deprecated. Quantum evolution happens through:
-	1. QuantumBath Lindblad evolution in BiomeBase
-	2. Icon Hamiltonians registered in quantum_computer (via build_hamiltonian_from_icons)
-	3. Per-plot effects handled by quantum_computer projections
-
-	Legacy plot.quantum_state per-plot evolution no longer used.
-	"""
-	# Quantum evolution moved to BiomeBase and QuantumComputer
-	pass
-
-
-func _apply_entangled_pair_decoherence(delta: float):
-	"""Model B: Entangled pair decoherence handled by quantum_computer
-
-	Lindblad evolution for entangled states now happens in:
-	- BiomeBase.quantum_computer via QuantumBath Lindblad evolution
-	- LindbladSuperoperator applies two-qubit operators automatically
-	"""
-	# Entanglement decoherence moved to QuantumComputer
-	pass
-
-
-func _build_icon_network() -> Dictionary:
-	"""Build icon_network dictionary from active_icons array
-
-	Creates a lookup table for WheatPlot to access Icons by name
-	for growth modifiers and measurement bias.
-
-	Returns:
-		Dictionary with keys: "biotic", "chaos", "imperium"
-	"""
-	var icon_network = {}
-
-	for icon in active_icons:
-		if icon.icon_emoji == "🌾":  # Biotic Flux
-			icon_network["biotic"] = icon
-		elif icon.icon_emoji == "🍅":  # Chaos Vortex
-			icon_network["chaos"] = icon
-		elif icon.icon_emoji == "🏰":  # Imperium/Carrion Throne
-			icon_network["imperium"] = icon
-
-	return icon_network
-
-
-# NOTE: _process_energy_taps removed (2026-01) - energy tap system deprecated
-
-
-func process_mill_flour(flour_amount: int) -> void:
-	"""Convert mill-produced flour to economy resources.
-
-	Called by QuantumMill.perform_quantum_measurement() when flour outcomes occur.
-	Routes flour through FarmEconomy to convert to classical resources.
-
-	Args:
-		flour_amount: Number of flour units produced by mill measurement
-	"""
-	if not farm_economy or flour_amount <= 0:
-		_verbose.error("farm", "❌", "process_mill_flour called with invalid params (amount=%d)" % flour_amount)
-		return
-
-	# Mill produces flour directly from quantum measurement
-	# No wheat consumption needed - flour is a quantum measurement outcome
-	var flour_credits = flour_amount * EconomyConstants.QUANTUM_TO_CREDITS
-	farm_economy.add_resource("💨", flour_credits, "mill_quantum_measurement")
-
-	_verbose.info("economy", "🏭", "Mill: Produced %d flour → %d credits" % [
-		flour_amount,
-		flour_credits
-	])
-
-
-func _process_markets(_delta: float) -> void:
-	"""DEPRECATED: Market biome has been replaced by StellarForges.
-
-	This function is kept as a stub for API compatibility but does nothing.
-	Market commodity dynamics are no longer part of the game design.
-	"""
-	# Market biome no longer exists - replaced by StellarForges
-	pass
-
-
-func _process_kitchens(_delta: float) -> void:
-	"""DEPRECATED: Kitchen biome has been replaced by VolcanicWorlds.
-
-	This function is kept as a stub for API compatibility but does nothing.
-	"""
-	# Kitchen biome no longer exists - replaced by VolcanicWorlds
-	pass
-
-
-func kitchen_add_resource(emoji: String, credits: int) -> bool:
-	"""Player adds resource to kitchen to activate drive.
-
-	Args:
-	    emoji: Resource emoji ("🔥", "💧", or "💨")
-	    credits: Amount of resource credits to spend
-
-	Returns:
-	    true if drive activated successfully
-
-	Example: Player clicks "Add Fire" button with 50 credits
-	"""
-	# NOTE: Kitchen biome has been replaced by VolcanicWorlds
-	# This function is deprecated and will always return false
-	push_warning("kitchen_add_resource: Kitchen biome no longer exists (replaced by VolcanicWorlds)")
-	return false
-
-
-func kitchen_harvest() -> Dictionary:
-	"""Player harvests the kitchen. Performs projective measurement.
-
-	NOTE: Kitchen biome has been replaced by VolcanicWorlds.
-	This function is deprecated and will always return failure.
-
-	Returns:
-	    {
-	        success: bool,
-	        got_bread: bool,
-	        yield: int,         # Bread amount
-	        collapsed_to: int   # Basis state (0-7)
-	    }
-	"""
-	# NOTE: Kitchen biome has been replaced by VolcanicWorlds
-	# This function is deprecated and will always return failure
-	push_warning("kitchen_harvest: Kitchen biome no longer exists (replaced by VolcanicWorlds)")
-	return {"success": false, "got_bread": false, "yield": 0, "collapsed_to": -1}
-
-
-## Plot Management
+# ═══════════════════════════════════════════════════════════════════════════════
+# PLOT MANAGEMENT (delegates to GridPlotManager)
+# ═══════════════════════════════════════════════════════════════════════════════
 
 func get_plot(position: Vector2i) -> FarmPlot:
-	"""Get or create plot at position (returns FarmPlot or subclass)"""
-	if not is_valid_position(position):
-		return null
-
-	if not plots.has(position):
-		var plot = FarmPlot.new()
-		plot.plot_id = "plot_%d_%d" % [position.x, position.y]
-		plot.grid_position = position
-		plots[position] = plot
-
-		# Register with faction territory manager
-		if faction_territory_manager:
-			faction_territory_manager.register_plot(position)
-
-	return plots[position]
-
-
-# REMOVED: _initialize_quantum_states() - Legacy Model A method
-# Model B: Quantum states are created on-demand when plots are planted, not pre-initialized
+	"""Get or create plot at position"""
+	return _plot_manager.get_plot(position)
 
 
 func is_valid_position(position: Vector2i) -> bool:
 	"""Check if position is within grid bounds"""
-	return (position.x >= 0 and position.x < grid_width and
-			position.y >= 0 and position.y < grid_height)
+	return _plot_manager.is_valid_position(position)
 
 
 func _find_plot_by_id(plot_id: String) -> Vector2i:
 	"""Find grid position of a plot by its ID"""
-	for y in range(grid_height):
-		for x in range(grid_width):
-			var pos = Vector2i(x, y)
-			var plot = get_plot(pos)
-			if plot and plot.plot_id == plot_id:
-				return pos
-	return Vector2i(-1, -1)
+	return _plot_manager.find_plot_by_id(plot_id)
 
 
 func _get_plot_by_id(plot_id: String) -> FarmPlot:
-	"""Get plot directly by ID (convenience wrapper for cluster operations)"""
-	var pos = _find_plot_by_id(plot_id)
-	if pos != Vector2i(-1, -1):
-		return get_plot(pos)
-	return null
+	"""Get plot directly by ID"""
+	return _plot_manager.get_plot_by_id(plot_id)
 
 
 func is_plot_empty(position: Vector2i) -> bool:
 	"""Check if plot is empty (not planted)"""
-	var plot = get_plot(position)
-	return plot != null and not plot.is_planted
+	return _plot_manager.is_plot_empty(position)
 
 
 func is_plot_mature(position: Vector2i) -> bool:
-	"""Check if plot has planted wheat (quantum-only: instant full size)"""
-	var plot = get_plot(position)
-	return plot != null and plot.is_planted
+	"""Check if plot has planted wheat"""
+	return _plot_manager.is_plot_mature(position)
 
 
-## Farming Operations
+func get_neighbors(position: Vector2i) -> Array[Vector2i]:
+	"""Get valid neighbor positions (4-directional)"""
+	return _plot_manager.get_neighbors(position)
+
+
+func get_all_planted_positions() -> Array[Vector2i]:
+	"""Get positions of all planted plots"""
+	return _plot_manager.get_all_planted_positions()
+
+
+func get_all_mature_positions() -> Array[Vector2i]:
+	"""Get positions of all mature plots"""
+	return _plot_manager.get_all_mature_positions()
+
+
+func get_grid_stats() -> Dictionary:
+	"""Get current grid statistics"""
+	return _plot_manager.get_grid_stats()
+
+
+func print_grid_state():
+	"""Debug: Print current grid state"""
+	_plot_manager.print_grid_state()
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# FARMING OPERATIONS (delegates to PlantingManager)
+# ═══════════════════════════════════════════════════════════════════════════════
 
 func plant(position: Vector2i, plant_type: String, quantum_state: Resource = null) -> bool:
-	"""Generic plant method - handles all crop types (PARAMETRIC - Phase 4)
-
-	Queries biome capabilities to get emoji pairs and validate planting.
-	No more hard-coded plot_type_map - uses biome-defined capabilities.
-
-	Args:
-		position: Grid position to plant at
-		plant_type: "wheat", "tomato", "mushroom", etc.
-		quantum_state: DEPRECATED - kept for backward compatibility
-
-	Returns: true if planting succeeded, false otherwise
-	"""
-	var plot = get_plot(position)
-	if plot == null or plot.is_planted:
-		return false
-
-	# Get plot-specific biome from multi-biome registry
-	var plot_biome = get_biome_for_plot(position)
-	if not plot_biome:
-		push_error("⚠️ Cannot plant: No biome assigned to plot %s" % position)
-		return false
-
-	# PARAMETRIC: Find capability for this plant_type in biome
-	var capability = null
-	for cap in plot_biome.get_plantable_capabilities():
-		if cap.plant_type == plant_type:
-			capability = cap
-			break
-
-	# Dynamic capability creation if capability doesn't exist
-	if not capability:
-		# Get emoji pair from central registry
-		var emoji_pair = EconomyConstants.get_plant_type_emojis(plant_type)
-		if emoji_pair.is_empty():
-			push_error("⚠️ Unknown plant type: %s (not in EconomyConstants.PLANT_TYPE_EMOJIS)" % plant_type)
-			return false
-
-		# Create dynamic capability
-		var PlantingCapability = BiomeBase.PlantingCapability
-		capability = PlantingCapability.new()
-		capability.plant_type = plant_type
-		capability.emoji_pair = emoji_pair
-		capability.cost = {"💰": EconomyConstants.get_planting_cost(emoji_pair.north)}
-		capability.display_name = plant_type.capitalize()
-		capability.requires_biome = false
-
-		# Register capability with biome
-		plot_biome.planting_capabilities.append(capability)
-		_verbose.info("farm", "🔧", "Created dynamic capability for %s in %s" % [
-			plant_type, plot_biome.get_biome_type()])
-
-	# ECONOMY: Enforce planting costs
-	var north_emoji = capability.emoji_pair.get("north", "?")
-	var planting_cost = EconomyConstants.get_planting_cost(north_emoji)
-	if farm_economy and planting_cost > 0:
-		if not farm_economy.can_afford_resource("💰", planting_cost):
-			push_warning("⚠️ Not enough 💰-credits to plant %s (need %d)" % [plant_type, planting_cost])
-			return false
-		farm_economy.remove_resource("💰", planting_cost, "planting_%s" % plant_type)
-
-	# Set emoji pairs from capability
-	plot.north_emoji = capability.emoji_pair.north
-	plot.south_emoji = capability.emoji_pair.south
-	plot.plot_type_name = plant_type
-
-	# AUTO-EXPANSION: If biome doesn't support this emoji pair, expand its quantum system
-	if plot_biome.has_method("supports_emoji_pair"):
-		if not plot_biome.supports_emoji_pair(plot.north_emoji, plot.south_emoji):
-			if plot_biome.has_method("expand_quantum_system"):
-				var expand_result = plot_biome.expand_quantum_system(plot.north_emoji, plot.south_emoji)
-				if not expand_result.success:
-					push_error("❌ Failed to expand quantum system: %s" % expand_result.get("message", expand_result.error))
-					return false
-				_verbose.info("farm", "🔬", "Expanded %s quantum system to include %s/%s axis" % [
-					plot_biome.get_biome_type(), plot.north_emoji, plot.south_emoji])
-
-	# Special handling for tomato: assign conspiracy node
-	if plant_type == "tomato":
-		var node_ids = ["seed", "observer", "underground", "genetic", "ripening", "market",
-						"sauce", "identity", "solar", "water", "meaning", "meta"]
-		var node_index = total_plots_planted % node_ids.size()
-		plot.conspiracy_node_id = node_ids[node_index]
-		_verbose.info("farm", "🍅", "Planted tomato at %s connected to node: %s" % [plot.plot_id, plot.conspiracy_node_id])
-
-	# Register plot in biome's quantum computer
-	plot.register_in_biome(plot_biome)
-
-	# Track register allocation in quantum computer
-	if "register_id" in plot and plot.register_id >= 0:
-		plot_register_mapping[position] = plot.register_id
-		plot_biome = get_biome_for_plot(position)
-		if plot_biome and plot_biome.quantum_computer:
-			plot_to_biome_quantum_computer[position] = plot_biome.quantum_computer
-	else:
-		push_error("Plot %s planted but register_id not set!" % position)
-
-	total_plots_planted += 1
-
-	# Note: structure_built signal is emitted by Farm.build() - don't emit plot_planted here
-	# Emit generic signals for visualization and biome updates
-	plot_changed.emit(position, "planted", {"plant_type": plant_type})
-	visualization_changed.emit()
-
-	# AUTO-ENTANGLE: If this plot has infrastructure entanglements, entangle quantum states
-	_auto_entangle_from_infrastructure(position)
-
-	# AUTO-APPLY PERSISTENT GATES: Apply any persistent gate infrastructure to new qubit
-	_auto_apply_persistent_gates(position)
-
-	return true
-
-
-# NOTE: plant_energy_tap removed (2026-01) - energy tap system deprecated
-
-
-func place_mill(position: Vector2i) -> bool:
-	"""Place quantum mill building - injects flour dynamics into parent biome
-
-	Creates a QuantumMill that activates flour (💨) ↔ wheat (🌾) Hamiltonian
-	coupling in the parent biome's quantum computer. Flour populations oscillate
-	with wheat populations - harvest when P(💨) is high.
-	"""
-	var plot = get_plot(position)
-	if plot == null or plot.is_planted:
-		return false
-
-	# Mark as occupied (buildings are instantly "mature")
-	plot.plot_type = FarmPlot.PlotType.MILL
-	plot.conspiracy_node_id = "sauce"  # Entangle with transformation node
-	plot.is_planted = true
-
-	# Create QuantumMill
-	var mill = QuantumMill.new()
-	mill.grid_position = position
-	add_child(mill)
-
-	# NEW: Activate mill with parent biome (injects flour dynamics)
-	var biome = get_biome_for_plot(position)
-	if biome:
-		var success = mill.activate(biome)
-		if success:
-			_verbose.info("farm", "🏭", "Mill activated: 💨↔🌾 dynamics enabled at %s" % plot.plot_id)
-		else:
-			_verbose.warn("farm", "⚠️", "Mill placed but flour dynamics not activated at %s" % plot.plot_id)
-	else:
-		_verbose.warn("farm", "⚠️", "Mill placed but no biome found at %s" % plot.plot_id)
-
-	# Track mill
-	quantum_mills[position] = mill
-
-	# Note: structure_built signal is emitted by Farm.build() - don't emit here
-	_verbose.info("farm", "🏭", "Placed quantum mill at %s" % plot.plot_id)
-	return true
-
-
-func _get_adjacent_wheat(position: Vector2i) -> Array:
-	"""Get all wheat plots adjacent to a position (4-connected)
-
-	Returns: Array of adjacent WheatPlot references
-	"""
-	var adjacent = []
-	var directions = [
-		Vector2i.UP,
-		Vector2i.DOWN,
-		Vector2i.LEFT,
-		Vector2i.RIGHT
-	]
-
-	for direction in directions:
-		var adj_pos = position + direction
-		if is_valid_position(adj_pos):
-			var adj_plot = get_plot(adj_pos)
-			if adj_plot and adj_plot.is_planted and adj_plot.plot_type == FarmPlot.PlotType.WHEAT:
-				adjacent.append(adj_plot)
-
-	return adjacent
-
-
-func place_market(position: Vector2i, target_emoji: String = "🌾") -> bool:
-	"""Place market building - creates X ↔ 💰 quantum pairing for sales
-
-	Creates a QuantumMarket that pairs a target emoji with 💰 (money) in
-	superposition. Player measures to "sell" - the collapse determines credits.
-	Higher P(💰) = more likely to get money.
-
-	Args:
-	    position: Grid position for market
-	    target_emoji: Emoji to pair with 💰 (default: 🌾 wheat)
-	"""
-	var plot = get_plot(position)
-	if plot == null or plot.is_planted:
-		return false
-
-	# Mark as occupied (buildings are instantly "mature")
-	plot.plot_type = FarmPlot.PlotType.MARKET
-	plot.conspiracy_node_id = "market"  # Entangle with market node
-	plot.is_planted = true
-
-	# Create QuantumMarket
-	var market = QuantumMarket.new()
-	market.grid_position = position
-	add_child(market)
-
-	# Activate market with parent biome (injects 💰 dynamics)
-	var biome = get_biome_for_plot(position)
-	if biome:
-		var success = market.activate(biome, target_emoji)
-		if success:
-			_verbose.info("farm", "🏪", "Market activated: %s ↔ 💰 pairing enabled at %s" % [target_emoji, plot.plot_id])
-		else:
-			_verbose.warn("farm", "⚠️", "Market placed but trading not activated at %s" % plot.plot_id)
-	else:
-		_verbose.warn("farm", "⚠️", "Market placed but no biome found at %s" % plot.plot_id)
-
-	# Track market
-	quantum_markets[position] = market
-
-	# Note: structure_built signal is emitted by Farm.build() - don't emit here
-	_verbose.info("farm", "💰", "Placed market at %s → %s ↔ 💰 pairing (value fluctuation)" % [plot.plot_id, target_emoji])
-	return true
-
-
-func place_kitchen(position: Vector2i) -> bool:
-	"""Place kitchen building - prepares for 3-qubit Bell state baking
-
-	Kitchen will:
-	1. Monitor economy for fire (🔥), water (💧), and flour (💨)
-	2. Create 3-qubit entangled Bell state: |ψ⟩ = α|🔥💧💨⟩ + β|🍞⟩
-	3. Evolve under Hamiltonian (oven heat drives toward bread)
-	4. Measure to collapse to bread outcome
-
-	The Kitchen is connected to QuantumKitchen_Biome which manages the quantum state.
-	Also injects 🍞 (bread) axis into the biome for harvesting.
-	"""
-	var plot = get_plot(position)
-	if plot == null or plot.is_planted:
-		return false
-
-	# Mark as occupied (buildings are instantly "mature")
-	plot.plot_type = FarmPlot.PlotType.KITCHEN
-	plot.is_planted = true
-
-	# Inject bread axis into biome's quantum system
-	var biome = get_biome_for_plot(position)
-	if biome and biome.quantum_computer:
-		if not biome.quantum_computer.register_map.has("🍞"):
-			if biome.has_method("expand_quantum_system"):
-				# Expand quantum system to include bread (coupled to flour)
-				var result = biome.expand_quantum_system("🍞", "💨")
-				if result.success or result.get("already_exists", false):
-					_verbose.info("farm", "🍳", "Kitchen injected 🍞 axis into quantum system")
-				else:
-					_verbose.warn("farm", "⚠️", "Kitchen could not inject bread axis: %s" % result.get("message", "unknown"))
-					_verbose.warn("farm", "⚠️", "Try pressing TAB to enter BUILD mode first")
-			else:
-				_verbose.warn("farm", "⚠️", "Kitchen biome doesn't support quantum expansion")
-		else:
-			_verbose.info("farm", "🍳", "Kitchen: 🍞 axis already exists in biome")
-
-	# Note: structure_built signal is emitted by Farm.build() - don't emit here
-	_verbose.info("farm", "🍳", "Placed kitchen at %s - ready for Bell state baking!" % position)
-	return true
-
-
-func place_kitchen_triplet(positions: Array[Vector2i]) -> bool:
-	"""Place kitchen with triplet entanglement (advanced multi-plot kitchen)
-
-	Validates required ingredients (💧, 🔥, 💨) and creates GHZ triplet state.
-	Injects 🍞 (bread) as entangled outcome.
-
-	Args:
-	    positions: Array of exactly 3 plot positions with 💧, 🔥, 💨
-
-	Returns:
-	    true if triplet kitchen created successfully
-	"""
-	if positions.size() != 3:
-		_verbose.warn("farm", "❌", "Kitchen triplet requires exactly 3 positions")
-		return false
-
-	# Validate required ingredients (any order)
-	var required = {"💧": false, "🔥": false, "💨": false}
-	for pos in positions:
-		var plot = get_plot(pos)
-		if not plot or not plot.is_planted:
-			_verbose.warn("farm", "❌", "Plot %s must be planted for kitchen triplet" % pos)
-			return false
-		if plot.north_emoji in required:
-			required[plot.north_emoji] = true
-
-	# Check all ingredients present
-	for emoji in required:
-		if not required[emoji]:
-			_verbose.warn("farm", "❌", "Kitchen missing ingredient: %s" % emoji)
-			return false
-
-	# All ingredients present - create triplet entanglement
-	var success = create_triplet_entanglement(positions[0], positions[1], positions[2])
-
-	if success:
-		# Inject bread superposition into biome
-		var biome = get_biome_for_plot(positions[0])
-		if biome and biome.has_method("expand_quantum_system"):
-			if not biome.quantum_computer.register_map.has("🍞"):
-				var result = biome.expand_quantum_system("🍞", "💨")
-				if result.success or result.get("already_exists", false):
-					_verbose.info("farm", "🍳", "Kitchen triplet: 🍞 axis injected")
-
-		# Mark center plot as kitchen
-		var center_plot = get_plot(positions[1])
-		if center_plot:
-			center_plot.plot_type = FarmPlot.PlotType.KITCHEN
-
-		_verbose.info("farm", "🍳", "Kitchen triplet created: %s ↔ %s ↔ %s → 🍞" % positions)
-
-	return success
-
-
-func harvest_wheat(position: Vector2i) -> Dictionary:
-	"""Harvest wheat at position (quantum-only: must be planted)"""
-	var plot = get_plot(position)
-	if plot == null or not plot.is_planted:
-		return {"success": false}
-
-	var yield_data = plot.harvest()
-	if yield_data["success"]:
-		clear_register_for_plot(position)
-
-		# Remove projection from biome
-		var plot_biome = get_biome_for_plot(position)
-		if plot_biome and plot_biome.has_method("remove_projection"):
-			plot_biome.remove_projection(position)
-			_verbose.debug("farm", "🗑️", "Removed projection from biome at %s" % position)
-
-		plot_harvested.emit(position, yield_data)
-
-		# Emit generic signals for visualization update
-		plot_changed.emit(position, "harvested", {"yield": yield_data})
-		visualization_changed.emit()
-
-	return yield_data
-
-
-# NOTE: Energy tap functions removed (2026-01):
-# - harvest_energy_tap, get_available_tap_emojis, _count_active_energy_taps, get_tap_mutation_pressure_boost
-
-
-func get_local_network(center_plot: FarmPlot, radius: int = 2) -> Array:
-	"""Get plots within entanglement distance from center plot
-
-	Args:
-		center_plot: The plot at the center of the local network
-		radius: Number of entanglement hops to include
-
-	Returns:
-		Array of WheatPlot forming the local entanglement network
-	"""
-	# Model B: Use FarmGrid metadata instead of plot.quantum_state
-	if not center_plot:
-		return []
-
-	var local = [center_plot]
-	var visited = {center_plot: true}
-	var current_layer = [center_plot]
-
-	for hop in range(radius):
-		var next_layer = []
-		for plot in current_layer:
-			if not plot.is_planted:
-				continue
-
-			# Get entangled partners via WheatPlot.entangled_plots
-			for partner_id in plot.entangled_plots.keys():
-				var partner_pos = _find_plot_by_id(partner_id)
-				if partner_pos != Vector2i(-1, -1):
-					var partner_plot = get_plot(partner_pos)
-					if partner_plot and not visited.has(partner_plot):
-						local.append(partner_plot)
-						next_layer.append(partner_plot)
-						visited[partner_plot] = true
-
-		current_layer = next_layer
-		if current_layer.is_empty():
-			break
-
-	return local
-
-
-# REMOVED: _find_plot_by_qubit() - Legacy Model A method
-# Model B: No direct qubit objects; all access through QuantumComputer and register_id
-
-
-func harvest_with_topology(position: Vector2i, local_radius: int = 2) -> Dictionary:
-	"""Harvest wheat with local topology bonus and coherence penalty
-
-	This is the NEW harvest method that implements the quantum-classical divide:
-	- Analyzes local entanglement topology for bonus
-	- Applies coherence penalty (decoherence reduces yield)
-	- Measures quantum state (collapses superposition)
-	- Breaks entanglements (measurement destroys quantum state)
-
-	Args:
-		position: Grid position to harvest
-		local_radius: Entanglement hops to include in local network (default 2)
-
-	Returns:
-		Dictionary with harvest results:
-		{
-			"success": bool,
-			"yield": float,
-			"base_yield": float,
-			"state": String (🌾 or 👥),
-			"state_bonus": float,
-			"topology_bonus": float,
-			"coherence": float,
-			"pattern_name": String,
-			"jones": float
-		}
-	"""
-	var plot = get_plot(position)
-	if plot == null or not plot.is_planted:
-		return {"success": false}
-
-	# 1. Get local entanglement network
-	var local_plots = get_local_network(plot, local_radius)
-
-	# 2. Analyze local topology
-	var local_topology = topology_analyzer.analyze_entanglement_network(local_plots)
-
-	# 3. Check coherence from quantum_computer (Model C)
-	var coherence = 1.0
-	var biome = get_biome_for_plot(position)
-
-	if biome and biome.quantum_computer:
-		var reg_id = plot_register_mapping.get(position, -1)
-		if reg_id >= 0:
-			# Model C: get_marginal_coherence takes (null, reg_id)
-			coherence = biome.quantum_computer.get_marginal_coherence(null, reg_id)
-			coherence = clamp(coherence, 0.0, 1.0)
-
-	# 4. Measure quantum state (Model C)
-	var measurement_result = ""
-
-	if biome and biome.quantum_computer:
-		if plot.north_emoji != "" and plot.south_emoji != "":
-			var outcome_emoji = biome.quantum_computer.measure_axis(plot.north_emoji, plot.south_emoji)
-			measurement_result = outcome_emoji if outcome_emoji != "" else plot.north_emoji
-			_verbose.debug("farm", "📊", "Harvest measurement at %s: outcome = %s" % [position, measurement_result])
-
-	# Fallback if no quantum system available
-	if measurement_result == "":
-		measurement_result = plot.north_emoji  # Default to north state
-
-	# 5. Calculate base yield from growth
-	# Note: growth_progress was deprecated in Model B
-	# Using constant base yield for now (plots are harvested immediately upon measurement)
-	var growth_factor = 1.0  # Model B: plots grow instantly, no time-based progression
-	var base_yield = 10.0 * growth_factor
-
-	# 6. Quantum state modifier
-	var state_modifier = 1.5 if measurement_result == "👥" else 1.0
-
-	# 7. Local topology bonus (parametric from Jones polynomial)
-	var topology_bonus = local_topology.bonus_multiplier  # 1.0x to 3.0x
-
-	# 8. Coherence penalty (decoherence reduces yield)
-	var coherence_factor = coherence  # 0.0 to 1.0
-
-	# 9. Faction territory value modifier
-	var territory_value_modifier = 1.0
-	if faction_territory_manager:
-		var territory_effects = faction_territory_manager.get_territory_effects(position)
-		if territory_effects.has("harvest_value_multiplier"):
-			territory_value_modifier = territory_effects.harvest_value_multiplier
-
-	# 10. Final yield calculation
-	var final_yield = base_yield * state_modifier * topology_bonus * coherence_factor * territory_value_modifier
-
-	# 11. Award resources to economy
-	# FarmEconomy uses 1 quantum energy = 10 credits conversion
-	if farm_economy and measurement_result != "":
-		var quantum_energy = final_yield / 10.0  # Convert credits to quantum units
-		farm_economy.receive_harvest(measurement_result, quantum_energy, "harvest")
-
-	# 12. Break entanglements (Model B: quantum_computer handled collapse)
-	# quantum_computer.measure_register() already handled:
-	# - Cluster/pair collapse at quantum level
-	# - Register state updates
-	# - Component cleanup
-	#
-	# We only clear FarmGrid metadata tracking:
-
-	# Clear WheatPlot entanglement tracking
-	for partner_id in plot.entangled_plots.keys():
-		var partner_pos = _find_plot_by_id(partner_id)
-		if partner_pos != Vector2i(-1, -1):
-			var partner_plot = get_plot(partner_pos)
-			if partner_plot:
-				partner_plot.entangled_plots.erase(plot.plot_id)
-	plot.entangled_plots.clear()
-
-	# Note: EntangledPair objects no longer tracked - they were Model A artifacts
-	# quantum_computer manages entanglement via register_id and components
-
-	# 13. Reset plot
-	plot.reset()
-
-	# MODEL B: Clear register allocation (Phase 0.5)
-	clear_register_for_plot(position)
-
-	# 14. Emit signal with full data
-	var yield_data = {
-		"success": true,
-		"yield": final_yield,
-		"base_yield": base_yield,
-		"state": measurement_result,
-		"state_bonus": state_modifier,
-		"topology_bonus": topology_bonus,
-		"coherence": coherence,
-		"coherence_penalty": coherence_factor,
-		"pattern_name": local_topology.pattern.name,
-		"jones": local_topology.features.jones_approximation,
-		"protection": local_topology.pattern.protection_level,
-		"glow_color": local_topology.pattern.glow_color
-	}
-
-	plot_harvested.emit(position, yield_data)
-
-	return yield_data
-
-
-func measure_plot(position: Vector2i) -> String:
-	"""Measure quantum state (observer effect). Entanglement means measuring one collapses entire network!
-
-	Uses biome's quantum_computer for register-based measurement.
-	"""
-	var plot = get_plot(position)
-	if plot == null or not plot.is_planted:
-		return ""
-
-	# Get biome for this plot
-	var biome = get_biome_for_plot(position)
-	if not biome:
-		_verbose.warn("farm", "⚠️", "No biome for plot at %s" % position)
-		return ""
-
-	var result = ""
-
-	if not biome.quantum_computer:
-		_verbose.warn("farm", "⚠️", "No quantum system for plot at %s" % position)
-		return plot.north_emoji  # Default fallback
-
-	if plot.north_emoji == "" or plot.south_emoji == "":
-		return plot.north_emoji  # Default fallback
-
-	# Model C: Use measure_axis directly
-	var outcome_emoji = biome.quantum_computer.measure_axis(plot.north_emoji, plot.south_emoji)
-	result = outcome_emoji if outcome_emoji != "" else plot.north_emoji
-	var basis_outcome = "north" if outcome_emoji == plot.north_emoji else "south"
-	_verbose.debug("farm", "📊", "Measure operation (Model C): %s collapsed to %s" % [position, result])
-
-	# UPDATE PLOT STATE
-	plot.has_been_measured = true
-	plot.measured_outcome = basis_outcome  # "north" or "south"
-
-	# For compatibility, still track which plots were in the component
-	# (This is purely for logging/visualization - quantum collapse already happened in quantum_computer)
-	var measured_ids = {plot.plot_id: true}
-
-	# Flood-fill through FarmGrid entanglement metadata to find component
-	# (This mirrors the quantum measurement - all plots in component are now measured)
-	var to_check = []
-	for entangled_id in plot.entangled_plots.keys():
-		to_check.append(entangled_id)
-
-	# Flood-fill through the entanglement network
-	while not to_check.is_empty():
-		var current_id = to_check.pop_front()
-
-		# Skip if already processed
-		if measured_ids.has(current_id):
-			continue
-
-		# Find this plot
-		var current_pos = _find_plot_by_id(current_id)
-		if current_pos == Vector2i(-1, -1):
-			continue
-
-		var current_plot = get_plot(current_pos)
-		if not current_plot or not current_plot.is_planted:
-			continue
-
-		# Mark as measured (quantum_computer already handled the measurement)
-		_verbose.debug("quantum", "↪", "Entanglement network collapsed %s (via quantum_computer)" % current_id)
-		measured_ids[current_id] = true
-
-		# Add its entangled partners to the queue
-		for next_id in current_plot.entangled_plots.keys():
-			if not measured_ids.has(next_id):
-				to_check.append(next_id)
-
-	# MEASUREMENT COLLAPSES TO CLASSICAL STATE: (Model B)
-	# Break ALL entanglements for measured plots (quantum → classical transition)
-	# Measured plots become classical and no longer participate in quantum network
-	# Note: quantum_computer already handled the collapse - we only clear metadata
-	for measured_id in measured_ids.keys():
-		var measured_pos = _find_plot_by_id(measured_id)
-		if measured_pos == Vector2i(-1, -1):
-			continue
-
-		var measured_plot = get_plot(measured_pos)
-		if not measured_plot:
-			continue
-
-		# Clear all entanglements for this plot (FarmGrid metadata only)
-		if not measured_plot.entangled_plots.is_empty():
-			var num_broken = measured_plot.entangled_plots.size()
-			measured_plot.entangled_plots.clear()
-			_verbose.debug("quantum", "🔓", "Measurement broke %d entanglements for %s (classical state)" % [num_broken, measured_id])
-
-	# Note: EntangledPair objects were Model A artifacts managed via plot.quantum_state
-	# Model B: Entanglement is managed by quantum_computer via registers and components
-	# No manual pair cleanup needed
-
-	# Emit signals for visualization update (CRITICAL for visual feedback!)
-	# Measure operation changes plot state from unmeasured → measured
-	plot_changed.emit(position, "measured", {"outcome": result})
-	visualization_changed.emit()
-
+	"""Generic plant method - handles all crop types (PARAMETRIC)"""
+	# Ensure economy is wired (may be set after _ready)
+	if farm_economy and not _planting._economy:
+		_planting.set_dependencies(_plot_manager, _biome_routing, farm_economy, _entanglement)
+
+	var result = _planting.plant(position, plant_type, quantum_state)
+	if result:
+		total_plots_planted = _planting.total_plots_planted
 	return result
 
 
-## Cluster Entanglement Helpers
+func _get_adjacent_wheat(position: Vector2i) -> Array:
+	"""Get all wheat plots adjacent to a position"""
+	return _planting.get_adjacent_wheat(position)
 
-func _update_cluster_gameplay_connections(cluster):
-	"""Update WheatPlot.entangled_plots for all qubits in cluster (for topology)"""
-	var plot_ids = cluster.get_all_plot_ids()
 
-	# Each plot should be connected to all others in cluster
-	for plot_id in plot_ids:
-		var plot = _get_plot_by_id(plot_id)
-		if not plot:
-			continue
+# ═══════════════════════════════════════════════════════════════════════════════
+# BUILDING OPERATIONS (delegates to BuildingManager)
+# ═══════════════════════════════════════════════════════════════════════════════
 
-		# Clear old connections, rebuild from cluster
-		plot.entangled_plots.clear()
+func place_mill(position: Vector2i) -> bool:
+	"""Place quantum mill building"""
+	return _buildings.place_mill(position)
 
-		# Add all other plots in cluster
-		for other_id in plot_ids:
-			if other_id != plot_id:
-				plot.entangled_plots[other_id] = 1.0  # Full strength
 
+func place_market(position: Vector2i, target_emoji: String = "🌾") -> bool:
+	"""Place market building"""
+	return _buildings.place_market(position, target_emoji)
 
-func _add_to_cluster(cluster, new_plot: FarmPlot, control_index: int) -> bool:
-	"""Add new qubit to existing cluster via CNOT gate"""
 
-	# Check cluster size limit (recommend 6-qubit max)
-	if cluster.get_qubit_count() >= 6:
-		_verbose.warn("quantum", "⚠️", "Cluster at max size (6 qubits)")
-		return false
+func place_kitchen(position: Vector2i) -> bool:
+	"""Place kitchen building"""
+	return _buildings.place_kitchen(position)
 
-	# Add qubit to cluster with CNOT gate
-	cluster.entangle_new_qubit_cnot(new_plot.quantum_state, new_plot.plot_id, control_index)
 
-	# Link qubit to cluster
-	new_plot.quantum_state.entangled_cluster = cluster
-	new_plot.quantum_state.cluster_qubit_index = cluster.get_qubit_count() - 1
+func place_kitchen_triplet(positions: Array[Vector2i]) -> bool:
+	"""Place kitchen with triplet entanglement"""
+	return _buildings.place_kitchen_triplet(positions)
 
-	# Update gameplay entanglement tracking (for topology)
-	_update_cluster_gameplay_connections(cluster)
 
-	_verbose.info("quantum", "🔗", "Added %s to cluster (size: %d)" % [new_plot.plot_id, cluster.get_qubit_count()])
-	return true
+# ═══════════════════════════════════════════════════════════════════════════════
+# HARVEST & MEASUREMENT (delegates to HarvestMeasurementManager)
+# ═══════════════════════════════════════════════════════════════════════════════
 
+func harvest_wheat(position: Vector2i) -> Dictionary:
+	"""Harvest wheat at position"""
+	# Ensure economy is wired
+	if farm_economy and not _harvest._economy:
+		_harvest.set_dependencies(_plot_manager, _biome_routing, farm_economy, _entanglement, topology_analyzer)
+	return _harvest.harvest_wheat(position)
 
-func _upgrade_pair_to_cluster(pair, new_plot: FarmPlot) -> bool:
-	"""Upgrade 2-qubit pair to 3-qubit cluster"""
 
-	# Create new cluster
-	var cluster = EntangledCluster.new()
+func get_local_network(center_plot, radius: int = 2) -> Array:
+	"""Get plots within entanglement distance from center plot"""
+	return _harvest.get_local_network(center_plot, radius)
 
-	# Find the two plots in the pair
-	var plot_a = _get_plot_by_id(pair.qubit_a_id)
-	var plot_b = _get_plot_by_id(pair.qubit_b_id)
 
-	if not plot_a or not plot_b:
-		_verbose.warn("quantum", "⚠️", "Cannot find plots in pair")
-		return false
+func harvest_with_topology(position: Vector2i, local_radius: int = 2) -> Dictionary:
+	"""Harvest wheat with local topology bonus and coherence penalty"""
+	# Ensure economy is wired
+	if farm_economy and not _harvest._economy:
+		_harvest.set_dependencies(_plot_manager, _biome_routing, farm_economy, _entanglement, topology_analyzer)
+	return _harvest.harvest_with_topology(position, local_radius)
 
-	# Add both qubits to cluster
-	cluster.add_qubit(plot_a.quantum_state, plot_a.plot_id)
-	cluster.add_qubit(plot_b.quantum_state, plot_b.plot_id)
 
-	# Create GHZ state (|00⟩ + |11⟩) - equivalent to Bell state
-	cluster.create_ghz_state()
+func measure_plot(position: Vector2i) -> String:
+	"""Measure quantum state (observer effect)"""
+	return _harvest.measure_plot(position)
 
-	# Add third qubit via CNOT
-	cluster.entangle_new_qubit_cnot(new_plot.quantum_state, new_plot.plot_id, 0)
 
-	# Update qubit references
-	plot_a.quantum_state.entangled_pair = null
-	plot_a.quantum_state.entangled_cluster = cluster
-	plot_a.quantum_state.cluster_qubit_index = 0
-
-	plot_b.quantum_state.entangled_pair = null
-	plot_b.quantum_state.entangled_cluster = cluster
-	plot_b.quantum_state.cluster_qubit_index = 1
-
-	new_plot.quantum_state.entangled_cluster = cluster
-	new_plot.quantum_state.cluster_qubit_index = 2
-
-	# Remove old pair, add cluster
-	entangled_pairs.erase(pair)
-	entangled_clusters.append(cluster)
-
-	# Update gameplay connections
-	_update_cluster_gameplay_connections(cluster)
-
-	_verbose.info("quantum", "✨", "Upgraded pair to 3-qubit cluster: %s" % cluster.get_state_string())
-	return true
-
-
-func _handle_cluster_collapse(cluster):
-	"""Handle measurement cascade when cluster is measured"""
-	var plot_ids = cluster.get_all_plot_ids()
-
-	# Update all qubits from collapsed cluster state
-	for i in range(cluster.get_qubit_count()):
-		var plot_id = plot_ids[i]
-		var plot = _get_plot_by_id(plot_id)
-		if not plot:
-			continue
-
-		# Get reduced density matrix for this qubit (partial trace)
-		# For now: simplified - cluster measurement collapses to product state
-		# Qubits become separable after measurement
-
-		# Clear cluster reference
-		plot.quantum_state.entangled_cluster = null
-		plot.quantum_state.cluster_qubit_index = -1
-
-		# Clear gameplay connections
-		plot.entangled_plots.clear()
-
-	# Remove cluster from tracking
-	entangled_clusters.erase(cluster)
-
-	_verbose.info("quantum", "💥", "Cluster collapsed - %d qubits now separable" % plot_ids.size())
-
-
-## Entanglement (Density Matrix System)
-
-func _auto_entangle_from_infrastructure(position: Vector2i):
-	"""Auto-entangle quantum states when planting in infrastructurally entangled plot"""
-	var plot = get_plot(position)
-	if not plot or not plot.is_planted:
-		return
-
-	# Check all infrastructure entanglement links
-	for partner_pos in plot.plot_infrastructure_entanglements:
-		var partner_plot = get_plot(partner_pos)
-
-		# If partner is planted, entangle their quantum states
-		if partner_plot and partner_plot.is_planted:
-			# Check if already entangled (avoid duplicates)
-			if not plot.entangled_plots.has(partner_plot.plot_id):
-				# Recursively call create_entanglement to set up quantum state entanglement
-				# This will skip the infrastructure setup (already done) and go straight to quantum entanglement
-				_create_quantum_entanglement(position, partner_pos)
-				_verbose.info("quantum", "⚡", "Auto-entangled %s ↔ %s (infrastructure activated)" % [position, partner_pos])
-
-
-func _auto_apply_persistent_gates(position: Vector2i) -> void:
-	"""Apply persistent gate infrastructure to newly planted qubit.
-
-	Called automatically from plant() after _auto_entangle_from_infrastructure().
-	Gates marked as 'active' on the plot are applied to the new quantum state.
-	"""
-	var plot = get_plot(position)
-
-	# Skip if plot not planted
-	if not plot or not plot.is_planted:
-		return
-
-	# Check if plot has quantum state via register_id
-	if plot.register_id < 0:
-		return
-
-	var active_gates = plot.get_active_gates()
-	if active_gates.is_empty():
-		return
-
-	_verbose.debug("farm", "🔧", "Auto-applying %d persistent gates to %s" % [active_gates.size(), position])
-
-	for gate in active_gates:
-		var gate_type = gate.get("type", "")
-		var linked_plots = gate.get("linked_plots", [])
-
-		match gate_type:
-			"bell":
-				# Bell gate - 2-qubit persistent entanglement
-				_auto_cluster_from_gate(position, linked_plots)
-			"cluster":
-				# Cluster gate - N-qubit persistent entanglement
-				_auto_cluster_from_gate(position, linked_plots)
-			"measure_trigger":
-				# Mark plot for cascade measurement when triggered
-				_verbose.debug("farm", "👁️", "Measure trigger active on %s" % position)
-			_:
-				_verbose.warn("farm", "⚠️", "Unknown gate type: %s" % gate_type)
-
-
-func _auto_cluster_from_gate(position: Vector2i, linked_plots: Array) -> void:
-	"""Create cluster entanglement from persistent gate infrastructure.
-
-	Called when planting in a plot that has a cluster gate.
-	Entangles with all other planted plots in the linked_plots array.
-	"""
-	var plot = get_plot(position)
-	if not plot or not plot.quantum_state:
-		return
-
-	for linked_pos in linked_plots:
-		if linked_pos == position:
-			continue  # Skip self
-
-		var linked_plot = get_plot(linked_pos)
-		if linked_plot and linked_plot.is_planted and linked_plot.quantum_state:
-			# Check if already entangled
-			if not plot.entangled_plots.has(linked_plot.plot_id):
-				_create_quantum_entanglement(position, linked_pos)
-				_verbose.info("quantum", "🔗", "Cluster gate: entangled %s ↔ %s" % [position, linked_pos])
-
-
-func _create_quantum_entanglement(pos_a: Vector2i, pos_b: Vector2i, _bell_type: String = "phi_plus") -> bool:
-	"""Create quantum state entanglement (internal helper) - Model C: apply CNOT gate"""
-	var plot_a = get_plot(pos_a)
-	var plot_b = get_plot(pos_b)
-
-	if not plot_a or not plot_b or not plot_a.is_planted or not plot_b.is_planted:
-		return false
-
-	# MODEL C: Entanglement via apply_gate_2q
-	var biome_a = get_biome_for_plot(pos_a)
-	var biome_b = get_biome_for_plot(pos_b)
-
-	# Ensure both plots are in same biome
-	if biome_a != biome_b:
-		push_error("Cannot entangle plots from different biomes - each biome has its own quantum_computer")
-		return false
-
-	# Get register IDs from plot mappings
-	var reg_id_a = plot_register_mapping.get(pos_a, -1)
-	var reg_id_b = plot_register_mapping.get(pos_b, -1)
-
-	if reg_id_a < 0 or reg_id_b < 0:
-		push_error("Cannot entangle: plots don't have valid register allocations")
-		return false
-
-	# Model C: Apply entangling gate (CNOT) and update entanglement graph
-	if biome_a and biome_a.quantum_computer:
-		var qc = biome_a.quantum_computer
-		# Check if already entangled via entanglement_graph
-		var entangled_ids = qc.get_entangled_component(reg_id_a)
-		if reg_id_b in entangled_ids:
-			_verbose.info("quantum", "ℹ️", "Plots already entangled")
-			plot_a.add_entanglement(plot_b.plot_id, 1.0)
-			plot_b.add_entanglement(plot_a.plot_id, 1.0)
-			return true
-
-		# Apply H then CNOT to create Bell state
-		var QuantumGateLibrary = preload("res://Core/QuantumSubstrate/QuantumGateLibrary.gd")
-		var H = QuantumGateLibrary.get_gate("H")["matrix"]
-		var CNOT = QuantumGateLibrary.get_gate("CNOT")["matrix"]
-
-		qc.apply_gate(reg_id_a, H)  # Put first qubit in superposition
-		qc.apply_gate_2q(reg_id_a, reg_id_b, CNOT)  # Entangle
-
-		_verbose.info("quantum", "🔗", "Created entanglement via H + CNOT: %d ↔ %d" % [reg_id_a, reg_id_b])
-	else:
-		push_error("Biome has no quantum_computer for entanglement")
-		return false
-
-	# Update gameplay entanglement tracking (metadata for visualization)
-	plot_a.add_entanglement(plot_b.plot_id, 1.0)
-	plot_b.add_entanglement(plot_a.plot_id, 1.0)
-
-	# Emit signal for UI updates (entanglement visualization)
-	entanglement_created.emit()
-
-	return true
-
+# ═══════════════════════════════════════════════════════════════════════════════
+# ENTANGLEMENT (delegates to EntanglementManager)
+# ═══════════════════════════════════════════════════════════════════════════════
 
 func create_entanglement(pos_a: Vector2i, pos_b: Vector2i, bell_type: String = "phi_plus") -> bool:
-	"""Create entanglement between two plots (PLOT INFRASTRUCTURE MODEL)
-
-	NEW: Entanglement is plot-level infrastructure (like gates)
-	- Plots remember entanglement links even after harvest/replant
-	- When planting in an entangled plot, quantum states auto-entangle
-
-	Args:
-		pos_a: Position of first plot
-		pos_b: Position of second plot
-		bell_type: Type of Bell state (used when both plots are planted)
-
-	Returns:
-		true if entanglement infrastructure created successfully
-	"""
-	if not is_valid_position(pos_a) or not is_valid_position(pos_b):
-		return false
-
-	if pos_a == pos_b:
-		return false
-
-	var plot_a = get_plot(pos_a)
-	var plot_b = get_plot(pos_b)
-
-	if plot_a == null or plot_b == null:
-		return false
-
-	# CRITICAL: Cross-biome entanglement prevention (Semantic Revolution requirement)
-	# Each biome is an isolated quantum system - entanglement cannot span biomes
-	var biome_id_a = plot_biome_assignments.get(pos_a, "")
-	var biome_id_b = plot_biome_assignments.get(pos_b, "")
-
-	if biome_id_a != biome_id_b:
-		push_warning("❌ FORBIDDEN: Cannot entangle plots from different biomes!")
-		push_warning("   Plot %s biome: %s" % [pos_a, biome_id_a if biome_id_a != "" else "unassigned"])
-		push_warning("   Plot %s biome: %s" % [pos_b, biome_id_b if biome_id_b != "" else "unassigned"])
-		if _verbose:
-			_verbose.warn("farm", "❌", "Cross-biome entanglement blocked: %s (%s) ↔ %s (%s)" % [
-				pos_a, biome_id_a, pos_b, biome_id_b
-			])
-		return false
-
-	if biome_id_a == "":
-		push_warning("❌ Cannot entangle plots with no biome assignment")
-		if _verbose:
-			_verbose.warn("farm", "❌", "Entanglement blocked: plots must be assigned to a biome")
-		return false
-
-	# NEW: Set up plot infrastructure FIRST (works even if not planted)
-	if not plot_a.plot_infrastructure_entanglements.has(pos_b):
-		plot_a.plot_infrastructure_entanglements.append(pos_b)
-		if _verbose:
-			_verbose.debug("farm", "🏗️", "Plot infrastructure: %s ↔ %s (entanglement gate installed)" % [pos_a, pos_b])
-
-	if not plot_b.plot_infrastructure_entanglements.has(pos_a):
-		plot_b.plot_infrastructure_entanglements.append(pos_a)
-
-	# Mark Bell gate in biome layer (historical entanglement record)
-	var biome_a = get_biome_for_plot(pos_a)  # Phase 2c: Use first plot's biome
-	if biome_a and biome_a.has_method("mark_bell_gate"):
-		biome_a.mark_bell_gate([pos_a, pos_b])
-
-	# If both plots are NOT planted, just set up infrastructure and return
-	if not plot_a.is_planted or not plot_b.is_planted:
-		if _verbose:
-			_verbose.info("farm", "→", "Infrastructure ready. Quantum entanglement will auto-activate when both plots are planted.")
-		entanglement_created.emit(pos_a, pos_b)
-		# Emit generic signals
+	"""Create entanglement between two plots"""
+	var result = _entanglement.create_entanglement(pos_a, pos_b, bell_type)
+	if result:
 		plot_changed.emit(pos_a, "entangled", {"partner": pos_b})
 		plot_changed.emit(pos_b, "entangled", {"partner": pos_a})
 		visualization_changed.emit()
-		return true  # Infrastructure created successfully
-
-	# Both plots are planted → Create quantum entanglement using helper
-	var success = _create_quantum_entanglement(pos_a, pos_b, bell_type)
-	if success:
-		entanglement_created.emit(pos_a, pos_b)
-		# Emit generic signals
-		plot_changed.emit(pos_a, "entangled", {"partner": pos_b})
-		plot_changed.emit(pos_b, "entangled", {"partner": pos_a})
-		visualization_changed.emit()
-	return success
+	return result
 
 
 func create_triplet_entanglement(pos_a: Vector2i, pos_b: Vector2i, pos_c: Vector2i) -> bool:
-	"""Create triple entanglement (3-qubit Bell state) for kitchen measurement
-
-	This marks three plots as a potential kitchen measurement target.
-	The spatial arrangement of the plots determines the Bell state type:
-	- Horizontal/Vertical/Diagonal → GHZ state
-	- L-shape → W state
-	- T-shape → Cluster state
-
-	Args:
-		pos_a, pos_b, pos_c: Positions of the three plots
-
-	Returns:
-		true if triplet entanglement infrastructure created successfully
-	"""
-	if not is_valid_position(pos_a) or not is_valid_position(pos_b) or not is_valid_position(pos_c):
-		return false
-
-	# All positions must be different
-	if pos_a == pos_b or pos_b == pos_c or pos_a == pos_c:
-		return false
-
-	var plot_a = get_plot(pos_a)
-	var plot_b = get_plot(pos_b)
-	var plot_c = get_plot(pos_c)
-
-	if plot_a == null or plot_b == null or plot_c == null:
-		return false
-
-	# CRITICAL: Cross-biome entanglement prevention (triplet version)
-	var biome_id_a = plot_biome_assignments.get(pos_a, "")
-	var biome_id_b = plot_biome_assignments.get(pos_b, "")
-	var biome_id_c = plot_biome_assignments.get(pos_c, "")
-
-	if biome_id_a != biome_id_b or biome_id_b != biome_id_c:
-		push_warning("❌ FORBIDDEN: Cannot create triplet entanglement across different biomes!")
-		push_warning("   Plot %s biome: %s" % [pos_a, biome_id_a])
-		push_warning("   Plot %s biome: %s" % [pos_b, biome_id_b])
-		push_warning("   Plot %s biome: %s" % [pos_c, biome_id_c])
-		if _verbose:
-			_verbose.warn("farm", "❌", "Cross-biome triplet entanglement blocked")
-		return false
-
-	if biome_id_a == "":
-		push_warning("❌ Cannot create triplet entanglement with unassigned plots")
-		return false
-
-	# Mark as triplet Bell gate in biome (kitchen can query these)
-	var biome_a = get_biome_for_plot(pos_a)  # Phase 2c: Use first plot's biome
-	if biome_a and biome_a.has_method("mark_bell_gate"):
-		biome_a.mark_bell_gate([pos_a, pos_b, pos_c])
-		_verbose.info("farm", "🔔", "Triple entanglement marked: %s, %s, %s (kitchen ready)" % [pos_a, pos_b, pos_c])
-
-	# Emit signal for UI feedback
-	entanglement_created.emit(pos_a, pos_b)  # Use first two positions for signal
-
-	return true
+	"""Create triple entanglement (3-qubit Bell state)"""
+	return _entanglement.create_triplet_entanglement(pos_a, pos_b, pos_c)
 
 
 func remove_entanglement(pos_a: Vector2i, pos_b: Vector2i):
 	"""Remove entanglement between two plots"""
-	var plot_a = get_plot(pos_a)
-	var plot_b = get_plot(pos_b)
-
-	# Find and remove EntangledPair if it exists
-	if plot_a and plot_a.quantum_state.entangled_pair != null:
-		var pair = plot_a.quantum_state.entangled_pair
-		if pair in entangled_pairs:
-			entangled_pairs.erase(pair)
-
-		# Unlink from both qubits
-		if plot_a:
-			plot_a.quantum_state.entangled_pair = null
-		if plot_b:
-			plot_b.quantum_state.entangled_pair = null
-
-	# Also remove legacy entanglement tracking
-	if plot_a:
-		plot_a.remove_entanglement(plot_b.plot_id if plot_b else "")
-	if plot_b:
-		plot_b.remove_entanglement(plot_a.plot_id if plot_a else "")
-
-	entanglement_removed.emit(pos_a, pos_b)
+	_entanglement.remove_entanglement(pos_a, pos_b)
 
 
 func are_plots_entangled(pos_a: Vector2i, pos_b: Vector2i) -> bool:
 	"""Check if two plots are entangled"""
-	var plot_a = get_plot(pos_a)
-	var plot_b = get_plot(pos_b)
-
-	if plot_a == null or plot_b == null:
-		return false
-
-	return plot_a.entangled_plots.has(plot_b.plot_id)
+	return _entanglement.are_plots_entangled(pos_a, pos_b)
 
 
-## Icon Management
+func _auto_entangle_from_infrastructure(position: Vector2i):
+	"""Auto-entangle quantum states when planting"""
+	_entanglement.auto_entangle_from_infrastructure(position)
+
+
+func _auto_apply_persistent_gates(position: Vector2i) -> void:
+	"""Apply persistent gate infrastructure to newly planted qubit"""
+	_entanglement.auto_apply_persistent_gates(position)
+
+
+func _update_cluster_gameplay_connections(cluster):
+	"""Update WheatPlot.entangled_plots for cluster"""
+	_entanglement.update_cluster_gameplay_connections(cluster)
+
+
+func _add_to_cluster(cluster, new_plot, control_index: int) -> bool:
+	"""Add new qubit to existing cluster"""
+	return _entanglement.add_to_cluster(cluster, new_plot, control_index)
+
+
+func _upgrade_pair_to_cluster(pair, new_plot) -> bool:
+	"""Upgrade 2-qubit pair to 3-qubit cluster"""
+	return _entanglement.upgrade_pair_to_cluster(pair, new_plot)
+
+
+func _handle_cluster_collapse(cluster):
+	"""Handle measurement cascade when cluster is measured"""
+	_entanglement.handle_cluster_collapse(cluster)
+
+
+func _create_quantum_entanglement(pos_a: Vector2i, pos_b: Vector2i, bell_type: String = "phi_plus") -> bool:
+	"""Create quantum state entanglement (internal helper)"""
+	return _entanglement._create_quantum_entanglement(pos_a, pos_b, bell_type)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# ICON MANAGEMENT (kept in FarmGrid)
+# ═══════════════════════════════════════════════════════════════════════════════
 
 func add_icon(icon) -> void:
 	"""Add Icon to farm for quantum effects"""
@@ -1634,18 +472,12 @@ func add_icon(icon) -> void:
 
 
 func add_scoped_icon(icon, biome_names: Array[String]) -> void:
-	"""Add Icon that only affects plots in specific biomes
-
-	Args:
-		icon: The icon instance to add
-		biome_names: Array of biome names this icon affects (e.g., ["Forest"])
-	"""
+	"""Add Icon that only affects plots in specific biomes"""
 	if icon not in active_icons:
 		active_icons.append(icon)
 		icon_scopes[icon] = biome_names
 		_verbose.info("farm", "✨", "Scoped Icon added to farm: %s → %s" % [icon.icon_name, biome_names])
 	else:
-		# Icon already active - just update scope
 		icon_scopes[icon] = biome_names
 		_verbose.info("farm", "📍", "Updated scope for %s → %s" % [icon.icon_name, biome_names])
 
@@ -1666,93 +498,55 @@ func get_effective_temperature() -> float:
 	return temp
 
 
-## Utility
+func _build_icon_network() -> Dictionary:
+	"""Build icon_network dictionary from active_icons array"""
+	var icon_network = {}
 
-func get_neighbors(position: Vector2i) -> Array[Vector2i]:
-	"""Get valid neighbor positions (4-directional)"""
-	var neighbors: Array[Vector2i] = []
+	for icon in active_icons:
+		if icon.icon_emoji == "🌾":  # Biotic Flux
+			icon_network["biotic"] = icon
+		elif icon.icon_emoji == "🍅":  # Chaos Vortex
+			icon_network["chaos"] = icon
+		elif icon.icon_emoji == "🏰":  # Imperium/Carrion Throne
+			icon_network["imperium"] = icon
 
-	var directions = [
-		Vector2i(0, -1),  # Up
-		Vector2i(1, 0),   # Right
-		Vector2i(0, 1),   # Down
-		Vector2i(-1, 0)   # Left
-	]
-
-	for dir in directions:
-		var neighbor_pos = position + dir
-		if is_valid_position(neighbor_pos):
-			neighbors.append(neighbor_pos)
-
-	return neighbors
+	return icon_network
 
 
-func get_all_planted_positions() -> Array[Vector2i]:
-	"""Get positions of all planted plots"""
-	var planted: Array[Vector2i] = []
-	for position in plots.keys():
-		if plots[position].is_planted:
-			planted.append(position)
-	return planted
+# ═══════════════════════════════════════════════════════════════════════════════
+# ECONOMY INTEGRATION (kept for mill processing)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+func process_mill_flour(flour_amount: int) -> void:
+	"""Convert mill-produced flour to economy resources.
+
+	Called by QuantumMill.perform_quantum_measurement() when flour outcomes occur.
+	"""
+	if not farm_economy or flour_amount <= 0:
+		_verbose.error("farm", "❌", "process_mill_flour called with invalid params (amount=%d)" % flour_amount)
+		return
+
+	const EconomyConstants = preload("res://Core/GameMechanics/EconomyConstants.gd")
+	var flour_credits = flour_amount * EconomyConstants.QUANTUM_TO_CREDITS
+	farm_economy.add_resource("💨", flour_credits, "mill_quantum_measurement")
+
+	_verbose.info("economy", "🏭", "Mill: Produced %d flour → %d credits" % [flour_amount, flour_credits])
 
 
-func get_all_mature_positions() -> Array[Vector2i]:
-	"""Get positions of all mature plots"""
-	var mature: Array[Vector2i] = []
-	for position in plots.keys():
-		if plots[position].is_planted:  # Quantum-only: all planted plots are "mature"
-			mature.append(position)
-	return mature
+# ═══════════════════════════════════════════════════════════════════════════════
+# REGISTER MANAGEMENT (for visualization - delegates to BiomeRoutingManager)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+func get_register_for_plot(position: Vector2i) -> int:
+	"""Get the RegisterId for a plot"""
+	return _biome_routing.get_register_for_plot(position)
 
 
-func get_grid_stats() -> Dictionary:
-	"""Get current grid statistics"""
-	var planted_count = 0
-	var mature_count = 0
-	var entanglement_count = 0
+func clear_register_for_plot(position: Vector2i) -> void:
+	"""Clear register allocation for a plot (called after harvest)"""
+	_biome_routing.clear_register_tracking(position)
 
-	for plot in plots.values():
-		if plot.is_planted:
-			planted_count += 1
-			mature_count += 1  # Quantum-only: all planted = mature
-		entanglement_count += plot.get_entanglement_count()
-
-	# Each entanglement is counted twice (bidirectional)
-	entanglement_count /= 2
-
-	return {
-		"total_plots": plots.size(),
-		"planted": planted_count,
-		"mature": mature_count,
-		"entanglements": entanglement_count
-	}
-
-
-## Debug
-
-func print_grid_state():
-	"""Debug: Print current grid state"""
-	_verbose.debug("farm", "=", "FARM GRID STATE")
-	var stats = get_grid_stats()
-	_verbose.debug("farm", "📊", "Plots: %d | Planted: %d | Mature: %d | Entangled: %d" % [
-		stats["total_plots"],
-		stats["planted"],
-		stats["mature"],
-		stats["entanglements"]
-	])
-
-	for y in range(grid_height):
-		var row = ""
-		for x in range(grid_width):
-			var pos = Vector2i(x, y)
-			var plot = plots.get(pos)
-
-			if plot == null or not plot.is_planted:
-				row += "[ ]"
-			else:
-				# Quantum-only: all planted plots shown as [M]
-				row += "[M]"
-
-		_verbose.debug("farm", "🌾", row)
-
-	_verbose.debug("farm", "=", "Grid state complete")
+	# Also clear in biome
+	var plot_biome = _biome_routing.get_biome_for_plot(position)
+	if plot_biome and plot_biome.has_method("clear_register_for_plot"):
+		plot_biome.clear_register_for_plot(position)

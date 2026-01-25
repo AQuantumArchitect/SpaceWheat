@@ -427,18 +427,44 @@ func _draw_emojis(graph: Node2D, node, is_celestial: bool) -> void:
 
 
 func _draw_emoji_with_opacity(graph: Node2D, font, text_pos: Vector2, emoji: String, font_size: int, opacity: float) -> void:
-	"""Draw emoji with shadow and opacity."""
-	# Shadow
-	var shadow_color = Color(0, 0, 0, 0.7 * opacity)
-	graph.draw_string(font, text_pos + Vector2(2, 2), emoji, HORIZONTAL_ALIGNMENT_CENTER, -1, font_size, shadow_color)
+	"""Draw emoji with shadow and opacity - SVG glyph or text fallback.
 
-	# Outline
-	var outline_color = Color(0, 0, 0, 0.5 * opacity)
-	graph.draw_string(font, text_pos + Vector2(1, 1), emoji, HORIZONTAL_ALIGNMENT_CENTER, -1, font_size, outline_color)
+	Rendering chain:
+	1. Try VisualAssetRegistry.get_texture(emoji) → SVG glyph
+	2. If null → fallback to emoji text
 
-	# Main
-	var main_color = Color(1, 1, 1, opacity)
-	graph.draw_string(font, text_pos, emoji, HORIZONTAL_ALIGNMENT_CENTER, -1, font_size, main_color)
+	This keeps emoji strings as source of truth while enabling
+	gradual migration to custom glyphs.
+	"""
+
+	# Try SVG glyph first (safe autoload access)
+	var texture: Texture2D = null
+	if is_instance_valid(VisualAssetRegistry) and VisualAssetRegistry.has_method("get_texture"):
+		texture = VisualAssetRegistry.get_texture(emoji)
+
+	if texture:
+		# Render SVG glyph
+		var glyph_size = Vector2(font_size, font_size) * 1.2
+		var glyph_pos = text_pos - glyph_size / 2.0
+		var glyph_color = Color(1, 1, 1, opacity)
+
+		# Shadow
+		var shadow_offset = Vector2(2, 2)
+		var shadow_color = Color(0, 0, 0, 0.7 * opacity)
+		graph.draw_texture_rect(texture, Rect2(glyph_pos + shadow_offset, glyph_size), false, shadow_color)
+
+		# Main glyph
+		graph.draw_texture_rect(texture, Rect2(glyph_pos, glyph_size), false, glyph_color)
+	else:
+		# Fallback to emoji text (original code path)
+		var shadow_color = Color(0, 0, 0, 0.7 * opacity)
+		graph.draw_string(font, text_pos + Vector2(2, 2), emoji, HORIZONTAL_ALIGNMENT_CENTER, -1, font_size, shadow_color)
+
+		var outline_color = Color(0, 0, 0, 0.5 * opacity)
+		graph.draw_string(font, text_pos + Vector2(1, 1), emoji, HORIZONTAL_ALIGNMENT_CENTER, -1, font_size, outline_color)
+
+		var main_color = Color(1, 1, 1, opacity)
+		graph.draw_string(font, text_pos, emoji, HORIZONTAL_ALIGNMENT_CENTER, -1, font_size, main_color)
 
 
 func _is_node_measured(node, plot_pool) -> bool:

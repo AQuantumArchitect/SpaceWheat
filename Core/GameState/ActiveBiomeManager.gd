@@ -8,7 +8,7 @@ extends Node
 ##
 ## Keyboard:
 ##   7 = BioticFlux, 8 = Market, 9 = Forest, 0 = Kitchen
-##   , = Previous biome, . = Next biome
+##   - = Previous biome, = = Next biome
 ##
 ## Signals emitted for UI updates (background, tabs, plot display, quantum graph)
 
@@ -106,14 +106,14 @@ func select_biome_by_key(keycode: int) -> bool:
 
 
 func handle_cycle_input(keycode: int) -> bool:
-	"""Handle biome cycling keys (, and .)
+	"""Handle biome cycling keys (- and =)
 
 	Returns: true if key was handled, false otherwise
 	"""
-	if keycode == KEY_COMMA:
+	if keycode == KEY_MINUS:
 		cycle_prev()
 		return true
-	elif keycode == KEY_PERIOD:
+	elif keycode == KEY_EQUAL:
 		cycle_next()
 		return true
 	return false

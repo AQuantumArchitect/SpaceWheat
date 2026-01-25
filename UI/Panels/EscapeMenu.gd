@@ -1,8 +1,8 @@
 class_name EscapeMenu
-extends Control
+extends "res://UI/Core/MenuPanelBase.gd"
 
 ## Escape Menu
-## Shows when ESC is pressed, provides restart and quit options
+## Shows when ESC is pressed, provides save, load, restart and quit options
 ##
 ## OverlayStackManager Integration:
 ##   System-tier overlay (Z_TIER_SYSTEM = 4000)
@@ -15,275 +15,169 @@ signal save_pressed()
 signal load_pressed()
 signal reload_last_save_pressed()
 signal quantum_settings_pressed()
+signal music_volume_changed(volume: float)
 
-# Overlay interface
-var overlay_name: String = "escape_menu"
-var overlay_tier: int = 4000  # Z_TIER_SYSTEM - highest priority
+# Button indices for keyboard shortcuts
+enum ButtonIndex {
+	RESUME = 0,
+	SAVE = 1,
+	LOAD = 2,
+	QUANTUM = 3,
+	RELOAD = 4,
+	RESTART = 5,
+	QUIT = 6
+}
 
-var background: ColorRect
-var menu_vbox: VBoxContainer
-
-# Keyboard navigation
-var menu_buttons: Array[Button] = []
-var selected_button_index: int = 0
+# Volume control
+var volume_slider: HSlider
+var volume_label: Label
 
 
 func _init():
 	name = "EscapeMenu"
+	overlay_name = "escape_menu"
 
-	# Fill entire screen - proper Godot 4 anchors-based design
-	set_anchors_preset(Control.PRESET_FULL_RECT)
-	layout_mode = 1
-	mouse_filter = Control.MOUSE_FILTER_STOP
-	process_mode = Node.PROCESS_MODE_ALWAYS
+	# Configure MenuPanelBase
+	menu_title = "⚙️ PAUSED ⚙️"
+	menu_panel_size = Vector2(360, 420)
+	menu_border_color = Color(0.5, 0.5, 0.3, 0.8)  # Gold border
+	menu_title_size = 28
+	use_ornamentation = true
+	ornamentation_style = UIOrnamentation.Style.CORNERS_ONLY
+	ornamentation_tint = UIOrnamentation.TINT_GOLD
 
-	# Background - fill screen
-	background = ColorRect.new()
-	background.color = Color(0.0, 0.0, 0.0, 0.7)
-	background.set_anchors_preset(Control.PRESET_FULL_RECT)
-	background.layout_mode = 1
-	add_child(background)
+	# Build the base panel
+	_setup_menu_panel()
 
-	# Menu box - Compact size to fit 960x540 viewport
-	var menu_panel = PanelContainer.new()
-	menu_panel.custom_minimum_size = Vector2(360, 380)
-	# Anchor to center of screen
-	menu_panel.anchor_left = 0.5
-	menu_panel.anchor_right = 0.5
-	menu_panel.anchor_top = 0.5
-	menu_panel.anchor_bottom = 0.5
-	# Center the panel
-	menu_panel.offset_left = -180
-	menu_panel.offset_right = 180
-	menu_panel.offset_top = -190
-	menu_panel.offset_bottom = 190
-	menu_panel.layout_mode = 1
-	add_child(menu_panel)
+	# Add menu buttons
+	add_menu_button("Resume [ESC]", Color(0.3, 0.6, 0.3))
+	add_menu_button("Save Game [S]", Color(0.2, 0.5, 0.7))
+	add_menu_button("Load Game [L]", Color(0.5, 0.4, 0.7))
+	add_menu_button("Quantum Settings [X]", Color(0.2, 0.6, 0.8))
 
-	menu_vbox = VBoxContainer.new()
-	menu_vbox.alignment = BoxContainer.ALIGNMENT_CENTER
-	menu_vbox.add_theme_constant_override("separation", 8)
-	menu_panel.add_child(menu_vbox)
+	# Add volume control
+	_add_volume_control()
 
-	# Title
-	var title = Label.new()
-	title.text = "⚙️ PAUSED ⚙️"
-	title.add_theme_font_size_override("font_size", 28)
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	menu_vbox.add_child(title)
-
-	# Resume button
-	var resume_btn = _create_menu_button("Resume [ESC]", Color(0.3, 0.6, 0.3))
-	resume_btn.pressed.connect(_on_resume_pressed)
-	menu_vbox.add_child(resume_btn)
-	menu_buttons.append(resume_btn)
-
-	# Save Game button
-	var save_btn = _create_menu_button("Save Game [S]", Color(0.2, 0.5, 0.7))
-	save_btn.pressed.connect(_on_save_pressed)
-	menu_vbox.add_child(save_btn)
-	menu_buttons.append(save_btn)
-
-	# Load Game button
-	var load_btn = _create_menu_button("Load Game [L]", Color(0.5, 0.4, 0.7))
-	load_btn.pressed.connect(_on_load_pressed)
-	menu_vbox.add_child(load_btn)
-	menu_buttons.append(load_btn)
-
-	# Quantum Settings button
-	var quantum_btn = _create_menu_button("Quantum Settings [X]", Color(0.2, 0.6, 0.8))
-	quantum_btn.pressed.connect(_on_quantum_settings_pressed)
-	menu_vbox.add_child(quantum_btn)
-	menu_buttons.append(quantum_btn)
-
-	# Reload Last Save button
-	var reload_btn = _create_menu_button("Reload Last Save [D]", Color(0.7, 0.4, 0.2))
-	reload_btn.pressed.connect(_on_reload_last_save_pressed)
-	menu_vbox.add_child(reload_btn)
-	menu_buttons.append(reload_btn)
-
-	# Restart button
-	var restart_btn = _create_menu_button("Restart [R]", Color(0.6, 0.5, 0.2))
-	restart_btn.pressed.connect(_on_restart_pressed)
-	menu_vbox.add_child(restart_btn)
-	menu_buttons.append(restart_btn)
-
-	# Quit button
-	var quit_btn = _create_menu_button("Quit [Q]", Color(0.6, 0.3, 0.3))
-	quit_btn.pressed.connect(_on_quit_pressed)
-	menu_vbox.add_child(quit_btn)
-	menu_buttons.append(quit_btn)
-
-	# Start hidden
-	visible = false
+	add_menu_button("Reload Last Save [D]", Color(0.7, 0.4, 0.2))
+	add_menu_button("Restart [R]", Color(0.6, 0.5, 0.2))
+	add_menu_button("Quit [Q]", Color(0.6, 0.3, 0.3))
 
 
-func _create_menu_button(text: String, color: Color) -> Button:
-	var btn = Button.new()
-	btn.text = text
-	# Compact size for 960×540 base resolution (7 buttons must fit)
-	btn.custom_minimum_size = Vector2(300, 36)
-	btn.add_theme_font_size_override("font_size", 16)
+func _add_volume_control() -> void:
+	"""Add the music volume slider control."""
+	var volume_container = HBoxContainer.new()
+	volume_container.alignment = BoxContainer.ALIGNMENT_CENTER
+	volume_container.add_theme_constant_override("separation", 8)
 
-	# Clean style with subtle borders
-	var style = StyleBoxFlat.new()
-	style.bg_color = color
-	style.border_color = Color(0.7, 0.7, 0.7, 0.8)
-	style.border_width_left = 2
-	style.border_width_right = 2
-	style.border_width_top = 2
-	style.border_width_bottom = 2
-	style.corner_radius_top_left = 8
-	style.corner_radius_top_right = 8
-	style.corner_radius_bottom_left = 8
-	style.corner_radius_bottom_right = 8
-	style.content_margin_left = 12
-	style.content_margin_right = 12
-	style.content_margin_top = 6
-	style.content_margin_bottom = 6
-	btn.add_theme_stylebox_override("normal", style)
+	var volume_icon = Label.new()
+	volume_icon.text = "🎵"
+	volume_icon.add_theme_font_size_override("font_size", 18)
+	volume_container.add_child(volume_icon)
 
-	var style_hover = StyleBoxFlat.new()
-	style_hover.bg_color = color.lightened(0.2)
-	style_hover.border_color = Color(0.9, 0.9, 0.9, 1.0)  # Even brighter on hover
-	style_hover.border_width_left = 4
-	style_hover.border_width_right = 4
-	style_hover.border_width_top = 4
-	style_hover.border_width_bottom = 4
-	style_hover.corner_radius_top_left = 12
-	style_hover.corner_radius_top_right = 12
-	style_hover.corner_radius_bottom_left = 12
-	style_hover.corner_radius_bottom_right = 12
-	style_hover.content_margin_left = 20
-	style_hover.content_margin_right = 20
-	style_hover.content_margin_top = 12
-	style_hover.content_margin_bottom = 12
-	btn.add_theme_stylebox_override("hover", style_hover)
+	volume_slider = HSlider.new()
+	volume_slider.min_value = 0.0
+	volume_slider.max_value = 1.0
+	volume_slider.step = 0.05
+	volume_slider.value = 0.7
+	volume_slider.custom_minimum_size = Vector2(180, 24)
+	volume_slider.value_changed.connect(_on_volume_changed)
+	volume_container.add_child(volume_slider)
 
-	return btn
+	volume_label = Label.new()
+	volume_label.text = "70%"
+	volume_label.custom_minimum_size = Vector2(40, 0)
+	volume_label.add_theme_font_size_override("font_size", 14)
+	volume_label.add_theme_color_override("font_color", UIStyleFactory.COLOR_TEXT_SUBTITLE)
+	volume_container.add_child(volume_label)
+
+	add_custom_control(volume_container)
+
+
+func _on_button_activated(index: int) -> void:
+	"""Handle button activation from keyboard or click."""
+	match index:
+		ButtonIndex.RESUME:
+			_on_resume_pressed()
+		ButtonIndex.SAVE:
+			_on_save_pressed()
+		ButtonIndex.LOAD:
+			_on_load_pressed()
+		ButtonIndex.QUANTUM:
+			_on_quantum_settings_pressed()
+		ButtonIndex.RELOAD:
+			_on_reload_last_save_pressed()
+		ButtonIndex.RESTART:
+			_on_restart_pressed()
+		ButtonIndex.QUIT:
+			_on_quit_pressed()
 
 
 func handle_input(event: InputEvent) -> bool:
-	"""Modal input handler - called by PlayerShell when on modal stack
-
-	Returns true if input was consumed, false otherwise.
-	"""
+	"""Extended input handler with keyboard shortcuts."""
 	if not visible:
 		return false
 
 	if not event is InputEventKey or not event.pressed or event.echo:
 		return false
 
-	# Only process if SaveLoadMenu is NOT visible
-	# (SaveLoadMenu will have already handled input if it's visible)
+	# Check for SaveLoadMenu being visible (don't process if it's open)
 	var parent = get_parent()
 	if parent:
 		for child in parent.get_children():
 			if child.name == "SaveLoadMenu" and child.visible:
-				# SaveLoadMenu is visible and handling input - don't process
 				return false
 
-	print("  📋 EscapeMenu.handle_input() KEY: %s" % event.keycode)
-
+	# Handle shortcuts
 	match event.keycode:
 		KEY_ESCAPE:
-			# ESC closes menu (activates Resume)
 			_on_resume_pressed()
 			return true
-		KEY_UP:
-			_navigate_menu(-1)
-			return true
-		KEY_DOWN:
-			_navigate_menu(1)
-			return true
-		KEY_ENTER, KEY_KP_ENTER:
-			_activate_selected_button()
-			return true
 		KEY_S:
-			# S = Save
 			_on_save_pressed()
 			return true
 		KEY_L:
-			# L = Load
 			_on_load_pressed()
 			return true
 		KEY_D:
-			# D = Reload Last Save (D for "do-over")
 			_on_reload_last_save_pressed()
 			return true
 		KEY_X:
-			# X = Quantum Settings
 			_on_quantum_settings_pressed()
 			return true
 		KEY_R:
-			# R = Restart
 			_on_restart_pressed()
 			return true
 		KEY_Q:
-			# Q = Quit
 			_on_quit_pressed()
 			return true
+		KEY_COMMA:
+			_adjust_volume(-0.1)
+			return true
+		KEY_PERIOD:
+			_adjust_volume(0.1)
+			return true
+		KEY_SLASH:
+			_toggle_mute()
+			return true
 
-	return false  # Input not consumed
-
-
-func _navigate_menu(direction: int):
-	"""Navigate menu selection up (-1) or down (1)"""
-	if menu_buttons.is_empty():
-		return
-
-	selected_button_index = (selected_button_index + direction) % menu_buttons.size()
-	if selected_button_index < 0:
-		selected_button_index = menu_buttons.size() - 1
-
-	_update_button_highlights()
+	# Fall through to base class for UP/DOWN/ENTER
+	return super.handle_input(event)
 
 
-func _activate_selected_button():
-	"""Activate the currently selected button"""
-	if selected_button_index >= 0 and selected_button_index < menu_buttons.size():
-		menu_buttons[selected_button_index].emit_signal("pressed")
-
-
-func _update_button_highlights():
-	"""Update visual highlight for selected button"""
-	for i in range(menu_buttons.size()):
-		var btn = menu_buttons[i]
-		if i == selected_button_index:
-			# Highlight selected button
-			btn.modulate = Color(1.3, 1.3, 1.0)  # Brighter/yellow tint
-		else:
-			# Normal appearance
-			btn.modulate = Color(1.0, 1.0, 1.0)
-
-
-func show_menu():
-	visible = true
-	selected_button_index = 0  # Reset to first button
-	_update_button_highlights()
-
-	if is_inside_tree():
-		get_tree().paused = true
-		print("📋 Menu opened - Game PAUSED")
-
-
-func hide_menu():
-	visible = false
-	if is_inside_tree():
-		get_tree().paused = false
-		print("📋 Menu closed - Game RESUMED")
-
+# =============================================================================
+# BUTTON HANDLERS
+# =============================================================================
 
 func _on_resume_pressed():
 	print("▶️ Resume pressed")
-	hide_menu()
+	close_menu()
 	resume_pressed.emit()
 
 
 func _on_restart_pressed():
 	print("🔄 Restart pressed")
 	restart_pressed.emit()
-	hide_menu()
+	close_menu()
 
 
 func _on_quit_pressed():
@@ -310,23 +204,73 @@ func _on_reload_last_save_pressed():
 func _on_quantum_settings_pressed():
 	print("🔬 Quantum settings pressed")
 	quantum_settings_pressed.emit()
-	hide_menu()
+	close_menu()
 
 
-# ============================================================================
-# OVERLAY STACK INTERFACE
-# ============================================================================
+# =============================================================================
+# VOLUME CONTROL
+# =============================================================================
 
-func get_overlay_tier() -> int:
-	"""Get z-index tier for OverlayStackManager."""
-	return overlay_tier
+func _on_volume_changed(value: float):
+	"""Handle volume slider change."""
+	var percent = int(value * 100)
+	volume_label.text = "%d%%" % percent
+
+	# Update MusicManager if available
+	if Engine.has_singleton("MusicManager"):
+		Engine.get_singleton("MusicManager").set_volume(value)
+	elif has_node("/root/MusicManager"):
+		get_node("/root/MusicManager").set_volume(value)
+
+	music_volume_changed.emit(value)
 
 
-func activate() -> void:
-	"""Overlay lifecycle: Called when pushed onto stack."""
-	show_menu()
+func _sync_volume_slider():
+	"""Sync slider with current MusicManager volume."""
+	var current_volume = 0.7  # Default
+
+	if Engine.has_singleton("MusicManager"):
+		current_volume = Engine.get_singleton("MusicManager").get_volume()
+	elif has_node("/root/MusicManager"):
+		current_volume = get_node("/root/MusicManager").get_volume()
+
+	if volume_slider:
+		volume_slider.value = current_volume
+		volume_label.text = "%d%%" % int(current_volume * 100)
 
 
-func deactivate() -> void:
-	"""Overlay lifecycle: Called when popped from stack."""
-	hide_menu()
+func _adjust_volume(delta: float):
+	"""Adjust volume by delta amount."""
+	if volume_slider:
+		volume_slider.value = clampf(volume_slider.value + delta, 0.0, 1.0)
+
+
+func _toggle_mute():
+	"""Toggle music mute state."""
+	if has_node("/root/MusicManager"):
+		var music = get_node("/root/MusicManager")
+		music.set_muted(not music.is_muted())
+		if music.is_muted():
+			volume_label.text = "MUTE"
+		else:
+			volume_label.text = "%d%%" % int(music.get_volume() * 100)
+
+
+# =============================================================================
+# SHOW/HIDE OVERRIDES
+# =============================================================================
+
+func show_menu():
+	super.show_menu()
+	_sync_volume_slider()
+	print("📋 Menu opened - Game PAUSED")
+
+
+func close_menu():
+	super.close_menu()
+	print("📋 Menu closed - Game RESUMED")
+
+
+# Legacy compatibility aliases
+func hide_menu():
+	close_menu()

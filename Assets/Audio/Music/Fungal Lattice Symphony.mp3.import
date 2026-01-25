@@ -1,0 +1,19 @@
+[remap]
+
+importer="mp3"
+type="AudioStreamMP3"
+uid="uid://b8k3sam2yvnqw"
+path="res://.godot/imported/Fungal Lattice Symphony.mp3-3dd542074ee2155c6c42a54b0f15e0e1.mp3str"
+
+[deps]
+
+source_file="res://Assets/Audio/Music/Fungal Lattice Symphony.mp3"
+dest_files=["res://.godot/imported/Fungal Lattice Symphony.mp3-3dd542074ee2155c6c42a54b0f15e0e1.mp3str"]
+
+[params]
+
+loop=true
+loop_offset=0.0
+bpm=0.0
+beat_count=0
+bar_beats=4

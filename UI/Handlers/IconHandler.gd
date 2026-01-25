@@ -1,0 +1,270 @@
+class_name IconHandler
+extends RefCounted
+
+## IconHandler - Static handler for icon/vocabulary management operations
+##
+## Follows ProbeActions pattern:
+## - Static methods only
+## - Explicit parameters (no implicit state)
+## - Dictionary returns with {success: bool, ...data, error?: String}
+
+
+## ============================================================================
+## ICON ASSIGNMENT OPERATIONS
+## ============================================================================
+
+static func icon_assign(farm, positions: Array[Vector2i], emoji: String, game_state_manager = null) -> Dictionary:
+	"""Assign a vocabulary emoji to the biome's quantum system.
+
+	Injects a new qubit axis (north/south pair) into the biome's quantum computer.
+	"""
+	if not farm or not farm.grid:
+		return {
+			"success": false,
+			"error": "farm_not_ready",
+			"message": "Farm not loaded"
+		}
+
+	if positions.is_empty():
+		return {
+			"success": false,
+			"error": "no_positions",
+			"message": "No plots selected"
+		}
+
+	# Look up the pair from GameState
+	var gsm = game_state_manager
+	if not gsm:
+		gsm = Engine.get_singleton("GameStateManager") if Engine.has_singleton("GameStateManager") else null
+
+	if not gsm or not gsm.current_state:
+		return {
+			"success": false,
+			"error": "no_game_state",
+			"message": "GameState not available"
+		}
+
+	var pair = gsm.current_state.get_pair_for_emoji(emoji)
+	if not pair:
+		return {
+			"success": false,
+			"error": "emoji_not_in_vocabulary",
+			"message": "Emoji %s not in vocabulary" % emoji
+		}
+
+	var north = pair.get("north", "")
+	var south = pair.get("south", "")
+	if north == "" or south == "":
+		return {
+			"success": false,
+			"error": "invalid_pair",
+			"message": "Invalid pair for %s" % emoji
+		}
+
+	# Get the biome for the first selected plot
+	var pos = positions[0]
+	var biome = farm.grid.get_biome_for_plot(pos)
+	if not biome:
+		return {
+			"success": false,
+			"error": "no_biome",
+			"message": "No biome at position"
+		}
+
+	# Check if already exists in biome
+	if biome.quantum_computer and biome.quantum_computer.register_map.has(north):
+		return {
+			"success": false,
+			"error": "already_exists",
+			"message": "%s already in biome" % north
+		}
+
+	# Expand quantum system with the pair
+	var result = biome.expand_quantum_system(north, south)
+	if result.success:
+		return {
+			"success": true,
+			"north_emoji": north,
+			"south_emoji": south,
+			"biome_type": biome.get_biome_type() if biome.has_method("get_biome_type") else "unknown"
+		}
+	else:
+		return {
+			"success": false,
+			"error": result.get("error", "expansion_failed"),
+			"message": result.get("message", "Failed to expand quantum system")
+		}
+
+
+static func icon_swap(farm, positions: Array[Vector2i]) -> Dictionary:
+	"""Swap north/south emojis on selected plots.
+
+	Exchanges which outcome is considered "success" vs "failure".
+	"""
+	if not farm or not farm.grid:
+		return {
+			"success": false,
+			"error": "farm_not_ready",
+			"message": "Farm not loaded"
+		}
+
+	if positions.is_empty():
+		return {
+			"success": false,
+			"error": "no_positions",
+			"message": "No plots selected"
+		}
+
+	var swap_count = 0
+	var results: Array = []
+
+	for pos in positions:
+		var plot = farm.grid.get_plot(pos)
+		if not plot or not plot.is_planted:
+			continue
+
+		# Swap north and south emojis
+		var old_north = plot.north_emoji
+		var old_south = plot.south_emoji
+
+		plot.north_emoji = old_south
+		plot.south_emoji = old_north
+
+		swap_count += 1
+		results.append({
+			"position": pos,
+			"old_north": old_north,
+			"old_south": old_south,
+			"new_north": plot.north_emoji,
+			"new_south": plot.south_emoji
+		})
+
+	return {
+		"success": swap_count > 0,
+		"swap_count": swap_count,
+		"results": results
+	}
+
+
+static func icon_clear(farm, positions: Array[Vector2i]) -> Dictionary:
+	"""Clear icon assignment from selected plots.
+
+	Resets plots to their default biome icons.
+	"""
+	if not farm or not farm.grid:
+		return {
+			"success": false,
+			"error": "farm_not_ready",
+			"message": "Farm not loaded"
+		}
+
+	if positions.is_empty():
+		return {
+			"success": false,
+			"error": "no_positions",
+			"message": "No plots selected"
+		}
+
+	var clear_count = 0
+	var results: Array = []
+
+	for pos in positions:
+		var plot = farm.grid.get_plot(pos)
+		if not plot:
+			continue
+
+		var old_north = plot.north_emoji
+		var old_south = plot.south_emoji
+
+		# Get default icons from biome
+		var biome = farm.grid.get_biome_for_plot(pos)
+		if biome and biome.producible_emojis.size() >= 2:
+			plot.north_emoji = biome.producible_emojis[0]
+			plot.south_emoji = biome.producible_emojis[1]
+		else:
+			plot.north_emoji = ""
+			plot.south_emoji = ""
+
+		clear_count += 1
+		results.append({
+			"position": pos,
+			"old_north": old_north,
+			"old_south": old_south,
+			"new_north": plot.north_emoji,
+			"new_south": plot.south_emoji
+		})
+
+	return {
+		"success": clear_count > 0,
+		"clear_count": clear_count,
+		"results": results
+	}
+
+
+## ============================================================================
+## VOCABULARY QUERY OPERATIONS
+## ============================================================================
+
+static func get_available_icons(game_state_manager = null) -> Dictionary:
+	"""Get list of available icons from player's vocabulary."""
+	var gsm = game_state_manager
+	if not gsm:
+		gsm = Engine.get_singleton("GameStateManager") if Engine.has_singleton("GameStateManager") else null
+
+	if not gsm or not gsm.current_state:
+		return {
+			"success": false,
+			"error": "no_game_state",
+			"message": "GameState not available"
+		}
+
+	var icons: Array = []
+
+	if gsm.current_state.has_method("get_known_pairs"):
+		var pairs = gsm.current_state.get_known_pairs()
+		for pair in pairs:
+			icons.append({
+				"north": pair.get("north", ""),
+				"south": pair.get("south", "")
+			})
+
+	return {
+		"success": true,
+		"icons": icons,
+		"count": icons.size()
+	}
+
+
+static func get_biome_icons(farm, position: Vector2i) -> Dictionary:
+	"""Get icons currently in use by biome at position."""
+	if not farm or not farm.grid:
+		return {
+			"success": false,
+			"error": "farm_not_ready",
+			"message": "Farm not loaded"
+		}
+
+	var biome = farm.grid.get_biome_for_plot(position)
+	if not biome:
+		return {
+			"success": false,
+			"error": "no_biome",
+			"message": "No biome at position"
+		}
+
+	var icons: Array = []
+
+	# Get from quantum computer register map
+	if biome.quantum_computer and biome.quantum_computer.register_map:
+		for emoji in biome.quantum_computer.register_map.coordinates:
+			icons.append(emoji)
+
+	# Also include producible emojis
+	var producible = biome.producible_emojis if biome.producible_emojis else []
+
+	return {
+		"success": true,
+		"register_icons": icons,
+		"producible_icons": producible,
+		"biome_type": biome.get_biome_type() if biome.has_method("get_biome_type") else "unknown"
+	}

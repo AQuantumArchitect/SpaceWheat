@@ -119,15 +119,13 @@ func _embed_2q_unitary(U: ComplexMatrix, idx_a: int, idx_b: int, num_qubits: int
 	Result: I ⊗ ... ⊗ U_{ab} ⊗ ... ⊗ I
 	where U_{ab} acts on qubits at idx_a and idx_b.
 
+	Convention: Uses MSB indexing (qubit 0 = most significant bit) to match _embed_1q_unitary.
+	For CNOT, idx_a is control and idx_b is target.
+
 	Implementation: Builds full 4-dimensional operator by iterating over all basis states,
 	applying U only to the (idx_a, idx_b) subspace and passing through other qubits.
-
-	Complexity: O(16 × 4^num_qubits) for full matrix, sparse-optimizable for structured gates.
 	"""
-	if idx_a > idx_b:
-		var temp = idx_a
-		idx_a = idx_b
-		idx_b = temp
+	# NOTE: Do NOT swap idx_a and idx_b - order matters for non-symmetric gates like CNOT!
 
 	var total_dim = 1 << num_qubits
 	var result = ComplexMatrix.new(total_dim)
@@ -138,12 +136,12 @@ func _embed_2q_unitary(U: ComplexMatrix, idx_a: int, idx_b: int, num_qubits: int
 
 	# Iterate over all basis states
 	for out_basis in range(total_dim):
-		# Decompose output basis state into qubit indices
-		var out_qubits = _decompose_basis(out_basis, num_qubits)
+		# Decompose output basis state into qubit indices (MSB convention)
+		var out_qubits = _decompose_basis_msb(out_basis, num_qubits)
 
 		for in_basis in range(total_dim):
-			# Decompose input basis state
-			var in_qubits = _decompose_basis(in_basis, num_qubits)
+			# Decompose input basis state (MSB convention)
+			var in_qubits = _decompose_basis_msb(in_basis, num_qubits)
 
 			# Check if non-target qubits match (pass-through condition)
 			var pass_through = true
@@ -157,6 +155,7 @@ func _embed_2q_unitary(U: ComplexMatrix, idx_a: int, idx_b: int, num_qubits: int
 				continue  # Skip: non-target qubits don't match
 
 			# Extract 2-qubit indices for U
+			# idx_a is high bit (control for CNOT), idx_b is low bit (target for CNOT)
 			var in_2q_idx = (in_qubits[idx_a] << 1) | in_qubits[idx_b]
 			var out_2q_idx = (out_qubits[idx_a] << 1) | out_qubits[idx_b]
 
@@ -169,11 +168,33 @@ func _embed_2q_unitary(U: ComplexMatrix, idx_a: int, idx_b: int, num_qubits: int
 	return result
 
 
-func _decompose_basis(basis: int, num_qubits: int) -> Array[int]:
-	"""Decompose a basis state index into individual qubit indices.
+func _decompose_basis_msb(basis: int, num_qubits: int) -> Array[int]:
+	"""Decompose a basis state index into individual qubit indices (MSB convention).
+
+	MSB convention: qubit index k corresponds to bit (n-1-k).
+	This matches _embed_1q_unitary where qubit 0 affects the most significant bit.
 
 	For num_qubits=3, basis=5 (binary 101):
-	Returns [1, 0, 1] (qubit 0=1, qubit 1=0, qubit 2=1)
+	  - qubit 0 = bit 2 = 1
+	  - qubit 1 = bit 1 = 0
+	  - qubit 2 = bit 0 = 1
+	Returns [1, 0, 1]
+	"""
+	var qubits: Array[int] = []
+	for i in range(num_qubits):
+		var bit_pos = num_qubits - 1 - i
+		qubits.append((basis >> bit_pos) & 1)
+	return qubits
+
+
+func _decompose_basis(basis: int, num_qubits: int) -> Array[int]:
+	"""Decompose a basis state index into individual qubit indices (LSB convention).
+
+	DEPRECATED: Use _decompose_basis_msb for consistency with gate embedding.
+
+	LSB convention: qubit index k corresponds to bit k.
+	For num_qubits=3, basis=5 (binary 101):
+	Returns [1, 0, 1] (qubit 0=bit0=1, qubit 1=bit1=0, qubit 2=bit2=1)
 	"""
 	var qubits: Array[int] = []
 	for i in range(num_qubits):
@@ -400,13 +421,25 @@ func allocate_axis(qubit_index: int, north_emoji: String, south_emoji: String) -
 
 
 func _resize_density_matrix() -> void:
-	"""Resize density matrix when qubits are added."""
+	"""Resize density matrix when qubits are added.
+
+	When adding a new qubit, tensor-extends existing state with |0⟩⟨0|.
+	New qubit starts in ground state (north pole).
+	"""
 	var num_qubits = register_map.num_qubits
 	var dim = register_map.dim()
 
-	if density_matrix == null or density_matrix.n != dim:
+	if density_matrix == null:
 		density_matrix = ComplexMatrix.zeros(dim)
-		print("🔧 Resized density matrix: %d qubits → %dD" % [num_qubits, dim])
+		print("🔧 Created density matrix: %d qubits → %dD" % [num_qubits, dim])
+	elif density_matrix.n != dim:
+		# Tensor-extend: ρ_new = ρ_old ⊗ |0⟩⟨0|
+		var old_dim = density_matrix.n
+		var ket0_bra0 = ComplexMatrix.zeros(2)
+		ket0_bra0.set_element(0, 0, Complex.one())  # |0⟩⟨0| = [[1,0],[0,0]]
+		var new_density = density_matrix.tensor_product(ket0_bra0)
+		density_matrix = new_density
+		print("🔧 Extended density matrix: %dD → %dD (tensor with |0⟩⟨0|)" % [old_dim, dim])
 
 
 func initialize_basis(basis_index: int) -> void:
@@ -618,6 +651,70 @@ func apply_gate_2q(qubit_a: int, qubit_b: int, U: ComplexMatrix) -> bool:
 	density_matrix = rho_new
 
 	return true
+
+
+# ============================================================================
+# HIGH-LEVEL GATE CONVENIENCE METHODS
+# ============================================================================
+
+func apply_pauli_x(qubit: int) -> bool:
+	"""Apply Pauli-X (NOT/bit-flip) gate to a qubit."""
+	var X = QuantumGateLibrary.get_gate("X")["matrix"]
+	return apply_gate(qubit, X)
+
+
+func apply_hadamard(qubit: int) -> bool:
+	"""Apply Hadamard gate to create superposition."""
+	var H = QuantumGateLibrary.get_gate("H")["matrix"]
+	return apply_gate(qubit, H)
+
+
+func apply_pauli_y(qubit: int) -> bool:
+	"""Apply Pauli-Y gate."""
+	var Y = QuantumGateLibrary.get_gate("Y")["matrix"]
+	return apply_gate(qubit, Y)
+
+
+func apply_pauli_z(qubit: int) -> bool:
+	"""Apply Pauli-Z (phase-flip) gate."""
+	var Z = QuantumGateLibrary.get_gate("Z")["matrix"]
+	return apply_gate(qubit, Z)
+
+
+func apply_ry(qubit: int, theta: float = PI / 4.0) -> bool:
+	"""Apply Ry rotation gate with angle theta (default π/4)."""
+	var Ry = QuantumGateLibrary._ry_gate(theta)
+	return apply_gate(qubit, Ry)
+
+
+func apply_rx(qubit: int, theta: float = PI / 4.0) -> bool:
+	"""Apply Rx rotation gate with angle theta (default π/4)."""
+	var Rx = QuantumGateLibrary._rx_gate(theta)
+	return apply_gate(qubit, Rx)
+
+
+func apply_rz(qubit: int, theta: float = PI / 4.0) -> bool:
+	"""Apply Rz rotation gate with angle theta (default π/4)."""
+	var Rz = QuantumGateLibrary._rz_gate(theta)
+	return apply_gate(qubit, Rz)
+
+
+func apply_cnot(control_qubit: int, target_qubit: int) -> bool:
+	"""Apply CNOT (controlled-NOT) gate. First arg is control, second is target."""
+	var CNOT = QuantumGateLibrary.get_gate("CNOT")["matrix"]
+	return apply_gate_2q(control_qubit, target_qubit, CNOT)
+
+
+func apply_swap(qubit_a: int, qubit_b: int) -> bool:
+	"""Apply SWAP gate to exchange two qubit states."""
+	var SWAP = QuantumGateLibrary.get_gate("SWAP")["matrix"]
+	return apply_gate_2q(qubit_a, qubit_b, SWAP)
+
+
+func apply_cz(control_qubit: int, target_qubit: int) -> bool:
+	"""Apply CZ (controlled-Z) gate."""
+	var CZ = QuantumGateLibrary.get_gate("CZ")["matrix"]
+	return apply_gate_2q(control_qubit, target_qubit, CZ)
 
 
 func get_marginal(qubit_index: int, pole_value: int) -> float:

@@ -1086,6 +1086,8 @@ func _create_v2_overlays(parent: Control) -> void:
 	# Create Inspector Overlay (density matrix visualization)
 	inspector_overlay = InspectorOverlay.new()
 	inspector_overlay.z_index = 2000  # Above regular overlays
+	if layout_manager:
+		inspector_overlay.set_layout_manager(layout_manager)
 	_center_overlay(inspector_overlay)
 	parent.add_child(inspector_overlay)
 	register_v2_overlay("inspector", inspector_overlay)
@@ -1093,6 +1095,8 @@ func _create_v2_overlays(parent: Control) -> void:
 	# Create Controls Overlay (keyboard reference)
 	controls_overlay = ControlsOverlay.new()
 	controls_overlay.z_index = 2000
+	if layout_manager:
+		controls_overlay.set_layout_manager(layout_manager)
 	_center_overlay(controls_overlay)
 	parent.add_child(controls_overlay)
 	register_v2_overlay("controls", controls_overlay)
@@ -1100,6 +1104,8 @@ func _create_v2_overlays(parent: Control) -> void:
 	# Create Semantic Map Overlay (vocabulary + octants)
 	semantic_map_overlay = SemanticMapOverlay.new()
 	semantic_map_overlay.z_index = 2000
+	if layout_manager:
+		semantic_map_overlay.set_layout_manager(layout_manager)
 	_center_overlay(semantic_map_overlay)
 	parent.add_child(semantic_map_overlay)
 	register_v2_overlay("semantic_map", semantic_map_overlay)
@@ -1119,9 +1125,17 @@ func _create_v2_overlays(parent: Control) -> void:
 func _center_overlay(overlay: Control) -> void:
 	"""Center an overlay in the middle of the screen.
 
-	Sets anchors to center and adjusts position based on the overlay's minimum size.
+	Delegates to UILayoutManager if available, otherwise uses local fallback.
 	"""
-	# Set anchors to center
+	# Delegate to layout_manager if available (single source of truth)
+	if layout_manager and layout_manager.has_method("center_overlay"):
+		var size = overlay.custom_minimum_size
+		if size == Vector2.ZERO and layout_manager.has_method("get_overlay_size"):
+			size = layout_manager.get_overlay_size()
+		layout_manager.center_overlay(overlay, size)
+		return
+
+	# Fallback: manual centering
 	overlay.anchor_left = 0.5
 	overlay.anchor_right = 0.5
 	overlay.anchor_top = 0.5

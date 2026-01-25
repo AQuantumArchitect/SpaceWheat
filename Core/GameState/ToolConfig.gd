@@ -17,10 +17,10 @@ static var current_mode: String = "play"
 ## F-cycling mode indices per tool (mode_tool_num → current mode index)
 ## Key format: "play_2" or "build_4" to track modes per mode+tool combo
 static var tool_mode_indices: Dictionary = {
-	"play_2": 0,  # GATES: 0=convert, 1=phase
+	"play_2": 0,  # GATES: 0=convert, 1=pauli, 2=phase
 	"play_3": 0,  # ENTANGLE: 0=link, 1=manage
 	"play_4": 0,  # INDUSTRY: 0=build, 1=harvest
-	"build_4": 0  # QUANTUM: 0=system, 1=phase, 2=rotation
+	"build_4": 0  # QUANTUM: 0=system, 1=phase, 2=phase_dag, 3=rotation
 }
 
 # ============================================================================
@@ -59,8 +59,8 @@ const PLAY_TOOLS = {
 		"icon": "res://Assets/UI/Q-Bit/Unitary.svg",
 		"description": "1-qubit gates for probability control",
 		"has_f_cycling": true,
-		"modes": ["convert", "phase"],
-		"mode_labels": ["Convert", "Phase"],
+		"modes": ["convert", "pauli", "phase"],
+		"mode_labels": ["Convert", "Pauli", "Phase"],
 		"actions": {
 			"convert": {  # Bank 1: Most useful for gameplay (default)
 				"Q": {"action": "apply_pauli_x", "label": "X Flip", "emoji": "↔️",
@@ -73,7 +73,18 @@ const PLAY_TOOLS = {
 					  "icon": "res://Assets/UI/Tools/Quantum/RY.svg",
 					  "hint": "Dial exact probability"}
 			},
-			"phase": {  # Bank 2: Phase gates (advanced)
+			"pauli": {  # Bank 2: Pauli gates (X, Y, Z)
+				"Q": {"action": "apply_pauli_x", "label": "X Flip", "emoji": "↔️",
+					  "icon": "res://Assets/UI/Q-Bit/Pauli-X.svg",
+					  "hint": "Bit flip |0⟩↔|1⟩"},
+				"E": {"action": "apply_pauli_y", "label": "Y Rotate", "emoji": "🔄",
+					  "icon": "res://Assets/UI/Q-Bit/Pauli-Y.svg",
+					  "hint": "Combined X+Z rotation"},
+				"R": {"action": "apply_pauli_z", "label": "Z Phase", "emoji": "📐",
+					  "icon": "res://Assets/UI/Q-Bit/Pauli-Z.svg",
+					  "hint": "Phase flip |1⟩"}
+			},
+			"phase": {  # Bank 3: Phase gates (advanced)
 				"Q": {"action": "apply_pauli_z", "label": "Z Phase", "emoji": "📐",
 					  "icon": "res://Assets/UI/Q-Bit/Pauli-Z.svg",
 					  "hint": "Phase flip |1⟩"},
@@ -210,8 +221,8 @@ const BUILD_TOOLS = {
 		"icon": "res://Assets/UI/Tools/Quantum/Quantum.svg",
 		"description": "System control and gate configuration",
 		"has_f_cycling": true,
-		"modes": ["system", "phase", "rotation"],
-		"mode_labels": ["System", "Phase Gates", "Rotation"],
+		"modes": ["system", "phase", "phase_dag", "rotation"],
+		"mode_labels": ["System", "Phase", "Phase†", "Rotation"],
 		"actions": {
 			"system": {  # Mode 0: System control
 				"Q": {"action": "system_reset", "label": "Reset Bath", "emoji": "🔄",
@@ -221,15 +232,23 @@ const BUILD_TOOLS = {
 				"R": {"action": "system_debug", "label": "Debug View", "emoji": "🐛",
 					  "icon": "res://Assets/UI/Tools/Quantum/Debug.svg"}
 			},
-			"phase": {  # Mode 1: Phase gates (S, T, S†)
+			"phase": {  # Mode 1: Phase gates (S, T)
 				"Q": {"action": "apply_s_gate", "label": "S (π/2)", "emoji": "🌙",
 					  "icon": "res://Assets/UI/Tools/Quantum/S.svg"},
 				"E": {"action": "apply_t_gate", "label": "T (π/4)", "emoji": "✨",
 					  "icon": "res://Assets/UI/Tools/Quantum/T.svg"},
-				"R": {"action": "apply_sdg_gate", "label": "S† (-π/2)", "emoji": "🌑",
-					  "icon": "res://Assets/UI/Tools/Quantum/ST-.svg"}
+				"R": {"action": "apply_pauli_z", "label": "Z (π)", "emoji": "📐",
+					  "icon": "res://Assets/UI/Q-Bit/Pauli-Z.svg"}
 			},
-			"rotation": {  # Mode 2: Rotation gates
+			"phase_dag": {  # Mode 2: Dagger (inverse) phase gates (S†, T†)
+				"Q": {"action": "apply_sdg_gate", "label": "S† (-π/2)", "emoji": "🌑",
+					  "icon": "res://Assets/UI/Tools/Quantum/ST-.svg"},
+				"E": {"action": "apply_tdg_gate", "label": "T† (-π/4)", "emoji": "💫",
+					  "icon": "res://Assets/UI/Tools/Quantum/Tdg.svg"},
+				"R": {"action": "apply_pauli_z", "label": "Z (π)", "emoji": "📐",
+					  "icon": "res://Assets/UI/Q-Bit/Pauli-Z.svg"}
+			},
+			"rotation": {  # Mode 3: Rotation gates
 				"Q": {"action": "apply_rx_gate", "label": "Rx (θ)", "emoji": "↔️",
 					  "icon": "res://Assets/UI/Tools/Quantum/RX.svg"},
 				"E": {"action": "apply_ry_gate", "label": "Ry (θ)", "emoji": "↕️",
@@ -291,9 +310,12 @@ const SUBMENUS = {
 		"parent_tool": 4,
 		"parent_mode": "play",
 		"dynamic": false,
-		"Q": {"action": "mill_convert_flour", "label": "Flour", "emoji": "🌾→💨"},
-		"E": {"action": "mill_convert_lumber", "label": "Lumber", "emoji": "🌲→🪵"},
-		"R": {"action": "mill_convert_energy", "label": "Energy", "emoji": "🍂→⚡"},
+		"Q": {"action": "mill_convert_flour", "label": "Flour", "emoji": "🌾→💨",
+			  "icon": "res://Assets/UI/Resources/Flour.svg"},
+		"E": {"action": "mill_convert_lumber", "label": "Lumber", "emoji": "🌲→🪵",
+			  "icon": "res://Assets/UI/Resources/Lumber.svg"},
+		"R": {"action": "mill_convert_energy", "label": "Energy", "emoji": "🍂→⚡",
+			  "icon": "res://Assets/UI/Resources/Power.svg"},
 	}
 }
 

@@ -130,19 +130,22 @@ func investigate_mill_building():
 	else:
 		print("✅ Mill cost defined: %s" % str(mill_cost))
 
-	# Try to place mill
-	var initial_credits = farm.economy.get_resource("💰")
-	print("Initial credits: %d 💰" % initial_credits)
+	# Bootstrap: Add wheat credits for testing (mill costs 30 🌾)
+	farm.economy.add_resource("🌾", 100, "test_bootstrap")
+	print("✅ Test bootstrap: Added 100 🌾 credits")
+
+	var initial_wheat = farm.economy.get_resource("🌾")
+	print("Initial wheat credits: %d 🌾" % initial_wheat)
 
 	var success = farm.build(target_pos, "mill")
 	if success:
 		print("✅ farm.build(mill) succeeded")
 
 		# Check if cost was deducted
-		var final_credits = farm.economy.get_resource("💰")
-		if final_credits < initial_credits:
-			var deducted = initial_credits - final_credits
-			print("  - Credits deducted: %d 💰" % deducted)
+		var final_wheat = farm.economy.get_resource("🌾")
+		if final_wheat < initial_wheat:
+			var deducted = initial_wheat - final_wheat
+			print("  - Wheat deducted: %d 🌾" % deducted)
 		else:
 			log_issue("Tool 3: Mill placed but no cost deducted")
 
@@ -227,8 +230,14 @@ func investigate_kitchen_building():
 	else:
 		print("✅ Kitchen cost defined: %s" % str(kitchen_cost))
 
+	# Bootstrap: Kitchen needs wheat AND flour
+	farm.economy.add_resource("🌾", 50, "test_bootstrap")
+	farm.economy.add_resource("💨", 20, "test_bootstrap")
+	print("✅ Test bootstrap: Added 50 🌾 + 20 💨 for kitchen")
+
 	# Try triplet entanglement
-	var initial_credits = farm.economy.get_resource("💰")
+	var initial_wheat = farm.economy.get_resource("🌾")
+	var initial_flour = farm.economy.get_resource("💨")
 
 	if farm.grid.has_method("create_triplet_entanglement"):
 		var ent_success = farm.grid.create_triplet_entanglement(pos_a, pos_b, pos_c)
@@ -243,12 +252,14 @@ func investigate_kitchen_building():
 	if kitchen_success:
 		print("✅ farm.build(kitchen) succeeded")
 
-		var final_credits = farm.economy.get_resource("💰")
-		if final_credits < initial_credits:
-			var deducted = initial_credits - final_credits
-			print("  - Credits deducted: %d 💰" % deducted)
+		var final_wheat = farm.economy.get_resource("🌾")
+		var final_flour = farm.economy.get_resource("💨")
+		if final_wheat < initial_wheat:
+			print("  - Wheat deducted: %d 🌾" % (initial_wheat - final_wheat))
+		if final_flour < initial_flour:
+			print("  - Flour deducted: %d 💨" % (initial_flour - final_flour))
 	else:
-		print("⚠️  farm.build(kitchen) failed")
+		print("⚠️  farm.build(kitchen) failed - may need GHZ entanglement first")
 
 func investigate_building_costs():
 	"""Investigate building cost enforcement"""

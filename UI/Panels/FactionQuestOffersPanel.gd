@@ -1,6 +1,8 @@
 class_name FactionQuestOffersPanel
 extends PanelContainer
 
+const UIStyleFactory = preload("res://UI/Core/UIStyleFactory.gd")
+
 ## Faction Quest Offers Panel
 ## Shows emergent quest offers from all 32 factions based on current biome state
 ## Displays alignment scores and biome observables to teach players
@@ -366,41 +368,12 @@ class QuestOfferItem extends PanelContainer:
 
 	func _get_alignment_color(alignment: float) -> Color:
 		"""Get background color based on alignment score"""
-		if alignment > 0.7:
-			return Color(0.2, 0.4, 0.2, 0.8)  # Dark green (high alignment)
-		elif alignment > 0.5:
-			return Color(0.3, 0.3, 0.2, 0.8)  # Neutral
-		elif alignment > 0.3:
-			return Color(0.4, 0.3, 0.2, 0.8)  # Orangish (low alignment)
-		else:
-			return Color(0.4, 0.2, 0.2, 0.8)  # Dark red (very low)
+		return UIStyleFactory.get_alignment_color(alignment)
 
 	func _get_alignment_text_color(alignment: float) -> Color:
 		"""Get text color for alignment score"""
-		if alignment > 0.7:
-			return Color(0.5, 1.0, 0.5)  # Bright green
-		elif alignment > 0.5:
-			return Color(1.0, 1.0, 0.7)  # Light yellow
-		elif alignment > 0.3:
-			return Color(1.0, 0.7, 0.5)  # Orange
-		else:
-			return Color(1.0, 0.5, 0.5)  # Light red
+		return UIStyleFactory.get_alignment_text_color(alignment)
 
 	func _create_colored_panel(color: Color) -> StyleBoxFlat:
 		"""Create a colored panel background"""
-		var style = StyleBoxFlat.new()
-		style.bg_color = color
-		style.border_color = Color(0.5, 0.5, 0.5, 0.5)
-		style.border_width_left = 2
-		style.border_width_right = 2
-		style.border_width_top = 2
-		style.border_width_bottom = 2
-		style.corner_radius_top_left = 8
-		style.corner_radius_top_right = 8
-		style.corner_radius_bottom_left = 8
-		style.corner_radius_bottom_right = 8
-		style.content_margin_left = 10
-		style.content_margin_right = 10
-		style.content_margin_top = 8
-		style.content_margin_bottom = 8
-		return style
+		return UIStyleFactory.create_slot_style(color, Color(0.5, 0.5, 0.5, 0.5), 2, 8, 10, 8)

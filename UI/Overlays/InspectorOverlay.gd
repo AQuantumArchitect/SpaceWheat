@@ -28,7 +28,6 @@ var quantum_computer = null  # QuantumComputer reference
 var register_data: Array = []  # Cached register info
 
 # UI components
-var title_label: Label
 var view_mode_label: Label
 var heatmap_container: Control
 var bars_container: Control
@@ -36,8 +35,6 @@ var details_panel: Control
 var register_grid: GridContainer
 
 # Visual constants
-const PANEL_WIDTH: int = 600
-const PANEL_HEIGHT: int = 450
 const HEATMAP_SIZE: int = 280
 const CELL_SIZE: int = 24
 const BAR_HEIGHT: int = 20
@@ -51,6 +48,14 @@ var update_timer: float = 0.0
 func _init():
 	overlay_name = "inspector"
 	overlay_icon = "📊"
+	overlay_title = "📊 Inspector"
+	fallback_panel_width = 600
+	fallback_panel_height = 450
+	panel_border_color = Color(0.3, 0.5, 0.7, 0.8)  # Blue border
+	main_vbox_separation = UIStyleFactory.VBOX_SPACING_RELAXED
+	# Enable corner ornamentation
+	use_ornamentation = true
+	ornamentation_tint = UIOrnamentation.TINT_BLUE
 	action_labels = {
 		"Q": "Select",
 		"E": "Details",
@@ -66,26 +71,17 @@ func _ready() -> void:
 
 func _build_ui() -> void:
 	"""Build the inspector overlay UI."""
-	# Main panel styling
-	custom_minimum_size = Vector2(PANEL_WIDTH, PANEL_HEIGHT)
+	# Use base class to create standard panel (handles sizing, background, vbox)
+	var vbox = _build_standard_panel()
 
-	var panel_style = StyleBoxFlat.new()
-	panel_style.bg_color = Color(0.08, 0.10, 0.14, 0.95)
-	panel_style.border_color = Color(0.3, 0.5, 0.7, 0.8)
-	panel_style.set_border_width_all(2)
-	panel_style.set_corner_radius_all(12)
-	panel_style.set_content_margin_all(16)
-	add_theme_stylebox_override("panel", panel_style)
-
-	# Main layout
-	var vbox = VBoxContainer.new()
-	vbox.set_anchors_preset(Control.PRESET_FULL_RECT)
-	vbox.add_theme_constant_override("separation", 12)
-	add_child(vbox)
-
-	# Title bar
-	var title_bar = _create_title_bar()
+	# Replace simple title with title bar (has mode indicator)
+	if _title_label:
+		_main_vbox.remove_child(_title_label)
+		_title_label.queue_free()
+	var title_bar = _build_title_bar_with_mode("[F] %s" % VIEW_MODE_NAMES[current_view_mode])
+	view_mode_label = title_bar.get_node("ModeLabel")
 	vbox.add_child(title_bar)
+	vbox.move_child(title_bar, 0)
 
 	# Content area (heatmap or bars)
 	var content_container = Control.new()
@@ -107,33 +103,6 @@ func _build_ui() -> void:
 	# Details panel (bottom)
 	details_panel = _create_details_panel()
 	vbox.add_child(details_panel)
-
-
-func _create_title_bar() -> Control:
-	"""Create title bar with overlay name and view mode."""
-	var hbox = HBoxContainer.new()
-	hbox.add_theme_constant_override("separation", 16)
-
-	# Title
-	title_label = Label.new()
-	title_label.text = "📊 Inspector"
-	title_label.add_theme_font_size_override("font_size", 20)
-	title_label.add_theme_color_override("font_color", Color(0.9, 0.95, 1.0))
-	hbox.add_child(title_label)
-
-	# Spacer
-	var spacer = Control.new()
-	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	hbox.add_child(spacer)
-
-	# View mode indicator
-	view_mode_label = Label.new()
-	view_mode_label.text = "[F] %s" % VIEW_MODE_NAMES[current_view_mode]
-	view_mode_label.add_theme_font_size_override("font_size", 14)
-	view_mode_label.add_theme_color_override("font_color", Color(0.6, 0.7, 0.8))
-	hbox.add_child(view_mode_label)
-
-	return hbox
 
 
 func _create_heatmap_view() -> Control:
