@@ -9,6 +9,8 @@ extends Control
 ##   System-tier overlay (Z_TIER_SYSTEM = 4000)
 ##   Implements: handle_input(), activate(), deactivate(), get_overlay_tier()
 
+const UIOrnamentation = preload("res://UI/Core/UIOrnamentation.gd")
+
 signal slot_selected(slot: int, mode: String)
 signal debug_environment_selected(env_name: String)
 signal menu_closed()
@@ -147,6 +149,13 @@ func _init():
 	var cancel_btn = _create_menu_button("Cancel (ESC)", Color(0.6, 0.3, 0.3))
 	cancel_btn.pressed.connect(_on_cancel_pressed)
 	menu_vbox.add_child(cancel_btn)
+
+	# Apply corner ornamentation
+	UIOrnamentation.apply_corners_to_panel(
+		menu_panel,
+		UIOrnamentation.CORNER_SIZE_MEDIUM,
+		UIOrnamentation.TINT_BLUE
+	)
 
 	# Start hidden
 	visible = false

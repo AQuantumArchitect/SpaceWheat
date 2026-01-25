@@ -3,7 +3,7 @@ extends Control
 
 ## Biome Inspector Overlay
 ## Main controller for biome inspection system
-## Manages display of BiomeOvalPanels over game view
+## Manages display of BiomeOvalPanels in standard modal menu format
 ##
 ## v2 Overlay Integration:
 ##   Q = Select icon for details
@@ -14,17 +14,20 @@ extends Control
 ##
 ## Architecture:
 ##   Extends Control for unified overlay stack management.
-##   Uses internal CanvasLayer (render_layer) for rendering above game.
+##   Uses PanelContainer with standard menu styling and ornamentation.
+##   Dynamic panels created on demand within scrollable content area.
 ##
 ## Design Philosophy:
+##   - Standard modal menu format (dimmer + centered panel + scrollable content)
 ##   - Panels are created fresh on each open, destroyed on close
-##   - No scroll manipulation - always shows from top, user scrolls manually
-##   - Simple state: HIDDEN, SINGLE_BIOME, or ALL_BIOMES
+##   - Consistent visual styling with other system menus
 
 signal overlay_closed
 signal action_performed(action: String, data: Dictionary)  # v2 overlay compatibility
 
 const BiomeOvalPanel = preload("res://UI/Panels/BiomeOvalPanel.gd")
+const UIStyleFactory = preload("res://UI/Core/UIStyleFactory.gd")
+const UIOrnamentation = preload("res://UI/Core/UIOrnamentation.gd")
 
 # Biome display order (consistent across app)
 const BIOME_ORDER: Array[String] = ["BioticFlux", "StellarForges", "FungalNetworks", "VolcanicWorlds"]
@@ -55,11 +58,13 @@ enum DisplayMode {
 var current_mode: DisplayMode = DisplayMode.HIDDEN
 
 # UI References (created once in _ready)
-var render_layer: CanvasLayer
-var dimmer: ColorRect
-var center_container: CenterContainer
+var background_dimmer: ColorRect
+var menu_panel: PanelContainer
+var menu_vbox: VBoxContainer
+var title_label: Label
 var scroll_container: ScrollContainer
 var biome_list: VBoxContainer
+var ornaments: Dictionary = {}
 
 # Data references
 var farm: Node = null
@@ -85,56 +90,70 @@ func _ready() -> void:
 
 
 func _build_ui() -> void:
-	"""Build UI structure once. Panels are added/removed dynamically."""
-	# CanvasLayer for rendering above game
-	render_layer = CanvasLayer.new()
-	render_layer.layer = 100
-	add_child(render_layer)
+	"""Build UI structure following standard menu format.
 
-	# Dimmer background
-	dimmer = ColorRect.new()
-	dimmer.color = dimmer_color
-	dimmer.mouse_filter = Control.MOUSE_FILTER_STOP
-	dimmer.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	dimmer.gui_input.connect(_on_dimmer_input)
-	render_layer.add_child(dimmer)
+	Creates a centered modal panel with dimmer background, title, and scrollable content area.
+	Dynamic biome panels are added/removed based on display mode.
+	"""
+	# Fill entire screen - proper modal design
+	set_anchors_preset(Control.PRESET_FULL_RECT)
+	layout_mode = 1
+	mouse_filter = Control.MOUSE_FILTER_STOP
+	process_mode = Node.PROCESS_MODE_ALWAYS
 
-	# Center container for single biome mode
-	center_container = CenterContainer.new()
-	center_container.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	center_container.visible = false
-	render_layer.add_child(center_container)
+	# Background dimmer
+	background_dimmer = UIStyleFactory.create_modal_dimmer()
+	add_child(background_dimmer)
 
-	# Scroll container for all biomes mode
+	# Centered menu panel with standard styling
+	menu_panel = UIStyleFactory.create_centered_panel(
+		Vector2(700, 500),
+		UIStyleFactory.COLOR_PANEL_BG,
+		Color(0.4, 0.7, 0.8, 0.8)  # Cyan border for biome inspector
+	)
+	add_child(menu_panel)
+
+	# Main vbox container
+	menu_vbox = UIStyleFactory.create_vbox(UIStyleFactory.VBOX_SPACING_NORMAL)
+	menu_vbox.alignment = BoxContainer.ALIGNMENT_BEGIN
+	menu_panel.add_child(menu_vbox)
+
+	# Title
+	title_label = UIStyleFactory.create_title_label("🔬 BIOME INSPECTOR", 24)
+	title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	menu_vbox.add_child(title_label)
+
+	# Scrollable content area for biome panels
 	scroll_container = ScrollContainer.new()
-	scroll_container.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	scroll_container.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	scroll_container.custom_minimum_size = Vector2(650, 380)
 	scroll_container.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	scroll_container.visible = false
-	render_layer.add_child(scroll_container)
+	scroll_container.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	menu_vbox.add_child(scroll_container)
 
 	# VBox for biome panels list
 	biome_list = VBoxContainer.new()
-	biome_list.add_theme_constant_override("separation", 24)
+	biome_list.add_theme_constant_override("separation", 12)
 	biome_list.alignment = BoxContainer.ALIGNMENT_BEGIN
 	biome_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	scroll_container.add_child(biome_list)
+
+	# Apply corner ornamentation
+	ornaments = UIOrnamentation.apply_corners_to_panel(
+		menu_panel,
+		UIOrnamentation.CORNER_SIZE_MEDIUM,
+		UIOrnamentation.TINT_BLUE
+	)
 
 
 func _hide_all() -> void:
 	"""Hide everything and reset state."""
 	current_mode = DisplayMode.HIDDEN
 	visible = false
-	if render_layer:
-		render_layer.visible = false
-		# CRITICAL FIX: Reset dimmer mouse_filter when hiding
-		# If dimmer has MOUSE_FILTER_STOP, it will block input even when invisible
-		if dimmer:
-			dimmer.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	if center_container:
-		center_container.visible = false
-	if scroll_container:
-		scroll_container.visible = false
+	# Reset dimmer mouse_filter when hiding to allow game input
+	if background_dimmer:
+		background_dimmer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	if menu_panel:
+		menu_panel.visible = false
 
 
 func _get_biome_by_name(biome_name: String) -> Node:
@@ -162,29 +181,27 @@ func show_biome(biome: Node, farm_node: Node) -> void:
 	_clear_panels()
 	current_mode = DisplayMode.SINGLE_BIOME
 
-	# Create panel
+	# Create panel and add to scrollable area
 	current_biome_panel = BiomeOvalPanel.new()
 	current_biome_panel.close_requested.connect(_on_close_requested)
 	current_biome_panel.emoji_tapped.connect(_on_emoji_tapped)
-	center_container.add_child(current_biome_panel)
+	biome_list.add_child(current_biome_panel)
 	current_biome_panel.initialize(biome, farm.grid)
 
-	# Show
+	# Show panel and enable interaction
 	visible = true
-	render_layer.visible = true
-	center_container.visible = true
-	scroll_container.visible = false
-	# CRITICAL FIX: Reset dimmer mouse_filter when showing
-	if dimmer:
-		dimmer.mouse_filter = Control.MOUSE_FILTER_STOP
+	menu_panel.visible = true
+	scroll_container.scroll_vertical = 0
+	background_dimmer.mouse_filter = Control.MOUSE_FILTER_STOP
+	update_title_for_mode()
 
 
 ## Show all biomes
 func show_all_biomes(farm_node: Node) -> void:
-	"""Display inspectors for all registered biomes.
+	"""Display inspectors for all registered biomes in scrollable list.
 
 	Always shows panels in consistent BIOME_ORDER from top.
-	No scroll manipulation - user scrolls manually.
+	User can scroll to see all biomes.
 	"""
 	if not farm_node or not farm_node.grid or not farm_node.grid.biomes:
 		return
@@ -210,15 +227,12 @@ func show_all_biomes(farm_node: Node) -> void:
 	selected_biome_index = 0
 	_update_selection_highlight()
 
-	# Show (scroll starts at top naturally)
-	scroll_container.scroll_vertical = 0
+	# Show panel and enable interaction
 	visible = true
-	render_layer.visible = true
-	center_container.visible = false
-	scroll_container.visible = true
-	# CRITICAL FIX: Reset dimmer mouse_filter when showing
-	if dimmer:
-		dimmer.mouse_filter = Control.MOUSE_FILTER_STOP
+	menu_panel.visible = true
+	scroll_container.scroll_vertical = 0
+	background_dimmer.mouse_filter = Control.MOUSE_FILTER_STOP
+	update_title_for_mode()
 
 
 ## Hide overlay
@@ -253,12 +267,6 @@ func _clear_panels() -> void:
 			biome_list.remove_child(child)
 			child.free()
 
-	# Clear center_container children
-	if center_container:
-		for child in center_container.get_children():
-			center_container.remove_child(child)
-			child.free()
-
 
 # ============================================================================
 # UPDATE LOOP
@@ -289,20 +297,18 @@ func _refresh_all_panels() -> void:
 # INPUT HANDLING
 # ============================================================================
 
-func _on_dimmer_input(event: InputEvent) -> void:
-	"""Handle tap on dimmed background (close overlay)"""
-	if event is InputEventMouseButton:
-		if event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
-			print("🔍 BiomeInspectorOverlay: Background tapped, closing")
-			hide_overlay()
+func update_title_for_mode() -> void:
+	"""Update title label based on current display mode."""
+	if not title_label:
+		return
 
-	elif event is InputEventScreenTouch:
-		# TODO: Add gesture discrimination (tap vs accidental touch, swipe vs tap)
-		# Current implementation closes on any touch - needs refinement
-		# See: /home/tehcr33d/ws/SpaceWheat/llm_outbox/TOUCH_CODE_AUDIT.md
-		if event.pressed:
-			print("🔍 BiomeInspectorOverlay: Background tapped (touch), closing")
-			hide_overlay()
+	match current_mode:
+		DisplayMode.SINGLE_BIOME:
+			title_label.text = "🔬 BIOME INSPECTOR (Single View)"
+		DisplayMode.ALL_BIOMES:
+			title_label.text = "🔬 BIOME INSPECTOR (All Biomes)"
+		DisplayMode.HIDDEN:
+			title_label.text = "🔬 BIOME INSPECTOR"
 
 
 func _on_close_requested() -> void:

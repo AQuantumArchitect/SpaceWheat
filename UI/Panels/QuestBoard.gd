@@ -2,6 +2,7 @@ class_name QuestBoard
 extends Control
 
 const UIStyleFactory = preload("res://UI/Core/UIStyleFactory.gd")
+const UIOrnamentation = preload("res://UI/Core/UIOrnamentation.gd")
 
 ## Modal Quest Board with 4 Slots (UIOP)
 ## Controls hijacked when open (like ESC menu)
@@ -231,6 +232,13 @@ func _create_ui() -> void:
 	var main_vbox = VBoxContainer.new()
 	main_vbox.add_theme_constant_override("separation", int(8 * scale))
 	menu_panel.add_child(main_vbox)
+
+	# Apply corner ornamentation
+	UIOrnamentation.apply_corners_to_panel(
+		menu_panel,
+		UIOrnamentation.CORNER_SIZE_MEDIUM,
+		UIOrnamentation.TINT_GOLD
+	)
 
 	# Header - compact
 	title_label = UIStyleFactory.create_title_label("⚛️ QUEST ORACLE ⚛️", title_size)
