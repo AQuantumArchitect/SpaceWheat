@@ -678,6 +678,8 @@ const BIOME_ROW_MAP: Dictionary = {
 	"StellarForges": 1,
 	"FungalNetworks": 2,
 	"VolcanicWorlds": 3,
+	"StarterForest": 4,
+	"Village": 5,
 }
 
 const ROW_BIOME_MAP: Dictionary = {
@@ -685,26 +687,29 @@ const ROW_BIOME_MAP: Dictionary = {
 	1: "StellarForges",
 	2: "FungalNetworks",
 	3: "VolcanicWorlds",
+	4: "StarterForest",
+	5: "Village",
 }
 
 func _create_grid_config() -> GridConfig:
 	"""Create grid configuration - single source of truth for layout
 
-	Quantum Instrument Layout: 4 biomes × 4 plots = 16 total plots
+	Quantum Instrument Layout: 6 biomes × 4 plots = 24 total plots
 	Each biome uses y-coordinate as biome identifier:
 	  - BioticFlux: y=0, positions (0,0) through (3,0)
 	  - StellarForges: y=1, positions (0,1) through (3,1)
 	  - FungalNetworks: y=2, positions (0,2) through (3,2)
 	  - VolcanicWorlds: y=3, positions (0,3) through (3,3)
+	  - StarterForest: y=4, positions (0,4) through (3,4)
+	  - Village: y=5, positions (0,5) through (3,5)
 
-	Three keyboard rows select plots with directional navigation:
-	  7890 = UP row (parent biome)
-	  UIOP = NEUTRAL row (current biome)
-	  JKL; = DOWN row (child biome)
+	Keyboard layout:
+	  JKL; = 4 plots in current biome
+	  T/Y = biome switching (StarterForest/Village)
 	"""
 	var config = GridConfig.new()
 	config.grid_width = 4   # 4 plots per biome
-	config.grid_height = 4  # 4 biomes
+	config.grid_height = 6  # 6 biomes
 
 	# Create keyboard layout configuration
 	var keyboard = KeyboardLayoutConfig.new()
@@ -724,7 +729,7 @@ func _create_grid_config() -> GridConfig:
 	config.keyboard_layout = keyboard
 
 	# =========================================================================
-	# PLOT CONFIGURATIONS - 4 plots per biome, 16 total
+	# PLOT CONFIGURATIONS - 4 plots per biome, 24 total (6 biomes)
 	# Each biome has independent quantum state and plots
 	# =========================================================================
 

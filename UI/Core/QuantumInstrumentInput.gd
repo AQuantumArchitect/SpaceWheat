@@ -123,23 +123,14 @@ func _unhandled_key_input(event: InputEvent) -> void:
 
 	# Action keys
 	match key:
-		"Q":
+		"Q", "E", "R":
 			if _in_submenu:
-				_handle_submenu_action("Q")
+				_handle_submenu_action(key)
 			else:
-				_perform_action("Q")  # DOWN action
-			get_viewport().set_input_as_handled()
-		"E":
-			if _in_submenu:
-				_handle_submenu_action("E")
-			else:
-				_perform_action("E")  # NEUTRAL action
-			get_viewport().set_input_as_handled()
-		"R":
-			if _in_submenu:
-				_handle_submenu_action("R")
-			else:
-				_perform_action("R")  # UP action
+				if event.shift:
+					_perform_shift_key_action(key)
+				else:
+					_perform_action(key)
 			get_viewport().set_input_as_handled()
 		"F":
 			if _in_submenu:
@@ -383,8 +374,8 @@ func _select_biome(biome_idx: int, key: String) -> void:
 		_verbose.warn("input", "~", "ActiveBiomeManager not available")
 		return
 
-	# Map biome index to biome name (6-biome ordering: T,Y,U,I,O,P)
-	const BIOME_NAMES = ["StarterForest", "Village", "BioticFlux", "StellarForges", "FungalNetworks", "VolcanicWorlds"]
+	# Map biome index to biome name (6-biome ordering: U,I,O,P,T,Y)
+	const BIOME_NAMES = ["BioticFlux", "StellarForges", "FungalNetworks", "VolcanicWorlds", "StarterForest", "Village"]
 	if biome_idx < 0 or biome_idx >= BIOME_NAMES.size():
 		return
 
@@ -496,15 +487,48 @@ func _perform_action(action_key: String) -> void:
 	if action_name == "":
 		return
 
-	# Execute the action
+	_run_action(action_name, emoji if emoji != "" else action_name, action_info.get("label", action_name))
+
+
+func _perform_shift_key_action(action_key: String) -> void:
+	"""Apply the Q/E/R action across the entire homerow (JKL;)."""
+	var current_group = ToolConfig.get_current_group()
+	var action_info = ToolConfig.get_action(current_group, action_key)
+	if action_info.is_empty():
+		return
+
+	var action_name = action_info.get("action", "")
+	if action_name == "":
+		return
+
+	var symbol = "⇧%s" % action_key
+	var log_label = action_info.get("shift_label", action_info.get("label", action_name))
+	var shift_action_name = action_info.get("shift_action", "")
+
+	if shift_action_name != "":
+		_run_action(shift_action_name, symbol, log_label)
+		return
+
+	var positions = _get_homerow_positions()
+	if positions.is_empty():
+		return
+
+	var original_selection = current_selection.duplicate()
+	for pos in positions:
+		_set_selection_for_grid_pos(pos)
+		_run_action(action_name, symbol, log_label)
+	_restore_selection(original_selection)
+
+
+func _run_action(action_name: String, log_symbol: String, action_label: String) -> void:
+	"""Execute an action and emit logging + signal."""
+	var symbol = log_symbol if log_symbol != "" else action_name
+	var label = action_label if action_label != "" else action_name
 	var result = _execute_action(action_name)
-
-	# Log result for debugging
 	if result.get("success", false):
-		_verbose.info("input", "✓", "%s succeeded: %s" % [action_name, result])
+		_verbose.info("input", symbol, "%s succeeded: %s" % [label, result])
 	else:
-		_verbose.warn("input", "✗", "%s failed: %s" % [action_name, result.get("message", "unknown")])
-
+		_verbose.warn("input", "✗", "%s failed: %s" % [label, result.get("message", "unknown")])
 	action_performed.emit(action_name, result)
 
 
@@ -546,6 +570,8 @@ func _execute_action(action_name: String) -> Dictionary:
 			return _action_measure()
 		"pop":
 			return _action_pop()
+		"harvest_all":
+			return _action_harvest_all()
 
 		# GROUP 3: MEASURE - Gate mode
 		"build_gate":
@@ -736,6 +762,15 @@ func _action_pop() -> Dictionary:
 		farm.terminal_released.emit(grid_pos, result.terminal_id, int(result.credits))
 
 	return result
+
+
+func _action_harvest_all() -> Dictionary:
+	"""Execute SHIFT+R/harvest_all: pop every bound terminal."""
+	if not farm or not farm.plot_pool:
+		return {"success": false, "error": "no_farm", "message": "Farm not ready"}
+
+	var biome = _get_current_biome()
+	return ProbeActions.action_harvest_all(farm.plot_pool, farm.economy, biome)
 
 
 ## ============================================================================
@@ -1171,6 +1206,53 @@ func _get_selected_positions() -> Array[Vector2i]:
 	if current_selection.plot_idx >= 0:
 		positions.append(_get_grid_position())
 	return positions
+
+
+func _get_homerow_positions() -> Array[Vector2i]:
+	"""Return the four plot positions for the current biome (JKL; row)."""
+	var positions: Array[Vector2i] = []
+	var row = _get_current_biome_row()
+	for idx in range(4):
+		positions.append(Vector2i(idx, row))
+	return positions
+
+
+func _get_current_biome_row() -> int:
+	if not farm:
+		return 0
+	var biome_name = current_selection.get("biome", "")
+	if biome_name == "":
+		biome_name = _active_biome_mgr.get_active_biome() if _active_biome_mgr else "BioticFlux"
+	if biome_name == "":
+		biome_name = "BioticFlux"
+	if farm.has_method("get_biome_row"):
+		return farm.get_biome_row(biome_name)
+	return 0
+
+
+func _set_selection_for_grid_pos(grid_pos: Vector2i) -> void:
+	"""Update current_selection to match the specified grid position."""
+	if not farm:
+		return
+	var biome_name = farm.get_biome_for_row(grid_pos.y) if farm.has_method("get_biome_for_row") else ""
+	current_selection = {
+		"plot_idx": grid_pos.x,
+		"biome": biome_name,
+		"subspace_idx": -1
+	}
+
+
+func _restore_selection(previous_selection: Dictionary) -> void:
+	"""Restore the selection state and refresh visual highlight."""
+	if previous_selection and previous_selection.has("plot_idx"):
+		current_selection = previous_selection.duplicate()
+	else:
+		current_selection = {"plot_idx": -1, "biome": "", "subspace_idx": -1}
+
+	if plot_grid_display and farm and current_selection.plot_idx >= 0:
+		var grid_pos = _get_grid_position()
+		if grid_pos.x >= 0:
+			plot_grid_display.set_selected_plot(grid_pos)
 
 
 func _pick_injectable_pair(pairs: Array, quantum_computer) -> Dictionary:

@@ -96,6 +96,9 @@ func update_for_tool(tool_num: int) -> void:
 		var label_text = ToolConfig.get_action_label(tool_num, action_key)
 		var emoji = ToolConfig.get_action_emoji(tool_num, action_key)
 		var icon_path = ToolConfig.get_action_icon(tool_num, action_key)
+		var shift_hint = ""
+		if action_info.has("shift_label"):
+			shift_hint = " %s" % action_info.get("shift_label")
 
 		# Try to load icon, fall back to emoji if unavailable
 		var has_icon = false
@@ -113,11 +116,11 @@ func update_for_tool(tool_num: int) -> void:
 		# Update button label text
 		# If icon loaded, omit emoji from label; otherwise include it as fallback
 		if has_icon:
-			btn_data.label.text = "[%s] %s" % [action_key, label_text]
+			btn_data.label.text = "[%s] %s%s" % [action_key, label_text, shift_hint]
 			btn_data.label.offset_left = 40 * scale_factor  # Make room for icon
 			btn_data.base_label_offset = 40 * scale_factor
 		else:
-			btn_data.label.text = "[%s] %s %s" % [action_key, emoji, label_text]
+			btn_data.label.text = "[%s] %s %s%s" % [action_key, emoji, label_text, shift_hint]
 			btn_data.label.offset_left = 0
 			btn_data.base_label_offset = 0
 
@@ -609,6 +612,14 @@ func _get_cost_for_action(action_name: String, action_info: Dictionary = {}) -> 
 	if action_name == "":
 		return {}
 
+	var shift_action = action_info.get("shift_action", "")
+	if shift_action != "":
+		return _get_cost_for_action_name(shift_action, action_info)
+
+	return _get_cost_for_action_name(action_name, action_info)
+
+
+func _get_cost_for_action_name(action_name: String, action_info: Dictionary = {}) -> Dictionary:
 	match action_name:
 		"inject_vocabulary":
 			var pair = action_info.get("vocab_pair", {})

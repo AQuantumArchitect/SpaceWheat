@@ -203,15 +203,17 @@ func _on_quantum_node_clicked(grid_pos: Vector2i, button_index: int) -> void:
 		else:
 			_verbose.warn("ui", "⚠️", "Measure failed: %s" % result.get("message", "unknown"))
 	else:
-		# POP: Convert recorded probability to credits (no quantum effect)
+		# POP: Convert recorded probability to credits with purity bonus
 		_verbose.debug("ui", "→", "POPPING terminal at %s" % grid_pos)
 		var result = ProbeActions.action_pop(terminal, farm.plot_pool, farm.economy)
 		if result.success:
 			var credits = result.credits
-			_verbose.info("ui", "🎉", "Popped: %s → %.1f credits" % [result.resource, credits])
+			var purity = result.get("purity", 1.0)
+			_verbose.info("ui", "🎉", "Popped: %s → %.1f credits (purity: %.2f)" % [result.resource, credits, purity])
 			farm.plot_harvested.emit(grid_pos, {
 				"emoji": result.resource,
-				"credits": credits
+				"credits": credits,
+				"purity": purity
 			})
 		else:
 			_verbose.warn("ui", "⚠️", "Pop failed: %s" % result.get("message", "unknown"))

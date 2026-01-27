@@ -399,10 +399,17 @@ static func action_pop(terminal, plot_pool, economy = null) -> Dictionary:
 	var register_id = terminal.bound_register_id
 	var biome = terminal.bound_biome
 
-	# 3. Convert probability to credits (10x probability)
-	var credits = recorded_prob * EconomyConstants.QUANTUM_TO_CREDITS
+	# 3. Get purity bonus multiplier from biome's quantum computer
+	var purity = 1.0  # Default if no quantum computer
+	if biome and biome.quantum_computer:
+		purity = biome.quantum_computer.get_purity()
 
-	# 4. Add resource to economy - use the MEASURED EMOJI as the resource type
+	# 4. Convert probability to credits with purity multiplier
+	# Credits = probability × purity × 10
+	# This rewards maintaining quantum coherence!
+	var credits = recorded_prob * purity * EconomyConstants.QUANTUM_TO_CREDITS
+
+	# 5. Add resource to economy - use the MEASURED EMOJI as the resource type
 	# Each emoji type becomes its own classical resource (🌾, 🍄, etc.)
 	if economy:
 		var resource_amount = int(credits)
@@ -410,7 +417,7 @@ static func action_pop(terminal, plot_pool, economy = null) -> Dictionary:
 			resource_amount = 1  # Minimum 1 unit per harvest
 		economy.add_resource(resource, resource_amount, "pop")
 
-	# 5. Unbind terminal (this is the ONLY mutation point for binding state)
+	# 6. Unbind terminal (this is the ONLY mutation point for binding state)
 	# Terminal.unbind() makes the register available again for future EXPLORE
 	plot_pool.unbind_terminal(terminal)
 	print("📤 Register %d released in %s" % [register_id, biome.get_biome_type() if biome.has_method("get_biome_type") else "biome"])
@@ -423,8 +430,9 @@ static func action_pop(terminal, plot_pool, economy = null) -> Dictionary:
 	return {
 		"success": true,
 		"resource": resource,  # The emoji that was harvested (🌾, 🍄, etc.)
-		"amount": resource_amount,  # Credits added (10x probability)
+		"amount": resource_amount,  # Credits added (probability × purity × 10)
 		"recorded_probability": recorded_prob,
+		"purity": purity,  # Quantum purity at POP time (coherence bonus)
 		"credits": credits,
 		"terminal_id": terminal_id,
 		"register_id": register_id

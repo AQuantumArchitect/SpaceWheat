@@ -162,15 +162,17 @@ const TOOL_GROUPS = {
 		"actions": {
 			# PROBE MODE: Main quantum observation loop
 			"probe": {
-				"Q": {"action": "explore", "label": "Explore", "emoji": "?",
-					  "icon": "res://Assets/UI/Science/Explore.svg",
-					  "hint": "Bind terminal (dig DOWN)"},
-				"E": {"action": "measure", "label": "Measure", "emoji": "!",
-					  "icon": "res://Assets/UI/Science/Measure.svg",
-					  "hint": "Collapse state (observe)"},
-				"R": {"action": "pop", "label": "Pop", "emoji": "^",
-					  "icon": "res://Assets/UI/Science/Pop-Harvest.svg",
-					  "hint": "Harvest + remove (UP)"}
+			"Q": {"action": "explore", "label": "Explore", "emoji": "?",
+				  "icon": "res://Assets/UI/Science/Explore.svg",
+				  "hint": "Bind terminal (dig DOWN)"},
+			"E": {"action": "measure", "label": "Measure", "emoji": "!",
+				  "icon": "res://Assets/UI/Science/Measure.svg",
+				  "hint": "Collapse state (observe)"},
+			"R": {"action": "pop", "label": "Pop", "emoji": "^",
+				  "icon": "res://Assets/UI/Science/Pop-Harvest.svg",
+				  "hint": "Harvest + remove (UP)",
+				  "shift_action": "harvest_all",
+				  "shift_label": "Shift+R: Pop All"}
 			},
 			# GATE MODE: Entanglement infrastructure
 			"gate": {
