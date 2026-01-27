@@ -35,12 +35,12 @@ const EconomyConstants = preload("res://Core/GameMechanics/EconomyConstants.gd")
 @onready var _active_biome_mgr = get_node("/root/ActiveBiomeManager")
 
 # Row mappings: key -> index
-const BIOME_ROW = {"U": 0, "I": 1, "O": 2, "P": 3}      # Biome selection (4 biomes)
+const BIOME_ROW = {"T": 0, "Y": 1, "U": 2, "I": 3, "O": 4, "P": 5}  # Biome selection (6 biomes)
 const HOMEROW = {"J": 0, "K": 1, "L": 2, ";": 3}        # Plot selection (4 plots - PRIMARY INTERFACE)
 const SUBSPACE_ROW = {"M": 0, ",": 1, ".": 2, "/": 3}   # Reserved for future subspace navigation
 
 # Input action mappings for the rows
-const BIOME_ACTIONS = ["biome_0", "biome_1", "biome_2", "biome_3"]
+const BIOME_ACTIONS = ["biome_0", "biome_1", "biome_2", "biome_3", "biome_4", "biome_5"]
 const HOMEROW_ACTIONS = ["plot_0", "plot_1", "plot_2", "plot_3"]
 const SUBSPACE_ACTIONS = ["subspace_0", "subspace_1", "subspace_2", "subspace_3"]
 
@@ -373,18 +373,18 @@ func _execute_inject_vocabulary(vocab_pair: Dictionary) -> void:
 ## ============================================================================
 
 func _select_biome(biome_idx: int, key: String) -> void:
-	"""Select a biome from the UIOP row.
+	"""Select a biome from the TYUIOP row.
 
 	Args:
-		biome_idx: Which biome (0-3) was selected (U=0, I=1, O=2, P=3)
+		biome_idx: Which biome (0-5) was selected (T=0, Y=1, U=2, I=3, O=4, P=5)
 		key: The key that was pressed (for logging)
 	"""
 	if not _active_biome_mgr:
 		_verbose.warn("input", "~", "ActiveBiomeManager not available")
 		return
 
-	# Map biome index to biome name (assuming 4-biome ordering)
-	const BIOME_NAMES = ["BioticFlux", "StellarForges", "FungalNetworks", "VolcanicWorlds"]
+	# Map biome index to biome name (6-biome ordering: T,Y,U,I,O,P)
+	const BIOME_NAMES = ["StarterForest", "Village", "BioticFlux", "StellarForges", "FungalNetworks", "VolcanicWorlds"]
 	if biome_idx < 0 or biome_idx >= BIOME_NAMES.size():
 		return
 
@@ -1231,6 +1231,8 @@ func _keycode_to_string(keycode: int) -> String:
 		KEY_E: return "E"
 		KEY_R: return "R"
 		KEY_F: return "F"
+		KEY_T: return "T"
+		KEY_Y: return "Y"
 		KEY_U: return "U"
 		KEY_I: return "I"
 		KEY_O: return "O"

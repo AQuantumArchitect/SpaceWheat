@@ -10,8 +10,8 @@ extends Node
 ## Selecting plots in UP or DOWN rows shifts the spindle, making that biome
 ## the new neutral reference point.
 
-## Biome order for the fractal hierarchy
-const BIOME_ORDER: Array[String] = ["BioticFlux", "StellarForges", "FungalNetworks", "VolcanicWorlds"]
+## Biome order for the fractal hierarchy (matches TYUIOP keyboard layout)
+const BIOME_ORDER: Array[String] = ["StarterForest", "Village", "BioticFlux", "StellarForges", "FungalNetworks", "VolcanicWorlds"]
 
 ## Current neutral index in BIOME_ORDER
 var neutral_index: int = 0

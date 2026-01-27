@@ -217,16 +217,19 @@ func _create_tiles() -> void:
 	"""Create plot tiles (positioning is handled separately by _update_layout_for_active_biome)"""
 	# Guard: Don't create tiles if they already exist
 	if tiles.size() > 0:
-		_verbose.warn("ui", "⚠️", "PlotGridDisplay._create_tiles(): Tiles already exist (%d), skipping" % tiles.size())
+		if _verbose:
+			_verbose.warn("ui", "⚠️", "PlotGridDisplay._create_tiles(): Tiles already exist (%d), skipping" % tiles.size())
 		return
 
 	if not grid_config:
-		_verbose.warn("ui", "⚠️", "PlotGridDisplay._create_tiles(): GridConfig not available")
+		if _verbose:
+			_verbose.warn("ui", "⚠️", "PlotGridDisplay._create_tiles(): GridConfig not available")
 		return
 
 	# Get all active plots
 	var active_plots = grid_config.get_all_active_plots()
-	_verbose.debug("ui", "🌾", "Creating %d plot tiles..." % active_plots.size())
+	if _verbose:
+		_verbose.debug("ui", "🌾", "Creating %d plot tiles..." % active_plots.size())
 
 	for plot_config in active_plots:
 		var pos = plot_config.position
@@ -255,13 +258,15 @@ func _create_tiles() -> void:
 		if label:
 			tile.set_label_text(label)
 
-	_verbose.info("ui", "✅", "Created %d plot tiles (awaiting positioning)" % tiles.size())
+	if _verbose:
+		_verbose.info("ui", "✅", "Created %d plot tiles (awaiting positioning)" % tiles.size())
 
 	# Connect to TouchInputManager for touch selection (do it here after tiles are created)
 	# CONNECT_DEFERRED ensures bubbles process tap first (they connect without DEFERRED)
 	if TouchInputManager and not TouchInputManager.tap_detected.is_connected(_on_touch_tap):
 		TouchInputManager.tap_detected.connect(_on_touch_tap, CONNECT_DEFERRED)
-		_verbose.info("ui", "✅", "Touch: Tap-to-select connected with DEFERRED (bubbles have priority)")
+		if _verbose:
+			_verbose.info("ui", "✅", "Touch: Tap-to-select connected with DEFERRED (bubbles have priority)")
 
 
 ## ═══════════════════════════════════════════════════════════════════════════════
@@ -278,17 +283,33 @@ func _connect_to_biome_manager() -> void:
 	if active_biome_manager:
 		if not active_biome_manager.active_biome_changed.is_connected(_on_active_biome_changed):
 			active_biome_manager.active_biome_changed.connect(_on_active_biome_changed)
-			_verbose.info("ui", "📡", "PlotGridDisplay connected to ActiveBiomeManager")
+			if _verbose:
+				_verbose.info("ui", "📡", "PlotGridDisplay connected to ActiveBiomeManager")
 
 		# Position and filter tiles for initial biome (SAME path as biome switching)
+		# CRITICAL: Defer to next frame so Control layout is finalized and get_global_transform() is accurate
 		if tiles.size() > 0:
-			var initial_biome = active_biome_manager.get_active_biome()
-			# Use unified positioning path (same as _on_active_biome_changed)
-			_update_layout_for_active_biome(initial_biome)
-			_filter_tiles_for_biome(initial_biome)
-			_biome_manager_connected = true
+			_position_tiles_deferred.call_deferred()
 	else:
-		_verbose.warn("ui", "⚠️", "ActiveBiomeManager not found - showing all tiles")
+		if _verbose:
+			_verbose.warn("ui", "⚠️", "ActiveBiomeManager not found - showing all tiles")
+
+
+func _position_tiles_deferred() -> void:
+	"""Deferred positioning - called after Control layout is finalized"""
+	if _biome_manager_connected:
+		return  # Already done
+
+	if not active_biome_manager:
+		return
+
+	var initial_biome = active_biome_manager.get_active_biome()
+	_update_layout_for_active_biome(initial_biome)
+	_filter_tiles_for_biome(initial_biome)
+	_biome_manager_connected = true
+
+	if _verbose:
+		_verbose.info("ui", "✅", "Initial tile positioning complete (deferred)")
 
 
 func _on_active_biome_changed(new_biome: String, _old_biome: String) -> void:
@@ -466,15 +487,18 @@ func inject_farm(farm_ref: Node) -> void:
 	if farm.has_signal("terminal_bound"):
 		if not farm.terminal_bound.is_connected(_on_terminal_bound):
 			farm.terminal_bound.connect(_on_terminal_bound)
-			_verbose.debug("ui", "📡", "Connected to farm.terminal_bound")
+			if _verbose:
+				_verbose.debug("ui", "📡", "Connected to farm.terminal_bound")
 
 	# Connect to structure_built for industry building tile updates
 	if farm.has_signal("structure_built"):
 		if not farm.structure_built.is_connected(_on_structure_built):
 			farm.structure_built.connect(_on_structure_built)
-			_verbose.debug("ui", "📡", "Connected to farm.structure_built")
+			if _verbose:
+				_verbose.debug("ui", "📡", "Connected to farm.structure_built")
 
-	_verbose.info("ui", "💉", "Farm injected into PlotGridDisplay")
+	if _verbose:
+		_verbose.info("ui", "💉", "Farm injected into PlotGridDisplay")
 
 
 func rebuild_from_grid() -> void:
@@ -515,7 +539,8 @@ func rebuild_from_grid() -> void:
 func inject_ui_controller(controller: Node) -> void:
 	"""Inject UI controller for callbacks"""
 	ui_controller = controller
-	_verbose.debug("ui", "📡", "UI controller injected into PlotGridDisplay")
+	if _verbose:
+		_verbose.debug("ui", "📡", "UI controller injected into PlotGridDisplay")
 
 
 func wire_to_farm(farm_ref: Node) -> void:
@@ -525,7 +550,8 @@ func wire_to_farm(farm_ref: Node) -> void:
 	Called by FarmUIController during farm injection phase.
 	"""
 	inject_farm(farm_ref)
-	_verbose.debug("ui", "📡", "PlotGridDisplay wired to farm")
+	if _verbose:
+		_verbose.debug("ui", "📡", "PlotGridDisplay wired to farm")
 
 
 func set_selected_plot(pos: Vector2i) -> void:

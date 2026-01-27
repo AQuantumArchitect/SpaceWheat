@@ -115,7 +115,10 @@ func _ensure_display_exists(emoji: String) -> void:
 	var icon = EmojiDisplay.new()
 	icon.emoji = emoji
 	icon.font_size = icon_font_size
-	icon.custom_minimum_size = Vector2(icon_font_size, icon_font_size)
+	icon.custom_minimum_size = Vector2(icon_font_size * 1.8, icon_font_size * 1.8)
+	icon.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	icon.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	container.add_child(icon)
 
 	resources_hbox.add_child(container)

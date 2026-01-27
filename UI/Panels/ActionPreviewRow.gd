@@ -684,7 +684,8 @@ func _set_cost_display(btn_data: Dictionary, cost: Dictionary) -> bool:
 		var display = EmojiDisplay.new()
 		display.emoji = emoji
 		display.font_size = int(22 * scale_factor)
-		display.custom_minimum_size = Vector2(20 * scale_factor, 20 * scale_factor)
+		display.custom_minimum_size = Vector2(40 * scale_factor, 40 * scale_factor)
+		display.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 		display.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		display.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		entry.add_child(display)

@@ -20,23 +20,27 @@ extends Node
 signal active_biome_changed(new_biome: String, old_biome: String)
 signal biome_transition_requested(from_biome: String, to_biome: String, direction: int)
 
-## Biome order for cycling (matches keyboard layout left-to-right conceptually)
-const BIOME_ORDER: Array[String] = ["BioticFlux", "StellarForges", "FungalNetworks", "VolcanicWorlds"]
+## Biome order for cycling (matches keyboard layout: T,Y,U,I,O,P)
+const BIOME_ORDER: Array[String] = ["StarterForest", "Village", "BioticFlux", "StellarForges", "FungalNetworks", "VolcanicWorlds"]
 
 ## Key-to-biome mapping (legacy - now handled by QuantumInstrumentInput)
 const BIOME_KEYS: Dictionary = {
-	KEY_7: "BioticFlux",
-	KEY_8: "StellarForges",
-	KEY_9: "FungalNetworks",
-	KEY_0: "VolcanicWorlds",
+	KEY_T: "StarterForest",
+	KEY_Y: "Village",
+	KEY_U: "BioticFlux",
+	KEY_I: "StellarForges",
+	KEY_O: "FungalNetworks",
+	KEY_P: "VolcanicWorlds",
 }
 
 ## Biome display info (for UI)
 const BIOME_INFO: Dictionary = {
-	"BioticFlux": {"key": "7", "emoji": "~", "label": "Flux"},
-	"StellarForges": {"key": "8", "emoji": "*", "label": "Forge"},
-	"FungalNetworks": {"key": "9", "emoji": ".", "label": "Fungal"},
-	"VolcanicWorlds": {"key": "0", "emoji": "^", "label": "Volcanic"},
+	"StarterForest": {"key": "T", "emoji": "🌲", "label": "Forest"},
+	"Village": {"key": "Y", "emoji": "🏘️", "label": "Village"},
+	"BioticFlux": {"key": "U", "emoji": "~", "label": "Flux"},
+	"StellarForges": {"key": "I", "emoji": "*", "label": "Forge"},
+	"FungalNetworks": {"key": "O", "emoji": ".", "label": "Fungal"},
+	"VolcanicWorlds": {"key": "P", "emoji": "^", "label": "Volcanic"},
 }
 
 ## Current active biome
