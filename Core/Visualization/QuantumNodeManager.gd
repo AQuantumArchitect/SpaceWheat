@@ -1,6 +1,8 @@
 class_name QuantumNodeManager
 extends RefCounted
 
+const QuantumNode = preload("res://Core/Visualization/QuantumNode.gd")
+
 ## Quantum Node Manager
 ##
 ## Manages quantum node lifecycle:

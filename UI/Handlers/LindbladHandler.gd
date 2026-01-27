@@ -8,6 +8,14 @@ extends RefCounted
 ## - Explicit parameters (no implicit state)
 ## - Dictionary returns with {success: bool, ...data, error?: String}
 
+const PULSE_RATE = 1.0
+const PULSE_DT = 0.5
+const PERSISTENT_RATE = 0.5
+const PLACEMENT_COST_CREDITS = 10
+const GEAR_COST_EMOJI = "⚙"
+const GEAR_COST_CREDITS = 1
+const EconomyConstants = preload("res://Core/GameMechanics/EconomyConstants.gd")
+
 
 ## ============================================================================
 ## LINDBLAD CONTROL OPERATIONS
@@ -34,8 +42,8 @@ static func lindblad_drive(farm, positions: Array[Vector2i]) -> Dictionary:
 
 	var success_count = 0
 	var driven_emojis: Dictionary = {}
-	var drive_rate = 1.0  # Strong drive (1/s)
-	var dt = 0.5  # Half second pulse
+	var drive_rate = PULSE_RATE  # Strong drive (1/s)
+	var dt = PULSE_DT  # Half second pulse
 
 	for pos in positions:
 		var biome = farm.grid.get_biome_for_plot(pos)
@@ -93,8 +101,8 @@ static func lindblad_decay(farm, positions: Array[Vector2i]) -> Dictionary:
 
 	var success_count = 0
 	var decayed_emojis: Dictionary = {}
-	var decay_rate = 1.0  # Strong decay (1/s)
-	var dt = 0.5  # Half second pulse
+	var decay_rate = PULSE_RATE  # Strong decay (1/s)
+	var dt = PULSE_DT  # Half second pulse
 
 	for pos in positions:
 		var biome = farm.grid.get_biome_for_plot(pos)
@@ -130,6 +138,152 @@ static func lindblad_decay(farm, positions: Array[Vector2i]) -> Dictionary:
 		"decayed_emojis": decayed_emojis,
 		"decay_rate": decay_rate,
 		"dt": dt
+	}
+
+
+static func enable_persistent_drive(farm, positions: Array[Vector2i],
+		rate: float = PERSISTENT_RATE) -> Dictionary:
+	"""Enable continuous Lindblad drive on selected plots."""
+	if not farm or not farm.grid:
+		return {
+			"success": false,
+			"error": "farm_not_ready",
+			"message": "Farm not loaded"
+		}
+
+	if positions.is_empty():
+		return {
+			"success": false,
+			"error": "no_positions",
+			"message": "No plots selected"
+		}
+
+	var success_count = 0
+	var activated_count = 0
+	var charged_count = 0
+	var already_active = 0
+	var insufficient: Dictionary = {}
+	var driven_emojis: Dictionary = {}
+
+	for pos in positions:
+		var biome = farm.grid.get_biome_for_plot(pos)
+		if not biome or not biome.quantum_computer:
+			continue
+
+		var emoji = _resolve_north_emoji(farm, pos)
+		if emoji == "" or not biome.quantum_computer.register_map.has(emoji):
+			continue
+
+		var plot = farm.grid.get_plot(pos)
+		if plot and plot.lindblad_pump_active:
+			already_active += 1
+			continue
+
+		if not farm.economy or not farm.economy.can_afford_resource(emoji, PLACEMENT_COST_CREDITS) \
+			or not farm.economy.can_afford_resource(GEAR_COST_EMOJI, GEAR_COST_CREDITS):
+			insufficient[emoji] = insufficient.get(emoji, 0) + 1
+			if farm.economy and not farm.economy.can_afford_resource(GEAR_COST_EMOJI, GEAR_COST_CREDITS):
+				insufficient[GEAR_COST_EMOJI] = insufficient.get(GEAR_COST_EMOJI, 0) + 1
+			continue
+
+		farm.economy.remove_resource(emoji, PLACEMENT_COST_CREDITS, "lindblad_pump")
+		farm.economy.remove_resource(GEAR_COST_EMOJI, GEAR_COST_CREDITS, "lindblad_pump")
+
+		charged_count += 1
+		success_count += 1
+		driven_emojis[emoji] = driven_emojis.get(emoji, 0) + 1
+
+		if plot:
+			plot.lindblad_pump_active = true
+			plot.lindblad_pump_rate = rate
+			activated_count += 1
+
+	return {
+		"success": success_count > 0,
+		"driven_count": success_count,
+		"driven_emojis": driven_emojis,
+		"drive_rate": rate,
+		"dt": 0.0,
+		"persistent_enabled": activated_count,
+		"persistent_rate": rate,
+		"charged_count": charged_count,
+		"already_active": already_active,
+		"insufficient": insufficient,
+		"placement_cost": PLACEMENT_COST_CREDITS,
+		"placement_cost_gear": GEAR_COST_CREDITS
+	}
+
+
+static func enable_persistent_decay(farm, positions: Array[Vector2i],
+		rate: float = PERSISTENT_RATE) -> Dictionary:
+	"""Enable continuous Lindblad decay on selected plots."""
+	if not farm or not farm.grid:
+		return {
+			"success": false,
+			"error": "farm_not_ready",
+			"message": "Farm not loaded"
+		}
+
+	if positions.is_empty():
+		return {
+			"success": false,
+			"error": "no_positions",
+			"message": "No plots selected"
+		}
+
+	var success_count = 0
+	var activated_count = 0
+	var charged_count = 0
+	var already_active = 0
+	var insufficient: Dictionary = {}
+	var decayed_emojis: Dictionary = {}
+
+	for pos in positions:
+		var biome = farm.grid.get_biome_for_plot(pos)
+		if not biome or not biome.quantum_computer:
+			continue
+
+		var emoji = _resolve_north_emoji(farm, pos)
+		if emoji == "" or not biome.quantum_computer.register_map.has(emoji):
+			continue
+
+		var plot = farm.grid.get_plot(pos)
+		if plot and plot.lindblad_drain_active:
+			already_active += 1
+			continue
+
+		if not farm.economy or not farm.economy.can_afford_resource(emoji, PLACEMENT_COST_CREDITS) \
+			or not farm.economy.can_afford_resource(GEAR_COST_EMOJI, GEAR_COST_CREDITS):
+			insufficient[emoji] = insufficient.get(emoji, 0) + 1
+			if farm.economy and not farm.economy.can_afford_resource(GEAR_COST_EMOJI, GEAR_COST_CREDITS):
+				insufficient[GEAR_COST_EMOJI] = insufficient.get(GEAR_COST_EMOJI, 0) + 1
+			continue
+
+		farm.economy.remove_resource(emoji, PLACEMENT_COST_CREDITS, "lindblad_drain")
+		farm.economy.remove_resource(GEAR_COST_EMOJI, GEAR_COST_CREDITS, "lindblad_drain")
+
+		charged_count += 1
+		success_count += 1
+		decayed_emojis[emoji] = decayed_emojis.get(emoji, 0) + 1
+
+		if plot:
+			plot.lindblad_drain_active = true
+			plot.lindblad_drain_rate = rate
+			activated_count += 1
+
+	return {
+		"success": success_count > 0,
+		"decayed_count": success_count,
+		"decayed_emojis": decayed_emojis,
+		"decay_rate": rate,
+		"dt": 0.0,
+		"persistent_enabled": activated_count,
+		"persistent_rate": rate,
+		"charged_count": charged_count,
+		"already_active": already_active,
+		"insufficient": insufficient,
+		"placement_cost": PLACEMENT_COST_CREDITS,
+		"placement_cost_gear": GEAR_COST_CREDITS
 	}
 
 
@@ -260,3 +414,20 @@ static func pump_to_wheat(farm, positions: Array[Vector2i]) -> Dictionary:
 		"pump_count": success_count,
 		"pumped_pairs": pumped
 	}
+
+
+static func _resolve_north_emoji(farm, pos: Vector2i) -> String:
+	"""Resolve north emoji from terminal first, then planted plot."""
+	if farm.plot_pool:
+		var terminal = farm.plot_pool.get_terminal_at_grid_pos(pos)
+		if terminal and terminal.is_bound and terminal.has_method("get_emoji_pair"):
+			var pair = terminal.get_emoji_pair()
+			var north = pair.get("north", "")
+			if north != "":
+				return north
+
+	var plot = farm.grid.get_plot(pos) if farm.grid else null
+	if plot and plot.is_planted:
+		return plot.north_emoji if plot.north_emoji else ""
+
+	return ""

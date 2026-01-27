@@ -82,14 +82,10 @@ func _ready():
 	_verbose.debug("ui", "🛁", "Creating bath-first quantum visualization...")
 	quantum_viz = BathQuantumViz.new()
 
-	# Add to same CanvasLayer as UI (layer 0) so we can control z_index
-	var viz_layer = CanvasLayer.new()
-	viz_layer.layer = 0  # Same layer as UI - use z_index for ordering
-	add_child(viz_layer)
-	viz_layer.add_child(quantum_viz)
-
-	# Set z_index to be above plots (-10) but below farm UI (100)
-	quantum_viz.z_index = 50  # Between plots and UI
+	# Add directly to scene tree - no CanvasLayer needed
+	# Set z_index low so it renders behind UI and overlays
+	add_child(quantum_viz)
+	quantum_viz.z_index = -100  # Behind everything (plots are -10, overlays are 1000+)
 
 	# Add biomes to visualization (if available)
 	if farm.biome_enabled:
@@ -101,6 +97,10 @@ func _ready():
 			quantum_viz.add_biome("FungalNetworks", farm.fungal_networks_biome)
 		if farm.volcanic_worlds_biome:
 			quantum_viz.add_biome("VolcanicWorlds", farm.volcanic_worlds_biome)
+		if farm.starter_forest_biome:
+			quantum_viz.add_biome("StarterForest", farm.starter_forest_biome)
+		if farm.village_biome:
+			quantum_viz.add_biome("Village", farm.village_biome)
 
 	# ═══════════════════════════════════════════════════════════════════════
 	# PRE-BOOT: Signal connections needed before game starts
@@ -152,6 +152,9 @@ func _on_quit_requested() -> void:
 func _on_restart_requested() -> void:
 	"""Handle restart request"""
 	_verbose.info("ui", "🔄", "Restart requested - reloading scene")
+	# Reset music completely before reloading
+	if has_node("/root/MusicManager"):
+		get_node("/root/MusicManager").reset()
 	get_tree().reload_current_scene()
 
 

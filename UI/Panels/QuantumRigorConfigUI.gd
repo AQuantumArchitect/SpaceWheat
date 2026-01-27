@@ -11,7 +11,6 @@ extends PanelContainer
 ## Can be opened from main menu or pause menu
 
 const QuantumRigorConfig = preload("res://Core/GameState/QuantumRigorConfig.gd")
-const UIOrnamentation = preload("res://UI/Core/UIOrnamentation.gd")
 
 var config: QuantumRigorConfig = null
 var scroll_container: ScrollContainer = null
@@ -28,13 +27,6 @@ func _ready() -> void:
 	_setup_theme()
 	_setup_layout()
 	_update_display()
-
-	# Apply corner ornamentation
-	UIOrnamentation.apply_corners_to_panel(
-		self,
-		UIOrnamentation.CORNER_SIZE_MEDIUM,
-		UIOrnamentation.TINT_BLUE
-	)
 
 	print("✅ QuantumRigorConfigUI initialized")
 

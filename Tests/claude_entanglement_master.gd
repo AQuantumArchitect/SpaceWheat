@@ -1,193 +1,156 @@
 extends SceneTree
 
-## 🌀 CLAUDE HUNTS ENTANGLEMENT MASTER - 10 Entanglements Challenge!
-## Goal: Create 10 entanglements and test complex patterns
+## 🌀 CLAUDE HUNTS ENTANGLEMENT MASTER - v2 "for fun" rig
+## This version uses ProbeHandler + GateActionHandler (v2 pipeline).
 
-const Farm = preload("res://Core/Farm.gd")
+const ProbeHandler = preload("res://UI/Handlers/ProbeHandler.gd")
+const GateActionHandler = preload("res://UI/Handlers/GateActionHandler.gd")
 
-var farm: Farm
-var current_turn: int = 0
-var game_time: float = 0.0
+var farm = null
+var plot_pool = null
+var biotic_flux = null
 
-# Statistics
-var entanglements_created: int = 0
+var scene_loaded := false
+var game_ready := false
+var frame_count := 0
+
+var entanglements_created := 0
+var explored_positions: Array[Vector2i] = []
 
 
-func _initialize():
+func _init():
 	print("\n" + "=".repeat(80))
-	print("🌀 CLAUDE HUNTS ENTANGLEMENT MASTER - 10 Entanglements Challenge!")
+	print("🌀 CLAUDE HUNTS ENTANGLEMENT MASTER (v2 rig, for fun)")
 	print("=".repeat(80))
 	print("Mission:")
-	print("  1. Unlock 'Entanglement Master' (10 entanglements)")
-	print("  2. Test complex entanglement patterns")
-	print("  3. Test entanglement clusters")
-	print("  4. Find edge cases and bugs")
+	print("  1. Create entanglement via Tool 3 handlers")
+	print("  2. Test cluster + bell pair + CNOT")
+	print("  3. Bail if it is awful")
 	print("=".repeat(80) + "\n")
 
-	await get_root().ready
-	await _setup_game()
 
-	print("\n📋 STRATEGY: Create diverse entanglement patterns")
-	print("   - Fill all 12 plots with wheat")
-	print("   - Create various entanglement patterns:")
-	print("     • Linear chains")
-	print("     • Squares/cycles")
-	print("     • Stars (hub and spoke)")
-	print("     • Maximum entanglement density")
-	print("   - Test if clusters work correctly\n")
+func _process(_delta):
+	frame_count += 1
+	if frame_count == 5 and not scene_loaded:
+		_load_scene()
 
-	# Execute the entanglement master plan
-	_execute_master_plan()
 
-	# Final report
+func _load_scene():
+	print("📦 Loading FarmView...")
+	var scene = load("res://scenes/FarmView.tscn")
+	if scene:
+		var instance = scene.instantiate()
+		root.add_child(instance)
+		scene_loaded = true
+		var boot = root.get_node_or_null("/root/BootManager")
+		if boot:
+			boot.game_ready.connect(_on_game_ready)
+	else:
+		print("❌ Failed to load FarmView.tscn")
+		quit(1)
+
+
+func _on_game_ready():
+	if game_ready:
+		return
+	game_ready = true
+
+	_find_components()
+	if not _validate_components():
+		quit(1)
+		return
+
+	await _execute_master_plan()
 	_print_final_report()
-
 	quit(0)
 
 
-func _setup_game():
-	print("Setting up game world...")
+func _find_components():
+	var farm_view = root.get_node_or_null("FarmView")
+	if farm_view and "farm" in farm_view:
+		farm = farm_view.farm
+		plot_pool = farm.plot_pool if farm else null
+		biotic_flux = farm.biotic_flux_biome if farm else null
 
-	# Create farm
-	farm = Farm.new()
-	get_root().add_child(farm)
-	for i in range(10):
-		await process_frame
-
-	print("✅ Game world ready!")
-	print("📊 Starting resources: 🌾%d 👥%d\n" % [
-		farm.economy.get_resource("🌾"),
-		farm.economy.get_resource("👥")
+	print("📋 Components: Farm=%s Pool=%s Biome=%s" % [
+		farm != null, plot_pool != null, biotic_flux != null
 	])
 
 
-func _execute_master_plan():
-	"""Execute the entanglement master quest"""
+func _validate_components() -> bool:
+	return farm != null and plot_pool != null and biotic_flux != null and farm.grid != null
 
-	# Phase 1: Plant all 12 plots
-	print("──────────────────────────────────────────────────────────────────────")
-	print("🌱 PHASE 1: Plant all 12 plots")
-	print("──────────────────────────────────────────────────────────────────────")
+
+func _execute_master_plan():
+	print("\n📋 STRATEGY: Explore terminals, then entangle\n")
 
 	var grid_width = farm.grid.grid_width
 	var grid_height = farm.grid.grid_height
+	var max_positions = min(plot_pool.pool_size, grid_width * grid_height)
 
-	for y in range(grid_height):
-		for x in range(grid_width):
-			var pos = Vector2i(x, y)
-			var plot = farm.grid.get_plot(pos)
-			if plot:
-				var success = farm.build(pos, "wheat")
-				if success:
-					print("   ✅ Planted wheat at %s" % pos)
-				else:
-					print("   ❌ Failed to plant at %s" % pos)
+	explored_positions = _collect_positions(max_positions, grid_width, grid_height)
+	print("🌱 PHASE 1: EXPLORE %d positions (bind terminals)" % explored_positions.size())
 
-	print("   📊 Planted %d plots\n" % (grid_width * grid_height))
-
-	# Wait for some quantum evolution
-	print("   ⏳ Waiting 30s for quantum evolution...")
-	_advance_all_biomes(30.0)
-	print("   ✅ Radius grew to ~0.167 across all plots\n")
-
-	# Phase 2: Create entanglement patterns
-	print("──────────────────────────────────────────────────────────────────────")
-	print("🔗 PHASE 2: Create entanglement patterns")
-	print("──────────────────────────────────────────────────────────────────────")
-
-	# Pattern 1: Linear chain (top row)
-	print("\n   🔗 Pattern 1: Linear Chain (top row)")
-	for x in range(grid_width - 1):
-		var pos_a = Vector2i(x, 0)
-		var pos_b = Vector2i(x + 1, 0)
-		var success = farm.entangle_plots(pos_a, pos_b, "phi_plus")
-		if success:
-			entanglements_created += 1
-			print("      ✅ Entangled %s ↔ %s (chain link %d)" % [pos_a, pos_b, x + 1])
-		else:
-			print("      ❌ Failed to entangle %s ↔ %s" % [pos_a, pos_b])
-
-	print("   📊 Progress: %d/%d entanglements" % [farm.goals.progress["entanglement_count"], 10])
-
-	# Pattern 2: Linear chain (bottom row)
-	print("\n   🔗 Pattern 2: Linear Chain (bottom row)")
-	for x in range(grid_width - 1):
-		var pos_a = Vector2i(x, 1)
-		var pos_b = Vector2i(x + 1, 1)
-		var success = farm.entangle_plots(pos_a, pos_b, "phi_plus")
-		if success:
-			entanglements_created += 1
-			print("      ✅ Entangled %s ↔ %s (chain link %d)" % [pos_a, pos_b, x + 1])
-		else:
-			print("      ❌ Failed to entangle %s ↔ %s" % [pos_a, pos_b])
-
-	print("   📊 Progress: %d/%d entanglements" % [farm.goals.progress["entanglement_count"], 10])
-
-	# Check if we've already hit 10
-	if farm.goals.progress["entanglement_count"] >= 10:
-		print("\n🎉 ENTANGLEMENT MASTER UNLOCKED! 🎉")
-		print("   (Unlocked after %d total entanglements)" % entanglements_created)
+	var explore_result = ProbeHandler.explore(farm, plot_pool, explored_positions)
+	if not explore_result.success:
+		print("   ❌ Explore failed: %s" % explore_result.get("message", "unknown"))
 		return
 
-	# Pattern 3: Vertical connections (columns)
-	print("\n   🔗 Pattern 3: Vertical Connections")
-	for x in range(grid_width):
-		var pos_a = Vector2i(x, 0)
-		var pos_b = Vector2i(x, 1)
-		var success = farm.entangle_plots(pos_a, pos_b, "psi_plus")  # Try psi_plus for variety
-		if success:
+	print("   ✅ Explored %d/%d positions" % [
+		explore_result.explored_count,
+		explored_positions.size()
+	])
+
+	print("\n🔗 PHASE 2: Entanglement patterns")
+
+	var cluster_result = GateActionHandler.cluster(farm, explored_positions)
+	if cluster_result.success:
+		entanglements_created += cluster_result.entanglement_count
+		print("   ✅ Cluster: %d entanglements (%d terminals)" % [
+			cluster_result.entanglement_count,
+			cluster_result.terminal_count
+		])
+	else:
+		print("   ❌ Cluster failed: %s" % cluster_result.get("message", "unknown"))
+
+	if explored_positions.size() >= 2:
+		var bell_pair_positions = [explored_positions[0], explored_positions[1]]
+		var bell_result = GateActionHandler.create_bell_pair(farm, bell_pair_positions)
+		if bell_result.success:
 			entanglements_created += 1
-			print("      ✅ Entangled %s ↔ %s (vertical link %d)" % [pos_a, pos_b, x + 1])
+			print("   ✅ Bell pair created at %s ↔ %s" % bell_pair_positions)
 		else:
-			print("      ❌ Failed to entangle %s ↔ %s" % [pos_a, pos_b])
+			print("   ❌ Bell pair failed: %s" % bell_result.get("message", "unknown"))
 
-		# Check progress
-		if farm.goals.progress["entanglement_count"] >= 10:
-			print("\n🎉 ENTANGLEMENT MASTER UNLOCKED! 🎉")
-			print("   (Unlocked after %d total entanglements)" % entanglements_created)
-			return
+	if explored_positions.size() >= 4:
+		var cnot_positions = explored_positions.slice(0, 4)
+		var cnot_result = GateActionHandler.apply_cnot(farm, cnot_positions)
+		if cnot_result.success:
+			print("   ✅ CNOT applied to %d pair(s)" % cnot_result.pair_count)
+		else:
+			print("   ❌ CNOT failed: %s" % cnot_result.get("message", "unknown"))
 
-	print("\n   📊 Final progress: %d/%d entanglements" % [farm.goals.progress["entanglement_count"], 10])
+	print("\n🔍 PHASE 3: Inspect entanglement")
+	var inspect_positions = explored_positions.slice(0, min(6, explored_positions.size()))
+	var inspect_result = GateActionHandler.inspect_entanglement(farm, inspect_positions)
+	if inspect_result.success:
+		for info in inspect_result.entanglement_info:
+			print("   Plot %s -> entangled with %s" % [
+				info.position,
+				info.entangled_with
+			])
+	else:
+		print("   ❌ Inspect failed: %s" % inspect_result.get("message", "unknown"))
 
-	# Phase 3: Analyze the network
-	print("\n──────────────────────────────────────────────────────────────────────")
-	print("📊 PHASE 3: Analyze entanglement network")
-	print("──────────────────────────────────────────────────────────────────────")
 
-	print("\n   🔍 Checking entanglement infrastructure on each plot:")
+func _collect_positions(limit: int, grid_width: int, grid_height: int) -> Array[Vector2i]:
+	var positions: Array[Vector2i] = []
 	for y in range(grid_height):
 		for x in range(grid_width):
-			var pos = Vector2i(x, y)
-			var plot = farm.grid.get_plot(pos)
-			if plot:
-				var count = plot.plot_infrastructure_entanglements.size()
-				print("      Plot %s: %d entanglements" % [pos, count])
-
-	# Test measurement cascade on heavily entangled network
-	print("\n   🔬 Testing measurement cascade on entangled network...")
-	print("      Measuring corner plot (0,0) - should cascade across network")
-	var outcome = farm.measure_plot(Vector2i(0, 0))
-	print("      Measurement outcome: %s" % outcome)
-	print("      Checking cascade effects...")
-
-	var measured_count = 0
-	for y in range(grid_height):
-		for x in range(grid_width):
-			var pos = Vector2i(x, y)
-			var plot = farm.grid.get_plot(pos)
-			if plot and plot.has_been_measured:
-				measured_count += 1
-				print("         ✓ Plot %s measured: %s" % [pos, plot.measured_outcome])
-
-	print("\n      📊 Cascade measured %d/%d plots" % [measured_count, grid_width * grid_height])
-
-
-func _advance_all_biomes(seconds: float):
-	"""Advance quantum evolution in all biomes"""
-	for biome_name in farm.grid.biomes.keys():
-		var biome = farm.grid.biomes[biome_name]
-		biome.advance_simulation(seconds)
-	game_time += seconds
+			if positions.size() >= limit:
+				return positions
+			positions.append(Vector2i(x, y))
+	return positions
 
 
 func _print_final_report():
@@ -195,42 +158,19 @@ func _print_final_report():
 	print("📊 ENTANGLEMENT MASTER QUEST COMPLETE - FINAL REPORT")
 	print("=".repeat(80))
 
-	# Resources
-	var wheat = farm.economy.get_resource("🌾")
-	var labor = farm.economy.get_resource("👥")
+	var wheat = farm.economy.get_resource("🌾") if farm and farm.economy else 0
+	var labor = farm.economy.get_resource("👥") if farm and farm.economy else 0
+
 	print("\n💰 Final Resources:")
 	print("   🌾 Wheat: %d credits" % wheat)
 	print("   👥 Labor: %d credits" % labor)
 
-	# Entanglement statistics
 	print("\n🔗 Entanglement Statistics:")
-	print("   Total entanglements created: %d" % entanglements_created)
-	print("   Goal progress: %d/10" % farm.goals.progress["entanglement_count"])
+	print("   Total entanglements created (rig count): %d" % entanglements_created)
 
-	if farm.goals.progress["entanglement_count"] >= 10:
-		print("   ✅ ENTANGLEMENT MASTER: UNLOCKED!")
+	if farm and farm.goals:
+		print("   Goal progress: %d/10" % farm.goals.progress["entanglement_count"])
 	else:
-		print("   ❌ ENTANGLEMENT MASTER: Not yet unlocked (need %d more)" % (10 - farm.goals.progress["entanglement_count"]))
-
-	# Goals
-	print("\n🎯 Goals Progress:")
-	for i in range(farm.goals.goals.size()):
-		var goal = farm.goals.goals[i]
-		var progress_type = goal["type"]
-		var current_val = 0
-
-		if progress_type == "harvest_count":
-			current_val = farm.goals.progress["harvest_count"]
-		elif progress_type == "total_wheat_harvested":
-			current_val = farm.goals.progress["total_wheat_harvested"]
-		elif progress_type == "wheat_inventory":
-			current_val = wheat
-		elif progress_type == "entanglement_count":
-			current_val = farm.goals.progress["entanglement_count"]
-
-		var target = goal["target"]
-		var progress_pct = 100.0 * current_val / target
-		var status = "✅" if current_val >= target else "🔄"
-		print("   %s %s: %d/%d (%.1f%%)" % [status, goal["title"], current_val, target, progress_pct])
+		print("   Goal progress: n/a (goals not available)")
 
 	print("\n" + "=".repeat(80))

@@ -1,6 +1,8 @@
 class_name VolcanicWorldsBiome
 extends "res://Core/Environment/BiomeBase.gd"
 
+const Icon = preload("res://Core/QuantumSubstrate/Icon.gd")
+
 ## Volcanic Worlds Biome - Lava flows, crystal formation, and steam dynamics
 ##
 ## Architecture: QuantumComputer with 3-qubit tensor product
@@ -54,9 +56,7 @@ func _ready():
 	register_emoji_pair("💎", "⛏")   # Resource axis
 	register_emoji_pair("🌫", "✨")  # Phase axis
 
-	# Register planting capabilities (mining operations)
-	register_planting_capability("💎", "⛏", "crystal", {"🪨": 30}, "Crystal Mining", false)
-	register_planting_capability("⛏", "💎", "ore", {"🪨": 10}, "Ore Extraction", false)
+	# Legacy planting capabilities removed (vocabulary injection is the only expansion path)
 
 	# Configure visual properties for QuantumForceGraph
 	visual_color = Color(1.0, 0.3, 0.1, 0.3)  # Lava orange-red

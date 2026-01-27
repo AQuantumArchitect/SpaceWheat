@@ -31,6 +31,8 @@ const BIOME_TRACKS: Dictionary = {
 	"StellarForges": "black_horizon",
 	"FungalNetworks": "fungal_lattice",
 	"VolcanicWorlds": "entropic_bread",
+	"StarterForest": "quantum_harvest",
+	"Village": "yeast_prophet",
 }
 
 ## Menu/special tracks
@@ -38,7 +40,7 @@ const MENU_TRACK: String = "end_credits"
 const FALLBACK_TRACK: String = "yeast_prophet"
 
 ## Crossfade duration in seconds
-const CROSSFADE_DURATION: float = 2.0
+const CROSSFADE_DURATION: float = 0.8
 
 ## Volume settings
 var _volume: float = 0.7  # 0.0 to 1.0
@@ -53,12 +55,19 @@ var _inactive_player: AudioStreamPlayer
 ## Current state
 var _current_track: String = ""
 var _crossfade_tween: Tween = null
+var _last_crossfade_time: float = 0.0
+var _health_check_timer: float = 0.0  # 10Hz health check
 
 ## Loaded streams cache
 var _stream_cache: Dictionary = {}
+var _disabled: bool = false
 
 
 func _ready() -> void:
+	if _is_headless():
+		_disabled = true
+		return
+
 	process_mode = Node.PROCESS_MODE_ALWAYS  # Volume control works when paused
 	_setup_audio_players()
 	_connect_biome_manager()
@@ -67,9 +76,35 @@ func _ready() -> void:
 	# Try to play current biome track on next frame (when ActiveBiomeManager is ready)
 	call_deferred("_play_current_biome_track")
 
+	# Monitor playback health - restart if it unexpectedly stops
+	set_process(true)
+
+
+func _process(delta: float) -> void:
+	"""Monitor playback health at 10Hz - restart if it unexpectedly stops"""
+	if _disabled:
+		return
+
+	_health_check_timer += delta
+	if _health_check_timer < 0.1:  # 10Hz = check every 0.1 seconds
+		return
+	_health_check_timer = 0.0
+
+	# If we should be playing music but aren't, restart it
+	if not _current_track.is_empty() and not _active_player.playing and (_crossfade_tween == null or not _crossfade_tween.is_valid()):
+		push_warning("MusicManager: Playback stopped unexpectedly, restarting track: %s" % _current_track)
+		var stream = _get_or_load_stream(_current_track)
+		if stream:
+			_active_player.stream = stream
+			_active_player.volume_db = _volume_to_db(_volume)
+			_active_player.play()
+
 
 func _unhandled_key_input(event: InputEvent) -> void:
 	"""Global volume controls: , = down, . = up, / = mute"""
+	if _disabled:
+		return
+
 	if not event is InputEventKey or not event.pressed or event.echo:
 		return
 
@@ -131,6 +166,9 @@ func _play_current_biome_track() -> void:
 
 func play_biome_track(biome_name: String) -> void:
 	"""Play the track associated with a biome"""
+	if _disabled:
+		return
+
 	var track_key = BIOME_TRACKS.get(biome_name, FALLBACK_TRACK)
 	crossfade_to(track_key)
 
@@ -142,6 +180,9 @@ func play_track(track_key: String, instant: bool = false) -> void:
 		track_key: Key from TRACKS dictionary
 		instant: If true, skip crossfade
 	"""
+	if _disabled:
+		return
+
 	if track_key == _current_track:
 		return
 
@@ -161,8 +202,17 @@ func play_track(track_key: String, instant: bool = false) -> void:
 
 func crossfade_to(track_key: String) -> void:
 	"""Crossfade to a new track"""
+	if _disabled:
+		return
+
 	if track_key == _current_track:
 		return
+
+	# Prevent rapid successive crossfades (minimum 0.5s between crossfades)
+	var now = Time.get_ticks_msec() / 1000.0
+	if now - _last_crossfade_time < 0.5:
+		return
+	_last_crossfade_time = now
 
 	if not TRACKS.has(track_key):
 		push_warning("MusicManager: Unknown track '%s'" % track_key)
@@ -190,12 +240,12 @@ func crossfade_to(track_key: String) -> void:
 	_crossfade_tween = create_tween()
 	_crossfade_tween.set_parallel(true)
 
-	# Fade in new track
+	# Fade in new track (ease out for smooth start)
 	var target_db = _volume_to_db(_volume)
-	_crossfade_tween.tween_property(_active_player, "volume_db", target_db, CROSSFADE_DURATION)
+	_crossfade_tween.tween_property(_active_player, "volume_db", target_db, CROSSFADE_DURATION).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_QUAD)
 
-	# Fade out old track
-	_crossfade_tween.tween_property(_inactive_player, "volume_db", -80.0, CROSSFADE_DURATION)
+	# Fade out old track (ease in for smooth finish)
+	_crossfade_tween.tween_property(_inactive_player, "volume_db", -80.0, CROSSFADE_DURATION).set_ease(Tween.EASE_IN).set_trans(Tween.TRANS_QUAD)
 	_crossfade_tween.chain().tween_callback(_inactive_player.stop)
 
 	_current_track = track_key
@@ -204,6 +254,9 @@ func crossfade_to(track_key: String) -> void:
 
 func stop(fade_out: bool = true) -> void:
 	"""Stop music playback"""
+	if _disabled:
+		return
+
 	if _crossfade_tween and _crossfade_tween.is_valid():
 		_crossfade_tween.kill()
 
@@ -220,6 +273,9 @@ func stop(fade_out: bool = true) -> void:
 
 func set_volume(value: float) -> void:
 	"""Set music volume (0.0 to 1.0)"""
+	if _disabled:
+		return
+
 	_volume = clampf(value, 0.0, 1.0)
 	_apply_volume()
 	_save_volume_preference()
@@ -233,6 +289,9 @@ func get_volume() -> float:
 
 func set_muted(muted: bool) -> void:
 	"""Mute/unmute music"""
+	if _disabled:
+		return
+
 	_muted = muted
 	_apply_volume()
 
@@ -242,6 +301,8 @@ func is_muted() -> bool:
 
 
 func is_playing() -> bool:
+	if _disabled or not _active_player:
+		return false
 	return _active_player.playing
 
 
@@ -251,7 +312,28 @@ func get_current_track() -> String:
 
 func play_menu_music() -> void:
 	"""Play menu/credits music"""
+	if _disabled:
+		return
+
 	crossfade_to(MENU_TRACK)
+
+
+func reset() -> void:
+	"""Reset music manager completely - stop all playback and clear state"""
+	if _disabled:
+		return
+
+	if _crossfade_tween and _crossfade_tween.is_valid():
+		_crossfade_tween.kill()
+
+	_player_a.stop()
+	_player_b.stop()
+	_player_a.stream = null
+	_player_b.stream = null
+	_current_track = ""
+	_stream_cache.clear()
+	_last_crossfade_time = 0.0
+	_health_check_timer = 0.0
 
 
 ## ============================================================================
@@ -259,6 +341,9 @@ func play_menu_music() -> void:
 ## ============================================================================
 
 func _get_or_load_stream(track_key: String) -> AudioStream:
+	if _disabled:
+		return null
+
 	if _stream_cache.has(track_key):
 		return _stream_cache[track_key]
 
@@ -288,6 +373,9 @@ func _play_instant(stream: AudioStream, track_key: String) -> void:
 
 
 func _apply_volume() -> void:
+	if _disabled:
+		return
+
 	var db = -80.0 if _muted else _volume_to_db(_volume)
 	if _active_player and _active_player.playing:
 		_active_player.volume_db = db
@@ -302,6 +390,9 @@ func _volume_to_db(linear: float) -> float:
 
 func _save_volume_preference() -> void:
 	"""Save volume to user preferences"""
+	if _disabled:
+		return
+
 	var config = ConfigFile.new()
 	var path = "user://settings.cfg"
 	config.load(path)  # Ignore error if file doesn't exist
@@ -311,7 +402,14 @@ func _save_volume_preference() -> void:
 
 func _load_volume_preference() -> void:
 	"""Load volume from user preferences"""
+	if _disabled:
+		return
+
 	var config = ConfigFile.new()
 	var err = config.load("user://settings.cfg")
 	if err == OK:
 		_volume = config.get_value("audio", "music_volume", 0.7)
+
+
+func _is_headless() -> bool:
+	return OS.has_feature("headless") or DisplayServer.get_name() == "headless"

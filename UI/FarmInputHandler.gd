@@ -265,6 +265,16 @@ func _unhandled_input(event: InputEvent):
 		get_viewport().set_input_as_handled()
 		return
 
+	# F key: Cycle modes or submenu pages
+	if event is InputEventKey and event.pressed and event.keycode == KEY_F:
+		if _submenu.is_in_submenu():
+			# In submenu mode: cycle submenu pages
+			var menu_pos = _selection.get_selected_plots()[0] if _selection.get_selection_count() > 0 else _selection.get_cursor_position()
+			_submenu.cycle_submenu_page(farm, menu_pos)
+		# else: F key for mode cycling is handled by QuantumInstrumentInput
+		get_viewport().set_input_as_handled()
+		return
+
 	# Action keys (Q/E/R)
 	if event is InputEventKey and event.pressed:
 		var action_key = ""
@@ -368,10 +378,7 @@ func _execute_submenu_action(action_key: String):
 		return
 
 	# Route based on action type
-	if action.begins_with("plant_"):
-		var plant_type = action.replace("plant_", "")
-		_dispatcher.execute_plant(farm, plant_type, selected_plots)
-	elif action.begins_with("place_"):
+	if action.begins_with("place_"):
 		var build_type = action.replace("place_", "")
 		if build_type == "kitchen":
 			_dispatcher.execute("place_kitchen", farm, selected_plots, {})
@@ -393,6 +400,15 @@ func _execute_submenu_action(action_key: String):
 	elif action.begins_with("mill_convert_"):
 		var conv_key = _get_conversion_key_from_action(action)
 		_dispatcher.execute_mill_convert(farm, conv_key, selected_plots, _mill_state)
+	elif action == "inject_vocabulary":
+		# Get vocab_pair from submenu action data
+		var action_data = _submenu.get_submenu_action(action_key)
+		var vocab_pair = action_data.get("vocab_pair", {})
+		if not vocab_pair.is_empty():
+			_dispatcher.execute("inject_vocabulary", farm, selected_plots, {"vocab_pair": vocab_pair})
+		else:
+			action_performed.emit(action, false, "No vocab pair selected")
+			return
 	else:
 		# Standard dispatch table action
 		_execute_action(action)

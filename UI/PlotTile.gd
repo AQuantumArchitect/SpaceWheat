@@ -36,6 +36,7 @@ var territory_border: ColorRect  # Shows Icon control
 var number_label: Label
 var checkbox_label: Label  # NEW: Multi-select checkbox (☐/☑)
 var purity_label: Label  # Purity indicator Tr(ρ²) - color-coded quality metric
+var lindblad_indicator: Label  # Persistent Lindblad pump/drain indicator
 var center_state_indicator: Control  # Small indicator showing quantum state at plot center
 var entanglement_indicator: Control  # Visual ring showing entanglement status
 var entanglement_counter: Label  # Shows number of entangled connections
@@ -77,7 +78,7 @@ func _ready():
 	_create_ui_elements()
 
 	# Don't set grid position number - let set_label_text() provide keyboard labels only
-	# This prevents duplicate label overlap (number_label was showing 0-5 behind TYUIOP)
+	# This prevents duplicate label overlap (number_label was showing 0-5 behind JKL; keys)
 	number_label.text = ""
 
 	# Now set size properties (this triggers NOTIFICATION_RESIZED, which calls _layout_elements)
@@ -184,6 +185,17 @@ func _create_ui_elements():
 	purity_label.set_anchors_preset(Control.PRESET_FULL_RECT)
 	add_child(purity_label)
 
+	# Persistent Lindblad indicator (top-left corner)
+	lindblad_indicator = Label.new()
+	lindblad_indicator.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	lindblad_indicator.vertical_alignment = VERTICAL_ALIGNMENT_TOP
+	lindblad_indicator.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	lindblad_indicator.add_theme_font_size_override("font_size", 14)
+	lindblad_indicator.text = ""
+	lindblad_indicator.z_index = 4
+	lindblad_indicator.set_anchors_preset(Control.PRESET_FULL_RECT)
+	add_child(lindblad_indicator)
+
 	# Center state indicator (shows quantum state + biome effects at plot center)
 	# Use a ColorRect as the visual indicator - small circle-like square in center
 	center_state_indicator = ColorRect.new()
@@ -254,6 +266,9 @@ func _update_visuals():
 	# Update purity indicator
 	_update_purity_display()
 
+	# Update Lindblad indicator
+	_update_lindblad_indicator()
+
 	# Update selection border
 	selection_border.visible = is_selected
 
@@ -287,6 +302,8 @@ func _show_empty_state():
 
 	# Hide center indicator for empty plots
 	center_state_indicator.queue_redraw()
+	if lindblad_indicator:
+		lindblad_indicator.text = ""
 
 
 func _show_growing_state():
@@ -650,6 +667,34 @@ func _update_purity_display():
 	# Set label text and color
 	purity_label.text = "Ψ%d%%" % purity_percent  # Ψ symbol for quantum purity
 	purity_label.add_theme_color_override("font_color", purity_color)
+
+
+func _update_lindblad_indicator() -> void:
+	"""Update persistent Lindblad pump/drain indicator."""
+	if plot_ui_data == null or not plot_ui_data.get("is_planted", false):
+		lindblad_indicator.text = ""
+		return
+
+	var pump_active = plot_ui_data.get("lindblad_pump_active", false)
+	var drain_active = plot_ui_data.get("lindblad_drain_active", false)
+
+	if not pump_active and not drain_active:
+		lindblad_indicator.text = ""
+		return
+
+	var text = ""
+	if pump_active:
+		text += "⬆"
+	if drain_active:
+		text += "⬇"
+	lindblad_indicator.text = text
+
+	if pump_active and drain_active:
+		lindblad_indicator.modulate = Color(1.0, 0.9, 0.4, 0.95)
+	elif pump_active:
+		lindblad_indicator.modulate = Color(0.4, 1.0, 0.6, 0.95)
+	else:
+		lindblad_indicator.modulate = Color(1.0, 0.5, 0.5, 0.95)
 
 
 func _draw_entanglement_ring_inline(rect: Rect2, entangled_count: int):

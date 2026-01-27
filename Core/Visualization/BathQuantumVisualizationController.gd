@@ -93,7 +93,7 @@ func initialize() -> void:
 	spawns basis state bubbles.
 	"""
 	if biomes.is_empty():
-		push_error("BathQuantumViz: No biomes registered before initialize()")
+		push_warning("BathQuantumViz: No biomes registered - visualization disabled")
 		return
 
 	if _verbose:

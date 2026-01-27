@@ -1,6 +1,8 @@
 class_name FungalNetworksBiome
 extends "res://Core/Environment/BiomeBase.gd"
 
+const Icon = preload("res://Core/QuantumSubstrate/Icon.gd")
+
 ## Fungal Networks Biome - Competing fungal colonies and mycelium dynamics
 ##
 ## Architecture: QuantumComputer with 4-qubit tensor product
@@ -51,9 +53,7 @@ func _ready():
 	register_emoji_pair("🧫", "🍂")  # Substrate axis
 	register_emoji_pair("🌙", "☀")   # Cycle axis
 
-	# Register planting capabilities (fungal cultivation)
-	register_planting_capability("🍄", "🦠", "mushroom", {"🍂": 20}, "Mushroom", false)
-	register_planting_capability("🦗", "🐜", "swarm", {"🧫": 30}, "Swarm Culture", false)
+	# Legacy planting capabilities removed (vocabulary injection is the only expansion path)
 
 	# Configure visual properties for QuantumForceGraph
 	visual_color = Color(0.6, 0.3, 0.8, 0.3)  # Purple/fungal

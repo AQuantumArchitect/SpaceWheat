@@ -51,17 +51,12 @@ func _ready():
 	# which calls our _initialize_bath_biotic_flux() override
 
 	# Register emoji pairings for this biome (uses BiomeBase system)
-	# Must align with quantum_computer axes: ☀/🌙, 🌾/🍄, 🍂/💀
-	register_emoji_pair("🌾", "🍄")  # Wheat ↔ Mushroom (Flora axis - qubit 1)
-	register_emoji_pair("🍄", "🍂")  # Mushroom ↔ Detritus (for mushroom plots)
+	# 3 qubits: ☀/🌙 (celestial), 🌾/🍄 (flora), 🍂/💀 (matter)
 	register_emoji_pair("☀", "🌙")   # Sun ↔ Moon (Celestial axis - qubit 0)
+	register_emoji_pair("🌾", "🍄")  # Wheat ↔ Mushroom (Flora axis - qubit 1)
 	register_emoji_pair("🍂", "💀")  # Detritus ↔ Death (Matter axis - qubit 2)
 
-	# Register planting capabilities (Parametric System - Phase 1)
-	# Costs from BUILD_CONFIGS, emoji pairs must match quantum_computer axes
-	register_planting_capability("🌾", "🍄", "wheat", {"🌾": 1}, "Wheat", false)
-	register_planting_capability("🍄", "🍂", "mushroom", {"🍄": 10, "🍂": 10}, "Mushroom", false)
-	register_planting_capability("🍅", "🌿", "tomato", {"🌾": 1}, "Tomato", false)
+	# Legacy planting capabilities removed (vocabulary injection is the only expansion path)
 
 	# Configure visual properties for QuantumForceGraph
 	# Layout: BioticFlux (UIOP) in bottom-center
@@ -357,7 +352,7 @@ func _notification(what: int):
 				p_wheat = quantum_computer.get_population("🌾")
 				p_organic = quantum_computer.get_population("🍂")
 
-			print("🌍 BioticFlux | Temp: %.0fK | ☀%.2f 🌾%.2f 🍂%.2f | Purity: %.3f" % [
+			_verbose_log("debug", "biome", "🌍", "BioticFlux | Temp: %.0fK | ☀%.2f 🌾%.2f 🍂%.2f | Purity: %.3f" % [
 				base_temperature,
 				p_sun,
 				p_wheat,

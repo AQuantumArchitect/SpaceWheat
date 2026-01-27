@@ -4,23 +4,27 @@ extends HBoxContainer
 ## BiomeTabBar - Top bar showing biome tabs for switching between biomes
 ##
 ## Displays tabs for all biomes with the active one highlighted.
-## Click a tab to switch biomes. Shows keyboard shortcuts (7890).
+## Click a tab to switch biomes. Shows keyboard shortcuts (UIOP).
 ## Connects to ActiveBiomeManager for state synchronization.
 
 # Access autoload safely
 @onready var _verbose = get_node("/root/VerboseConfig")
 
-# Biome order and keyboard shortcuts
-const BIOME_ORDER: Array[String] = ["BioticFlux", "StellarForges", "FungalNetworks", "VolcanicWorlds"]
+# Biome order and keyboard shortcuts (TYUIOP)
+const BIOME_ORDER: Array[String] = ["StarterForest", "Village", "BioticFlux", "StellarForges", "FungalNetworks", "VolcanicWorlds"]
 const BIOME_SHORTCUTS: Dictionary = {
-	"BioticFlux": "7",
-	"StellarForges": "8",
-	"FungalNetworks": "9",
-	"VolcanicWorlds": "0",
+	"StarterForest": "T",
+	"Village": "Y",
+	"BioticFlux": "U",
+	"StellarForges": "I",
+	"FungalNetworks": "O",
+	"VolcanicWorlds": "P",
 }
 
 # Biome display names (more user-friendly)
 const BIOME_LABELS: Dictionary = {
+	"StarterForest": "Starter Forest",
+	"Village": "Village",
 	"BioticFlux": "Quantum Fields",
 	"StellarForges": "Stellar Forges",
 	"FungalNetworks": "Fungal Networks",

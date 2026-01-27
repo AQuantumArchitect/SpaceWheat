@@ -47,7 +47,7 @@ extends Resource
 ## This replaces the individual inventory fields above for full persistence
 @export var all_emoji_credits: Dictionary = {}
 
-## Known Pairs - SOURCE OF TRUTH for player vocabulary
+## Known Pairs - persisted copy of player vocabulary (canonical in Farm)
 ## Each pair is {north: String, south: String}
 ## These are the actual plantable qubit axes the player has learned
 ## Starter pair: 🌾/👥 (wheat/people - the farming foundation)
@@ -59,6 +59,10 @@ extends Resource
 ## Use get_known_emojis() to access the derived list
 ## This field is still exported for save file compatibility with old saves
 @export var known_emojis: Array = []
+
+## Player Vocabulary Quantum Computer data (for biome affinity calculations)
+## Serialized data from PlayerVocabulary autoload
+@export var player_vocab_data: Dictionary = {}
 
 
 ## Get known emojis (derived from known_pairs)
@@ -202,7 +206,11 @@ func _init():
 				"has_been_measured": false,
 				"theta_frozen": false,
 				"entangled_with": [],
-				"persistent_gates": []
+				"persistent_gates": [],
+				"lindblad_pump_active": false,
+				"lindblad_drain_active": false,
+				"lindblad_pump_rate": 0.5,
+				"lindblad_drain_rate": 0.5
 			})
 
 	# Initialize typed arrays properly (Godot 4 requirement)
@@ -233,7 +241,11 @@ static func create_for_grid(width: int, height: int):
 				"has_been_measured": false,
 				"theta_frozen": false,
 				"entangled_with": [],
-				"persistent_gates": []
+				"persistent_gates": [],
+				"lindblad_pump_active": false,
+				"lindblad_drain_active": false,
+				"lindblad_pump_rate": 0.5,
+				"lindblad_drain_rate": 0.5
 			})
 
 	return state

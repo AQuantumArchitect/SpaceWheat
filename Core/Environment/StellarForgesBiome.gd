@@ -1,6 +1,8 @@
 class_name StellarForgesBiome
 extends "res://Core/Environment/BiomeBase.gd"
 
+const Icon = preload("res://Core/QuantumSubstrate/Icon.gd")
+
 ## Stellar Forges Biome - Industrial space production with ship building
 ##
 ## Architecture: QuantumComputer with 3-qubit tensor product
@@ -52,9 +54,7 @@ func _ready():
 	register_emoji_pair("⚙", "🔩")  # Production axis
 	register_emoji_pair("🚀", "🛸")  # Output axis
 
-	# Register planting capabilities (industrial production)
-	register_planting_capability("🚀", "🛸", "rocket", {"⚙": 50, "⚡": 30}, "Rocket", false)
-	register_planting_capability("🛸", "🚀", "saucer", {"⚙": 50, "🔋": 30}, "Saucer", false)
+	# Legacy planting capabilities removed (vocabulary injection is the only expansion path)
 
 	# Configure visual properties for QuantumForceGraph
 	visual_color = Color(1.0, 0.8, 0.2, 0.3)  # Golden yellow

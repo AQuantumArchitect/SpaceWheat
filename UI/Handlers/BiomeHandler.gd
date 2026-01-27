@@ -8,6 +8,8 @@ extends RefCounted
 ## - Explicit parameters (no implicit state)
 ## - Dictionary returns with {success: bool, ...data, error?: String}
 
+const EconomyConstants = preload("res://Core/GameMechanics/EconomyConstants.gd")
+
 
 ## ============================================================================
 ## BIOME ASSIGNMENT OPERATIONS
@@ -272,4 +274,117 @@ static func get_plots_for_biome(farm, biome_name: String) -> Dictionary:
 		"biome_name": biome_name,
 		"positions": plots,
 		"count": plots.size()
+	}
+
+
+## ============================================================================
+## VOCABULARY INJECTION OPERATIONS
+## ============================================================================
+
+static func inject_vocabulary(farm, positions: Array[Vector2i], vocab_pair: Dictionary) -> Dictionary:
+	"""Execute vocab injection with user-selected pair.
+
+	Args:
+		farm: Farm instance
+		positions: Selected plot positions
+		vocab_pair: {north: String, south: String} from submenu
+
+	Returns:
+		{success: bool, north_emoji: String, south_emoji: String, cost: int, error: String}
+	"""
+	if positions.is_empty():
+		return {"success": false, "error": "no_selection"}
+
+	var pos = positions[0]
+	var biome = farm.grid.get_biome_for_plot(pos)
+
+	if not biome:
+		return {"success": false, "error": "no_biome"}
+	if biome.quantum_computer and biome.quantum_computer.register_map.num_qubits >= EconomyConstants.MAX_BIOME_QUBITS:
+		return {
+			"success": false,
+			"error": "qubit_cap_reached",
+			"message": "Biome is at max capacity (%d qubits)" % EconomyConstants.MAX_BIOME_QUBITS
+		}
+
+	# Check if vocab pair is valid
+	var north = vocab_pair.get("north", "")
+	var south = vocab_pair.get("south", "")
+
+	if north.is_empty() or south.is_empty():
+		return {"success": false, "error": "invalid_pair"}
+
+	# Calculate cost
+	var cost = EconomyConstants.get_vocab_injection_cost(south)
+
+	# Check affordability
+	if not EconomyConstants.can_afford(farm.economy, cost):
+		return {
+			"success": false,
+			"error": "insufficient_funds",
+			"cost": cost,
+			"current": farm.economy.get("energy", 0)
+		}
+
+	# Perform expansion
+	var result = biome.expand_quantum_system(north, south)
+
+	if result.get("success", false):
+		# Deduct cost
+		EconomyConstants.spend(farm.economy, cost, "vocab_injection")
+
+		return {
+			"success": true,
+			"north_emoji": north,
+			"south_emoji": south,
+			"cost": cost,
+			"biome": biome.name
+		}
+
+	return {
+		"success": false,
+		"error": result.get("error", "expansion_failed"),
+		"details": result
+	}
+
+
+static func get_biome_info(farm, positions: Array[Vector2i]) -> Dictionary:
+	"""Get information about biome at position.
+
+	Args:
+		farm: Farm instance
+		positions: Selected plot positions
+
+	Returns:
+		{
+			success: bool,
+			biome_name: String,
+			emoji_count: int,
+			qubit_count: int,
+			emojis: Array[String]
+		}
+	"""
+	if positions.is_empty():
+		return {"success": false, "error": "no_selection"}
+
+	var pos = positions[0]
+	var biome = farm.grid.get_biome_for_plot(pos)
+
+	if not biome:
+		return {"success": false, "error": "no_biome"}
+
+	var emojis: Array[String] = []
+	var qubit_count = 0
+
+	if biome.quantum_computer:
+		var coordinates = biome.quantum_computer.register_map.coordinates
+		emojis = coordinates.keys()
+		qubit_count = biome.quantum_computer.register_map.num_qubits
+
+	return {
+		"success": true,
+		"biome_name": biome.name,
+		"emoji_count": emojis.size(),
+		"qubit_count": qubit_count,
+		"emojis": emojis
 	}

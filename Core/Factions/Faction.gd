@@ -317,6 +317,7 @@ func _deserialize_hamiltonian(h: Dictionary) -> Dictionary:
 
 ## Create faction from dictionary (static factory)
 static func from_dict(data: Dictionary) -> Faction:
-	var faction = Faction.new()
+	# Can't use class_name in static func, must load script explicitly
+	var faction = load("res://Core/Factions/Faction.gd").new()
 	faction.load_from_dict(data)
 	return faction

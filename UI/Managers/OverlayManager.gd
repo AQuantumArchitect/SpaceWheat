@@ -22,8 +22,8 @@ const QuantumRigorConfigUI = preload("res://UI/Panels/QuantumRigorConfigUI.gd")
 const IconDetailPanel = preload("res://UI/Panels/IconDetailPanel.gd")
 # const SaveDataAdapter = preload("res://UI/SaveDataAdapter.gd")  # Legacy - unused, commented out to fix compilation error
 
-# v2 Overlay System
-const V2OverlayBase = preload("res://UI/Overlays/V2OverlayBase.gd")
+# v2 Overlay System (now uses unified OverlayBase)
+const OverlayBaseClass = preload("res://UI/Core/OverlayBase.gd")
 const InspectorOverlay = preload("res://UI/Overlays/InspectorOverlay.gd")
 const ControlsOverlay = preload("res://UI/Overlays/ControlsOverlay.gd")
 const SemanticMapOverlay = preload("res://UI/Overlays/SemanticMapOverlay.gd")
@@ -45,7 +45,7 @@ var touch_button_bar: Control  # Touch-friendly panel buttons on LEFT side (C/V/
 var icon_detail_panel  # Icon information detail panel
 
 # v2 Overlay System
-var v2_overlays: Dictionary = {}  # name → V2OverlayBase instance
+var v2_overlays: Dictionary = {}  # name → OverlayBase instance
 # active_v2_overlay REMOVED - now tracked by OverlayStackManager
 var inspector_overlay = null  # Density matrix inspector
 var controls_overlay = null  # Keyboard controls reference
@@ -196,13 +196,14 @@ func create_overlays(parent: Control) -> void:
 
 	# Create Escape Menu
 	escape_menu = EscapeMenu.new()
-	escape_menu.z_index = 4090  # Very high (max 4096) - above actions (4000), tools (3000), quest board (3500)
+	escape_menu.z_index = 4000  # System tier - below SaveLoadMenu
 	escape_menu.hide_menu()
 	parent.add_child(escape_menu)
 
 	# Connect escape menu signals
 	escape_menu.resume_pressed.connect(_on_menu_resume)
 	escape_menu.restart_pressed.connect(_on_restart_pressed)
+	escape_menu.dev_restart_pressed.connect(_on_dev_restart_pressed)
 	escape_menu.quit_pressed.connect(func(): quit_requested.emit())
 	escape_menu.save_pressed.connect(_on_save_pressed)
 	escape_menu.load_pressed.connect(_on_load_pressed)
@@ -216,7 +217,7 @@ func create_overlays(parent: Control) -> void:
 	_verbose.debug("save", "💾", "Creating Save/Load menu...")
 	save_load_menu = SaveLoadMenu.new()
 	_verbose.debug("save", "💾", "Save/Load menu instantiated, setting properties...")
-	save_load_menu.z_index = 4000  # HIGHEST - above ESC menu (max is 4096)
+	save_load_menu.z_index = 4095  # HIGHEST - above ESC menu (4000), max is 4096
 	save_load_menu.hide_menu()
 	_verbose.debug("save", "💾", "Adding Save/Load menu to parent...")
 	parent.add_child(save_load_menu)
@@ -666,7 +667,12 @@ func _refresh_vocabulary_overlay() -> void:
 	const FactionDatabase = preload("res://Core/Quests/FactionDatabaseV2.gd")
 
 	# Get player's known emojis (derived from known_pairs)
-	var known_emojis = GameStateManager.current_state.get_known_emojis() if GameStateManager.current_state else []
+	var gsm = get_node_or_null("/root/GameStateManager")
+	var known_emojis: Array = []
+	if gsm and "active_farm" in gsm and gsm.active_farm and gsm.active_farm.has_method("get_known_emojis"):
+		known_emojis = gsm.active_farm.get_known_emojis()
+	elif gsm and gsm.current_state:
+		known_emojis = gsm.current_state.get_known_emojis()
 
 	# Get stats label and emoji grid
 	var stats_label = vocabulary_overlay.find_child("StatsLabel", true, false)
@@ -678,7 +684,7 @@ func _refresh_vocabulary_overlay() -> void:
 
 	# Update stats
 	var total_factions = FactionDatabase.ALL_FACTIONS.size()
-	var accessible = GameStateManager.get_accessible_factions().size()
+	var accessible = gsm.get_accessible_factions().size() if gsm else 0
 
 	stats_label.text = "Vocabulary: %d emojis | Accessible Factions: %d/%d (%.0f%%)" % [
 		known_emojis.size(),
@@ -697,7 +703,7 @@ func _refresh_vocabulary_overlay() -> void:
 
 	for emoji in known_emojis:
 		# Check if Icon exists for this emoji
-		var icon = _icon_registry.get_icon(emoji) if IconRegistry else null
+		var icon = _icon_registry.get_icon(emoji) if _icon_registry else null
 
 		if icon:
 			# Create button for emojis with Icons (clickable)
@@ -899,6 +905,64 @@ func _on_menu_resume() -> void:
 func _on_restart_pressed() -> void:
 	"""Restart the game by reloading the current scene"""
 	_verbose.info("ui", "🔄", "Restarting game...")
+	# Reset music completely before reloading
+	if has_node("/root/MusicManager"):
+		get_node("/root/MusicManager").reset()
+	get_tree().reload_current_scene()
+	emit_signal("restart_requested")
+
+
+func _on_dev_restart_pressed() -> void:
+	"""DEV RESTART: Hard reset autoloads + reload scene (Shift+R)
+
+	This resets key singleton state so the boot sequence runs fresh.
+	Useful for debugging initialization issues without restarting Godot.
+	"""
+	_verbose.info("ui", "🔧", "======================================================")
+	_verbose.info("ui", "🔧", "DEV RESTART - Resetting autoloads for fresh boot")
+	_verbose.info("ui", "🔧", "======================================================")
+
+	# Reset BootManager so boot() will run again
+	var boot_mgr = get_node_or_null("/root/BootManager")
+	if boot_mgr:
+		boot_mgr._booted = false
+		boot_mgr.is_ready = false
+		_verbose.info("ui", "✓", "BootManager reset (_booted=false)")
+
+	# Reset GameStateManager
+	var gsm = get_node_or_null("/root/GameStateManager")
+	if gsm:
+		gsm.active_farm = null
+		_verbose.info("ui", "✓", "GameStateManager reset (active_farm=null)")
+
+	# Reset ActiveBiomeManager
+	var abm = get_node_or_null("/root/ActiveBiomeManager")
+	if abm:
+		if abm.has_method("reset"):
+			abm.reset()
+		else:
+			# Manual reset if no reset method
+			abm._active_biome = "BioticFlux" if "_active_biome" in abm else null
+		_verbose.info("ui", "✓", "ActiveBiomeManager reset")
+
+	# Reset MusicManager
+	if has_node("/root/MusicManager"):
+		get_node("/root/MusicManager").reset()
+		_verbose.info("ui", "✓", "MusicManager reset")
+
+	# Reset ActionChainTracker if it exists
+	var act = get_node_or_null("/root/ActionChainTracker")
+	if act and act.has_method("reset"):
+		act.reset()
+		_verbose.info("ui", "✓", "ActionChainTracker reset")
+
+	# Reset ObservationFrame if it exists
+	var obs = get_node_or_null("/root/ObservationFrame")
+	if obs and obs.has_method("reset"):
+		obs.reset()
+		_verbose.info("ui", "✓", "ObservationFrame reset")
+
+	_verbose.info("ui", "🔄", "Reloading scene with fresh boot...")
 	get_tree().reload_current_scene()
 	emit_signal("restart_requested")
 
@@ -931,8 +995,9 @@ func _on_load_pressed() -> void:
 
 func _on_reload_last_save_pressed() -> void:
 	"""Reload the last saved game"""
-	if GameStateManager and GameStateManager.last_saved_slot >= 0:
-		if GameStateManager.load_and_apply(GameStateManager.last_saved_slot):
+	var gsm = get_node_or_null("/root/GameStateManager")
+	if gsm and gsm.last_saved_slot >= 0:
+		if gsm.load_and_apply(gsm.last_saved_slot):
 			_verbose.info("save", "✅", "Game reloaded from last save")
 			emit_signal("load_completed")
 		else:
@@ -943,9 +1008,14 @@ func _on_reload_last_save_pressed() -> void:
 
 func _on_save_load_slot_selected(slot: int, mode: String) -> void:
 	"""Handle save/load slot selection from the SaveLoadMenu"""
+	var gsm = get_node_or_null("/root/GameStateManager")
+	if not gsm:
+		_verbose.error("save", "❌", "GameStateManager not available")
+		return
+
 	if mode == "save":
 		# Save to the selected slot
-		if GameStateManager.save_game(slot):
+		if gsm.save_game(slot):
 			_verbose.info("save", "✅", "Game saved to slot %d" % (slot + 1))
 			save_requested.emit(slot)
 			save_load_menu.hide_menu()
@@ -956,7 +1026,7 @@ func _on_save_load_slot_selected(slot: int, mode: String) -> void:
 		_verbose.info("save", "📂", "Loading save from slot %d..." % (slot + 1))
 
 		# Use load_and_apply to actually apply the state to the game
-		if GameStateManager.load_and_apply(slot):
+		if gsm.load_and_apply(slot):
 			_verbose.info("save", "✅", "Save loaded and applied from slot %d" % (slot + 1))
 
 			# Refresh UI to show loaded state
@@ -1077,18 +1147,18 @@ func _on_quest_board_closed() -> void:
 # V2 OVERLAY SYSTEM
 # ============================================================================
 # New overlay architecture with QER remapping and unified input handling.
-# v2 overlays extend V2OverlayBase and are registered here for management.
+# v2 overlays extend OverlayBase and are registered here for management.
 
 func _create_v2_overlays(parent: Control) -> void:
 	"""Create and register all v2 overlays."""
 	_verbose.info("ui", "📊", "Creating v2 overlay system...")
 
 	# Create Inspector Overlay (density matrix visualization)
+	# Note: Overlay centers its own panel in _build_standard_panel()
 	inspector_overlay = InspectorOverlay.new()
 	inspector_overlay.z_index = 2000  # Above regular overlays
 	if layout_manager:
 		inspector_overlay.set_layout_manager(layout_manager)
-	_center_overlay(inspector_overlay)
 	parent.add_child(inspector_overlay)
 	register_v2_overlay("inspector", inspector_overlay)
 
@@ -1097,7 +1167,6 @@ func _create_v2_overlays(parent: Control) -> void:
 	controls_overlay.z_index = 2000
 	if layout_manager:
 		controls_overlay.set_layout_manager(layout_manager)
-	_center_overlay(controls_overlay)
 	parent.add_child(controls_overlay)
 	register_v2_overlay("controls", controls_overlay)
 
@@ -1106,7 +1175,6 @@ func _create_v2_overlays(parent: Control) -> void:
 	semantic_map_overlay.z_index = 2000
 	if layout_manager:
 		semantic_map_overlay.set_layout_manager(layout_manager)
-	_center_overlay(semantic_map_overlay)
 	parent.add_child(semantic_map_overlay)
 	register_v2_overlay("semantic_map", semantic_map_overlay)
 
@@ -1162,7 +1230,7 @@ func register_v2_overlay(name: String, overlay) -> void:
 
 	Args:
 		name: Unique identifier (e.g., "inspector", "quests")
-		overlay: V2OverlayBase instance
+		overlay: OverlayBase instance
 	"""
 	if v2_overlays.has(name):
 		_verbose.warn("ui", "⚠️", "v2 overlay '%s' already registered, replacing" % name)
@@ -1258,22 +1326,51 @@ func close_v2_overlay() -> void:
 	v2_overlay_changed.emit(overlay_name, false)
 
 
+func close_all_v2_overlays() -> void:
+	"""Close all v2 overlays (used by logger config for mutual exclusion)."""
+	if not overlay_stack:
+		return
+
+	for name in v2_overlays.keys():
+		var overlay = v2_overlays[name]
+		if overlay_stack.has_overlay(overlay):
+			overlay_stack.pop_overlay(overlay)
+			v2_overlay_changed.emit(name, false)
+
+
 func toggle_v2_overlay(name: String) -> void:
-	"""Toggle a v2 overlay open/closed."""
+	"""Toggle a v2 overlay open/closed.
+
+	Behavior:
+	- If this overlay is already open → close it
+	- If another v2 overlay is open → close it, then open this one
+	- If no overlay is open → open this one
+
+	This gives "radio button" behavior for ZXCVBN keys.
+	"""
 	if not v2_overlays.has(name):
 		_verbose.warn("ui", "❌", "v2 overlay '%s' not registered" % name)
 		return
 
 	var overlay = v2_overlays[name]
 
-	# Check if this specific overlay is on the stack
+	# Check if this specific overlay is already open
 	if overlay_stack and overlay_stack.has_overlay(overlay):
-		# Close it
+		# Same key pressed twice → close it
 		overlay_stack.pop_overlay(overlay)
 		v2_overlay_changed.emit(name, false)
-	else:
-		# Open it
-		open_v2_overlay(name)
+		return
+
+	# Close any other v2 overlay that's currently open (radio button behavior)
+	if overlay_stack:
+		for other_name in v2_overlays.keys():
+			var other_overlay = v2_overlays[other_name]
+			if overlay_stack.has_overlay(other_overlay):
+				overlay_stack.pop_overlay(other_overlay)
+				v2_overlay_changed.emit(other_name, false)
+
+	# Open the requested overlay
+	open_v2_overlay(name)
 
 
 func is_v2_overlay_active() -> bool:

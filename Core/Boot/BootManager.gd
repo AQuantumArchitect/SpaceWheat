@@ -56,10 +56,14 @@ func _stage_core_systems(farm: Node) -> void:
 	_current_stage = "CORE_SYSTEMS"
 	_verbose.info("boot", "📍", "Stage 3A: Core Systems")
 
-	# Verify all required components exist
+	# Verify required components (hard failures - these are critical)
 	assert(farm != null, "Farm is null!")
 	assert(farm.grid != null, "Farm.grid is null!")
-	assert(farm.grid.biomes != null, "Farm.grid.biomes is null!")
+
+	# Check biomes gracefully - allow boot to continue without them
+	var has_biomes = farm.grid.biomes != null and not farm.grid.biomes.is_empty()
+	if not has_biomes:
+		_verbose.warn("boot", "⚠️", "No biomes loaded - boot will continue with limited functionality")
 
 	# Verify IconRegistry is available and fully loaded
 	var icon_registry = get_node_or_null("/root/IconRegistry")
@@ -74,23 +78,30 @@ func _stage_core_systems(farm: Node) -> void:
 
 	# CRITICAL: Rebuild biome quantum operators now that IconRegistry is guaranteed ready
 	# Biomes may have initialized before IconRegistry loaded all icons
-	_verbose.info("boot", "🔧", "Rebuilding biome quantum operators...")
-	if farm.has_method("rebuild_all_biome_operators"):
-		farm.rebuild_all_biome_operators()
-	else:
-		# Fallback: rebuild each biome directly
+	if has_biomes:
+		_verbose.info("boot", "🔧", "Rebuilding biome quantum operators...")
+		if farm.has_method("rebuild_all_biome_operators"):
+			farm.rebuild_all_biome_operators()
+		else:
+			# Fallback: rebuild each biome directly
+			for biome_name in farm.grid.biomes.keys():
+				var biome = farm.grid.biomes[biome_name]
+				if biome and biome.has_method("rebuild_quantum_operators"):
+					biome.rebuild_quantum_operators()
+		_verbose.info("boot", "✓", "All biome operators rebuilt")
+
+		# Verify all biomes initialized correctly
 		for biome_name in farm.grid.biomes.keys():
 			var biome = farm.grid.biomes[biome_name]
-			if biome.has_method("rebuild_quantum_operators"):
-				biome.rebuild_quantum_operators()
-	_verbose.info("boot", "✓", "All biome operators rebuilt")
-
-	# Verify all biomes initialized correctly
-	for biome_name in farm.grid.biomes.keys():
-		var biome = farm.grid.biomes[biome_name]
-		assert(biome != null, "Biome '%s' is null!" % biome_name)
-		assert(biome.quantum_computer != null, "Biome '%s' has no quantum_computer!" % biome_name)
-		_verbose.info("boot", "✓", "Biome '%s' verified" % biome_name)
+			if not biome:
+				_verbose.warn("boot", "⚠️", "Biome '%s' is null - skipping" % biome_name)
+				continue
+			if not biome.quantum_computer:
+				_verbose.warn("boot", "⚠️", "Biome '%s' has no quantum_computer" % biome_name)
+				continue
+			_verbose.info("boot", "✓", "Biome '%s' verified" % biome_name)
+	else:
+		_verbose.info("boot", "⏭️", "Skipping biome operations (no biomes)")
 
 	# Any additional farm finalization
 	if farm.has_method("finalize_setup"):
@@ -112,14 +123,24 @@ func _stage_visualization(farm: Node, quantum_viz: Node) -> void:
 	_current_stage = "VISUALIZATION"
 	_verbose.info("boot", "📍", "Stage 3B: Visualization")
 
-	assert(quantum_viz != null, "QuantumViz is null!")
+	if not quantum_viz:
+		_verbose.warn("boot", "⚠️", "QuantumViz is null - skipping visualization")
+		visualization_ready.emit()
+		return
 
-	# Initialize the visualization engine
+	# Initialize the visualization engine (may fail gracefully if no biomes)
 	quantum_viz.initialize()
 
-	# Verify layout calculator was created
-	assert(quantum_viz.graph != null, "QuantumForceGraph not created!")
-	assert(quantum_viz.graph.layout_calculator != null, "BiomeLayoutCalculator not created!")
+	# Check if graph was created (won't be if no biomes)
+	if not quantum_viz.graph:
+		_verbose.warn("boot", "⚠️", "QuantumForceGraph not created (no biomes?) - visualization disabled")
+		visualization_ready.emit()
+		return
+
+	if not quantum_viz.graph.layout_calculator:
+		_verbose.warn("boot", "⚠️", "BiomeLayoutCalculator not created - visualization disabled")
+		visualization_ready.emit()
+		return
 
 	_verbose.info("boot", "✓", "QuantumForceGraph created")
 	_verbose.info("boot", "✓", "BiomeLayoutCalculator ready")
@@ -132,6 +153,14 @@ func _stage_ui(farm: Node, shell: Node, quantum_viz: Node) -> void:
 	_current_stage = "UI"
 	_verbose.info("boot", "📍", "Stage 3C: UI Initialization")
 
+	# Verify shell is a PlayerShell with expected methods
+	if not shell.has_method("load_farm_ui"):
+		push_error("BootManager: shell is not a PlayerShell! Type: %s, Script: %s" % [
+			shell.get_class(),
+			shell.get_script().resource_path if shell.get_script() else "no script"
+		])
+		return
+
 	# Load and instantiate FarmUI scene
 	var farm_ui_scene = load("res://UI/FarmUI.tscn")
 	assert(farm_ui_scene != null, "FarmUI.tscn not found!")
@@ -139,7 +168,30 @@ func _stage_ui(farm: Node, shell: Node, quantum_viz: Node) -> void:
 	var farm_ui = farm_ui_scene.instantiate() as Control
 	assert(farm_ui != null, "FarmUI failed to instantiate!")
 
-	# Add to shell FIRST so _ready() runs and sets up scene structure
+	# INJECT DEPENDENCIES BEFORE ADD_CHILD
+	# This allows PlotGridDisplay._ready() to have all dependencies available,
+	# creating tiles synchronously during tree entry (cleaner boot sequence).
+	var plot_grid_display = farm_ui.get_node("PlotGridDisplay")
+	if plot_grid_display:
+		# Inject in order: farm → grid_config → layout_calculator → biomes
+		# Tiles are created when biomes is injected (last dependency)
+		plot_grid_display.inject_farm(farm)
+		plot_grid_display.inject_grid_config(farm.grid_config)
+
+		# Layout calculator may not exist if no biomes were loaded
+		if quantum_viz and quantum_viz.graph and quantum_viz.graph.layout_calculator:
+			if plot_grid_display.has_method("inject_layout_calculator"):
+				plot_grid_display.inject_layout_calculator(quantum_viz.graph.layout_calculator)
+		else:
+			_verbose.warn("boot", "⚠️", "No layout_calculator available - tiles will use fallback positioning")
+
+		if farm.grid and farm.grid.biomes and not farm.grid.biomes.is_empty():
+			plot_grid_display.inject_biomes(farm.grid.biomes)
+			_verbose.info("boot", "✓", "PlotGridDisplay dependencies pre-injected")
+		else:
+			_verbose.warn("boot", "⚠️", "No biomes to inject - PlotGridDisplay will have no tiles")
+
+	# NOW add to tree - _ready() runs with all dependencies available
 	shell.load_farm_ui(farm_ui)
 	_verbose.info("boot", "✓", "FarmUI mounted in shell")
 
@@ -147,44 +199,31 @@ func _stage_ui(farm: Node, shell: Node, quantum_viz: Node) -> void:
 	shell.farm = farm
 	_verbose.info("boot", "✓", "Farm reference set in PlayerShell")
 
-	# Wait one frame for _ready() to complete
-	await shell.get_tree().process_frame
-
-	# NOW inject dependencies (_ready() has set up child nodes)
+	# Setup remaining FarmUI parts (ResourcePanel wiring, signal connections)
+	# PlotGridDisplay injection is idempotent - guards prevent double tile creation
 	farm_ui.setup_farm(farm)
 
-	# Inject layout calculator (created in Stage 3B)
-	var plot_grid_display = farm_ui.get_node("PlotGridDisplay")
-	if plot_grid_display:
-		if plot_grid_display.has_method("inject_layout_calculator"):
-			plot_grid_display.inject_layout_calculator(quantum_viz.graph.layout_calculator)
-			_verbose.info("boot", "✓", "Layout calculator injected")
-
-	# Create and inject FarmInputHandler
-	# FarmInputHandler extends Node, so we create a generic Node and attach the script
+	# Create and inject QuantumInstrumentInput (replaces FarmInputHandler)
+	# Uses the new musical instrument spindle interface for tool groups + fractal navigation
 	var input_handler = Node.new()
-	var FarmInputHandlerScript = load("res://UI/FarmInputHandler.gd")
-	input_handler.set_script(FarmInputHandlerScript)
-	input_handler.name = "FarmInputHandler"
+	var QuantumInstrumentScript = load("res://UI/Core/QuantumInstrumentInput.gd")
+	input_handler.set_script(QuantumInstrumentScript)
+	input_handler.name = "QuantumInstrumentInput"
 	shell.add_child(input_handler)
 
-	input_handler.farm = farm
-	input_handler.plot_grid_display = farm_ui.plot_grid_display
+	# Inject dependencies
+	input_handler.inject_farm(farm)
+	if plot_grid_display:
+		input_handler.inject_plot_grid_display(plot_grid_display)
 	farm_ui.input_handler = input_handler
-
-	# CRITICAL: Inject grid_config (was missing - caused "grid_config is NULL" warnings)
-	if farm.grid_config:
-		input_handler.inject_grid_config(farm.grid_config)
-		_verbose.info("boot", "✓", "GridConfig injected into FarmInputHandler")
 
 	# CRITICAL: Connect input_handler signals to action bar AFTER input_handler exists
 	# (farm_setup_complete fires too early, before input_handler is created)
-	if shell.has_method("connect_to_farm_input_handler"):
-		shell.connect_to_farm_input_handler()
-		_verbose.info("boot", "✓", "Input handler connected to action bars")
+	if shell.has_method("connect_to_quantum_input"):
+		shell.connect_to_quantum_input()
+		_verbose.info("boot", "✓", "QuantumInstrumentInput connected to action bars")
 
-	# Note: input_handler is a child of shell, accessible via shell.get_node("FarmInputHandler")
-	_verbose.info("boot", "✓", "FarmInputHandler created")
+	_verbose.info("boot", "✓", "QuantumInstrumentInput created (Musical Spindle)")
 
 	ui_ready.emit()
 

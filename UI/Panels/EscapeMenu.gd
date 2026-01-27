@@ -1,14 +1,14 @@
 class_name EscapeMenu
-extends "res://UI/Core/MenuPanelBase.gd"
+extends "res://UI/Core/OverlayBase.gd"
 
 ## Escape Menu
 ## Shows when ESC is pressed, provides save, load, restart and quit options
 ##
 ## OverlayStackManager Integration:
 ##   System-tier overlay (Z_TIER_SYSTEM = 4000)
-##   Implements: handle_input(), activate(), deactivate(), get_overlay_tier()
 
 signal restart_pressed()
+signal dev_restart_pressed()  # Shift+R: Hard reset autoloads + reload
 signal resume_pressed()
 signal quit_pressed()
 signal save_pressed()
@@ -35,31 +35,32 @@ var volume_label: Label
 
 func _init():
 	name = "EscapeMenu"
+
+	# Configure OverlayBase
 	overlay_name = "escape_menu"
+	overlay_tier = 4000  # Z_TIER_SYSTEM
+	panel_title = "PAUSED"
+	panel_title_size = 28
+	panel_size = Vector2(360, 420)
+	panel_border_color = Color(0.5, 0.5, 0.3, 0.8)  # Gold border
+	navigation_mode = NavigationMode.LINEAR
+	use_scroll_container = false
+	content_spacing = 8
 
-	# Configure MenuPanelBase
-	menu_title = "⚙️ PAUSED ⚙️"
-	menu_panel_size = Vector2(360, 420)
-	menu_border_color = Color(0.5, 0.5, 0.3, 0.8)  # Gold border
-	menu_title_size = 28
-	use_ornamentation = true
-	ornamentation_style = UIOrnamentation.Style.CORNERS_ONLY
-	ornamentation_tint = UIOrnamentation.TINT_GOLD
 
-	# Build the base panel
-	_setup_menu_panel()
-
-	# Add menu buttons
+func _build_content(container: Control) -> void:
+	"""Build menu buttons."""
+	# Ignore the container parameter - we add to _content_container via add_menu_button
 	add_menu_button("Resume [ESC]", Color(0.3, 0.6, 0.3))
 	add_menu_button("Save Game [S]", Color(0.2, 0.5, 0.7))
 	add_menu_button("Load Game [L]", Color(0.5, 0.4, 0.7))
 	add_menu_button("Quantum Settings [X]", Color(0.2, 0.6, 0.8))
 
-	# Add volume control
+	# Volume control
 	_add_volume_control()
 
 	add_menu_button("Reload Last Save [D]", Color(0.7, 0.4, 0.2))
-	add_menu_button("Restart [R]", Color(0.6, 0.5, 0.2))
+	add_menu_button("Restart [R/⇧R]", Color(0.6, 0.5, 0.2))  # Shift+R = dev restart
 	add_menu_button("Quit [Q]", Color(0.6, 0.3, 0.3))
 
 
@@ -70,8 +71,8 @@ func _add_volume_control() -> void:
 	volume_container.add_theme_constant_override("separation", 8)
 
 	var volume_icon = Label.new()
-	volume_icon.text = "🎵"
-	volume_icon.add_theme_font_size_override("font_size", 18)
+	volume_icon.text = "Music"
+	volume_icon.add_theme_font_size_override("font_size", 14)
 	volume_container.add_child(volume_icon)
 
 	volume_slider = HSlider.new()
@@ -112,14 +113,13 @@ func _on_button_activated(index: int) -> void:
 			_on_quit_pressed()
 
 
-func handle_input(event: InputEvent) -> bool:
-	"""Extended input handler with keyboard shortcuts."""
-	if not visible:
-		return false
+func _on_action_q() -> void:
+	"""Q = Quit (override base class action)."""
+	_on_quit_pressed()
 
-	if not event is InputEventKey or not event.pressed or event.echo:
-		return false
 
+func _on_unhandled_key(keycode: int, event: InputEvent) -> bool:
+	"""Handle keyboard shortcuts not captured by QER+F."""
 	# Check for SaveLoadMenu being visible (don't process if it's open)
 	var parent = get_parent()
 	if parent:
@@ -127,11 +127,7 @@ func handle_input(event: InputEvent) -> bool:
 			if child.name == "SaveLoadMenu" and child.visible:
 				return false
 
-	# Handle shortcuts
-	match event.keycode:
-		KEY_ESCAPE:
-			_on_resume_pressed()
-			return true
+	match keycode:
 		KEY_S:
 			_on_save_pressed()
 			return true
@@ -144,12 +140,6 @@ func handle_input(event: InputEvent) -> bool:
 		KEY_X:
 			_on_quantum_settings_pressed()
 			return true
-		KEY_R:
-			_on_restart_pressed()
-			return true
-		KEY_Q:
-			_on_quit_pressed()
-			return true
 		KEY_COMMA:
 			_adjust_volume(-0.1)
 			return true
@@ -160,8 +150,16 @@ func handle_input(event: InputEvent) -> bool:
 			_toggle_mute()
 			return true
 
-	# Fall through to base class for UP/DOWN/ENTER
-	return super.handle_input(event)
+	return false
+
+
+func _on_action_r() -> void:
+	"""R = Restart, Shift+R = Dev Restart (hard reset autoloads)."""
+	# Check if shift is held for dev restart
+	if Input.is_key_pressed(KEY_SHIFT):
+		_on_dev_restart_pressed()
+	else:
+		_on_restart_pressed()
 
 
 # =============================================================================
@@ -169,40 +167,46 @@ func handle_input(event: InputEvent) -> bool:
 # =============================================================================
 
 func _on_resume_pressed():
-	print("▶️ Resume pressed")
+	print("[INFO][UI] Resume pressed")
 	close_menu()
 	resume_pressed.emit()
 
 
 func _on_restart_pressed():
-	print("🔄 Restart pressed")
+	print("[INFO][UI] Restart pressed")
 	restart_pressed.emit()
 	close_menu()
 
 
+func _on_dev_restart_pressed():
+	print("[INFO][UI] DEV RESTART pressed (Shift+R) - Hard reset autoloads")
+	dev_restart_pressed.emit()
+	close_menu()
+
+
 func _on_quit_pressed():
-	print("🚪 Quit pressed from menu")
+	print("[INFO][UI] Quit pressed from menu")
 	quit_pressed.emit()
 	get_tree().quit()
 
 
 func _on_save_pressed():
-	print("💾 Save pressed")
+	print("[INFO][UI] Save pressed")
 	save_pressed.emit()
 
 
 func _on_load_pressed():
-	print("📂 Load pressed")
+	print("[INFO][UI] Load pressed")
 	load_pressed.emit()
 
 
 func _on_reload_last_save_pressed():
-	print("🔄 Reload last save pressed")
+	print("[INFO][UI] Reload last save pressed")
 	reload_last_save_pressed.emit()
 
 
 func _on_quantum_settings_pressed():
-	print("🔬 Quantum settings pressed")
+	print("[INFO][UI] Quantum settings pressed")
 	quantum_settings_pressed.emit()
 	close_menu()
 
@@ -260,15 +264,19 @@ func _toggle_mute():
 # SHOW/HIDE OVERRIDES
 # =============================================================================
 
-func show_menu():
-	super.show_menu()
+func _on_activated() -> void:
 	_sync_volume_slider()
-	print("📋 Menu opened - Game PAUSED")
+	# Pause the game when menu opens
+	if is_inside_tree():
+		get_tree().paused = true
+	print("[INFO][UI] Menu opened - Game PAUSED")
 
 
-func close_menu():
-	super.close_menu()
-	print("📋 Menu closed - Game RESUMED")
+func _on_deactivated() -> void:
+	# Unpause the game when menu closes
+	if is_inside_tree():
+		get_tree().paused = false
+	print("[INFO][UI] Menu closed - Game RESUMED")
 
 
 # Legacy compatibility aliases

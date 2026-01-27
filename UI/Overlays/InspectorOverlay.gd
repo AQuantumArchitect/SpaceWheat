@@ -1,5 +1,5 @@
 class_name InspectorOverlay
-extends "res://UI/Overlays/V2OverlayBase.gd"
+extends "res://UI/Core/OverlayBase.gd"
 
 ## InspectorOverlay - Density matrix visualization with register selection
 ##
@@ -15,6 +15,8 @@ extends "res://UI/Overlays/V2OverlayBase.gd"
 ##   F = Cycle view mode (heatmap → bars → heatmap)
 ##   WASD = Navigate registers
 ##   ESC = Close overlay
+
+const UIStyleFactory_Local = preload("res://UI/Core/UIStyleFactory.gd")
 
 # View modes
 enum ViewMode { HEATMAP, PROBABILITY_BARS }
@@ -40,22 +42,20 @@ const CELL_SIZE: int = 24
 const BAR_HEIGHT: int = 20
 const BAR_MAX_WIDTH: int = 200
 
-# Auto-refresh settings (matches BiomeInspectorOverlay pattern)
-var update_interval: float = 0.5  # Update every 0.5s when visible
+# Auto-refresh settings
+var update_interval: float = 0.5
 var update_timer: float = 0.0
 
 
 func _init():
 	overlay_name = "inspector"
-	overlay_icon = "📊"
-	overlay_title = "📊 Inspector"
-	fallback_panel_width = 600
-	fallback_panel_height = 450
+	overlay_icon = ""
+	overlay_tier = 2000  # Z_TIER_INFO
+	panel_title = ""  # We use custom title bar with mode indicator
+	panel_size = Vector2(600, 450)
 	panel_border_color = Color(0.3, 0.5, 0.7, 0.8)  # Blue border
-	main_vbox_separation = UIStyleFactory.VBOX_SPACING_RELAXED
-	# Enable corner ornamentation
-	use_ornamentation = true
-	ornamentation_tint = UIOrnamentation.TINT_BLUE
+	navigation_mode = NavigationMode.GRID
+	content_spacing = 12
 	action_labels = {
 		"Q": "Select",
 		"E": "Details",
@@ -64,30 +64,17 @@ func _init():
 	}
 
 
-func _ready() -> void:
-	super._ready()
-	_build_ui()
-
-
-func _build_ui() -> void:
+func _build_content(container: Control) -> void:
 	"""Build the inspector overlay UI."""
-	# Use base class to create standard panel (handles sizing, background, vbox)
-	var vbox = _build_standard_panel()
-
-	# Replace simple title with title bar (has mode indicator)
-	if _title_label:
-		_main_vbox.remove_child(_title_label)
-		_title_label.queue_free()
-	var title_bar = _build_title_bar_with_mode("[F] %s" % VIEW_MODE_NAMES[current_view_mode])
-	view_mode_label = title_bar.get_node("ModeLabel")
-	vbox.add_child(title_bar)
-	vbox.move_child(title_bar, 0)
+	# Title bar with mode indicator
+	var title_bar = _create_title_bar_with_mode("[F] %s" % VIEW_MODE_NAMES[current_view_mode])
+	container.add_child(title_bar)
 
 	# Content area (heatmap or bars)
 	var content_container = Control.new()
 	content_container.custom_minimum_size = Vector2(0, 300)
 	content_container.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	vbox.add_child(content_container)
+	container.add_child(content_container)
 
 	# Heatmap view
 	heatmap_container = _create_heatmap_view()
@@ -102,7 +89,32 @@ func _build_ui() -> void:
 
 	# Details panel (bottom)
 	details_panel = _create_details_panel()
-	vbox.add_child(details_panel)
+	container.add_child(details_panel)
+
+
+func _create_title_bar_with_mode(mode_text: String) -> HBoxContainer:
+	"""Build title bar with title left, mode indicator right."""
+	var hbox = HBoxContainer.new()
+	hbox.add_theme_constant_override("separation", 12)
+
+	var title_label = Label.new()
+	title_label.text = "📊 Inspector"
+	title_label.add_theme_font_size_override("font_size", 20)
+	title_label.add_theme_color_override("font_color", Color(0.9, 0.95, 1.0))
+	hbox.add_child(title_label)
+
+	var spacer = Control.new()
+	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	hbox.add_child(spacer)
+
+	view_mode_label = Label.new()
+	view_mode_label.name = "ModeLabel"
+	view_mode_label.text = mode_text
+	view_mode_label.add_theme_font_size_override("font_size", 14)
+	view_mode_label.add_theme_color_override("font_color", Color(0.6, 0.7, 0.8))
+	hbox.add_child(view_mode_label)
+
+	return hbox
 
 
 func _create_heatmap_view() -> Control:
@@ -173,10 +185,8 @@ func _create_details_panel() -> Control:
 # LIFECYCLE
 # ============================================================================
 
-func activate() -> void:
+func _on_activated() -> void:
 	"""Called when overlay opens - refresh data."""
-	super.activate()
-
 	# Auto-find biome if not set
 	if not biome:
 		_auto_find_biome()
@@ -186,20 +196,13 @@ func activate() -> void:
 	update_timer = 0.0  # Reset timer on open
 
 
-func deactivate() -> void:
+func _on_deactivated() -> void:
 	"""Called when overlay closes."""
-	super.deactivate()
 	update_timer = 0.0
 
 
 func _process(delta: float) -> void:
-	"""Periodic refresh while overlay is visible.
-
-	Updates density matrix display every 0.5s to show:
-	- Quantum evolution changes
-	- Measurement collapse effects
-	- Gate application results
-	"""
+	"""Periodic refresh while overlay is visible."""
 	if not visible:
 		return
 
@@ -216,7 +219,6 @@ func _auto_find_biome() -> void:
 	if gsm and "active_farm" in gsm and gsm.active_farm:
 		var farm = gsm.active_farm
 		if farm.has_method("get") and "grid" in farm and farm.grid:
-			# Get the first biome as default
 			var biomes = farm.grid.get_biomes() if farm.grid.has_method("get_biomes") else []
 			if biomes.size() > 0:
 				set_biome(biomes[0])
@@ -293,7 +295,9 @@ func _refresh_data() -> void:
 		register_data.append(reg_info)
 
 	# Set up selectable items and grid
-	set_selectable_items(register_data, mini(dim, 8))
+	selectable_count = register_data.size()
+	grid_columns = mini(dim, 8)
+	grid_rows = ceili(float(register_data.size()) / grid_columns) if grid_columns > 0 else 1
 
 
 # ============================================================================
@@ -302,10 +306,13 @@ func _refresh_data() -> void:
 
 func _update_view() -> void:
 	"""Update the visualization based on current view mode."""
-	view_mode_label.text = "[F] %s" % VIEW_MODE_NAMES[current_view_mode]
+	if view_mode_label:
+		view_mode_label.text = "[F] %s" % VIEW_MODE_NAMES[current_view_mode]
 
-	heatmap_container.visible = (current_view_mode == ViewMode.HEATMAP)
-	bars_container.visible = (current_view_mode == ViewMode.PROBABILITY_BARS)
+	if heatmap_container:
+		heatmap_container.visible = (current_view_mode == ViewMode.HEATMAP)
+	if bars_container:
+		bars_container.visible = (current_view_mode == ViewMode.PROBABILITY_BARS)
 
 	if current_view_mode == ViewMode.HEATMAP:
 		_update_heatmap()
@@ -317,6 +324,9 @@ func _update_view() -> void:
 
 func _update_heatmap() -> void:
 	"""Update the density matrix heatmap."""
+	if not register_grid:
+		return
+
 	# Clear existing cells
 	for child in register_grid.get_children():
 		child.queue_free()
@@ -368,6 +378,9 @@ func _create_heatmap_cell(row: int, col: int) -> Control:
 
 func _update_bars() -> void:
 	"""Update the probability bar chart."""
+	if not bars_container:
+		return
+
 	# Clear existing bars
 	for child in bars_container.get_children():
 		if child is not Label:
@@ -424,6 +437,9 @@ func _create_bar_row(index: int, reg: Dictionary) -> Control:
 
 func _update_details() -> void:
 	"""Update the details panel for selected register."""
+	if not details_panel:
+		return
+
 	var info_label = details_panel.find_child("InfoLabel", true, false)
 	if not info_label:
 		return
@@ -450,14 +466,14 @@ func _update_selection_visual() -> void:
 # ACTION HANDLERS
 # ============================================================================
 
-func on_q_pressed() -> void:
+func _on_action_q() -> void:
 	"""Q = Confirm selection / Toggle selection."""
 	if selected_index >= 0 and selected_index < register_data.size():
 		var reg = register_data[selected_index]
 		action_performed.emit("select_register", {"index": selected_index, "data": reg})
 
 
-func on_e_pressed() -> void:
+func _on_action_e() -> void:
 	"""E = Show detailed register information."""
 	if selected_index >= 0 and selected_index < register_data.size():
 		var reg = register_data[selected_index]
@@ -465,12 +481,12 @@ func on_e_pressed() -> void:
 		action_performed.emit("show_details", {"index": selected_index, "data": reg})
 
 
-func on_r_pressed() -> void:
+func _on_action_r() -> void:
 	"""R = Compare with another register (future feature)."""
 	action_performed.emit("compare_states", {"selected": selected_index})
 
 
-func on_f_pressed() -> void:
+func _on_action_f() -> void:
 	"""F = Cycle view mode."""
 	current_view_mode = (current_view_mode + 1) % VIEW_MODE_NAMES.size()
 	_update_view()
@@ -479,9 +495,17 @@ func on_f_pressed() -> void:
 
 func _show_register_details(reg: Dictionary) -> void:
 	"""Show detailed information popup for a register."""
+	if not details_panel:
+		return
+
 	var info_label = details_panel.find_child("InfoLabel", true, false)
 	if info_label:
 		var details = "Register %d: %s\n" % [reg.get("index", -1), reg.get("emoji", "?")]
 		details += "Probability: %.4f (%.2f%%)\n" % [reg.get("probability", 0.0), reg.get("probability", 0.0) * 100]
 		details += "Coherence: %.4f\n" % reg.get("coherence", 0.0)
 		info_label.text = details
+
+
+func get_action_labels() -> Dictionary:
+	"""Get context-sensitive QER+F labels."""
+	return action_labels.duplicate()

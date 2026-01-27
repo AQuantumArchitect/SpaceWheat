@@ -10,6 +10,7 @@ extends RefCounted
 
 const ToolSelectionRow = preload("res://UI/Panels/ToolSelectionRow.gd")
 const ActionPreviewRow = preload("res://UI/Panels/ActionPreviewRow.gd")
+const ToolConfig = preload("res://Core/GameState/ToolConfig.gd")
 
 var tool_selection_row: Control = null
 var action_preview_row: Control = null
@@ -79,8 +80,10 @@ func create_action_bars(parent: Control) -> void:
 	# Also position immediately in case parent already has size
 	_on_parent_resized()
 
-	# Initialize action bars to show tool 1 (Grower) by default
-	select_tool(1)
+	# Initialize action bars to show current tool from ToolConfig (single source of truth)
+	var initial_tool = ToolConfig.get_current_group()
+	select_tool(initial_tool)
+	print("ActionBarManager: Initialized with tool %d" % initial_tool)
 
 
 func _on_parent_resized() -> void:

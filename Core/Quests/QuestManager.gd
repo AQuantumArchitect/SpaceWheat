@@ -109,6 +109,48 @@ func connect_to_biome(biome: Node) -> void:
 	"""Inject biome dependency for quest tracking"""
 	current_biome = biome
 
+
+func _get_gsm():
+	"""Get GameStateManager singleton safely (supports headless tests)."""
+	var tree = get_tree()
+	if tree and tree.root:
+		return tree.root.get_node_or_null("/root/GameStateManager")
+	return null
+
+
+func _get_player_vocab_emojis() -> Array:
+	"""Get player-known emojis (farm-owned preferred)."""
+	var gsm = _get_gsm()
+	if gsm and "active_farm" in gsm and gsm.active_farm and gsm.active_farm.has_method("get_known_emojis"):
+		return gsm.active_farm.get_known_emojis()
+	if gsm and gsm.current_state and gsm.current_state.has_method("get_known_emojis"):
+		return gsm.current_state.get_known_emojis()
+	return []
+
+
+func _discover_vocab_pair(north: String, south: String) -> void:
+	"""Grant a vocab pair to the player (farm-owned preferred)."""
+	var gsm = _get_gsm()
+	if gsm and "active_farm" in gsm and gsm.active_farm and gsm.active_farm.has_method("discover_pair"):
+		gsm.active_farm.discover_pair(north, south)
+	elif gsm and gsm.has_method("discover_pair"):
+		gsm.discover_pair(north, south)
+
+
+func _get_simulated_vocab_emojis(biome: Node) -> Array:
+	if not biome or not biome.has_method("get"):
+		return []
+	var qc = biome.get("quantum_computer")
+	if not qc or not qc.has_method("get"):
+		return []
+	var rm = qc.get("register_map")
+	if not rm:
+		return []
+	var coords = rm.get("coordinates") if rm.has_method("get") else null
+	if coords is Dictionary:
+		return coords.keys()
+	return []
+
 # =============================================================================
 # QUEST OFFERING
 # =============================================================================
@@ -172,11 +214,12 @@ func offer_quest_emergent(faction: Dictionary, biome) -> Dictionary:
 		return {}
 
 	# Get player vocabulary for filtering
-	var player_vocab = GameStateManager.current_state.get_known_emojis() if GameStateManager.current_state else []
+	var player_vocab = _get_player_vocab_emojis()
+	var bias_emojis = _get_simulated_vocab_emojis(biome)
 
 	# Generate via abstract machinery + theming (with vocabulary constraint!)
 	# Note: bath parameter is null (deprecated - removed from architecture)
-	var quest = QuestTheming.generate_quest(faction, null, player_vocab)
+	var quest = QuestTheming.generate_quest(faction, null, player_vocab, bias_emojis)
 
 	# Check for vocabulary mismatch error
 	if quest.is_empty() or quest.has("error"):
@@ -210,12 +253,13 @@ func offer_all_faction_quests(biome) -> Array:
 	var quests = []
 
 	# Get player vocabulary for filtering
-	var player_vocab = GameStateManager.current_state.get_known_emojis() if GameStateManager.current_state else []
+	var player_vocab = _get_player_vocab_emojis()
+	var bias_emojis = _get_simulated_vocab_emojis(biome)
 
 	for faction in FactionDatabase.ALL_FACTIONS:
 		# Use full generate_quest pipeline (handles vocabulary filtering!)
 		# Note: bath parameter is null (deprecated)
-		var quest = QuestTheming.generate_quest(faction, null, player_vocab)
+		var quest = QuestTheming.generate_quest(faction, null, player_vocab, bias_emojis)
 
 		# Skip factions with no vocabulary overlap
 		if quest.is_empty() or quest.has("error"):
@@ -355,8 +399,9 @@ func complete_quest(quest_id: int) -> bool:
 		return false
 
 	# Generate rewards (vocabulary only - no universal 💰 currency!)
-	var player_vocab = GameStateManager.current_state.get_known_emojis() if GameStateManager.current_state else []
+	var player_vocab = _get_player_vocab_emojis()
 	var reward = QuestRewards.generate_reward(quest, null, player_vocab)
+	var gsm = _get_gsm()
 
 	# NO UNIVERSAL MONEY - removed 💰 grant
 
@@ -368,7 +413,7 @@ func complete_quest(quest_id: int) -> bool:
 		var north = pair.get("north", "")
 		var south = pair.get("south", "")
 		if north != "" and south != "":
-			GameStateManager.discover_pair(north, south)
+			_discover_vocab_pair(north, south)
 			vocabulary_pair_learned.emit(north, south, faction_name)
 			vocabulary_learned.emit(north, faction_name)
 			vocabulary_learned.emit(south, faction_name)
@@ -377,7 +422,8 @@ func complete_quest(quest_id: int) -> bool:
 	# Single emojis (fallback for emojis without connections)
 	if reward.learned_pairs.is_empty():
 		for emoji in reward.learned_vocabulary:
-			GameStateManager.discover_emoji(emoji)
+			if gsm and gsm.has_method("discover_emoji"):
+				gsm.discover_emoji(emoji)
 			vocabulary_learned.emit(emoji, faction_name)
 			print("📖 %s taught you: %s" % [faction_name, emoji])
 
@@ -473,7 +519,8 @@ func claim_quest(quest_id: int) -> bool:
 		return false
 
 	# Generate and grant rewards (vocabulary only - no universal 💰 currency!)
-	var player_vocab = GameStateManager.current_state.get_known_emojis() if GameStateManager.current_state else []
+	var gsm = _get_gsm()
+	var player_vocab = _get_player_vocab_emojis()
 	var reward = QuestRewards.generate_reward(quest, null, player_vocab)
 
 	# NO UNIVERSAL MONEY - removed 💰 grant
@@ -485,7 +532,7 @@ func claim_quest(quest_id: int) -> bool:
 		var north = pair.get("north", "")
 		var south = pair.get("south", "")
 		if north != "" and south != "":
-			GameStateManager.discover_pair(north, south)
+			_discover_vocab_pair(north, south)
 			vocabulary_pair_learned.emit(north, south, faction_name)
 			vocabulary_learned.emit(north, faction_name)
 			vocabulary_learned.emit(south, faction_name)
@@ -493,7 +540,8 @@ func claim_quest(quest_id: int) -> bool:
 
 	if reward.learned_pairs.is_empty():
 		for emoji in reward.learned_vocabulary:
-			GameStateManager.discover_emoji(emoji)
+			if gsm and gsm.has_method("discover_emoji"):
+				gsm.discover_emoji(emoji)
 			vocabulary_learned.emit(emoji, faction_name)
 			print("📖 %s taught you: %s" % [faction_name, emoji])
 
@@ -706,7 +754,6 @@ func _get_resource_rarity_continuous(resource: String) -> float:
 			"🌻": 0.3,   # Sunflower
 			"💨": 0.4,   # Flour (processed)
 			"🍂": 0.5,   # Detritus (forest)
-			"🍅": 0.6,   # Tomato (special)
 			"🍄": 0.7,   # Mushroom (nocturnal)
 			"🌌": 0.8,   # Cosmic chaos
 		}

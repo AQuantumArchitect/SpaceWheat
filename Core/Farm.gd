@@ -21,10 +21,9 @@ const FarmEconomy = preload("res://Core/GameMechanics/FarmEconomy.gd")
 const EconomyConstants = preload("res://Core/GameMechanics/EconomyConstants.gd")
 const PlotPoolClass = preload("res://Core/GameMechanics/PlotPool.gd")
 const GoalsSystem = preload("res://Core/GameMechanics/GoalsSystem.gd")
-const BioticFluxBiome = preload("res://Core/Environment/BioticFluxBiome.gd")
-const StellarForgesBiome = preload("res://Core/Environment/StellarForgesBiome.gd")
-const FungalNetworksBiome = preload("res://Core/Environment/FungalNetworksBiome.gd")
-const VolcanicWorldsBiome = preload("res://Core/Environment/VolcanicWorldsBiome.gd")
+# GRACEFUL BIOME LOADING: Use load() instead of preload() so script errors
+# in individual biomes don't break the entire Farm. Failed biomes are skipped.
+var _BiomeScripts: Dictionary = {}  # Populated at runtime in _init_biomes()
 const FarmUIState = preload("res://Core/GameState/FarmUIState.gd")
 const VocabularyEvolution = preload("res://Core/QuantumSubstrate/VocabularyEvolution.gd")
 
@@ -34,11 +33,16 @@ const VocabularyEvolution = preload("res://Core/QuantumSubstrate/VocabularyEvolu
 var grid: FarmGrid
 var economy  # FarmEconomy type
 var goals: GoalsSystem
-var biotic_flux_biome: BioticFluxBiome
-var stellar_forges_biome: StellarForgesBiome
-var fungal_networks_biome: FungalNetworksBiome
-var volcanic_worlds_biome: VolcanicWorldsBiome
+# Biome instances (may be null if script failed to load)
+var biotic_flux_biome = null
+var stellar_forges_biome = null
+var fungal_networks_biome = null
+var volcanic_worlds_biome = null
+var starter_forest_biome = null
+var village_biome = null
+var _loaded_biome_count: int = 0  # Track how many biomes loaded successfully
 var vocabulary_evolution: VocabularyEvolution  # Vocabulary evolution system
+var known_pairs: Array = []  # Player vocabulary pairs (canonical, farm-owned)
 var ui_state: FarmUIState  # UI State abstraction layer
 var grid_config: GridConfig = null  # Single source of truth for grid layout
 var plot_pool: PlotPoolClass = null  # v2 Architecture: Terminal pool for EXPLORE/MEASURE/POP
@@ -52,6 +56,48 @@ var _mushroom_count_dirty: bool = true  # Set true when plots change
 func invalidate_mushroom_cache() -> void:
 	"""Call when plots are planted/harvested to recalculate mushroom count on next frame"""
 	_mushroom_count_dirty = true
+
+
+func _safe_load_biome(script_path: String, biome_name: String):
+	"""Gracefully load and instantiate a biome. Returns null if loading fails.
+
+	This allows the game to continue with partial biome availability
+	when individual biome scripts have compile errors.
+	"""
+	var script = load(script_path)
+	if script == null:
+		push_warning("Farm: Failed to load biome script '%s' - biome '%s' disabled" % [script_path, biome_name])
+		return null
+
+	var biome = script.new()
+	if biome == null:
+		push_warning("Farm: Failed to instantiate biome '%s' - disabled" % biome_name)
+		return null
+
+	biome.name = biome_name
+	add_child(biome)
+	_loaded_biome_count += 1
+	print("Farm: Loaded biome '%s'" % biome_name)
+	return biome
+
+
+func _register_biome_if_loaded(biome_name: String, biome, grid_ref) -> void:
+	"""Register a biome with the grid only if it loaded successfully."""
+	if biome == null:
+		return
+	grid_ref.register_biome(biome_name, biome)
+	biome.grid = grid_ref
+
+
+func _verify_biome_quantum(biome_name: String, biome) -> void:
+	"""Verify a biome's quantum system is initialized (graceful warning if not)."""
+	if biome == null:
+		return  # Biome didn't load, already warned
+	if biome.quantum_computer == null:
+		push_warning("Farm: %s biome has no quantum_computer - quantum features disabled" % biome_name)
+	else:
+		_verbose.debug("boot", "✓", "%s biome quantum system verified" % biome_name)
+
 
 # Configuration
 
@@ -147,31 +193,25 @@ func _ready():
 	economy = FarmEconomy.new()
 	add_child(economy)
 
-	# Create environmental simulations (three biomes for multi-biome support)
+	# Create environmental simulations (six biomes for multi-biome support)
+	# GRACEFUL LOADING: Each biome loads independently - failed biomes are skipped
 	biome_enabled = false
+	_loaded_biome_count = 0
 
-	# Instantiate BioticFlux Biome
-	biotic_flux_biome = BioticFluxBiome.new()
-	biotic_flux_biome.name = "BioticFlux"
-	add_child(biotic_flux_biome)
+	# Load and instantiate each biome gracefully
+	biotic_flux_biome = _safe_load_biome("res://Core/Environment/BioticFluxBiome.gd", "BioticFlux")
+	stellar_forges_biome = _safe_load_biome("res://Core/Environment/StellarForgesBiome.gd", "StellarForges")
+	fungal_networks_biome = _safe_load_biome("res://Core/Environment/FungalNetworksBiome.gd", "FungalNetworks")
+	volcanic_worlds_biome = _safe_load_biome("res://Core/Environment/VolcanicWorldsBiome.gd", "VolcanicWorlds")
+	starter_forest_biome = _safe_load_biome("res://Core/Environment/StarterForestBiome.gd", "StarterForest")
+	village_biome = _safe_load_biome("res://Core/Environment/VillageBiome.gd", "Village")
 
-	# Instantiate Stellar Forges Biome (replaced Market)
-	stellar_forges_biome = StellarForgesBiome.new()
-	stellar_forges_biome.name = "StellarForges"
-	add_child(stellar_forges_biome)
-
-	# Instantiate Fungal Networks Biome (replaced Forest)
-	fungal_networks_biome = FungalNetworksBiome.new()
-	fungal_networks_biome.name = "FungalNetworks"
-	add_child(fungal_networks_biome)
-
-	# Instantiate Volcanic Worlds Biome (replaced Kitchen)
-	volcanic_worlds_biome = VolcanicWorldsBiome.new()
-	volcanic_worlds_biome.name = "VolcanicWorlds"
-	add_child(volcanic_worlds_biome)
-
-	# All four biomes successfully instantiated
-	biome_enabled = true
+	# Enable biome features if at least one biome loaded
+	if _loaded_biome_count > 0:
+		biome_enabled = true
+		print("Farm: %d/%d biomes loaded successfully" % [_loaded_biome_count, 6])
+	else:
+		push_warning("Farm: No biomes loaded! Game will have limited functionality.")
 
 	# NOTE: Operator rebuild now handled by BootManager in Stage 3A
 	# This ensures deterministic ordering: IconRegistry ready → rebuild operators → verify biomes
@@ -190,19 +230,14 @@ func _ready():
 
 	# Note: StellarForges doesn't have direct economy connection (no trading)
 
-	# Wire all four biomes to the grid
+	# Wire loaded biomes to the grid (skip any that failed to load)
 	if biome_enabled:
-		grid.register_biome("BioticFlux", biotic_flux_biome)
-		biotic_flux_biome.grid = grid
-
-		grid.register_biome("StellarForges", stellar_forges_biome)
-		stellar_forges_biome.grid = grid
-
-		grid.register_biome("FungalNetworks", fungal_networks_biome)
-		fungal_networks_biome.grid = grid
-
-		grid.register_biome("VolcanicWorlds", volcanic_worlds_biome)
-		volcanic_worlds_biome.grid = grid
+		_register_biome_if_loaded("BioticFlux", biotic_flux_biome, grid)
+		_register_biome_if_loaded("StellarForges", stellar_forges_biome, grid)
+		_register_biome_if_loaded("FungalNetworks", fungal_networks_biome, grid)
+		_register_biome_if_loaded("VolcanicWorlds", volcanic_worlds_biome, grid)
+		_register_biome_if_loaded("StarterForest", starter_forest_biome, grid)
+		_register_biome_if_loaded("Village", village_biome, grid)
 
 	add_child(grid)
 
@@ -211,12 +246,19 @@ func _ready():
 	var total_plots = grid_config.grid_width * grid_config.grid_height
 	plot_pool = PlotPoolClass.new(total_plots)
 
-	# Register all four biomes as metadata for UI systems (QuantumForceGraph visualization)
+	# Register loaded biomes as metadata for UI systems (QuantumForceGraph visualization)
 	set_meta("grid", grid)
-	if biome_enabled:
+	if biotic_flux_biome:
 		set_meta("biotic_flux_biome", biotic_flux_biome)
+	if stellar_forges_biome:
 		set_meta("stellar_forges_biome", stellar_forges_biome)
+	if starter_forest_biome:
+		set_meta("starter_forest_biome", starter_forest_biome)
+	if village_biome:
+		set_meta("village_biome", village_biome)
+	if fungal_networks_biome:
 		set_meta("fungal_networks_biome", fungal_networks_biome)
+	if volcanic_worlds_biome:
 		set_meta("volcanic_worlds_biome", volcanic_worlds_biome)
 
 	# Configure plot-to-biome assignments from GridConfig (4 biomes, 1 row each)
@@ -241,6 +283,9 @@ func _ready():
 		var VocabularyEvolution = preload("res://Core/QuantumSubstrate/VocabularyEvolution.gd")
 		vocabulary_evolution = VocabularyEvolution.new()
 		add_child(vocabulary_evolution)
+
+	# Initialize farm-owned vocabulary (canonical player vocab)
+	_ensure_vocabulary_initialized()
 
 	# Inject vocabulary reference into grid for tap validation
 	if grid:
@@ -269,6 +314,109 @@ func _ready():
 	ui_state.refresh_all(self)
 
 
+## ============================================================================
+## VOCABULARY (FARM-OWNED)
+## ============================================================================
+
+func _ensure_vocabulary_initialized() -> void:
+	"""Ensure farm has a valid starting vocabulary."""
+	if known_pairs.is_empty():
+		set_known_pairs([{"north": "🌾", "south": "👥"}], true, false)
+	else:
+		_sync_player_vocabulary(false)
+
+
+func get_known_pairs() -> Array:
+	"""Return player-known vocab pairs (canonical)."""
+	return known_pairs.duplicate(true)
+
+
+func get_known_emojis() -> Array:
+	"""Return unique emojis from known vocab pairs."""
+	var emojis: Array = []
+	for pair in known_pairs:
+		var north = pair.get("north", "")
+		var south = pair.get("south", "")
+		if north != "" and north not in emojis:
+			emojis.append(north)
+		if south != "" and south not in emojis:
+			emojis.append(south)
+	return emojis
+
+
+func set_known_pairs(pairs: Array, sync_player_vocab: bool = true, reset_player_vocab: bool = false) -> void:
+	"""Replace known vocab pairs with sanitized list."""
+	var filtered: Array = []
+	var seen: Dictionary = {}
+	for pair in pairs:
+		if not (pair is Dictionary):
+			continue
+		var north = pair.get("north", "")
+		var south = pair.get("south", "")
+		if north == "" or south == "" or north == south:
+			continue
+		var key = "%s|%s" % [north, south]
+		if seen.has(key):
+			continue
+		seen[key] = true
+		filtered.append({"north": north, "south": south})
+
+	if filtered.is_empty():
+		filtered = [{"north": "🌾", "south": "👥"}]
+
+	known_pairs = filtered
+	if sync_player_vocab:
+		_sync_player_vocabulary(reset_player_vocab)
+	_sync_gsm_vocab_state()
+
+
+func discover_pair(north: String, south: String) -> bool:
+	"""Learn a new vocab pair (farm-owned source of truth)."""
+	if north == "" or south == "" or north == south:
+		return false
+
+	for pair in known_pairs:
+		if pair.get("north", "") == north and pair.get("south", "") == south:
+			return false  # Already known
+
+	known_pairs.append({"north": north, "south": south})
+	_sync_player_vocabulary(false)
+	_sync_gsm_vocab_state()
+	return true
+
+
+func get_pair_for_emoji(emoji: String) -> Variant:
+	"""Return the vocab pair containing an emoji (or null)."""
+	for pair in known_pairs:
+		if pair.get("north", "") == emoji or pair.get("south", "") == emoji:
+			return pair
+	return null
+
+
+func _sync_player_vocabulary(reset_first: bool) -> void:
+	"""Keep PlayerVocabulary QC in sync with farm-owned vocabulary."""
+	var player_vocab = get_node_or_null("/root/PlayerVocabulary")
+	if not player_vocab:
+		return
+	if reset_first and player_vocab.has_method("reset"):
+		player_vocab.reset()
+	for pair in known_pairs:
+		var north = pair.get("north", "")
+		var south = pair.get("south", "")
+		if north != "" and south != "":
+			if player_vocab.has_method("learn_vocab_pair"):
+				player_vocab.learn_vocab_pair(north, south)
+
+
+func _sync_gsm_vocab_state() -> void:
+	"""Keep GameStateManager.current_state mirrored for legacy readers."""
+	var gsm = get_node_or_null("/root/GameStateManager")
+	if gsm and "current_state" in gsm and gsm.current_state:
+		gsm.current_state.known_pairs = get_known_pairs()
+		if gsm.current_state.has_method("get_known_emojis"):
+			gsm.current_state.known_emojis = get_known_emojis()
+
+
 ## Rebuild quantum operators after biomes have initialized
 func rebuild_all_biome_operators() -> void:
 	"""Rebuild quantum operators for all biomes
@@ -280,12 +428,20 @@ func rebuild_all_biome_operators() -> void:
 	if not biome_enabled:
 		return
 
-	_verbose.info("boot", "🔧", "Rebuilding operators for all biomes...")
-	biotic_flux_biome.rebuild_quantum_operators()
-	stellar_forges_biome.rebuild_quantum_operators()
-	fungal_networks_biome.rebuild_quantum_operators()
-	volcanic_worlds_biome.rebuild_quantum_operators()
-	_verbose.info("boot", "✓", "All biome operators rebuilt")
+	_verbose.info("boot", "🔧", "Rebuilding operators for loaded biomes...")
+	if biotic_flux_biome:
+		biotic_flux_biome.rebuild_quantum_operators()
+	if stellar_forges_biome:
+		stellar_forges_biome.rebuild_quantum_operators()
+	if fungal_networks_biome:
+		fungal_networks_biome.rebuild_quantum_operators()
+	if volcanic_worlds_biome:
+		volcanic_worlds_biome.rebuild_quantum_operators()
+	if starter_forest_biome:
+		starter_forest_biome.rebuild_quantum_operators()
+	if village_biome:
+		village_biome.rebuild_quantum_operators()
+	_verbose.info("boot", "✓", "Loaded biome operators rebuilt")
 
 
 ## Called by BootManager in Stage 3A to finalize setup before simulation starts
@@ -295,14 +451,16 @@ func finalize_setup() -> void:
 	Called by BootManager.boot() after biomes are verified to be initialized.
 	This allows for any post-setup operations needed before gameplay starts.
 	"""
-	# Verify all biomes have their quantum systems initialized
+	# Verify loaded biomes have their quantum systems initialized (graceful warnings)
 	if biome_enabled:
-		assert(biotic_flux_biome.quantum_computer != null, "BioticFlux biome has no quantum_computer!")
-		assert(stellar_forges_biome.quantum_computer != null, "StellarForges biome has no quantum_computer!")
-		assert(fungal_networks_biome.quantum_computer != null, "FungalNetworks biome has no quantum_computer!")
-		assert(volcanic_worlds_biome.quantum_computer != null, "VolcanicWorlds biome has no quantum_computer!")
+		_verify_biome_quantum("BioticFlux", biotic_flux_biome)
+		_verify_biome_quantum("StellarForges", stellar_forges_biome)
+		_verify_biome_quantum("FungalNetworks", fungal_networks_biome)
+		_verify_biome_quantum("VolcanicWorlds", volcanic_worlds_biome)
+		_verify_biome_quantum("StarterForest", starter_forest_biome)
+		_verify_biome_quantum("Village", village_biome)
 
-	_verbose.info("boot", "✓", "Farm setup finalized")
+	_verbose.info("boot", "✓", "Farm setup finalized (%d biomes active)" % _loaded_biome_count)
 
 
 ## Called by BootManager in Stage 3D to enable simulation processing
@@ -313,6 +471,7 @@ func enable_simulation() -> void:
 	This enables _process() to evolve quantum states in biomes.
 	"""
 	set_process(true)
+	set_physics_process(true)
 
 	# Enable biome processing
 	if biome_enabled:
@@ -324,6 +483,10 @@ func enable_simulation() -> void:
 			fungal_networks_biome.set_process(true)
 		if volcanic_worlds_biome:
 			volcanic_worlds_biome.set_process(true)
+		if starter_forest_biome:
+			starter_forest_biome.set_process(true)
+		if village_biome:
+			village_biome.set_process(true)
 		_verbose.info("boot", "✓", "All biome processing enabled")
 
 	_verbose.info("boot", "✓", "Farm simulation process enabled")
@@ -337,6 +500,102 @@ func _process(delta: float):
 
 	# Handle passive composting
 	_process_mushroom_composting(delta)
+
+
+func _physics_process(delta: float) -> void:
+	_process_lindblad_effects(delta)
+
+
+func _process_lindblad_effects(delta: float) -> void:
+	"""Apply persistent Lindblad pump/drain effects from Tool 2."""
+	if not grid:
+		return
+
+	var plots = grid.plots if "plots" in grid else {}
+	if plots.is_empty():
+		return
+	var known_emojis: Array = get_known_emojis()
+	var has_vocab_gate = not known_emojis.is_empty()
+
+	for pos in plots.keys():
+		var plot = plots[pos]
+		if not plot:
+			continue
+		if not plot.lindblad_pump_active and not plot.lindblad_drain_active:
+			continue
+
+		var biome = grid.get_biome_for_plot(pos)
+		if not biome or not biome.quantum_computer:
+			continue
+
+		var pair = _get_lindblad_pair_for_plot(plot, pos)
+		if pair.is_empty():
+			continue
+
+		if plot.lindblad_pump_active:
+			var target = pair.get("north", "")
+			if target != "":
+				biome.quantum_computer.apply_drive(target, plot.lindblad_pump_rate, delta)
+
+		if plot.lindblad_drain_active:
+			var north = pair.get("north", "")
+			var south = pair.get("south", "")
+			var axis_emoji = north if north != "" else south
+			if axis_emoji != "" and biome.quantum_computer.register_map.has(axis_emoji):
+				var before_pop = 0.0
+				if north != "" and biome.quantum_computer.register_map.has(north):
+					before_pop = biome.quantum_computer.get_population(north)
+				else:
+					before_pop = biome.quantum_computer.get_population(axis_emoji)
+
+				var qubit_idx = biome.quantum_computer.register_map.qubit(axis_emoji)
+				biome.quantum_computer.apply_decay(qubit_idx, plot.lindblad_drain_rate, delta)
+
+				var drained_probability = before_pop * plot.lindblad_drain_rate * delta
+				_accumulate_lindblad_harvest(
+					plot,
+					axis_emoji,
+					drained_probability,
+					known_emojis,
+					has_vocab_gate
+				)
+
+
+func _accumulate_lindblad_harvest(plot, emoji: String, drained_probability: float,
+		known_emojis: Array, has_vocab_gate: bool) -> void:
+	if not economy or emoji == "":
+		return
+	if has_vocab_gate and emoji not in known_emojis:
+		return
+
+	var credits = max(0.0, drained_probability) * EconomyConstants.QUANTUM_TO_CREDITS
+	if credits <= 0.0:
+		return
+
+	plot.lindblad_drain_accumulator += credits
+	if _verbose:
+		_verbose.info("lindblad", "⏱", "accumulator %s=%.6f" % [emoji, plot.lindblad_drain_accumulator])
+	else:
+		print("⏱ Lindblad accumulator %s=%.6f" % [emoji, plot.lindblad_drain_accumulator])
+	var whole_credits = int(plot.lindblad_drain_accumulator)
+	if whole_credits <= 0:
+		return
+
+	plot.lindblad_drain_accumulator -= whole_credits
+	economy.add_resource(emoji, whole_credits, "lindblad_drain")
+
+
+func _get_lindblad_pair_for_plot(plot, pos: Vector2i) -> Dictionary:
+	"""Resolve emoji pair for a plot using terminal binding when available."""
+	if plot_pool:
+		var terminal = plot_pool.get_terminal_at_grid_pos(pos)
+		if terminal and terminal.is_bound:
+			return terminal.get_emoji_pair()
+
+	if plot and plot.is_planted:
+		return plot.get_plot_emojis()
+
+	return {}
 
 
 func _process_mushroom_composting(delta: float):
@@ -404,11 +663,15 @@ func _process_mushroom_composting(delta: float):
 			set_meta("composting_accumulator", accumulator)
 
 
-## GRID CONFIGURATION (Phase 2 → Single-Biome View)
+## GRID CONFIGURATION (Phase 2 → Single-Biome View → Quantum Instrument)
 ##
-## NEW ARCHITECTURE: Each biome has 6 independent plots (24 total).
-## Only one biome visible at a time. TYUIOP selects plots within active biome.
-## Biome row mapping: BioticFlux=0, Market=1, Forest=2, Kitchen=3
+## NEW ARCHITECTURE: Each biome has 4 independent plots (16 total).
+## Only one biome visible at a time.
+## Three keyboard rows select plots with directional navigation:
+##   7890 = UP row (parent biome)
+##   UIOP = NEUTRAL row (current biome)
+##   JKL; = DOWN row (child biome)
+## Biome row mapping: BioticFlux=0, StellarForges=1, FungalNetworks=2, VolcanicWorlds=3
 
 const BIOME_ROW_MAP: Dictionary = {
 	"BioticFlux": 0,
@@ -427,49 +690,52 @@ const ROW_BIOME_MAP: Dictionary = {
 func _create_grid_config() -> GridConfig:
 	"""Create grid configuration - single source of truth for layout
 
-	Single-biome view: 4 biomes × 6 plots = 24 total plots
+	Quantum Instrument Layout: 4 biomes × 4 plots = 16 total plots
 	Each biome uses y-coordinate as biome identifier:
-	  - BioticFlux: y=0, positions (0,0) through (5,0)
-	  - Market: y=1, positions (0,1) through (5,1)
-	  - Forest: y=2, positions (0,2) through (5,2)
-	  - Kitchen: y=3, positions (0,3) through (5,3)
+	  - BioticFlux: y=0, positions (0,0) through (3,0)
+	  - StellarForges: y=1, positions (0,1) through (3,1)
+	  - FungalNetworks: y=2, positions (0,2) through (3,2)
+	  - VolcanicWorlds: y=3, positions (0,3) through (3,3)
 
-	TYUIOP keys select within the ACTIVE biome (mapped by ActiveBiomeManager).
+	Three keyboard rows select plots with directional navigation:
+	  7890 = UP row (parent biome)
+	  UIOP = NEUTRAL row (current biome)
+	  JKL; = DOWN row (child biome)
 	"""
 	var config = GridConfig.new()
-	config.grid_width = 6
+	config.grid_width = 4   # 4 plots per biome
 	config.grid_height = 4  # 4 biomes
 
 	# Create keyboard layout configuration
 	var keyboard = KeyboardLayoutConfig.new()
 
-	# TYUIOP → positions 0-5 (within active biome, y determined at runtime)
+	# JKL; → positions 0-3 (within active biome, y determined at runtime)
 	# For keyboard layout, we map to y=0 (BioticFlux) as default
-	# The actual position used depends on ActiveBiomeManager.active_biome
-	var plot_keys = ["t", "y", "u", "i", "o", "p"]
-	for i in range(6):
+	# The actual position used depends on ObservationFrame.neutral_biome
+	var neutral_keys = ["j", "k", "l", ";"]
+	for i in range(4):
 		var pos = Vector2i(i, 0)  # Default to y=0, remapped at runtime
-		keyboard.action_to_position["select_plot_" + plot_keys[i]] = pos
-		keyboard.position_to_label[pos] = plot_keys[i].to_upper()
+		keyboard.action_to_position["plot_neutral_" + str(i)] = pos
+		keyboard.position_to_label[pos] = neutral_keys[i].to_upper()
 		# Also add labels for other biome rows (same x position, different y)
 		for biome_row in range(1, 4):
-			keyboard.position_to_label[Vector2i(i, biome_row)] = plot_keys[i].to_upper()
+			keyboard.position_to_label[Vector2i(i, biome_row)] = neutral_keys[i].to_upper()
 
 	config.keyboard_layout = keyboard
 
 	# =========================================================================
-	# PLOT CONFIGURATIONS - 6 plots per biome, 24 total
+	# PLOT CONFIGURATIONS - 4 plots per biome, 16 total
 	# Each biome has independent quantum state and plots
 	# =========================================================================
 
 	for biome_name in BIOME_ROW_MAP.keys():
 		var biome_row = BIOME_ROW_MAP[biome_name]
-		for i in range(6):
+		for i in range(4):
 			var plot = PlotConfig.new()
 			plot.position = Vector2i(i, biome_row)
 			plot.is_active = true
-			plot.keyboard_label = plot_keys[i].to_upper()
-			plot.input_action = "select_plot_" + plot_keys[i]
+			plot.keyboard_label = neutral_keys[i].to_upper()
+			plot.input_action = "plot_neutral_" + str(i)
 			plot.biome_name = biome_name
 			config.plots.append(plot)
 
@@ -490,14 +756,24 @@ func get_biome_for_row(row: int) -> String:
 
 
 func get_plot_position_for_active_biome(plot_index: int) -> Vector2i:
-	"""Convert plot index (0-5) to full position using active biome
+	"""Convert plot index (0-3) to full position using active biome
 
-	Used by input handling to map TYUIOP to the correct biome's plots.
+	Used by input handling to map plot keys to the correct biome's plots.
+	Now uses ObservationFrame as the source of truth for active biome.
 	"""
-	var biome_mgr = get_node_or_null("/root/ActiveBiomeManager")
+	# Clamp plot_index to valid range (0-3)
+	plot_index = clampi(plot_index, 0, 3)
+
+	# Try ObservationFrame first, fall back to ActiveBiomeManager
+	var observation_frame = get_node_or_null("/root/ObservationFrame")
 	var active_biome = "BioticFlux"
-	if biome_mgr:
-		active_biome = biome_mgr.get_active_biome()
+	if observation_frame:
+		active_biome = observation_frame.get_neutral_biome()
+	else:
+		var biome_mgr = get_node_or_null("/root/ActiveBiomeManager")
+		if biome_mgr:
+			active_biome = biome_mgr.get_active_biome()
+
 	var biome_row = get_biome_row(active_biome)
 	return Vector2i(plot_index, biome_row)
 
@@ -505,16 +781,14 @@ func get_plot_position_for_active_biome(plot_index: int) -> Vector2i:
 ## Public API - Game Operations
 
 func build(pos: Vector2i, build_type: String) -> bool:
-	"""Build/plant at position - unified method for all types (PARAMETRIC - Phase 6)
+	"""Build at position - unified method for build/gather (planting deprecated).
 
-	PHASE 6: Queries biome capabilities for plant costs instead of BUILD_CONFIGS.
 	Infrastructure buildings use INFRASTRUCTURE_COSTS constant.
-
-	Returns: true if successful, false if failed
-	Emits: action_result signal with success/failure message
+	Gather actions use GATHER_ACTIONS.
+	Planting is deprecated and will fail.
 	"""
-	# Determine action type and get cost (PARAMETRIC)
-	var action_type = ""  # "plant", "build", or "gather"
+	# Determine action type and get cost
+	var action_type = ""  # "build" or "gather"
 	var cost = {}
 	var config = {}
 
@@ -530,29 +804,10 @@ func build(pos: Vector2i, build_type: String) -> bool:
 		config = GATHER_ACTIONS[build_type]
 		cost = config.get("cost", {})
 
-	# Otherwise, assume it's a plant type - query biome capabilities
+	# Planting deprecated
 	else:
-		action_type = "plant"
-		# PARAMETRIC: Query biome for plant cost
-		var plot_biome = grid.get_biome_for_plot(pos)
-		if not plot_biome:
-			action_result.emit("build", false, "No biome at position %s" % pos)
-			return false
-
-		# Find capability for this plant type
-		var capability = null
-		for cap in plot_biome.get_plantable_capabilities():
-			if cap.plant_type == build_type:
-				capability = cap
-				break
-
-		if not capability:
-			action_result.emit("build", false, "%s biome doesn't support planting %s" % [
-				plot_biome.get_biome_type(), build_type])
-			return false
-
-		cost = capability.cost
-		config = {"type": "plant", "plant_type": build_type}
+		action_result.emit("build", false, "Planting is deprecated")
+		return false
 
 	# 1. PRE-VALIDATION: Check if we can build here (skip for gather actions)
 	var plot = grid.get_plot(pos)
@@ -564,7 +819,6 @@ func build(pos: Vector2i, build_type: String) -> bool:
 			return false
 
 	# 1b. BIOME VALIDATION: Check if gather action is in correct biome
-	# PHASE 6 (PARAMETRIC): Biome validation is already done for plant types above
 	# Only check for gather actions that require specific biomes
 	if action_type == "gather" and config.has("biome_required"):
 		# Get biome name from plot_biome_assignments (in grid)
@@ -591,8 +845,6 @@ func build(pos: Vector2i, build_type: String) -> bool:
 	# 4. EXECUTE BUILD
 	var success = false
 	match config["type"]:
-		"plant":
-			success = grid.plant(pos, config["plant_type"])
 		"build":
 			# Route to specific building
 			match build_type:
@@ -612,24 +864,13 @@ func build(pos: Vector2i, build_type: String) -> bool:
 				success = true
 
 	if success:
-		# Get emoji pair for the built structure (empty for infrastructure, defined for plants)
-		var emoji_pair = {}
-		if config["type"] == "plant":
-			var built_plot = grid.get_plot(pos)
-			if built_plot:
-				emoji_pair = built_plot.get_plot_emojis()
-
 		_verbose.debug("farm", "🏗️", "Emitting structure_built signal for %s at %s" % [build_type, pos])
-		structure_built.emit(pos, build_type, emoji_pair)
+		structure_built.emit(pos, build_type, {})  # No emoji_pair for infrastructure
 		_emit_state_changed()
 		action_result.emit("build_%s" % build_type, true, "%s placed successfully!" % build_type.capitalize())
 		return true
 	else:
-		# Refund if operation failed, and clean up quantum state if created
-		if config["type"] == "plant":
-			var plot_biome = _get_plot_biome(pos)
-			if plot_biome and plot_biome.has_method("clear_qubit"):
-				plot_biome.clear_qubit(pos)
+		# Refund if operation failed
 		_refund_resources(cost)
 		action_result.emit("build_%s" % build_type, false, "Failed to place %s" % build_type)
 		return false
@@ -639,7 +880,6 @@ func do_action(action: String, params: Dictionary) -> Dictionary:
 	"""Universal action dispatcher - routes to appropriate method
 
 	Supported actions:
-	- plant: {position, plant_type} → plants at position
 	- entangle: {position_a, position_b} → entangles two plots
 	- measure: {position} → measures plot
 	- harvest: {position} → harvests plot
@@ -647,17 +887,6 @@ func do_action(action: String, params: Dictionary) -> Dictionary:
 	Returns: Dictionary with {success: bool, message: String, ...action-specific data}
 	"""
 	match action:
-		"plant":
-			var pos = params.get("position", Vector2i.ZERO)
-			var plant_type = params.get("plant_type", "wheat")
-			var success = build(pos, plant_type)
-			return {
-				"success": success,
-				"position": pos,
-				"plant_type": plant_type,
-				"message": "Plant action " + ("succeeded" if success else "failed")
-			}
-
 		"entangle":
 			var pos_a = params.get("position_a", Vector2i.ZERO)
 			var pos_b = params.get("position_b", Vector2i.ZERO)
@@ -867,11 +1096,6 @@ func _batch_operation(positions: Array[Vector2i], operation_name: String, operat
 	return result
 
 
-func batch_plant(positions: Array[Vector2i], plant_type: String) -> Dictionary:
-	"""Plant multiple plots with the given plant type."""
-	return _batch_operation(positions, "Planted", func(pos): return build(pos, plant_type))
-
-
 func batch_measure(positions: Array[Vector2i]) -> Dictionary:
 	"""Measure quantum state of multiple plots."""
 	return _batch_operation(positions, "Measured", func(pos): return measure_plot(pos) != "")
@@ -964,14 +1188,13 @@ func apply_state(state: Dictionary) -> void:
 		economy.flower_changed.emit(economy.flower_inventory)
 		economy.labor_changed.emit(economy.labor_inventory)
 
-	# Apply plot states
+	# Apply plot states (planting deprecated - ignore planted plots)
 	if state.has("plots"):
 		for plot_state in state["plots"]:
 			var pos = plot_state.get("position")
-			if plot_state.get("is_planted", false):
-				# Restore planted plot using grid.plant()
-				var plant_type = plot_state.get("plant_type", "wheat")
-				grid.plant(pos, plant_type)
+			var plot = grid.get_plot(pos)
+			if plot:
+				plot.is_planted = false
 
 	_emit_state_changed()
 

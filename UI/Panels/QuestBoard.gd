@@ -1,12 +1,12 @@
 class_name QuestBoard
-extends Control
-
-const UIStyleFactory = preload("res://UI/Core/UIStyleFactory.gd")
-const UIOrnamentation = preload("res://UI/Core/UIOrnamentation.gd")
+extends "res://UI/Core/OverlayBase.gd"
 
 ## Modal Quest Board with 4 Slots (UIOP)
 ## Controls hijacked when open (like ESC menu)
 ## Press C to drill into faction browser
+##
+## Extends OverlayBase for unified overlay infrastructure.
+## Uses custom 2x2 grid layout instead of scroll container.
 
 const VocabularyPairing = preload("res://Core/Quests/VocabularyPairing.gd")
 
@@ -15,30 +15,14 @@ signal quest_completed(quest_id: int, rewards: Dictionary)
 signal quest_abandoned(quest_id: int)
 signal board_closed
 signal board_opened
-signal selection_changed(slot_state: int, is_locked: bool)  # For updating action toolbar
-signal action_performed(action: String, data: Dictionary)  # v2 overlay compatibility
-
-# v2 Overlay Interface
-var overlay_name: String = "quests"
-var overlay_icon: String = "📜"
-var overlay_tier: int = 3000  # Z_TIER_MODAL
-var action_labels: Dictionary = {
-	"Q": "Accept/Complete",
-	"E": "Reroll/Abandon",
-	"R": "Lock/Unlock",
-	"F": "Next Page"
-}
+signal slot_selection_changed(slot_state: int, is_locked: bool)  # For updating action toolbar
 
 # References
-var layout_manager: Node
 var quest_manager: Node
 var current_biome: Node
 
-# UI elements
-var background: ColorRect
-var menu_panel: PanelContainer
-var title_label: Label
-var slot_container: GridContainer  # Changed to GridContainer for 2×2 quadrant layout
+# UI elements (quest-specific)
+var slot_container: GridContainer  # 2x2 quadrant layout
 var accessible_factions_label: Label
 
 # Quest slots (4 slots: U, I, O, P)
@@ -68,22 +52,55 @@ enum SlotState {
 
 func _init():
 	name = "QuestBoard"
-	z_index = 0  # OverlayLayer(100) + 0 = 100, above tools(55), below actions(200)
+	panel_title = "QUEST ORACLE"
+	panel_title_size = 24
+	panel_border_color = Color(0.5, 0.4, 0.6, 0.8)  # Purple border
+	panel_size = Vector2(880, 340)
+	use_scroll_container = false  # We use custom grid layout
+	overlay_name = "quests"
+	overlay_icon = ""
+	overlay_tier = 3000
+	action_labels = {
+		"Q": "Accept/Complete",
+		"E": "Reroll/Abandon",
+		"R": "Lock/Unlock",
+		"F": "Next Page"
+	}
 
-	# Fill entire screen - proper modal design like ESC menu
-	set_anchors_preset(Control.PRESET_FULL_RECT)
-	layout_mode = 1
-	mouse_filter = Control.MOUSE_FILTER_STOP
-	process_mode = Node.PROCESS_MODE_ALWAYS
 
+func _build_content(container: Control) -> void:
+	"""Build quest board content - 2x2 grid layout."""
+	var scale = layout_manager.scale_factor if layout_manager else 1.0
 
-func _ready() -> void:
-	_create_ui()
-	visible = false
+	# Quest slots container - 2x2 GRID LAYOUT!
+	slot_container = GridContainer.new()
+	slot_container.columns = 2  # TWO COLUMNS = QUADRANT LAYOUT!
+	slot_container.add_theme_constant_override("h_separation", int(12 * scale))
+	slot_container.add_theme_constant_override("v_separation", int(12 * scale))
+	container.add_child(slot_container)
 
+	# Create 4 quest slots in quadrant pattern:
+	# [U] [I]
+	# [O] [P]
+	for i in range(4):
+		var slot = QuestSlot.new()
+		slot.set_layout_manager(layout_manager)
+		slot.slot_letter = SLOT_KEYS[i]
+		slot.slot_index = i
+		slot.slot_selected.connect(_on_slot_selected)
+		slot_container.add_child(slot)
+		quest_slots.append(slot)
 
-func set_layout_manager(manager: Node) -> void:
-	layout_manager = manager
+	# Accessible factions label
+	accessible_factions_label = Label.new()
+	accessible_factions_label.text = "Accessible Factions: 0/68"
+	accessible_factions_label.add_theme_font_size_override("font_size", 14)
+	accessible_factions_label.modulate = Color(0.9, 0.9, 0.5)
+	accessible_factions_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	container.add_child(accessible_factions_label)
+
+	# Select first slot by default
+	select_slot(0)
 
 
 func set_quest_manager(manager: Node) -> void:
@@ -139,7 +156,7 @@ func handle_input(event: InputEvent) -> bool:
 		KEY_P:
 			select_slot(3)
 			return true
-		# Arrow keys for navigation (2×2 grid layout)
+		# Arrow keys for navigation (2x2 grid layout)
 		KEY_UP, KEY_W:
 			_navigate_up()
 			return true
@@ -175,107 +192,6 @@ func _handle_browser_input(event: InputEvent) -> void:
 		faction_browser.handle_input(event)
 
 
-func _create_ui() -> void:
-	"""Create the quest board UI - 2×2 QUADRANT LAYOUT with auto-scaling.
-
-	Uses UILayoutManager constants for consistent layout proportions.
-	"""
-	const UILayoutManager = preload("res://UI/Managers/UILayoutManager.gd")
-
-	var scale = layout_manager.scale_factor if layout_manager else 1.0
-
-	# Use UILayoutManager constants for consistent proportions
-	var top_bar_percent = UILayoutManager.TOP_BAR_HEIGHT_PERCENT  # 0.06 (6%)
-	var play_area_percent = UILayoutManager.PLAY_AREA_PERCENT     # 0.665 (66.5%)
-	var bottom_percent = top_bar_percent + play_area_percent      # ~0.725 (72.5%)
-
-	# Balanced font sizes - readable but compact
-	var title_size = 24
-	var large_size = 16
-	var normal_size = 14
-
-	# Background dimmer - starts BELOW resource bar so player can see resources
-	background = ColorRect.new()
-	background.color = UIStyleFactory.COLOR_MODAL_DIMMER
-	background.anchor_left = 0.0
-	background.anchor_right = 1.0
-	background.anchor_top = top_bar_percent  # Start at 6% (below resource bar)
-	background.anchor_bottom = 1.0
-	background.layout_mode = 1
-	add_child(background)
-
-	# Center container for panel - positioned in play zone (below resource bar)
-	var center = CenterContainer.new()
-	center.anchor_left = 0.0
-	center.anchor_right = 1.0
-	center.anchor_top = top_bar_percent  # Start right at 6% (below resource bar)
-	center.anchor_bottom = bottom_percent  # End at ~72.5% (above tool selection)
-	center.offset_left = 0
-	center.offset_right = 0
-	center.offset_top = 0  # No extra margin - start right below resources
-	center.offset_bottom = 0
-	center.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	center.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	center.layout_mode = 1
-	add_child(center)
-
-	# Quest board panel - compact, fits in play zone
-	menu_panel = PanelContainer.new()
-	menu_panel.custom_minimum_size = Vector2(880, 340)
-	var panel_style = UIStyleFactory.create_panel_style(
-		UIStyleFactory.COLOR_PANEL_BG,
-		Color(0.5, 0.4, 0.6, 0.8)  # Purple border for quests
-	)
-	menu_panel.add_theme_stylebox_override("panel", panel_style)
-	center.add_child(menu_panel)
-
-	var main_vbox = VBoxContainer.new()
-	main_vbox.add_theme_constant_override("separation", int(8 * scale))
-	menu_panel.add_child(main_vbox)
-
-	# Corner ornamentation disabled - layout issues with PanelContainer
-	# UIOrnamentation.apply_corners_to_panel(
-	# 	menu_panel,
-	# 	UIOrnamentation.CORNER_SIZE_MEDIUM,
-	# 	UIOrnamentation.TINT_GOLD
-	# )
-
-	# Header - compact
-	title_label = UIStyleFactory.create_title_label("⚛️ QUEST ORACLE ⚛️", title_size)
-	title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	main_vbox.add_child(title_label)
-
-	# Quest slots container - 2×2 GRID LAYOUT!
-	slot_container = GridContainer.new()
-	slot_container.columns = 2  # TWO COLUMNS = QUADRANT LAYOUT!
-	slot_container.add_theme_constant_override("h_separation", int(12 * scale))
-	slot_container.add_theme_constant_override("v_separation", int(12 * scale))
-	main_vbox.add_child(slot_container)
-
-	# Create 4 quest slots in quadrant pattern:
-	# [U] [I]
-	# [O] [P]
-	for i in range(4):
-		var slot = QuestSlot.new()
-		slot.set_layout_manager(layout_manager)
-		slot.slot_letter = SLOT_KEYS[i]
-		slot.slot_index = i
-		slot.slot_selected.connect(_on_slot_selected)
-		slot_container.add_child(slot)
-		quest_slots.append(slot)
-
-	# Accessible factions label
-	accessible_factions_label = Label.new()
-	accessible_factions_label.text = "📚 Accessible Factions: 0/68"
-	accessible_factions_label.add_theme_font_size_override("font_size", normal_size)
-	accessible_factions_label.modulate = Color(0.9, 0.9, 0.5)
-	accessible_factions_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	main_vbox.add_child(accessible_factions_label)
-
-	# Select first slot by default
-	select_slot(0)
-
-
 func open_board() -> void:
 	"""Open the quest board"""
 	if not quest_manager or not current_biome:
@@ -283,24 +199,26 @@ func open_board() -> void:
 		return
 
 	visible = true
-	mouse_filter = Control.MOUSE_FILTER_STOP  # Capture input when open
+	is_active = true
 	_refresh_biome_state()
 	_refresh_slots()
 	_update_accessible_count()
 
 	# Emit board opened signal and initial selection
 	board_opened.emit()
+	overlay_opened.emit()
 	_emit_selection_update()
 
 
 func close_board() -> void:
 	"""Close the quest board"""
 	visible = false
-	mouse_filter = Control.MOUSE_FILTER_IGNORE  # Release input to prevent blocking
+	is_active = false
 	is_browser_open = false
 	if faction_browser:
 		faction_browser.visible = false
 	board_closed.emit()
+	overlay_closed.emit()
 
 
 func open_faction_browser() -> void:
@@ -464,7 +382,7 @@ func _update_accessible_count() -> void:
 		return
 
 	var all_quests = quest_manager.offer_all_faction_quests(current_biome)
-	accessible_factions_label.text = "📚 %d/68 factions accessible (learn more emojis!)" % all_quests.size()
+	accessible_factions_label.text = "%d/68 factions accessible (learn more emojis!)" % all_quests.size()
 
 
 func _update_page_display() -> void:
@@ -491,9 +409,9 @@ func _update_page_display() -> void:
 	var current_page = (quest_page_offset / max(1, unpinned_slots)) + 1
 
 	# Show pinned count if any slots are pinned
-	var pinned_text = " | 📌 %d pinned" % pinned_count if pinned_count > 0 else ""
+	var pinned_text = " | %d pinned" % pinned_count if pinned_count > 0 else ""
 
-	accessible_factions_label.text = "📚 Page %d/%d  |  %d quests%s  |  [F] Next" % [
+	accessible_factions_label.text = "Page %d/%d  |  %d quests%s  |  [F] Next" % [
 		current_page, total_pages, all_available_quests.size(), pinned_text
 	]
 
@@ -511,38 +429,38 @@ func select_slot(index: int) -> void:
 
 
 func _navigate_up() -> void:
-	"""Navigate up in 2×2 grid: O→U, P→I"""
+	"""Navigate up in 2x2 grid: O->U, P->I"""
 	match selected_slot_index:
-		2:  # O → U
+		2:  # O -> U
 			select_slot(0)
-		3:  # P → I
+		3:  # P -> I
 			select_slot(1)
 
 
 func _navigate_down() -> void:
-	"""Navigate down in 2×2 grid: U→O, I→P"""
+	"""Navigate down in 2x2 grid: U->O, I->P"""
 	match selected_slot_index:
-		0:  # U → O
+		0:  # U -> O
 			select_slot(2)
-		1:  # I → P
+		1:  # I -> P
 			select_slot(3)
 
 
 func _navigate_left() -> void:
-	"""Navigate left in 2×2 grid: I→U, P→O"""
+	"""Navigate left in 2x2 grid: I->U, P->O"""
 	match selected_slot_index:
-		1:  # I → U
+		1:  # I -> U
 			select_slot(0)
-		3:  # P → O
+		3:  # P -> O
 			select_slot(2)
 
 
 func _navigate_right() -> void:
-	"""Navigate right in 2×2 grid: U→I, O→P"""
+	"""Navigate right in 2x2 grid: U->I, O->P"""
 	match selected_slot_index:
-		0:  # U → I
+		0:  # U -> I
 			select_slot(1)
-		2:  # O → P
+		2:  # O -> P
 			select_slot(3)
 
 
@@ -552,7 +470,7 @@ func _emit_selection_update() -> void:
 		return
 
 	var slot = quest_slots[selected_slot_index]
-	selection_changed.emit(slot.state, slot.is_locked)
+	slot_selection_changed.emit(slot.state, slot.is_locked)
 
 
 func _update_slot_selection() -> void:
@@ -574,43 +492,35 @@ func action_q_on_selected() -> void:
 	"""Q action: Accept (OFFERED), Deliver (ACTIVE DELIVERY), or Claim (READY)"""
 	var slot = quest_slots[selected_slot_index]
 	var quest_type = slot.quest_data.get("type", 0)  # 0 = DELIVERY
-	print("🎯 action_q_on_selected: slot=%d, state=%d, quest_type=%d, quest_id=%d" % [
-		selected_slot_index, slot.state, quest_type, slot.quest_data.get("id", -1)])
 
 	match slot.state:
 		SlotState.OFFERED:
-			print("  → Accepting quest")
 			_accept_quest(slot)
 		SlotState.READY:
 			# Claim rewards (works for both DELIVERY and non-DELIVERY)
 			if quest_type == 0:
-				print("  → Delivering READY quest")
 				_deliver_quest(slot)  # DELIVERY: deduct resources, grant rewards
 			else:
-				print("  → Claiming READY quest")
 				_claim_quest(slot)  # Non-DELIVERY: just grant rewards
 		SlotState.ACTIVE:
 			if quest_type == 0:  # DELIVERY
 				# Check if player has resources to deliver
 				var can_deliver = _check_can_complete(slot)
-				print("  → ACTIVE DELIVERY, can_deliver=%s" % str(can_deliver))
 				if can_deliver:
 					_deliver_quest(slot)
-				else:
-					print("  ⚠️ Not enough resources to deliver")
-			else:  # Non-DELIVERY (SHAPE_ACHIEVE etc.)
-				print("  ℹ️ This quest tracks automatically - watch the biome state!")
 
 
 func action_e_on_selected() -> void:
-	"""E action: Reroll (OFFERED), Abandon (ACTIVE), or Reject (READY non-DELIVERY)"""
+	"""E action: Lock/Unlock (OFFERED), Abandon (ACTIVE), or Reject (READY non-DELIVERY)"""
 	var slot = quest_slots[selected_slot_index]
 	var quest_type = slot.quest_data.get("type", 0)  # 0 = DELIVERY
 
 	match slot.state:
 		SlotState.OFFERED:
-			if not slot.is_locked:
-				_reroll_quest(slot)
+			# E = Lock/Unlock toggle
+			slot.toggle_lock()
+			_save_slot_state()
+			_emit_selection_update()
 		SlotState.ACTIVE:
 			_abandon_quest(slot)
 		SlotState.READY:
@@ -621,82 +531,81 @@ func action_e_on_selected() -> void:
 
 
 func action_r_on_selected() -> void:
-	"""R action: Lock/Unlock toggle"""
+	"""R action: Generate (EMPTY) or Reroll (OFFERED)"""
 	var slot = quest_slots[selected_slot_index]
-	slot.toggle_lock()
-	_save_slot_state()
+
+	match slot.state:
+		SlotState.EMPTY:
+			# Generate a new quest for this empty slot
+			_reroll_quest(slot)
+		SlotState.OFFERED:
+			if not slot.is_locked:
+				_reroll_quest(slot)
 
 
-func _accept_quest(slot: QuestSlot) -> void:
+func _accept_quest(slot) -> void:
 	"""Accept an offered quest"""
 	if not quest_manager:
-		print("❌ _accept_quest: quest_manager is null!")
 		return
 
-	# CRITICAL: Save quest data and set slot to ACTIVE *before* calling accept_quest
-	# because accept_quest emits active_quests_changed which triggers _refresh_slots,
-	# and we need the slot to be pinned (ACTIVE) so it doesn't get overwritten!
+	# CRITICAL: Disconnect _refresh_slots temporarily to prevent rerolling other slots
+	# when accept_quest emits active_quests_changed
+	var was_connected = false
+	if quest_manager.active_quests_changed.is_connected(_refresh_slots):
+		quest_manager.active_quests_changed.disconnect(_refresh_slots)
+		was_connected = true
+
+	# Save quest data and set slot to ACTIVE
 	var quest_data_copy = slot.quest_data.duplicate(true)
-	print("📝 _accept_quest: Duplicated quest ID=%d, faction=%s" % [
-		quest_data_copy.get("id", -1), quest_data_copy.get("faction", "?")])
 	slot.set_quest_active(quest_data_copy)
 
 	var success = quest_manager.accept_quest(quest_data_copy)
+
+	# Reconnect signal
+	if was_connected:
+		quest_manager.active_quests_changed.connect(_refresh_slots)
+
 	if success:
 		quest_accepted.emit(quest_data_copy)
 		_save_slot_state()
 		# CRITICAL: Update action labels after state change!
 		_emit_selection_update()
-		print("✅ Accepted quest: %s (ID: %d)" % [quest_data_copy.get("faction", "Unknown"), quest_data_copy.get("id", -1)])
 	else:
-		print("❌ _accept_quest: accept_quest returned false")
 		# Revert slot state if accept failed
 		slot.set_quest_offered(quest_data_copy, slot.is_locked)
 
 
-func _deliver_quest(slot: QuestSlot) -> void:
+func _deliver_quest(slot) -> void:
 	"""Deliver a DELIVERY quest - deducts resources and grants rewards"""
 	if not quest_manager:
-		print("❌ _deliver_quest: quest_manager is null!")
 		return
 
 	var quest_id = slot.quest_data.get("id", -1)
-	print("📦 _deliver_quest: quest_id=%d, faction=%s" % [quest_id, slot.quest_data.get("faction", "?")])
 	if quest_id < 0:
-		print("❌ _deliver_quest: invalid quest_id!")
 		return
 
 	var success = quest_manager.complete_quest(quest_id)
 	if success:
-		print("✅ Delivered quest: %s" % slot.quest_data.get("faction", "Unknown"))
 		_emit_selection_update()
 		# Slot will be auto-filled on next refresh
-	else:
-		print("❌ _deliver_quest: complete_quest returned false")
 
 
-func _claim_quest(slot: QuestSlot) -> void:
+func _claim_quest(slot) -> void:
 	"""Claim rewards for a READY non-DELIVERY quest"""
 	if not quest_manager:
-		print("❌ _claim_quest: quest_manager is null!")
 		return
 
 	var quest_id = slot.quest_data.get("id", -1)
-	print("🎁 _claim_quest: quest_id=%d, faction=%s" % [quest_id, slot.quest_data.get("faction", "?")])
 	if quest_id < 0:
-		print("❌ _claim_quest: invalid quest_id!")
 		return
 
 	var success = quest_manager.claim_quest(quest_id)
 	if success:
-		print("✅ Claimed quest rewards: %s" % slot.quest_data.get("faction", "Unknown"))
 		_emit_selection_update()
 		# Slot will be auto-filled on next refresh
-	else:
-		print("❌ _claim_quest: claim_quest returned false")
 
 
-func _reject_quest(slot: QuestSlot) -> void:
+func _reject_quest(slot) -> void:
 	"""Reject a READY non-DELIVERY quest without claiming rewards"""
 	if not quest_manager:
 		return
@@ -709,10 +618,9 @@ func _reject_quest(slot: QuestSlot) -> void:
 	quest_abandoned.emit(quest_id)
 	_auto_fill_slot(slot.slot_index)
 	_save_slot_state()
-	print("🚫 Rejected quest: %s" % slot.quest_data.get("faction", "Unknown"))
 
 
-func _abandon_quest(slot: QuestSlot) -> void:
+func _abandon_quest(slot) -> void:
 	"""Abandon an active quest"""
 	if not quest_manager:
 		return
@@ -725,10 +633,9 @@ func _abandon_quest(slot: QuestSlot) -> void:
 	quest_abandoned.emit(quest_id)
 	_auto_fill_slot(slot.slot_index)
 	_save_slot_state()
-	print("❌ Abandoned quest: %s" % slot.quest_data.get("faction", "Unknown"))
 
 
-func _reroll_quest(slot: QuestSlot) -> void:
+func _reroll_quest(slot) -> void:
 	"""Reroll quest in slot (get random different faction)"""
 	if not quest_manager or not current_biome:
 		return
@@ -753,17 +660,15 @@ func _reroll_quest(slot: QuestSlot) -> void:
 			available.append(quest)
 
 	if available.is_empty():
-		print("⚠️ No other factions available to reroll")
 		return
 
 	# Pick random
 	var new_quest = available[randi() % available.size()]
 	slot.set_quest_offered(new_quest, slot.is_locked)
 	_save_slot_state()
-	print("🔄 Rerolled to: %s" % new_quest.get("faction", "Unknown"))
 
 
-func _check_can_complete(slot: QuestSlot) -> bool:
+func _check_can_complete(slot) -> bool:
 	"""Check if quest can be completed"""
 	if not quest_manager:
 		return false
@@ -803,7 +708,6 @@ func _on_quest_ready_to_claim(quest_id: int) -> void:
 		if slot.quest_data.get("id", -1) == quest_id:
 			slot.state = SlotState.READY
 			slot._refresh_ui()
-			print("✨ Quest ready to claim: %s" % slot.quest_data.get("faction", "Unknown"))
 			# Update action labels if this slot is selected
 			if i == selected_slot_index:
 				_emit_selection_update()
@@ -832,7 +736,7 @@ func _save_slot_state() -> void:
 
 
 # =============================================================================
-# V2 OVERLAY INTERFACE
+# V2 OVERLAY INTERFACE OVERRIDES
 # =============================================================================
 
 func activate() -> void:
@@ -910,17 +814,20 @@ func get_action_labels() -> Dictionary:
 
 	match slot.state:
 		SlotState.EMPTY:
-			labels["Q"] = "—"
-			labels["E"] = "—"
+			labels["Q"] = "-"
+			labels["E"] = "-"
+			labels["R"] = "Generate"
 		SlotState.OFFERED:
 			labels["Q"] = "Accept"
-			labels["E"] = "Reroll" if not slot.is_locked else "—"
+			labels["E"] = "Unlock" if slot.is_locked else "Lock"
+			labels["R"] = "Reroll" if not slot.is_locked else "-"
 		SlotState.ACTIVE:
 			if quest_type == 0:  # DELIVERY - player delivers resources
 				labels["Q"] = "Deliver"
 			else:  # SHAPE_ACHIEVE etc. - auto-tracks biome state
 				labels["Q"] = "Tracking"
 			labels["E"] = "Abandon"
+			labels["R"] = "-"
 		SlotState.READY:
 			if quest_type == 0:  # DELIVERY ready to turn in
 				labels["Q"] = "Deliver"
@@ -928,26 +835,9 @@ func get_action_labels() -> Dictionary:
 			else:  # SHAPE_ACHIEVE conditions met - claim rewards
 				labels["Q"] = "Claim"
 				labels["E"] = "Reject"
-
-	# R label based on lock state
-	labels["R"] = "Unlock" if slot.is_locked else "Lock"
+			labels["R"] = "-"
 
 	return labels
-
-
-func get_overlay_info() -> Dictionary:
-	"""v2 overlay interface: Get overlay metadata for registration."""
-	return {
-		"name": overlay_name,
-		"icon": overlay_icon,
-		"action_labels": get_action_labels(),
-		"tier": overlay_tier
-	}
-
-
-func get_overlay_tier() -> int:
-	"""Get z-index tier for OverlayStackManager."""
-	return overlay_tier
 
 
 # =============================================================================
@@ -958,13 +848,15 @@ class QuestSlot extends PanelContainer:
 	"""Individual quest slot display - Two column layout
 
 	Layout:
-	┌────────────────────────────────────┐
-	│ [U] 🔒  Faction Name        😊 ♾️ │
-	├────────────────┬───────────────────┤
-	│   Deliver      │        🌾         │
-	│    🌾 × 5      │       ━━━         │
-	│                │        🍄         │
-	└────────────────┴───────────────────┘
+	|---------------------------------------|
+	| [U] Lock  Faction Name        Mood    |
+	|---------------+------------------------|
+	|   Deliver     |        North           |
+	|    Emoji x 5  |       --------         |
+	|               |        South           |
+	|---------------+------------------------|
+	| Signature             Alignment        |
+	|---------------------------------------|
 	"""
 
 	signal slot_selected(slot_index: int)
@@ -972,28 +864,28 @@ class QuestSlot extends PanelContainer:
 	var layout_manager: Node
 	var slot_letter: String = "U"
 	var slot_index: int = 0
-	var state: int = SlotState.EMPTY
+	var state: int = QuestBoard.SlotState.EMPTY
 	var quest_data: Dictionary = {}
 	var is_locked: bool = false
 	var is_selected: bool = false
 
 	# UI elements - Header row
-	var slot_label: Label        # [U] 🔒
+	var slot_label: Label        # [U] Lock
 	var faction_label: Label     # Faction name
-	var status_label: Label      # 😊 ♾️
+	var status_label: Label      # Mood
 
 	# UI elements - Left column (requirement)
 	var action_type_label: Label   # "Deliver" or "Reach" etc.
-	var requirement_label: Label   # "🌾 × 5" or "purity ≥ 70%"
+	var requirement_label: Label   # "Emoji x 5" or "purity >= 70%"
 
 	# UI elements - Right column (reward)
 	var north_label: Label       # North emoji (BIG)
-	var separator_label: Label   # ━━━
+	var separator_label: Label   # --------
 	var south_label: Label       # South emoji (BIG)
 
 	# UI elements - Bottom bar (faction info)
 	var signature_label: Label      # Faction signature emojis
-	var alignment_bar_label: Label  # 😊 ████████░░
+	var alignment_bar_label: Label  # Mood + bar
 
 	func _ready() -> void:
 		_create_ui()
@@ -1098,7 +990,7 @@ class QuestSlot extends PanelContainer:
 		# Separator line
 		separator_label = Label.new()
 		separator_label.add_theme_font_size_override("font_size", 10)
-		separator_label.text = "━━━"
+		separator_label.text = "--------"
 		separator_label.modulate = Color(0.6, 0.6, 0.6)
 		separator_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		right_vbox.add_child(separator_label)
@@ -1130,19 +1022,19 @@ class QuestSlot extends PanelContainer:
 		_refresh_ui()
 
 	func set_empty() -> void:
-		state = SlotState.EMPTY
+		state = QuestBoard.SlotState.EMPTY
 		quest_data = {}
 		is_locked = false
 		_refresh_ui()
 
 	func set_quest_offered(quest: Dictionary, locked: bool) -> void:
-		state = SlotState.OFFERED
+		state = QuestBoard.SlotState.OFFERED
 		quest_data = quest
 		is_locked = locked
 		_refresh_ui()
 
 	func set_quest_active(quest: Dictionary) -> void:
-		state = SlotState.ACTIVE
+		state = QuestBoard.SlotState.ACTIVE
 		quest_data = quest
 		_refresh_ui()
 
@@ -1157,17 +1049,17 @@ class QuestSlot extends PanelContainer:
 	func _refresh_ui() -> void:
 		"""Update all UI elements based on state"""
 		# Header: slot key + lock
-		var lock_icon = "🔒" if is_locked else ""
+		var lock_icon = "Lock" if is_locked else ""
 		slot_label.text = "[%s]%s" % [slot_letter, lock_icon]
 
 		match state:
-			SlotState.EMPTY:
+			QuestBoard.SlotState.EMPTY:
 				_refresh_empty_ui()
-			SlotState.OFFERED:
+			QuestBoard.SlotState.OFFERED:
 				_refresh_offered_ui()
-			SlotState.ACTIVE:
+			QuestBoard.SlotState.ACTIVE:
 				_refresh_active_ui()
-			SlotState.READY:
+			QuestBoard.SlotState.READY:
 				_refresh_ready_ui()
 
 		# Selection highlight
@@ -1220,8 +1112,8 @@ class QuestSlot extends PanelContainer:
 	func _refresh_active_ui() -> void:
 		"""Active quest display"""
 		# Header with active indicator
-		faction_label.text = "⚡ %s" % quest_data.get("faction", "Unknown")
-		status_label.text = "🔥"
+		faction_label.text = "* %s" % quest_data.get("faction", "Unknown")
+		status_label.text = "Active"
 
 		# Left: Requirement
 		var quest_type = quest_data.get("type", 0)
@@ -1239,13 +1131,13 @@ class QuestSlot extends PanelContainer:
 	func _refresh_ready_ui() -> void:
 		"""Ready to claim display"""
 		# Header with ready indicator
-		faction_label.text = "✅ %s" % quest_data.get("faction", "Unknown")
-		status_label.text = "✨"
+		faction_label.text = "Done %s" % quest_data.get("faction", "Unknown")
+		status_label.text = "Ready"
 
 		# Left: Requirement (completed)
 		var quest_type = quest_data.get("type", 0)
 		_set_requirement_display(quest_type)
-		action_type_label.text = "✓ " + action_type_label.text
+		action_type_label.text = "Done " + action_type_label.text
 
 		# Right: Vocab pair reward (highlighted)
 		_set_reward_display()
@@ -1266,13 +1158,13 @@ class QuestSlot extends PanelContainer:
 				action_type_label.text = "Deliver"
 				var resource = quest_data.get("resource", "?")
 				var quantity = quest_data.get("quantity", 1)
-				requirement_label.text = "%s × %d" % [resource, quantity]
+				requirement_label.text = "%s x %d" % [resource, quantity]
 			1:  # SHAPE_ACHIEVE
 				action_type_label.text = "Reach"
 				var obs = quest_data.get("observable", "purity")
 				var target = quest_data.get("target", 0.7)
 				var comp = quest_data.get("comparison", ">")
-				var comp_str = "≥" if comp == ">" else "≤"
+				var comp_str = ">=" if comp == ">" else "<="
 				requirement_label.text = "%s %s %d%%" % [obs, comp_str, int(target * 100)]
 			2:  # SHAPE_MAINTAIN
 				action_type_label.text = "Hold"
@@ -1280,7 +1172,7 @@ class QuestSlot extends PanelContainer:
 				var target = quest_data.get("target", 0.7)
 				var duration = quest_data.get("duration", 30)
 				var comp = quest_data.get("comparison", ">")
-				var comp_str = "≥" if comp == ">" else "≤"
+				var comp_str = ">=" if comp == ">" else "<="
 				requirement_label.text = "%s %s %d%% %ds" % [obs, comp_str, int(target * 100), int(duration)]
 			3:  # EVOLUTION
 				var direction = quest_data.get("direction", "increase")
@@ -1291,7 +1183,7 @@ class QuestSlot extends PanelContainer:
 			4:  # ENTANGLEMENT
 				action_type_label.text = "Entangle"
 				var target = quest_data.get("target_coherence", 0.6)
-				requirement_label.text = "≥ %d%%" % int(target * 100)
+				requirement_label.text = ">= %d%%" % int(target * 100)
 			_:
 				action_type_label.text = "Quest"
 				requirement_label.text = quest_data.get("body", "???")
@@ -1302,7 +1194,7 @@ class QuestSlot extends PanelContainer:
 		var south = quest_data.get("reward_vocab_south", "")
 
 		if north == "":
-			north_label.text = "✓"
+			north_label.text = "OK"
 			separator_label.visible = false
 			south_label.text = "known"
 			north_label.modulate = Color(0.6, 0.6, 0.6)
@@ -1326,7 +1218,7 @@ class QuestSlot extends PanelContainer:
 		var sig = quest_data.get("faction_signature", quest_data.get("sig", []))
 		var sig_text = "".join(sig.slice(0, 5)) if sig.size() > 0 else ""
 
-		# Alignment bar: 😊 ████████░░
+		# Alignment bar: Mood + bar
 		var mood = _alignment_to_mood_icon(alignment)
 		var bar = _make_alignment_bar(alignment, 8)
 
@@ -1335,28 +1227,28 @@ class QuestSlot extends PanelContainer:
 		alignment_bar_label.text = ""  # Not used anymore, all in signature_label
 
 	func _make_alignment_bar(value: float, length: int) -> String:
-		"""Create visual alignment bar: ████████░░"""
+		"""Create visual alignment bar"""
 		var filled = int(value * length)
 		var bar = ""
 		for i in range(length):
 			if i < filled:
-				bar += "█"
+				bar += "#"
 			else:
-				bar += "░"
+				bar += "-"
 		return bar
 
 	func _alignment_to_mood_icon(alignment: float) -> String:
 		"""Convert alignment to single mood emoji"""
 		if alignment > 0.8:
-			return "😊"
+			return ":)"
 		elif alignment > 0.6:
-			return "🙂"
+			return ":)"
 		elif alignment > 0.4:
-			return "😐"
+			return ":|"
 		elif alignment > 0.2:
-			return "😕"
+			return ":("
 		else:
-			return "😠"
+			return ">:("
 
 	func _set_bg_color(color: Color) -> void:
 		"""Set background with clean style"""

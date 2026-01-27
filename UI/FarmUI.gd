@@ -13,7 +13,7 @@ extends Control
 signal farm_setup_complete  # Emitted when setup_farm() finishes and input_handler is ready
 
 const PlotGridDisplay = preload("res://UI/PlotGridDisplay.gd")
-const FarmInputHandler = preload("res://UI/FarmInputHandler.gd")
+# FarmInputHandler REMOVED - replaced by QuantumInstrumentInput (created in BootManager)
 const ResourcePanel = preload("res://UI/Panels/ResourcePanel.gd")
 const QuantumModeStatusIndicator = preload("res://UI/Panels/QuantumModeStatusIndicator.gd")
 const GridConfig = preload("res://Core/GameState/GridConfig.gd")

@@ -3,76 +3,79 @@ extends HBoxContainer
 
 ## Physical keyboard layout UI - Middle row with QER action preview buttons
 ## Displays what Q/E/R actions will do based on selected tool
-## Buttons are touch-friendly hexagonal buttons with custom texture
-## Uses HexButton.svg from Assets/UI/Chrome for sci-fi aesthetic
+## Buttons use BtnBtmMidl.svg (identical styling to 1234 tool buttons)
+## Uses BtnBtmMidl.svg from Assets/UI/Chrome for sci-fi aesthetic
 
 # Tool actions from shared config (single source of truth)
 const ToolConfig = preload("res://Core/GameState/ToolConfig.gd")
 const ProbeActions = preload("res://Core/Actions/ProbeActions.gd")
+const EconomyConstants = preload("res://Core/GameMechanics/EconomyConstants.gd")
+const LindbladHandler = preload("res://UI/Handlers/LindbladHandler.gd")
+const EmojiDisplay = preload("res://UI/Core/EmojiDisplay.gd")
 const TOOL_ACTIONS = ToolConfig.TOOL_ACTIONS
 
-# HexButton texture path
-const HEX_BUTTON_PATH = "res://Assets/UI/Chrome/HexButton.svg"
+# Button texture path (matches ToolSelectionRow)
+const BTN_TEXTURE_PATH = "res://Assets/UI/Chrome/BtnBtmMidl.svg"
 
 # Action buttons - now stores container references with .texture and .label children
 var action_buttons: Dictionary = {}  # "Q", "E", "R" -> {container, texture, label, disabled}
-var current_tool: int = 1
+var current_tool: int = 3  # Default to tool 3 (matches ToolConfig.current_group)
 var current_submenu: String = ""  # Active submenu name (empty = show tool actions)
+var current_submenu_actions: Dictionary = {}
 
 # References for checking action availability
 var plot_grid_display = null  # Injected reference to PlotGridDisplay
 var farm = null  # Injected reference to Farm
-var input_handler = null  # Injected reference to FarmInputHandler (for validation)
+var input_handler = null  # DEPRECATED: Use quantum_input instead
+var quantum_input = null  # Injected reference to QuantumInstrumentInput
 
-# Styling - colors applied via modulate on the TextureRect
+# Styling - colors applied via modulate on the TextureRect (matches ToolSelectionRow)
 var button_color: Color = Color(1.0, 1.0, 1.0)  # Normal state (texture's natural color)
 var hover_color: Color = Color(1.2, 1.2, 1.2)  # Slightly brighter on hover
 var disabled_color: Color = Color(0.3, 0.3, 0.3)  # Dark for disabled
 var enabled_color: Color = Color(0.5, 1.0, 0.5)  # Green tint for available actions
-var pressed_color: Color = Color(0.7, 0.7, 0.7)  # Darker when pressed
+var pressed_color: Color = Color(0.6, 0.6, 0.6)  # Darker when pressed
 
 # Layout manager for scaling
 var layout_manager
 var scale_factor: float = 1.0
 
-# Preloaded hex button texture
-var hex_button_texture: Texture2D = null
+# Preloaded button texture (matches ToolSelectionRow)
+var btn_texture: Texture2D = null
 
 # Signals
 signal action_pressed(action_key: String)
 
 
 func _ready():
-	# Z-index: Above quest board (3500), above tool selection (3000)
-	z_index = 4000
+	# Z-index: ActionBarLayer(50) + 4 = 54 total (below tool selection at 55)
+	z_index = 4
 
-	# Load hex button texture
-	hex_button_texture = load(HEX_BUTTON_PATH)
-	if not hex_button_texture:
-		push_warning("ActionPreviewRow: Could not load HexButton texture from %s" % HEX_BUTTON_PATH)
+	# Load button texture (matches ToolSelectionRow)
+	btn_texture = load(BTN_TEXTURE_PATH)
+	if not btn_texture:
+		push_warning("ActionPreviewRow: Could not load button texture from %s" % BTN_TEXTURE_PATH)
 
-	# Container setup
-	# Note: Don't use anchors in container children - let parent handle layout
-	# Reduced spacing to give more room to buttons themselves
-	add_theme_constant_override("separation", 12)  # Slightly more space for hex buttons
-	add_theme_constant_override("margin_left", 4)
-	add_theme_constant_override("margin_right", 4)
-	add_theme_constant_override("margin_top", 2)
-	add_theme_constant_override("margin_bottom", 2)
+	# Container setup (matches ToolSelectionRow)
+	add_theme_constant_override("separation", 8)
+	add_theme_constant_override("margin_left", 8)
+	add_theme_constant_override("margin_right", 8)
+	add_theme_constant_override("margin_top", 4)
+	add_theme_constant_override("margin_bottom", 4)
 
 	# Allow keyboard input to pass through, but buttons can still receive clicks
 	mouse_filter = MOUSE_FILTER_PASS
 	size_flags_horizontal = Control.SIZE_EXPAND_FILL
 
-	# Create Q, E, R hex action buttons
+	# Create Q, E, R action buttons (matches 1234 button style)
 	for action_key in ["Q", "E", "R"]:
-		var hex_btn = _create_hex_button(action_key)
-		add_child(hex_btn.container)
-		action_buttons[action_key] = hex_btn
+		var btn_data = _create_action_button(action_key)
+		add_child(btn_data.container)
+		action_buttons[action_key] = btn_data
 
 	# Update display for current tool
 	update_for_tool(1)
-	print("⬡ ActionPreviewRow initialized with HexButton textures")
+	print("🛠️  ActionPreviewRow initialized with BtnBtmMidl textures (matches 1234 buttons)")
 
 
 func update_for_tool(tool_num: int) -> void:
@@ -82,6 +85,7 @@ func update_for_tool(tool_num: int) -> void:
 
 	current_tool = tool_num
 	current_submenu = ""  # Clear submenu when tool changes
+	current_submenu_actions = {}
 
 	# Update each action button using ToolConfig API (respects F-cycling)
 	for action_key in ["Q", "E", "R"]:
@@ -93,19 +97,29 @@ func update_for_tool(tool_num: int) -> void:
 		var emoji = ToolConfig.get_action_emoji(tool_num, action_key)
 		var icon_path = ToolConfig.get_action_icon(tool_num, action_key)
 
-		# Update button label text (shorter format for icon display)
-		btn_data.label.text = "[%s] %s" % [action_key, label_text]
-
-		# Load and display icon if available
+		# Try to load icon, fall back to emoji if unavailable
+		var has_icon = false
 		if icon_path != "" and btn_data.has("icon"):
 			var icon_tex = load(icon_path)
 			if icon_tex:
 				btn_data.icon.texture = icon_tex
 				btn_data.icon.visible = true
+				has_icon = true
 			else:
 				btn_data.icon.visible = false
 		elif btn_data.has("icon"):
 			btn_data.icon.visible = false
+
+		# Update button label text
+		# If icon loaded, omit emoji from label; otherwise include it as fallback
+		if has_icon:
+			btn_data.label.text = "[%s] %s" % [action_key, label_text]
+			btn_data.label.offset_left = 40 * scale_factor  # Make room for icon
+			btn_data.base_label_offset = 40 * scale_factor
+		else:
+			btn_data.label.text = "[%s] %s %s" % [action_key, emoji, label_text]
+			btn_data.label.offset_left = 0
+			btn_data.base_label_offset = 0
 
 		# Reset disabled state
 		btn_data.disabled = false
@@ -116,12 +130,13 @@ func update_for_tool(tool_num: int) -> void:
 
 	# Update action availability based on selected plots
 	update_action_availability()
+	_update_action_costs()
 
 
 func update_for_submenu(submenu_name: String, submenu_info: Dictionary) -> void:
 	"""Update action buttons to show submenu actions
 
-	Called when entering a submenu (e.g., 1-Q opens plant submenu).
+	Called when entering a submenu (e.g., 4-Q opens vocab injection).
 	submenu_info contains Q/E/R action definitions.
 
 	Supports _availability dict for per-action availability (e.g., mill power sources).
@@ -130,10 +145,12 @@ func update_for_submenu(submenu_name: String, submenu_info: Dictionary) -> void:
 	if submenu_name == "":
 		# Exiting submenu - restore tool display
 		current_submenu = ""
+		current_submenu_actions = {}
 		update_for_tool(current_tool)
 		return
 
 	current_submenu = submenu_name
+	current_submenu_actions = submenu_info
 
 	# Check if entire submenu is disabled
 	var is_disabled = submenu_info.get("_disabled", false)
@@ -155,21 +172,29 @@ func update_for_submenu(submenu_name: String, submenu_info: Dictionary) -> void:
 		var action = action_info.get("action", "")
 		var icon_path = action_info.get("icon", "")
 
-		# Update button label text (shorter format)
-		btn_data.label.text = "[%s] %s" % [action_key, label_text]
-
-		# Load and display icon if available
+		# Try to load icon, fall back to emoji if unavailable
+		var has_icon = false
 		if icon_path != "" and btn_data.has("icon"):
 			var icon_tex = load(icon_path)
 			if icon_tex:
 				btn_data.icon.texture = icon_tex
 				btn_data.icon.visible = true
+				has_icon = true
 			else:
 				btn_data.icon.visible = false
 		elif btn_data.has("icon"):
-			# No icon path - hide icon, show emoji in label instead
 			btn_data.icon.visible = false
+
+		# Update button label text
+		# If icon loaded, omit emoji from label; otherwise include it as fallback
+		if has_icon:
+			btn_data.label.text = "[%s] %s" % [action_key, label_text]
+			btn_data.label.offset_left = 40 * scale_factor
+			btn_data.base_label_offset = 40 * scale_factor
+		else:
 			btn_data.label.text = "[%s] %s %s" % [action_key, emoji, label_text]
+			btn_data.label.offset_left = 0
+			btn_data.base_label_offset = 0
 
 		# Check per-action availability (from _availability dict)
 		# Default to true (available) if not specified
@@ -186,6 +211,7 @@ func update_for_submenu(submenu_name: String, submenu_info: Dictionary) -> void:
 	# CRITICAL: Update button colors based on validation (resources, plot states, etc.)
 	# This must happen AFTER text is updated so validation knows what submenu we're in
 	update_action_availability()
+	_update_action_costs()
 
 
 func update_for_quest_board(slot_state: int, is_locked: bool = false) -> void:
@@ -195,6 +221,7 @@ func update_for_quest_board(slot_state: int, is_locked: bool = false) -> void:
 	Shows context-aware quest actions based on slot state.
 	"""
 	current_submenu = "quest_board"  # Mark as special mode
+	current_submenu_actions = {}
 
 	# Quest slot states (from QuestBoard)
 	const EMPTY = 0
@@ -205,35 +232,43 @@ func update_for_quest_board(slot_state: int, is_locked: bool = false) -> void:
 	var q_data = action_buttons["Q"]
 	var e_data = action_buttons["E"]
 	var r_data = action_buttons["R"]
+	q_data.base_label_offset = 0
+	e_data.base_label_offset = 0
+	r_data.base_label_offset = 0
+
+	# Hide all glyphs in quest board mode (text labels only)
+	q_data.icon.visible = false
+	e_data.icon.visible = false
+	r_data.icon.visible = false
 
 	match slot_state:
 		EMPTY:
-			# Empty slot - only E to generate
+			# Empty slot - only R to generate
 			q_data.label.text = "[Q] -"
 			q_data.disabled = true
 			q_data.texture.modulate = disabled_color
 
-			e_data.label.text = "[E] 🔄 Generate"
-			e_data.disabled = false
-			e_data.texture.modulate = enabled_color
+			e_data.label.text = "[E] -"
+			e_data.disabled = true
+			e_data.texture.modulate = disabled_color
 
-			r_data.label.text = "[R] -"
-			r_data.disabled = true
-			r_data.texture.modulate = disabled_color
+			r_data.label.text = "[R] 🔄 Generate"
+			r_data.disabled = false
+			r_data.texture.modulate = enabled_color
 
 		OFFERED:
-			# Offered quest - Q=Accept, E=Reroll, R=Lock/Unlock
+			# Offered quest - Q=Accept, E=Lock/Unlock, R=Reroll
 			q_data.label.text = "[Q] ✅ Accept"
 			q_data.disabled = false
 			q_data.texture.modulate = enabled_color
 
-			e_data.label.text = "[E] 🔄 Reroll"
-			e_data.disabled = is_locked
-			e_data.texture.modulate = disabled_color if is_locked else button_color
+			e_data.label.text = "[E] 🔒 %s" % ("Unlock" if is_locked else "Lock")
+			e_data.disabled = false
+			e_data.texture.modulate = button_color
 
-			r_data.label.text = "[R] 🔒 %s" % ("Unlock" if is_locked else "Lock")
-			r_data.disabled = false
-			r_data.texture.modulate = button_color
+			r_data.label.text = "[R] 🔄 Reroll"
+			r_data.disabled = is_locked
+			r_data.texture.modulate = disabled_color if is_locked else button_color
 
 		ACTIVE:
 			# Active quest - Q=Complete, E=Abandon
@@ -263,6 +298,8 @@ func update_for_quest_board(slot_state: int, is_locked: bool = false) -> void:
 			r_data.disabled = true
 			r_data.texture.modulate = disabled_color
 
+	_update_action_costs()
+
 
 func restore_normal_mode() -> void:
 	"""Restore normal tool display (called when quest board closes)"""
@@ -286,7 +323,13 @@ func set_action_enabled(action_key: String, enabled: bool) -> void:
 
 
 func update_action_availability() -> void:
-	"""Check selected plots and highlight available actions"""
+	"""Check selected plots and highlight available actions.
+
+	Uses QuantumInstrumentInput for current selection state, or falls back
+	to naive behavior if no input handler is available.
+	"""
+	_update_action_costs()
+
 	# Check if we have references
 	if not plot_grid_display or not plot_grid_display.has_method("get_selected_plots"):
 		update_button_highlights({"Q": false, "E": false, "R": false})
@@ -297,25 +340,30 @@ func update_action_availability() -> void:
 		update_button_highlights({"Q": false, "E": false, "R": false})
 		return
 
-	# Get input handler reference
-	if not input_handler:
+	# Check for quantum_input or fall back to input_handler
+	var handler = quantum_input if quantum_input else input_handler
+
+	if handler and handler.has_method("can_execute_action"):
+		# Use validation API if available
+		var availability = {
+			"Q": handler.can_execute_action("Q"),
+			"E": handler.can_execute_action("E"),
+			"R": handler.can_execute_action("R"),
+		}
+		update_button_highlights(availability)
+	elif handler and handler.has_method("get_current_selection"):
+		# QuantumInstrumentInput: Check if there's a valid selection
+		var selection = handler.get_current_selection()
+		var has_selection = selection.get("plot_idx", -1) >= 0
+		update_button_highlights({"Q": has_selection, "E": has_selection, "R": has_selection})
+	else:
 		# Fallback: naive behavior (all enabled if plots selected)
 		var has_selection = selected_plots.size() > 0
 		update_button_highlights({"Q": has_selection, "E": has_selection, "R": has_selection})
-		return
-
-	# Check each action individually using validation API
-	var availability = {
-		"Q": input_handler.can_execute_action("Q"),
-		"E": input_handler.can_execute_action("E"),
-		"R": input_handler.can_execute_action("R"),
-	}
 
 	# Update probe preview for Tool 1 (shows quantum state in button text)
 	if current_tool == 1:
 		_update_probe_preview()
-
-	update_button_highlights(availability)
 
 
 func update_button_highlights(availability: Dictionary) -> void:
@@ -423,7 +471,7 @@ func debug_layout() -> String:
 	debug_text += "  Custom min size: %s\n" % custom_minimum_size
 	debug_text += "  Size flags H: %d (3=EXPAND_FILL)\n" % size_flags_horizontal
 	debug_text += "  Size flags V: %d\n" % size_flags_vertical
-	debug_text += "  Buttons: %d total (HexButton style)\n" % action_buttons.size()
+	debug_text += "  Buttons: %d total (BtnBtmMidl style)\n" % action_buttons.size()
 
 	var button_widths = []
 	for action_key in ["Q", "E", "R"]:
@@ -435,61 +483,77 @@ func debug_layout() -> String:
 	return debug_text
 
 
-func _create_hex_button(action_key: String) -> Dictionary:
-	"""Create a hexagonal button with texture background, icon, and text label.
+func _create_action_button(action_key: String) -> Dictionary:
+	"""Create an action button with texture background, icon glyph, and text label.
+	Matches the styling of ToolSelectionRow buttons (BtnBtmMidl.svg).
 
 	Returns a Dictionary with:
 	- container: The root Control node
-	- texture: The TextureRect for the hex background
-	- icon: The TextureRect for the action icon (centered in hex)
-	- label: The Label for button text (below icon)
+	- texture: The TextureRect for button background
+	- icon: The TextureRect for action icon glyph
+	- label: The Label for button text
 	- disabled: bool tracking disabled state
 	"""
 	# Container to hold texture, icon, and label
 	var container = Control.new()
-	container.name = "HexBtn_%s" % action_key
+	container.name = "ActionBtn_%s" % action_key
 	container.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	container.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	container.size_flags_stretch_ratio = 1.0
-	container.custom_minimum_size = Vector2(80 * scale_factor, 65 * scale_factor)
+	container.custom_minimum_size = Vector2(0, 50 * scale_factor)
 	container.mouse_filter = Control.MOUSE_FILTER_STOP
 
-	# TextureRect for hex button background
+	# TextureRect for button background
 	var texture_rect = TextureRect.new()
-	texture_rect.name = "HexTexture"
-	texture_rect.texture = hex_button_texture
-	texture_rect.expand_mode = TextureRect.EXPAND_FIT_WIDTH_PROPORTIONAL
-	texture_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	texture_rect.name = "BtnTexture"
+	texture_rect.texture = btn_texture
+	texture_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	texture_rect.stretch_mode = TextureRect.STRETCH_SCALE
 	texture_rect.set_anchors_preset(Control.PRESET_FULL_RECT)
 	texture_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	container.add_child(texture_rect)
 
-	# TextureRect for action icon (centered in hex, upper portion)
+	# TextureRect for action icon glyph (left side)
 	var icon_rect = TextureRect.new()
 	icon_rect.name = "ActionIcon"
 	icon_rect.expand_mode = TextureRect.EXPAND_FIT_WIDTH_PROPORTIONAL
 	icon_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	icon_rect.set_anchors_preset(Control.PRESET_CENTER_TOP)
-	icon_rect.grow_horizontal = Control.GROW_DIRECTION_BOTH
-	icon_rect.custom_minimum_size = Vector2(32 * scale_factor, 32 * scale_factor)
-	icon_rect.offset_top = 8 * scale_factor
-	icon_rect.offset_bottom = 40 * scale_factor
+	icon_rect.set_anchors_preset(Control.PRESET_LEFT_WIDE)
+	icon_rect.offset_left = 8 * scale_factor
+	icon_rect.offset_right = 40 * scale_factor
 	icon_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	icon_rect.visible = false  # Hidden until icon is set
+	icon_rect.visible = false  # Hidden by default, shown when icon is set
 	container.add_child(icon_rect)
 
-	# Label for button text (bottom portion of hex)
+	# Container for action costs (left side, glyph + amount)
+	var cost_container = HBoxContainer.new()
+	cost_container.name = "CostContainer"
+	cost_container.layout_mode = 1  # Anchors-based positioning
+	cost_container.size_flags_horizontal = Control.SIZE_SHRINK_END
+	cost_container.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	cost_container.custom_minimum_size = Vector2(110 * scale_factor, 24 * scale_factor)
+	cost_container.set_anchors_preset(Control.PRESET_RIGHT_WIDE)
+	cost_container.offset_left = -120 * scale_factor
+	cost_container.offset_right = -6 * scale_factor
+	cost_container.offset_top = 6 * scale_factor
+	cost_container.offset_bottom = -6 * scale_factor
+	cost_container.add_theme_constant_override("separation", int(6 * scale_factor))
+	cost_container.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	cost_container.visible = false
+	cost_container.z_index = 5
+	cost_container.z_as_relative = true
+	container.add_child(cost_container)
+
+	# Label for button text (centered over texture)
 	var label = Label.new()
 	label.name = "ButtonLabel"
 	label.text = "[%s]" % action_key
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	label.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	label.set_anchors_preset(Control.PRESET_FULL_RECT)
-	label.offset_top = 38 * scale_factor  # Below the icon
-	label.offset_bottom = -4 * scale_factor
-	label.add_theme_font_size_override("font_size", int(11 * scale_factor))
-	label.add_theme_color_override("font_color", Color(0.9, 0.9, 0.9))
-	label.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.5))
+	label.add_theme_font_size_override("font_size", int(16 * scale_factor))
+	label.add_theme_color_override("font_color", Color(0.95, 0.95, 0.95))
+	label.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.6))
 	label.add_theme_constant_override("shadow_offset_x", 1)
 	label.add_theme_constant_override("shadow_offset_y", 1)
 	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -498,21 +562,177 @@ func _create_hex_button(action_key: String) -> Dictionary:
 	container.add_child(label)
 
 	# Connect input events
-	container.gui_input.connect(_on_hex_button_input.bind(action_key))
-	container.mouse_entered.connect(_on_hex_button_hover.bind(action_key, true))
-	container.mouse_exited.connect(_on_hex_button_hover.bind(action_key, false))
+	container.gui_input.connect(_on_action_button_input.bind(action_key))
+	container.mouse_entered.connect(_on_action_button_hover.bind(action_key, true))
+	container.mouse_exited.connect(_on_action_button_hover.bind(action_key, false))
 
 	return {
 		"container": container,
 		"texture": texture_rect,
 		"icon": icon_rect,
 		"label": label,
+		"cost_container": cost_container,
+		"base_label_offset": 0,
 		"disabled": false
 	}
 
 
-func _on_hex_button_input(event: InputEvent, action_key: String) -> void:
-	"""Handle input on hex button container."""
+func _update_action_costs() -> void:
+	"""Update cost labels for Q/E/R actions based on selection."""
+	for action_key in ["Q", "E", "R"]:
+		if not action_buttons.has(action_key):
+			continue
+		var btn_data = action_buttons[action_key]
+		var action_info = _get_action_info(action_key)
+		var action_name = action_info.get("action", "")
+		var cost = _get_cost_for_action(action_name, action_info)
+		var has_cost = _set_cost_display(btn_data, cost)
+
+		var base_offset = btn_data.get("base_label_offset", 0)
+		if btn_data.has("label"):
+			btn_data.label.offset_left = base_offset
+			if has_cost:
+				btn_data.label.offset_right = -120 * scale_factor
+			else:
+				btn_data.label.offset_right = 0
+
+
+func _get_action_info(action_key: String) -> Dictionary:
+	if current_submenu == "quest_board":
+		return {}
+	if current_submenu != "" and current_submenu_actions:
+		return current_submenu_actions.get(action_key, {})
+	return ToolConfig.get_action(current_tool, action_key)
+
+
+func _get_cost_for_action(action_name: String, action_info: Dictionary = {}) -> Dictionary:
+	if action_name == "":
+		return {}
+
+	match action_name:
+		"inject_vocabulary":
+			var pair = action_info.get("vocab_pair", {})
+			return EconomyConstants.get_vocab_injection_cost(pair.get("south", ""))
+		"drain", "pump":
+			var emoji = _resolve_selected_north_emoji()
+			if emoji == "":
+				return {}
+			return {
+				emoji: LindbladHandler.PLACEMENT_COST_CREDITS,
+				LindbladHandler.GEAR_COST_EMOJI: LindbladHandler.GEAR_COST_CREDITS
+			}
+		"harvest_all":
+			return {EconomyConstants.MIDWIFE_EMOJI: EconomyConstants.MIDWIFE_ACTION_COST}
+		_:
+			return {}
+
+
+func _format_cost(cost: Dictionary) -> String:
+	if cost.is_empty():
+		return ""
+	var parts: Array = []
+	var keys = cost.keys()
+	keys.sort()
+	if keys.has(LindbladHandler.GEAR_COST_EMOJI):
+		keys.erase(LindbladHandler.GEAR_COST_EMOJI)
+		keys.append(LindbladHandler.GEAR_COST_EMOJI)
+	for emoji in keys:
+		var amount = cost[emoji]
+		if amount == 0:
+			continue
+		parts.append("%s%d" % [emoji, amount])
+	return " ".join(parts)
+
+
+func _set_cost_display(btn_data: Dictionary, cost: Dictionary) -> bool:
+	if not btn_data.has("cost_container"):
+		return false
+
+	var container: HBoxContainer = btn_data.cost_container
+	for child in container.get_children():
+		child.queue_free()
+
+	if cost.is_empty():
+		container.visible = false
+		return false
+
+	var keys = cost.keys()
+	keys.sort()
+	if keys.has(LindbladHandler.GEAR_COST_EMOJI):
+		keys.erase(LindbladHandler.GEAR_COST_EMOJI)
+		keys.append(LindbladHandler.GEAR_COST_EMOJI)
+
+	for emoji in keys:
+		var amount = cost[emoji]
+		if amount == 0:
+			continue
+		var entry = HBoxContainer.new()
+		entry.layout_mode = 1
+		entry.add_theme_constant_override("separation", int(2 * scale_factor))
+		entry.mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+		var amount_label = Label.new()
+		amount_label.text = str(amount)
+		amount_label.add_theme_font_size_override("font_size", int(18 * scale_factor))
+		amount_label.add_theme_color_override("font_color", Color(0.95, 0.9, 0.7))
+		amount_label.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.6))
+		amount_label.add_theme_constant_override("shadow_offset_x", 1)
+		amount_label.add_theme_constant_override("shadow_offset_y", 1)
+		amount_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		entry.add_child(amount_label)
+
+		var display = EmojiDisplay.new()
+		display.emoji = emoji
+		display.font_size = int(22 * scale_factor)
+		display.custom_minimum_size = Vector2(20 * scale_factor, 20 * scale_factor)
+		display.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		display.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		entry.add_child(display)
+
+		container.add_child(entry)
+
+	container.visible = true
+	return true
+
+
+func _resolve_selected_north_emoji() -> String:
+	if not farm:
+		return ""
+	var selected: Array = []
+	if plot_grid_display and plot_grid_display.has_method("get_selected_plots"):
+		selected = plot_grid_display.get_selected_plots()
+	var pos: Vector2i = Vector2i(-1, -1)
+	if selected.is_empty():
+		# Fallback to QuantumInstrumentInput selection if UI selection isn't set
+		var handler = quantum_input if quantum_input else input_handler
+		if handler and handler.has_method("get_current_selection") and farm and farm.has_method("get_biome_row"):
+			var selection = handler.get_current_selection()
+			var plot_idx = selection.get("plot_idx", -1)
+			var biome_name = selection.get("biome", "")
+			if plot_idx >= 0:
+				var biome_row = farm.get_biome_row(biome_name)
+				pos = Vector2i(plot_idx, biome_row)
+	else:
+		pos = selected[0]
+	if pos.x < 0:
+		return ""
+
+	if farm.plot_pool:
+		var terminal = farm.plot_pool.get_terminal_at_grid_pos(pos)
+		if terminal and terminal.is_bound and terminal.has_method("get_emoji_pair"):
+			var pair = terminal.get_emoji_pair()
+			var north = pair.get("north", "")
+			if north != "":
+				return north
+
+	var plot = farm.grid.get_plot(pos) if farm and farm.grid else null
+	if plot and plot.is_planted:
+		return plot.north_emoji if plot.north_emoji else ""
+	return ""
+
+
+func _on_action_button_input(event: InputEvent, action_key: String) -> void:
+	"""Handle input on action button container."""
 	var btn_data = action_buttons.get(action_key)
 	if not btn_data or btn_data.disabled:
 		return
@@ -532,8 +752,8 @@ func _on_hex_button_input(event: InputEvent, action_key: String) -> void:
 		get_viewport().set_input_as_handled()
 
 
-func _on_hex_button_hover(action_key: String, is_hovering: bool) -> void:
-	"""Handle mouse hover on hex button."""
+func _on_action_button_hover(action_key: String, is_hovering: bool) -> void:
+	"""Handle mouse hover on action button."""
 	var btn_data = action_buttons.get(action_key)
 	if not btn_data or btn_data.disabled:
 		return

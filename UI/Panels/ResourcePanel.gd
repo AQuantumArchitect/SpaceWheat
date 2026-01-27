@@ -8,6 +8,7 @@ extends HBoxContainer
 
 const FarmEconomy = preload("res://Core/GameMechanics/FarmEconomy.gd")
 const EconomyConstants = preload("res://Core/GameMechanics/EconomyConstants.gd")
+const EmojiDisplay = preload("res://UI/Core/EmojiDisplay.gd")
 
 # Layout manager reference (for dynamic scaling)
 var layout_manager: Node  # Will be UILayoutManager instance
@@ -23,6 +24,7 @@ var economy_ref: Node = null
 
 # Update counter for tie-breaking (most recently updated wins ties)
 var update_counter: int = 0
+
 
 
 func _ready():
@@ -104,22 +106,24 @@ func _ensure_display_exists(emoji: String) -> void:
 	var container = HBoxContainer.new()
 	container.add_theme_constant_override("separation", 2)
 
-	var icon = Label.new()
-	icon.text = emoji
-	icon.add_theme_font_size_override("font_size", icon_font_size)
-	container.add_child(icon)
-
 	var value_label = Label.new()
 	value_label.text = "0"
 	value_label.add_theme_font_size_override("font_size", label_font_size)
 	value_label.add_theme_color_override("font_color", Color(0.9, 0.95, 1.0))  # Slight blue tint
 	container.add_child(value_label)
 
+	var icon = EmojiDisplay.new()
+	icon.emoji = emoji
+	icon.font_size = icon_font_size
+	icon.custom_minimum_size = Vector2(icon_font_size, icon_font_size)
+	container.add_child(icon)
+
 	resources_hbox.add_child(container)
 	update_counter += 1
 	resource_displays[emoji] = {
 		"container": container,
 		"label": value_label,
+		"icon": icon,
 		"units": 0,
 		"update_order": update_counter
 	}
@@ -156,7 +160,7 @@ func _sort_displays() -> void:
 			"container": data["container"]
 		})
 
-	# Sort by units (descending), then by update_order (descending for most recent)
+	# Sort by units (descending), then update_order (descending for most recent)
 	sort_data.sort_custom(func(a, b):
 		if a["units"] != b["units"]:
 			return a["units"] > b["units"]  # Higher units first
@@ -241,6 +245,8 @@ func _find_emoji_for_container(container: Node) -> String:
 		if resource_displays[emoji]["container"] == container:
 			return emoji
 	return ""
+
+
 
 
 func _create_ui():

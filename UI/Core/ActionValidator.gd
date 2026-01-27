@@ -11,7 +11,7 @@ extends RefCounted
 ## - FarmInputHandler for pre-execution validation
 
 const ToolConfig = preload("res://Core/GameState/ToolConfig.gd")
-const Farm = preload("res://Core/Farm.gd")
+const EconomyConstants = preload("res://Core/GameMechanics/EconomyConstants.gd")
 
 
 ## ============================================================================
@@ -86,6 +86,8 @@ static func _can_execute_tool_action(
 		# ═══════════════════════════════════════════════════════════════
 		# v2 GATES Tool (Tool 2) - 1-qubit gates
 		# ═══════════════════════════════════════════════════════════════
+		"rotate_down", "rotate_up", "hadamard":
+			return true  # Available if plots selected
 		"apply_pauli_x", "apply_hadamard", "apply_pauli_z", "apply_ry", \
 		"apply_pauli_y", "apply_s_gate", "apply_t_gate", "apply_sdg_gate", \
 		"apply_rx_gate", "apply_ry_gate", "apply_rz_gate":
@@ -94,6 +96,10 @@ static func _can_execute_tool_action(
 		# ═══════════════════════════════════════════════════════════════
 		# v2 ENTANGLE Tool (Tool 3) - 2-qubit gates
 		# ═══════════════════════════════════════════════════════════════
+		"build_gate":
+			return selected_plots.size() >= 2  # Need 2+ plots for Bell/cluster
+		"inspect", "remove_gates":
+			return true  # Available if any plots selected
 		"apply_cnot", "apply_swap", "apply_cz":
 			return selected_plots.size() >= 2  # Need 2 plots for 2-qubit gates
 		"create_bell_pair":
@@ -136,6 +142,10 @@ static func _can_execute_tool_action(
 		# ═══════════════════════════════════════════════════════════════
 		# BUILD MODE - Tool 3 (LINDBLAD)
 		# ═══════════════════════════════════════════════════════════════
+		"drain", "pump":
+			return true  # Available if plots selected
+		"transfer":
+			return selected_plots.size() == 2  # Transfer needs exactly 2 plots
 		"lindblad_drive", "lindblad_decay":
 			return true  # Available if plots selected
 		"lindblad_transfer":
@@ -144,6 +154,10 @@ static func _can_execute_tool_action(
 		# ═══════════════════════════════════════════════════════════════
 		# BUILD MODE - Tool 4 (QUANTUM) System/Phase/Rotation modes
 		# ═══════════════════════════════════════════════════════════════
+		"inject_vocabulary":
+			return _can_execute_inject_vocabulary(farm, current_selection)
+		"remove_vocabulary", "toggle_view", "cycle_biome":
+			return true  # Available if plots selected
 		"system_reset", "system_snapshot", "system_debug":
 			return true  # Available if plots selected
 
@@ -180,7 +194,7 @@ static func _can_execute_explore(farm, current_selection: Vector2i) -> bool:
 		return false
 
 	# Must have unbound registers
-	var probabilities = biome.get_register_probabilities()
+	var probabilities = biome.get_register_probabilities(farm.plot_pool)
 	return not probabilities.is_empty()
 
 
@@ -256,116 +270,16 @@ static func _can_execute_submenu_action(
 
 	# Route to specific validation
 	match action:
-		"plant_wheat":
-			return _can_plant_type(farm, "wheat", selected_plots)
-		"plant_mushroom":
-			return _can_plant_type(farm, "mushroom", selected_plots)
-		"plant_tomato":
-			return _can_plant_type(farm, "tomato", selected_plots)
-		"plant_fire":
-			return _can_plant_type(farm, "fire", selected_plots)
-		"plant_water":
-			return _can_plant_type(farm, "water", selected_plots)
-		"plant_flour":
-			return _can_plant_type(farm, "flour", selected_plots)
-		"plant_ice":
-			return _can_plant_type(farm, "ice", selected_plots)
-		"plant_desert":
-			return _can_plant_type(farm, "desert", selected_plots)
-		"plant_vegetation":
-			return _can_plant_type(farm, "vegetation", selected_plots)
-		"plant_rabbit":
-			return _can_plant_type(farm, "rabbit", selected_plots)
-		"plant_wolf":
-			return _can_plant_type(farm, "wolf", selected_plots)
-		"plant_bread":
-			return _can_plant_type(farm, "bread", selected_plots)
 		_:
 			# Mill power/conversion and biome assignment always available
 			if action.begins_with("mill_") or action.begins_with("assign_to_"):
 				return true
 			# Icon actions
+			if action.begins_with("icon_assign_"):
+				return _can_execute_icon_assign(farm, selected_plots, action)
 			if action.begins_with("icon_"):
 				return true
 			return false
-
-
-## ============================================================================
-## PLANT TYPE VALIDATION
-## ============================================================================
-
-static func _can_plant_type(farm, plant_type: String, plots: Array[Vector2i]) -> bool:
-	"""Check if we can plant this specific type on any selected plot.
-
-	PARAMETRIC: Queries biome capabilities instead of BUILD_CONFIGS.
-	"""
-	if not farm or plots.is_empty():
-		return false
-
-	# Determine cost based on type
-	var cost = {}
-	var biome_required = ""
-
-	# Check infrastructure buildings
-	if Farm.INFRASTRUCTURE_COSTS.has(plant_type):
-		cost = Farm.INFRASTRUCTURE_COSTS[plant_type]
-
-	# Check gather actions
-	elif Farm.GATHER_ACTIONS.has(plant_type):
-		var gather_config = Farm.GATHER_ACTIONS[plant_type]
-		cost = gather_config.get("cost", {})
-		biome_required = gather_config.get("biome_required", "")
-
-	# Otherwise, query biome capabilities for plant cost
-	else:
-		if not farm.grid:
-			return false
-
-		var first_pos = plots[0]
-		var plot_biome = farm.grid.get_biome_for_plot(first_pos)
-		if not plot_biome:
-			return false
-
-		# Find capability for this plant type
-		var capability = null
-		for cap in plot_biome.get_plantable_capabilities():
-			if cap.plant_type == plant_type:
-				capability = cap
-				break
-
-		if not capability:
-			return false
-
-		cost = capability.cost
-		biome_required = plot_biome.name if capability.requires_biome else ""
-
-	# Check if we can afford it
-	if farm.economy and not farm.economy.can_afford_cost(cost):
-		return false
-
-	# Check at least ONE plot is valid (any-valid strategy)
-	for pos in plots:
-		if not farm.grid:
-			continue
-
-		var plot = farm.grid.get_plot(pos)
-		if not plot:
-			continue
-
-		# Must be empty
-		if plot.is_planted:
-			continue
-
-		# Check biome requirement if specified
-		if biome_required != "":
-			var plot_biome_name = farm.grid.plot_biome_assignments.get(pos, "")
-			if plot_biome_name != biome_required:
-				continue
-
-		# Found at least one valid plot!
-		return true
-
-	return false
 
 
 ## ============================================================================
@@ -388,17 +302,93 @@ static func has_measured_terminal_at(farm, pos: Vector2i) -> bool:
 	return terminal != null and terminal.can_pop()
 
 
-static func has_planted_plot_at(farm, pos: Vector2i) -> bool:
-	"""Check if there's a planted plot at position."""
+static func _can_execute_inject_vocabulary(farm, current_selection: Vector2i) -> bool:
+	"""Check if there is at least one vocab pair not yet in the biome."""
 	if not farm or not farm.grid:
 		return false
-	var plot = farm.grid.get_plot(pos)
-	return plot != null and plot.is_planted
 
-
-static func has_empty_plot_at(farm, pos: Vector2i) -> bool:
-	"""Check if there's an empty (unplanted) plot at position."""
-	if not farm or not farm.grid:
+	var biome = farm.grid.get_biome_for_plot(current_selection)
+	if not biome or not biome.quantum_computer:
 		return false
-	var plot = farm.grid.get_plot(pos)
-	return plot != null and not plot.is_planted
+	if biome.quantum_computer.register_map.num_qubits >= EconomyConstants.MAX_BIOME_QUBITS:
+		return false
+
+	var pairs = _collect_injectable_pairs(farm, biome.quantum_computer)
+	for pair in pairs:
+		var north = pair.get("north", "")
+		var south = pair.get("south", "")
+		if north == "" or south == "":
+			continue
+		if biome.quantum_computer.register_map.has(north):
+			continue
+		if biome.quantum_computer.register_map.has(south):
+			continue
+		return true
+
+	return false
+
+
+static func _collect_injectable_pairs(farm_ref, quantum_computer = null) -> Array:
+	var pairs: Array = []
+	if farm_ref and farm_ref.has_method("get_known_pairs"):
+		pairs.append_array(farm_ref.get_known_pairs())
+	if farm_ref and "vocabulary_evolution" in farm_ref and farm_ref.vocabulary_evolution:
+		var vocab = farm_ref.vocabulary_evolution
+		if vocab and vocab.has_method("get_discovered_vocabulary"):
+			var discovered = vocab.get_discovered_vocabulary()
+			if discovered is Array:
+				pairs.append_array(discovered)
+
+	var filtered: Array = []
+	var seen: Dictionary = {}
+	for pair in pairs:
+		if not (pair is Dictionary):
+			continue
+		var north = pair.get("north", "")
+		var south = pair.get("south", "")
+		if north == "" or south == "" or north == south:
+			continue
+		if quantum_computer and quantum_computer.register_map:
+			if quantum_computer.register_map.has(north) or quantum_computer.register_map.has(south):
+				continue
+		var key = "%s|%s" % [north, south]
+		if seen.has(key):
+			continue
+		seen[key] = true
+		filtered.append({"north": north, "south": south})
+	return filtered
+
+
+static func _can_execute_icon_assign(farm, selected_plots: Array[Vector2i], action: String) -> bool:
+	"""Check if icon assignment can succeed for this emoji."""
+	if not farm or not farm.grid or selected_plots.is_empty():
+		return false
+
+	var emoji = action.replace("icon_assign_", "")
+	if emoji == "":
+		return false
+
+	if not farm.has_method("get_pair_for_emoji"):
+		return false
+
+	var pair = farm.get_pair_for_emoji(emoji)
+	if not pair:
+		return false
+
+	var north = pair.get("north", "")
+	var south = pair.get("south", "")
+	if north == "" or south == "":
+		return false
+
+	var biome = farm.grid.get_biome_for_plot(selected_plots[0])
+	if not biome or not biome.quantum_computer:
+		return false
+	if biome.quantum_computer.register_map.num_qubits >= EconomyConstants.MAX_BIOME_QUBITS:
+		return false
+
+	if biome.quantum_computer.register_map.has(north):
+		return false
+	if biome.quantum_computer.register_map.has(south):
+		return false
+
+	return true

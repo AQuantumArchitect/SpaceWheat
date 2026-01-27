@@ -6,8 +6,13 @@ extends Node
 ## Manages biome switching with swipe transitions. All biomes continue to evolve
 ## in the background; this only controls which one is displayed.
 ##
-## Keyboard:
-##   7 = BioticFlux, 8 = Market, 9 = Forest, 0 = Kitchen
+## Now integrates with ObservationFrame for spindle-based navigation.
+## The ObservationFrame is the source of truth for which biome is "neutral".
+##
+## Keyboard (new layout):
+##   7890 = UP row (parent biome)
+##   UIOP = NEUTRAL row (current biome)
+##   JKL; = DOWN row (child biome)
 ##   - = Previous biome, = = Next biome
 ##
 ## Signals emitted for UI updates (background, tabs, plot display, quantum graph)
@@ -18,7 +23,7 @@ signal biome_transition_requested(from_biome: String, to_biome: String, directio
 ## Biome order for cycling (matches keyboard layout left-to-right conceptually)
 const BIOME_ORDER: Array[String] = ["BioticFlux", "StellarForges", "FungalNetworks", "VolcanicWorlds"]
 
-## Key-to-biome mapping
+## Key-to-biome mapping (legacy - now handled by QuantumInstrumentInput)
 const BIOME_KEYS: Dictionary = {
 	KEY_7: "BioticFlux",
 	KEY_8: "StellarForges",
@@ -28,10 +33,10 @@ const BIOME_KEYS: Dictionary = {
 
 ## Biome display info (for UI)
 const BIOME_INFO: Dictionary = {
-	"BioticFlux": {"key": "7", "emoji": "🌿", "label": "Flux"},
-	"StellarForges": {"key": "8", "emoji": "🚀", "label": "Forge"},
-	"FungalNetworks": {"key": "9", "emoji": "🍄", "label": "Fungal"},
-	"VolcanicWorlds": {"key": "0", "emoji": "🌋", "label": "Volcanic"},
+	"BioticFlux": {"key": "7", "emoji": "~", "label": "Flux"},
+	"StellarForges": {"key": "8", "emoji": "*", "label": "Forge"},
+	"FungalNetworks": {"key": "9", "emoji": ".", "label": "Fungal"},
+	"VolcanicWorlds": {"key": "0", "emoji": "^", "label": "Volcanic"},
 }
 
 ## Current active biome
@@ -40,9 +45,33 @@ var active_biome: String = "BioticFlux"
 ## Whether a transition is currently in progress (prevents rapid switching)
 var _transitioning: bool = false
 
+## Reference to ObservationFrame for spindle-based navigation
+var _observation_frame: Node = null
+
 
 func _ready() -> void:
 	add_to_group("active_biome_manager")
+
+	# Connect to ObservationFrame when it's ready
+	call_deferred("_connect_to_observation_frame")
+
+
+func _connect_to_observation_frame() -> void:
+	"""Connect to ObservationFrame for spindle-based biome tracking."""
+	_observation_frame = get_node_or_null("/root/ObservationFrame")
+	if _observation_frame:
+		if not _observation_frame.neutral_changed.is_connected(_on_neutral_changed):
+			_observation_frame.neutral_changed.connect(_on_neutral_changed)
+		# Sync initial state
+		active_biome = _observation_frame.get_neutral_biome()
+
+
+func _on_neutral_changed(biome: String) -> void:
+	"""Handle neutral biome change from ObservationFrame."""
+	if biome != active_biome:
+		var old_biome = active_biome
+		active_biome = biome
+		active_biome_changed.emit(biome, old_biome)
 
 
 func get_active_biome() -> String:
@@ -69,6 +98,10 @@ func set_active_biome(biome_name: String, direction: int = 0) -> void:
 
 	var old_biome = active_biome
 	active_biome = biome_name
+
+	# Sync with ObservationFrame if available
+	if _observation_frame and _observation_frame.get_neutral_biome() != biome_name:
+		_observation_frame.set_neutral_biome(biome_name)
 
 	# Emit transition request (for animated transitions)
 	if direction != 0:
@@ -156,3 +189,10 @@ func get_biome_count() -> int:
 func get_biome_info(biome_name: String) -> Dictionary:
 	"""Get display info for a biome"""
 	return BIOME_INFO.get(biome_name, {})
+
+
+func reset() -> void:
+	"""Reset to initial state (for dev restart)."""
+	active_biome = "BioticFlux"
+	_transitioning = false
+	_observation_frame = null

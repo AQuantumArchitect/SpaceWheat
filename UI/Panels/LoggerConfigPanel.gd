@@ -300,9 +300,9 @@ func _input(event: InputEvent):
 	if not visible:
 		return
 
-	# Close on ESC or L key
+	# Close on ESC or X key
 	if event is InputEventKey and event.pressed:
-		if event.keycode == KEY_ESCAPE or event.keycode == KEY_L:
+		if event.keycode == KEY_ESCAPE or event.keycode == KEY_X:
 			_on_close_pressed()
 			get_viewport().set_input_as_handled()
 

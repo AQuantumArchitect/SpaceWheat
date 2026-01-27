@@ -13,6 +13,8 @@ const BIOME_TEXTURES: Dictionary = {
 	"StellarForges": preload("res://Assets/Biomes/Stellar_Forges.png"),
 	"FungalNetworks": preload("res://Assets/Biomes/Fungal_Networks.png"),
 	"VolcanicWorlds": preload("res://Assets/Biomes/Volcanic_Worlds.png"),
+	"StarterForest": preload("res://Assets/Biomes/Starter_Forest.png"),
+	"Village": preload("res://Assets/Biomes/Entropy_Garden.png"),
 }
 
 ## Transition duration in seconds

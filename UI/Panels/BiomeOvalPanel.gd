@@ -41,9 +41,11 @@ var farm_grid: Node = null
 var biome_data: Dictionary = {}
 var quantum_detail: Dictionary = {}
 
-# Visual settings - sized to fit play area (6%-72% of viewport)
-var panel_width: int = 900
-var panel_height: int = 340
+# Visual settings - responsive sizing
+# When in modal overlay, will be constrained by parent scroll container
+# When standalone in play area, scales to fill viewport
+var panel_width: int = 900  # Full-screen mode default
+var panel_height: int = 340  # Full-screen mode default
 var bg_color: Color = Color(0.08, 0.08, 0.12, 0.98)
 var border_color: Color = Color(0.3, 0.5, 0.7, 1.0)
 var corner_radius: int = 12
@@ -57,7 +59,34 @@ var small_size: int = 12
 func _ready():
 	_setup_panel_style()
 	_build_ui()
-	custom_minimum_size = Vector2(panel_width, panel_height)
+	# Responsive sizing: detect if in constrained container (modal) or standalone
+	var in_modal = _is_in_scroll_container()
+	_apply_responsive_sizing(in_modal)
+
+
+func _is_in_scroll_container() -> bool:
+	"""Check if this biome card is inside a ScrollContainer (modal overlay)"""
+	var current = get_parent()
+	while current:
+		if current is ScrollContainer:
+			return true
+		current = current.get_parent()
+	return false
+
+
+func _apply_responsive_sizing(in_modal: bool) -> void:
+	"""Apply sizing based on context: modal vs standalone"""
+	if in_modal:
+		# In modal overlay - shrink to fit but maintain readability
+		# Modal panel is ~700px wide, this leaves room for scrollbar/padding
+		custom_minimum_size = Vector2(550, 200)
+		size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	else:
+		# Standalone/play-area mode - use original dimensions
+		custom_minimum_size = Vector2(panel_width, panel_height)
+		size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+		size_flags_vertical = Control.SIZE_SHRINK_CENTER
 
 
 ## Initialize with biome and grid

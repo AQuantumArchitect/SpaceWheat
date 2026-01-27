@@ -13,6 +13,9 @@ const QuestTypes = preload("res://Core/Quests/QuestTypes.gd")
 const FactionDatabase = preload("res://Core/Quests/FactionDatabaseV2.gd")
 const VocabularyPairing = preload("res://Core/Quests/VocabularyPairing.gd")
 
+# Light bias toward simulated vocab when selecting north pole.
+const NORTH_BIAS_WEIGHT: float = 1.3
+
 ## Safe VerboseConfig accessor for RefCounted classes (no scene tree access)
 static func _log(level: String, category: String, emoji: String, message: String) -> void:
 	var tree = Engine.get_main_loop()
@@ -233,7 +236,7 @@ static func _index_to_emoji(bath, index: int) -> String:
 
 static func _fallback_emoji(index: int) -> String:
 	"""Fallback when bath is unavailable - SpaceWheat defaults"""
-	var fallbacks = ["🌾", "🍄", "💨", "🍂", "🍅", "💰", "👥", "🌻"]
+	var fallbacks = ["🌾", "🍄", "💨", "🍂", "💰", "👥", "🌻"]
 	return fallbacks[index % fallbacks.size()]
 
 
@@ -323,13 +326,19 @@ static func _urgency_to_time(urgency: float) -> float:
 		return 60   # Urgent (1 minute)
 
 
-static func generate_quest(faction: Dictionary, bath, player_vocab: Array = []) -> Dictionary:
+static func generate_quest(
+	faction: Dictionary,
+	bath,
+	player_vocab: Array = [],
+	bias_emojis: Array = []
+) -> Dictionary:
 	"""Full pipeline: faction x bath -> themed quest
 
 	Args:
 		faction: Faction data with bits and signature
 		bath: Current biome quantum state
 		player_vocab: Emojis the player knows (for vocabulary filtering)
+		bias_emojis: Optional emojis to bias toward for north pole selection
 
 	Returns:
 		Quest dict, or error if no vocabulary overlap
@@ -400,7 +409,7 @@ static func generate_quest(faction: Dictionary, bath, player_vocab: Array = []) 
 	quest["description"] = faction.get("description", "")
 
 	# Banner asset path (if available)
-	quest["banner_path"] = FactionDatabaseV2.get_faction_banner_path(faction)
+	quest["banner_path"] = FactionDatabase.get_faction_banner_path(faction)
 
 	# 9. Add vocabulary info
 	quest["faction_vocabulary"] = faction_vocab.all
@@ -409,7 +418,7 @@ static func generate_quest(faction: Dictionary, bath, player_vocab: Array = []) 
 
 	# 10. PRE-ROLL VOCABULARY REWARD PAIR
 	# Roll the vocab pair NOW (at quest creation) so player knows what they'll learn
-	var vocab_pair = _roll_vocabulary_reward_pair(signature, player_vocab)
+	var vocab_pair = _roll_vocabulary_reward_pair(signature, player_vocab, bias_emojis)
 	quest["reward_vocab_north"] = vocab_pair.get("north", "")
 	quest["reward_vocab_south"] = vocab_pair.get("south", "")
 	quest["reward_vocab_probability"] = vocab_pair.get("probability", 0.0)
@@ -455,12 +464,16 @@ static func describe_alignment_reason(quest: Dictionary) -> String:
 		return "Farm state misaligned with faction preferences."
 
 
-static func _roll_vocabulary_reward_pair(faction_signature: Array, player_vocab: Array) -> Dictionary:
+static func _roll_vocabulary_reward_pair(
+	faction_signature: Array,
+	player_vocab: Array,
+	bias_emojis: Array = []
+) -> Dictionary:
 	"""Roll vocabulary reward pair at quest creation time
 
 	Strategy:
 	1. Find emojis in faction signature that player doesn't know
-	2. Pick one as "north" (randomly weighted by connections)
+	2. Pick one as "north" (biased toward simulated vocab)
 	3. Roll "south" partner using VocabularyPairing physics
 
 	Args:
@@ -480,8 +493,28 @@ static func _roll_vocabulary_reward_pair(faction_signature: Array, player_vocab:
 		_log("debug", "quest", "📖", "Player knows all signature emojis - no vocab reward")
 		return {"north": "", "south": "", "all_known": true}
 
-	# Pick a north emoji (random from unknown)
+	# Pick a north emoji (light bias toward simulated vocab)
+	var bias_set = {}
+	for emoji in bias_emojis:
+		if emoji != "" and emoji not in player_vocab:
+			bias_set[emoji] = true
+
+	var total_weight = 0.0
+	var weighted_candidates: Array = []
+	for emoji in unknown_north:
+		var weight = NORTH_BIAS_WEIGHT if bias_set.has(emoji) else 1.0
+		weighted_candidates.append({"emoji": emoji, "weight": weight})
+		total_weight += weight
+
 	var north = unknown_north[randi() % unknown_north.size()]
+	if total_weight > 0:
+		var roll = randf() * total_weight
+		var cumulative = 0.0
+		for entry in weighted_candidates:
+			cumulative += entry.weight
+			if roll <= cumulative:
+				north = entry.emoji
+				break
 
 	# Roll partner using VocabularyPairing (uses IconRegistry physics)
 	var pair_result = VocabularyPairing.roll_partner(north)

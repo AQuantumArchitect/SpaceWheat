@@ -31,6 +31,8 @@ func _init():
 	test_cache_key_generation()
 	test_cache_key_stability()
 	test_cache_key_invalidation()
+	test_all_biome_cache_keys()
+	test_new_biomes_have_cache_entries()
 
 	# OperatorSerializer tests
 	test_serialize_complex()
@@ -96,7 +98,7 @@ func assert_approx(actual: float, expected: float, tolerance: float, message: St
 func _setup_test_dir():
 	# Ensure test directory exists
 	if not DirAccess.dir_exists_absolute(test_cache_dir):
-		DirAccess.make_absolute(test_cache_dir)
+		DirAccess.make_dir_recursive_absolute(test_cache_dir)
 
 
 func _cleanup_test_dir():
@@ -161,6 +163,49 @@ func test_cache_key_invalidation():
 		var key2 = CacheKey.for_biome("BioticFluxBiome", registry)
 
 		assert_true(key1 != key2, "Cache key should change when Icon config changes")
+
+	print()
+
+
+func test_all_biome_cache_keys():
+	print("\nTEST: All Biomes Generate Valid Cache Keys")
+
+	var registry = _create_mock_registry()
+	var biome_names = [
+		"BioticFluxBiome",
+		"StellarForgesBiome",
+		"FungalNetworksBiome",
+		"VolcanicWorldsBiome",
+		"StarterForestBiome",
+		"VillageBiome"
+	]
+
+	for biome_name in biome_names:
+		var key = CacheKey.for_biome(biome_name, registry)
+		assert_true(key.length() == 8, "%s generates 8-char cache key" % biome_name)
+		assert_true(key.is_valid_hex_number(), "%s cache key is valid hex" % biome_name)
+
+	print()
+
+
+func test_new_biomes_have_cache_entries():
+	print("\nTEST: New Biomes (StarterForest, Village) Have Emoji Entries")
+
+	# Test that CacheKey._get_biome_emojis returns non-empty arrays for new biomes
+	var forest_emojis = CacheKey._get_biome_emojis("StarterForestBiome")
+	var village_emojis = CacheKey._get_biome_emojis("VillageBiome")
+
+	assert_true(forest_emojis.size() > 0, "StarterForestBiome has emoji list")
+	assert_equal(forest_emojis.size(), 10, "StarterForestBiome has 10 emojis")
+	assert_true(forest_emojis.has("☀"), "StarterForestBiome includes ☀")
+	assert_true(forest_emojis.has("🐺"), "StarterForestBiome includes 🐺")
+	assert_true(forest_emojis.has("🌲"), "StarterForestBiome includes 🌲")
+
+	assert_true(village_emojis.size() > 0, "VillageBiome has emoji list")
+	assert_equal(village_emojis.size(), 10, "VillageBiome has 10 emojis")
+	assert_true(village_emojis.has("🔥"), "VillageBiome includes 🔥")
+	assert_true(village_emojis.has("🌾"), "VillageBiome includes 🌾")
+	assert_true(village_emojis.has("👥"), "VillageBiome includes 👥")
 
 	print()
 

@@ -1,5 +1,5 @@
 class_name BiomeInspectorOverlay
-extends Control
+extends "res://UI/Core/OverlayBase.gd"
 
 ## Biome Inspector Overlay
 ## Main controller for biome inspection system
@@ -9,44 +9,21 @@ extends Control
 ##   Q = Select icon for details
 ##   E = Show icon parameters
 ##   R = Show registers
-##   F = Cycle display mode (single → all → single)
+##   F = Cycle display mode (single -> all -> single)
 ##   WASD = Navigate biomes/icons
 ##
 ## Architecture:
-##   Extends Control for unified overlay stack management.
-##   Uses PanelContainer with standard menu styling and ornamentation.
+##   Extends OverlayBase for unified overlay infrastructure.
 ##   Dynamic panels created on demand within scrollable content area.
-##
-## Design Philosophy:
-##   - Standard modal menu format (dimmer + centered panel + scrollable content)
-##   - Panels are created fresh on each open, destroyed on close
-##   - Consistent visual styling with other system menus
-
-signal overlay_closed
-signal action_performed(action: String, data: Dictionary)  # v2 overlay compatibility
 
 const BiomeOvalPanel = preload("res://UI/Panels/BiomeOvalPanel.gd")
-const UIStyleFactory = preload("res://UI/Core/UIStyleFactory.gd")
-const UIOrnamentation = preload("res://UI/Core/UIOrnamentation.gd")
 
 # Biome display order (consistent across app)
-const BIOME_ORDER: Array[String] = ["BioticFlux", "StellarForges", "FungalNetworks", "VolcanicWorlds"]
-
-# v2 Overlay Interface
-var overlay_name: String = "biome_detail"
-var overlay_icon: String = "🔬"
-var overlay_tier: int = 3000  # Z_TIER_MODAL - renders above INFO overlays
-var action_labels: Dictionary = {
-	"Q": "Select Icon",
-	"E": "Parameters",
-	"R": "Registers",
-	"F": "Show All"
-}
+const BIOME_ORDER: Array[String] = ["StarterForest", "Village", "BioticFlux", "StellarForges", "FungalNetworks", "VolcanicWorlds"]
 
 # v2 Navigation State
 var selected_biome_index: int = 0
 var selected_icon_index: int = 0
-var is_active: bool = false
 
 # Mode
 enum DisplayMode {
@@ -57,14 +34,8 @@ enum DisplayMode {
 
 var current_mode: DisplayMode = DisplayMode.HIDDEN
 
-# UI References (created once in _ready)
-var background_dimmer: ColorRect
-var menu_panel: PanelContainer
-var menu_vbox: VBoxContainer
-var title_label: Label
-var scroll_container: ScrollContainer
+# UI References (biome-specific)
 var biome_list: VBoxContainer
-var ornaments: Dictionary = {}
 
 # Data references
 var farm: Node = null
@@ -72,16 +43,30 @@ var current_biome_panel: BiomeOvalPanel = null
 var all_biome_panels: Array[BiomeOvalPanel] = []
 
 # Settings
-var dimmer_color: Color = Color(0, 0, 0, 0.5)
 var update_interval: float = 0.5
 var update_timer: float = 0.0
 
 
+func _init():
+	# Configure OverlayBase
+	overlay_name = "biome_detail"
+	overlay_icon = ""
+	overlay_tier = 3000  # Z_TIER_MODAL
+	panel_title = "BIOME INSPECTOR"
+	panel_title_size = 24
+	panel_size = Vector2(700, 500)
+	panel_border_color = Color(0.4, 0.7, 0.8, 0.8)  # Cyan border
+	navigation_mode = NavigationMode.CALLBACK  # Custom navigation
+	action_labels = {
+		"Q": "Select Icon",
+		"E": "Parameters",
+		"R": "Registers",
+		"F": "Show All"
+	}
+
+
 func _ready() -> void:
-	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_build_ui()
-	_hide_all()
+	super._ready()
 
 	# Connect to biome changes so we update when user switches with ,/.
 	var active_biome_manager = get_node_or_null("/root/ActiveBiomeManager")
@@ -89,71 +74,14 @@ func _ready() -> void:
 		active_biome_manager.active_biome_changed.connect(_on_active_biome_changed)
 
 
-func _build_ui() -> void:
-	"""Build UI structure following standard menu format.
-
-	Creates a centered modal panel with dimmer background, title, and scrollable content area.
-	Dynamic biome panels are added/removed based on display mode.
-	"""
-	# Fill entire screen - proper modal design
-	set_anchors_preset(Control.PRESET_FULL_RECT)
-	layout_mode = 1
-	mouse_filter = Control.MOUSE_FILTER_STOP
-	process_mode = Node.PROCESS_MODE_ALWAYS
-
-	# Background dimmer
-	background_dimmer = UIStyleFactory.create_modal_dimmer()
-	add_child(background_dimmer)
-
-	# Centered menu panel with standard styling
-	menu_panel = UIStyleFactory.create_centered_panel(
-		Vector2(700, 500),
-		UIStyleFactory.COLOR_PANEL_BG,
-		Color(0.4, 0.7, 0.8, 0.8)  # Cyan border for biome inspector
-	)
-	add_child(menu_panel)
-
-	# Main vbox container
-	menu_vbox = UIStyleFactory.create_vbox(UIStyleFactory.VBOX_SPACING_NORMAL)
-	menu_vbox.alignment = BoxContainer.ALIGNMENT_BEGIN
-	menu_panel.add_child(menu_vbox)
-
-	# Title
-	title_label = UIStyleFactory.create_title_label("🔬 BIOME INSPECTOR", 24)
-	title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	menu_vbox.add_child(title_label)
-
-	# Scrollable content area for biome panels
-	scroll_container = ScrollContainer.new()
-	scroll_container.custom_minimum_size = Vector2(650, 380)
-	scroll_container.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	scroll_container.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
-	menu_vbox.add_child(scroll_container)
-
+func _build_content(container: Control) -> void:
+	"""Build biome-specific content inside scrollable area."""
 	# VBox for biome panels list
 	biome_list = VBoxContainer.new()
 	biome_list.add_theme_constant_override("separation", 12)
 	biome_list.alignment = BoxContainer.ALIGNMENT_BEGIN
 	biome_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	scroll_container.add_child(biome_list)
-
-	# Apply corner ornamentation
-	ornaments = UIOrnamentation.apply_corners_to_panel(
-		menu_panel,
-		UIOrnamentation.CORNER_SIZE_MEDIUM,
-		UIOrnamentation.TINT_BLUE
-	)
-
-
-func _hide_all() -> void:
-	"""Hide everything and reset state."""
-	current_mode = DisplayMode.HIDDEN
-	visible = false
-	# Reset dimmer mouse_filter when hiding to allow game input
-	if background_dimmer:
-		background_dimmer.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	if menu_panel:
-		menu_panel.visible = false
+	container.add_child(biome_list)
 
 
 func _get_biome_by_name(biome_name: String) -> Node:
@@ -171,13 +99,12 @@ func _select_biome_by_index(index: int) -> void:
 	_update_selection_highlight()
 
 
-## Show single biome inspector
-func show_biome(biome: Node, farm_node: Node) -> void:
-	"""Display inspector for a specific biome."""
-	if not biome or not farm_node:
+## Populate single biome content (internal helper, doesn't call activate)
+func _populate_single_biome(biome: Node) -> void:
+	"""Set up content for a single biome without activating."""
+	if not biome or not biome_list:
 		return
 
-	farm = farm_node
 	_clear_panels()
 	current_mode = DisplayMode.SINGLE_BIOME
 
@@ -187,26 +114,28 @@ func show_biome(biome: Node, farm_node: Node) -> void:
 	current_biome_panel.emoji_tapped.connect(_on_emoji_tapped)
 	biome_list.add_child(current_biome_panel)
 	current_biome_panel.initialize(biome, farm.grid)
-
-	# Show panel and enable interaction
-	visible = true
-	menu_panel.visible = true
-	scroll_container.scroll_vertical = 0
-	background_dimmer.mouse_filter = Control.MOUSE_FILTER_STOP
-	update_title_for_mode()
+	_update_title_for_mode()
 
 
-## Show all biomes
-func show_all_biomes(farm_node: Node) -> void:
-	"""Display inspectors for all registered biomes in scrollable list.
-
-	Always shows panels in consistent BIOME_ORDER from top.
-	User can scroll to see all biomes.
-	"""
-	if not farm_node or not farm_node.grid or not farm_node.grid.biomes:
+## Show single biome inspector
+func show_biome(biome: Node, farm_node: Node) -> void:
+	"""Display inspector for a specific biome."""
+	if not biome or not farm_node:
 		return
 
 	farm = farm_node
+	_populate_single_biome(biome)
+
+	# Show panel and enable interaction
+	activate()
+
+
+## Populate all biomes content (internal helper, doesn't call activate)
+func _populate_all_biomes() -> void:
+	"""Set up content for all biomes without activating."""
+	if not farm or not farm.grid or not farm.grid.biomes or not biome_list:
+		return
+
 	_clear_panels()
 	current_mode = DisplayMode.ALL_BIOMES
 
@@ -226,21 +155,28 @@ func show_all_biomes(farm_node: Node) -> void:
 	# Reset selection to first biome
 	selected_biome_index = 0
 	_update_selection_highlight()
+	_update_title_for_mode()
+
+
+## Show all biomes
+func show_all_biomes(farm_node: Node) -> void:
+	"""Display inspectors for all registered biomes in scrollable list."""
+	if not farm_node or not farm_node.grid or not farm_node.grid.biomes:
+		return
+
+	farm = farm_node
+	_populate_all_biomes()
 
 	# Show panel and enable interaction
-	visible = true
-	menu_panel.visible = true
-	scroll_container.scroll_vertical = 0
-	background_dimmer.mouse_filter = Control.MOUSE_FILTER_STOP
-	update_title_for_mode()
+	activate()
 
 
 ## Hide overlay
 func hide_overlay() -> void:
 	"""Hide inspector overlay and clean up panels."""
 	_clear_panels()
-	_hide_all()
-	overlay_closed.emit()
+	current_mode = DisplayMode.HIDDEN
+	deactivate()
 
 
 ## Toggle overlay (for button)
@@ -297,18 +233,15 @@ func _refresh_all_panels() -> void:
 # INPUT HANDLING
 # ============================================================================
 
-func update_title_for_mode() -> void:
+func _update_title_for_mode() -> void:
 	"""Update title label based on current display mode."""
-	if not title_label:
-		return
-
 	match current_mode:
 		DisplayMode.SINGLE_BIOME:
-			title_label.text = "🔬 BIOME INSPECTOR (Single View)"
+			set_title("BIOME INSPECTOR (Single View)")
 		DisplayMode.ALL_BIOMES:
-			title_label.text = "🔬 BIOME INSPECTOR (All Biomes)"
+			set_title("BIOME INSPECTOR (All Biomes)")
 		DisplayMode.HIDDEN:
-			title_label.text = "🔬 BIOME INSPECTOR"
+			set_title("BIOME INSPECTOR")
 
 
 func _on_close_requested() -> void:
@@ -318,15 +251,12 @@ func _on_close_requested() -> void:
 
 func _on_emoji_tapped(emoji: String) -> void:
 	"""Handle emoji tap - show icon details (Tier 3)"""
-	print("🔍 BiomeInspectorOverlay: Emoji tapped: %s (Tier 3 not yet implemented)" % emoji)
+	print("BiomeInspectorOverlay: Emoji tapped: %s (Tier 3 not yet implemented)" % emoji)
 	# TODO: Phase 3 - Open IconDetailPanel
 
 
 func _on_active_biome_changed(new_biome: String, _old_biome: String) -> void:
-	"""Handle biome switch via ,/. keys while overlay is open.
-
-	Updates display to show the newly selected biome.
-	"""
+	"""Handle biome switch via ,/. keys while overlay is open."""
 	if current_mode != DisplayMode.SINGLE_BIOME:
 		return  # Only update in single biome mode
 
@@ -342,34 +272,19 @@ func _on_active_biome_changed(new_biome: String, _old_biome: String) -> void:
 	if selected_biome_index < 0:
 		selected_biome_index = 0
 
-	# Refresh display with new biome
-	show_biome(biome, farm)
+	# Refresh display with new biome (use internal helper since already active)
+	_populate_single_biome(biome)
 
 
 # ============================================================================
-# V2 OVERLAY INTERFACE
+# OVERRIDES FOR CUSTOM INPUT HANDLING
 # ============================================================================
 
-func handle_input(event: InputEvent) -> bool:
-	"""Modal input handler for v2 overlay system.
-
-	Returns true if input was consumed, false otherwise.
-	"""
-	if not visible or current_mode == DisplayMode.HIDDEN:
-		return false
-
-	if not event is InputEventKey or not event.pressed or event.echo:
-		return false
-
-	match event.keycode:
-		KEY_ESCAPE:
-			# Don't consume ESC - let PlayerShell._handle_shell_action() call
-			# overlay_stack.handle_escape() which properly pops us from the stack.
-			# If we consume ESC here, we get hidden but stay on the stack!
-			return false
+func _on_unhandled_key(keycode: int, _event: InputEvent) -> bool:
+	"""Handle keys not caught by OverlayBase standard routing."""
+	match keycode:
 		KEY_COMMA, KEY_PERIOD:
 			# Don't consume biome cycling keys - let FarmInputHandler handle them
-			# This allows switching biomes while the overlay is open
 			return false
 		# WASD/Arrow navigation
 		KEY_W, KEY_UP:
@@ -384,26 +299,25 @@ func handle_input(event: InputEvent) -> bool:
 		KEY_D, KEY_RIGHT:
 			_navigate_right()
 			return true
-		# QER+F actions
-		KEY_Q:
-			on_q_pressed()
-			return true
-		KEY_E:
-			on_e_pressed()
-			return true
-		KEY_R:
-			on_r_pressed()
-			return true
-		KEY_F:
-			on_f_pressed()
-			return true
 
 	return false
 
 
-func activate() -> void:
-	"""v2 overlay lifecycle: Called when overlay opens."""
-	is_active = true
+# ============================================================================
+# V2 OVERLAY INTERFACE OVERRIDES
+# ============================================================================
+
+func _on_activated() -> void:
+	"""Called when overlay opens.
+
+	Note: Only populates content if not already showing something.
+	When show_biome() or show_all_biomes() calls activate(), content
+	is already set up, so we skip re-population to avoid recursion.
+	"""
+	# If already showing content, don't re-populate (avoid recursion)
+	if current_mode != DisplayMode.HIDDEN:
+		return
+
 	if farm:
 		# Show only the currently active biome (not all 4)
 		var active_biome_manager = get_node_or_null("/root/ActiveBiomeManager")
@@ -411,23 +325,23 @@ func activate() -> void:
 			var active_biome_name = active_biome_manager.get_active_biome()
 			var biome = _get_biome_by_name(active_biome_name)
 			if biome:
-				show_biome(biome, farm)
+				_populate_single_biome(biome)
 				return
 		# Fallback: show first biome if no active biome manager
 		if farm.grid and farm.grid.biomes:
 			for biome_name in BIOME_ORDER:
 				if farm.grid.biomes.has(biome_name):
-					show_biome(farm.grid.biomes[biome_name], farm)
+					_populate_single_biome(farm.grid.biomes[biome_name])
 					return
 
 
-func deactivate() -> void:
-	"""v2 overlay lifecycle: Called when overlay closes."""
-	is_active = false
-	hide_overlay()
+func _on_deactivated() -> void:
+	"""Called when overlay closes - just cleanup, don't call deactivate() again."""
+	_clear_panels()
+	current_mode = DisplayMode.HIDDEN
 
 
-func on_q_pressed() -> void:
+func _on_action_q() -> void:
 	"""Q = Select current icon for details."""
 	var biome = _get_selected_biome()
 	if biome and biome.icon_registry:
@@ -435,40 +349,41 @@ func on_q_pressed() -> void:
 		if selected_icon_index >= 0 and selected_icon_index < icons.size():
 			var icon = icons[selected_icon_index]
 			action_performed.emit("select_icon", {"icon": icon, "biome": biome.biome_name})
-			print("🔬 Selected icon: %s" % icon.get("emoji", "?"))
+			print("Selected icon: %s" % icon.get("emoji", "?"))
 
 
-func on_e_pressed() -> void:
+func _on_action_e() -> void:
 	"""E = Show icon parameters (hamiltonians, lindblads)."""
 	var biome = _get_selected_biome()
 	if biome:
 		action_performed.emit("show_parameters", {"biome": biome.biome_name})
-		print("🔬 Parameters for: %s" % biome.biome_name)
+		print("Parameters for: %s" % biome.biome_name)
 
 
-func on_r_pressed() -> void:
+func _on_action_r() -> void:
 	"""R = Show register mappings."""
 	var biome = _get_selected_biome()
 	if biome and biome.quantum_computer:
 		action_performed.emit("show_registers", {"biome": biome.biome_name})
-		print("🔬 Registers for: %s" % biome.biome_name)
+		print("Registers for: %s" % biome.biome_name)
 
 
-func on_f_pressed() -> void:
-	"""F = Cycle display mode (single biome ↔ all biomes)."""
+func _on_action_f() -> void:
+	"""F = Cycle display mode (single biome <-> all biomes)."""
+	# Use internal helpers since overlay is already active (avoid re-activation)
 	if current_mode == DisplayMode.SINGLE_BIOME:
 		if farm:
-			show_all_biomes(farm)
+			_populate_all_biomes()
 	elif current_mode == DisplayMode.ALL_BIOMES:
 		# Switch to first biome single view
 		var biome = _get_selected_biome()
 		if biome and farm:
-			show_biome(biome, farm)
+			_populate_single_biome(biome)
 	action_performed.emit("cycle_mode", {"mode": current_mode})
 
 
 func get_action_labels() -> Dictionary:
-	"""v2 overlay interface: Get current QER+F labels."""
+	"""Get current QER+F labels."""
 	var labels = action_labels.duplicate()
 	# Context-sensitive F label
 	if current_mode == DisplayMode.SINGLE_BIOME:
@@ -476,21 +391,6 @@ func get_action_labels() -> Dictionary:
 	elif current_mode == DisplayMode.ALL_BIOMES:
 		labels["F"] = "Single View"
 	return labels
-
-
-func get_overlay_tier() -> int:
-	"""Get z-index tier for OverlayStackManager."""
-	return overlay_tier
-
-
-func get_overlay_info() -> Dictionary:
-	"""v2 overlay interface: Get overlay metadata for registration."""
-	return {
-		"name": overlay_name,
-		"icon": overlay_icon,
-		"action_labels": get_action_labels(),
-		"tier": overlay_tier
-	}
 
 
 func _navigate_up() -> void:
@@ -557,27 +457,22 @@ func _update_selection_highlight() -> void:
 
 ## Inspect biome for a specific plot (Tool 6 integration)
 func inspect_plot_biome(plot_pos: Vector2i, farm_node: Node) -> void:
-	"""Show inspector for the biome assigned to a plot
-
-	Used by Tool 6 R (Inspect) action
-	"""
+	"""Show inspector for the biome assigned to a plot"""
 	if not farm_node or not farm_node.grid:
 		return
 
 	var biome_name = farm_node.grid.plot_biome_assignments.get(plot_pos, "")
 	if biome_name.is_empty():
-		print("⚠️  Plot %s has no biome assignment" % plot_pos)
+		print("Plot %s has no biome assignment" % plot_pos)
 		return
 
 	var biome = farm_node.grid.biomes.get(biome_name)
 	if not biome:
-		print("⚠️  Biome '%s' not found" % biome_name)
+		print("Biome '%s' not found" % biome_name)
 		return
 
 	# Show this biome with plot highlighted
 	show_biome(biome, farm_node)
-
-	# TODO: Highlight the specific plot in projection list
 
 
 ## Check if overlay is visible

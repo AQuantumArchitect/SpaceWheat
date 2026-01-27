@@ -8,12 +8,14 @@ extends RefCounted
 ## - Explicit parameters (no implicit state)
 ## - Dictionary returns with {success: bool, ...data, error?: String}
 
+const EconomyConstants = preload("res://Core/GameMechanics/EconomyConstants.gd")
+
 
 ## ============================================================================
 ## ICON ASSIGNMENT OPERATIONS
 ## ============================================================================
 
-static func icon_assign(farm, positions: Array[Vector2i], emoji: String, game_state_manager = null) -> Dictionary:
+static func icon_assign(farm, positions: Array[Vector2i], emoji: String, _game_state_manager = null) -> Dictionary:
 	"""Assign a vocabulary emoji to the biome's quantum system.
 
 	Injects a new qubit axis (north/south pair) into the biome's quantum computer.
@@ -32,19 +34,15 @@ static func icon_assign(farm, positions: Array[Vector2i], emoji: String, game_st
 			"message": "No plots selected"
 		}
 
-	# Look up the pair from GameState
-	var gsm = game_state_manager
-	if not gsm:
-		gsm = Engine.get_singleton("GameStateManager") if Engine.has_singleton("GameStateManager") else null
-
-	if not gsm or not gsm.current_state:
+	# Look up the pair from farm-owned vocabulary
+	if not farm or not farm.has_method("get_pair_for_emoji"):
 		return {
 			"success": false,
-			"error": "no_game_state",
-			"message": "GameState not available"
+			"error": "no_vocab_owner",
+			"message": "Farm vocabulary not available"
 		}
 
-	var pair = gsm.current_state.get_pair_for_emoji(emoji)
+	var pair = farm.get_pair_for_emoji(emoji)
 	if not pair:
 		return {
 			"success": false,
@@ -70,13 +68,25 @@ static func icon_assign(farm, positions: Array[Vector2i], emoji: String, game_st
 			"error": "no_biome",
 			"message": "No biome at position"
 		}
+	if biome.quantum_computer and biome.quantum_computer.register_map.num_qubits >= EconomyConstants.MAX_BIOME_QUBITS:
+		return {
+			"success": false,
+			"error": "qubit_cap_reached",
+			"message": "Biome is at max capacity (%d qubits)" % EconomyConstants.MAX_BIOME_QUBITS
+		}
 
-	# Check if already exists in biome
+	# Check if either emoji already exists in biome (prevent axis conflicts)
 	if biome.quantum_computer and biome.quantum_computer.register_map.has(north):
 		return {
 			"success": false,
 			"error": "already_exists",
 			"message": "%s already in biome" % north
+		}
+	if biome.quantum_computer and biome.quantum_computer.register_map.has(south):
+		return {
+			"success": false,
+			"error": "already_exists",
+			"message": "%s already in biome" % south
 		}
 
 	# Expand quantum system with the pair
@@ -205,23 +215,19 @@ static func icon_clear(farm, positions: Array[Vector2i]) -> Dictionary:
 ## VOCABULARY QUERY OPERATIONS
 ## ============================================================================
 
-static func get_available_icons(game_state_manager = null) -> Dictionary:
+static func get_available_icons(farm = null) -> Dictionary:
 	"""Get list of available icons from player's vocabulary."""
-	var gsm = game_state_manager
-	if not gsm:
-		gsm = Engine.get_singleton("GameStateManager") if Engine.has_singleton("GameStateManager") else null
-
-	if not gsm or not gsm.current_state:
+	if not farm:
 		return {
 			"success": false,
-			"error": "no_game_state",
-			"message": "GameState not available"
+			"error": "no_farm",
+			"message": "Farm not available"
 		}
 
 	var icons: Array = []
 
-	if gsm.current_state.has_method("get_known_pairs"):
-		var pairs = gsm.current_state.get_known_pairs()
+	if farm.has_method("get_known_pairs"):
+		var pairs = farm.get_known_pairs()
 		for pair in pairs:
 			icons.append({
 				"north": pair.get("north", ""),

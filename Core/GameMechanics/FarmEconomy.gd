@@ -22,8 +22,8 @@ signal flour_sold(flour_amount: int, credits_received: int)
 # Start with 0 - player must gather all resources through gameplay
 const INITIAL_RESOURCES = {
 	# BioticFlux crops
-	"🌾": 0,    # wheat (agriculture)
-	"👥": 0,    # labor (work)
+	"🌾": 10,   # wheat (agriculture)
+	"👥": 20,   # labor (work)
 	"🍄": 0,    # mushroom (fungal)
 	"🍂": 0,    # detritus (decay)
 	"🍅": 0,    # tomato (life/conspiracy)
@@ -40,9 +40,13 @@ const INITIAL_RESOURCES = {
 	"🌿": 0,    # vegetation (producer)
 	"🐇": 0,    # rabbit (herbivore)
 	"🐺": 0,    # wolf (predator)
+	# StellarForges resources
+	"⚙": 20,   # gears (industry)
 	# Other
 	"👑": 0,    # imperium
 	"💰": 0,    # credits (legacy)
+	# Reality Midwife tokens (tracked as emoji-credits)
+	EconomyConstants.MIDWIFE_EMOJI: 4,
 }
 
 ## ========================================
@@ -93,6 +97,11 @@ func _print_resources():
 
 func add_resource(emoji: String, credits_amount: int, reason: String = "") -> void:
 	"""Add emoji-credits to any resource"""
+	if credits_amount > 0 and not _is_gain_allowed(emoji):
+		if reason != "":
+			if _verbose: _verbose.warn("economy", "🚫", "Blocked gain of %s (%d credits) from %s" % [emoji, credits_amount, reason])
+		return
+
 	if not emoji_credits.has(emoji):
 		emoji_credits[emoji] = 0
 
@@ -102,6 +111,24 @@ func add_resource(emoji: String, credits_amount: int, reason: String = "") -> vo
 	var quantum_units = credits_amount / EconomyConstants.QUANTUM_TO_CREDITS
 	if reason != "":
 		if _verbose: _verbose.info("economy", "+", "%d %s-credits (%d units) from %s" % [credits_amount, emoji, quantum_units, reason])
+
+
+func _is_gain_allowed(emoji: String) -> bool:
+	"""Allow gains only for emojis in the player's known vocabulary."""
+	var gsm = get_node_or_null("/root/GameStateManager")
+	if not gsm:
+		return true
+
+	# Prefer farm-owned vocabulary when available
+	if "active_farm" in gsm and gsm.active_farm and gsm.active_farm.has_method("get_known_emojis"):
+		var known_emojis = gsm.active_farm.get_known_emojis()
+		return emoji in known_emojis
+
+	# Fallback to saved state (legacy)
+	if not gsm.current_state:
+		return true
+	var known = gsm.current_state.get_known_emojis() if gsm.current_state.has_method("get_known_emojis") else []
+	return emoji in known
 
 
 func remove_resource(emoji: String, credits_amount: int, reason: String = "") -> bool:
@@ -117,6 +144,16 @@ func remove_resource(emoji: String, credits_amount: int, reason: String = "") ->
 	if reason != "":
 		if _verbose: _verbose.info("economy", "-", "%d %s-credits (%d units) for %s" % [credits_amount, emoji, quantum_units, reason])
 	return true
+
+
+func set_resource(emoji: String, credits_amount: int, reason: String = "") -> void:
+	"""Set emoji-credits directly (bypasses gain gate)."""
+	if not emoji_credits.has(emoji):
+		emoji_credits[emoji] = 0
+	emoji_credits[emoji] = max(0, credits_amount)
+	_emit_resource_change(emoji)
+	if reason != "":
+		if _verbose: _verbose.info("economy", "=", "%d %s-credits from %s" % [credits_amount, emoji, reason])
 
 
 func get_resource(emoji: String) -> int:

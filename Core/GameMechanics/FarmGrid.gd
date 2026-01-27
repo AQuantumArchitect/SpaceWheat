@@ -7,7 +7,7 @@ extends Node
 ## - GridPlotManager: Plot lifecycle and queries
 ## - BiomeRoutingManager: Multi-biome registry and routing
 ## - EntanglementManager: Quantum entanglement operations
-## - PlantingManager: Crop planting with parametric capabilities
+## - PlantingManager: (removed) legacy planting system
 ## - BuildingManager: Mill, market, kitchen placement
 ## - HarvestMeasurementManager: Harvest and measurement operations
 ##
@@ -38,7 +38,6 @@ signal visualization_changed()
 const GridPlotManager = preload("res://Core/GameMechanics/Grid/GridPlotManager.gd")
 const BiomeRoutingManager = preload("res://Core/GameMechanics/Grid/BiomeRoutingManager.gd")
 const EntanglementManager = preload("res://Core/GameMechanics/Grid/EntanglementManager.gd")
-const PlantingManager = preload("res://Core/GameMechanics/Grid/PlantingManager.gd")
 const BuildingManager = preload("res://Core/GameMechanics/Grid/BuildingManager.gd")
 const HarvestMeasurementManager = preload("res://Core/GameMechanics/Grid/HarvestMeasurementManager.gd")
 
@@ -52,7 +51,6 @@ const Icon = preload("res://Core/QuantumSubstrate/Icon.gd")
 var _plot_manager: GridPlotManager
 var _biome_routing: BiomeRoutingManager
 var _entanglement: EntanglementManager
-var _planting: PlantingManager
 var _buildings: BuildingManager
 var _harvest: HarvestMeasurementManager
 
@@ -77,9 +75,6 @@ var biome = null
 var base_temperature: float = 20.0
 var active_icons: Array = []
 var icon_scopes: Dictionary = {}  # Icon → Array[String]
-
-# Stats
-var total_plots_planted: int = 0
 
 # PERFORMANCE: Throttle slower subsystems
 const MILL_MARKET_UPDATE_INTERVAL: float = 0.1
@@ -149,7 +144,6 @@ func _init(width: int = 6, height: int = 4):
 	_plot_manager = GridPlotManager.new(grid_width, grid_height)
 	_biome_routing = BiomeRoutingManager.new()
 	_entanglement = EntanglementManager.new()
-	_planting = PlantingManager.new()
 	_buildings = BuildingManager.new()
 	_harvest = HarvestMeasurementManager.new()
 
@@ -161,13 +155,11 @@ func _ready():
 	_plot_manager.set_verbose(_verbose)
 	_biome_routing.set_verbose(_verbose)
 	_entanglement.set_verbose(_verbose)
-	_planting.set_verbose(_verbose)
 	_buildings.set_verbose(_verbose)
 	_harvest.set_verbose(_verbose)
 
 	# Wire component dependencies
 	_entanglement.set_dependencies(_plot_manager, _biome_routing)
-	_planting.set_dependencies(_plot_manager, _biome_routing, farm_economy, _entanglement)
 	_buildings.set_dependencies(_plot_manager, _biome_routing, _entanglement)
 	_buildings.set_parent_node(self)
 	_harvest.set_dependencies(_plot_manager, _biome_routing, farm_economy, _entanglement)
@@ -178,10 +170,6 @@ func _ready():
 	# Forward signals from components
 	_entanglement.entanglement_created.connect(func(a, b): entanglement_created.emit(a, b))
 	_entanglement.entanglement_removed.connect(func(a, b): entanglement_removed.emit(a, b))
-
-	_planting.plot_planted.connect(func(pos): plot_planted.emit(pos))
-	_planting.plot_changed.connect(func(pos, t, d): plot_changed.emit(pos, t, d))
-	_planting.visualization_changed.connect(func(): visualization_changed.emit())
 
 	_harvest.plot_harvested.connect(func(pos, data): plot_harvested.emit(pos, data))
 	_harvest.plot_changed.connect(func(pos, t, d): plot_changed.emit(pos, t, d))
@@ -313,27 +301,6 @@ func get_grid_stats() -> Dictionary:
 func print_grid_state():
 	"""Debug: Print current grid state"""
 	_plot_manager.print_grid_state()
-
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# FARMING OPERATIONS (delegates to PlantingManager)
-# ═══════════════════════════════════════════════════════════════════════════════
-
-func plant(position: Vector2i, plant_type: String, quantum_state: Resource = null) -> bool:
-	"""Generic plant method - handles all crop types (PARAMETRIC)"""
-	# Ensure economy is wired (may be set after _ready)
-	if farm_economy and not _planting._economy:
-		_planting.set_dependencies(_plot_manager, _biome_routing, farm_economy, _entanglement)
-
-	var result = _planting.plant(position, plant_type, quantum_state)
-	if result:
-		total_plots_planted = _planting.total_plots_planted
-	return result
-
-
-func _get_adjacent_wheat(position: Vector2i) -> Array:
-	"""Get all wheat plots adjacent to a position"""
-	return _planting.get_adjacent_wheat(position)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

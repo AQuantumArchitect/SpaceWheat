@@ -65,6 +65,10 @@ static func _get_biome_emojis(biome_name: String) -> Array:
 			return ["🦗", "🐜", "🍄", "🦠", "🧫", "🍂", "🌙", "☀"]
 		"VolcanicWorldsBiome":
 			return ["🔥", "🪨", "💎", "⛏", "🌫", "✨"]
+		"StarterForestBiome":
+			return ["☀", "🌙", "🐺", "🐇", "🦅", "🦌", "🌲", "🍂", "🌱", "🌿"]
+		"VillageBiome":
+			return ["🔥", "❄️", "🌾", "🍞", "⚙️", "💨", "🦠", "👥", "💰", "🧺"]
 		# Legacy biomes (kept for cache compatibility)
 		"MarketBiome":
 			return ["⚖️", "💰", "🌾", "🍄", "🐰", "🐺", "🏰"]

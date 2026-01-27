@@ -31,27 +31,6 @@ signal visual_effect_requested(effect_type: String, position: Vector2, data: Dic
 # Build configuration - use Farm.BUILD_CONFIGS as source of truth for costs
 # This table only adds UI-specific metadata (colors, messages)
 const BUILD_UI_CONFIGS = {
-	"wheat": {
-		"farm_method": "plant_wheat",
-		"visual_color": Color(0.4, 0.9, 0.4),
-		"success_message": "Planted wheat!",
-		"failure_message": "Cannot plant wheat here",
-		"updates_quantum_graph": true
-	},
-	"tomato": {
-		"farm_method": "plant_tomato",
-		"visual_color": Color(0.9, 0.2, 0.2),
-		"success_message": "Planted tomato!",
-		"failure_message": "Cannot plant tomato here",
-		"updates_quantum_graph": false
-	},
-	"mushroom": {
-		"farm_method": "plant_mushroom",
-		"visual_color": Color(0.6, 0.3, 0.8),
-		"success_message": "Planted mushroom!",
-		"failure_message": "Cannot plant mushroom here",
-		"updates_quantum_graph": false
-	},
 	"mill": {
 		"farm_method": "place_mill",
 		"visual_color": Color(0.8, 0.6, 0.4),
@@ -88,11 +67,11 @@ func _ready():
 ## Public API - Game Actions
 
 func build(pos: Vector2i, build_type: String) -> bool:
-	"""Unified build/plant method - handles all types
+	"""Unified build method - handles all types
 
 	Args:
 		pos: Grid position to build at
-		build_type: Type identifier ("wheat", "tomato", "mushroom", "mill", "market", etc.)
+		build_type: Type identifier ("mill", "market", "kitchen", etc.)
 
 	Returns:
 		bool: True if successful, False if failed
@@ -130,12 +109,6 @@ func build(pos: Vector2i, build_type: String) -> bool:
 	var success = false
 	var farm_method = ui_config["farm_method"]
 	match farm_method:
-		"plant_wheat":
-			success = farm_grid.plant_wheat(pos)
-		"plant_tomato":
-			success = farm_grid.plant_tomato(pos, conspiracy_network)
-		"plant_mushroom":
-			success = farm_grid.plant_mushroom(pos)
 		"place_mill":
 			success = farm_grid.place_mill(pos)
 		"place_market":

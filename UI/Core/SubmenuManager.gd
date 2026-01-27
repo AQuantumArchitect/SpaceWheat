@@ -15,6 +15,9 @@ var current_submenu: String = ""
 # Cached submenu data for dynamic menus
 var _cached_submenu: Dictionary = {}
 
+# Current page for paginated submenus (like vocab_injection)
+var _current_page: int = 0
+
 # Signals
 signal submenu_changed(submenu_name: String, submenu_info: Dictionary)
 
@@ -66,21 +69,36 @@ func enter_submenu(submenu_name: String, farm, menu_position: Vector2i) -> void:
 		farm: Farm instance for dynamic menu generation
 		menu_position: Position to use for context-aware menus
 	"""
-	var submenu = ToolConfig.get_submenu(submenu_name)
-	if submenu.is_empty():
-		push_error("Submenu '%s' not found" % submenu_name)
-		return
+	# Reset page when entering submenu
+	_current_page = 0
 
-	# Check if submenu is dynamic - generate runtime actions
-	if submenu.get("dynamic", false):
-		submenu = ToolConfig.get_dynamic_submenu(submenu_name, farm, menu_position)
+	var submenu = {}
 
-	# Special handling for mill_power submenu: inject availability
-	if submenu_name == "mill_power" and farm and farm.grid:
-		submenu = submenu.duplicate(true)  # Make copy to add availability
-		var biome = farm.grid.get_biome_for_plot(menu_position)
-		var availability = QuantumMill.check_power_availability(biome)
-		submenu["_availability"] = availability
+	# Special handling for vocab_injection submenu
+	if submenu_name == "vocab_injection":
+		var biome = farm.grid.get_biome_for_plot(menu_position) if farm and farm.grid else null
+		if biome and farm:
+			submenu = VocabInjectionSubmenu.generate_submenu(biome, farm, _current_page)
+		else:
+			push_error("VocabInjectionSubmenu: No biome or farm available")
+			return
+	else:
+		# Standard submenu lookup
+		submenu = ToolConfig.get_submenu(submenu_name)
+		if submenu.is_empty():
+			push_error("Submenu '%s' not found" % submenu_name)
+			return
+
+		# Check if submenu is dynamic - generate runtime actions
+		if submenu.get("dynamic", false):
+			submenu = ToolConfig.get_dynamic_submenu(submenu_name, farm, menu_position)
+
+		# Special handling for mill_power submenu: inject availability
+		if submenu_name == "mill_power" and farm and farm.grid:
+			submenu = submenu.duplicate(true)  # Make copy to add availability
+			var biome = farm.grid.get_biome_for_plot(menu_position)
+			var availability = QuantumMill.check_power_availability(biome)
+			submenu["_availability"] = availability
 
 	current_submenu = submenu_name
 	_cached_submenu = submenu
@@ -128,7 +146,7 @@ func enter_mill_conversion_submenu(farm, menu_position: Vector2i) -> void:
 func refresh_dynamic_submenu(farm, menu_position: Vector2i) -> void:
 	"""Refresh dynamic submenu when selection changes.
 
-	If currently in a dynamic submenu (like plant), regenerate it based on
+	If currently in a dynamic submenu (like vocab injection), regenerate it based on
 	the new selected plot's biome.
 
 	Args:
@@ -137,6 +155,15 @@ func refresh_dynamic_submenu(farm, menu_position: Vector2i) -> void:
 	"""
 	if current_submenu == "":
 		return  # Not in a submenu
+
+	# Special handling for vocab_injection (regenerate with current page)
+	if current_submenu == "vocab_injection":
+		var biome = farm.grid.get_biome_for_plot(menu_position) if farm and farm.grid else null
+		if biome and farm:
+			var regenerated = VocabInjectionSubmenu.generate_submenu(biome, farm, _current_page)
+			_cached_submenu = regenerated
+			submenu_changed.emit(current_submenu, regenerated)
+		return
 
 	# Check if current submenu is dynamic
 	var base_submenu = ToolConfig.get_submenu(current_submenu)
@@ -149,6 +176,32 @@ func refresh_dynamic_submenu(farm, menu_position: Vector2i) -> void:
 
 	# Re-emit submenu_changed to update UI
 	submenu_changed.emit(current_submenu, regenerated)
+
+
+func cycle_submenu_page(farm, menu_position: Vector2i) -> void:
+	"""Cycle to next page in paginated submenu (F key functionality).
+
+	Args:
+		farm: Farm instance
+		menu_position: Current menu position
+	"""
+	if current_submenu == "":
+		return  # Not in submenu
+
+	# Only vocab_injection supports pagination currently
+	if current_submenu == "vocab_injection":
+		_current_page += 1
+
+		# Generate new page
+		var biome = farm.grid.get_biome_for_plot(menu_position) if farm and farm.grid else null
+		if biome and farm:
+			var regenerated = VocabInjectionSubmenu.generate_submenu(biome, farm, _current_page)
+			_cached_submenu = regenerated
+
+			# Update current_page from regenerated submenu (handles wraparound)
+			_current_page = regenerated.get("page", 0)
+
+			submenu_changed.emit(current_submenu, regenerated)
 
 
 ## ============================================================================
@@ -189,3 +242,16 @@ func reset() -> void:
 	"""Reset submenu state (e.g., on tool change)."""
 	current_submenu = ""
 	_cached_submenu = {}
+	_current_page = 0
+
+
+func _get_game_state_manager():
+	"""Get GameStateManager from scene tree or autoload."""
+	if Engine.has_singleton("GameStateManager"):
+		return Engine.get_singleton("GameStateManager")
+
+	var tree = Engine.get_main_loop() as SceneTree
+	if tree:
+		return tree.root.get_node_or_null("GameStateManager")
+
+	return null

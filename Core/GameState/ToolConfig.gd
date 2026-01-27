@@ -1,644 +1,514 @@
-class_name ToolConfig
 extends RefCounted
-## ToolConfig - v2 Tool Architecture Configuration
-##
-## Defines PLAY mode (4 tools) and BUILD mode (4 tools) with F-cycling support.
-## Implements "Quantum Tomography Paradigm" - plots as probes into quantum soup.
-##
-## Key Changes from v1:
-##   - EXPLORE replaces PLANT as primary action (discover, don't create)
-##   - F-cycling for mode expansion within tools (GATES, ENTANGLE)
-##   - Tab toggles BUILD/PLAY modes
-##   - Spacebar pauses/resumes evolution
+## Note: No class_name - accessed via preload for backward compatibility
 
-## Current game mode ("play" or "build")
-static var current_mode: String = "play"
+## ToolConfig - Time Scale Ratchet Tool Architecture
+##
+## Tool groups organized by temporal granularity:
+##
+## | Group | Time Scale   | Physics     | Character                                |
+## |-------|--------------|-------------|------------------------------------------|
+## | 1     | Continuous   | Unitary     | Smooth, reversible quantum gates         |
+## | 2     | Dissipative  | Lindbladian | Energy exchange, "vampire" in/out        |
+## | 3     | Discrete     | Measurement | Collapse, harvest, build gates           |
+## | [4]   | Meta         | System      | Vocabulary inject/remove, biome config   |
+##
+## Key Layout:
+##   1 2 3 [4]  = Tool group selection (time scale ratchet)
+##   Q E R      = Action keys (DOWN, NEUTRAL, UP)
+##   F          = Mode cycling within tool group
+##
+## Direction Philosophy:
+##   Q = DOWN  (dig into, bind, construct)
+##   E = NEUTRAL (observe, balance, transfer)
+##   R = UP    (extract, harvest, remove)
 
-## F-cycling mode indices per tool (mode_tool_num → current mode index)
-## Key format: "play_2" or "build_4" to track modes per mode+tool combo
-static var tool_mode_indices: Dictionary = {
-	"play_2": 0,  # GATES: 0=convert, 1=pauli, 2=phase
-	"play_3": 0,  # ENTANGLE: 0=link, 1=manage
-	"play_4": 0,  # INDUSTRY: 0=build, 1=harvest
-	"build_4": 0  # QUANTUM: 0=system, 1=phase, 2=phase_dag, 3=rotation
+## Current tool group (1-4) - Default to Measure (3) for main gameplay loop
+static var current_group: int = 3
+
+## Current mode index within each group (for F-cycling)
+static var group_mode_indices: Dictionary = {
+	1: 0,  # Unitary: X, Y, Z axis
+	2: 0,  # Lindbladian: thermal, dephase, damp
+	3: 0,  # Measure: probe, gate, build
+	4: 0   # Meta: (no modes)
 }
 
 # ============================================================================
-# PLAY MODE TOOLS - Primary gameplay (Tab = "play")
+# TOOL GROUP DEFINITIONS - Time Scale Ratchet
 # ============================================================================
-#
-# Tool Organization Philosophy:
-#   Tool 1 (PROBE): Core loop - EXPLORE → MEASURE → POP (80% of gameplay)
-#   Tool 2 (GATES): 1-qubit gates - probability control for resource conversion
-#   Tool 3 (ENTANGLE): 2-qubit gates - create and manage entanglement
-#   Tool 4 (INDUSTRY): Economy - buildings and automation
-#
-# F-Cycling: Tools 2 and 3 have multiple banks accessible via F key
-#   - Bank 1: Most useful gates (default)
-#   - Bank 2: Advanced/niche gates
 
-const PLAY_TOOLS = {
-	1: {  # PROBE - Core loop (80% of gameplay)
-		"name": "Probe",
-		"emoji": "🔬",
-		"icon": "res://Assets/UI/Science/Probe.svg",
-		"description": "Explore quantum soup, measure, harvest",
-		"has_f_cycling": false,
-		"actions": {
-			"Q": {"action": "explore", "label": "Explore", "emoji": "🔍",
-				  "icon": "res://Assets/UI/Science/Explore.svg"},
-			"E": {"action": "measure", "label": "Measure", "emoji": "👁️",
-				  "icon": "res://Assets/UI/Science/Measure.svg"},
-			"R": {"action": "pop", "label": "Pop/Harvest", "emoji": "✂️",
-				  "icon": "res://Assets/UI/Science/Pop-Harvest.svg"}
-		}
-	},
-	2: {  # GATES - 1-qubit gates with F-cycling
-		"name": "Gates",
-		"emoji": "⚡",
+const TOOL_GROUPS = {
+	# =========================================================================
+	# GROUP 1: UNITARY (~) - Continuous
+	# Pure quantum gates. Smooth, reversible. Sim runs.
+	# =========================================================================
+	1: {
+		"name": "Unitary",
+		"emoji": "~",
 		"icon": "res://Assets/UI/Q-Bit/Unitary.svg",
-		"description": "1-qubit gates for probability control",
+		"time_scale": "continuous",
+		"description": "Smooth, reversible quantum gates",
 		"has_f_cycling": true,
-		"modes": ["convert", "pauli", "phase"],
-		"mode_labels": ["Convert", "Pauli", "Phase"],
+		"modes": ["X", "Y", "Z"],
+		"mode_labels": ["X", "Y", "Z"],
+		"mode_emojis": ["X", "Y", "Z"],
+		"pauses_sim": false,
 		"actions": {
-			"convert": {  # Bank 1: Most useful for gameplay (default)
-				"Q": {"action": "apply_pauli_x", "label": "X Flip", "emoji": "↔️",
+			"X": {
+				"Q": {"action": "rotate_down", "label": "-", "emoji": "-",
 					  "icon": "res://Assets/UI/Q-Bit/Pauli-X.svg",
-					  "hint": "Swap north↔south emoji"},
-				"E": {"action": "apply_hadamard", "label": "H Superpose", "emoji": "🌀",
+					  "hint": "Rotate X axis down"},
+				"E": {"action": "hadamard", "label": "H", "emoji": "H",
 					  "icon": "res://Assets/UI/Q-Bit/Hadamard.svg",
-					  "hint": "Reset to 50/50"},
-				"R": {"action": "apply_ry", "label": "Ry Tune", "emoji": "🎚️",
-					  "icon": "res://Assets/UI/Tools/Quantum/RY.svg",
-					  "hint": "Dial exact probability"}
-			},
-			"pauli": {  # Bank 2: Pauli gates (X, Y, Z)
-				"Q": {"action": "apply_pauli_x", "label": "X Flip", "emoji": "↔️",
+					  "hint": "Hadamard superposition"},
+				"R": {"action": "rotate_up", "label": "+", "emoji": "+",
 					  "icon": "res://Assets/UI/Q-Bit/Pauli-X.svg",
-					  "hint": "Bit flip |0⟩↔|1⟩"},
-				"E": {"action": "apply_pauli_y", "label": "Y Rotate", "emoji": "🔄",
+					  "hint": "Rotate X axis up"}
+			},
+			"Y": {
+				"Q": {"action": "rotate_down", "label": "-", "emoji": "-",
 					  "icon": "res://Assets/UI/Q-Bit/Pauli-Y.svg",
-					  "hint": "Combined X+Z rotation"},
-				"R": {"action": "apply_pauli_z", "label": "Z Phase", "emoji": "📐",
+					  "hint": "Rotate Y axis down"},
+				"E": {"action": "hadamard", "label": "H", "emoji": "H",
+					  "icon": "res://Assets/UI/Q-Bit/Hadamard.svg",
+					  "hint": "Hadamard superposition"},
+				"R": {"action": "rotate_up", "label": "+", "emoji": "+",
+					  "icon": "res://Assets/UI/Q-Bit/Pauli-Y.svg",
+					  "hint": "Rotate Y axis up"}
+			},
+			"Z": {
+				"Q": {"action": "rotate_down", "label": "-", "emoji": "-",
 					  "icon": "res://Assets/UI/Q-Bit/Pauli-Z.svg",
-					  "hint": "Phase flip |1⟩"}
-			},
-			"phase": {  # Bank 3: Phase gates (advanced)
-				"Q": {"action": "apply_pauli_z", "label": "Z Phase", "emoji": "📐",
+					  "hint": "Rotate Z axis down"},
+				"E": {"action": "hadamard", "label": "H", "emoji": "H",
+					  "icon": "res://Assets/UI/Q-Bit/Hadamard.svg",
+					  "hint": "Hadamard superposition"},
+				"R": {"action": "rotate_up", "label": "+", "emoji": "+",
 					  "icon": "res://Assets/UI/Q-Bit/Pauli-Z.svg",
-					  "hint": "Phase flip |1⟩"},
-				"E": {"action": "apply_s_gate", "label": "S π/2", "emoji": "🌙",
-					  "icon": "res://Assets/UI/Tools/Quantum/S.svg",
-					  "hint": "Quarter phase turn"},
-				"R": {"action": "apply_t_gate", "label": "T π/4", "emoji": "✨",
-					  "icon": "res://Assets/UI/Tools/Quantum/T.svg",
-					  "hint": "Eighth phase turn"}
+					  "hint": "Rotate Z axis up"}
 			}
 		}
 	},
-	3: {  # ENTANGLE - 2-qubit gates with F-cycling
-		"name": "Entangle",
-		"emoji": "🔗",
-		"icon": "res://Assets/UI/Tools/Entangle/Entangle.svg",
-		"description": "2-qubit gates for entanglement",
-		"has_f_cycling": true,
-		"modes": ["link", "manage"],
-		"mode_labels": ["Link", "Manage"],
-		"actions": {
-			"link": {  # Bank 1: Core entanglement gates (default)
-				"Q": {"action": "apply_cnot", "label": "CNOT", "emoji": "🔗",
-					  "icon": "res://Assets/UI/Tools/Entangle/Entangle.svg",
-					  "hint": "Flip target if control=|1⟩"},
-				"E": {"action": "apply_swap", "label": "SWAP", "emoji": "🔄",
-					  "icon": "res://Assets/UI/Icon/Swap.svg",
-					  "hint": "Exchange two qubit states"},
-				"R": {"action": "apply_cz", "label": "CZ", "emoji": "⚡",
-					  "icon": "res://Assets/UI/Tools/Entangle/Trigger.svg",
-					  "hint": "Phase kick on |11⟩"}
-			},
-			"manage": {  # Bank 2: Entanglement management
-				"Q": {"action": "create_bell_pair", "label": "Bell Pair", "emoji": "💑",
-					  "icon": "res://Assets/UI/Tools/Entangle/Cluster.svg",
-					  "hint": "Create maximally entangled pair"},
-				"E": {"action": "disentangle", "label": "Disentangle", "emoji": "✂️",
-					  "icon": "res://Assets/UI/Tools/Entangle/Disentangle.svg",
-					  "hint": "Break entanglement"},
-				"R": {"action": "inspect_entanglement", "label": "Inspect", "emoji": "🔍",
-					  "icon": "res://Assets/UI/Biome/BiomeInspect.svg",
-					  "hint": "View entanglement graph"}
-			}
-		}
-	},
-	4: {  # INDUSTRY - Economy & automation (F-cycle: Build → Harvest)
-		"name": "Industry",
-		"emoji": "🏭",
-		"icon": "res://Assets/UI/Industry/Industry.svg",
-		"description": "Economy & automation",
-		"has_f_cycling": true,
-		"modes": ["build", "harvest"],
-		"mode_labels": ["Build", "Harvest"],
-		"actions": {
-			"build": {  # Mode 0: Place buildings (default)
-				"Q": {"action": "submenu_mill_power", "label": "Mill ▸", "emoji": "⚙️",
-					  "icon": "res://Assets/UI/Industry/Mill.svg",
-					  "hint": "Place mill (coupling injector)", "submenu": "mill_power"},
-				"E": {"action": "place_market", "label": "Market", "emoji": "🏪",
-					  "icon": "res://Assets/UI/Industry/Market.svg",
-					  "hint": "Place market (sell for 💰)"},
-				"R": {"action": "place_kitchen", "label": "Kitchen", "emoji": "🍳",
-					  "icon": "res://Assets/UI/Industry/Kitchen.svg",
-					  "hint": "Place kitchen (3 plots)"}
-			},
-			"harvest": {  # Mode 1: Harvest from buildings
-				"Q": {"action": "harvest_flour", "label": "Harvest 💨", "emoji": "💨",
-					  "icon": "res://Assets/UI/Science/Pop-Harvest.svg",
-					  "hint": "Harvest flour when P(💨) high"},
-				"E": {"action": "market_sell", "label": "Sell 💰", "emoji": "💰",
-					  "icon": "res://Assets/UI/Industry/Market.svg",
-					  "hint": "Quantum sale for credits"},
-				"R": {"action": "bake_bread", "label": "Bake 🍞", "emoji": "🍞",
-					  "icon": "res://Assets/UI/Industry/Kitchen.svg",
-					  "hint": "Bake bread (💧+🔥+💨)"}
-			}
-		}
-	}
-}
 
-# ============================================================================
-# BUILD MODE TOOLS - World configuration (Tab = "build")
-# ============================================================================
-
-const BUILD_TOOLS = {
-	1: {  # BIOME - Ecosystem management
-		"name": "Biome",
-		"emoji": "🌍",
-		"icon": "res://Assets/UI/Biome/Biome.svg",
-		"description": "Assign plots to biomes, configure ecosystems",
-		"has_f_cycling": false,
-		"actions": {
-			"Q": {"action": "submenu_biome_assign", "label": "Assign Biome ▸", "emoji": "🔄",
-				  "icon": "res://Assets/UI/Biome/BiomeAssign.svg", "submenu": "biome_assign"},
-			"E": {"action": "clear_biome_assignment", "label": "Clear Assignment", "emoji": "❌",
-				  "icon": "res://Assets/UI/Biome/BiomeClear.svg"},
-			"R": {"action": "inspect_plot", "label": "Inspect Plot", "emoji": "🔍",
-				  "icon": "res://Assets/UI/Biome/BiomeInspect.svg"}
-		}
-	},
-	2: {  # ICON - Icon/emoji configuration
-		"name": "Icon",
-		"emoji": "⚙️",
-		"icon": "res://Assets/UI/Icon/Icon.svg",
-		"description": "Configure icons and emoji associations",
-		"has_f_cycling": false,
-		"actions": {
-			"Q": {"action": "submenu_icon_assign", "label": "Assign Icon ▸", "emoji": "🎨",
-				  "icon": "res://Assets/UI/Icon/Assign.svg", "submenu": "icon_assign"},
-			"E": {"action": "icon_swap", "label": "Swap N/S", "emoji": "🔃",
-				  "icon": "res://Assets/UI/Icon/Swap.svg"},
-			"R": {"action": "icon_clear", "label": "Clear Icon", "emoji": "⬜",
-				  "icon": "res://Assets/UI/Icon/Clear.svg"}
-		}
-	},
-	3: {  # LINDBLAD - Dissipation control
+	# =========================================================================
+	# GROUP 2: LINDBLADIAN (V) - Dissipative
+	# "Vampire" - energy in/out of quantum space. Vocabulary harvest.
+	# =========================================================================
+	2: {
 		"name": "Lindblad",
-		"emoji": "🔬",
+		"emoji": "V",
 		"icon": "res://Assets/UI/Tools/Lindblad/Lindblad.svg",
-		"description": "Configure Lindblad operators and dissipation",
-		"has_f_cycling": false,
-		"actions": {
-			"Q": {"action": "lindblad_drive", "label": "Drive (+pop)", "emoji": "📈",
-				  "icon": "res://Assets/UI/Tools/Lindblad/Drive.svg"},
-			"E": {"action": "lindblad_decay", "label": "Decay (-pop)", "emoji": "📉",
-				  "icon": "res://Assets/UI/Tools/Lindblad/Decay.svg"},
-			"R": {"action": "lindblad_transfer", "label": "Transfer", "emoji": "↔️",
-				  "icon": "res://Assets/UI/Tools/Lindblad/Transfer.svg"}
-		}
-	},
-	4: {  # QUANTUM - System control + Gate configuration (F-cycles)
-		"name": "Quantum",
-		"emoji": "⚛️",
-		"icon": "res://Assets/UI/Tools/Quantum/Quantum.svg",
-		"description": "System control and gate configuration",
+		"time_scale": "dissipative",
+		"description": "Energy exchange with environment",
 		"has_f_cycling": true,
-		"modes": ["system", "phase", "phase_dag", "rotation"],
-		"mode_labels": ["System", "Phase", "Phase†", "Rotation"],
+		"modes": ["thermal", "dephase", "damp"],
+		"mode_labels": ["~", ".", "|"],
+		"mode_emojis": ["~", ".", "|"],
+		"pauses_sim": false,
+		"held_context": true,
 		"actions": {
-			"system": {  # Mode 0: System control
-				"Q": {"action": "system_reset", "label": "Reset Bath", "emoji": "🔄",
-					  "icon": "res://Assets/UI/Tools/Quantum/Reset Bath.svg"},
-				"E": {"action": "system_snapshot", "label": "Snapshot", "emoji": "📸",
-					  "icon": "res://Assets/UI/Tools/Quantum/Snapshot.svg"},
-				"R": {"action": "system_debug", "label": "Debug View", "emoji": "🐛",
-					  "icon": "res://Assets/UI/Tools/Quantum/Debug.svg"}
+			"thermal": {
+				"Q": {"action": "drain", "label": "Drain", "emoji": "v",
+					  "icon": "res://Assets/UI/Tools/Lindblad/Decay.svg",
+					  "hint": "Dissipate excess to classical"},
+				"E": {"action": "transfer", "label": "Xfer", "emoji": "<>",
+					  "icon": "res://Assets/UI/Tools/Lindblad/Transfer.svg",
+					  "hint": "Transfer population between qubits"},
+				"R": {"action": "pump", "label": "Pump", "emoji": "^",
+					  "icon": "res://Assets/UI/Tools/Lindblad/Drive.svg",
+					  "hint": "Drive energy into quantum state"}
 			},
-			"phase": {  # Mode 1: Phase gates (S, T)
-				"Q": {"action": "apply_s_gate", "label": "S (π/2)", "emoji": "🌙",
-					  "icon": "res://Assets/UI/Tools/Quantum/S.svg"},
-				"E": {"action": "apply_t_gate", "label": "T (π/4)", "emoji": "✨",
-					  "icon": "res://Assets/UI/Tools/Quantum/T.svg"},
-				"R": {"action": "apply_pauli_z", "label": "Z (π)", "emoji": "📐",
-					  "icon": "res://Assets/UI/Q-Bit/Pauli-Z.svg"}
+			"dephase": {
+				"Q": {"action": "drain", "label": "Drain", "emoji": "v",
+					  "icon": "res://Assets/UI/Tools/Lindblad/Decay.svg",
+					  "hint": "Dephasing drain"},
+				"E": {"action": "transfer", "label": "Xfer", "emoji": "<>",
+					  "icon": "res://Assets/UI/Tools/Lindblad/Transfer.svg",
+					  "hint": "Dephasing transfer"},
+				"R": {"action": "pump", "label": "Pump", "emoji": "^",
+					  "icon": "res://Assets/UI/Tools/Lindblad/Drive.svg",
+					  "hint": "Dephasing pump"}
 			},
-			"phase_dag": {  # Mode 2: Dagger (inverse) phase gates (S†, T†)
-				"Q": {"action": "apply_sdg_gate", "label": "S† (-π/2)", "emoji": "🌑",
-					  "icon": "res://Assets/UI/Tools/Quantum/ST-.svg"},
-				"E": {"action": "apply_tdg_gate", "label": "T† (-π/4)", "emoji": "💫",
-					  "icon": "res://Assets/UI/Tools/Quantum/Tdg.svg"},
-				"R": {"action": "apply_pauli_z", "label": "Z (π)", "emoji": "📐",
-					  "icon": "res://Assets/UI/Q-Bit/Pauli-Z.svg"}
-			},
-			"rotation": {  # Mode 3: Rotation gates
-				"Q": {"action": "apply_rx_gate", "label": "Rx (θ)", "emoji": "↔️",
-					  "icon": "res://Assets/UI/Tools/Quantum/RX.svg"},
-				"E": {"action": "apply_ry_gate", "label": "Ry (θ)", "emoji": "↕️",
-					  "icon": "res://Assets/UI/Tools/Quantum/RY.svg"},
-				"R": {"action": "apply_rz_gate", "label": "Rz (θ)", "emoji": "🔄",
-					  "icon": "res://Assets/UI/Tools/Quantum/RZ.svg"}
+			"damp": {
+				"Q": {"action": "drain", "label": "Drain", "emoji": "v",
+					  "icon": "res://Assets/UI/Tools/Lindblad/Decay.svg",
+					  "hint": "Amplitude damping drain"},
+				"E": {"action": "transfer", "label": "Xfer", "emoji": "<>",
+					  "icon": "res://Assets/UI/Tools/Lindblad/Transfer.svg",
+					  "hint": "Amplitude damping transfer"},
+				"R": {"action": "pump", "label": "Pump", "emoji": "^",
+					  "icon": "res://Assets/UI/Tools/Lindblad/Drive.svg",
+					  "hint": "Amplitude damping pump"}
 			}
 		}
+	},
+
+	# =========================================================================
+	# GROUP 3: MEASURE (O) - Discrete
+	# Main gameplay loop. F-cycles: probe -> gate -> build
+	# Gates and buildings merged conceptually (classical layer bubbles)
+	# =========================================================================
+	3: {
+		"name": "Measure",
+		"emoji": "O",
+		"icon": "res://Assets/UI/Science/Measure.svg",
+		"time_scale": "discrete",
+		"description": "Collapse, harvest, build infrastructure",
+		"has_f_cycling": true,
+		"modes": ["probe", "gate", "build"],
+		"mode_labels": ["?", ")(", "#"],
+		"mode_emojis": ["?", ")(", "#"],
+		"pauses_sim": true,
+		"actions": {
+			# PROBE MODE: Main quantum observation loop
+			"probe": {
+				"Q": {"action": "explore", "label": "Explore", "emoji": "?",
+					  "icon": "res://Assets/UI/Science/Explore.svg",
+					  "hint": "Bind terminal (dig DOWN)"},
+				"E": {"action": "measure", "label": "Measure", "emoji": "!",
+					  "icon": "res://Assets/UI/Science/Measure.svg",
+					  "hint": "Collapse state (observe)"},
+				"R": {"action": "pop", "label": "Pop", "emoji": "^",
+					  "icon": "res://Assets/UI/Science/Pop-Harvest.svg",
+					  "hint": "Harvest + remove (UP)"}
+			},
+			# GATE MODE: Entanglement infrastructure
+			"gate": {
+				"Q": {"action": "build_gate", "label": "Build", "emoji": ")(",
+					  "icon": "res://Assets/UI/Q-Bit/CNOT.svg",
+					  "hint": "Build gate (bell/cluster/cnot)"},
+				"E": {"action": "inspect", "label": "Inspect", "emoji": "[]",
+					  "icon": "res://Assets/UI/Science/Explore.svg",
+					  "hint": "Inspect entanglement"},
+				"R": {"action": "remove_gates", "label": "Remove", "emoji": "X",
+					  "icon": "res://Assets/UI/Biome/BiomeClear.svg",
+					  "hint": "Remove gate infrastructure"}
+			},
+			# BUILD MODE: Gate infrastructure (merged with industry structures)
+			"build": {
+				"Q": {"action": "build_gate", "label": "Build", "emoji": ")(",
+					  "icon": "res://Assets/UI/Q-Bit/CNOT.svg",
+					  "hint": "Build gate infrastructure"},
+				"E": {"action": "inspect", "label": "Inspect", "emoji": "[]",
+					  "icon": "res://Assets/UI/Science/Explore.svg",
+					  "hint": "Inspect gate infrastructure"},
+				"R": {"action": "remove_gates", "label": "Remove", "emoji": "X",
+					  "icon": "res://Assets/UI/Biome/BiomeClear.svg",
+					  "hint": "Remove gate infrastructure"}
+			}
+		}
+	},
+
+	# =========================================================================
+	# GROUP 4: META (*) - System/Vocabulary
+	# Biome configuration, vocabulary manipulation
+	# =========================================================================
+	4: {
+		"name": "Meta",
+		"emoji": "*",
+		"icon": "res://Assets/UI/Icon/Icon.svg",
+		"time_scale": "meta",
+		"description": "Vocabulary and biome configuration",
+		"has_f_cycling": false,
+		"pauses_sim": true,
+		"actions": {
+			"Q": {"action": "inject_vocabulary", "label": "+Vocab", "emoji": "+",
+				  "icon": "res://Assets/UI/Biome/BiomeAssign.svg",
+				  "hint": "Inject vocabulary into biome",
+				  "submenu": "vocab_injection"},
+			"E": {"action": "cycle_biome", "label": "Biome", "emoji": "=",
+				  "icon": "res://Assets/UI/Biome/BiomeInspect.svg",
+				  "hint": "Cycle to next biome"},
+			"R": {"action": "remove_vocabulary", "label": "-Vocab", "emoji": "-",
+				  "icon": "res://Assets/UI/Biome/BiomeClear.svg",
+				  "hint": "Remove vocabulary from biome"}
+		}
 	}
 }
 
 # ============================================================================
-# SUBMENUS (shared between modes)
+# GROUP MANAGEMENT
 # ============================================================================
 
-const SUBMENUS = {
-	"biome_assign": {
-		"name": "Assign to Biome",
-		"emoji": "🔄",
-		"icon": "res://Assets/UI/Biome/BiomeAssign.svg",
-		"parent_tool": 1,
-		"parent_mode": "build",
-		"dynamic": true,
-		# Fallback definitions (icons added dynamically from biome data)
-		"Q": {"action": "assign_to_BioticFlux", "label": "BioticFlux", "emoji": "🌾"},
-		"E": {"action": "assign_to_Market", "label": "Market", "emoji": "🏪"},
-		"R": {"action": "assign_to_Forest", "label": "Forest", "emoji": "🌲"},
-	},
-	"icon_assign": {
-		"name": "Assign Icon",
-		"emoji": "🎨",
-		"icon": "res://Assets/UI/Icon/Assign.svg",
-		"parent_tool": 2,
-		"parent_mode": "build",
-		"dynamic": true,
-		"Q": {"action": "icon_assign_wheat", "label": "Wheat", "emoji": "🌾"},
-		"E": {"action": "icon_assign_mushroom", "label": "Mushroom", "emoji": "🍄"},
-		"R": {"action": "icon_assign_tomato", "label": "Tomato", "emoji": "🍅"},
-	},
-	# Mill two-stage submenus (power source → conversion)
-	"mill_power": {
-		"name": "Mill Power",
-		"emoji": "⚡",
-		"icon": "res://Assets/UI/Industry/Mill.svg",
-		"parent_tool": 4,
-		"parent_mode": "play",
-		"dynamic": false,
-		"Q": {"action": "mill_select_power_water", "label": "Water", "emoji": "💧",
-			  "icon": "res://Assets/UI/Elements/Water.svg"},
-		"E": {"action": "mill_select_power_wind", "label": "Wind", "emoji": "🌬️",
-			  "icon": "res://Assets/UI/Elements/Wind.svg"},
-		"R": {"action": "mill_select_power_fire", "label": "Fire", "emoji": "🔥",
-			  "icon": "res://Assets/UI/Elements/Fire.svg"},
-	},
-	"mill_conversion": {
-		"name": "Mill Conversion",
-		"emoji": "⚙️",
-		"icon": "res://Assets/UI/Industry/Mill.svg",
-		"parent_tool": 4,
-		"parent_mode": "play",
-		"dynamic": false,
-		"Q": {"action": "mill_convert_flour", "label": "Flour", "emoji": "🌾→💨",
-			  "icon": "res://Assets/UI/Resources/Flour.svg"},
-		"E": {"action": "mill_convert_lumber", "label": "Lumber", "emoji": "🌲→🪵",
-			  "icon": "res://Assets/UI/Resources/Lumber.svg"},
-		"R": {"action": "mill_convert_energy", "label": "Energy", "emoji": "🍂→⚡",
-			  "icon": "res://Assets/UI/Resources/Power.svg"},
-	}
-}
-
-# ============================================================================
-# MODE MANAGEMENT
-# ============================================================================
-
-static func toggle_mode() -> String:
-	"""Toggle between play and build modes. Returns new mode."""
-	current_mode = "build" if current_mode == "play" else "play"
-	return current_mode
+static func select_group(group_num: int) -> void:
+	"""Select a tool group (1-4)."""
+	if group_num >= 1 and group_num <= 4:
+		current_group = group_num
 
 
-static func get_mode() -> String:
-	"""Get current mode (play or build)."""
-	return current_mode
+static func get_current_group() -> int:
+	"""Get current tool group number."""
+	return current_group
 
 
-static func set_mode(mode: String) -> void:
-	"""Set current mode."""
-	if mode in ["play", "build"]:
-		current_mode = mode
+static func get_group(group_num: int) -> Dictionary:
+	"""Get tool group definition by number (1-4)."""
+	return TOOL_GROUPS.get(group_num, {})
+
+
+static func get_current_group_def() -> Dictionary:
+	"""Get current tool group definition."""
+	return TOOL_GROUPS.get(current_group, {})
+
+
+static func get_group_name(group_num: int) -> String:
+	"""Get group name by number."""
+	return get_group(group_num).get("name", "Unknown")
+
+
+static func get_group_emoji(group_num: int) -> String:
+	"""Get group emoji by number."""
+	return get_group(group_num).get("emoji", "?")
+
+
+static func get_group_icon_path(group_num: int) -> String:
+	"""Get group icon path by number."""
+	return get_group(group_num).get("icon", "")
+
+
+static func does_group_pause_sim(group_num: int) -> bool:
+	"""Check if group pauses simulation."""
+	return get_group(group_num).get("pauses_sim", false)
+
+
+static func get_group_time_scale(group_num: int) -> String:
+	"""Get time scale type for group."""
+	return get_group(group_num).get("time_scale", "")
 
 
 # ============================================================================
-# F-CYCLING (MODE EXPANSION WITHIN TOOLS)
+# F-CYCLING (MODE EXPANSION WITHIN GROUPS)
 # ============================================================================
 
-static func _get_mode_key(tool_num: int) -> String:
-	"""Get dictionary key for tool mode tracking."""
-	return "%s_%d" % [current_mode, tool_num]
+static func has_f_cycling(group_num: int) -> bool:
+	"""Check if group supports F-cycling."""
+	return get_group(group_num).get("has_f_cycling", false)
 
 
-static func cycle_tool_mode(tool_num: int) -> int:
-	"""Cycle F-mode for a tool. Returns new mode index, or -1 if no cycling."""
-	var tools = PLAY_TOOLS if current_mode == "play" else BUILD_TOOLS
-	var tool_def = tools.get(tool_num, {})
+static func cycle_group_mode(group_num: int) -> int:
+	"""Cycle F-mode for a group. Returns new mode index, or -1 if no cycling."""
+	var group_def = get_group(group_num)
 
-	if not tool_def.get("has_f_cycling", false):
+	if not group_def.get("has_f_cycling", false):
 		return -1
 
-	var modes = tool_def.get("modes", [])
+	var modes = group_def.get("modes", [])
 	if modes.is_empty():
 		return -1
 
-	var mode_key = _get_mode_key(tool_num)
-	var current_index = tool_mode_indices.get(mode_key, 0)
+	var current_index = group_mode_indices.get(group_num, 0)
 	var new_index = (current_index + 1) % modes.size()
-	tool_mode_indices[mode_key] = new_index
+	group_mode_indices[group_num] = new_index
 
 	return new_index
 
 
-static func get_tool_mode_index(tool_num: int) -> int:
-	"""Get current F-mode index for a tool."""
-	var mode_key = _get_mode_key(tool_num)
-	return tool_mode_indices.get(mode_key, 0)
+static func get_group_mode_index(group_num: int) -> int:
+	"""Get current F-mode index for a group."""
+	return group_mode_indices.get(group_num, 0)
 
 
-static func get_tool_mode_name(tool_num: int) -> String:
-	"""Get current F-mode name for a tool."""
-	var tools = PLAY_TOOLS if current_mode == "play" else BUILD_TOOLS
-	var tool_def = tools.get(tool_num, {})
+static func get_group_mode_name(group_num: int) -> String:
+	"""Get current F-mode name for a group."""
+	var group_def = get_group(group_num)
 
-	if not tool_def.get("has_f_cycling", false):
+	if not group_def.get("has_f_cycling", false):
 		return ""
 
-	var modes = tool_def.get("modes", [])
-	var mode_key = _get_mode_key(tool_num)
-	var index = tool_mode_indices.get(mode_key, 0)
+	var modes = group_def.get("modes", [])
+	var index = group_mode_indices.get(group_num, 0)
 
 	if index < modes.size():
 		return modes[index]
 	return ""
 
 
-static func get_tool_mode_label(tool_num: int) -> String:
+static func get_group_mode_label(group_num: int) -> String:
 	"""Get current F-mode label for UI display."""
-	var tools = PLAY_TOOLS if current_mode == "play" else BUILD_TOOLS
-	var tool_def = tools.get(tool_num, {})
+	var group_def = get_group(group_num)
 
-	if not tool_def.get("has_f_cycling", false):
+	if not group_def.get("has_f_cycling", false):
 		return ""
 
-	var mode_labels = tool_def.get("mode_labels", [])
-	var mode_key = _get_mode_key(tool_num)
-	var index = tool_mode_indices.get(mode_key, 0)
+	var mode_labels = group_def.get("mode_labels", [])
+	var index = group_mode_indices.get(group_num, 0)
 
 	if index < mode_labels.size():
 		return mode_labels[index]
 	return ""
 
 
-static func reset_tool_modes() -> void:
-	"""Reset all tool modes to default (index 0)."""
-	for key in tool_mode_indices:
-		tool_mode_indices[key] = 0
+static func get_group_mode_emoji(group_num: int) -> String:
+	"""Get current F-mode emoji for UI display."""
+	var group_def = get_group(group_num)
+
+	if not group_def.get("has_f_cycling", false):
+		return ""
+
+	var mode_emojis = group_def.get("mode_emojis", [])
+	var index = group_mode_indices.get(group_num, 0)
+
+	if index < mode_emojis.size():
+		return mode_emojis[index]
+	return ""
+
+
+static func reset_group_modes() -> void:
+	"""Reset all group modes to default (index 0)."""
+	for key in group_mode_indices:
+		group_mode_indices[key] = 0
 
 
 # ============================================================================
-# TOOL ACCESS (v2 API)
+# ACTION ACCESS
 # ============================================================================
 
-static func get_current_tools() -> Dictionary:
-	"""Get tools for current mode."""
-	return PLAY_TOOLS if current_mode == "play" else BUILD_TOOLS
+static func get_action(group_num: int, key: String) -> Dictionary:
+	"""Get action definition for a group and key (Q/E/R).
 
-
-static func get_tool(tool_num: int) -> Dictionary:
-	"""Get tool definition by number (1-4)."""
-	var tools = get_current_tools()
-	return tools.get(tool_num, {})
-
-
-static func get_tool_name(tool_num: int) -> String:
-	"""Get tool name by number."""
-	return get_tool(tool_num).get("name", "Unknown")
-
-
-static func get_tool_emoji(tool_num: int) -> String:
-	"""Get tool emoji by number."""
-	return get_tool(tool_num).get("emoji", "?")
-
-
-static func get_tool_icon_path(tool_num: int) -> String:
-	"""Get tool icon path by number. Returns empty string if no icon."""
-	return get_tool(tool_num).get("icon", "")
-
-
-static func has_f_cycling(tool_num: int) -> bool:
-	"""Check if tool supports F-cycling."""
-	return get_tool(tool_num).get("has_f_cycling", false)
-
-
-# ============================================================================
-# ACTION ACCESS (v2 API with F-cycling support)
-# ============================================================================
-
-static func get_action(tool_num: int, key: String) -> Dictionary:
-	"""Get action definition for a tool and key (Q/E/R).
-
-	For tools with F-cycling, returns action from current mode.
+	For groups with F-cycling, returns action from current mode.
 	"""
-	var tool_def = get_tool(tool_num)
-	if tool_def.is_empty():
+	var group_def = get_group(group_num)
+	if group_def.is_empty():
 		return {}
 
-	# Handle F-cycling tools
-	if tool_def.get("has_f_cycling", false):
-		var mode_name = get_tool_mode_name(tool_num)
-		var mode_actions = tool_def.get("actions", {}).get(mode_name, {})
+	# Handle F-cycling groups
+	if group_def.get("has_f_cycling", false):
+		var mode_name = get_group_mode_name(group_num)
+		var mode_actions = group_def.get("actions", {}).get(mode_name, {})
 		return mode_actions.get(key, {})
 
-	# Non-cycling tools have direct actions
-	var actions = tool_def.get("actions", {})
+	# Non-cycling groups have direct actions
+	var actions = group_def.get("actions", {})
 	return actions.get(key, {})
 
 
-static func get_action_label(tool_num: int, key: String) -> String:
+static func get_action_label(group_num: int, key: String) -> String:
 	"""Get action label for UI display."""
-	return get_action(tool_num, key).get("label", "")
+	return get_action(group_num, key).get("label", "")
 
 
-static func get_action_emoji(tool_num: int, key: String) -> String:
+static func get_action_emoji(group_num: int, key: String) -> String:
 	"""Get action emoji for UI display."""
-	return get_action(tool_num, key).get("emoji", "")
+	return get_action(group_num, key).get("emoji", "")
 
 
-static func get_action_name(tool_num: int, key: String) -> String:
+static func get_action_name(group_num: int, key: String) -> String:
 	"""Get action name (for dispatching to handlers)."""
-	return get_action(tool_num, key).get("action", "")
+	return get_action(group_num, key).get("action", "")
 
 
-static func get_action_icon(tool_num: int, key: String) -> String:
+static func get_action_icon(group_num: int, key: String) -> String:
 	"""Get action icon path for UI display."""
-	return get_action(tool_num, key).get("icon", "")
+	return get_action(group_num, key).get("icon", "")
 
 
-static func get_all_actions(tool_num: int) -> Dictionary:
-	"""Get all Q/E/R actions for a tool (respecting F-cycling mode)."""
+static func get_all_actions(group_num: int) -> Dictionary:
+	"""Get all Q/E/R actions for a group (respecting F-cycling mode)."""
 	return {
-		"Q": get_action(tool_num, "Q"),
-		"E": get_action(tool_num, "E"),
-		"R": get_action(tool_num, "R")
+		"Q": get_action(group_num, "Q"),
+		"E": get_action(group_num, "E"),
+		"R": get_action(group_num, "R")
 	}
 
 
 # ============================================================================
-# SUBMENU ACCESS
+# BACKWARD COMPATIBILITY - Legacy v2 API
 # ============================================================================
 
-static func get_submenu(submenu_name: String) -> Dictionary:
-	"""Get submenu definition by name."""
-	return SUBMENUS.get(submenu_name, {})
+## Legacy mode tracking (play/build modes deprecated)
+static var current_mode: String = "play"
+
+## Legacy tool mode indices
+static var tool_mode_indices: Dictionary = {}
+
+## Alias for backward compatibility
+const TOOL_ACTIONS = TOOL_GROUPS
+const PLAY_TOOLS = TOOL_GROUPS
+const BUILD_TOOLS = TOOL_GROUPS
+
+static func toggle_mode() -> String:
+	"""Legacy: Toggle mode. Now a no-op, returns 'play'."""
+	return "play"
 
 
-static func is_submenu_action(tool_num: int, key: String) -> bool:
-	"""Check if action opens a submenu."""
-	var action = get_action(tool_num, key)
-	return action.has("submenu")
+static func get_mode() -> String:
+	"""Legacy: Get current mode. Returns 'play'."""
+	return "play"
 
 
-static func get_submenu_name_for_action(tool_num: int, key: String) -> String:
-	"""Get submenu name if action opens one."""
-	return get_action(tool_num, key).get("submenu", "")
+static func set_mode(_mode: String) -> void:
+	"""Legacy: Set mode. No-op."""
+	pass
 
 
-static func get_dynamic_submenu(submenu_name: String, farm, current_selection: Vector2i = Vector2i.ZERO) -> Dictionary:
-	"""Generate dynamic submenu from game state.
-
-	For submenus marked with "dynamic": true, generates Q/E/R actions
-	at runtime based on available game options.
-	"""
-	var base_submenu = get_submenu(submenu_name)
-
-	if not base_submenu.get("dynamic", false):
-		return base_submenu
-
-	match submenu_name:
-		"biome_assign":
-			return _generate_biome_assign_submenu(base_submenu, farm)
-		"icon_assign":
-			return _generate_icon_assign_submenu(base_submenu, farm, current_selection)
-		_:
-			push_warning("Unknown dynamic submenu: %s" % submenu_name)
-			return base_submenu
+static func get_current_tools() -> Dictionary:
+	"""Legacy: Get tools. Returns TOOL_GROUPS."""
+	return TOOL_GROUPS
 
 
-static func _generate_biome_assign_submenu(base: Dictionary, farm) -> Dictionary:
-	"""Generate biome assignment submenu from registered biomes."""
-	var generated = base.duplicate(true)
-
-	var biome_names: Array[String] = []
-	if farm and farm.grid and farm.grid.biomes:
-		for key in farm.grid.biomes.keys():
-			biome_names.append(str(key))
-
-	if biome_names.is_empty():
-		generated["Q"] = {"action": "", "label": "No Biomes!", "emoji": "❌"}
-		generated["E"] = {"action": "", "label": "Error", "emoji": "⚠️"}
-		generated["R"] = {"action": "", "label": "", "emoji": ""}
-		generated["_disabled"] = true
-		return generated
-
-	var keys = ["Q", "E", "R"]
-	for i in range(min(3, biome_names.size())):
-		var biome_name = biome_names[i]
-		var key = keys[i]
-
-		var biome_emoji = "🌍"
-		if farm.grid.biomes.has(biome_name):
-			var biome = farm.grid.biomes[biome_name]
-			if biome and biome.producible_emojis.size() > 0:
-				biome_emoji = biome.producible_emojis[0]
-
-		generated[key] = {
-			"action": "assign_to_%s" % biome_name,
-			"label": biome_name,
-			"emoji": biome_emoji
-		}
-
-	for i in range(biome_names.size(), 3):
-		generated[keys[i]] = {"action": "", "label": "Empty", "emoji": "⬜"}
-
-	return generated
+static func get_tool(tool_num: int) -> Dictionary:
+	"""Legacy: Get tool by number. Maps to get_group."""
+	return get_group(tool_num)
 
 
-static func _generate_icon_assign_submenu(base: Dictionary, farm, current_selection: Vector2i) -> Dictionary:
-	"""Generate icon assignment submenu from player vocabulary.
-
-	Only shows emojis the player has learned (vocabulary system).
-	This restricts planting to known vocabulary.
-	"""
-	var generated = base.duplicate(true)
-
-	# Get player vocabulary from GameStateManager
-	var player_vocab: Array = []
-	var gsm = Engine.get_main_loop().root.get_node_or_null("/root/GameStateManager")
-	if gsm and gsm.current_state:
-		player_vocab = gsm.current_state.get_known_emojis()  # Derived from known_pairs
-
-	if player_vocab.is_empty():
-		generated["Q"] = {"action": "", "label": "No Vocab!", "emoji": "📖"}
-		generated["E"] = {"action": "", "label": "Complete Quests", "emoji": "📜"}
-		generated["R"] = {"action": "", "label": "", "emoji": ""}
-		generated["_disabled"] = true
-		return generated
-
-	# Use player vocabulary (what they've learned from quests)
-	# Need to show pairs, so get the known_pairs directly
-	var known_pairs: Array = []
-	if gsm and gsm.current_state:
-		known_pairs = gsm.current_state.known_pairs
-
-	var keys = ["Q", "E", "R"]
-
-	for i in range(min(3, known_pairs.size())):
-		var pair = known_pairs[i]
-		var north = pair.get("north", "?")
-		var south = pair.get("south", "?")
-		generated[keys[i]] = {
-			"action": "icon_assign_%s" % north,
-			"label": "%s/%s" % [north, south],
-			"emoji": north
-		}
-
-	for i in range(known_pairs.size(), 3):
-		generated[keys[i]] = {"action": "", "label": "Empty", "emoji": "⬜"}
-
-	# Store full pairs for F-cycling if more than 3
-	if known_pairs.size() > 3:
-		generated["_extra_pairs"] = known_pairs.slice(3)
-
-	return generated
+static func get_tool_name(tool_num: int) -> String:
+	"""Legacy: Get tool name."""
+	return get_group_name(tool_num)
 
 
-# ============================================================================
-# BACKWARD COMPATIBILITY (v1 migration support)
-# ============================================================================
+static func get_tool_emoji(tool_num: int) -> String:
+	"""Legacy: Get tool emoji."""
+	return get_group_emoji(tool_num)
 
-## v1 TOOL_ACTIONS format for gradual migration
-const TOOL_ACTIONS = PLAY_TOOLS  # Alias for compatibility
+
+static func get_tool_icon_path(tool_num: int) -> String:
+	"""Legacy: Get tool icon path."""
+	return get_group_icon_path(tool_num)
+
+
+static func cycle_tool_mode(tool_num: int) -> int:
+	"""Legacy: Cycle tool mode."""
+	return cycle_group_mode(tool_num)
+
+
+static func get_tool_mode_index(tool_num: int) -> int:
+	"""Legacy: Get tool mode index."""
+	return get_group_mode_index(tool_num)
+
+
+static func get_tool_mode_name(tool_num: int) -> String:
+	"""Legacy: Get tool mode name."""
+	return get_group_mode_name(tool_num)
+
+
+static func get_tool_mode_label(tool_num: int) -> String:
+	"""Legacy: Get tool mode label."""
+	return get_group_mode_label(tool_num)
+
+
+static func reset_tool_modes() -> void:
+	"""Legacy: Reset tool modes."""
+	reset_group_modes()
+
 
 static func get_tool_count() -> int:
-	"""Get number of tools in current mode."""
-	return 4  # v2 always has 4 tools per mode
+	"""Legacy: Get tool count."""
+	return 4
+
+
+# ============================================================================
+# BACKWARD COMPATIBILITY - Legacy Submenu API (for FarmInputHandler/ActionValidator)
+# ============================================================================
+
+## Legacy submenu definitions (deprecated - use F-cycling in QuantumInstrumentInput)
+const SUBMENUS = {}
+
+static func get_submenu(submenu_name_or_tool = null, action_key: String = "") -> Dictionary:
+	"""Legacy: Get submenu by name or (tool, key) pair. Returns empty dict (submenus deprecated)."""
+	return {}
+
+
+static func get_dynamic_submenu(_tool_num: int, _action_key: String, _farm = null) -> Dictionary:
+	"""Legacy: Get dynamic submenu. Returns empty dict (submenus deprecated)."""
+	return {}

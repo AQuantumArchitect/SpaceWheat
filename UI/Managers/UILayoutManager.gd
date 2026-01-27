@@ -397,3 +397,19 @@ func get_action_row_height() -> float:
 		h = viewport_size.y * ACTION_ROW_MAX_PERCENT / 2
 
 	return h
+
+
+## Utility Methods (DRY consolidation)
+
+func get_viewport_size() -> Vector2:
+	"""Get current viewport size.
+
+	Use this instead of get_viewport().get_visible_rect().size for consistent access.
+	This value is automatically updated when the viewport resizes.
+	"""
+	return viewport_size
+
+
+func get_plots_row_center() -> Vector2:
+	"""Get center point of plots row (for grid placement)."""
+	return plots_row_rect.position + plots_row_rect.size / 2

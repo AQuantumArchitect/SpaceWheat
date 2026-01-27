@@ -17,7 +17,7 @@ var current_mode: String = "play"
 
 # Button data array - each element is {container, texture, label, tool_num}
 var tool_buttons: Array[Dictionary] = []
-var current_tool: int = 1
+var current_tool: int = 3  # Default to tool 3 (matches ToolConfig.current_group)
 
 # Styling - colors applied via modulate on the TextureRect
 var selected_color: Color = Color(0.4, 1.0, 1.0)  # Bright cyan for selected
@@ -63,18 +63,20 @@ func _ready():
 		add_child(btn_data.container)
 		tool_buttons.append(btn_data)
 
-	# Select first tool by default
-	select_tool(1)
+	# Select tool from ToolConfig (single source of truth)
+	var initial_tool = ToolConfig.get_current_group()
+	select_tool(initial_tool)
 
-	print("🛠️  ToolSelectionRow initialized with BtnBtmMidl textures (4 tools)")
+	print("🛠️  ToolSelectionRow initialized with BtnBtmMidl textures (4 tools, starting at %d)" % initial_tool)
 
 
 func _create_tool_button(tool_num: int) -> Dictionary:
-	"""Create a tool button with texture background and text label.
+	"""Create a tool button with texture background, icon glyph, and text label.
 
 	Returns a Dictionary with:
 	- container: The root Control node
 	- texture: The TextureRect for button background
+	- icon: The TextureRect for tool icon glyph
 	- label: The Label for button text
 	- tool_num: The tool number (1-4)
 	- disabled: bool tracking disabled state
@@ -83,8 +85,9 @@ func _create_tool_button(tool_num: int) -> Dictionary:
 	var tool_info = tools.get(tool_num, {})
 	var tool_name = tool_info.get("name", "Unknown")
 	var tool_emoji = tool_info.get("emoji", "")
+	var icon_path = tool_info.get("icon", "")
 
-	# Container to hold texture and label
+	# Container to hold texture, icon, and label
 	var container = Control.new()
 	container.name = "ToolBtn_%d" % tool_num
 	container.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -103,10 +106,40 @@ func _create_tool_button(tool_num: int) -> Dictionary:
 	texture_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	container.add_child(texture_rect)
 
-	# Label for button text (centered over texture)
+	# TextureRect for tool icon glyph (left side)
+	var icon_rect = TextureRect.new()
+	icon_rect.name = "ToolIcon"
+	icon_rect.expand_mode = TextureRect.EXPAND_FIT_WIDTH_PROPORTIONAL
+	icon_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	icon_rect.set_anchors_preset(Control.PRESET_LEFT_WIDE)
+	icon_rect.offset_left = 8 * scale_factor
+	icon_rect.offset_right = 40 * scale_factor
+	icon_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+	# Try to load icon, fall back to emoji if unavailable
+	var has_icon = false
+	if icon_path != "":
+		var icon_tex = load(icon_path)
+		if icon_tex:
+			icon_rect.texture = icon_tex
+			has_icon = true
+		else:
+			icon_rect.visible = false
+	else:
+		icon_rect.visible = false
+
+	container.add_child(icon_rect)
+
+	# Label for button text
 	var label = Label.new()
 	label.name = "ButtonLabel"
-	label.text = "[%d] %s %s" % [tool_num, tool_emoji, tool_name]
+	# If icon loaded successfully, omit emoji from label; otherwise include it as fallback
+	if has_icon:
+		label.text = "[%d] %s" % [tool_num, tool_name]
+		label.offset_left = 40 * scale_factor  # Make room for icon
+	else:
+		label.text = "[%d] %s %s" % [tool_num, tool_emoji, tool_name]
+		label.offset_left = 0
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	label.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -128,6 +161,7 @@ func _create_tool_button(tool_num: int) -> Dictionary:
 	return {
 		"container": container,
 		"texture": texture_rect,
+		"icon": icon_rect,
 		"label": label,
 		"tool_num": tool_num,
 		"disabled": false

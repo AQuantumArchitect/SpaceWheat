@@ -14,6 +14,12 @@ extends RefCounted
 ## Base conversion rate: 1 quantum probability unit = X emoji-credits
 const QUANTUM_TO_CREDITS: float = 10.0
 
+## Reality Midwife token emoji (display + economy tracking)
+const MIDWIFE_EMOJI: String = "🍼"
+
+## Reality Midwife token cost for harvest-all action (in emoji-credits)
+const MIDWIFE_ACTION_COST: int = 1
+
 ## Drain factor: fraction of probability removed during MEASURE
 const DRAIN_FACTOR: float = 0.5
 
@@ -31,6 +37,9 @@ const KITCHEN_EFFICIENCY: float = 0.6 # 5 flour → 3 bread
 ## Cost to inject new vocabulary (in 💰-credits)
 ## ~2 quest rewards = 1 new word
 const VOCAB_INJECTION_BASE_COST: int = 150
+
+## Hard cap on biome qubits (enforced by actions, not by the quantum computer)
+const MAX_BIOME_QUBITS: int = 12
 
 ## Planting costs (emoji → cost in 💰-credits)
 const PLANTING_COSTS: Dictionary = {
@@ -91,30 +100,40 @@ static func get_plant_type_emojis(plant_type: String) -> Dictionary:
 
 
 static func get_vocab_injection_cost(emoji: String) -> Dictionary:
-	"""Get cost dictionary for vocabulary injection
+	"""Get cost dictionary for vocabulary injection.
 
+	Cost is paid in the south-pole emoji resource.
 	Returns dictionary of {emoji: amount} for costs.
-	Could be expanded for emoji-specific costs in the future.
 	"""
-	return {"💰": VOCAB_INJECTION_BASE_COST}
+	if emoji == "":
+		return {}
+	return {emoji: 100}
 
 
 static func can_afford(economy, costs: Dictionary) -> bool:
 	"""Check if economy can afford the given costs"""
 	if not economy:
 		return false
-	for emoji in costs:
-		var amount = costs[emoji]
-		if not economy.can_afford(emoji, amount):
-			return false
-	return true
+	if economy.has_method("can_afford_cost"):
+		return economy.can_afford_cost(costs)
+	if economy.has_method("can_afford_resource"):
+		for emoji in costs:
+			var amount = costs[emoji]
+			if not economy.can_afford_resource(emoji, amount):
+				return false
+		return true
+	return false
 
 
 static func spend(economy, costs: Dictionary, reason: String = "purchase") -> bool:
 	"""Spend resources from economy. Returns true if successful."""
 	if not can_afford(economy, costs):
 		return false
-	for emoji in costs:
-		var amount = costs[emoji]
-		economy.spend_resource(emoji, amount, reason)
-	return true
+	if economy.has_method("spend_cost"):
+		return economy.spend_cost(costs, reason)
+	if economy.has_method("spend_resource"):
+		for emoji in costs:
+			var amount = costs[emoji]
+			economy.spend_resource(emoji, amount, reason)
+		return true
+	return false

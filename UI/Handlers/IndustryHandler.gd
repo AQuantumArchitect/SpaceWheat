@@ -3,7 +3,7 @@ extends RefCounted
 
 ## IndustryHandler - Static handler for industry operations
 ##
-## Handles planting, building, kitchen, mill, and harvest operations.
+## Handles building, kitchen, mill, and harvest operations.
 ##
 ## Follows ProbeActions pattern:
 ## - Static methods only
@@ -11,110 +11,6 @@ extends RefCounted
 ## - Dictionary returns with {success: bool, ...data, error?: String}
 
 const QuantumMill = preload("res://Core/GameMechanics/QuantumMill.gd")
-
-
-## ============================================================================
-## PLANTING OPERATIONS
-## ============================================================================
-
-static func batch_plant(farm, plant_type: String, positions: Array[Vector2i]) -> Dictionary:
-	"""Plant multiple plots with the given plant type.
-
-	Queries biome capabilities for validation and cost checking.
-	Groups plots by biome to handle different capabilities.
-
-	Args:
-		farm: Farm instance
-		plant_type: Type of plant (wheat, mushroom, tomato, etc.)
-		positions: Array of grid positions to plant
-
-	Returns:
-		Dictionary with:
-		- success: bool
-		- success_count: int
-		- failed_count: int
-		- emoji: String (display emoji)
-		- display_name: String
-	"""
-	if not farm:
-		return {
-			"success": false,
-			"error": "farm_not_ready",
-			"message": "Farm not loaded"
-		}
-
-	if not farm.grid:
-		return {
-			"success": false,
-			"error": "grid_not_ready",
-			"message": "Farm grid not ready"
-		}
-
-	if positions.is_empty():
-		return {
-			"success": false,
-			"error": "no_positions",
-			"message": "No plots selected"
-		}
-
-	# Group plots by biome (different biomes may have different capabilities)
-	var plots_by_biome = {}
-	for pos in positions:
-		var biome = farm.grid.get_biome_for_plot(pos)
-		if not biome:
-			continue
-
-		var biome_type = biome.get_biome_type()
-		if not plots_by_biome.has(biome_type):
-			plots_by_biome[biome_type] = {
-				"biome": biome,
-				"positions": []
-			}
-		plots_by_biome[biome_type].positions.append(pos)
-
-	# Plant in each biome group
-	var total_success = 0
-	var total_failed = 0
-	var first_capability = null  # For display emoji
-
-	for biome_type in plots_by_biome.keys():
-		var biome_data = plots_by_biome[biome_type]
-		var biome = biome_data.biome
-		var biome_positions = biome_data.positions
-
-		# Find capability for this plant_type in this biome
-		var capability = null
-		for cap in biome.get_plantable_capabilities():
-			if cap.plant_type == plant_type:
-				capability = cap
-				break
-
-		# Track first capability for display
-		if not first_capability and capability:
-			first_capability = capability
-
-		# Validate biome supports this plant type
-		if not capability:
-			total_failed += biome_positions.size()
-			continue
-
-		# Plant each plot in this biome group
-		for pos in biome_positions:
-			if farm.build(pos, plant_type):
-				total_success += 1
-			else:
-				total_failed += 1
-
-	var emoji = first_capability.emoji_pair.north if first_capability else ""
-	var display_name = first_capability.display_name if first_capability else plant_type
-
-	return {
-		"success": total_success > 0,
-		"success_count": total_success,
-		"failed_count": total_failed,
-		"emoji": emoji,
-		"display_name": display_name
-	}
 
 
 ## ============================================================================

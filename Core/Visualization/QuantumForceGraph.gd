@@ -35,6 +35,8 @@ const InfraRendererScript = preload("res://Core/Visualization/QuantumInfraRender
 const EffectsRendererScript = preload("res://Core/Visualization/QuantumEffectsRenderer.gd")
 const GraphInputScript = preload("res://Core/Visualization/QuantumGraphInput.gd")
 const NodeManagerScript = preload("res://Core/Visualization/QuantumNodeManager.gd")
+const QuantumNode = preload("res://Core/Visualization/QuantumNode.gd")
+const BiomeLayoutCalculator = preload("res://Core/Visualization/BiomeLayoutCalculator.gd")
 
 
 # Signals

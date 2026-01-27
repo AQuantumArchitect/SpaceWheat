@@ -351,7 +351,12 @@ class QuestOfferItem extends PanelContainer:
 		var vocab_label = Label.new()
 		var faction_vocab = quest_data.get("faction_vocabulary", [])
 		var available_vocab = quest_data.get("available_emojis", [])
-		var player_vocab = GameStateManager.current_state.get_known_emojis() if GameStateManager.current_state else []
+		var gsm = get_node_or_null("/root/GameStateManager")
+		var player_vocab: Array = []
+		if gsm and "active_farm" in gsm and gsm.active_farm and gsm.active_farm.has_method("get_known_emojis"):
+			player_vocab = gsm.active_farm.get_known_emojis()
+		elif gsm and gsm.current_state:
+			player_vocab = gsm.current_state.get_known_emojis()
 
 		# Find unknown emojis in faction's signature
 		var unknown_vocab = []

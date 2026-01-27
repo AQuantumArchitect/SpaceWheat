@@ -439,8 +439,9 @@ func _draw_emoji_with_opacity(graph: Node2D, font, text_pos: Vector2, emoji: Str
 
 	# Try SVG glyph first (safe autoload access)
 	var texture: Texture2D = null
-	if is_instance_valid(VisualAssetRegistry) and VisualAssetRegistry.has_method("get_texture"):
-		texture = VisualAssetRegistry.get_texture(emoji)
+	var visual_asset_registry = graph.get_node_or_null("/root/VisualAssetRegistry")
+	if visual_asset_registry and visual_asset_registry.has_method("get_texture"):
+		texture = visual_asset_registry.get_texture(emoji)
 
 	if texture:
 		# Render SVG glyph

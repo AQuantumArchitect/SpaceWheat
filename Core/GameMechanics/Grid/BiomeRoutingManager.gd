@@ -132,7 +132,7 @@ func get_quantum_computer_for_plot(position: Vector2i) -> Resource:
 
 
 func track_register_allocation(position: Vector2i, register_id: int, quantum_computer) -> void:
-	"""Track register allocation for a plot (called by PlantingManager)."""
+	"""Track register allocation for a plot (legacy planting hook)."""
 	plot_register_mapping[position] = register_id
 	if quantum_computer:
 		plot_to_biome_quantum_computer[position] = quantum_computer

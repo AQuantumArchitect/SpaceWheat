@@ -529,6 +529,122 @@ static func action_harvest_global(biome, plot_pool = null, economy = null) -> Di
 
 
 ## ============================================================================
+## HARVEST ALL ACTION - End of Turn (3R)
+## ============================================================================
+
+static func action_harvest_all(plot_pool, economy = null, biome = null) -> Dictionary:
+	"""Execute HARVEST ALL action: end of turn, pop all terminals, collect all credits.
+
+	This is the 3R "end of turn" trigger that:
+	1. Checks for Reality Midwife token (required to proceed)
+	2. Saves density matrix state snapshot
+	3. Pops all bound terminals
+	4. Harvests all resources
+	5. Advances turn counter
+
+	Args:
+		plot_pool: PlotPool instance with bound terminals
+		economy: FarmEconomy instance (optional, for credit tracking)
+		biome: BiomeBase instance (optional, for state snapshot)
+
+	Returns:
+		Dictionary with keys:
+		- success: bool
+		- state_saved: bool
+		- terminals_popped: int
+		- total_credits: float
+		- pop_results: Array of individual pop results
+		- error: String (if failure)
+	"""
+	# 0. Null check for plot_pool
+	if not plot_pool:
+		return {
+			"success": false,
+			"error": "no_pool",
+			"message": "Plot pool not initialized."
+		}
+
+	# 1. Charge midwife token cost (stored in economy)
+	var token_cost = EconomyConstants.MIDWIFE_ACTION_COST
+	var token_emoji = EconomyConstants.MIDWIFE_EMOJI
+	if economy and economy.has_method("remove_resource"):
+		if not economy.remove_resource(token_emoji, token_cost, "harvest_all"):
+			return {
+				"success": false,
+				"error": "no_midwife_token",
+				"message": "No Reality Midwife token! Use 3E to pop individual terminals."
+			}
+
+	# 2. Save density matrix state snapshot
+	var state_snapshot = _save_density_matrices(biome)
+
+	# 3. Get all bound terminals and pop them
+	var pop_results: Array = []
+	var total_credits: float = 0.0
+	var terminals_to_pop: Array = []
+
+	# Collect all bound terminals first (to avoid modifying while iterating)
+	if plot_pool.has_method("get_all_terminals"):
+		for terminal in plot_pool.get_all_terminals():
+			if terminal and terminal.is_bound:
+				terminals_to_pop.append(terminal)
+
+	# Pop each terminal
+	for terminal in terminals_to_pop:
+		# If terminal is bound but not measured, measure it first
+		if not terminal.is_measured:
+			var measure_biome = terminal.bound_biome if terminal else biome
+			var measure_result = action_measure(terminal, measure_biome)
+			if not measure_result.success:
+				continue  # Skip if measure fails
+
+		# Now pop the terminal
+		var result = action_pop(terminal, plot_pool, economy)
+		if result.success:
+			pop_results.append(result)
+			total_credits += result.get("credits", 0.0)
+
+	# 4. No midwife drop (tokens are standard economy credits)
+
+	return {
+		"success": true,
+		"state_saved": state_snapshot != null,
+		"terminals_popped": pop_results.size(),
+		"total_credits": total_credits,
+		"pop_results": pop_results,
+		"state_snapshot": state_snapshot
+	}
+
+
+static func _save_density_matrices(biome) -> Dictionary:
+	"""Save density matrix state snapshot for all registers.
+
+	Returns a dictionary with serialized density matrix data.
+	"""
+	if not biome:
+		return {}
+
+	var snapshot = {
+		"timestamp": Time.get_ticks_msec(),
+		"biome_type": biome.get_biome_type() if biome.has_method("get_biome_type") else "unknown"
+	}
+
+	# Try to get density matrix from biome
+	if biome.has_method("get_density_matrix"):
+		var dm = biome.get_density_matrix()
+		if dm and dm.has_method("serialize"):
+			snapshot["density_matrix"] = dm.serialize()
+		elif dm and dm.has_method("get_state"):
+			snapshot["density_matrix"] = dm.get_state()
+
+	# Try to get register states
+	if biome.has_method("get_register_probabilities"):
+		snapshot["probabilities"] = biome.get_register_probabilities()
+
+	return snapshot
+
+
+## ============================================================================
 ## UTILITY FUNCTIONS
 ## ============================================================================
 

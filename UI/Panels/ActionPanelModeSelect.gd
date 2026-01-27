@@ -83,10 +83,8 @@ func _create_ui():
 	# === TOOLS: Tool buttons for farming operations - these share the bottom row proportionally ===
 	# Each button gets equal width via SIZE_EXPAND_FILL
 	# Tools are selector modes: click to enable, click grid to apply
-	_create_action_button(main_hbox, "plant", "🌾 Plant", "Plant seeds on grid [P]", button_font_size)
 	_create_action_button(main_hbox, "measure", "👁️ Measure", "Measure plots [M]", button_font_size)
 	_create_action_button(main_hbox, "harvest", "✂️ Harvest", "Harvest wheat [H]", button_font_size)
-	_create_action_button(main_hbox, "build_mill", "🏭 Build Mill", "Build mill on grid [B]", button_font_size)
 
 
 func _create_action_button(parent: Control, action_name: String, text: String, tooltip: String, font_size: int):

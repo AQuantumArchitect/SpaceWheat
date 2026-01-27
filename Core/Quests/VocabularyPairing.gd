@@ -72,6 +72,10 @@ static func roll_partner(north_emoji: String) -> Dictionary:
 ## Get all connection weights for an emoji
 ## Uses: |H| + L_in + L_out (absolute values, merged)
 static func get_connection_weights(emoji: String, icon_registry) -> Dictionary:
+	if not icon_registry:
+		push_warning("VocabularyPairing.get_connection_weights: icon_registry is null")
+		return {}
+
 	var icon = icon_registry.get_icon(emoji)
 	if not icon:
 		return {}

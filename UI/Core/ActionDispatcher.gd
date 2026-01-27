@@ -77,6 +77,7 @@ const DISPATCH_TABLE = {
 	# ═══════════════════════════════════════════════════════════════════════════
 	"clear_biome_assignment": ["BiomeHandler", "clear_biome_assignment", "Cleared {cleared_count} plots"],
 	"inspect_plot": ["BiomeHandler", "inspect_plot", "Inspected {count} plots"],
+	"inject_vocabulary": ["BiomeHandler", "inject_vocabulary", "Injected {north_emoji}/{south_emoji} into {biome}"],
 
 	# ═══════════════════════════════════════════════════════════════════════════
 	# ICON ACTIONS (BUILD Tool 2)
@@ -175,7 +176,7 @@ func _call_handler(
 		"MeasurementHandler":
 			return _call_measurement_handler(method_name, farm, positions)
 		"BiomeHandler":
-			return _call_biome_handler(method_name, farm, positions)
+			return _call_biome_handler(method_name, farm, positions, extra)
 		"IconHandler":
 			return _call_icon_handler(method_name, farm, positions, extra)
 		"LindbladHandler":
@@ -259,13 +260,16 @@ func _call_measurement_handler(method_name: String, farm, positions: Array[Vecto
 			return {"success": false, "error": "unknown_method"}
 
 
-func _call_biome_handler(method_name: String, farm, positions: Array[Vector2i]) -> Dictionary:
+func _call_biome_handler(method_name: String, farm, positions: Array[Vector2i], extra: Dictionary) -> Dictionary:
 	"""Route to BiomeHandler methods."""
 	match method_name:
 		"clear_biome_assignment":
 			return BiomeHandler.clear_biome_assignment(farm, positions)
 		"inspect_plot":
 			return BiomeHandler.inspect_plot(farm, positions)
+		"inject_vocabulary":
+			var vocab_pair = extra.get("vocab_pair", {})
+			return BiomeHandler.inject_vocabulary(farm, positions, vocab_pair)
 		_:
 			return {"success": false, "error": "unknown_method"}
 
@@ -352,18 +356,6 @@ func _format_message(template: String, result: Dictionary) -> String:
 ## ============================================================================
 ## SPECIAL ACTIONS (not in dispatch table)
 ## ============================================================================
-
-func execute_plant(farm, plant_type: String, positions: Array[Vector2i]) -> Dictionary:
-	"""Execute batch plant action."""
-	var result = IndustryHandler.batch_plant(farm, plant_type, positions)
-	var msg = ""
-	if result.success:
-		msg = "Planted %d %s %s" % [result.success_count, result.emoji, result.display_name]
-	else:
-		msg = "Failed to plant %s" % result.display_name
-	action_completed.emit("plant_%s" % plant_type, result.success, msg, result)
-	return result
-
 
 func execute_build(farm, build_type: String, positions: Array[Vector2i]) -> Dictionary:
 	"""Execute batch build action."""

@@ -57,12 +57,12 @@ func _ready():
 
 
 ## Player Vocabulary Discovery
-## known_pairs is the SOURCE OF TRUTH - known_emojis is derived from it
+## Farm-owned vocabulary is canonical; GameState keeps a persisted copy.
 
 func discover_pair(north: String, south: String) -> void:
 	"""Player learns a vocabulary pair (plantable qubit axis)
 
-	This is the ONLY way to add vocabulary. known_emojis is derived from known_pairs.
+	This forwards to the active Farm (canonical vocab owner).
 
 	Called when:
 	- Quest completion grants paired vocabulary
@@ -72,19 +72,24 @@ func discover_pair(north: String, south: String) -> void:
 		north: The North pole emoji (from faction)
 		south: The South pole emoji (rolled from physics)
 	"""
-	if not current_state:
-		return
-
-	# Check if pair already known
-	for pair in current_state.known_pairs:
-		if pair.get("north") == north and pair.get("south") == south:
-			return  # Already known
-
 	# Get emojis before adding (for checking newly accessible factions)
-	var old_emojis = current_state.get_known_emojis()
+	var old_emojis = _get_player_vocab_emojis()
 
-	# Add pair (this is the source of truth)
-	current_state.known_pairs.append({"north": north, "south": south})
+	# Prefer farm-owned vocabulary
+	var farm = active_farm if "active_farm" in self else null
+	var added = false
+	if farm and farm.has_method("discover_pair"):
+		added = farm.discover_pair(north, south)
+	elif current_state:
+		# Legacy fallback (should be avoided)
+		for pair in current_state.known_pairs:
+			if pair.get("north") == north and pair.get("south") == south:
+				return  # Already known
+		current_state.known_pairs.append({"north": north, "south": south})
+		added = true
+
+	if not added:
+		return
 
 	# Emit signals for each new emoji
 	if north not in old_emojis:
@@ -93,10 +98,16 @@ func discover_pair(north: String, south: String) -> void:
 		emit_signal("emoji_discovered", south)
 
 	emit_signal("pair_discovered", north, south)
-	_verbose.info("quest", "📖", "Discovered pair: %s/%s (vocabulary: %d pairs)" % [north, south, current_state.known_pairs.size()])
+	var pair_count = _get_player_vocab_pairs().size()
+	_verbose.info("quest", "📖", "Discovered pair: %s/%s (vocabulary: %d pairs)" % [north, south, pair_count])
+
+	# Keep persisted state in sync (legacy readers)
+	if current_state:
+		current_state.known_pairs = _get_player_vocab_pairs()
+		current_state.known_emojis = _get_player_vocab_emojis()
 
 	# Check if new emojis unlock factions
-	var new_emojis = current_state.get_known_emojis()
+	var new_emojis = _get_player_vocab_emojis()
 	for emoji in [north, south]:
 		if emoji not in old_emojis:
 			var newly_accessible = _check_newly_accessible_factions(emoji, old_emojis, new_emojis)
@@ -132,11 +143,8 @@ func _check_newly_accessible_factions(new_emoji: String, old_emojis: Array, new_
 
 func get_accessible_factions() -> Array:
 	"""Get all factions that have vocabulary overlap with player (can receive quests)"""
-	if not current_state:
-		return []
-
 	var accessible = []
-	var known_emojis = current_state.get_known_emojis()
+	var known_emojis = _get_player_vocab_emojis()
 
 	for faction in FactionDatabase.ALL_FACTIONS:
 		var faction_vocab = FactionDatabase.get_faction_vocabulary(faction)
@@ -146,6 +154,24 @@ func get_accessible_factions() -> Array:
 			accessible.append(faction)
 
 	return accessible
+
+
+func _get_player_vocab_pairs() -> Array:
+	"""Return canonical player vocab pairs (farm-owned preferred)."""
+	if "active_farm" in self and active_farm and active_farm.has_method("get_known_pairs"):
+		return active_farm.get_known_pairs()
+	if current_state:
+		return current_state.known_pairs.duplicate(true)
+	return []
+
+
+func _get_player_vocab_emojis() -> Array:
+	"""Return canonical player vocab emojis (farm-owned preferred)."""
+	if "active_farm" in self and active_farm and active_farm.has_method("get_known_emojis"):
+		return active_farm.get_known_emojis()
+	if current_state and current_state.has_method("get_known_emojis"):
+		return current_state.get_known_emojis()
+	return []
 
 
 ## New Game / Scenarios
@@ -342,11 +368,25 @@ func capture_state_from_game() -> GameState:
 
 	_verbose.debug("save", "💰", "Captured %d emoji types in economy" % state.all_emoji_credits.size())
 
-	# Player Vocabulary (known_pairs is source of truth, known_emojis is derived)
-	if current_state:
-		state.known_pairs = current_state.known_pairs.duplicate()
-		state.known_emojis = current_state.get_known_emojis()  # Derived from known_pairs
+	# Player Vocabulary (farm-owned canonical)
+	if farm and farm.has_method("get_known_pairs"):
+		state.known_pairs = farm.get_known_pairs()
+		# Derive emojis from pairs (kept for backward compatibility)
+		state.known_emojis = []
+		for pair in state.known_pairs:
+			var north = pair.get("north", "")
+			var south = pair.get("south", "")
+			if north != "" and north not in state.known_emojis:
+				state.known_emojis.append(north)
+			if south != "" and south not in state.known_emojis:
+				state.known_emojis.append(south)
 		_verbose.debug("save", "📖", "Captured vocabulary: %d pairs → %d emojis" % [state.known_pairs.size(), state.known_emojis.size()])
+
+	# Player Vocabulary Quantum Computer (for affinity calculations)
+	var player_vocab = get_node_or_null("/root/PlayerVocabulary")
+	if player_vocab:
+		state.player_vocab_data = player_vocab.serialize()
+		_verbose.debug("save", "🔬", "Captured PlayerVocabulary QC data")
 
 	# Plots (from Farm.grid)
 	state.plots.clear()
@@ -365,7 +405,11 @@ func capture_state_from_game() -> GameState:
 				"is_planted": plot.is_planted,
 				"has_been_measured": plot.has_been_measured,
 				"theta_frozen": plot.theta_frozen,
-				"entangled_with": plot.entangled_plots.keys()
+				"entangled_with": plot.entangled_plots.keys(),
+				"lindblad_pump_active": plot.lindblad_pump_active if "lindblad_pump_active" in plot else false,
+				"lindblad_drain_active": plot.lindblad_drain_active if "lindblad_drain_active" in plot else false,
+				"lindblad_pump_rate": plot.lindblad_pump_rate if "lindblad_pump_rate" in plot else 0.0,
+				"lindblad_drain_rate": plot.lindblad_drain_rate if "lindblad_drain_rate" in plot else 0.0
 			}
 			# Phase 5.2: Serialize persistent gate infrastructure (Tool #2 gates)
 			# These gates survive harvest/replant cycles
@@ -847,6 +891,11 @@ func apply_state_to_game(state: GameState):
 	for emoji in economy.emoji_credits.keys():
 		economy._emit_resource_change(emoji)
 
+	# Apply Player Vocabulary (farm-owned canonical)
+	var has_player_vocab_data = state.player_vocab_data and not state.player_vocab_data.is_empty()
+	if farm and farm.has_method("set_known_pairs"):
+		farm.set_known_pairs(state.known_pairs, not has_player_vocab_data, false)
+
 	# Apply Plot Configuration (from Farm.grid)
 	var grid = farm.grid
 	for plot_data in state.plots:
@@ -868,6 +917,16 @@ func apply_state_to_game(state: GameState):
 			# Measurement state (collapses quantum superposition)
 			plot.has_been_measured = plot_data.get("has_been_measured", false)
 			plot.theta_frozen = plot_data.get("theta_frozen", false)
+
+			# Restore persistent Lindblad effects (Tool 2)
+			if "lindblad_pump_active" in plot:
+				plot.lindblad_pump_active = plot_data.get("lindblad_pump_active", false)
+			if "lindblad_drain_active" in plot:
+				plot.lindblad_drain_active = plot_data.get("lindblad_drain_active", false)
+			if "lindblad_pump_rate" in plot:
+				plot.lindblad_pump_rate = plot_data.get("lindblad_pump_rate", plot.lindblad_pump_rate)
+			if "lindblad_drain_rate" in plot:
+				plot.lindblad_drain_rate = plot_data.get("lindblad_drain_rate", plot.lindblad_drain_rate)
 
 			# Restore entanglement relationships
 			plot.entangled_plots.clear()
@@ -920,6 +979,12 @@ func apply_state_to_game(state: GameState):
 	if vocabulary_evolution and state.vocabulary_state:
 		vocabulary_evolution.deserialize(state.vocabulary_state)
 		_verbose.debug("save", "📚", "Restored vocabulary evolution from save")
+
+	# Restore Player Vocabulary Quantum Computer
+	var player_vocab = get_node_or_null("/root/PlayerVocabulary")
+	if player_vocab and state.player_vocab_data and not state.player_vocab_data.is_empty():
+		player_vocab.deserialize(state.player_vocab_data)
+		_verbose.debug("save", "🔬", "Restored PlayerVocabulary QC data")
 
 	# Conspiracy Network NOT loaded (dynamic, regenerate each session)
 
@@ -1012,3 +1077,11 @@ func get_vocabulary_evolution() -> VocabularyEvolution:
 		add_child(vocabulary_evolution)
 
 	return vocabulary_evolution
+
+
+func get_icon_registry():
+	"""Get IconRegistry autoload (used by affinity/vocab pairing helpers)."""
+	var tree = Engine.get_main_loop() as SceneTree
+	if tree:
+		return tree.root.get_node_or_null("/root/IconRegistry")
+	return null

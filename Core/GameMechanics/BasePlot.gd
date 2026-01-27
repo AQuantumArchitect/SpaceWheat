@@ -75,6 +75,13 @@ const MAX_ENTANGLEMENTS = 3
 # Persistent gate infrastructure (survives harvest/replant)
 var persistent_gates: Array[Dictionary] = []
 
+# Persistent Lindblad effects (Tool 2: Drain/Pump)
+var lindblad_pump_active: bool = false
+var lindblad_drain_active: bool = false
+var lindblad_pump_rate: float = 0.5
+var lindblad_drain_rate: float = 0.5
+var lindblad_drain_accumulator: float = 0.0
+
 
 func _init():
 	plot_id = "plot_%d" % randi()

@@ -1,5 +1,5 @@
 class_name SemanticMapOverlay
-extends "res://UI/Overlays/V2OverlayBase.gd"
+extends "res://UI/Core/OverlayBase.gd"
 
 ## SemanticMapOverlay - Octant visualization and vocabulary explorer
 ##
@@ -15,6 +15,8 @@ extends "res://UI/Overlays/V2OverlayBase.gd"
 ##   F = Cycle projection mode (2D/3D view)
 ##   WASD = Navigate within octant emojis
 ##   ESC = Close overlay
+
+const UIStyleFactory_Local = preload("res://UI/Core/UIStyleFactory.gd")
 
 # Semantic octant regions (from SemanticOctant.gd)
 const REGIONS = [
@@ -52,15 +54,13 @@ const OCTANT_SIZE: int = 140
 
 func _init():
 	overlay_name = "semantic_map"
-	overlay_icon = "🧭"
-	overlay_title = "🧭 Semantic Map"
-	fallback_panel_width = 650
-	fallback_panel_height = 500
+	overlay_icon = ""
+	overlay_tier = 2000  # Z_TIER_INFO
+	panel_title = ""  # We use custom title bar with mode indicator
+	panel_size = Vector2(650, 500)
 	panel_border_color = Color(0.4, 0.3, 0.6, 0.8)  # Purple border
-	main_vbox_separation = UIStyleFactory.VBOX_SPACING_RELAXED
-	# Enable corner ornamentation
-	use_ornamentation = true
-	ornamentation_tint = UIOrnamentation.TINT_PURPLE
+	navigation_mode = NavigationMode.GRID
+	content_spacing = 12
 	action_labels = {
 		"Q": "Prev Octant",
 		"E": "Next Octant",
@@ -69,29 +69,16 @@ func _init():
 	}
 
 
-func _ready() -> void:
-	super._ready()
-	_build_ui()
-
-
-func _build_ui() -> void:
+func _build_content(container: Control) -> void:
 	"""Build the semantic map overlay UI."""
-	# Use base class to create standard panel (handles sizing, background, vbox)
-	var vbox = _build_standard_panel()
-
-	# Replace simple title with title bar (has mode indicator)
-	if _title_label:
-		_main_vbox.remove_child(_title_label)
-		_title_label.queue_free()
-	var title_bar = _build_title_bar_with_mode("[F] %s" % VIEW_MODE_NAMES[current_view_mode])
-	view_mode_label = title_bar.get_node("ModeLabel")
-	vbox.add_child(title_bar)
-	vbox.move_child(title_bar, 0)
+	# Title bar with mode indicator
+	var title_bar = _create_title_bar_with_mode("[F] %s" % VIEW_MODE_NAMES[current_view_mode])
+	container.add_child(title_bar)
 
 	# Content area
 	var content = Control.new()
 	content.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	vbox.add_child(content)
+	container.add_child(content)
 
 	# Simple vocabulary list (default view - shows all discovered vocab)
 	vocab_list_container = _create_vocab_list_view()
@@ -115,6 +102,31 @@ func _build_ui() -> void:
 	attractor_container.set_anchors_preset(Control.PRESET_FULL_RECT)
 	attractor_container.visible = false
 	content.add_child(attractor_container)
+
+
+func _create_title_bar_with_mode(mode_text: String) -> HBoxContainer:
+	"""Build title bar with title left, mode indicator right."""
+	var hbox = HBoxContainer.new()
+	hbox.add_theme_constant_override("separation", 12)
+
+	var title_label = Label.new()
+	title_label.text = "🧭 Semantic Map"
+	title_label.add_theme_font_size_override("font_size", 20)
+	title_label.add_theme_color_override("font_color", Color(0.9, 0.95, 1.0))
+	hbox.add_child(title_label)
+
+	var spacer = Control.new()
+	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	hbox.add_child(spacer)
+
+	view_mode_label = Label.new()
+	view_mode_label.name = "ModeLabel"
+	view_mode_label.text = mode_text
+	view_mode_label.add_theme_font_size_override("font_size", 14)
+	view_mode_label.add_theme_color_override("font_color", Color(0.6, 0.7, 0.8))
+	hbox.add_child(view_mode_label)
+
+	return hbox
 
 
 func _create_octant_grid() -> GridContainer:
@@ -182,11 +194,7 @@ func _create_octant_panel(index: int) -> Control:
 
 
 func _create_vocab_list_view() -> Control:
-	"""Create simple vocabulary list view (default view).
-
-	Shows all discovered vocabulary in a flat list format.
-	This is what the player has learned and can use for quests.
-	"""
+	"""Create simple vocabulary list view (default view)."""
 	var container = VBoxContainer.new()
 	container.add_theme_constant_override("separation", 10)
 
@@ -201,7 +209,7 @@ func _create_vocab_list_view() -> Control:
 	# Subtitle
 	var subtitle = Label.new()
 	subtitle.name = "VocabListSubtitle"
-	subtitle.text = "Emoji pairs you can plant - complete quests to learn more!"
+	subtitle.text = "Emoji pairs you can inject - complete quests to learn more!"
 	subtitle.add_theme_font_size_override("font_size", 12)
 	subtitle.add_theme_color_override("font_color", Color(0.6, 0.7, 0.8))
 	container.add_child(subtitle)
@@ -294,13 +302,12 @@ func _create_attractor_view() -> Control:
 # LIFECYCLE
 # ============================================================================
 
-func activate() -> void:
+func _on_activated() -> void:
 	"""Called when overlay opens - refresh data."""
-	super.activate()
 	_load_vocabulary_data()
 	_update_octant_counts()
 	_update_selection_visual()
-	_update_view()  # Show correct view mode
+	_update_view()
 
 
 func _load_vocabulary_data() -> void:
@@ -320,7 +327,6 @@ func _load_vocabulary_data() -> void:
 	var discovered = vocab_evolution.get_discovered_vocabulary()
 
 	# Map emojis to octants based on simple heuristic
-	# Vocabulary items have "north" and "south" emojis
 	for vocab_item in discovered:
 		var north_emoji = vocab_item.get("north", "")
 		var south_emoji = vocab_item.get("south", "")
@@ -331,7 +337,6 @@ func _load_vocabulary_data() -> void:
 			var key = "%s↔%s" % [north_emoji, south_emoji]
 
 			# Determine octant using simple heuristic
-			# We'll use stability and emoji properties to assign octants
 			var octant = _assign_emoji_to_octant(north_emoji, south_emoji, stability)
 
 			# Store in vocabulary data
@@ -357,23 +362,26 @@ func _update_octant_counts() -> void:
 
 
 func _populate_vocab_list() -> void:
-	"""Populate the vocabulary list with player's known pairs.
-
-	Shows known_pairs (plantable qubit axes) as the primary display.
-	Pairs are the core vocabulary unit - emojis are learned as pairs.
-	"""
+	"""Populate the vocabulary list with player's known pairs."""
 	# Clear existing items
 	for child in vocab_list_grid.get_children():
 		child.queue_free()
 
 	var gsm = get_node_or_null("/root/GameStateManager")
-	if not gsm or not gsm.current_state:
+	if not gsm:
 		_add_vocab_placeholder("Game not loaded")
 		return
 
-	# Get player's known pairs (the core vocabulary unit - source of truth)
-	var known_pairs = gsm.current_state.known_pairs
-	var known_emojis = gsm.current_state.get_known_emojis()  # Derived from known_pairs
+	# Get player's known pairs (the core vocabulary unit)
+	var known_pairs: Array = []
+	var known_emojis: Array = []
+	if "active_farm" in gsm and gsm.active_farm and gsm.active_farm.has_method("get_known_pairs"):
+		known_pairs = gsm.active_farm.get_known_pairs()
+		known_emojis = gsm.active_farm.get_known_emojis()
+	elif gsm.current_state:
+		known_pairs = gsm.current_state.known_pairs
+		known_emojis = gsm.current_state.get_known_emojis()
+
 	var accessible_factions = gsm.get_accessible_factions() if gsm.has_method("get_accessible_factions") else []
 
 	# Update subtitle with count
@@ -479,13 +487,8 @@ func _get_octant_emoji_count(octant_index: int) -> int:
 
 
 func _assign_emoji_to_octant(north_emoji: String, south_emoji: String, stability: float) -> int:
-	"""Assign an emoji pair to an octant based on heuristic.
-
-	Uses stability and emoji properties to determine octant assignment (0-7).
-	Simple heuristic: uses string hash to distribute emojis.
-	"""
+	"""Assign an emoji pair to an octant based on heuristic."""
 	# Simple hash-based distribution for now
-	# In a full implementation, could use emoji semantic meaning or learned associations
 	var hash_value = hash(north_emoji + south_emoji)
 	var octant = abs(hash_value) % 8
 
@@ -500,12 +503,17 @@ func _assign_emoji_to_octant(north_emoji: String, south_emoji: String, stability
 
 func _update_view() -> void:
 	"""Update visibility based on current view mode."""
-	view_mode_label.text = "[F] %s" % VIEW_MODE_NAMES[current_view_mode]
+	if view_mode_label:
+		view_mode_label.text = "[F] %s" % VIEW_MODE_NAMES[current_view_mode]
 
-	vocab_list_container.visible = (current_view_mode == ViewMode.VOCAB_LIST)
-	octant_grid.visible = (current_view_mode == ViewMode.OCTANT_GRID)
-	vocab_container.visible = (current_view_mode == ViewMode.VOCABULARY)
-	attractor_container.visible = (current_view_mode == ViewMode.ATTRACTOR_MAP)
+	if vocab_list_container:
+		vocab_list_container.visible = (current_view_mode == ViewMode.VOCAB_LIST)
+	if octant_grid:
+		octant_grid.visible = (current_view_mode == ViewMode.OCTANT_GRID)
+	if vocab_container:
+		vocab_container.visible = (current_view_mode == ViewMode.VOCABULARY)
+	if attractor_container:
+		attractor_container.visible = (current_view_mode == ViewMode.ATTRACTOR_MAP)
 
 	# Populate vocab list when entering that mode
 	if current_view_mode == ViewMode.VOCAB_LIST:
@@ -537,7 +545,7 @@ func _update_selection_visual() -> void:
 # ACTION HANDLERS
 # ============================================================================
 
-func on_q_pressed() -> void:
+func _on_action_q() -> void:
 	"""Q = Previous octant."""
 	selected_octant = (selected_octant - 1) % 8
 	if selected_octant < 0:
@@ -546,7 +554,7 @@ func on_q_pressed() -> void:
 	action_performed.emit("prev_octant", {"octant": selected_octant, "name": REGIONS[selected_octant].name})
 
 
-func on_e_pressed() -> void:
+func _on_action_e() -> void:
 	"""E = Next octant / Zoom in."""
 	if current_view_mode == ViewMode.OCTANT_GRID:
 		selected_octant = (selected_octant + 1) % 8
@@ -559,14 +567,14 @@ func on_e_pressed() -> void:
 		_populate_vocabulary_grid()
 
 
-func on_r_pressed() -> void:
+func _on_action_r() -> void:
 	"""R = Show attractors."""
 	current_view_mode = ViewMode.ATTRACTOR_MAP
 	_update_view()
 	action_performed.emit("show_attractors", {})
 
 
-func on_f_pressed() -> void:
+func _on_action_f() -> void:
 	"""F = Cycle view mode."""
 	current_view_mode = (current_view_mode + 1) % VIEW_MODE_NAMES.size()
 	_update_view()
@@ -637,7 +645,7 @@ func _populate_vocabulary_grid() -> void:
 
 
 func get_action_labels() -> Dictionary:
-	"""v2 overlay interface: Get context-sensitive labels."""
+	"""Get context-sensitive labels."""
 	var labels = action_labels.duplicate()
 
 	if current_view_mode == ViewMode.OCTANT_GRID:

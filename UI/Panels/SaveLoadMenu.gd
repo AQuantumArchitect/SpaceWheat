@@ -9,7 +9,8 @@ extends Control
 ##   System-tier overlay (Z_TIER_SYSTEM = 4000)
 ##   Implements: handle_input(), activate(), deactivate(), get_overlay_tier()
 
-const UIOrnamentation = preload("res://UI/Core/UIOrnamentation.gd")
+const UIStyleFactory = preload("res://UI/Core/UIStyleFactory.gd")
+const UILayoutManager = preload("res://UI/Managers/UILayoutManager.gd")
 
 signal slot_selected(slot: int, mode: String)
 signal debug_environment_selected(env_name: String)
@@ -47,47 +48,57 @@ var debug_environments = {
 
 var scroll_container: ScrollContainer
 var content_vbox: VBoxContainer
+var menu_panel: PanelContainer  # Keep reference to recenter when shown
 
 func _init():
 	name = "SaveLoadMenu"
 
+
+func _ready():
+	_build_ui()
+
+
+func _build_ui():
 	# Fill entire screen - proper Godot 4 anchors-based design
 	set_anchors_preset(Control.PRESET_FULL_RECT)
 	layout_mode = 1
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	process_mode = Node.PROCESS_MODE_ALWAYS
 
-	# Background - fill screen
-	background = ColorRect.new()
-	background.color = Color(0.0, 0.0, 0.0, 0.7)
-	background.set_anchors_preset(Control.PRESET_FULL_RECT)
-	background.layout_mode = 1
+	# Background dimmer using UIStyleFactory
+	background = UIStyleFactory.create_modal_dimmer()
 	add_child(background)
 
-	# Menu panel - positioned near top with viewport-relative height
-	# Uses percentage-based sizing to work across resolutions (540p, 720p, 1080p)
-	var menu_panel = PanelContainer.new()
-	menu_panel.anchor_left = 0.5
-	menu_panel.anchor_right = 0.5
-	menu_panel.anchor_top = 0.02  # 2% from top
-	menu_panel.anchor_bottom = 0.98  # 98% down (leaves 2% margin at bottom)
-	menu_panel.offset_left = -300
-	menu_panel.offset_right = 300
-	menu_panel.offset_top = 0
-	menu_panel.offset_bottom = 0
-	menu_panel.layout_mode = 1
+	# Menu panel - use responsive sizing from UILayoutManager or fallback
+	var panel_size: Vector2
+	var layout_manager = get_node_or_null("/root/UILayoutManager")
+	if layout_manager and layout_manager.has_method("get_overlay_size"):
+		panel_size = layout_manager.get_overlay_size()
+	else:
+		# Fallback: responsive sizing without UILayoutManager
+		var viewport_w = get_viewport_rect().size.x
+		var viewport_h = get_viewport_rect().size.y
+		panel_size = Vector2(
+			clampf(viewport_w * 0.55, 500, 800),
+			clampf(viewport_h * 0.70, 400, 600)
+		)
+
+	# Create centered panel using UIStyleFactory
+	menu_panel = UIStyleFactory.create_centered_panel(
+		panel_size,
+		UIStyleFactory.COLOR_PANEL_BG,
+		Color(0.4, 0.6, 0.8, 0.8)  # Cyan border for save/load
+	)
 	add_child(menu_panel)
 
-	menu_vbox = VBoxContainer.new()
+	# Main vbox using UIStyleFactory
+	menu_vbox = UIStyleFactory.create_vbox(UIStyleFactory.VBOX_SPACING_NORMAL)
 	menu_vbox.alignment = BoxContainer.ALIGNMENT_BEGIN
-	menu_vbox.add_theme_constant_override("separation", 8)
 	menu_panel.add_child(menu_vbox)
 
-	# Title (will be updated based on mode)
-	var title = Label.new()
+	# Title using UIStyleFactory
+	var title = UIStyleFactory.create_title_label("LOAD GAME", 28)
 	title.name = "TitleLabel"
-	title.text = "LOAD GAME"
-	title.add_theme_font_size_override("font_size", 32)
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	menu_vbox.add_child(title)
 
@@ -96,19 +107,22 @@ func _init():
 	hints.text = "↑↓ to select  |  ENTER to confirm  |  ESC to cancel"
 	hints.add_theme_font_size_override("font_size", 14)
 	hints.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	hints.add_theme_color_override("font_color", Color(0.7, 0.7, 0.7))
+	hints.add_theme_color_override("font_color", UIStyleFactory.COLOR_TEXT_SUBTITLE)
 	menu_vbox.add_child(hints)
 
-	# Scrollable content area
+	# Scrollable content area - size responsively
 	scroll_container = ScrollContainer.new()
-	scroll_container.custom_minimum_size = Vector2(580, 380)  # Fixed height for scrolling
+	var scroll_width = panel_size.x - 20
+	var scroll_height = panel_size.y - 120  # Account for title + hints + cancel button
+	scroll_container.custom_minimum_size = Vector2(scroll_width, scroll_height)
 	scroll_container.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	scroll_container.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	scroll_container.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	menu_vbox.add_child(scroll_container)
 
 	content_vbox = VBoxContainer.new()
 	content_vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	content_vbox.add_theme_constant_override("separation", 8)
+	content_vbox.add_theme_constant_override("separation", UIStyleFactory.VBOX_SPACING_NORMAL)
 	scroll_container.add_child(content_vbox)
 
 	# === SAVE SLOTS SECTION ===
@@ -150,16 +164,10 @@ func _init():
 	cancel_btn.pressed.connect(_on_cancel_pressed)
 	menu_vbox.add_child(cancel_btn)
 
-	# Apply corner ornamentation
-	UIOrnamentation.apply_corners_to_panel(
-		menu_panel,
-		UIOrnamentation.CORNER_SIZE_MEDIUM,
-		UIOrnamentation.TINT_BLUE
-	)
-
 	# Start hidden
 	visible = false
 	set_process_input(false)  # Disable input until menu is shown
+	print("[INFO][SAVE] 💾 Save/Load menu created")
 
 
 func handle_input(event: InputEvent) -> bool:
@@ -207,83 +215,29 @@ func handle_input(event: InputEvent) -> bool:
 
 
 func _create_slot_button(slot: int) -> Button:
-	var btn = Button.new()
+	var btn = UIStyleFactory.create_styled_button("[Empty]", Color(0.3, 0.4, 0.5))
 	btn.name = "SlotButton" + str(slot)
-	# Default sizing (will be adjusted when shown)
-	btn.custom_minimum_size = Vector2(550, 80)
+	btn.custom_minimum_size = Vector2(500, 80)
 	btn.add_theme_font_size_override("font_size", 20)
-
-	var style = StyleBoxFlat.new()
-	style.bg_color = Color(0.3, 0.4, 0.5)
-	style.corner_radius_top_left = 8
-	style.corner_radius_top_right = 8
-	style.corner_radius_bottom_left = 8
-	style.corner_radius_bottom_right = 8
-	btn.add_theme_stylebox_override("normal", style)
-
-	var style_hover = StyleBoxFlat.new()
-	style_hover.bg_color = Color(0.4, 0.5, 0.6)
-	style_hover.corner_radius_top_left = 8
-	style_hover.corner_radius_top_right = 8
-	style_hover.corner_radius_bottom_left = 8
-	style_hover.corner_radius_bottom_right = 8
-	btn.add_theme_stylebox_override("hover", style_hover)
-
+	btn.text_overrun_behavior = TextServer.OVERRUN_NO_TRIMMING
 	btn.pressed.connect(_on_slot_pressed.bind(slot))
-
 	return btn
 
 
 func _create_debug_env_button(env_name: String, display_name: String) -> Button:
-	var btn = Button.new()
+	# Use gold tint for debug environments
+	var btn = UIStyleFactory.create_styled_button(display_name, Color(0.4, 0.35, 0.2))
 	btn.name = "DebugEnvButton_" + env_name
-	btn.text = display_name
-	btn.custom_minimum_size = Vector2(550, 60)
+	btn.custom_minimum_size = Vector2(500, 60)
 	btn.add_theme_font_size_override("font_size", 18)
-
-	var style = StyleBoxFlat.new()
-	style.bg_color = Color(0.4, 0.35, 0.2)  # Golden/brownish tint for debug
-	style.corner_radius_top_left = 8
-	style.corner_radius_top_right = 8
-	style.corner_radius_bottom_left = 8
-	style.corner_radius_bottom_right = 8
-	btn.add_theme_stylebox_override("normal", style)
-
-	var style_hover = StyleBoxFlat.new()
-	style_hover.bg_color = Color(0.5, 0.45, 0.3)
-	style_hover.corner_radius_top_left = 8
-	style_hover.corner_radius_top_right = 8
-	style_hover.corner_radius_bottom_left = 8
-	style_hover.corner_radius_bottom_right = 8
-	btn.add_theme_stylebox_override("hover", style_hover)
-
 	btn.pressed.connect(_on_debug_env_pressed.bind(env_name))
-
 	return btn
 
 
 func _create_menu_button(text: String, color: Color) -> Button:
-	var btn = Button.new()
-	btn.text = text
+	var btn = UIStyleFactory.create_styled_button(text, color)
 	btn.custom_minimum_size = Vector2(300, 50)
 	btn.add_theme_font_size_override("font_size", 24)
-
-	var style = StyleBoxFlat.new()
-	style.bg_color = color
-	style.corner_radius_top_left = 8
-	style.corner_radius_top_right = 8
-	style.corner_radius_bottom_left = 8
-	style.corner_radius_bottom_right = 8
-	btn.add_theme_stylebox_override("normal", style)
-
-	var style_hover = StyleBoxFlat.new()
-	style_hover.bg_color = color.lightened(0.2)
-	style_hover.corner_radius_top_left = 8
-	style_hover.corner_radius_top_right = 8
-	style_hover.corner_radius_bottom_left = 8
-	style_hover.corner_radius_bottom_right = 8
-	btn.add_theme_stylebox_override("hover", style_hover)
-
 	return btn
 
 
@@ -517,8 +471,31 @@ func inject_input_controller(controller: Node) -> void:
 	print("💉 InputController injected into SaveLoadMenu")
 
 
+func _recenter_panel() -> void:
+	"""Recalculate panel position to ensure it's centered.
+
+	Call this when showing the menu, in case parent size changed since _ready().
+	"""
+	if not menu_panel or not is_inside_tree():
+		return
+
+	# Get current panel size
+	var panel_size = menu_panel.custom_minimum_size
+	if panel_size == Vector2.ZERO:
+		return
+
+	# Recalculate offsets to center the panel
+	menu_panel.offset_left = -panel_size.x / 2
+	menu_panel.offset_right = panel_size.x / 2
+	menu_panel.offset_top = -panel_size.y / 2
+	menu_panel.offset_bottom = panel_size.y / 2
+
+
 func show_menu(mode: Mode):
 	current_mode = mode
+
+	# Recenter panel before showing (in case parent size changed)
+	_recenter_panel()
 
 	# CRITICAL: Disable InputController so all input goes to SaveLoadMenu
 	if input_controller:
@@ -596,9 +573,13 @@ func _update_slot_info():
 	if not is_node_ready():
 		return  # Can't access GameStateManager yet
 
+	var gsm = get_node_or_null("/root/GameStateManager")
+	if not gsm:
+		return
+
 	for slot in range(3):
 		var btn = slot_buttons[slot]
-		var save_info = GameStateManager.get_save_info(slot)
+		var save_info = gsm.get_save_info(slot)
 
 		if save_info["exists"]:
 			# Save exists - show info

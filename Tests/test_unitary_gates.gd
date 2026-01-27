@@ -1,322 +1,208 @@
-#!/usr/bin/env -S godot --headless -s
 extends SceneTree
 
-## UNITARY GATES TEST - Tool 4
-## Tests single-qubit gates (X, H, Z) on planted plots
+## Test Unitary Gate Application (Group 1 QER)
+## Verifies that gates actually modify the density matrix
 
-const ProbeActions = preload("res://Core/Actions/ProbeActions.gd")
-const EconomyConstants = preload("res://Core/GameMechanics/EconomyConstants.gd")
 const QuantumGateLibrary = preload("res://Core/QuantumSubstrate/QuantumGateLibrary.gd")
 
 var farm = null
-var grid = null
-var economy = null
-var plot_pool = null
-var biome_list = []
+var passed := 0
+var failed := 0
+var scene_loaded := false
+var game_ready := false
+var frame_count := 0
 
-var frame_count = 0
-var scene_loaded = false
-var tests_done = false
-
-var findings = {
-	"gate_definitions": [],
-	"gate_application": [],
-	"gate_physics": [],
-	"issues": []
-}
 
 func _init():
-	print("\n" + "═".repeat(80))
-	print("🔬 UNITARY GATES TEST - Single-Qubit Gates (Tool 4)")
-	print("═".repeat(80))
+	print("\n" + "=".repeat(70))
+	print("TEST: Unitary Gate Application (1QER)")
+	print("=".repeat(70))
+
 
 func _process(_delta):
 	frame_count += 1
-
 	if frame_count == 5 and not scene_loaded:
-		print("\n⏳ Frame 5: Loading main scene...")
-		var scene = load("res://scenes/FarmView.tscn")
-		if scene:
-			var instance = scene.instantiate()
-			root.add_child(instance)
-			scene_loaded = true
+		_load_scene()
 
-			var boot_manager = root.get_node_or_null("/root/BootManager")
-			if boot_manager:
-				boot_manager.game_ready.connect(_on_game_ready)
-		else:
-			print("   ❌ Failed to load scene")
-			quit(1)
+
+func _load_scene():
+	var scene = load("res://scenes/FarmView.tscn")
+	if not scene:
+		print("FAIL: Could not load FarmView.tscn")
+		quit(1)
+		return
+
+	var instance = scene.instantiate()
+	root.add_child(instance)
+	scene_loaded = true
+
+	var boot = root.get_node_or_null("/root/BootManager")
+	if boot:
+		boot.game_ready.connect(_on_game_ready)
+
 
 func _on_game_ready():
-	if tests_done:
+	if game_ready:
 		return
-	tests_done = true
+	game_ready = true
 
-	print("\n✅ Game ready! Starting unitary gates testing...\n")
+	var farm_view = root.get_node_or_null("FarmView")
+	if farm_view and "farm" in farm_view:
+		farm = farm_view.farm
 
-	var fv = root.get_node_or_null("FarmView")
-	if not fv or not fv.farm:
-		print("❌ Farm not found")
-		print_findings()
-		quit()
-		return
-
-	farm = fv.farm
-	grid = farm.grid
-	economy = farm.economy
-	plot_pool = farm.plot_pool
-	biome_list = grid.biomes.values()
-
-	# Bootstrap resources
-	economy.add_resource("💰", 2000, "test_bootstrap")
-
-	print("Systems initialized:")
-	print("   Farm: ✅")
-	print("   Grid: ✅ (%d plots)" % grid.plots.size())
-	print("   Biomes: ✅ (%d)" % biome_list.size())
-
-	# Run tests
-	_test_gate_definitions()
-	_test_gate_application()
-	_test_gate_physics()
-
-	print_findings()
-	quit()
-
-# ═══════════════════════════════════════════════════════════════
-# TEST 1: GATE DEFINITIONS
-# ═══════════════════════════════════════════════════════════════
-
-func _test_gate_definitions():
-	print("\n" + "─".repeat(80))
-	print("TEST 1: Gate Definitions (QuantumGateLibrary)")
-	print("─".repeat(80))
-
-	var gate_lib = QuantumGateLibrary.new()
-
-	# Check available gates
-	var all_gates = gate_lib.list_gates()
-	print("\n   Available gates: %s" % str(all_gates))
-	_finding("gate_definitions", "✅ QuantumGateLibrary has %d gates" % all_gates.size())
-
-	# Check 1-qubit gates
-	var q1_gates = gate_lib.list_1q_gates()
-	print("   1-qubit gates: %s" % str(q1_gates))
-	_finding("gate_definitions", "✅ 1-qubit gates: %d gates" % q1_gates.size())
-
-	# Check specific gates we'll test
-	var test_gates = ["X", "H", "Z"]
-	for gate in test_gates:
-		if gate_lib.GATES.has(gate):
-			var gate_data = gate_lib.GATES[gate]
-			print("   %s gate: arity=%d" % [gate, gate_data.get("arity", "?")])
-			_finding("gate_definitions", "✅ Gate %s defined" % gate)
-		else:
-			_finding("gate_definitions", "❌ Gate %s NOT found" % gate)
-
-# ═══════════════════════════════════════════════════════════════
-# TEST 2: GATE APPLICATION ON PLANTED PLOTS
-# ═══════════════════════════════════════════════════════════════
-
-func _test_gate_application():
-	print("\n" + "─".repeat(80))
-	print("TEST 2: Gate Application (Plant → Gate → Measure)")
-	print("─".repeat(80))
-
-	if biome_list.is_empty():
-		_finding("gate_application", "⚠️ NO BIOMES")
+	if not farm:
+		print("FAIL: No farm found")
+		quit(1)
 		return
 
-	var biome = biome_list[0]
-	print("\n   Testing on biome: %s" % biome.get_biome_type())
+	_run_tests()
+	_print_summary()
+	quit(0 if failed == 0 else 1)
 
-	# Enable BUILD mode for planting
-	biome.set_evolution_paused(true)
-	print("   Enabled BUILD mode for planting")
 
-	# Step 1: Plant a plot (must use emotion already in biome)
-	print("\n   STEP 1: Plant existing emoji (already in quantum system)")
-	var plant_pos = Vector2i(2, 0)
-	var plant = grid.plant(plant_pos, "wheat")  # Wheat already in BioticFlux
-	if plant:
-		_finding("gate_application", "✅ Plot planted at %s" % plant_pos)
-	else:
-		_finding("gate_application", "❌ Failed to plant plot")
+func _run_tests():
+	print("\n--- Test Setup ---")
+
+	# Get biome and quantum computer
+	var biome = farm.biotic_flux_biome
+	if not biome:
+		_fail("No BioticFlux biome")
 		return
 
-	# Step 2: Apply Pauli-X gate
-	print("\n   STEP 2: Apply Pauli-X gate")
-	var plot = grid.get_plot(plant_pos)
-	if not plot:
-		_finding("gate_application", "❌ Plot not found after planting")
+	var qc = biome.quantum_computer
+	if not qc:
+		_fail("No quantum computer")
 		return
 
-	var gate_lib = QuantumGateLibrary.new()
-	if not plot.is_planted:
-		_finding("gate_application", "❌ Plot not marked as planted")
+	print("Biome: %s" % biome.name)
+	print("Quantum Computer: %d qubits" % qc.register_map.num_qubits)
+	print("Density matrix: %s" % ("present" if qc.density_matrix else "NULL"))
+
+	if not qc.density_matrix:
+		_fail("Density matrix is null")
 		return
-
-	# Get quantum computer and apply gate directly
-	var biome_for_plot = grid.get_biome_for_plot(plant_pos)
-	if not biome_for_plot or not biome_for_plot.quantum_computer:
-		_finding("gate_application", "❌ Biome quantum computer not found")
-		return
-
-	var register_id = grid.get_register_for_plot(plant_pos)
-	if register_id < 0:
-		_finding("gate_application", "❌ Invalid register ID")
-		return
-
-	var comp = biome_for_plot.quantum_computer.get_component_containing(register_id)
-	if not comp:
-		_finding("gate_application", "❌ Component not found")
-		return
-
-	# Get gate matrix
-	var gate_matrix = gate_lib.GATES["X"]["matrix"]
-	var result = biome_for_plot.quantum_computer.apply_unitary_1q(comp, register_id, gate_matrix)
-
-	if result:
-		_finding("gate_application", "✅ Pauli-X gate applied successfully")
-		print("     Result: true (gate applied)")
-	else:
-		_finding("gate_application", "❌ Pauli-X gate application failed")
-		print("     Result: false")
-
-	# Step 3: Apply Hadamard gate
-	print("\n   STEP 3: Apply Hadamard gate")
-	var plant_pos_h = Vector2i(3, 0)
-	var plant_h = grid.plant(plant_pos_h, "bread")
-	if plant_h:
-		_finding("gate_application", "✅ Second plot planted at %s" % plant_pos_h)
-
-		var plot_h = grid.get_plot(plant_pos_h)
-		var biome_h = grid.get_biome_for_plot(plant_pos_h)
-		var reg_h = grid.get_register_for_plot(plant_pos_h)
-		var comp_h = biome_h.quantum_computer.get_component_containing(reg_h)
-
-		var gate_h = gate_lib.GATES["H"]["matrix"]
-		var result_h = biome_h.quantum_computer.apply_unitary_1q(comp_h, reg_h, gate_h)
-
-		if result_h:
-			_finding("gate_application", "✅ Hadamard gate applied successfully")
-		else:
-			_finding("gate_application", "❌ Hadamard gate application failed")
-	else:
-		_finding("gate_application", "⚠️ Could not plant second plot for Hadamard test")
-
-# ═══════════════════════════════════════════════════════════════
-# TEST 3: GATE PHYSICS (Measurement after gates)
-# ═══════════════════════════════════════════════════════════════
-
-func _test_gate_physics():
-	print("\n" + "─".repeat(80))
-	print("TEST 3: Gate Physics (Verify state changes)")
-	print("─".repeat(80))
-
-	if biome_list.is_empty():
-		_finding("gate_physics", "⚠️ NO BIOMES")
-		return
-
-	var biome = biome_list[0]
-
-	# Enable BUILD mode for planting
-	biome.set_evolution_paused(true)
-
-	# Plant a plot to test
-	print("\n   TEST 3A: X gate flips state")
-	var test_pos = Vector2i(4, 0)
-	var plant = grid.plant(test_pos, "wheat")
-
-	if not plant:
-		_finding("gate_physics", "⚠️ Could not plant test plot")
-		return
-
-	var plot = grid.get_plot(test_pos)
-	var plot_biome = grid.get_biome_for_plot(test_pos)
-	var reg_id = grid.get_register_for_plot(test_pos)
-	var comp = plot_biome.quantum_computer.get_component_containing(reg_id)
 
 	# Get initial state
-	var initial_probs = plot_biome.quantum_computer.inspect_register_distribution(comp, reg_id)
-	print("   Initial state probabilities: %s" % initial_probs)
+	var initial_trace = qc.density_matrix.trace()
+	print("Initial trace: %s" % initial_trace)
 
-	# Apply X gate (should flip)
+	# Test 1: Apply Hadamard to qubit 0
+	print("\n--- Test 1: Hadamard Gate (direct) ---")
 	var gate_lib = QuantumGateLibrary.new()
-	var x_gate = gate_lib.GATES["X"]["matrix"]
-	var x_result = plot_biome.quantum_computer.apply_unitary_1q(comp, reg_id, x_gate)
+	var H = gate_lib.GATES["H"]["matrix"]
 
-	if x_result:
-		_finding("gate_physics", "✅ X gate applied (state flip expected)")
+	if not H:
+		_fail("Could not get Hadamard matrix")
+		return
 
-		# Get state after X
-		var after_x = plot_biome.quantum_computer.inspect_register_distribution(comp, reg_id)
-		print("   After X gate: %s" % after_x)
+	print("Hadamard matrix: %dx%d" % [H.n, H.n])
+
+	# Get diagonal element before
+	var diag_00_before = qc.density_matrix.get_element(0, 0)
+	print("rho[0,0] before: %s" % diag_00_before)
+
+	# Apply gate
+	var success = qc.apply_gate(0, H)
+
+	if success:
+		_pass("apply_gate(0, H) returned true")
 	else:
-		_finding("gate_physics", "❌ X gate application failed")
+		_fail("apply_gate(0, H) returned false")
 
-	# Test 3B: H gate creates superposition
-	print("\n   TEST 3B: H gate creates superposition")
-	var test_pos_h = Vector2i(5, 0)
-	var plant_h = grid.plant(test_pos_h, "bread")
+	# Get diagonal element after
+	var diag_00_after = qc.density_matrix.get_element(0, 0)
+	print("rho[0,0] after: %s" % diag_00_after)
 
-	if plant_h:
-		var plot_h = grid.get_plot(test_pos_h)
-		var biome_h = grid.get_biome_for_plot(test_pos_h)
-		var reg_h = grid.get_register_for_plot(test_pos_h)
-		var comp_h = biome_h.quantum_computer.get_component_containing(reg_h)
+	# Check if state changed
+	var diff_real = abs(diag_00_after.re - diag_00_before.re)
+	var diff_imag = abs(diag_00_after.im - diag_00_before.im)
+	print("Change in rho[0,0]: real=%.6f, imag=%.6f" % [diff_real, diff_imag])
 
-		var h_gate = gate_lib.GATES["H"]["matrix"]
-		var h_result = biome_h.quantum_computer.apply_unitary_1q(comp_h, reg_h, h_gate)
-
-		if h_result:
-			_finding("gate_physics", "✅ Hadamard gate applied (superposition expected)")
-
-			var after_h = biome_h.quantum_computer.inspect_register_distribution(comp_h, reg_h)
-			print("   After H gate: %s" % after_h)
-
-			# Check if probabilities are roughly equal
-			if after_h.size() == 2:
-				var p0 = after_h[0]
-				var p1 = after_h[1]
-				if abs(p0 - p1) < 0.1:  # Allow some numerical error
-					_finding("gate_physics", "✅ Hadamard created balanced superposition (~0.5 each)")
-				else:
-					_finding("gate_physics", "⚠️ Probabilities not balanced (%.2f vs %.2f)" % [p0, p1])
-		else:
-			_finding("gate_physics", "❌ Hadamard application failed")
+	if diff_real > 0.001 or diff_imag > 0.001:
+		_pass("Density matrix changed after Hadamard")
 	else:
-		_finding("gate_physics", "⚠️ Could not plant for Hadamard test")
+		_fail("Density matrix did NOT change after Hadamard")
 
-# ═══════════════════════════════════════════════════════════════
-# HELPER FUNCTIONS
-# ═══════════════════════════════════════════════════════════════
+	# Check trace preserved
+	var final_trace = qc.density_matrix.trace()
+	print("Final trace: %s" % final_trace)
 
-func _finding(category: String, message: String):
-	findings[category].append(message)
-	print("   " + message)
+	var trace_diff = abs(final_trace.re - initial_trace.re)
+	if trace_diff < 0.01:
+		_pass("Trace preserved (diff=%.6f)" % trace_diff)
+	else:
+		_fail("Trace NOT preserved (diff=%.6f)" % trace_diff)
 
-func print_findings():
-	print("\n" + "═".repeat(80))
-	print("📋 UNITARY GATES TEST SUMMARY")
-	print("═".repeat(80))
+	# Test 2: Test via GateActionHandler (full stack)
+	print("\n--- Test 2: Full Stack via GateActionHandler ---")
 
-	var total_findings = 0
-	var total_issues = 0
+	var plot_pool = farm.plot_pool
+	if not plot_pool:
+		print("SKIP: No plot pool")
+		return
 
-	for category in findings.keys():
-		var items = findings[category]
-		if items.is_empty():
-			continue
+	var terminal = plot_pool.get_unbound_terminal()
+	if not terminal:
+		print("SKIP: No unbound terminals")
+		return
 
-		print("\n🔹 %s (%d)" % [category.to_upper(), items.size()])
-		for item in items:
-			print("   " + item)
-			if "❌" in item or "FAILED" in item:
-				total_issues += 1
-			total_findings += 1
+	# Bind terminal to register 0
+	var emoji_pair = {"north": "test_n", "south": "test_s"}
+	terminal.bind_to_register(0, biome, emoji_pair)
+	terminal.grid_position = Vector2i(0, 0)
 
-	print("\n" + "═".repeat(80))
-	print("📊 TOTALS: %d findings, %d issues" % [total_findings, total_issues])
-	print("═".repeat(80) + "\n")
+	print("Terminal bound: %s at %s, register=%d" % [terminal.terminal_id, terminal.grid_position, terminal.bound_register_id])
+
+	# Verify terminal is findable
+	var found = plot_pool.get_terminal_at_grid_pos(Vector2i(0, 0))
+	if found:
+		_pass("Terminal found at grid (0,0)")
+	else:
+		_fail("Terminal NOT found at grid (0,0)")
+		return
+
+	# Now test via GateActionHandler
+	const GateActionHandler = preload("res://UI/Handlers/GateActionHandler.gd")
+
+	var positions: Array[Vector2i] = [Vector2i(0, 0)]
+	var diag_before_full = qc.density_matrix.get_element(0, 0)
+	print("rho[0,0] before GateActionHandler: %s" % diag_before_full)
+
+	var result = GateActionHandler.apply_hadamard(farm, positions)
+	print("GateActionHandler result: %s" % result)
+
+	if result.success:
+		_pass("GateActionHandler.apply_hadamard succeeded")
+	else:
+		_fail("GateActionHandler.apply_hadamard failed: %s" % result.get("message", "unknown"))
+		return
+
+	var diag_after_full = qc.density_matrix.get_element(0, 0)
+	print("rho[0,0] after GateActionHandler: %s" % diag_after_full)
+
+	var full_diff = abs(diag_after_full.re - diag_before_full.re)
+	print("Change: %.6f" % full_diff)
+
+	if full_diff > 0.001:
+		_pass("Full stack: Density matrix changed")
+	else:
+		_fail("Full stack: Density matrix did NOT change")
+
+	# Cleanup
+	terminal.unbind()
+
+
+func _pass(msg: String):
+	passed += 1
+	print("  PASS: %s" % msg)
+
+
+func _fail(msg: String):
+	failed += 1
+	print("  FAIL: %s" % msg)
+
+
+func _print_summary():
+	print("\n" + "=".repeat(70))
+	print("SUMMARY: %d passed, %d failed" % [passed, failed])
+	print("=".repeat(70))
