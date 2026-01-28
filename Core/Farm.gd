@@ -823,46 +823,48 @@ const ROW_BIOME_MAP: Dictionary = {
 func _create_grid_config() -> GridConfig:
 	"""Create grid configuration - single source of truth for layout
 
-	Quantum Instrument Layout: 6 biomes × 4 plots = 24 total plots
-	Each biome uses y-coordinate as biome identifier:
-	  - BioticFlux: y=0, positions (0,0) through (3,0)
-	  - StellarForges: y=1, positions (0,1) through (3,1)
-	  - FungalNetworks: y=2, positions (0,2) through (3,2)
-	  - VolcanicWorlds: y=3, positions (0,3) through (3,3)
-	  - StarterForest: y=4, positions (0,4) through (3,4)
-	  - Village: y=5, positions (0,5) through (3,5)
+	Quantum Instrument Layout: Dynamic based on unlocked biomes
+	Each biome uses y-coordinate as biome identifier
 
 	Keyboard layout:
 	  JKL; = 4 plots in current biome
-	  T/Y = biome switching (StarterForest/Village)
+	  T/Y = biome switching (StarterForest/Village initially)
 	"""
+	# Get unlocked biomes to determine which plots to create
+	var observation_frame = get_node_or_null("/root/ObservationFrame")
+	var unlocked_biomes = ["StarterForest", "Village"]  # Default
+	if observation_frame:
+		unlocked_biomes = observation_frame.get_unlocked_biomes()
+
 	var config = GridConfig.new()
 	config.grid_width = 4   # 4 plots per biome
-	config.grid_height = 6  # 6 biomes
+	config.grid_height = 6  # 6 biomes (max)
 
 	# Create keyboard layout configuration
 	var keyboard = KeyboardLayoutConfig.new()
 
 	# JKL; → positions 0-3 (within active biome, y determined at runtime)
-	# For keyboard layout, we map to y=0 (BioticFlux) as default
-	# The actual position used depends on ObservationFrame.neutral_biome
 	var neutral_keys = ["j", "k", "l", ";"]
 	for i in range(4):
-		var pos = Vector2i(i, 0)  # Default to y=0, remapped at runtime
+		var pos = Vector2i(i, 0)  # Default to y=0
 		keyboard.action_to_position["plot_neutral_" + str(i)] = pos
 		keyboard.position_to_label[pos] = neutral_keys[i].to_upper()
 		# Also add labels for other biome rows (same x position, different y)
-		for biome_row in range(1, 4):
+		for biome_row in range(1, 6):
 			keyboard.position_to_label[Vector2i(i, biome_row)] = neutral_keys[i].to_upper()
 
 	config.keyboard_layout = keyboard
 
 	# =========================================================================
-	# PLOT CONFIGURATIONS - 4 plots per biome, 24 total (6 biomes)
-	# Each biome has independent quantum state and plots
+	# PLOT CONFIGURATIONS - Only create plots for UNLOCKED biomes
+	# This prevents "unregistered biome" errors for locked biomes
 	# =========================================================================
 
-	for biome_name in BIOME_ROW_MAP.keys():
+	for biome_name in unlocked_biomes:
+		if not BIOME_ROW_MAP.has(biome_name):
+			push_warning("Unknown biome in unlocked list: %s" % biome_name)
+			continue
+
 		var biome_row = BIOME_ROW_MAP[biome_name]
 		for i in range(4):
 			var plot = PlotConfig.new()
@@ -875,6 +877,8 @@ func _create_grid_config() -> GridConfig:
 
 			# Set up biome assignment
 			config.biome_assignments[Vector2i(i, biome_row)] = biome_name
+
+	print("GridConfig created with %d plots for %d unlocked biomes" % [config.plots.size(), unlocked_biomes.size()])
 
 	return config
 
@@ -1054,9 +1058,12 @@ func _load_biome_dynamically(biome_name: String) -> bool:
 	if biome == null:
 		return false
 
-	# If newly loaded, register with grid and rebuild operators
+	# If newly loaded, register with grid, add plots, and rebuild operators
 	if not already_loaded:
 		_register_biome_if_loaded(biome_name, biome, grid)
+
+		# Add plots for this biome dynamically
+		_add_plots_for_biome(biome_name, grid)
 
 		# Add metadata for UI systems
 		set_meta(biome_name.to_lower() + "_biome", biome)
@@ -1069,6 +1076,32 @@ func _load_biome_dynamically(biome_name: String) -> bool:
 		print("🗺️ Dynamically loaded and registered biome: %s" % biome_name)
 
 	return true
+
+
+func _add_plots_for_biome(biome_name: String, grid_ref) -> void:
+	"""Add plots for a newly unlocked biome
+
+	Called when a biome is discovered via exploration.
+	Creates 4 plots for the biome and assigns them.
+	"""
+	if not BIOME_ROW_MAP.has(biome_name):
+		push_warning("Cannot add plots for unknown biome: %s" % biome_name)
+		return
+
+	var biome_row = BIOME_ROW_MAP[biome_name]
+	print("🗺️ Adding plots for %s on row %d" % [biome_name, biome_row])
+
+	for i in range(4):
+		var pos = Vector2i(i, biome_row)
+
+		# get_plot() auto-creates the plot if it doesn't exist
+		var plot = grid_ref.get_plot(pos)
+		if plot:
+			# Assign plot to biome
+			grid_ref.assign_plot_to_biome(pos, biome_name)
+			print("  ✅ Added plot %s for %s" % [pos, biome_name])
+		else:
+			push_warning("  ❌ Failed to create plot at %s" % pos)
 
 
 func build(pos: Vector2i, build_type: String) -> bool:

@@ -8,16 +8,16 @@ var farm_ref = null
 
 func _ready() -> void:
 	set_anchors_preset(Control.PRESET_TOP_RIGHT)
-	set_margin(Margin.RIGHT, 12)
-	set_margin(Margin.TOP, 12)
+	offset_right = -12
+	offset_top = 12
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
-	rect_min_size = Vector2(180, 48)
+	custom_minimum_size = Vector2(180, 48)
 
 	var panel = PanelContainer.new()
 	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	panel.size_flags_horizontal = Control.SIZE_FLAGS_FILL
-	panel.size_flags_vertical = Control.SIZE_FLAGS_FILL
-	panel.rect_min_size = Vector2(180, 48)
+	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	panel.custom_minimum_size = Vector2(180, 48)
 	var vbox = VBoxContainer.new()
 	vbox.anchor_right = 1.0
 	vbox.anchor_bottom = 1.0
@@ -28,11 +28,11 @@ func _ready() -> void:
 
 	sim_label = Label.new()
 	sim_label.add_color_override("font_color", Color(0.95, 0.95, 0.95))
-	sim_label.align = Label.ALIGN_LEFT
+	sim_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 
 	fps_label = Label.new()
 	fps_label.add_color_override("font_color", Color(0.8, 0.9, 1.0))
-	fps_label.align = Label.ALIGN_LEFT
+	fps_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 
 	vbox.add_child(sim_label)
 	vbox.add_child(fps_label)
