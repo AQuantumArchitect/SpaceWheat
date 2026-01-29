@@ -2122,61 +2122,33 @@ func set_lindblad_operators(operators: Array) -> void:
 # ============================================================================
 
 static func _check_native_engine() -> void:
-	"""Check if native QuantumEvolutionEngine is available."""
+	"""DISABLED: Native engine check removed due to GPU crash.
+
+	Checking for QuantumEvolutionEngine (even if not registered) can trigger
+	GPU driver initialization in WSL, causing signal 11 crashes.
+
+	This function is a no-op to preserve backward compatibility.
+	"""
 	if _native_engine_checked:
 		return
 	_native_engine_checked = true
-	_native_engine_available = ClassDB.class_exists("QuantumEvolutionEngine")
+	_native_engine_available = false  # Never use native engine
 	# Static function can't use _log - logged once at startup via boot category by BootManager
 
 
 func setup_native_evolution() -> void:
-	"""Set up native batched evolution engine for maximum performance.
+	"""DISABLED: Native batched evolution engine no longer available.
 
-	Call this after both hamiltonian and lindblad_operators are set.
-	The native engine eliminates GDScript↔C++ bridge overhead by:
-	1. Registering all operators ONCE
-	2. Precomputing L†, L†L for each Lindblad
-	3. Doing complete evolution in single native call
+	QuantumEvolutionEngine was a GPU-optimized native class that crashed
+	in WSL without GPU support. It has been removed from native registration.
 
-	Performance: 100x faster than per-operator sparse calls.
-	(130ms → 7ms for Forest biome with 14 Lindblad operators)
+	The CPU-only GDScript evolution path in _evolve_step() is production-ready
+	and handles all quantum evolution needs.
+
+	This function is a no-op kept for backward compatibility.
 	"""
-	_check_native_engine()
-	if not _native_engine_available:
-		return
-
-	var dim = register_map.dim()
-	if dim == 0:
-		return
-
-	# Create native engine
-	native_evolution_engine = ClassDB.instantiate("QuantumEvolutionEngine")
-	if native_evolution_engine == null:
-		_log("warn", "quantum", "⚠️", "QuantumEvolutionEngine: Failed to instantiate")
-		return
-
-	native_evolution_engine.set_dimension(dim)
-
-	# Register Hamiltonian (if set)
-	if hamiltonian != null:
-		var H_packed = hamiltonian._to_packed()
-		native_evolution_engine.set_hamiltonian(H_packed)
-
-	# Register all Lindblad operators as triplets
-	# Convert from ComplexMatrix to triplet format: [row, col, re, im, ...]
-	for L in lindblad_operators:
-		if L == null:
-			continue
-		var triplets = _matrix_to_triplets(L)
-		if not triplets.is_empty():
-			native_evolution_engine.add_lindblad_triplets(triplets)
-
-	# Finalize (precompute L†, L†L)
-	native_evolution_engine.finalize()
-
-	_log("info", "quantum", "🚀", "QuantumEvolutionEngine: Batched evolution ready (%d dim, %d Lindblad)" % [
-		dim, lindblad_operators.size()])
+	# Intentionally empty - evolution uses pure GDScript path via _evolve_step()
+	pass
 
 
 func _matrix_to_triplets(mat: ComplexMatrix) -> PackedFloat64Array:
