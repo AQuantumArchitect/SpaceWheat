@@ -997,87 +997,33 @@ func explore_biome() -> Dictionary:
 
 
 func _load_biome_dynamically(biome_name: String) -> bool:
-	"""Load a biome at runtime (used by explore_biome)
+	"""Load a biome at runtime via unified BootManager.load_biome().
 
-	Loads the biome script, adds it to tree, registers with grid, and rebuilds operators.
+	This delegates to BootManager to ensure consistent loading sequence:
+	1. Load & instantiate
+	2. Register with grid
+	3. Assign plots
+	4. Rebuild operators (CRITICAL: before batcher registration)
+	5. Register with batcher
+	6. Emit signals
+
+	Idempotent: if already loaded, returns true without re-initializing.
 	"""
-	if not grid:
-		push_error("Grid not initialized - cannot load biome dynamically")
+	var boot_manager = get_node_or_null("/root/BootManager")
+	if not boot_manager:
+		push_error("BootManager not found")
 		return false
 
-	var biome = null
-	var already_loaded = false
-
-	# Check if already loaded and load if needed
-	match biome_name:
-		"StarterForest":
-			if starter_forest_biome:
-				already_loaded = true
-				biome = starter_forest_biome
-			else:
-				starter_forest_biome = _safe_load_biome("res://Core/Environment/StarterForestBiome.gd", "StarterForest")
-				biome = starter_forest_biome
-		"Village":
-			if village_biome:
-				already_loaded = true
-				biome = village_biome
-			else:
-				village_biome = _safe_load_biome("res://Core/Environment/VillageBiome.gd", "Village")
-				biome = village_biome
-		"BioticFlux":
-			if biotic_flux_biome:
-				already_loaded = true
-				biome = biotic_flux_biome
-			else:
-				biotic_flux_biome = _safe_load_biome("res://Core/Environment/BioticFluxBiome.gd", "BioticFlux")
-				biome = biotic_flux_biome
-		"StellarForges":
-			if stellar_forges_biome:
-				already_loaded = true
-				biome = stellar_forges_biome
-			else:
-				stellar_forges_biome = _safe_load_biome("res://Core/Environment/StellarForgesBiome.gd", "StellarForges")
-				biome = stellar_forges_biome
-		"FungalNetworks":
-			if fungal_networks_biome:
-				already_loaded = true
-				biome = fungal_networks_biome
-			else:
-				fungal_networks_biome = _safe_load_biome("res://Core/Environment/FungalNetworksBiome.gd", "FungalNetworks")
-				biome = fungal_networks_biome
-		"VolcanicWorlds":
-			if volcanic_worlds_biome:
-				already_loaded = true
-				biome = volcanic_worlds_biome
-			else:
-				volcanic_worlds_biome = _safe_load_biome("res://Core/Environment/VolcanicWorldsBiome.gd", "VolcanicWorlds")
-				biome = volcanic_worlds_biome
-		_:
-			push_warning("Unknown biome: %s" % biome_name)
-			return false
-
-	if biome == null:
+	var result = boot_manager.load_biome(biome_name, self)
+	if not result.get("success", false):
+		var error = result.get("message", "Unknown error")
+		push_error("Failed to load biome '%s': %s" % [biome_name, error])
 		return false
 
-	# If newly loaded, register with grid and rebuild operators
-	if not already_loaded:
-		_register_biome_if_loaded(biome_name, biome, grid)
-		_assign_plots_for_biome(biome_name)
-
-		# Add metadata for UI systems
-		set_meta(biome_name.to_lower() + "_biome", biome)
-
-		# CRITICAL: Rebuild quantum operators BEFORE registering with batcher
-		# The batcher immediately starts evolving, so operators must be ready
-		var icon_registry = get_node_or_null("/root/IconRegistry")
-		if icon_registry and biome.has_method("rebuild_quantum_operators"):
-			biome.rebuild_quantum_operators()
-
-		# NOW register with batcher (operators are ready)
-		_register_biome_with_batcher(biome)
-
+	# Print success message
+	var already = result.get("already_loaded", false)
+	if not already:
 		print("🗺️ Dynamically loaded and registered biome: %s" % biome_name)
-		biome_loaded.emit(biome_name, biome)
 
 	return true
 
@@ -1091,14 +1037,6 @@ func _assign_plots_for_biome(biome_name: String) -> void:
 	for pos in grid_config.biome_assignments:
 		if grid_config.biome_assignments[pos] == biome_name:
 			grid.assign_plot_to_biome(pos, biome_name)
-
-
-func _register_biome_with_batcher(biome) -> void:
-	"""Register a dynamically loaded biome with the evolution batcher."""
-	if not biome_evolution_batcher or not biome:
-		return
-	if biome_evolution_batcher.has_method("register_biome"):
-		biome_evolution_batcher.register_biome(biome)
 
 
 func build(pos: Vector2i, build_type: String) -> bool:

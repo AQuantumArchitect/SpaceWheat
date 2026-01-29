@@ -265,3 +265,143 @@ func _stage_start_simulation(farm: Node) -> void:
 	# (done separately to avoid input during boot)
 	_verbose.info("boot", "✓", "Input system enabled")
 	_verbose.info("boot", "✓", "Ready to accept player input")
+
+
+## ============================================================================
+## UNIFIED BIOME LOADING - Used by both boot and lazy-load paths
+## ============================================================================
+
+func load_biome(biome_name: String, farm: Node) -> Dictionary:
+	"""Unified biome loading - single source of truth for boot and runtime.
+
+	Called by:
+	- Farm._ready() during boot (for all unlocked biomes)
+	- Farm.explore_biome() at runtime (for new biomes)
+
+	Ensures consistent order:
+	1. Load script & instantiate
+	2. Register with grid
+	3. Assign plots from GridConfig
+	4. Rebuild quantum operators (if IconRegistry ready)
+	5. Register with batcher
+	6. Emit signals
+
+	Args:
+		biome_name: String like "BioticFlux", "Village", etc
+		farm: Farm instance (has grid, batcher, grid_config)
+
+	Returns:
+		{
+			success: bool,
+			biome_name: String,
+			biome_ref: Object (if success),
+			already_loaded: bool (if already loaded),
+			message: String (if error)
+		}
+	"""
+	# ====== PRE-CONDITION CHECKS ======
+	if not farm:
+		return {
+			"success": false,
+			"error": "farm_null",
+			"message": "Farm not provided"
+		}
+
+	if not farm.grid:
+		return {
+			"success": false,
+			"error": "grid_null",
+			"message": "Farm.grid not initialized"
+		}
+
+	if not farm.grid_config:
+		return {
+			"success": false,
+			"error": "grid_config_null",
+			"message": "Farm.grid_config not initialized"
+		}
+
+	# ====== CHECK IF ALREADY LOADED ======
+	if farm.grid.biomes.has(biome_name):
+		var existing_biome = farm.grid.biomes[biome_name]
+		if existing_biome:
+			_verbose.debug("boot", "ℹ️", "Biome '%s' already loaded (idempotent)" % biome_name)
+			return {
+				"success": true,
+				"biome_name": biome_name,
+				"biome_ref": existing_biome,
+				"already_loaded": true
+			}
+
+	# ====== STEP 1: LOAD SCRIPT & INSTANTIATE ======
+	var biome = farm._safe_load_biome(_get_biome_script_path(biome_name), biome_name)
+	if not biome:
+		_verbose.error("boot", "❌", "Failed to load biome: %s" % biome_name)
+		return {
+			"success": false,
+			"error": "load_failed",
+			"message": "Could not load biome script for '%s'" % biome_name
+		}
+
+	# ====== STEP 2: REGISTER WITH GRID ======
+	farm._register_biome_if_loaded(biome_name, biome, farm.grid)
+	_verbose.debug("boot", "✓", "Registered '%s' with grid" % biome_name)
+
+	# ====== STEP 3: ASSIGN PLOTS FROM GridConfig ======
+	farm._assign_plots_for_biome(biome_name)
+	_verbose.debug("boot", "✓", "Assigned plots for '%s'" % biome_name)
+
+	# ====== STEP 4: STORE METADATA ======
+	farm.set_meta(biome_name.to_lower() + "_biome", biome)
+
+	# ====== STEP 5: REBUILD OPERATORS ======
+	# CRITICAL: Must happen BEFORE batcher registration
+	# IconRegistry should be ready by this point (checked in Stage 3A)
+	var icon_registry = get_node_or_null("/root/IconRegistry")
+	if icon_registry and biome.has_method("rebuild_quantum_operators"):
+		biome.rebuild_quantum_operators()
+		_verbose.debug("boot", "✓", "Rebuilt operators for '%s'" % biome_name)
+	elif not icon_registry:
+		_verbose.warn("boot", "⚠️", "IconRegistry not available for '%s'" % biome_name)
+
+	# Verify quantum computer initialized
+	if not biome.quantum_computer:
+		_verbose.warn("boot", "⚠️", "Biome '%s' has no quantum_computer after operator rebuild" % biome_name)
+
+	# ====== STEP 6: REGISTER WITH BATCHER ======
+	if farm.biome_evolution_batcher and farm.biome_evolution_batcher.has_method("register_biome"):
+		farm.biome_evolution_batcher.register_biome(biome)
+		_verbose.debug("boot", "✓", "Registered '%s' with batcher" % biome_name)
+	else:
+		_verbose.warn("boot", "⚠️", "Batcher not available for '%s'" % biome_name)
+
+	# ====== STEP 7: EMIT SIGNALS ======
+	if farm.has_signal("biome_loaded"):
+		farm.biome_loaded.emit(biome_name, biome)
+
+	_verbose.info("boot", "✓", "Biome loaded: %s" % biome_name)
+	return {
+		"success": true,
+		"biome_name": biome_name,
+		"biome_ref": biome,
+		"already_loaded": false
+	}
+
+
+## Helper: Get script path for a biome name
+func _get_biome_script_path(biome_name: String) -> String:
+	match biome_name:
+		"StarterForest":
+			return "res://Core/Environment/StarterForestBiome.gd"
+		"Village":
+			return "res://Core/Environment/VillageBiome.gd"
+		"BioticFlux":
+			return "res://Core/Environment/BioticFluxBiome.gd"
+		"StellarForges":
+			return "res://Core/Environment/StellarForgesBiome.gd"
+		"FungalNetworks":
+			return "res://Core/Environment/FungalNetworksBiome.gd"
+		"VolcanicWorlds":
+			return "res://Core/Environment/VolcanicWorldsBiome.gd"
+		_:
+			return ""
