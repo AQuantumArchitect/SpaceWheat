@@ -127,15 +127,13 @@ func register_biome(biome) -> void:
 
 
 func _setup_lookahead_engine():
-	"""Set up the native MultiBiomeLookaheadEngine if available."""
-	if not ClassDB.class_exists("MultiBiomeLookaheadEngine"):
-		print("  MultiBiomeLookaheadEngine: Not available, using Stage 1 fallback")
-		return
+	"""Set up the native MultiBiomeLookaheadEngine if available.
 
-	lookahead_engine = ClassDB.instantiate("MultiBiomeLookaheadEngine")
-	if not lookahead_engine:
-		print("  MultiBiomeLookaheadEngine: Failed to instantiate")
-		return
+	DISABLED: MultiBiomeLookaheadEngine causes WSL crashes.
+	All evolution now uses pure GDScript CPU path (Stage 1 rotation).
+	"""
+	print("  MultiBiomeLookaheadEngine: DISABLED (WSL incompatible), using Stage 1 fallback")
+	return
 
 	# Register each biome with the engine
 	for biome in biomes:
