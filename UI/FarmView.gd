@@ -32,30 +32,39 @@ func _ready():
 	_verbose.debug("ui", "", "FarmView anchors: L%.1f T%.1f R%.1f B%.1f" % [anchor_left, anchor_top, anchor_right, anchor_bottom])
 	_verbose.debug("ui", "", "Viewport: %.0f × %.0f" % [get_viewport_rect().size.x, get_viewport_rect().size.y])
 
-	# ═══════════════════════════════════════════════════════════════════════
-	# BIOME BACKGROUND - Full-screen biome art (behind everything)
-	# ═══════════════════════════════════════════════════════════════════════
-	_verbose.debug("ui", "🖼️", "Creating biome background layer...")
-	var bg_layer = CanvasLayer.new()
-	bg_layer.layer = -1  # Behind layer 0 (all other UI)
-	bg_layer.name = "BiomeBackgroundLayer"
-	add_child(bg_layer)
+	# Detect headless mode early
+	var is_headless = DisplayServer.get_name() == "headless"
 
-	biome_background = BiomeBackgroundClass.new()
-	biome_background.name = "BiomeBackground"
-	bg_layer.add_child(biome_background)
-	_verbose.info("ui", "✅", "Biome background created (CanvasLayer -1)")
-
-	# Load PlayerShell scene
-	_verbose.debug("ui", "🎪", "Loading player shell scene...")
-	var shell_scene = load("res://UI/PlayerShell.tscn")
-	if shell_scene:
-		shell = shell_scene.instantiate()
-		add_child(shell)
-		_verbose.info("ui", "✅", "Player shell loaded and added to tree")
+	# ═══════════════════════════════════════════════════════════════════════
+	# SKIP ALL UI SETUP IN HEADLESS MODE (prevents GPU initialization)
+	# ═══════════════════════════════════════════════════════════════════════
+	if is_headless:
+		_verbose.info("ui", "🎯", "Headless mode detected - skipping UI/visualization")
 	else:
-		_verbose.warn("ui", "❌", "PlayerShell.tscn not found!")
-		return
+		# ═══════════════════════════════════════════════════════════════════════
+		# BIOME BACKGROUND - Full-screen biome art (behind everything)
+		# ═══════════════════════════════════════════════════════════════════════
+		_verbose.debug("ui", "🖼️", "Creating biome background layer...")
+		var bg_layer = CanvasLayer.new()
+		bg_layer.layer = -1  # Behind layer 0 (all other UI)
+		bg_layer.name = "BiomeBackgroundLayer"
+		add_child(bg_layer)
+
+		biome_background = BiomeBackgroundClass.new()
+		biome_background.name = "BiomeBackground"
+		bg_layer.add_child(biome_background)
+		_verbose.info("ui", "✅", "Biome background created (CanvasLayer -1)")
+
+		# Load PlayerShell scene
+		_verbose.debug("ui", "🎪", "Loading player shell scene...")
+		var shell_scene = load("res://UI/PlayerShell.tscn")
+		if shell_scene:
+			shell = shell_scene.instantiate()
+			add_child(shell)
+			_verbose.info("ui", "✅", "Player shell loaded and added to tree")
+		else:
+			_verbose.warn("ui", "❌", "PlayerShell.tscn not found!")
+			return
 
 	# Create farm (synchronous)
 	_verbose.info("farm", "📝", "Creating farm...")
@@ -78,17 +87,21 @@ func _ready():
 	# Wait for farm._ready() to complete (one frame is enough)
 	await get_tree().process_frame
 
-	# Create quantum visualization
-	_verbose.debug("ui", "🛁", "Creating bath-first quantum visualization...")
-	quantum_viz = BathQuantumViz.new()
+	# Create quantum visualization (SKIP in headless mode - GPU initialization crashes WSL)
+	if is_headless:
+		_verbose.info("ui", "🛁", "Skipping quantum visualization (headless mode)")
+		quantum_viz = null
+	else:
+		_verbose.debug("ui", "🛁", "Creating bath-first quantum visualization...")
+		quantum_viz = BathQuantumViz.new()
 
-	# Add directly to scene tree - no CanvasLayer needed
-	# Set z_index low so it renders behind UI and overlays
-	add_child(quantum_viz)
-	quantum_viz.z_index = -100  # Behind everything (plots are -10, overlays are 1000+)
+		# Add directly to scene tree - no CanvasLayer needed
+		# Set z_index low so it renders behind UI and overlays
+		add_child(quantum_viz)
+		quantum_viz.z_index = -100  # Behind everything (plots are -10, overlays are 1000+)
 
-	# Add biomes to visualization (if available)
-	if farm.biome_enabled:
+	# Add biomes to visualization (if available and not headless)
+	if not is_headless and farm.biome_enabled:
 		if farm.biotic_flux_biome:
 			quantum_viz.add_biome("BioticFlux", farm.biotic_flux_biome)
 		if farm.stellar_forges_biome:
@@ -114,13 +127,21 @@ func _ready():
 	# ═══════════════════════════════════════════════════════════════════════
 	# CLEAN BOOT SEQUENCE - Explicit multi-phase initialization
 	# ═══════════════════════════════════════════════════════════════════════
-	_verbose.info("farm", "🚀", "Starting Clean Boot Sequence...")
-	await _boot_mgr.boot(farm, shell, quantum_viz)
-	_verbose.info("farm", "✅", "Clean Boot Sequence complete")
+	if not is_headless:
+		_verbose.info("farm", "🚀", "Starting Clean Boot Sequence...")
+		await _boot_mgr.boot(farm, shell, quantum_viz)
+		_verbose.info("farm", "✅", "Clean Boot Sequence complete")
+	else:
+		_verbose.info("farm", "✓", "Skipped boot sequence (headless mode - no visualization/UI)")
 
 	# ═══════════════════════════════════════════════════════════════════════
 	# POST-BOOT: Additional signal connections and final setup
 	# ═══════════════════════════════════════════════════════════════════════
+
+	# Skip UI connections in headless mode
+	if is_headless:
+		_verbose.info("ui", "✅", "FarmView ready - headless mode (no visualization)")
+		return
 
 	# Connect touch gesture signals from QuantumForceGraph
 	if quantum_viz and quantum_viz.graph:
