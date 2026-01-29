@@ -314,25 +314,22 @@ func initialize_phase_lnn() -> void:
 	if num_qubits <= 0:
 		return
 
-	# Try to use native C++ implementation first (5000x faster)
-	# Falls back to GDScript version if native is unavailable
+	# Configuration
 	var hidden_size = max(4, num_qubits / 2)
 
-	if ClassDB.class_exists("LiquidNeuralNetNative"):
-		# Use native C++ implementation
-		phase_lnn = ClassDB.instantiate("LiquidNeuralNetNative")
-		phase_lnn.initialize(num_qubits, hidden_size, num_qubits)
-		if _verbose and _verbose.should_log("phasic"):
-			_verbose.log(self, "🌀 Phasic shadow: Native C++ LNN initialized (%.0fx faster)" % [5000.0])
-	else:
-		# Fallback to GDScript implementation
-		phase_lnn = LiquidNeuralNet.new(
-			num_qubits,      # Input: one phase per qubit
-			hidden_size,     # Hidden: sqrt(qubits) neurons
-			num_qubits       # Output: phase modulation per qubit
-		)
-		if _verbose and _verbose.should_log("phasic"):
-			_verbose.log(self, "🌀 Phasic shadow: GDScript LNN initialized (fallback, slower)")
+	# DISABLED: Native C++ implementation
+	# The native LNN is causing crashes during initialization.
+	# Using GDScript fallback while debugging.
+	# TODO: Fix native binding and re-enable for 5000x speedup
+
+	# Fallback to GDScript implementation
+	phase_lnn = LiquidNeuralNet.new(
+		num_qubits,      # Input: one phase per qubit
+		hidden_size,     # Hidden: sqrt(qubits) neurons
+		num_qubits       # Output: phase modulation per qubit
+	)
+	if _verbose and _verbose.should_log("phasic"):
+		_verbose.log(self, "🌀 Phasic shadow: GDScript LNN initialized (native disabled)")
 
 	phase_lnn_enabled = true
 

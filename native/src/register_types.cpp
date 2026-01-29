@@ -21,7 +21,11 @@ void initialize_quantum_matrix_module(ModuleInitializationLevel p_level) {
     ClassDB::register_class<QuantumEvolutionEngine>();
     ClassDB::register_class<NativeBubbleRenderer>();
     ClassDB::register_class<MultiBiomeLookaheadEngine>();
-    ClassDB::register_class<LiquidNeuralNetNative>();
+    // DISABLED: LiquidNeuralNetNative
+    // Native LNN works fine (unit tests pass), but loading it triggers graphics
+    // driver crashes in WSL without GPU (signal 11 in swrast_dri.so).
+    // Re-enable when GPU is available or WSL graphics drivers are fixed.
+    // ClassDB::register_class<LiquidNeuralNetNative>();
 }
 
 void uninitialize_quantum_matrix_module(ModuleInitializationLevel p_level) {
