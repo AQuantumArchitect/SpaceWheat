@@ -93,6 +93,11 @@ func _initialize_bath() -> void:
 		quantum_computer.gated_lindblad_configs.size()])
 	print("  🌲 Starter Forest QuantumComputer ready!")
 
+	# Initialize phasic shadow: liquid neural net in phase space
+	initialize_phase_lnn()
+	if phase_lnn:
+		print("  🌀 Phasic shadow initialized (LNN in phase space)")
+
 
 func _create_forest_emoji_icon(emoji: String) -> Icon:
 	"""Create basic Icon for forest emoji."""
@@ -163,9 +168,12 @@ func get_paired_emoji(emoji: String) -> String:
 
 
 func _update_quantum_substrate(dt: float) -> void:
-	"""Evolve quantum substrate under Lindblad dynamics."""
+	"""Evolve quantum substrate under Lindblad dynamics + phasic shadow intelligence."""
 	if quantum_computer:
 		quantum_computer.evolve(dt, max_evolution_dt)
+
+		# Apply learned phase modulation from phasic shadow (LNN intelligence)
+		apply_phase_modulation()
 
 	# Apply semantic drift game mechanics (🌀 chaos vs ✨ stability)
 	super._update_quantum_substrate(dt)

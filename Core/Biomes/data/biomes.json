@@ -5,6 +5,12 @@
     "image_path": "res://assets/biomes/starter_forest.png",
     "music_path": "res://assets/music/starter_forest.ogg",
     "discovered": true,
+    "plot_layout": [
+      {"x": 0.50, "y": 0.38},
+      {"x": 0.62, "y": 0.50},
+      {"x": 0.50, "y": 0.62},
+      {"x": 0.38, "y": 0.50}
+    ],
     "emojis": ["☀", "🌙", "🐺", "🐇", "🦅", "🦌", "🌲", "🍂", "🌱", "🌿"],
     "native_factions": [],
     "tags": ["starter", "forest", "ecosystem"],
@@ -16,6 +22,12 @@
     "image_path": "res://assets/biomes/village.png",
     "music_path": "res://assets/music/village.ogg",
     "discovered": true,
+    "plot_layout": [
+      {"x": 0.40, "y": 0.40},
+      {"x": 0.60, "y": 0.40},
+      {"x": 0.60, "y": 0.60},
+      {"x": 0.40, "y": 0.60}
+    ],
     "emojis": ["🔥", "❄️", "👥", "🍞", "⚙️", "💨", "💰", "🧺"],
     "native_factions": [],
     "tags": ["starter", "civilization", "domestic"],
@@ -27,6 +39,12 @@
     "image_path": "res://assets/biomes/biotic_flux.png",
     "music_path": "res://assets/music/biotic_flux.ogg",
     "discovered": false,
+    "plot_layout": [
+      {"x": 0.38, "y": 0.50},
+      {"x": 0.46, "y": 0.42},
+      {"x": 0.54, "y": 0.58},
+      {"x": 0.62, "y": 0.50}
+    ],
     "emojis": ["☀", "🌙", "🌾", "🍄", "🍂", "💀"],
     "native_factions": [],
     "tags": ["ecosystem", "natural", "quantum"],
@@ -38,6 +56,12 @@
     "image_path": "res://assets/biomes/stellar_forges.png",
     "music_path": "res://assets/music/stellar_forges.ogg",
     "discovered": false,
+    "plot_layout": [
+      {"x": 0.35, "y": 0.45},
+      {"x": 0.45, "y": 0.55},
+      {"x": 0.55, "y": 0.45},
+      {"x": 0.65, "y": 0.55}
+    ],
     "emojis": ["⚡", "🔋", "⚙", "🔩", "🚀", "🛸"],
     "native_factions": [],
     "tags": ["industrial", "space", "quantum"],
@@ -49,6 +73,12 @@
     "image_path": "res://assets/biomes/fungal_networks.png",
     "music_path": "res://assets/music/fungal_networks.ogg",
     "discovered": false,
+    "plot_layout": [
+      {"x": 0.50, "y": 0.40},
+      {"x": 0.58, "y": 0.50},
+      {"x": 0.50, "y": 0.60},
+      {"x": 0.42, "y": 0.50}
+    ],
     "emojis": ["🦗", "🐜", "🍄", "🦠", "🧫", "🍂", "🌙", "☀"],
     "native_factions": [],
     "tags": ["fungal", "network", "microbial"],
@@ -60,6 +90,12 @@
     "image_path": "res://assets/biomes/volcanic_worlds.png",
     "music_path": "res://assets/music/volcanic_worlds.ogg",
     "discovered": false,
+    "plot_layout": [
+      {"x": 0.42, "y": 0.42},
+      {"x": 0.58, "y": 0.42},
+      {"x": 0.50, "y": 0.58},
+      {"x": 0.50, "y": 0.50}
+    ],
     "emojis": ["🔥", "🪨", "💎", "⛏", "🌫", "✨"],
     "native_factions": [],
     "tags": ["volcanic", "mineral", "harsh"],

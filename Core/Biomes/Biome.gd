@@ -21,6 +21,7 @@ var description: String = ""
 var image_path: String = ""  # res://assets/biomes/...
 var music_path: String = ""  # res://assets/music/...
 var discovered: bool = false  # Whether player has unlocked this biome
+var plot_layout: Array = []  # Optional UI plot layout (normalized or pixel positions)
 
 ## The emojis native to this biome
 var emojis: Array = []
@@ -120,6 +121,7 @@ func to_dict() -> Dictionary:
 		"image_path": image_path,
 		"music_path": music_path,
 		"discovered": discovered,
+		"plot_layout": plot_layout,
 		"emojis": emojis,
 		"icon_components": icon_components,
 		"tags": tags,
@@ -141,6 +143,7 @@ func load_from_dict(data: Dictionary) -> void:
 	image_path = data.get("image_path", "")
 	music_path = data.get("music_path", "")
 	discovered = data.get("discovered", false)
+	plot_layout = data.get("plot_layout", [])
 	emojis = data.get("emojis", [])
 	icon_components = data.get("icon_components", {})
 	cross_couplings = data.get("cross_couplings", [])

@@ -25,6 +25,7 @@ const PlotTile = preload("res://UI/PlotTile.gd")
 ## QuantumForceGraph reads these positions and tethers quantum bubbles to them
 const GridConfig = preload("res://Core/GameState/GridConfig.gd")
 const BiomeLayoutCalculator = preload("res://Core/Visualization/BiomeLayoutCalculator.gd")
+const BiomeRegistry = preload("res://Core/Biomes/BiomeRegistry.gd")
 
 # Single-biome view: Only show tiles for the active biome
 var active_biome_manager: Node = null
@@ -42,6 +43,7 @@ var tiles: Dictionary = {}
 # Parametric positioning - SINGLE source of truth
 var layout_calculator: BiomeLayoutCalculator = null
 var classical_plot_positions: Dictionary = {}  # Vector2i (grid) → Vector2 (screen position)
+var _biome_registry: BiomeRegistry = null
 
 # Multi-select management (INLINED - no separate SelectionManager)
 var selected_plots: Dictionary = {}  # Vector2i -> true (which plots are selected)
@@ -354,9 +356,13 @@ func _update_layout_for_active_biome(biome_name: String) -> void:
 	if plots_in_biome.is_empty():
 		return
 
-	# Get screen positions - use FIXED quad layout for 4 plots (same size for all biomes)
+	# Get screen positions - prefer biome-defined layout, then fallback to fixed layouts
 	var screen_positions: Array[Vector2] = []
-	if plots_in_biome.size() == 4:
+	var layout_positions = _get_biome_plot_layout_positions(biome_name, plots_in_biome.size(), viewport_size)
+	if layout_positions.size() == plots_in_biome.size():
+		screen_positions = layout_positions
+		_verbose.debug("ui", "[]", "Using BIOME plot_layout for '%s'" % biome_name)
+	elif plots_in_biome.size() == 4:
 		# Use fixed quad positions (2x2 grid arrangement)
 		screen_positions = _get_quad_screen_positions()
 		_verbose.debug("ui", "[]", "Using FIXED quad layout (2x2 arrangement)")
@@ -395,6 +401,48 @@ func _update_layout_for_active_biome(biome_name: String) -> void:
 
 	_verbose.debug("ui", "✅", "Positioned %d plots for '%s'" % [plots_in_biome.size(), biome_name])
 	plot_positions_changed.emit(biome_positions, biome_name)
+
+
+func _get_biome_plot_layout_positions(biome_name: String, plot_count: int, viewport_size: Vector2) -> Array[Vector2]:
+	"""Resolve plot positions from biomes.json (Biome.plot_layout).
+
+	plot_layout entries can be:
+	- normalized coords: {x: 0..1, y: 0..1}
+	- absolute pixels: {x: >1, y: >1}
+	"""
+	if biome_name == "":
+		return []
+
+	if not _biome_registry:
+		_biome_registry = BiomeRegistry.new()
+
+	var biome = _biome_registry.get_by_name(biome_name)
+	if not biome or not "plot_layout" in biome:
+		return []
+
+	var layout = biome.plot_layout
+	if not layout or layout.size() < plot_count:
+		return []
+
+	# Detect normalized vs pixel coordinates
+	var max_x = 0.0
+	var max_y = 0.0
+	for entry in layout:
+		max_x = max(max_x, float(entry.get("x", 0.0)))
+		max_y = max(max_y, float(entry.get("y", 0.0)))
+	var normalized = max_x <= 1.0 and max_y <= 1.0
+
+	var positions: Array[Vector2] = []
+	for i in range(plot_count):
+		var entry = layout[i]
+		var x = float(entry.get("x", 0.0))
+		var y = float(entry.get("y", 0.0))
+		if normalized:
+			positions.append(Vector2(x * viewport_size.x, y * viewport_size.y))
+		else:
+			positions.append(Vector2(x, y))
+
+	return positions
 
 
 func _filter_tiles_for_biome(biome_name: String) -> void:

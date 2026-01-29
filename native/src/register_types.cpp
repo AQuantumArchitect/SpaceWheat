@@ -4,6 +4,7 @@
 #include "quantum_evolution_engine.h"
 #include "batched_bubble_renderer.h"
 #include "multi_biome_lookahead_engine.h"
+#include "liquid_neural_net_native.h"
 
 #include <gdextension_interface.h>
 #include <godot_cpp/core/defs.hpp>
@@ -20,6 +21,7 @@ void initialize_quantum_matrix_module(ModuleInitializationLevel p_level) {
     ClassDB::register_class<QuantumEvolutionEngine>();
     ClassDB::register_class<NativeBubbleRenderer>();
     ClassDB::register_class<MultiBiomeLookaheadEngine>();
+    ClassDB::register_class<LiquidNeuralNetNative>();
 }
 
 void uninitialize_quantum_matrix_module(ModuleInitializationLevel p_level) {

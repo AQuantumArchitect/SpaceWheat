@@ -21,12 +21,13 @@ extends RefCounted
 
 
 # Physics-grounded force constants
-const CORRELATION_SPRING = 0.12  # Strength of mutual information coupling
 const PURITY_RADIAL_SPRING = 0.08  # Strength of purity-based radial force
 const PHASE_ANGULAR_SPRING = 0.04  # Strength of phase-based angular alignment
+const CORRELATION_SPRING = 0.12  # Strength of mutual information coupling
+const MI_SPRING = 0.18  # Direct MI-based attraction (NEW - stronger clustering)
 const REPULSION_STRENGTH = 1500.0  # Prevents overlap
 const MIN_DISTANCE = 15.0  # Minimum distance between nodes
-const DAMPING = 0.85  # Velocity damping per frame
+const DAMPING = 0.89  # Velocity damping per frame (10% loss)
 
 # Correlation-based distance scaling
 const BASE_DISTANCE = 120.0  # Base separation between uncorrelated bubbles
@@ -277,7 +278,12 @@ func _calculate_correlation_forces(node, active_nodes: Array, biomes: Dictionary
 		var displacement = current_distance - target_distance
 
 		# Spring force: positive displacement = push apart, negative = pull together
+		# Two components:
+		# 1. CORRELATION_SPRING: Distance-based spring
+		# 2. MI_SPRING: Direct MI-based attraction (stronger clustering)
 		total_force += direction * displacement * CORRELATION_SPRING * mi
+		if displacement > 0.0:  # Only attractive force
+			total_force -= direction * displacement * MI_SPRING * mi * mi  # Quadratic in MI for stronger clustering
 
 	return total_force
 
