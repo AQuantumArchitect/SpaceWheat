@@ -508,8 +508,17 @@ static func _prepare_pop_result(terminal, plot_pool, economy = null, farm = null
 		var neighbors = farm.grid.get_neighbors(terminal.grid_position)
 		neighbor_count = neighbors.size()
 
-	# Purity acts as bonus: amount * (1 + purity)
-	var credits = recorded_prob * (1.0 + purity) * neighbor_count
+	# Check if emoji is in known vocabulary (for 4× purity bonus)
+	var is_known_vocab = false
+	if farm and farm.has_method("get_known_emojis"):
+		var known_emojis = farm.get_known_emojis()
+		is_known_vocab = resource in known_emojis
+
+	# Apply vocabulary bonus to purity: 4× if known vocab
+	var effective_purity = purity * 4.0 if is_known_vocab else purity
+
+	# POP formula: prob × 10 × (1 + purity×4_if_vocab) × neighbors
+	var credits = recorded_prob * 10.0 * (1.0 + effective_purity) * neighbor_count
 
 	if economy:
 		var resource_amount = int(credits)
@@ -540,31 +549,48 @@ static func _prepare_pop_result(terminal, plot_pool, economy = null, farm = null
 ## ============================================================================
 
 static func action_harvest_global(biome, plot_pool = null, economy = null) -> Dictionary:
-	"""Execute HARVEST: collapse entire ensemble, convert all probability to credits.
+	"""DEPRECATED - Not used in current gameplay loop.
 
-	This is the "end of turn" action - true projective measurement of
-	the entire quantum system. Unlike MEASURE (which drains), HARVEST
-	fully collapses ρ and ends the level.
+	Use action_harvest_all() instead, which operates on measured terminals
+	with Reality Midwife token multiplier.
 
-	Algorithm:
-	1. Get all register probabilities from ρ
-	2. Convert each to credits: P × CONVERSION_RATE
-	3. Sum total credits
-	4. Collapse ρ (make diagonal / fully decohered)
-	5. Stop evolution
-	6. Signal level complete
+	This function is kept for backwards compatibility but should not be called.
+	"""
+	push_warning("ProbeActions.action_harvest_global() is deprecated - use action_harvest_all() instead")
+	return {
+		"success": false,
+		"error": "deprecated",
+		"message": "harvest_global is deprecated - use harvest_all instead"
+	}
 
-	Args:
-		biome: BiomeBase instance
-		plot_pool: PlotPool instance (optional, to clean up terminals)
-		economy: FarmEconomy instance (optional, for credit tracking)
+# Commented out old implementation - kept for reference
+"""
+static func action_harvest_global_OLD(biome, plot_pool = null, economy = null) -> Dictionary:
+	# Execute HARVEST: collapse entire ensemble, convert all probability to credits.
 
-	Returns:
-		Dictionary with keys:
-		- success: bool
-		- total_credits: float
-		- harvested: Array[{register, outcome, probability, credits}]
-		- level_complete: bool
+	# This is the "end of turn" action - true projective measurement of
+	# the entire quantum system. Unlike MEASURE (which drains), HARVEST
+	# fully collapses ρ and ends the level.
+
+	# Algorithm:
+	# 1. Get all register probabilities from ρ
+	# 2. Convert each to credits: P × CONVERSION_RATE
+	# 3. Sum total credits
+	# 4. Collapse ρ (make diagonal / fully decohered)
+	# 5. Stop evolution
+	# 6. Signal level complete
+
+	# Args:
+	#	biome: BiomeBase instance
+	#	plot_pool: PlotPool instance (optional, to clean up terminals)
+	#	economy: FarmEconomy instance (optional, for credit tracking)
+
+	# Returns:
+	#	Dictionary with keys:
+	#	- success: bool
+	#	- total_credits: float
+	#	- harvested: Array[{register, outcome, probability, credits}]
+	#	- level_complete: bool
 	"""
 	if not biome:
 		return {
@@ -605,10 +631,8 @@ static func action_harvest_global(biome, plot_pool = null, economy = null) -> Di
 
 	# 3. Add total credits to economy
 	if economy:
-		if economy.has_method("add_credits"):
-			economy.add_credits(total_credits, "global_harvest")
-		elif economy.has_method("add_resource"):
-			economy.add_resource("credits", int(total_credits))
+		if economy.has_method("add_resource"):
+			economy.add_resource("💰", int(total_credits), "global_harvest")
 
 	# 4. Collapse density matrix (full decoherence)
 	if biome.has_method("collapse_all_registers"):
@@ -714,49 +738,43 @@ static func action_harvest_all(plot_pool, economy = null, biome = null) -> Dicti
 			if terminal and terminal.is_measured:
 				terminals_to_harvest.append(terminal)
 
-	# Harvest each terminal using saved measurement data
+	# Get known vocabulary for vocab bonus check
+	var known_emojis: Array = []
+	if biome and biome.has_method("get_known_emojis"):
+		known_emojis = biome.get_known_emojis()
+	elif biome and "grid" in biome and biome.grid and "farm" in biome.grid:
+		var farm_ref = biome.grid.farm
+		if farm_ref and farm_ref.has_method("get_known_emojis"):
+			known_emojis = farm_ref.get_known_emojis()
+
+	# Harvest each terminal using POP formula
 	for terminal in terminals_to_harvest:
 		# Use saved measurement probability (from when terminal was measured)
-		# Note: After measure + release_register, terminal is no longer bound
-		# but still has measured_probability and measured_outcome
 		var probability = terminal.measured_probability if terminal.measured_probability > 0 else 0.5
 		var outcome = terminal.measured_outcome
 
-		# Determine north/south probabilities based on outcome
-		var north_prob = 0.5
-		var south_prob = 0.5
-		if outcome == terminal.north_emoji:
-			# Measured north - use saved probability
-			north_prob = probability
-			south_prob = 1.0 - probability
-		elif outcome == terminal.south_emoji:
-			# Measured south - use saved probability
-			south_prob = probability
-			north_prob = 1.0 - probability
+		# Get purity from terminal measurement
+		var purity = terminal.measured_purity if terminal.measured_purity >= 0 else 0.0
 
-		# Get purity bonus from biome (use first available biome if terminal not bound)
-		var terminal_biome = biome
-		var purity = 0.0
-		if terminal_biome:
-			purity = terminal_biome.get_purity()
+		# Get neighbor count
+		var neighbor_count = 4
+		# Note: Can't get neighbors here since terminal might not have grid_position set
+		# Using default 4 neighbors
 
-		# Harvest BOTH emojis weighted by probability
-		# Purity acts as bonus: amount * (1 + purity)
-		# purity=0 → 1x (base), purity=0.5 → 1.5x, purity=1 → 2x
-		var north_credits = int(north_prob * (1.0 + purity) * 10)  # Scale by 10 for meaningful amounts
-		var south_credits = int(south_prob * (1.0 + purity) * 10)
+		# Check if outcome emoji is in known vocabulary (for 4× purity bonus)
+		var is_known_vocab = outcome in known_emojis
 
-		if north_credits > 0 and terminal.north_emoji != "":
-			if not resource_totals.has(terminal.north_emoji):
-				resource_totals[terminal.north_emoji] = 0
-			resource_totals[terminal.north_emoji] += north_credits
-			total_credits += north_credits
+		# Apply vocabulary bonus to purity: 4× if known vocab
+		var effective_purity = purity * 4.0 if is_known_vocab else purity
 
-		if south_credits > 0 and terminal.south_emoji != "":
-			if not resource_totals.has(terminal.south_emoji):
-				resource_totals[terminal.south_emoji] = 0
-			resource_totals[terminal.south_emoji] += south_credits
-			total_credits += south_credits
+		# POP formula: prob × 10 × (1 + purity×4_if_vocab) × neighbors
+		var pop_credits = int(probability * 10.0 * (1.0 + effective_purity) * neighbor_count)
+
+		if pop_credits > 0 and outcome != "":
+			if not resource_totals.has(outcome):
+				resource_totals[outcome] = 0
+			resource_totals[outcome] += pop_credits
+			total_credits += pop_credits
 
 		# Store grid position before unbinding (needed for signal emission)
 		var grid_pos = terminal.grid_position
@@ -768,12 +786,12 @@ static func action_harvest_all(plot_pool, economy = null, biome = null) -> Dicti
 			"terminal_id": terminal.terminal_id,
 			"grid_position": grid_pos,
 			"north_emoji": terminal.north_emoji,
-			"north_prob": north_prob,
-			"north_credits": north_credits,
+			"north_prob": probability if outcome == terminal.north_emoji else 1.0 - probability,
+			"north_credits": pop_credits if outcome == terminal.north_emoji else 0,
 			"south_emoji": terminal.south_emoji,
-			"south_prob": south_prob,
-			"south_credits": south_credits,
-			"total_credits": north_credits + south_credits
+			"south_prob": probability if outcome == terminal.south_emoji else 1.0 - probability,
+			"south_credits": pop_credits if outcome == terminal.south_emoji else 0,
+			"total_credits": pop_credits
 		})
 
 	# 5. Apply multiplier to harvested resources (resources = base × multiplier)

@@ -47,7 +47,7 @@ const INITIAL_RESOURCES = {
 	"⚙": 20,   # gears (industry)
 	# Other
 	"👑": 0,    # imperium
-	"💰": 0,    # credits (legacy)
+	"💰": 0,    # credits
 	# Reality Midwife tokens (tracked as emoji-credits)
 	EconomyConstants.MIDWIFE_EMOJI: 6,
 }
@@ -101,26 +101,21 @@ func _print_resources():
 func add_resource(emoji: String, credits_amount, reason: String = "") -> void:
 	"""Add emoji-credits to any resource
 
-	Purity Bonus: If emoji is in player's vocabulary, apply 2x multiplier (squared = 4x total)
-	Otherwise, always allow gain with no bonus (1x)
-
-	Note: Removed vocabulary guard to make gains symmetric with spending.
-	All resource gains are now allowed (matching remove_resource behavior).
+	Note: Vocabulary bonus now applied in action phase (ProbeActions).
+	This keeps bonus calculation transparent and trackable at the source.
 	"""
 	if not emoji_credits.has(emoji):
 		emoji_credits[emoji] = 0
 
-	# Apply vocabulary purity bonus: 2x before squaring = 4x total
-	var purity_multiplier = _get_vocabulary_purity_multiplier(emoji)
-	var final_amount = int(credits_amount * purity_multiplier)
+	# No multiplier here - bonuses applied in action phase
+	var final_amount = int(credits_amount)
 
 	emoji_credits[emoji] += final_amount
 	_emit_resource_change(emoji)
 
 	var quantum_units = final_amount / EconomyConstants.QUANTUM_TO_CREDITS
 	if reason != "":
-		var bonus_text = " (×%.1f purity)" % purity_multiplier if purity_multiplier > 1.0 else ""
-		if _verbose: _verbose.info("economy", "+", "%d %s-credits (%d units) from %s%s" % [final_amount, emoji, quantum_units, reason, bonus_text])
+		if _verbose: _verbose.info("economy", "+", "%d %s-credits (%d units) from %s" % [final_amount, emoji, quantum_units, reason])
 
 
 func _get_vocabulary_purity_multiplier(emoji: String) -> float:

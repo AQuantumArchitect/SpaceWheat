@@ -229,6 +229,59 @@ func _seed_viz_metadata() -> void:
 	payload["emoji_list"] = emoji_list
 	viz_cache.update_metadata_from_payload(payload)
 
+	# Also seed coupling data from icons
+	_seed_viz_couplings()
+
+
+func _seed_viz_couplings() -> void:
+	"""Seed viz_cache coupling data from icon registry."""
+	if not viz_cache:
+		print("[BiomeBase] _seed_viz_couplings: No viz_cache")
+		return
+
+	# Check for icons as property (set by BiomeBuilder) or metadata
+	var icons = null
+	if "icons" in self and self.icons:
+		icons = self.icons
+	elif has_meta("icons"):
+		icons = get_meta("icons")
+
+	if not icons or icons.is_empty():
+		print("[BiomeBase] _seed_viz_couplings: No icons found (property or metadata)")
+		return
+
+	print("[BiomeBase] _seed_viz_couplings: Found %d icons" % icons.size())
+	var hamiltonian_couplings: Dictionary = {}
+	var lindblad_outgoing: Dictionary = {}
+
+	# Extract coupling data from each icon
+	for emoji in icons:
+		var icon = icons[emoji]
+		if not icon:
+			continue
+
+		# Hamiltonian couplings
+		if "hamiltonian_couplings" in icon:
+			hamiltonian_couplings[emoji] = icon.hamiltonian_couplings.duplicate()
+
+		# Lindblad outgoing rates
+		if "lindblad_outgoing" in icon:
+			lindblad_outgoing[emoji] = icon.lindblad_outgoing.duplicate()
+
+	# Update viz_cache with coupling payload
+	var payload = {
+		"hamiltonian": hamiltonian_couplings,
+		"lindblad": lindblad_outgoing
+	}
+
+	var total_h_couplings = 0
+	for emoji in hamiltonian_couplings:
+		total_h_couplings += hamiltonian_couplings[emoji].size()
+
+	print("[BiomeBase] _seed_viz_couplings: Populated %d H-couplings into viz_cache" % total_h_couplings)
+
+	viz_cache.update_couplings_from_payload(payload)
+
 
 # ============================================================================
 # SIGNAL FORWARDING (from components to BiomeBase)

@@ -28,25 +28,11 @@ extends Resource
 @export var grid_width: int = 0
 @export var grid_height: int = 0
 
-## Quantum Energy Economy - All resources are emoji-quantum currencies
-## Starting with minimal amounts forces strategic gameplay
-##
-## LEGACY fields (kept for backward compatibility with old saves):
-@export var wheat_inventory: int = 2          # 🌾 Quantum energy (primary harvest)
-@export var labor_inventory: int = 1          # 👥 Quantum energy (labor/people)
-@export var flour_inventory: int = 0          # 💨 Quantum energy (processed grain)
-@export var flower_inventory: int = 0         # 🌻 Quantum energy (rare yields)
-@export var mushroom_inventory: int = 1       # 🍄 Quantum energy (nocturnal)
-@export var detritus_inventory: int = 1       # 🍂 Quantum energy (compost)
-@export var imperium_resource: int = 0        # 👑 Quantum energy (imperial influence)
-@export var credits: int = 1                  # 💰 Quantum energy (exchange medium)
+## Economy - Complete emoji credits dictionary (saves ALL resources)
+## Format: {"emoji": credits_amount, ...}
+@export var all_emoji_credits: Dictionary = {}
 @export var tributes_paid: int = 0
 @export var tributes_failed: int = 0
-
-## NEW: Complete emoji credits dictionary (saves ALL resources)
-## Format: {"emoji": credits_amount, ...}
-## This replaces the individual inventory fields above for full persistence
-@export var all_emoji_credits: Dictionary = {}
 
 ## Known Pairs - persisted copy of player vocabulary (canonical in Farm)
 ## Each pair is {north: String, south: String}
@@ -130,10 +116,6 @@ func get_pair_for_emoji(emoji: String) -> Variant:
 #       They regenerate when plots are planted from the biome environment.
 #       This avoids serialization complexity while maintaining deterministic behavior.
 
-## Goals
-@export var current_goal_index: int = 0
-@export var completed_goals: Array[String] = []
-
 ## Icons
 @export var biotic_activation: float = 0.0
 @export var chaos_activation: float = 0.0
@@ -209,9 +191,6 @@ func _init():
 	scenario_id = "default"
 	save_timestamp = Time.get_unix_time_from_system()
 	game_time = 0.0
-	credits = 20
-	wheat_inventory = 0
-	flour_inventory = 0
 
 	# Initialize empty plot grid (default 6x1, customizable per farm)
 	plots.clear()
@@ -232,7 +211,6 @@ func _init():
 			})
 
 	# Initialize typed arrays properly (Godot 4 requirement)
-	completed_goals.clear()
 	active_contracts.clear()
 
 	# Player vocabulary is initialized in the @export default above

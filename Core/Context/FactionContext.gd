@@ -490,7 +490,9 @@ func get_pattern_from_state(game_state: Dictionary) -> String:
 	pattern += "0" if biotic_level > 0.5 else "1"
 
 	# 2: Common vs Elite (based on wealth)
-	var wealth = game_state.get("credits", 0)
+	var wealth = 0
+	if game_state.has("all_emoji_credits") and game_state["all_emoji_credits"] is Dictionary:
+		wealth = game_state["all_emoji_credits"].get("💰", 0)
 	pattern += "1" if wealth > 500 else "0"
 
 	# 3: Local vs Cosmic (based on farm size/expansion)

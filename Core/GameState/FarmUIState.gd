@@ -8,8 +8,8 @@ extends RefCounted
 
 # Economy snapshot (for ResourcePanel)
 var wheat: int = 100
-var credits: int = 50  # Classical economy currency (from production chain)
-var flour: int = 0  # Intermediate product (wheat → flour → credits)
+var credits: int = 50  # 💰 emoji-credits balance (from production chain)
+var flour: int = 0  # Intermediate product (wheat → flour → 💰)
 var resources: Dictionary = {}  # {emoji: amount}
 
 # Plot states (for save/load snapshots only - not for real-time updates)
@@ -20,7 +20,7 @@ var biome_data: BiomeUIData = null
 
 # Signals (reactive updates)
 signal economy_updated(wheat: int, resources: Dictionary)
-signal credits_changed(new_amount: int)  # Classical currency changed
+signal credits_changed(new_amount: int)  # 💰 balance changed
 signal flour_changed(new_amount: int)  # Intermediate product changed
 signal grid_refreshed()  # Bulk refresh (save/load) - KEPT for snapshot functionality
 

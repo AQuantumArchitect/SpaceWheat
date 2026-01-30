@@ -127,7 +127,7 @@ func register_biome(biome) -> void:
 	bloch_buffers[biome_name] = []
 	purity_buffers[biome_name] = []
 	metadata_payloads[biome_name] = _build_metadata_payload(biome)
-	coupling_payloads[biome_name] = _build_coupling_payload(biome)  # Extract H-couplings!
+	coupling_payloads[biome_name] = _get_coupling_payload_from_viz_cache(biome)
 	icon_map_payloads[biome_name] = {}
 
 	if lookahead_engine:
@@ -244,7 +244,7 @@ func _create_lookahead_engine_async() -> void:
 		bloch_buffers[biome_name] = []
 		purity_buffers[biome_name] = []
 		metadata_payloads[biome_name] = _build_metadata_payload(biome)
-		coupling_payloads[biome_name] = _build_coupling_payload(biome)  # Extract H-couplings!
+		coupling_payloads[biome_name] = _get_coupling_payload_from_viz_cache(biome)
 
 		if tree and tree is SceneTree:
 			await tree.process_frame
@@ -302,60 +302,35 @@ func _build_metadata_payload(biome) -> Dictionary:
 	return payload
 
 
-func _build_coupling_payload(biome) -> Dictionary:
-	"""Extract Hamiltonian coupling strengths from quantum computer.
+func _get_coupling_payload_from_viz_cache(biome) -> Dictionary:
+	"""Get coupling payload from biome's viz_cache (already populated from icons).
 
 	Returns: {
-		"hamiltonian": {emoji_a: {emoji_b: coupling_strength, ...}, ...}
+		"hamiltonian": {emoji_a: {emoji_b: coupling_strength, ...}, ...},
+		"lindblad": {emoji_a: {emoji_b: rate, ...}, ...}
 	}
 	"""
-	if not biome or not biome.quantum_computer:
+	if not biome or not biome.viz_cache:
 		return {}
 
-	var qc = biome.quantum_computer
-	if not qc.register_map:
-		return {}
-
-	var register_map = qc.register_map
+	# viz_cache already has coupling data from icon metadata
+	# Extract it by querying all emojis
 	var hamiltonian_couplings: Dictionary = {}
+	var lindblad_outgoing: Dictionary = {}
 
-	# Initialize coupling dict for all emojis
+	if not biome.quantum_computer or not biome.quantum_computer.register_map:
+		return {}
+
+	var register_map = biome.quantum_computer.register_map
+
 	for emoji in register_map.coordinates.keys():
-		hamiltonian_couplings[emoji] = {}
+		hamiltonian_couplings[emoji] = biome.viz_cache.get_hamiltonian_couplings(emoji)
+		lindblad_outgoing[emoji] = biome.viz_cache.get_lindblad_outgoing(emoji)
 
-	# Get all qubit-qubit couplings from QuantumComputer
-	var all_couplings = qc.get_all_couplings() if qc.has_method("get_all_couplings") else []
-
-	# Map qubit couplings to emoji couplings
-	for coupling_data in all_couplings:
-		var qubit_a = coupling_data.get("a", -1)
-		var qubit_b = coupling_data.get("b", -1)
-		var J = coupling_data.get("J", 0.0)
-
-		if qubit_a < 0 or qubit_b < 0 or J == 0.0:
-			continue
-
-		# Find all emojis on these qubits
-		var emojis_a = _get_emojis_on_qubit(register_map, qubit_a)
-		var emojis_b = _get_emojis_on_qubit(register_map, qubit_b)
-
-		# Add coupling between all emoji pairs on coupled qubits
-		for emoji_a in emojis_a:
-			for emoji_b in emojis_b:
-				hamiltonian_couplings[emoji_a][emoji_b] = abs(J)
-				hamiltonian_couplings[emoji_b][emoji_a] = abs(J)
-
-	return {"hamiltonian": hamiltonian_couplings}
-
-
-func _get_emojis_on_qubit(register_map, qubit_index: int) -> Array:
-	"""Get all emojis (north and south pole) on a given qubit."""
-	var emojis = []
-	for emoji in register_map.coordinates.keys():
-		var coord = register_map.coordinates[emoji]
-		if coord.get("qubit", -1) == qubit_index:
-			emojis.append(emoji)
-	return emojis
+	return {
+		"hamiltonian": hamiltonian_couplings,
+		"lindblad": lindblad_outgoing
+	}
 
 
 func physics_process(delta: float):
@@ -765,7 +740,12 @@ func _any_active_biomes() -> bool:
 
 
 func _prime_frozen_buffers_only(biome_rhos: Array = []) -> void:
-	"""Fill lookahead buffers with frozen current states (no native compute)."""
+	"""Fill lookahead buffers with frozen current states (no native compute).
+
+	CRITICAL: Also computes Bloch data from current density matrix so
+	viz_cache has valid snapshot data for bubble rendering. Without this,
+	bubbles have 0 opacity and spawn animation never triggers.
+	"""
 	for i in range(biomes.size()):
 		var biome = biomes[i]
 		if not biome or not biome.quantum_computer:
@@ -786,11 +766,92 @@ func _prime_frozen_buffers_only(biome_rhos: Array = []) -> void:
 		buffer_cursors[biome_name] = 0
 		mi_cache[biome_name] = PackedFloat64Array()
 		mi_buffers[biome_name] = []
-		bloch_buffers[biome_name] = []
-		purity_buffers[biome_name] = []
 		metadata_payloads[biome_name] = _build_metadata_payload(biome)
-		coupling_payloads[biome_name] = _build_coupling_payload(biome)  # Extract H-couplings!
+		coupling_payloads[biome_name] = _get_coupling_payload_from_viz_cache(biome)
 		icon_map_payloads[biome_name] = {}
+
+		# Compute Bloch packet and purity from current state (since native engine skipped)
+		var bloch_packet = _compute_bloch_packet_from_qc(biome.quantum_computer)
+		var purity = biome.quantum_computer.get_purity() if biome.quantum_computer.has_method("get_purity") else 0.5
+
+		# Store as frozen steps (same value for all steps)
+		var frozen_bloch: Array = []
+		var frozen_purity: Array = []
+		for _step in range(LOOKAHEAD_STEPS):
+			frozen_bloch.append(bloch_packet)
+			frozen_purity.append(purity)
+
+		bloch_buffers[biome_name] = frozen_bloch
+		purity_buffers[biome_name] = frozen_purity
+
+
+func _compute_bloch_packet_from_qc(qc) -> PackedFloat64Array:
+	"""Compute Bloch packet from quantum computer's density matrix.
+
+	Computes per-qubit Bloch components by partial tracing:
+	[p0, p1, x, y, z, r, theta, phi] per qubit
+
+	Used when native lookahead engine is skipped (frozen buffers).
+	"""
+	if not qc or not qc.register_map:
+		return PackedFloat64Array()
+
+	var num_qubits = qc.register_map.num_qubits
+	var bloch_packet = PackedFloat64Array()
+	bloch_packet.resize(num_qubits * 8)
+
+	for q in range(num_qubits):
+		# Get marginal (reduced 2x2 density matrix for this qubit)
+		var marginal = qc.get_marginal_density_matrix(null, q) if qc.has_method("get_marginal_density_matrix") else null
+		if not marginal:
+			# Fallback: uniform superposition
+			var base = q * 8
+			bloch_packet[base + 0] = 0.5  # p0
+			bloch_packet[base + 1] = 0.5  # p1
+			bloch_packet[base + 2] = 0.0  # x
+			bloch_packet[base + 3] = 0.0  # y
+			bloch_packet[base + 4] = 0.0  # z
+			bloch_packet[base + 5] = 0.0  # r
+			bloch_packet[base + 6] = PI / 2  # theta (equator)
+			bloch_packet[base + 7] = 0.0  # phi
+			continue
+
+		# Extract probabilities from diagonal
+		var p0 = marginal.get_element(0, 0).re
+		var p1 = marginal.get_element(1, 1).re
+
+		# Get coherence (off-diagonal element)
+		var coh = marginal.get_element(0, 1)
+
+		# Compute Bloch coordinates
+		var theta = 0.0
+		var phi = 0.0
+		var r = 0.0
+
+		var p_total = p0 + p1
+		if p_total > 1e-10:
+			theta = 2.0 * acos(sqrt(max(0.0, min(1.0, p0 / p_total))))
+
+		if coh and coh.abs() > 1e-10:
+			phi = coh.arg()
+			r = 2.0 * coh.abs()
+
+		var x = sin(theta) * cos(phi) * r
+		var y = sin(theta) * sin(phi) * r
+		var z = cos(theta) * r
+
+		# Pack into array
+		var base = q * 8
+		bloch_packet[base + 0] = p0
+		bloch_packet[base + 1] = p1
+		bloch_packet[base + 2] = x
+		bloch_packet[base + 3] = y
+		bloch_packet[base + 4] = z
+		bloch_packet[base + 5] = r
+		bloch_packet[base + 6] = theta
+		bloch_packet[base + 7] = phi
+
+	return bloch_packet
 
 
 func _post_evolution_update(biome):

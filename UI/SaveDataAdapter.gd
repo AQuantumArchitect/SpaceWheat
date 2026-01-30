@@ -30,16 +30,9 @@ class DisplayData:
 		grid_width = gstate.grid_width
 		grid_height = gstate.grid_height
 
-		# Economy snapshot
+		# Economy snapshot (emoji-credits only)
 		economy = {
-			"credits": gstate.credits,
-			"wheat": gstate.wheat_inventory,
-			"labor": gstate.labor_inventory,
-			"flour": gstate.flour_inventory,
-			"flower": gstate.flower_inventory,
-			"mushroom": gstate.mushroom_inventory,
-			"detritus": gstate.detritus_inventory,
-			"imperium": gstate.imperium_resource,
+			"emoji_credits": gstate.all_emoji_credits.duplicate(),
 			"tributes_paid": gstate.tributes_paid,
 			"tributes_failed": gstate.tributes_failed
 		}

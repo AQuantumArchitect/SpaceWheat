@@ -6,18 +6,12 @@ static func create_scenario(
 	scenario_id: String,
 	grid_width: int,
 	grid_height: int,
-	starting_credits: int
+	starting_resources: Dictionary
 ) -> GameState:
-	"""Create a basic scenario with specified grid and credits"""
+	"""Create a basic scenario with specified grid and emoji-credits"""
 	var state = GameState.create_for_grid(grid_width, grid_height)
 	state.scenario_id = scenario_id
-	state.credits = starting_credits
-	state.wheat_inventory = 0
-	state.labor_inventory = 0
-	state.flour_inventory = 0
-	state.flower_inventory = 0
-	state.mushroom_inventory = 0
-	state.detritus_inventory = 0
+	state.all_emoji_credits = starting_resources.duplicate()
 	state.game_time = 0.0
 	state.time_elapsed = 0.0
 	return state
@@ -26,7 +20,7 @@ static func create_with_preplanted(
 	scenario_id: String,
 	grid_width: int,
 	grid_height: int,
-	starting_credits: int,
+	starting_resources: Dictionary,
 	preplanted_plots: Array[Dictionary] = []
 ) -> GameState:
 	"""Create scenario with some plots already planted
@@ -37,7 +31,7 @@ static func create_with_preplanted(
 		...
 	]
 	"""
-	var state = create_scenario(scenario_id, grid_width, grid_height, starting_credits)
+	var state = create_scenario(scenario_id, grid_width, grid_height, starting_resources)
 
 	# Plant crops if specified
 	for plot_def in preplanted_plots:
@@ -57,26 +51,26 @@ static func create_tutorial(
 	scenario_id: String,
 	grid_width: int,
 	grid_height: int,
-	starting_credits: int,
+	starting_resources: Dictionary,
 	preplanted_plots: Array[Dictionary] = []
 ) -> GameState:
 	"""Create a tutorial scenario
 
 	Tutorial scenarios are beginner-friendly with generous starting resources
 	"""
-	return create_with_preplanted(scenario_id, grid_width, grid_height, starting_credits, preplanted_plots)
+	return create_with_preplanted(scenario_id, grid_width, grid_height, starting_resources, preplanted_plots)
 
 static func create_challenge(
 	scenario_id: String,
 	grid_width: int,
 	grid_height: int,
-	starting_credits: int
+	starting_resources: Dictionary
 ) -> GameState:
 	"""Create a challenge scenario with scarce resources
 
-	Challenge scenarios have limited credits and time pressure
+	Challenge scenarios have limited emoji-credits and time pressure
 	"""
-	var state = create_scenario(scenario_id, grid_width, grid_height, starting_credits)
+	var state = create_scenario(scenario_id, grid_width, grid_height, starting_resources)
 	# Challenge-specific setup (time limits, tribute mechanics) handled elsewhere
 	return state
 
@@ -84,12 +78,12 @@ static func create_sandbox(
 	scenario_id: String,
 	grid_width: int,
 	grid_height: int,
-	starting_credits: int
+	starting_resources: Dictionary
 ) -> GameState:
 	"""Create a sandbox/freeplay scenario
 
 	Sandbox scenarios have generous resources and no goal requirements
 	"""
-	var state = create_scenario(scenario_id, grid_width, grid_height, starting_credits)
+	var state = create_scenario(scenario_id, grid_width, grid_height, starting_resources)
 	# Sandbox-specific setup handled elsewhere
 	return state

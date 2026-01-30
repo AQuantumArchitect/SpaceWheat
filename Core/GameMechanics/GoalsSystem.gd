@@ -30,8 +30,8 @@ var goals: Array[Dictionary] = [
 	{
 		"id": "profit_maker",
 		"title": "Profit Maker",
-		"description": "Accumulate 200 wheat",
-		"type": "wheat_inventory",
+		"description": "Accumulate 200 🌾-credits",
+		"type": "wheat_credits",
 		"target": 200,
 		"reward_credits": 25,
 		"completed": false
@@ -48,7 +48,7 @@ var goals: Array[Dictionary] = [
 	{
 		"id": "wheat_baron",
 		"title": "Wheat Baron",
-		"description": "Harvest 50 total wheat",
+		"description": "Harvest 50 total 🌾-credits",
 		"type": "total_wheat_harvested",
 		"target": 50,
 		"reward_credits": 50,
@@ -66,8 +66,8 @@ var goals: Array[Dictionary] = [
 	{
 		"id": "tycoon",
 		"title": "Farm Tycoon",
-		"description": "Accumulate 1000 wheat",
-		"type": "wheat_inventory",
+		"description": "Accumulate 1000 🌾-credits",
+		"type": "wheat_credits",
 		"target": 1000,
 		"reward_credits": 100,
 		"completed": false
@@ -123,23 +123,23 @@ func _check_goals():
 		var target = goal["target"]
 		var current_value = progress.get(goal["type"], 0)
 
-		# Special case for wheat_inventory - check economy directly
-		if goal["type"] == "wheat_inventory":
-			# Will be checked by check_wheat_goal when wheat changes
+		# Special case for wheat_credits - check economy directly
+		if goal["type"] == "wheat_credits":
+			# Will be checked by check_wheat_credits when wheat changes
 			continue
 
 		if current_value >= target:
 			_complete_goal(i)
 
 
-func check_wheat_goal(current_wheat: int):
-	"""Check wheat-based goals (called from FarmView when wheat changes)"""
+func check_wheat_credits(current_wheat: int):
+	"""Check wheat-credit goals (called when 🌾 changes)"""
 	for i in range(goals.size()):
 		if goals_completed[i]:
 			continue
 
 		var goal = goals[i]
-		if goal["type"] == "wheat_inventory" and current_wheat >= goal["target"]:
+		if goal["type"] == "wheat_credits" and current_wheat >= goal["target"]:
 			_complete_goal(i)
 
 
@@ -197,8 +197,8 @@ func get_goal_progress_text(goal: Dictionary, current_wheat: int = 0) -> String:
 	var goal_type = goal.get("type", "")
 	var target = goal.get("target", 1)
 
-	if goal_type == "wheat_inventory":
-		return "%d / %d wheat" % [current_wheat, target]
+	if goal_type == "wheat_credits":
+		return "%d / %d 🌾-credits" % [current_wheat, target]
 
 	var current = progress.get(goal_type, 0)
 	return "%d / %d" % [current, target]

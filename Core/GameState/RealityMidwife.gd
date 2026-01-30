@@ -84,11 +84,11 @@ func try_purchase(economy) -> bool:
 		push_warning("RealityMidwife: economy doesn't have required methods")
 		return false
 
-	var current_credits = economy.get_resource("credits")
+	var current_credits = economy.get_resource("💰")
 	if current_credits < MIDWIFE_PRICE:
 		return false
 
-	if economy.remove_resource("credits", MIDWIFE_PRICE, "midwife_purchase"):
+	if economy.remove_resource("💰", MIDWIFE_PRICE, "midwife_purchase"):
 		add_midwife(1)
 		return true
 

@@ -315,12 +315,13 @@ func get_save_info(slot: int) -> Dictionary:
 	if not state:
 		return {"exists": false, "slot": slot}
 	
+	var money = state.all_emoji_credits.get("💰", 0) if state.all_emoji_credits else 0
 	return {
 		"exists": true,
 		"slot": slot,
 		"display_name": state.get_save_display_name(),
 		"scenario": state.scenario_id,
-		"credits": state.credits,
+		"credits": money,
 		"goal_index": state.current_goal_index,
 		"playtime": state.game_time
 	}
@@ -444,16 +445,6 @@ func capture_state_from_game() -> GameState:
 
 	# NEW: Save complete emoji_credits dictionary (persists ALL resources)
 	state.all_emoji_credits = economy.emoji_credits.duplicate()
-
-	# LEGACY: Also populate individual fields for backward compatibility
-	state.wheat_inventory = economy.get_resource("🌾")
-	state.labor_inventory = economy.get_resource("👥")
-	state.flour_inventory = economy.get_resource("💨")  # Fixed: flour is 💨 not 🍞
-	state.flower_inventory = economy.get_resource("🌻")
-	state.mushroom_inventory = economy.get_resource("🍄")
-	state.detritus_inventory = economy.get_resource("🍂")
-	state.imperium_resource = economy.get_resource("👑")
-	state.credits = economy.get_resource("💰")
 	state.tributes_paid = economy.total_tributes_paid if "total_tributes_paid" in economy else 0
 	state.tributes_failed = economy.total_tributes_failed if "total_tributes_failed" in economy else 0
 
@@ -567,8 +558,9 @@ func capture_state_from_game() -> GameState:
 
 	# Conspiracy Network NOT saved (dynamic, regenerated each session)
 
+	var money = state.all_emoji_credits.get("💰", 0)
 	_verbose.info("save", "📸", "Captured game state: grid=" + str(state.grid_width) + "x" + str(state.grid_height) +
-		  ", plots=" + str(state.plots.size()) + ", credits=" + str(state.credits))
+		  ", plots=" + str(state.plots.size()) + ", 💰=" + str(money))
 	return state
 
 
@@ -955,23 +947,11 @@ func apply_state_to_game(state: GameState):
 	# Apply Economy (from Farm.economy)
 	var economy = farm.economy
 
-	# NEW: Load from all_emoji_credits if available (full persistence)
+	# Load from all_emoji_credits if available (full persistence)
 	if state.all_emoji_credits and state.all_emoji_credits.size() > 0:
-		# Clear existing and load all saved credits
 		for emoji in state.all_emoji_credits.keys():
 			economy.emoji_credits[emoji] = state.all_emoji_credits[emoji]
 		_verbose.debug("save", "💰", "Loaded %d emoji types from all_emoji_credits" % state.all_emoji_credits.size())
-	else:
-		# LEGACY: Fall back to individual fields for old saves
-		economy.emoji_credits["🌾"] = state.wheat_inventory
-		economy.emoji_credits["👥"] = state.labor_inventory
-		economy.emoji_credits["💨"] = state.flour_inventory  # Fixed: flour is 💨
-		economy.emoji_credits["🌻"] = state.flower_inventory
-		economy.emoji_credits["🍄"] = state.mushroom_inventory
-		economy.emoji_credits["🍂"] = state.detritus_inventory
-		economy.emoji_credits["👑"] = state.imperium_resource
-		economy.emoji_credits["💰"] = state.credits
-		_verbose.debug("save", "💰", "Loaded economy from legacy fields (old save format)")
 
 	if "total_tributes_paid" in economy:
 		economy.total_tributes_paid = state.tributes_paid
@@ -1114,8 +1094,8 @@ func apply_state_to_game(state: GameState):
 	# - Simulation layer (this file) restores game state
 	# - UI layer responds by rebuilding visualizations
 	#
-	# NOTE: Economy signals are automatically emitted when we set wheat_inventory etc above,
-	# so ResourcePanel updates happen automatically. Other visualizers need explicit rebuild.
+	# NOTE: Economy signals are emitted above, so ResourcePanel updates happen automatically.
+	# Other visualizers need explicit rebuild.
 
 	_verbose.info("save", "✓", "State applied to farm successfully - quantum states will regenerate from biome")
 

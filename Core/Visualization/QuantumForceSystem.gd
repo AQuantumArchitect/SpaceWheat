@@ -188,6 +188,9 @@ func _refresh_caches(nodes: Array, biomes: Dictionary) -> void:
 	_coupling_cache.clear()
 	_mi_cache.clear()
 
+	if _debug_enabled and biomes.size() > 0:
+		print("[ForceSystem._refresh_caches] Starting cache refresh for %d biomes" % biomes.size())
+
 	# Group nodes by biome
 	var by_biome: Dictionary = {}
 	for node in nodes:
@@ -215,6 +218,9 @@ func _refresh_caches(nodes: Array, biomes: Dictionary) -> void:
 
 			# Get Hamiltonian couplings for this emoji
 			var h_couplings = biome.viz_cache.get_hamiltonian_couplings(emoji_a)
+
+			if _debug_enabled and i == 0:
+				print("  [DEBUG] emoji_a='%s' h_couplings type=%s, size=%d" % [emoji_a, typeof(h_couplings), h_couplings.size() if h_couplings is Dictionary else 0])
 
 			for j in range(i + 1, biome_nodes.size()):
 				var node_b = biome_nodes[j]

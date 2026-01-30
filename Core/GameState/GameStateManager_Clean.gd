@@ -10,13 +10,10 @@
 ##
 ## Usage:
 ##   var state = GameStateManager.new_game("default")
-##   var farm = Farm.new()
-##   farm.apply_state(state)
 ##   # ... simulate ...
 ##   GameStateManager.save_game(state, 0)
 ##   # ... later ...
 ##   var loaded = GameStateManager.load_game(0)
-##   farm.apply_state(loaded)
 
 extends Node
 
@@ -91,9 +88,10 @@ func save_game(state: GameState, slot: int) -> bool:
 	var result = ResourceSaver.save(state, path)
 
 	if result == OK:
+		var money = state.all_emoji_credits.get("💰", 0) if state.all_emoji_credits else 0
 		print("💾 Game saved to slot " + str(slot + 1) + ": " + path)
-		print("   Credits: %d | Plots: %d | Time: %.1fs" % [
-			state.credits,
+		print("   💰: %d | Plots: %d | Time: %.1fs" % [
+			money,
 			state.plots.size(),
 			state.game_time
 		])
@@ -120,9 +118,10 @@ func load_game(slot: int) -> GameState:
 
 	var state = ResourceLoader.load(path) as GameState
 	if state:
+		var money = state.all_emoji_credits.get("💰", 0) if state.all_emoji_credits else 0
 		print("📂 Loaded save from slot " + str(slot + 1))
-		print("   Credits: %d | Plots: %d | Time: %.1fs" % [
-			state.credits,
+		print("   💰: %d | Plots: %d | Time: %.1fs" % [
+			money,
 			state.plots.size(),
 			state.game_time
 		])
@@ -145,12 +144,13 @@ func get_save_info(slot: int) -> Dictionary:
 	if not state:
 		return {"exists": false, "slot": slot}
 
+	var money = state.all_emoji_credits.get("💰", 0) if state.all_emoji_credits else 0
 	return {
 		"exists": true,
 		"slot": slot,
 		"display_name": state.get_save_display_name(),
 		"scenario": state.scenario_id,
-		"credits": state.credits,
+		"credits": money,
 		"goal_index": state.current_goal_index,
 		"playtime": state.game_time,
 		"grid_size": "%dx%d" % [state.grid_width, state.grid_height]
