@@ -1291,12 +1291,46 @@ func _evolve_step(dt: float) -> void:
 		# SPARSE path: 10-50x faster commutator
 		var commutator = sparse_hamiltonian.commutator_with_dense(density_matrix)
 		var neg_i = Complex.new(0.0, -1.0)
+
+		# DEBUG: Log commutator values
+		if Engine.get_process_frames() % 100 == 0:
+			var comm_01 = commutator.get_element(0, 1)
+			var comm_10 = commutator.get_element(1, 0)
+			_log("trace", "test", "⚛️", "Commutator [H,ρ]: [0,1]=%.6f+%.6fi, [1,0]=%.6f+%.6fi" % [
+				comm_01.re, comm_01.im, comm_10.re, comm_10.im
+			])
+
 		drho = drho.add(commutator.scale(neg_i))
+
+		# DEBUG: Log scaled commutator
+		if Engine.get_process_frames() % 100 == 0:
+			var scaled_01 = drho.get_element(0, 1)
+			var scaled_10 = drho.get_element(1, 0)
+			_log("trace", "test", "⚛️", "(-i)[H,ρ]: [0,1]=%.6f+%.6fi, [1,0]=%.6f+%.6fi" % [
+				scaled_01.re, scaled_01.im, scaled_10.re, scaled_10.im
+			])
 	elif hamiltonian != null:
 		# Dense fallback
 		var commutator = hamiltonian.commutator(density_matrix)
 		var neg_i = Complex.new(0.0, -1.0)
+
+		# DEBUG: Log commutator values
+		if Engine.get_process_frames() % 100 == 0:
+			var comm_01 = commutator.get_element(0, 1)
+			var comm_10 = commutator.get_element(1, 0)
+			_log("trace", "test", "⚛️", "Commutator [H,ρ]: [0,1]=%.6f+%.6fi, [1,0]=%.6f+%.6fi" % [
+				comm_01.re, comm_01.im, comm_10.re, comm_10.im
+			])
+
 		drho = drho.add(commutator.scale(neg_i))
+
+		# DEBUG: Log scaled commutator
+		if Engine.get_process_frames() % 100 == 0:
+			var scaled_01 = drho.get_element(0, 1)
+			var scaled_10 = drho.get_element(1, 0)
+			_log("trace", "test", "⚛️", "(-i)[H,ρ]: [0,1]=%.6f+%.6fi, [1,0]=%.6f+%.6fi" % [
+				scaled_01.re, scaled_01.im, scaled_10.re, scaled_10.im
+			])
 
 	# -------------------------------------------------------------------------
 	# Term 2: Lindblad dissipation Σ_k (L_k ρ L_k† - ½{L_k†L_k, ρ})
@@ -1382,7 +1416,18 @@ func _evolve_step(dt: float) -> void:
 	# -------------------------------------------------------------------------
 	# Euler integration: ρ_new = ρ + dt * dρ/dt
 	# -------------------------------------------------------------------------
-	density_matrix = density_matrix.add(drho.scale_real(dt))
+	var rho_new = density_matrix.add(drho.scale_real(dt))
+
+	# DEBUG: Log density matrix before/after update
+	if Engine.get_process_frames() % 100 == 0:
+		var old_01 = density_matrix.get_element(0, 1)
+		var new_01 = rho_new.get_element(0, 1)
+		var drho_01 = drho.get_element(0, 1)
+		_log("trace", "test", "⚛️", "Update: ρ_old[0,1]=%.6f+%.6fi, δρ[0,1]*dt=%.6f+%.6fi, ρ_new[0,1]=%.6f+%.6fi" % [
+			old_01.re, old_01.im, drho_01.re * dt, drho_01.im * dt, new_01.re, new_01.im
+		])
+
+	density_matrix = rho_new
 
 	# Renormalize to maintain Tr(ρ) = 1 (numerical stability)
 	_renormalize()

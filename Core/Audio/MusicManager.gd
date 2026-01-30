@@ -1063,9 +1063,9 @@ func _load_cache() -> Dictionary:
 func _save_cache() -> void:
 	"""Save computed vectors to disk cache."""
 	# Ensure cache directory exists
-	var dir := DirAccess.open("user://")
-	if dir and not dir.dir_exists("cache"):
-		dir.make_dir("cache")
+	var cache_dir := ProjectSettings.globalize_path("user://cache")
+	if not DirAccess.dir_exists_absolute(cache_dir):
+		DirAccess.make_dir_recursive_absolute(cache_dir)
 
 	var cache := {
 		"source_hashes": _source_hashes,

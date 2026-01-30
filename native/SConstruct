@@ -26,9 +26,6 @@ disabled = [
     'src/batched_bubble_renderer.cpp',       # GPU bubble rendering
     'src/quantum_solver_cpu_native.cpp',     # Unused native solver
     # RE-ENABLED: Pure CPU evolution engines + force graph (no GPU deps, just Eigen/STL)
-    # 'src/quantum_evolution_engine.cpp',
-    # 'src/multi_biome_lookahead_engine.cpp',
-    # 'src/force_graph_engine.cpp',  # NEW: Native force graph calculations
 ]
 for f in disabled:
     sources = [s for s in sources if not str(s).endswith(f)]

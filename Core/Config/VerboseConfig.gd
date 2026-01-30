@@ -149,17 +149,13 @@ func _init_file_logging():
 
 	# Create logs directory if it doesn't exist
 	var normalized_dir = log_file_path
-	while normalized_dir.endswith("/"):
+	while normalized_dir.ends_with("/"):
 		normalized_dir = normalized_dir.substr(0, normalized_dir.length() - 1)
 
 	if normalized_dir.begins_with("user://"):
-		var relative_path = normalized_dir.substr("user://".length())
-		var user_dir = DirAccess.open("user://")
-		if user_dir:
-			if not user_dir.dir_exists(relative_path):
-				user_dir.make_dir_recursive(relative_path)
-	else:
-		DirAccess.make_dir_recursive(normalized_dir)
+		var normalized_path = ProjectSettings.globalize_path(normalized_dir)
+		if not DirAccess.dir_exists_absolute(normalized_path):
+			DirAccess.make_dir_recursive_absolute(normalized_path)
 
 	# Create log file with timestamp
 	var timestamp = Time.get_datetime_string_from_system().replace(":", "-")

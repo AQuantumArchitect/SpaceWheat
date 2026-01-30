@@ -39,7 +39,7 @@ const KITCHEN_EFFICIENCY: float = 0.6 # 5 flour → 3 bread
 
 const ACTION_COSTS: Dictionary = {
 	"explore": {"🍞": 1},       # Send probe
-	"measure": {},              # FREE - information gain
+	"measure": {"❄️": 1},       # Measure (3E) - cold/ice
 	"reap": {"👥": 1},          # Claim harvest (labor)
 	"harvest_all": {"🍼": 1},   # End of turn harvest (costs 1 Reality Midwife token)
 	"quest_reroll": {"🐇": 1},   # Reroll quest slot
@@ -47,6 +47,29 @@ const ACTION_COSTS: Dictionary = {
 	"explore_biome": {"🦅": 20},# Scout new biome
 	"remove_vocabulary": {"🐺": 20} # Remove vocabulary: penalize with wolf cost
 	# vocab_injection is dynamic - use get_action_cost()
+}
+
+## ===========================================
+## QUANTUM GATE COSTS
+## ===========================================
+## All quantum gate operations cost resources from starter biomes.
+## Costs are in emoji-credits (1 emoji = base cost).
+
+const GATE_COSTS: Dictionary = {
+	# Pauli gates - fundamental bit/phase flips
+	"pauli_x": {"☀": 1},        # Sun - bit flip (most common)
+	"pauli_y": {"🌙": 1},        # Moon - bit+phase flip
+	"pauli_z": {"🍂": 1},        # Detritus - phase flip only
+
+	# Other single-qubit gates
+	"hadamard": {"🔥": 1},       # Fire - superposition
+	"s_gate": {"🌱": 1},         # Sprout - phase rotation
+	"t_gate": {"🌿": 1},         # Herb - π/8 phase
+
+	# Two-qubit gates - entanglement and control
+	"cnot": {"🍄": 1},           # Mushroom - entanglement (mycelial networks)
+	"cz": {"🦌": 1},             # Deer - controlled-phase
+	"swap": {"🐺": 1},           # Wolf - swap qubits
 }
 
 ## Vocab injection dynamic costs
@@ -210,9 +233,27 @@ static func get_action_cost(action: String, context: Dictionary = {}) -> Diction
 	return ACTION_COSTS.get(action, {})
 
 
+static func get_gate_cost(gate_name: String) -> Dictionary:
+	"""Get cost dictionary for a quantum gate.
+
+	Args:
+		gate_name: Gate name (pauli_x, pauli_y, pauli_z, hadamard, s_gate, t_gate, cnot, cz, swap)
+
+	Returns:
+		Dictionary of {emoji: amount} costs
+	"""
+	return GATE_COSTS.get(gate_name, {})
+
+
 static func preflight_action(action: String, economy, context: Dictionary = {}) -> Dictionary:
 	"""Check affordability for an action without spending."""
 	var cost = get_action_cost(action, context)
+	return preflight_cost(cost, economy)
+
+
+static func preflight_gate(gate_name: String, economy) -> Dictionary:
+	"""Check affordability for a quantum gate without spending."""
+	var cost = get_gate_cost(gate_name)
 	return preflight_cost(cost, economy)
 
 
@@ -220,4 +261,10 @@ static func commit_action(action: String, economy, context: Dictionary = {}) -> 
 	"""Spend cost for an action after success."""
 	var cost = get_action_cost(action, context)
 	return commit_cost(cost, economy, action)
+
+
+static func commit_gate(gate_name: String, economy) -> bool:
+	"""Spend cost for a quantum gate after success."""
+	var cost = get_gate_cost(gate_name)
+	return commit_cost(cost, economy, gate_name)
 
