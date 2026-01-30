@@ -35,9 +35,9 @@ const INITIAL_RESOURCES = {
 	"💨": 0,    # flour (processed grain)
 	"🍞": STARTER_BREAD_CREDITS,   # bread (finished product) – starter buffer (100 bread units)
 	# Kitchen ingredients
-	"🔥": 0,    # fire (heat)
+	"🔥": 50,    # fire (heat)
 	"💧": 0,    # water (moisture)
-	"❄️": 0,    # cold (opposite of fire)
+	"❄️": 50,    # cold (opposite of fire)
 	"🏜️": 0,    # dry (opposite of water)
 	# Forest organisms
 	"🌿": 0,    # vegetation (producer)
