@@ -1191,7 +1191,7 @@ func _action_measure() -> Dictionary:
 	if not biome:
 		return {"success": false, "error": "no_biome", "message": "Biome '%s' not found" % biome_name, "blocked": true}
 
-	var result = ProbeActions.action_measure(terminal, biome)
+	var result = ProbeActions.action_measure(terminal, biome, farm.economy)
 
 	# Central signal emission
 	farm.emit_action_signal("measure", result, grid_pos)

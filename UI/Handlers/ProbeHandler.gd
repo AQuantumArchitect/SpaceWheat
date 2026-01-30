@@ -144,7 +144,7 @@ static func measure(farm, plot_pool, positions: Array[Vector2i]) -> Dictionary:
 			continue
 
 		# Execute MEASURE via ProbeActions
-		var result = ProbeActions.action_measure(terminal, biome)
+		var result = ProbeActions.action_measure(terminal, biome, farm.economy)
 
 		if result.success:
 			measured_count += 1
@@ -250,43 +250,6 @@ static func pop(farm, plot_pool, economy, positions: Array[Vector2i]) -> Diction
 ## ============================================================================
 ## HARVEST GLOBAL OPERATION - End-of-turn collapse
 ## ============================================================================
-
-static func harvest_global(farm, current_selection: Vector2i) -> Dictionary:
-	"""Execute HARVEST: global collapse of biome, end level.
-
-	Ensemble Model: True projective measurement that collapses the
-	entire quantum system and converts all probability to credits.
-
-	Args:
-		farm: Farm instance
-		current_selection: Current cursor position (determines biome)
-
-	Returns:
-		Dictionary with:
-		- success: bool
-		- total_credits: float
-		- harvested: Array of per-register results
-		- level_complete: bool
-	"""
-	if not farm or not farm.plot_pool:
-		return {
-			"success": false,
-			"error": "farm_not_ready",
-			"message": "Farm not ready"
-		}
-
-	# Get biome for current selection
-	var biome = farm.grid.get_biome_for_plot(current_selection) if farm.grid else null
-	if not biome:
-		return {
-			"success": false,
-			"error": "no_biome",
-			"message": "No biome at current selection"
-		}
-
-	# Execute HARVEST via ProbeActions
-	return ProbeActions.action_harvest_global(biome, farm.plot_pool, farm.economy)
-
 
 ## ============================================================================
 ## PREVIEW OPERATIONS - For UI display

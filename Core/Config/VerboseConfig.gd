@@ -67,7 +67,7 @@ var category_enabled = {
 	"quest": true,
 	"boot": true,
 	"cache": true,
-	"test": true,
+	"test": false,
 	"perf": true,
 	"network": true,
 	"viz": true,

@@ -177,7 +177,7 @@ func _on_quantum_node_clicked(grid_pos: Vector2i, button_index: int) -> void:
 	if not terminal.is_measured:
 		# MEASURE: Sample from ensemble, drain ρ, record claim
 		_verbose.debug("ui", "→", "MEASURING terminal at %s" % grid_pos)
-		var result = ProbeActions.action_measure(terminal, biome)
+		var result = ProbeActions.action_measure(terminal, biome, farm.economy)
 		if result.success:
 			var prob = result.recorded_probability
 			var drained = result.was_drained

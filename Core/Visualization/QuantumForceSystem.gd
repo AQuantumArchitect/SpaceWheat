@@ -189,7 +189,7 @@ func _refresh_caches(nodes: Array, biomes: Dictionary) -> void:
 	_mi_cache.clear()
 
 	if _debug_enabled and biomes.size() > 0:
-		print("[ForceSystem._refresh_caches] Starting cache refresh for %d biomes" % biomes.size())
+		_test_log("[ForceSystem._refresh_caches] Starting cache refresh for %d biomes" % biomes.size())
 
 	# Group nodes by biome
 	var by_biome: Dictionary = {}
@@ -220,7 +220,7 @@ func _refresh_caches(nodes: Array, biomes: Dictionary) -> void:
 			var h_couplings = biome.viz_cache.get_hamiltonian_couplings(emoji_a)
 
 			if _debug_enabled and i == 0:
-				print("  [DEBUG] emoji_a='%s' h_couplings type=%s, size=%d" % [emoji_a, typeof(h_couplings), h_couplings.size() if h_couplings is Dictionary else 0])
+				_test_log("  [DEBUG] emoji_a='%s' h_couplings type=%s, size=%d" % [emoji_a, typeof(h_couplings), h_couplings.size() if h_couplings is Dictionary else 0])
 
 			for j in range(i + 1, biome_nodes.size()):
 				var node_b = biome_nodes[j]
@@ -304,7 +304,7 @@ func get_quantum_coupling_strength(node_a, node_b) -> float:
 func _print_debug_info(nodes: Array, biomes: Dictionary) -> void:
 	"""Print diagnostic info about force graph state."""
 
-	print("\n=== QUANTUM FORCE SYSTEM DEBUG ===")
+	_test_log("\n=== QUANTUM FORCE SYSTEM DEBUG ===")
 
 	# Count node states
 	var active_count = 0
@@ -337,16 +337,16 @@ func _print_debug_info(nodes: Array, biomes: Dictionary) -> void:
 		var dP = abs(current_pop - prev_pop)
 		max_pop_change = max(max_pop_change, dP)
 
-	print("Nodes: %d total (%d active, %d frozen, %d lifeless)" % [
+	_test_log("Nodes: %d total (%d active, %d frozen, %d lifeless)" % [
 		nodes.size(), active_count, frozen_count, lifeless_count
 	])
 
-	print("Velocities: max=%.2f px/s, avg=%.2f px/s" % [
+	_test_log("Velocities: max=%.2f px/s, avg=%.2f px/s" % [
 		max_vel,
 		total_vel.length() / max(active_count, 1)
 	])
 
-	print("Population change: max dP=%.6f" % max_pop_change)
+	_test_log("Population change: max dP=%.6f" % max_pop_change)
 
 	# Sample actual populations from a few nodes
 	if nodes.size() > 0:
@@ -376,7 +376,7 @@ func _print_debug_info(nodes: Array, biomes: Dictionary) -> void:
 				str(sample_pops), str(sample_radii), str(sample_hues), str(sample_phi), str(sample_r_xy)
 			])
 
-	print("Caches: H-coupling=%d entries, MI=%d entries" % [
+	_test_log("Caches: H-coupling=%d entries, MI=%d entries" % [
 		_coupling_cache.size(),
 		_mi_cache.size()
 	])
@@ -393,13 +393,13 @@ func _print_debug_info(nodes: Array, biomes: Dictionary) -> void:
 			sample_mi.append(_mi_cache.get(key, 0.0))
 			count += 1
 
-		print("Sample H-couplings: %s" % str(sample_h))
-		print("Sample MI values: %s" % str(sample_mi))
+		_test_log("Sample H-couplings: %s" % str(sample_h))
+		_test_log("Sample MI values: %s" % str(sample_mi))
 	else:
-		print("⚠️ NO COUPLING DATA - biomes may not be evolving!")
+		_test_log("⚠️ NO COUPLING DATA - biomes may not be evolving!")
 
 	# Check biomes and quantum states
-	print("Biomes: %d" % biomes.size())
+	_test_log("Biomes: %d" % biomes.size())
 	for biome_name in biomes:
 		var biome = biomes[biome_name]
 		if biome and "quantum_computer" in biome:
@@ -417,11 +417,11 @@ func _print_debug_info(nodes: Array, biomes: Dictionary) -> void:
 					var rho_01 = qc.density_matrix.get_element(0, 1)
 					coherence = sqrt(rho_01.re * rho_01.re + rho_01.im * rho_01.im)
 
-				print("  %s: ρ₀₀=%.4f, ρ₁₁=%.4f, |ρ₀₁|=%.4f" % [
+				_test_log("  %s: ρ₀₀=%.4f, ρ₁₁=%.4f, |ρ₀₁|=%.4f" % [
 					biome_name, pop_00, pop_11, coherence
 				])
 
-	print("=================================\n")
+	_test_log("=================================")
 
 
 func _test_log(message: String) -> void:

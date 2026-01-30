@@ -85,7 +85,7 @@ func _run_cycle():
 	var terminal = exp_result.terminal
 
 	# MEASURE
-	var meas_result = ProbeActions.action_measure(terminal, biotic_flux)
+	var meas_result = ProbeActions.action_measure(terminal, biotic_flux, economy)
 	if not meas_result or not meas_result.success:
 		cycle_history.append(cycle_data)
 		return

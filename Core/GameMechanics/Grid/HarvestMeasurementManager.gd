@@ -88,7 +88,7 @@ func measure_plot(position: Vector2i) -> String:
 	if _biome_routing and terminal.bound_biome_name != "":
 		biome = _biome_routing.biomes.get(terminal.bound_biome_name, null)
 
-	var result = ProbeActions.action_measure(terminal, biome)
+	var result = ProbeActions.action_measure(terminal, biome, _economy)
 	if not result.get("success", false):
 		return ""
 

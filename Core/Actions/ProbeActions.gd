@@ -147,7 +147,7 @@ static func action_explore(plot_pool, biome, economy = null) -> Dictionary:
 ## MEASURE ACTION - Sample from ensemble and drain probability
 ## ============================================================================
 
-static func action_measure(terminal, biome) -> Dictionary:
+static func action_measure(terminal, biome, economy = null) -> Dictionary:
 	# 0. Null checks - terminal and biome must exist
 	if not terminal:
 		return {
@@ -195,6 +195,17 @@ static func action_measure(terminal, biome) -> Dictionary:
 			"error": "cannot_measure",
 			"message": "Terminal cannot be measured.",
 			"blocked": true
+		}
+
+	# 2b. Preflight cost (after validation gates)
+	var measure_cost_gate = EconomyConstants.preflight_action("measure", economy)
+	if not measure_cost_gate.get("ok", true):
+		var cost = measure_cost_gate.get("cost", {})
+		var missing = cost.keys()[0] if cost.size() > 0 else "resources"
+		return {
+			"success": false,
+			"error": "insufficient_resources",
+			"message": "Need %s to measure." % missing
 		}
 
 	# 2. Get current probability snapshot from lookahead packet (viz_cache)
@@ -264,6 +275,17 @@ static func action_measure(terminal, biome) -> Dictionary:
 	# 9. FREE THE REGISTER - allow another terminal to bind to it
 	# Terminal keeps its measurement snapshot for REAP to harvest
 	terminal.release_register()
+
+	# 10. Commit cost after successful measurement
+	var measure_cost = measure_cost_gate.get("cost", {})
+	if not EconomyConstants.commit_cost(measure_cost, economy, "measure"):
+		# NOTE: We don't roll back the measurement since it already happened
+		# This should rarely occur since we preflighted the cost
+		return {
+			"success": false,
+			"error": "cost_commit_failed",
+			"message": "Measurement succeeded but unable to spend cost."
+		}
 
 	return {
 		"success": true,

@@ -38,7 +38,6 @@ const DISPATCH_TABLE = {
 	"explore": ["ProbeHandler", "explore", "Discovered {explored_count} registers"],
 	"measure": ["ProbeHandler", "measure", "Measured {measured_count} terminals"],
 	"pop": ["ProbeHandler", "pop", "Harvested {popped_count} terminals (+{total_credits} credits)"],
-	"harvest_global": ["ProbeHandler", "harvest_global", "HARVESTED: {total_credits} credits!"],
 
 	# ═══════════════════════════════════════════════════════════════════════════
 	# GATE ACTIONS - Single Qubit (Tool 2)
@@ -203,8 +202,6 @@ func _call_probe_handler(method_name: String, farm, positions: Array[Vector2i], 
 			return ProbeHandler.measure(farm, plot_pool, positions)
 		"pop":
 			return ProbeHandler.pop(farm, plot_pool, economy, positions)
-		"harvest_global":
-			return ProbeHandler.harvest_global(farm, current_selection)
 		_:
 			return {"success": false, "error": "unknown_method"}
 
