@@ -127,7 +127,7 @@ func register_biome(biome) -> void:
 	bloch_buffers[biome_name] = []
 	purity_buffers[biome_name] = []
 	metadata_payloads[biome_name] = _build_metadata_payload(biome)
-	coupling_payloads[biome_name] = {}
+	coupling_payloads[biome_name] = _build_coupling_payload(biome)  # Extract H-couplings!
 	icon_map_payloads[biome_name] = {}
 
 	if lookahead_engine:
@@ -244,7 +244,7 @@ func _create_lookahead_engine_async() -> void:
 		bloch_buffers[biome_name] = []
 		purity_buffers[biome_name] = []
 		metadata_payloads[biome_name] = _build_metadata_payload(biome)
-		coupling_payloads[biome_name] = {}
+		coupling_payloads[biome_name] = _build_coupling_payload(biome)  # Extract H-couplings!
 
 		if tree and tree is SceneTree:
 			await tree.process_frame
@@ -300,6 +300,62 @@ func _build_metadata_payload(biome) -> Dictionary:
 	payload["emoji_to_pole"] = emoji_to_pole
 	payload["emoji_list"] = emoji_list
 	return payload
+
+
+func _build_coupling_payload(biome) -> Dictionary:
+	"""Extract Hamiltonian coupling strengths from quantum computer.
+
+	Returns: {
+		"hamiltonian": {emoji_a: {emoji_b: coupling_strength, ...}, ...}
+	}
+	"""
+	if not biome or not biome.quantum_computer:
+		return {}
+
+	var qc = biome.quantum_computer
+	if not qc.register_map:
+		return {}
+
+	var register_map = qc.register_map
+	var hamiltonian_couplings: Dictionary = {}
+
+	# Initialize coupling dict for all emojis
+	for emoji in register_map.coordinates.keys():
+		hamiltonian_couplings[emoji] = {}
+
+	# Get all qubit-qubit couplings from QuantumComputer
+	var all_couplings = qc.get_all_couplings() if qc.has_method("get_all_couplings") else []
+
+	# Map qubit couplings to emoji couplings
+	for coupling_data in all_couplings:
+		var qubit_a = coupling_data.get("a", -1)
+		var qubit_b = coupling_data.get("b", -1)
+		var J = coupling_data.get("J", 0.0)
+
+		if qubit_a < 0 or qubit_b < 0 or J == 0.0:
+			continue
+
+		# Find all emojis on these qubits
+		var emojis_a = _get_emojis_on_qubit(register_map, qubit_a)
+		var emojis_b = _get_emojis_on_qubit(register_map, qubit_b)
+
+		# Add coupling between all emoji pairs on coupled qubits
+		for emoji_a in emojis_a:
+			for emoji_b in emojis_b:
+				hamiltonian_couplings[emoji_a][emoji_b] = abs(J)
+				hamiltonian_couplings[emoji_b][emoji_a] = abs(J)
+
+	return {"hamiltonian": hamiltonian_couplings}
+
+
+func _get_emojis_on_qubit(register_map, qubit_index: int) -> Array:
+	"""Get all emojis (north and south pole) on a given qubit."""
+	var emojis = []
+	for emoji in register_map.coordinates.keys():
+		var coord = register_map.coordinates[emoji]
+		if coord.get("qubit", -1) == qubit_index:
+			emojis.append(emoji)
+	return emojis
 
 
 func physics_process(delta: float):
@@ -733,7 +789,7 @@ func _prime_frozen_buffers_only(biome_rhos: Array = []) -> void:
 		bloch_buffers[biome_name] = []
 		purity_buffers[biome_name] = []
 		metadata_payloads[biome_name] = _build_metadata_payload(biome)
-		coupling_payloads[biome_name] = {}
+		coupling_payloads[biome_name] = _build_coupling_payload(biome)  # Extract H-couplings!
 		icon_map_payloads[biome_name] = {}
 
 
