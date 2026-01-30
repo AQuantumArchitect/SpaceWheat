@@ -401,6 +401,11 @@ func _toggle_biome_visibility(keycode: int):
 				if batcher:
 					batcher.register_biome(new_biome)
 
+				# Register biome with layout calculator BEFORE creating nodes
+				if force_graph and force_graph.layout_calculator:
+					# Ensure layout calculator knows about this biome type
+					force_graph.layout_calculator.get_biome_oval(random_biome)
+
 				# Add nodes for this biome only (incremental, not full rebuild)
 				if force_graph:
 					force_graph.add_nodes_for_biome(random_biome, new_biome)

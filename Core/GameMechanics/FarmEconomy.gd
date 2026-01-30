@@ -103,11 +103,10 @@ func add_resource(emoji: String, credits_amount, reason: String = "") -> void:
 
 	Purity Bonus: If emoji is in player's vocabulary, apply 2x multiplier (squared = 4x total)
 	Otherwise, always allow gain with no bonus (1x)
+
+	Note: Removed vocabulary guard to make gains symmetric with spending.
+	All resource gains are now allowed (matching remove_resource behavior).
 	"""
-	if not _resource_allowed_by_iconmap(emoji):
-		if _verbose:
-			_verbose.warn("economy", "⚠️", "Blocked gain for %s (not in IconMap vocabulary)" % emoji)
-		return
 	if not emoji_credits.has(emoji):
 		emoji_credits[emoji] = 0
 

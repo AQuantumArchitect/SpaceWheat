@@ -168,6 +168,11 @@ func _create_node_for_plot(plot, grid_pos: Vector2i, layout_calculator, biomes: 
 				params.get("t", 0.5),
 				params.get("ring", 0.5)
 			)
+		else:
+			# Fallback: random scattered position if layout calculator doesn't know this biome
+			var angle = randf() * TAU
+			var radius = 100.0 + randf() * 150.0
+			anchor_pos = center_pos + Vector2(cos(angle), sin(angle)) * radius
 
 	# Create node with required constructor arguments
 	var node = QuantumNode.new(plot, anchor_pos, grid_pos, center_pos)
@@ -214,6 +219,11 @@ func _create_node_for_terminal(terminal, layout_calculator, biomes: Dictionary):
 				params.get("t", 0.5),
 				params.get("ring", 0.5)
 			)
+		else:
+			# Fallback: random scattered position if layout calculator doesn't know this biome
+			var angle = randf() * TAU
+			var radius = 100.0 + randf() * 150.0
+			anchor_pos = center_pos + Vector2(cos(angle), sin(angle)) * radius
 
 	# Create node with required constructor arguments (null plot for terminal bubbles)
 	var node = QuantumNode.new(null, anchor_pos, terminal.grid_position, center_pos)
