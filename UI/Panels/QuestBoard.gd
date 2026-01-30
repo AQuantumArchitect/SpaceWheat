@@ -633,11 +633,16 @@ func action_e_on_selected() -> void:
 			var was_locked = slot.is_locked
 			if not was_locked:
 				if quest_manager and quest_manager.economy:
-					if not EconomyConstants.try_action("quest_lock", quest_manager.economy):
+					var lock_gate = EconomyConstants.preflight_action("quest_lock", quest_manager.economy)
+					if not lock_gate.get("ok", true):
 						_verbose.warn("quest", "🌲", "Cannot lock: Need 1 🌲 tree.")
 						return
 			
 			slot.toggle_lock()
+			if not was_locked and quest_manager and quest_manager.economy:
+				if not EconomyConstants.commit_action("quest_lock", quest_manager.economy):
+					_verbose.warn("quest", "🌲", "Lock failed: unable to spend cost.")
+					return
 			_save_current_page()
 			_emit_selection_update()
 		"quest_abandon":
@@ -871,8 +876,9 @@ func _reroll_quest(slot) -> void:
 	if not quest_manager or not current_biome or not quest_manager.economy:
 		return
 
-	# Deduct 1 rabbit
-	if not EconomyConstants.try_action("quest_reroll", quest_manager.economy):
+	# Preflight 1 rabbit
+	var reroll_gate = EconomyConstants.preflight_action("quest_reroll", quest_manager.economy)
+	if not reroll_gate.get("ok", true):
 		_verbose.warn("quest", "🐇", "Cannot reroll: Need 1 🐇 rabbit.")
 		return
 
@@ -901,6 +907,8 @@ func _reroll_quest(slot) -> void:
 	# Pick random
 	var new_quest = available[randi() % available.size()]
 	slot.set_quest_offered(new_quest, slot.is_locked)
+	if not EconomyConstants.commit_action("quest_reroll", quest_manager.economy):
+		_verbose.warn("quest", "🐇", "Reroll failed: unable to spend cost.")
 
 
 func _check_can_complete(slot) -> bool:

@@ -36,6 +36,11 @@ var _prev_population: Dictionary = {}  # node_id → previous north_opacity (for
 var _cache_timer: float = 0.0
 const CACHE_INTERVAL = 0.1             # Refresh caches at 10Hz
 
+# Debug output (set to true to see diagnostics every 2 seconds)
+var _debug_enabled: bool = true
+var _debug_timer: float = 0.0
+const DEBUG_INTERVAL = 2.0
+
 
 func update(delta: float, nodes: Array, ctx: Dictionary) -> void:
 	"""Update forces and positions for all quantum nodes."""
@@ -47,6 +52,13 @@ func update(delta: float, nodes: Array, ctx: Dictionary) -> void:
 	if _cache_timer >= CACHE_INTERVAL:
 		_cache_timer = 0.0
 		_refresh_caches(nodes, biomes)
+
+	# Debug output
+	if _debug_enabled:
+		_debug_timer += delta
+		if _debug_timer >= DEBUG_INTERVAL:
+			_debug_timer = 0.0
+			_print_debug_info(nodes, biomes)
 
 	# Build active node list
 	var active_nodes: Array = []
@@ -281,3 +293,107 @@ func get_quantum_coupling_strength(node_a, node_b) -> float:
 
 	# Return combined strength (raw value, not spring force)
 	return h_coupling * mi_boost
+
+
+func _print_debug_info(nodes: Array, biomes: Dictionary) -> void:
+	"""Print diagnostic info about force graph state."""
+
+	print("\n=== QUANTUM FORCE SYSTEM DEBUG ===")
+
+	# Count node states
+	var active_count = 0
+	var frozen_count = 0
+	var lifeless_count = 0
+	var max_vel = 0.0
+	var total_vel = Vector2.ZERO
+	var max_pop_change = 0.0
+
+	for node in nodes:
+		if node.is_lifeless:
+			lifeless_count += 1
+			continue
+
+		if _is_measured(node):
+			frozen_count += 1
+			continue
+
+		if not _is_active(node):
+			continue
+
+		active_count += 1
+		max_vel = max(max_vel, node.velocity.length())
+		total_vel += node.velocity
+
+		# Check population change
+		var node_id = node.get_instance_id()
+		var current_pop = node.emoji_north_opacity
+		var prev_pop = _prev_population.get(node_id, current_pop)
+		var dP = abs(current_pop - prev_pop)
+		max_pop_change = max(max_pop_change, dP)
+
+	print("Nodes: %d total (%d active, %d frozen, %d lifeless)" % [
+		nodes.size(), active_count, frozen_count, lifeless_count
+	])
+
+	print("Velocities: max=%.2f px/s, avg=%.2f px/s" % [
+		max_vel,
+		total_vel.length() / max(active_count, 1)
+	])
+
+	print("Population change: max dP=%.6f" % max_pop_change)
+
+	# Sample actual populations from a few nodes
+	if nodes.size() > 0:
+		var sample_pops = []
+		for i in range(min(3, nodes.size())):
+			if i < nodes.size() and _is_active(nodes[i]):
+				sample_pops.append(nodes[i].emoji_north_opacity)
+		if sample_pops.size() > 0:
+			print("Sample populations: %s" % str(sample_pops))
+
+	print("Caches: H-coupling=%d entries, MI=%d entries" % [
+		_coupling_cache.size(),
+		_mi_cache.size()
+	])
+
+	# Sample some couplings
+	if _coupling_cache.size() > 0:
+		var sample_h = []
+		var sample_mi = []
+		var count = 0
+		for key in _coupling_cache:
+			if count >= 3:
+				break
+			sample_h.append(_coupling_cache[key])
+			sample_mi.append(_mi_cache.get(key, 0.0))
+			count += 1
+
+		print("Sample H-couplings: %s" % str(sample_h))
+		print("Sample MI values: %s" % str(sample_mi))
+	else:
+		print("⚠️ NO COUPLING DATA - biomes may not be evolving!")
+
+	# Check biomes and quantum states
+	print("Biomes: %d" % biomes.size())
+	for biome_name in biomes:
+		var biome = biomes[biome_name]
+		if biome and "quantum_computer" in biome:
+			var qc = biome.quantum_computer
+			if qc and qc.density_matrix:
+				var pop_00 = qc.density_matrix.get_element(0, 0).re
+				var pop_11 = 0.0
+				if qc.density_matrix.n > 1:
+					var last_idx = qc.density_matrix.n - 1
+					pop_11 = qc.density_matrix.get_element(last_idx, last_idx).re
+
+				# Check coherence (off-diagonal)
+				var coherence = 0.0
+				if qc.density_matrix.n > 1:
+					var rho_01 = qc.density_matrix.get_element(0, 1)
+					coherence = sqrt(rho_01.re * rho_01.re + rho_01.im * rho_01.im)
+
+				print("  %s: ρ₀₀=%.4f, ρ₁₁=%.4f, |ρ₀₁|=%.4f" % [
+					biome_name, pop_00, pop_11, coherence
+				])
+
+	print("=================================\n")

@@ -82,9 +82,10 @@ static func action_explore(plot_pool, biome, economy = null) -> Dictionary:
 			"blocked": true
 		}
 
-	# 2b. Check and deduct cost (after availability gates)
-	if economy and not EconomyConstants.try_action("explore", economy):
-		var cost = EconomyConstants.get_action_cost("explore")
+	# 2b. Preflight cost (after availability gates)
+	var explore_cost_gate = EconomyConstants.preflight_action("explore", economy)
+	if not explore_cost_gate.get("ok", true):
+		var cost = explore_cost_gate.get("cost", {})
 		var missing = cost.keys()[0] if cost.size() > 0 else "resources"
 		return {
 			"success": false,
@@ -144,6 +145,16 @@ static func action_explore(plot_pool, biome, economy = null) -> Dictionary:
 
 	# NOTE: No need to call mark_register_bound() - Terminal.is_bound is the source of truth
 	# PlotPool.is_register_bound() queries Terminal directly
+
+	# Commit cost after successful bind
+	var explore_cost = explore_cost_gate.get("cost", {})
+	if not EconomyConstants.commit_cost(explore_cost, economy, "explore"):
+		plot_pool.unbind_terminal(terminal)
+		return {
+			"success": false,
+			"error": "cost_commit_failed",
+			"message": "Explore failed: unable to spend cost."
+		}
 
 	return {
 		"success": true,
@@ -408,8 +419,9 @@ static func action_reap(terminal, plot_pool, economy = null, farm = null) -> Dic
 	if not preflight.get("success", false):
 		return preflight
 
-	# Check and deduct cost (after preflight)
-	if economy and not EconomyConstants.try_action("reap", economy):
+	# Preflight cost (after preflight)
+	var reap_cost_gate = EconomyConstants.preflight_action("reap", economy)
+	if not reap_cost_gate.get("ok", true):
 		return {
 			"success": false,
 			"error": "insufficient_resources",
@@ -417,6 +429,16 @@ static func action_reap(terminal, plot_pool, economy = null, farm = null) -> Dic
 		}
 
 	var harvest_result = _prepare_pop_result(terminal, plot_pool, economy, farm)
+	if not harvest_result.get("success", false):
+		return harvest_result
+
+	var reap_cost = reap_cost_gate.get("cost", {})
+	if not EconomyConstants.commit_cost(reap_cost, economy, "reap"):
+		return {
+			"success": false,
+			"error": "cost_commit_failed",
+			"message": "Reap failed: unable to spend cost."
+		}
 
 	# Capture biome name before unbinding (String, not object)
 	var biome_name = harvest_result.get("biome_name", "")
@@ -661,18 +683,16 @@ static func action_harvest_all(plot_pool, economy = null, biome = null) -> Dicti
 	# Multiplier = token count (snapshot before cost)
 	var midwife_multiplier: float = float(midwife_token_count)
 
-	# 2. Deduct fixed cost (1 token)
+	# 2. Preflight fixed cost (1 token)
 	var token_cost: float = 0.0
-	if economy and not EconomyConstants.try_action("harvest_all", economy):
-		# Insufficient tokens - harvest fails
+	var harvest_cost_gate = EconomyConstants.preflight_action("harvest_all", economy)
+	if not harvest_cost_gate.get("ok", true):
 		return {
 			"success": false,
 			"error": "insufficient_resources",
 			"message": "Need 🍼 Reality Midwife token to harvest."
 		}
-
-	# Cost was deducted, record it
-	var cost_dict = EconomyConstants.get_action_cost("harvest_all")
+	var cost_dict = harvest_cost_gate.get("cost", {})
 	token_cost = cost_dict.get(token_emoji, 0.0)
 
 	# 3. Save density matrix state snapshot
@@ -773,6 +793,15 @@ static func action_harvest_all(plot_pool, economy = null, biome = null) -> Dicti
 				_log("info", "economy", "   ", "%s: +%d bonus (total: %d)" % [emoji, bonus_applied[emoji], total_resources])
 	elif midwife_multiplier == 0 and economy:
 		_log("warn", "economy", "⚠️", "No Reality Midwife tokens - harvest yields 0 resources")
+
+	# Commit midwife cost after successful harvest
+	var harvest_cost = harvest_cost_gate.get("cost", {})
+	if economy and not EconomyConstants.commit_cost(harvest_cost, economy, "harvest_all"):
+		return {
+			"success": false,
+			"error": "cost_commit_failed",
+			"message": "Harvest failed: unable to spend cost."
+		}
 
 	return {
 		"success": true,

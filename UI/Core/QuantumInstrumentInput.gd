@@ -441,10 +441,11 @@ func _execute_inject_vocabulary(vocab_pair: Dictionary) -> void:
 		_verbose.warn("input", "+", "%s already in biome" % vocab_pair.get("south", ""))
 		return
 
-	# 5. Check and deduct cost BEFORE expanding
+	# 5. Preflight cost BEFORE expanding
 	var context = {"south_emoji": vocab_pair.get("south", "")}
-	cost = EconomyConstants.get_action_cost("inject_vocabulary", context)
-	if not farm or not farm.economy or not EconomyConstants.try_action("inject_vocabulary", farm.economy, context):
+	var gate = EconomyConstants.preflight_action("inject_vocabulary", farm.economy if farm else null, context)
+	cost = gate.get("cost", {})
+	if not gate.get("ok", true):
 		_verbose.warn("input", "+", "Insufficient funds for vocab injection (need %s)" % [cost])
 		return
 
@@ -452,6 +453,9 @@ func _execute_inject_vocabulary(vocab_pair: Dictionary) -> void:
 	var result = biome.expand_quantum_system(vocab_pair.get("north", ""), vocab_pair.get("south", ""))
 
 	if result.get("success", false):
+		if not EconomyConstants.commit_action("inject_vocabulary", farm.economy, context):
+			_verbose.warn("input", "+", "Failed to spend vocab injection cost")
+			return
 		# Update game state vocabulary
 		if farm and farm.has_method("discover_pair"):
 			farm.discover_pair(vocab_pair.get("north", ""), vocab_pair.get("south", ""))
@@ -1333,10 +1337,11 @@ func _action_inject_vocabulary() -> Dictionary:
 	if pair.is_empty():
 		return {"success": false, "error": "no_available_pair", "message": "No injectable vocab pair for this biome"}
 
-	# CRITICAL: Check and spend cost BEFORE heavy expansion
+	# CRITICAL: Preflight cost BEFORE heavy expansion
 	var context = {"south_emoji": pair.get("south", "")}
-	if not farm or not farm.economy or not EconomyConstants.try_action("inject_vocabulary", farm.economy, context):
-		var cost = EconomyConstants.get_action_cost("inject_vocabulary", context)
+	var gate = EconomyConstants.preflight_action("inject_vocabulary", farm.economy if farm else null, context)
+	if not gate.get("ok", true):
+		var cost = gate.get("cost", {})
 		return {
 			"success": false,
 			"error": "insufficient_funds",
@@ -1346,6 +1351,12 @@ func _action_inject_vocabulary() -> Dictionary:
 	# Heavy operation starts here
 	var result = biome.expand_quantum_system(pair.get("north", ""), pair.get("south", ""))
 	if result.get("success", false):
+		if not EconomyConstants.commit_action("inject_vocabulary", farm.economy, context):
+			return {
+				"success": false,
+				"error": "cost_commit_failed",
+				"message": "Vocab injection failed: unable to spend cost."
+			}
 		if farm and farm.has_method("discover_pair"):
 			farm.discover_pair(pair.get("north", ""), pair.get("south", ""))
 		
@@ -1418,14 +1429,14 @@ func _action_remove_vocabulary() -> Dictionary:
 	else:
 		pair_to_remove = _get_pair_for_qubit(rm, target_qubit)
 
-	var cost = EconomyConstants.get_action_cost("remove_vocabulary")
-	if cost.size() > 0:
-		if not farm.economy or not EconomyConstants.try_action("remove_vocabulary", farm.economy):
-			return {
-				"success": false,
-				"error": "insufficient_resources",
-				"message": "Need %d %s to remove vocabulary." % [cost.values()[0], cost.keys()[0]]
-			}
+	var cost_gate = EconomyConstants.preflight_action("remove_vocabulary", farm.economy if farm else null)
+	var cost = cost_gate.get("cost", {})
+	if not cost_gate.get("ok", true):
+		return {
+			"success": false,
+			"error": "insufficient_resources",
+			"message": "Need %d %s to remove vocabulary." % [cost.values()[0], cost.keys()[0]]
+		}
 
 	if pair_to_remove.is_empty():
 		return {"success": false, "error": "no_pair_found", "message": "Could not find vocab pair to remove"}
@@ -1436,6 +1447,12 @@ func _action_remove_vocabulary() -> Dictionary:
 	var result = _shrink_quantum_system(biome, target_qubit, pair_to_remove)
 
 	if result.get("success", false):
+		if not EconomyConstants.commit_action("remove_vocabulary", farm.economy):
+			return {
+				"success": false,
+				"error": "cost_commit_failed",
+				"message": "Remove vocabulary failed: unable to spend cost."
+			}
 		_reindex_bound_terminals(biome, target_qubit)
 		_verbose.info("input", "-", "Removed vocab %s/%s from %s" % [
 			pair_to_remove.get("north", "?"),

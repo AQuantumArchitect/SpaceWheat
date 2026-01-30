@@ -23,19 +23,19 @@ static func _get_lindblad_cost(emoji: String) -> Dictionary:
 	}
 
 
-static func _try_charge_lindblad_cost(farm, emoji: String, insufficient: Dictionary, reason: String) -> bool:
+static func _preflight_lindblad_cost(farm, emoji: String, insufficient: Dictionary) -> Dictionary:
 	if not farm or not farm.economy:
-		return false
+		return {}
 
 	var cost = _get_lindblad_cost(emoji)
-	if not EconomyConstants.can_afford(farm.economy, cost):
+	var gate = EconomyConstants.preflight_cost(cost, farm.economy)
+	if not gate.get("ok", true):
 		insufficient[emoji] = insufficient.get(emoji, 0) + 1
 		if not farm.economy.can_afford_resource(GEAR_COST_EMOJI, GEAR_COST_CREDITS):
 			insufficient[GEAR_COST_EMOJI] = insufficient.get(GEAR_COST_EMOJI, 0) + 1
-		return false
+		return {}
 
-	EconomyConstants.spend(farm.economy, cost, reason)
-	return true
+	return cost
 const EconomyConstants = preload("res://Core/GameMechanics/EconomyConstants.gd")
 
 
@@ -217,17 +217,21 @@ static func enable_persistent_drive(farm, positions: Array[Vector2i],
 			insufficient[emoji] = insufficient.get(emoji, 0) + 1
 			continue
 
-		if not _try_charge_lindblad_cost(farm, emoji, insufficient, "lindblad_pump"):
+		var cost = _preflight_lindblad_cost(farm, emoji, insufficient)
+		if cost.is_empty():
 			continue
-
-		charged_count += 1
-		success_count += 1
-		driven_emojis[emoji] = driven_emojis.get(emoji, 0) + 1
 
 		if plot:
 			plot.lindblad_pump_active = true
 			plot.lindblad_pump_rate = rate
 			activated_count += 1
+
+		if not EconomyConstants.commit_cost(cost, farm.economy, "lindblad_pump"):
+			continue
+
+		charged_count += 1
+		success_count += 1
+		driven_emojis[emoji] = driven_emojis.get(emoji, 0) + 1
 
 	return {
 		"success": success_count > 0,
@@ -287,17 +291,21 @@ static func enable_persistent_decay(farm, positions: Array[Vector2i],
 			already_active += 1
 			continue
 
-		if not _try_charge_lindblad_cost(farm, emoji, insufficient, "lindblad_drain"):
+		var cost = _preflight_lindblad_cost(farm, emoji, insufficient)
+		if cost.is_empty():
 			continue
-
-		charged_count += 1
-		success_count += 1
-		decayed_emojis[emoji] = decayed_emojis.get(emoji, 0) + 1
 
 		if plot:
 			plot.lindblad_drain_active = true
 			plot.lindblad_drain_rate = rate
 			activated_count += 1
+
+		if not EconomyConstants.commit_cost(cost, farm.economy, "lindblad_drain"):
+			continue
+
+		charged_count += 1
+		success_count += 1
+		decayed_emojis[emoji] = decayed_emojis.get(emoji, 0) + 1
 
 	return {
 		"success": success_count > 0,

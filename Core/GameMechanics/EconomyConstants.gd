@@ -167,6 +167,30 @@ static func spend(economy, costs: Dictionary, reason: String = "purchase") -> bo
 	return false
 
 
+static func preflight_cost(costs: Dictionary, economy) -> Dictionary:
+	"""Check affordability for a cost dictionary without spending.
+
+	Returns: {ok: bool, cost: Dictionary, message?: String}
+	"""
+	if costs.is_empty():
+		return {"ok": true, "cost": costs}
+	if not economy:
+		return {"ok": false, "cost": costs, "message": "Economy not available"}
+	if not can_afford(economy, costs):
+		return {"ok": false, "cost": costs, "message": "Insufficient resources"}
+	return {"ok": true, "cost": costs}
+
+
+static func commit_cost(costs: Dictionary, economy, reason: String = "") -> bool:
+	"""Spend a preflighted cost dictionary."""
+	if costs.is_empty():
+		return true
+	if not economy:
+		return false
+	var spend_reason = reason if reason != "" else "action"
+	return spend(economy, costs, spend_reason)
+
+
 ## ===========================================
 ## UNIFIED ACTION COST API
 ## ===========================================
@@ -186,20 +210,14 @@ static func get_action_cost(action: String, context: Dictionary = {}) -> Diction
 	return ACTION_COSTS.get(action, {})
 
 
-static func try_action(action: String, economy, context: Dictionary = {}) -> bool:
-	"""Check affordability and spend cost for an action.
-
-	Single entry point for action cost handling. Returns true if action can proceed.
-
-	Args:
-		action: Action name from ACTION_COSTS
-		economy: FarmEconomy instance
-		context: Optional context for dynamic costs
-
-	Returns:
-		true if cost was paid (or action is free), false if insufficient resources
-	"""
+static func preflight_action(action: String, economy, context: Dictionary = {}) -> Dictionary:
+	"""Check affordability for an action without spending."""
 	var cost = get_action_cost(action, context)
-	if cost.is_empty():
-		return true  # Free action
-	return spend(economy, cost, action)
+	return preflight_cost(cost, economy)
+
+
+static func commit_action(action: String, economy, context: Dictionary = {}) -> bool:
+	"""Spend cost for an action after success."""
+	var cost = get_action_cost(action, context)
+	return commit_cost(cost, economy, action)
+

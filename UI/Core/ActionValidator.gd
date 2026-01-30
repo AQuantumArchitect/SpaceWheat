@@ -452,9 +452,8 @@ static func _can_execute_explore_biome(farm) -> bool:
 
 	if farm.has_method("can_explore_biome"):
 		var gate = farm.can_explore_biome()
-		if not gate.get("ok", false):
-			return false
-	
+		return gate.get("ok", false)
+
 	var cost = EconomyConstants.get_action_cost("explore_biome")
 	return EconomyConstants.can_afford(farm.economy, cost)
 

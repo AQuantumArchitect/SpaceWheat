@@ -314,11 +314,10 @@ static func inject_vocabulary(farm, positions: Array[Vector2i], vocab_pair: Dict
 	if north.is_empty() or south.is_empty():
 		return {"success": false, "error": "invalid_pair"}
 
-	# Calculate cost
-	var cost = EconomyConstants.get_vocab_injection_cost(south)
-
-	# Check affordability
-	if not EconomyConstants.can_afford(farm.economy, cost):
+	# Preflight cost
+	var cost_gate = EconomyConstants.preflight_action("vocab_injection", farm.economy, {"south_emoji": south})
+	var cost = cost_gate.get("cost", {})
+	if not cost_gate.get("ok", true):
 		return {
 			"success": false,
 			"error": "insufficient_funds",
@@ -330,9 +329,12 @@ static func inject_vocabulary(farm, positions: Array[Vector2i], vocab_pair: Dict
 	var result = biome.expand_quantum_system(north, south)
 
 	if result.get("success", false):
-		# Deduct cost
-		EconomyConstants.spend(farm.economy, cost, "vocab_injection")
-
+		if not EconomyConstants.commit_cost(cost, farm.economy, "vocab_injection"):
+			return {
+				"success": false,
+				"error": "cost_commit_failed",
+				"message": "Vocab injection failed: unable to spend cost."
+			}
 		return {
 			"success": true,
 			"north_emoji": north,

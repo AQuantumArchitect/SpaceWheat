@@ -84,6 +84,15 @@ var _crossfade_tween: Tween = null
 var _last_crossfade_time: float = 0.0
 var _health_check_timer: float = 0.0  # 10Hz health check
 
+## Track position preservation with ghost timer
+var preserve_track_positions: bool = true  # Resume tracks with ghost advancement
+var _track_positions: Dictionary = {}  # track_key -> {position: float, timestamp: float}
+
+## Register-based playback control
+var stop_music_when_no_registers: bool = true  # Pause music when active biome has no bubbles
+var _last_register_check: float = 0.0
+const REGISTER_CHECK_INTERVAL: float = 0.5  # Check register state every 0.5s
+
 ## Loaded streams cache
 var _stream_cache: Dictionary = {}
 var _disabled: bool = false
@@ -128,7 +137,7 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
-	"""Monitor playback health and sample IconMap for dynamic music selection."""
+	"""Monitor playback health, register state, and sample IconMap for dynamic music selection."""
 	if _disabled:
 		return
 
@@ -143,6 +152,13 @@ func _process(delta: float) -> void:
 				_active_player.stream = stream
 				_active_player.volume_db = _volume_to_db(_volume)
 				_active_player.play()
+
+	# Register-based playback control - pause music when no bubbles expressed
+	if stop_music_when_no_registers:
+		_last_register_check += delta
+		if _last_register_check >= REGISTER_CHECK_INTERVAL:
+			_last_register_check = 0.0
+			_check_register_state()
 
 	# Dynamic music selection (IconMap and/or Portfolio)
 	if iconmap_mode_enabled or portfolio_mode_enabled:
@@ -200,6 +216,42 @@ func _connect_biome_manager() -> void:
 		await get_tree().process_frame
 		if ActiveBiomeManager:
 			ActiveBiomeManager.active_biome_changed.connect(_on_biome_changed)
+
+
+func _check_register_state() -> void:
+	"""Check if active biome has registers and control music playback accordingly."""
+	if not ActiveBiomeManager:
+		return
+
+	var biome_name := ActiveBiomeManager.get_active_biome()
+	if biome_name.is_empty():
+		return
+
+	var farm = get_node_or_null("/root/Farm")
+	if not farm or not farm.grid:
+		return
+
+	var biome = farm.grid.biomes.get(biome_name)
+	if not biome or not biome.quantum_computer:
+		return
+
+	var has_registers := biome.quantum_computer.register_map.num_qubits > 0
+	var is_playing := _active_player.playing
+
+	if has_registers and not is_playing and not _current_track.is_empty():
+		# Registers exist but music stopped - resume
+		if VerboseConfig:
+			VerboseConfig.debug("music", "▶️", "Registers detected - resuming music")
+		var stream = _get_or_load_stream(_current_track)
+		if stream:
+			_active_player.stream = stream
+			_active_player.volume_db = _volume_to_db(_volume)
+			_active_player.play()
+	elif not has_registers and is_playing:
+		# No registers but music playing - pause
+		if VerboseConfig:
+			VerboseConfig.debug("music", "⏸️", "No registers - pausing music")
+		_active_player.stop()
 
 
 func _on_biome_changed(new_biome: String, _old_biome: String) -> void:
@@ -669,6 +721,18 @@ func crossfade_to(track_key: String) -> void:
 
 	var previous_track := _current_track
 
+	# Save playback position + timestamp of current track (ghost timer)
+	if preserve_track_positions and not previous_track.is_empty():
+		if _active_player.playing:
+			var current_pos := _active_player.get_playback_position()
+			var current_time := Time.get_ticks_msec() / 1000.0
+			_track_positions[previous_track] = {
+				"position": current_pos,
+				"timestamp": current_time
+			}
+			if VerboseConfig:
+				VerboseConfig.debug("music", "👻", "Ghost timer started for %s at %.1fs" % [previous_track, current_pos])
+
 	# Cancel any existing crossfade
 	if _crossfade_tween and _crossfade_tween.is_valid():
 		_crossfade_tween.kill()
@@ -682,6 +746,29 @@ func crossfade_to(track_key: String) -> void:
 	_active_player.stream = stream
 	_active_player.volume_db = -80.0  # Start silent
 	_active_player.play()
+
+	# Calculate virtual position using ghost timer (if enabled)
+	if preserve_track_positions and _track_positions.has(track_key):
+		var track_info: Dictionary = _track_positions[track_key]
+		var saved_pos: float = track_info["position"]
+		var saved_time: float = track_info["timestamp"]
+		var current_time := Time.get_ticks_msec() / 1000.0
+		var elapsed := current_time - saved_time
+
+		# Calculate where the track "would be" if it had been playing
+		var virtual_pos := saved_pos + elapsed
+
+		# Handle looping - wrap around track length
+		var track_length := stream.get_length()
+		if track_length > 0:
+			virtual_pos = fmod(virtual_pos, track_length)
+
+		_active_player.seek(virtual_pos)
+
+		if VerboseConfig:
+			VerboseConfig.debug("music", "⏩", "Ghost advanced %s: %.1fs elapsed → now at %.1fs" % [
+				track_key, elapsed, virtual_pos
+			])
 
 	# Crossfade tween
 	_crossfade_tween = create_tween()
@@ -770,6 +857,13 @@ func play_menu_music() -> void:
 	crossfade_to(MENU_TRACK)
 
 
+func clear_track_positions() -> void:
+	"""Clear all saved track positions - tracks will restart from beginning"""
+	_track_positions.clear()
+	if VerboseConfig:
+		VerboseConfig.debug("music", "🔄", "Cleared all saved track positions")
+
+
 func reset() -> void:
 	"""Reset music manager completely - stop all playback and clear state"""
 	if _disabled:
@@ -786,6 +880,7 @@ func reset() -> void:
 	_stream_cache.clear()
 	_last_crossfade_time = 0.0
 	_health_check_timer = 0.0
+	_track_positions.clear()  # Clear saved positions on reset
 
 
 ## ============================================================================

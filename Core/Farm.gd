@@ -354,7 +354,8 @@ func _ready():
 		biome_enabled = true
 		print("Farm: %d/%d biomes loaded successfully" % [_loaded_biome_count, 6])
 	else:
-		push_warning("Farm: No biomes loaded! Game will have limited functionality.")
+		biome_enabled = false
+		_verbose.warn("boot", "⚠️", "No biomes loaded - operating in simple mode (fallback 4×1 grid)")
 
 	# NOTE: Operator rebuild now handled by BootManager in Stage 3A
 	# This ensures deterministic ordering: IconRegistry ready → rebuild operators → verify biomes
@@ -905,16 +906,48 @@ func _create_grid_config() -> GridConfig:
 
 
 func _create_empty_grid_config() -> GridConfig:
-	"""Create an empty grid config (0x0) before any biomes are loaded."""
+	"""Create a fallback grid config (4x1) when no biomes load.
+
+	This ensures a fully functioning farm even with zero working biomes.
+	The farm operates in "simple mode" without quantum evolution, but plots
+	remain usable for basic operations and economy continues to function.
+
+	Returns: GridConfig with 4×1 grid (4 usable plots, no biome assignments)
+	"""
 	var config = GridConfig.new()
-	config.grid_width = 0
-	config.grid_height = 0
-	if config.plots is Array:
-		config.plots.clear()
+
+	# Fallback: 4×1 grid (minimum viable farm)
+	# Provides 4 plots for basic farming even if all biomes fail
+	config.grid_width = 4
+	config.grid_height = 1
+
+	# Create keyboard layout with homerow mapping
 	var keyboard = KeyboardLayoutConfig.new()
+	var neutral_keys = ["J", "K", "L", ";"]
+	for i in range(4):
+		var pos = Vector2i(i, 0)
+		keyboard.action_to_position["plot_neutral_" + str(i)] = pos
+		keyboard.position_to_label[pos] = neutral_keys[i].to_upper()
 	config.keyboard_layout = keyboard
-	if config.biome_assignments is Dictionary:
-		config.biome_assignments.clear()
+
+	# Create plot configs for each grid position (unassigned to any biome)
+	var plots = []
+	for x in range(4):
+		var plot = PlotConfig.new()
+		plot.position = Vector2i(x, 0)
+		plot.is_active = true
+		plot.keyboard_label = neutral_keys[x].to_upper()
+		plot.input_action = "plot_neutral_" + str(x)
+		plot.biome_name = ""  # No biome assignment (simple mode)
+		plots.append(plot)
+
+	config.plots = plots
+	config.biome_assignments.clear()  # No biome assignments in simple mode
+
+	_verbose.info("boot", "⚠️", "Fallback grid created: %dx%d (%d plots, zero biomes, simple mode)" % [
+		config.grid_width, config.grid_height, config.grid_width * config.grid_height
+	])
+
 	return config
 
 
@@ -1024,14 +1057,20 @@ func _rebuild_biome_row_maps(biome_list: Array[String]) -> void:
 
 
 func refresh_grid_for_biomes() -> bool:
-	"""Rebuild grid_config and resize grid/plot_pool if dimensions changed."""
+	"""Rebuild grid_config and resize grid/plot_pool if dimensions changed.
+
+	Always produces a valid grid configuration:
+	- If biomes loaded: grid sized to match biome layout
+	- If no biomes loaded: fallback 4×1 grid for simple mode farming
+	"""
 	var new_config = _create_grid_config()
 	if not new_config:
 		return false
+
+	# NOTE: Grid can be valid even with width/height = 0 from _create_grid_config()
+	# In that case, we fall back to minimum viable grid
 	if new_config.grid_width == 0 or new_config.grid_height == 0:
-		# No biomes loaded yet
-		grid_config = new_config
-		return false
+		new_config = _create_empty_grid_config()  # Fallback: 4×1 grid
 
 	var resized = false
 	if not grid_config or new_config.grid_width != grid_config.grid_width or new_config.grid_height != grid_config.grid_height:
@@ -1140,6 +1179,10 @@ func can_explore_biome() -> Dictionary:
 	if unexplored.is_empty():
 		return {"ok": false, "message": "All biomes already explored!"}
 
+	var cost_gate = EconomyConstants.preflight_action("explore_biome", economy)
+	if not cost_gate.get("ok", true):
+		return {"ok": false, "message": "Insufficient resources"}
+
 	return {"ok": true, "unexplored": unexplored}
 
 func explore_biome() -> Dictionary:
@@ -1206,6 +1249,9 @@ func explore_biome() -> Dictionary:
 		var direction = 1  # Slide right (new biome appears)
 		biome_manager.set_active_biome(new_biome, direction)
 		print("✅ Switched to new biome: %s" % new_biome)
+
+	if economy and not EconomyConstants.commit_action("explore_biome", economy):
+		return {"success": false, "biome_name": new_biome, "message": "Explore biome failed: unable to spend cost."}
 
 	print("🗺️ Exploration complete: %s" % new_biome)
 	return {"success": true, "biome_name": new_biome, "message": "Discovered %s!" % new_biome}
