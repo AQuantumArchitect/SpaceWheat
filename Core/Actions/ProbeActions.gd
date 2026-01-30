@@ -255,7 +255,7 @@ static func action_measure(terminal, biome) -> Dictionary:
 	var north_prob = biome.get_register_probability(register_id) if biome else 0.5
 	var south_prob = 1.0 - north_prob
 	var snapshot: Dictionary = {}
-	var measured_purity = biome.get_purity() if biome else 1.0
+	var measured_purity = biome.get_purity() if biome else 0.0
 
 	if biome and biome.viz_cache:
 		var bloch = biome.viz_cache.get_bloch(register_id)
@@ -500,15 +500,16 @@ static func _prepare_pop_result(terminal, plot_pool, economy = null, farm = null
 	var biome_name = terminal.measured_biome_name
 	var purity = terminal.measured_purity
 
-	if purity <= 0.0:
-		purity = 1.0
+	if purity < 0.0:
+		purity = 0.0
 
 	var neighbor_count = 4
 	if farm and farm.grid and terminal.grid_position != Vector2i(-1, -1):
 		var neighbors = farm.grid.get_neighbors(terminal.grid_position)
 		neighbor_count = neighbors.size()
 
-	var credits = recorded_prob * purity * neighbor_count
+	# Purity acts as bonus: amount * (1 + purity)
+	var credits = recorded_prob * (1.0 + purity) * neighbor_count
 
 	if economy:
 		var resource_amount = int(credits)
@@ -735,13 +736,15 @@ static func action_harvest_all(plot_pool, economy = null, biome = null) -> Dicti
 
 		# Get purity bonus from biome (use first available biome if terminal not bound)
 		var terminal_biome = biome
-		var purity = 1.0
+		var purity = 0.0
 		if terminal_biome:
 			purity = terminal_biome.get_purity()
 
 		# Harvest BOTH emojis weighted by probability
-		var north_credits = int(north_prob * purity * 10)  # Scale by 10 for meaningful amounts
-		var south_credits = int(south_prob * purity * 10)
+		# Purity acts as bonus: amount * (1 + purity)
+		# purity=0 → 1x (base), purity=0.5 → 1.5x, purity=1 → 2x
+		var north_credits = int(north_prob * (1.0 + purity) * 10)  # Scale by 10 for meaningful amounts
+		var south_credits = int(south_prob * (1.0 + purity) * 10)
 
 		if north_credits > 0 and terminal.north_emoji != "":
 			if not resource_totals.has(terminal.north_emoji):

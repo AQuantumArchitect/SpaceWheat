@@ -26,7 +26,7 @@ const STARTER_BREAD_CREDITS: int = STARTER_BREAD_UNITS * EconomyConstants.QUANTU
 const INITIAL_RESOURCES = {
 	# BioticFlux crops
 	"🌾": 10,   # wheat (agriculture)
-	"👥": 20,   # labor (work)
+	"👥": 120,   # labor (work)
 	"🍄": 0,    # mushroom (fungal)
 	"🍂": 0,    # detritus (decay)
 	"🍅": 0,    # tomato (life/conspiracy)

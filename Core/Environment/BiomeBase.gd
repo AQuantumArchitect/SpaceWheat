@@ -552,9 +552,9 @@ func get_purity() -> float:
 		var purity = viz_cache.get_purity()
 		if purity >= 0.0:
 			return purity
-	# Fallback: return neutral multiplier when evolution disabled
-	# This ensures harvest yields work even without evolution
-	return 1.0
+	# Fallback: return 0.0 when evolution disabled
+	# Formula is amount * (1 + purity), so 0.0 gives base amount with no bonus
+	return 0.0
 
 
 func get_icon_map() -> Dictionary:

@@ -9,14 +9,35 @@ save_timestamp = 0
 game_time = 0.0
 grid_width = 6
 grid_height = 1
-credits = 20
-wheat_inventory = 0
-labor_inventory = 0
+credits = 0
+wheat_inventory = 10
+labor_inventory = 120
 flour_inventory = 0
 flower_inventory = 0
 mushroom_inventory = 0
 detritus_inventory = 0
 imperium_resource = 0
+all_emoji_credits = {
+"🌾": 10,
+"👥": 120,
+"🍄": 0,
+"🍂": 0,
+"🍅": 0,
+"🌌": 0,
+"💨": 0,
+"🍞": 1000,
+"🔥": 0,
+"💧": 0,
+"❄️": 0,
+"🏜️": 0,
+"🌿": 0,
+"🐇": 0,
+"🦅": 40,
+"⚙": 20,
+"👑": 0,
+"💰": 0,
+"🍼": 6
+}
 tributes_paid = 0
 tributes_failed = 0
 known_emojis = ["🌾", "👥"]
