@@ -448,7 +448,7 @@ func _regenerate_all_pages() -> void:
 	"""
 	print("\n🟢 DEBUG: _regenerate_all_pages() CALLED")
 	var pool_ids = all_available_quests.map(func(q): return q.get("id", -1)) if all_available_quests else []
-	print("   Current pool IDs: %s" % pool_ids)
+	print("   Current pool IDs: %s" % [pool_ids])
 
 	# Clear runtime page memory (force regeneration)
 	quest_pages_memory.clear()
@@ -471,19 +471,11 @@ func _refresh_slots() -> void:
 	- Load page from memory if available
 	- Generate new page if not in memory
 	"""
-	print("\n🟠 DEBUG: _refresh_slots() CALLED")
-	var old_pool_size = all_available_quests.size() if all_available_quests else 0
-	var old_ids = all_available_quests.map(func(q): return q.get("id", -1)) if all_available_quests else []
-	print("   Current pool size: %d, IDs: %s" % [old_pool_size, old_ids])
-	print("   Calling offer_all_faction_quests...")
-
 	if not quest_manager or not current_biome:
 		return
 
 	# Build quest pool
 	all_available_quests = quest_manager.offer_all_faction_quests(current_biome)
-	var new_ids = all_available_quests.map(func(q): return q.get("id", -1))
-	print("   NEW pool size: %d, IDs: %s" % [all_available_quests.size(), new_ids])
 
 	# Try to load current page
 	if _load_page(current_page):
@@ -502,8 +494,7 @@ func _update_accessible_count() -> void:
 	if not quest_manager or not current_biome:
 		return
 
-	var all_quests = quest_manager.offer_all_faction_quests(current_biome)
-	accessible_factions_label.text = "%d/68 factions accessible (learn more emojis!)" % all_quests.size()
+	accessible_factions_label.text = "%d/68 factions accessible (learn more emojis!)" % all_available_quests.size()
 
 
 func _update_page_display() -> void:
@@ -755,7 +746,7 @@ func _deliver_quest(slot) -> void:
 
 	if success:
 		var after_complete_pool = all_available_quests.map(func(q): return q.get("id", -1)) if all_available_quests else []
-		print("   AFTER complete: Pool=%s" % after_complete_pool)
+		print("   AFTER complete: Pool=%s" % [after_complete_pool])
 
 		# Remove completed quest from pool (preserve active quest IDs)
 		for i in range(all_available_quests.size()):
@@ -764,7 +755,7 @@ func _deliver_quest(slot) -> void:
 				break
 
 		var after_remove_pool = all_available_quests.map(func(q): return q.get("id", -1)) if all_available_quests else []
-		print("   AFTER remove: Pool=%s" % after_remove_pool)
+		print("   AFTER remove: Pool=%s" % [after_remove_pool])
 
 		# Regenerate pages from existing pool
 		_regenerate_all_pages()
@@ -882,7 +873,9 @@ func _reroll_quest(slot) -> void:
 		_verbose.warn("quest", "🐇", "Cannot reroll: Need 1 🐇 rabbit.")
 		return
 
-	var all_quests = quest_manager.offer_all_faction_quests(current_biome)
+	# Reuse existing quest pool instead of regenerating
+	if all_available_quests.is_empty():
+		return
 
 	# Filter out current faction and other slots
 	var current_faction = slot.quest_data.get("faction", "")
@@ -897,7 +890,7 @@ func _reroll_quest(slot) -> void:
 
 	# Find quests from different factions
 	var available = []
-	for quest in all_quests:
+	for quest in all_available_quests:
 		if quest.get("faction", "") not in used_factions:
 			available.append(quest)
 
@@ -972,7 +965,7 @@ func _on_vocabulary_learned(emoji: String, faction: String) -> void:
 	"""
 	print("\n🟣 DEBUG: _on_vocabulary_learned() CALLED - emoji=%s, faction=%s" % [emoji, faction])
 	var before_pool_ids = all_available_quests.map(func(q): return q.get("id", -1)) if all_available_quests else []
-	print("   Before: Pool IDs=%s" % before_pool_ids)
+	print("   Before: Pool IDs=%s" % [before_pool_ids])
 
 	var tree = Engine.get_main_loop()
 	var verbose = tree.root.get_node_or_null("/root/VerboseConfig") if tree and tree is SceneTree else null

@@ -226,7 +226,6 @@ func offer_quest_emergent(faction: Dictionary, biome) -> Dictionary:
 	var bias_emojis = _get_simulated_vocab_emojis(biome)
 
 	# Generate via abstract machinery + theming (with vocabulary constraint!)
-	# Note: bath parameter is null (deprecated - removed from architecture)
 	var quest = QuestTheming.generate_quest(faction, biome, player_vocab, bias_emojis)
 
 	# Check for vocabulary mismatch error
@@ -258,11 +257,6 @@ func offer_all_faction_quests(biome) -> Array:
 	from all factions, each with alignment score based on biome state.
 	Respects player vocabulary - inaccessible factions are filtered out.
 	"""
-	print("\n🔴 DEBUG: offer_all_faction_quests() CALLED")
-	print("   Stack trace:")
-	for frame in get_stack():
-		print("     - %s:%d in %s()" % [frame.source, frame.line, frame.function])
-
 	var quests = []
 
 	# Get player vocabulary for filtering
@@ -271,7 +265,6 @@ func offer_all_faction_quests(biome) -> Array:
 
 	for faction in FactionDatabase.ALL_FACTIONS:
 		# Use full generate_quest pipeline (handles vocabulary filtering!)
-		# Note: bath parameter is null (deprecated)
 		var quest = QuestTheming.generate_quest(faction, biome, player_vocab, bias_emojis)
 
 		# Skip factions with no vocabulary overlap
@@ -295,7 +288,6 @@ func offer_all_faction_quests(biome) -> Array:
 
 func get_biome_observables(biome) -> Dictionary:
 	"""Get current biome quantum observables for UI display"""
-	# Note: bath parameter is null (deprecated)
 	var obs = FactionStateMatcher.extract_observables(null, biome)
 
 	return {
@@ -411,12 +403,10 @@ func complete_quest(quest_id: int) -> bool:
 		push_error("Failed to deduct resources for quest %d: need %d %s, have %d" % [quest_id, required_qty, required_emoji, player_has])
 		return false
 
-	# Generate rewards (vocabulary only - no universal 💰 currency!)
+	# Generate rewards (vocabulary only)
 	var player_vocab = _get_player_vocab_emojis()
 	var reward = QuestRewards.generate_reward(quest, null, player_vocab)
 	var gsm = _get_gsm()
-
-	# NO UNIVERSAL MONEY - removed 💰 grant
 
 	# Grant vocabulary rewards
 	var faction_name = quest.get("faction", "Unknown")
@@ -452,9 +442,7 @@ func complete_quest(quest_id: int) -> bool:
 	# Stop timer
 	_stop_quest_timer(quest_id)
 
-	# Emit with legacy format for compatibility
-	var legacy_rewards = {"💰": reward.money_amount}
-	quest_completed.emit(quest_id, legacy_rewards)
+	quest_completed.emit(quest_id, {})
 	active_quests_changed.emit()
 	return true
 
@@ -531,12 +519,10 @@ func claim_quest(quest_id: int) -> bool:
 		push_warning("Cannot claim quest %d: not ready (status=%s)" % [quest_id, quest.get("status", "?")])
 		return false
 
-	# Generate and grant rewards (vocabulary only - no universal 💰 currency!)
+	# Generate and grant rewards (vocabulary only)
 	var gsm = _get_gsm()
 	var player_vocab = _get_player_vocab_emojis()
 	var reward = QuestRewards.generate_reward(quest, null, player_vocab)
-
-	# NO UNIVERSAL MONEY - removed 💰 grant
 
 	# Grant vocabulary rewards
 	var faction_name = quest.get("faction", "Unknown")
@@ -570,8 +556,7 @@ func claim_quest(quest_id: int) -> bool:
 	# Stop timer
 	_stop_quest_timer(quest_id)
 
-	var legacy_rewards = {"💰": reward.money_amount}
-	quest_completed.emit(quest_id, legacy_rewards)
+	quest_completed.emit(quest_id, {})
 	active_quests_changed.emit()
 	return true
 
@@ -649,148 +634,6 @@ func get_quest_time_remaining(quest_id: int) -> float:
 		return -1.0
 
 	return quest_timers[quest_id].time_left
-
-# =============================================================================
-# REWARD CALCULATION
-# =============================================================================
-
-func _calculate_rewards(quest: Dictionary) -> Dictionary:
-	"""Calculate rewards for completed quest
-
-	Uses emergent reward_multiplier if available (from FactionStateMatcher alignment),
-	otherwise falls back to continuous difficulty calculation.
-
-	Difficulty-based rewards:
-	- Easy quests (low quantity, no urgency): 2.0x
-	- Medium quests: 3.0x
-	- Hard quests (high quantity or urgent): 4.0x
-	- Super complex (high quantity + urgent): 5.0x
-
-	Returns:
-		Dictionary {emoji: credits_amount}
-	"""
-	var resource = quest.get("resource", "")
-	var quantity = quest.get("quantity", 0)
-
-	if resource.is_empty() or quantity <= 0:
-		return {}
-
-	# EMERGENT SYSTEM: Use reward_multiplier if present (from FactionStateMatcher)
-	var difficulty_multiplier = quest.get("reward_multiplier", 0.0)
-
-	# FALLBACK: Calculate using continuous functions if not emergent quest
-	if difficulty_multiplier <= 0.0:
-		difficulty_multiplier = _calculate_difficulty_multiplier(quest)
-
-	# Base cost in credits (quantity is already in credits)
-	var cost_credits = quantity
-
-	# Reward = cost * difficulty_multiplier
-	var reward_credits = int(cost_credits * difficulty_multiplier)
-
-	var rewards = {}
-	rewards[resource] = reward_credits  # Return resource with multiplier
-
-	# Small money bonus only for harder quests (25% of reward value)
-	if difficulty_multiplier >= 3.0:
-		var money_bonus = int(reward_credits * 0.25)
-		if money_bonus > 0:
-			rewards["💰"] = money_bonus
-
-	return rewards
-
-
-func _calculate_difficulty_multiplier(quest: Dictionary) -> float:
-	"""Calculate difficulty multiplier using CONTINUOUS DIFFERENTIABLE FUNCTIONS
-
-	No categorical buckets! Everything is smooth and physics-based.
-
-	Factors:
-	- Quantity: logarithmic scaling (smooth growth)
-	- Time pressure: exponential decay (urgency stress)
-	- Resource rarity: continuous weight from Hamiltonian coupling
-
-	Returns: 2.0 - 5.0 (continuous, smooth)
-	"""
-	var quantity = quest.get("quantity", 0)
-	var time_limit = quest.get("time_limit", -1)
-	var resource = quest.get("resource", "")
-
-	# Base difficulty (minimum reward)
-	var base = 2.0
-
-	# 1. QUANTITY: Logarithmic scaling (smooth, no buckets!)
-	# log(1+x) gives smooth growth: 10→2.40, 30→3.43, 50→3.93
-	# Quantity is now in credits (10-50 range)
-	var quantity_difficulty = log(1.0 + quantity) / log(1.0 + 50.0)  # Normalize to [0,1] for qty ≈ 50
-	var quantity_bonus = quantity_difficulty * 1.5  # Scale to [0, 1.5]
-
-	# 2. TIME PRESSURE: Exponential decay (smooth urgency curve)
-	# No time limit = 0.0, infinite time = 0.0, 60s = 1.0, 30s = 1.5
-	var time_bonus = 0.0
-	if time_limit > 0:
-		# Exponential stress: stress = e^(-t/tau) where tau = 60s
-		# Invert so shorter time = higher bonus
-		var tau = 60.0  # Time constant (60s feels urgent)
-		var normalized_time = time_limit / tau
-		# urgency = 1 - e^(-k/t) where k controls curve shape
-		time_bonus = 1.0 - exp(-3.0 / normalized_time)  # Smooth curve 0→1
-		time_bonus = clamp(time_bonus, 0.0, 1.0)
-
-	# 3. RESOURCE RARITY: Continuous weight (no if/else buckets!)
-	# Use Hamiltonian coupling strength as rarity metric
-	var rarity_bonus = _get_resource_rarity_continuous(resource)
-
-	# Combine all factors (continuous sum)
-	var total_difficulty = base + quantity_bonus + time_bonus + rarity_bonus
-
-	# Smooth clamp to [2.0, 5.0]
-	return clamp(total_difficulty, 2.0, 5.0)
-
-
-func _get_resource_rarity_continuous(resource: String) -> float:
-	"""Get continuous rarity weight from quantum Hamiltonian couplings
-
-	Instead of categorical buckets, use actual coupling strengths from IconRegistry!
-	This is REAL QUANTUM PHYSICS, not arbitrary categories.
-
-	Returns: 0.0 - 1.0 (continuous based on Hamiltonian)
-	"""
-	# Access IconRegistry to get Hamiltonian coupling for this resource
-	var icon_registry = Engine.get_singleton("IconRegistry")
-	if not icon_registry:
-		# Fallback: simple continuous mapping
-		var rarity_map = {
-			"🌾": 0.0,   # Common (wheat)
-			"👥": 0.1,   # Labor
-			"💰": 0.2,   # Money
-			"🌻": 0.3,   # Sunflower
-			"💨": 0.4,   # Flour (processed)
-			"🍂": 0.5,   # Detritus (forest)
-			"🍄": 0.7,   # Mushroom (nocturnal)
-			"🌌": 0.8,   # Cosmic chaos
-		}
-		return rarity_map.get(resource, 0.3)  # Default: medium rarity
-
-	# QUANTUM APPROACH: Use actual Hamiltonian self-energy!
-	var icon = icon_registry.get_icon(resource)
-	if icon and icon.has("hamiltonian_self_energy"):
-		# Higher self-energy = more "isolated" = rarer
-		# Normalize to [0, 1] range (typical self-energies: 0.0 - 2.0)
-		var self_energy = abs(icon.hamiltonian_self_energy)
-		return clamp(self_energy / 2.0, 0.0, 1.0)
-
-	# Fallback: use coupling strength sum
-	if icon and icon.has("hamiltonian_couplings"):
-		var total_coupling = 0.0
-		for target in icon.hamiltonian_couplings:
-			total_coupling += abs(icon.hamiltonian_couplings[target])
-		# Lower coupling = more isolated = rarer
-		# Invert: rarity = 1.0 - coupling_normalized
-		var coupling_normalized = clamp(total_coupling / 2.0, 0.0, 1.0)
-		return 1.0 - coupling_normalized
-
-	return 0.3  # Default medium rarity
 
 # =============================================================================
 # QUEST TYPE TRACKING (non-delivery quests)
