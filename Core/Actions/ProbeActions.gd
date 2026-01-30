@@ -465,21 +465,6 @@ static func _prepare_pop_result(terminal, plot_pool, economy = null, farm = null
 
 
 ## ============================================================================
-## HARVEST ACTION - Global collapse, end level
-## ============================================================================
-
-static func action_harvest_global(biome, plot_pool = null, economy = null) -> Dictionary:
-	push_warning("ProbeActions.action_harvest_global() is deprecated - use action_harvest_all() instead")
-	return {
-		"success": false,
-		"error": "deprecated",
-		"message": "harvest_global is deprecated - use harvest_all instead"
-	}
-
-# Commented out old implementation - kept for reference
-
-
-## ============================================================================
 ## HARVEST ALL ACTION - End of Turn (3R)
 ## ============================================================================
 

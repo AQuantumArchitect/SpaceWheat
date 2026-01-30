@@ -19,7 +19,6 @@ class DisplayData:
 	var grid_width: int
 	var grid_height: int
 	var economy: Dictionary  # Resources to display
-	var goals: Dictionary  # Goal state
 	var icons: Dictionary  # Icon activation levels
 	var timestamp: int
 	var playtime: float
@@ -38,10 +37,6 @@ class DisplayData:
 		}
 
 		# Goals snapshot
-		goals = {
-			"current_index": gstate.current_goal_index,
-			"completed": gstate.completed_goals.duplicate()
-		}
 
 		# Icons snapshot
 		icons = {
@@ -183,10 +178,9 @@ static func prepare_visualization(display_data: DisplayData) -> Dictionary:
 
 ## Create display-ready data for info panels
 static func prepare_display_info(display_data: DisplayData) -> Dictionary:
-	"""Prepare data for UI info panels (resources, goals, etc)"""
+	"""Prepare data for UI info panels (resources, etc)"""
 	return {
 		"economy": display_data.economy,
-		"goals": display_data.goals,
 		"icons": display_data.icons,
 		"playtime": display_data.playtime,
 		"timestamp": display_data.timestamp

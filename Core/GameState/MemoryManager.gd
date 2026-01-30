@@ -151,7 +151,6 @@ func get_save_info(slot: int) -> Dictionary:
 		"display_name": state.get_save_display_name(),
 		"scenario": state.scenario_id,
 		"credits": money,
-		"goal_index": state.current_goal_index,
 		"playtime": state.game_time,
 		"grid_size": "%dx%d" % [state.grid_width, state.grid_height]
 	}

@@ -31,10 +31,10 @@ func _log(level: String, category: String, emoji: String, message: String) -> vo
 # Configuration
 const BIOMES_PER_FRAME = 2  # Evolve 2 biomes per frame (Stage 1 fallback)
 const EVOLUTION_INTERVAL = 0.1  # 10Hz effective rate
-const ENABLE_EVOLUTION = false  # Hard-disable evolution while native backend is broken
+const ENABLE_EVOLUTION = true  # Enable quantum evolution (GDScript fallback path)
 
 # Lookahead configuration (Stage 2)
-const ENABLE_LOOKAHEAD = false  # Force Stage 1 until native lookahead is stable
+const ENABLE_LOOKAHEAD = true  # Enable native lookahead if available, else fallback to Stage 1
 const LOOKAHEAD_STEPS = 5  # 5 steps = 0.5s lookahead at 10Hz
 const LOOKAHEAD_DT = 0.1  # Time per step (matches EVOLUTION_INTERVAL)
 const MAX_SUBSTEP_DT = 0.02  # Numerical stability limit
@@ -742,116 +742,45 @@ func _any_active_biomes() -> bool:
 func _prime_frozen_buffers_only(biome_rhos: Array = []) -> void:
 	"""Fill lookahead buffers with frozen current states (no native compute).
 
-	CRITICAL: Also computes Bloch data from current density matrix so
-	viz_cache has valid snapshot data for bubble rendering. Without this,
-	bubbles have 0 opacity and spawn animation never triggers.
+	Uses QC.export_bloch_packet() to populate buffers with current state.
+	Data flows through the standard railway: buffers → _apply_buffered_step → viz_cache → UI
 	"""
 	for i in range(biomes.size()):
 		var biome = biomes[i]
 		if not biome or not biome.quantum_computer:
 			continue
 
+		var qc = biome.quantum_computer
 		var rho = PackedFloat64Array()
 		if i < biome_rhos.size() and biome_rhos[i] is PackedFloat64Array:
 			rho = biome_rhos[i]
 		if rho.is_empty():
-			rho = biome.quantum_computer.density_matrix._to_packed()
-
-		var frozen_steps: Array = []
-		for _step in range(LOOKAHEAD_STEPS):
-			frozen_steps.append(rho)
+			rho = qc.density_matrix._to_packed()
 
 		var biome_name = biome.get_biome_type()
-		frame_buffers[biome_name] = frozen_steps
+
+		# Export current state via QC's standard interface
+		var bloch_packet = qc.export_bloch_packet()
+		var purity = qc.get_purity()
+
+		# Fill buffers with frozen (repeated) values
+		var frozen_rho: Array = []
+		var frozen_bloch: Array = []
+		var frozen_purity: Array = []
+		for _step in range(LOOKAHEAD_STEPS):
+			frozen_rho.append(rho)
+			frozen_bloch.append(bloch_packet)
+			frozen_purity.append(purity)
+
+		frame_buffers[biome_name] = frozen_rho
 		buffer_cursors[biome_name] = 0
+		bloch_buffers[biome_name] = frozen_bloch
+		purity_buffers[biome_name] = frozen_purity
 		mi_cache[biome_name] = PackedFloat64Array()
 		mi_buffers[biome_name] = []
 		metadata_payloads[biome_name] = _build_metadata_payload(biome)
 		coupling_payloads[biome_name] = _get_coupling_payload_from_viz_cache(biome)
 		icon_map_payloads[biome_name] = {}
-
-		# Compute Bloch packet and purity from current state (since native engine skipped)
-		var bloch_packet = _compute_bloch_packet_from_qc(biome.quantum_computer)
-		var purity = biome.quantum_computer.get_purity() if biome.quantum_computer.has_method("get_purity") else 0.5
-
-		# Store as frozen steps (same value for all steps)
-		var frozen_bloch: Array = []
-		var frozen_purity: Array = []
-		for _step in range(LOOKAHEAD_STEPS):
-			frozen_bloch.append(bloch_packet)
-			frozen_purity.append(purity)
-
-		bloch_buffers[biome_name] = frozen_bloch
-		purity_buffers[biome_name] = frozen_purity
-
-
-func _compute_bloch_packet_from_qc(qc) -> PackedFloat64Array:
-	"""Compute Bloch packet from quantum computer's density matrix.
-
-	Computes per-qubit Bloch components by partial tracing:
-	[p0, p1, x, y, z, r, theta, phi] per qubit
-
-	Used when native lookahead engine is skipped (frozen buffers).
-	"""
-	if not qc or not qc.register_map:
-		return PackedFloat64Array()
-
-	var num_qubits = qc.register_map.num_qubits
-	var bloch_packet = PackedFloat64Array()
-	bloch_packet.resize(num_qubits * 8)
-
-	for q in range(num_qubits):
-		# Get marginal (reduced 2x2 density matrix for this qubit)
-		var marginal = qc.get_marginal_density_matrix(null, q) if qc.has_method("get_marginal_density_matrix") else null
-		if not marginal:
-			# Fallback: uniform superposition
-			var base = q * 8
-			bloch_packet[base + 0] = 0.5  # p0
-			bloch_packet[base + 1] = 0.5  # p1
-			bloch_packet[base + 2] = 0.0  # x
-			bloch_packet[base + 3] = 0.0  # y
-			bloch_packet[base + 4] = 0.0  # z
-			bloch_packet[base + 5] = 0.0  # r
-			bloch_packet[base + 6] = PI / 2  # theta (equator)
-			bloch_packet[base + 7] = 0.0  # phi
-			continue
-
-		# Extract probabilities from diagonal
-		var p0 = marginal.get_element(0, 0).re
-		var p1 = marginal.get_element(1, 1).re
-
-		# Get coherence (off-diagonal element)
-		var coh = marginal.get_element(0, 1)
-
-		# Compute Bloch coordinates
-		var theta = 0.0
-		var phi = 0.0
-		var r = 0.0
-
-		var p_total = p0 + p1
-		if p_total > 1e-10:
-			theta = 2.0 * acos(sqrt(max(0.0, min(1.0, p0 / p_total))))
-
-		if coh and coh.abs() > 1e-10:
-			phi = coh.arg()
-			r = 2.0 * coh.abs()
-
-		var x = sin(theta) * cos(phi) * r
-		var y = sin(theta) * sin(phi) * r
-		var z = cos(theta) * r
-
-		# Pack into array
-		var base = q * 8
-		bloch_packet[base + 0] = p0
-		bloch_packet[base + 1] = p1
-		bloch_packet[base + 2] = x
-		bloch_packet[base + 3] = y
-		bloch_packet[base + 4] = z
-		bloch_packet[base + 5] = r
-		bloch_packet[base + 6] = theta
-		bloch_packet[base + 7] = phi
-
-	return bloch_packet
 
 
 func _post_evolution_update(biome):

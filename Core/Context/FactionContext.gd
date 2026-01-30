@@ -528,9 +528,8 @@ func get_pattern_from_state(game_state: Dictionary) -> String:
 	var manual_actions = game_state.get("manual_actions", 0)
 	pattern += "0" if manual_actions < 50 else "1"
 
-	# 11: Scattered vs Focused (based on goal completion)
-	var goals_completed = game_state.get("goals_completed", 0)
-	pattern += "1" if goals_completed > 3 else "0"
+	# 11: Scattered vs Focused (placeholder, goal system removed)
+	pattern += "0"
 
 	return pattern
 

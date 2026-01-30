@@ -20,7 +20,6 @@ const FarmPlot = preload("res://Core/GameMechanics/FarmPlot.gd")
 const FarmEconomy = preload("res://Core/GameMechanics/FarmEconomy.gd")
 const EconomyConstants = preload("res://Core/GameMechanics/EconomyConstants.gd")
 const PlotPoolClass = preload("res://Core/GameMechanics/PlotPool.gd")
-const GoalsSystem = preload("res://Core/GameMechanics/GoalsSystem.gd")
 const BiomeEvolutionBatcherClass = preload("res://Core/Environment/BiomeEvolutionBatcher.gd")
 # GRACEFUL BIOME LOADING: Use load() instead of preload() so script errors
 # in individual biomes don't break the entire Farm. Failed biomes are skipped.
@@ -33,7 +32,6 @@ const VocabularyEvolution = preload("res://Core/QuantumSubstrate/VocabularyEvolu
 # Core simulation systems
 var grid: FarmGrid
 var economy  # FarmEconomy type
-var goals: GoalsSystem
 # Biome instances (may be null if script failed to load)
 var biotic_flux_biome = null
 var stellar_forges_biome = null
@@ -440,8 +438,6 @@ func _ready():
 	if grid:
 		grid.vocabulary_evolution = vocabulary_evolution
 
-	goals = GoalsSystem.new()
-	add_child(goals)
 
 	# Initialize biome evolution batcher for smooth frame times
 	_setup_biome_evolution_batcher()
@@ -463,8 +459,6 @@ func _ready():
 	# Connect Farm's own measurement signal to trigger UIState update
 	plot_measured.connect(_on_plot_measured_ui)
 
-	# Connect goal signals
-	goals.goal_completed.connect(_on_goal_completed)
 
 	# Populate UIState with initial farm state
 	ui_state.refresh_all(self)
@@ -1566,10 +1560,6 @@ func entangle_plots(pos1: Vector2i, pos2: Vector2i, bell_state: String = "phi_pl
 		plots_entangled.emit(pos1, pos2, bell_state)
 		_emit_state_changed()
 
-		# Track entanglement for achievements (Bug #9 fix)
-		if goals:
-			goals.record_entanglement()
-
 		var state_name = "same correlation (Φ+)" if bell_state == "phi_plus" else "opposite correlation (Ψ+)"
 		action_result.emit("entangle", true, "🔗 Entangled %s ↔ %s (%s)" % [pos1, pos2, state_name])
 		return true
@@ -1650,19 +1640,11 @@ func get_plot(position: Vector2i):
 
 func get_state() -> Dictionary:
 	"""Get complete game state snapshot for serialization"""
-	if not grid or not economy or not goals:
+	if not grid or not economy:
 		return {}
 
 	var state = {
-		"economy": {
-			"wheat": economy.get_resource("🌾"),
-			"flour": economy.get_resource("💨"),
-			"flower": economy.get_resource("🌻"),
-			"labor": economy.get_resource("👥"),
-			"mushroom": economy.get_resource("🍄"),
-			"detritus": economy.get_resource("🍂"),
-			"credits": economy.get_resource("💰"),
-		},
+		"economy": economy.get_all_resources(),
 		"plots": []
 	}
 
@@ -1770,10 +1752,6 @@ func _process_harvest_outcome(harvest_data: Dictionary) -> void:
 	# Generic routing: any emoji → its credits
 	var credits_earned = economy.receive_harvest(outcome_emoji, quantum_energy, "harvest")
 
-	# Goal tracking for wheat (track credits earned, not units)
-	if outcome_emoji == "🌾":
-		goals.record_harvest(credits_earned)
-
 
 func _emit_state_changed() -> void:
 	"""Emit state_changed signal with current game state"""
@@ -1782,11 +1760,6 @@ func _emit_state_changed() -> void:
 
 func _on_economy_changed(_value) -> void:
 	"""Handle economy signal"""
-	_emit_state_changed()
-
-
-func _on_goal_completed(_goal) -> void:
-	"""Handle goal completion"""
 	_emit_state_changed()
 
 

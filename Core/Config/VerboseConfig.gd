@@ -80,7 +80,8 @@ var category_enabled = {
 
 var enable_console_output: bool = true
 var enable_file_logging: bool = false
-var log_file_path: String = "user://logs/"
+var log_file_path: String = ""
+const DEFAULT_LOG_PATH: String = "user://logs/"
 var show_timestamps: bool = false
 
 # ============================================================================
@@ -118,6 +119,7 @@ func _ready():
 	# Enable file logging in debug builds by default
 	if OS.is_debug_build():
 		enable_file_logging = true
+		_ensure_log_path()
 		_init_file_logging()
 
 	# Legacy: Check for subsystem-specific flags
@@ -127,15 +129,37 @@ func _ready():
 		print("🌲 VERBOSE FOREST LOGGING ENABLED")
 
 
+func _ensure_log_path():
+	var override_path = OS.get_environment("VERBOSE_LOG_PATH")
+	if override_path != "":
+		log_file_path = override_path
+	if log_file_path == "":
+		log_file_path = DEFAULT_LOG_PATH
+	if not log_file_path.ends_with("/"):
+		log_file_path += "/"
+
+
 func _init_file_logging():
 	"""Initialize file logging - create log directory and file"""
 	if not enable_file_logging:
 		return
 
+	if log_file_path == "":
+		_ensure_log_path()
+
 	# Create logs directory if it doesn't exist
-	var dir = DirAccess.open("user://")
-	if not dir.dir_exists("logs"):
-		dir.make_dir("logs")
+	var normalized_dir = log_file_path
+	while normalized_dir.endswith("/"):
+		normalized_dir = normalized_dir.substr(0, normalized_dir.length() - 1)
+
+	if normalized_dir.begins_with("user://"):
+		var relative_path = normalized_dir.substr("user://".length())
+		var user_dir = DirAccess.open("user://")
+		if user_dir:
+			if not user_dir.dir_exists(relative_path):
+				user_dir.make_dir_recursive(relative_path)
+	else:
+		DirAccess.make_dir_recursive(normalized_dir)
 
 	# Create log file with timestamp
 	var timestamp = Time.get_datetime_string_from_system().replace(":", "-")

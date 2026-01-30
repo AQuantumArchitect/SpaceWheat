@@ -322,7 +322,6 @@ func get_save_info(slot: int) -> Dictionary:
 		"display_name": state.get_save_display_name(),
 		"scenario": state.scenario_id,
 		"credits": money,
-		"goal_index": state.current_goal_index,
 		"playtime": state.game_time
 	}
 
@@ -513,14 +512,6 @@ func capture_state_from_game() -> GameState:
 				plot_data["persistent_gates"] = []
 
 			state.plots.append(plot_data)
-
-	# Goals
-	var goals = farm.goals
-	state.current_goal_index = goals.current_goal_index
-	state.completed_goals.clear()
-	for i in range(goals.goals_completed.size()):
-		if goals.goals_completed[i]:
-			state.completed_goals.append(goals.goals[i]["id"])
 
 	# Icons (DEPRECATED: Icons now managed by IconRegistry autoload)
 	# Set to 0.0 - icon state no longer persisted per-farm
@@ -915,7 +906,7 @@ func apply_state_to_game(state: GameState):
 	"""Apply loaded state to active Farm (through FarmView)
 
 	Refactored for Farm/Biome/Qubit architecture:
-	- Loads economy, plot configuration, goals, time from GameState
+	- Loads economy, plot configuration, time from GameState
 	- Restores complete biome quantum state tree (all qubits)
 	- UI layer (icons, visuals) updated through FarmView
 	"""
@@ -1034,14 +1025,6 @@ func apply_state_to_game(state: GameState):
 		])
 
 	# Apply Goals
-	var goals = farm.goals
-	goals.current_goal_index = state.current_goal_index
-	goals.goals_completed.clear()
-	for goal in goals.goals:
-		var is_completed = state.completed_goals.has(goal["id"])
-		goals.goals_completed.append(is_completed)
-		goal["completed"] = is_completed
-
 	# Phase 2: Multi-Biome Restore
 	# Restore plot→biome assignments FIRST (before restoring states)
 	if state.plot_biome_assignments and farm.grid:

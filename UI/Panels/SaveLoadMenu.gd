@@ -583,11 +583,10 @@ func _update_slot_info():
 
 		if save_info["exists"]:
 			# Save exists - show info
-			var info_text = "Slot %d\n%s\n💰%d credits | Goal %d" % [
+			var info_text = "Slot %d\n%s\n💰%d credits" % [
 				slot + 1,
 				save_info["display_name"],
-				save_info["credits"],
-				save_info["goal_index"] + 1
+				save_info["credits"]
 			]
 			btn.text = info_text
 

@@ -201,64 +201,16 @@ func _count_total_registers() -> int:
 
 
 func _populate_viz_cache_from_qc(biome):
-	"""Manually populate viz_cache from quantum computer (Stage 1 batcher workaround)."""
+	"""Populate viz_cache from quantum computer using standard export interface."""
 	if not biome or not biome.quantum_computer or not biome.viz_cache:
 		return
 
 	var qc = biome.quantum_computer
-	var num_qubits = qc.register_map.num_qubits
 
-	# Build packed Bloch array: [p0,p1,x,y,z,r,theta,phi] per qubit
-	var bloch_packet = PackedFloat64Array()
-	bloch_packet.resize(num_qubits * 8)
-
-	for q in range(num_qubits):
-		# Get marginal from quantum computer (2x2 reduced density matrix)
-		var marginal_matrix = qc.get_marginal_density_matrix(null, q)
-		if not marginal_matrix:
-			continue
-
-		# Extract probabilities from diagonal
-		var p0 = marginal_matrix.get_element(0, 0).re
-		var p1 = marginal_matrix.get_element(1, 1).re
-
-		# Get coherence (off-diagonal element)
-		var coh = marginal_matrix.get_element(0, 1)
-
-		# Compute Bloch coordinates
-		var theta = 0.0
-		var phi = 0.0
-		var r = 0.0
-
-		var p_total = p0 + p1
-		if p_total > 1e-10:
-			theta = 2.0 * acos(sqrt(max(0.0, min(1.0, p0 / p_total))))
-
-		if coh and coh.abs() > 1e-10:
-			phi = coh.arg()
-			r = 2.0 * coh.abs()
-
-		var x = sin(theta) * cos(phi) * r
-		var y = sin(theta) * sin(phi) * r
-		var z = cos(theta) * r
-
-		# Pack into array
-		var base = q * 8
-		bloch_packet[base + 0] = p0
-		bloch_packet[base + 1] = p1
-		bloch_packet[base + 2] = x
-		bloch_packet[base + 3] = y
-		bloch_packet[base + 4] = z
-		bloch_packet[base + 5] = r
-		bloch_packet[base + 6] = theta
-		bloch_packet[base + 7] = phi
-
-	# Update viz_cache
-	biome.viz_cache.update_from_bloch_packet(bloch_packet, num_qubits)
-
-	# Get purity from quantum computer
-	var purity = qc.get_purity()
-	biome.viz_cache.update_purity(purity)
+	# Use QC's standard export (single source of truth)
+	var bloch_packet = qc.export_bloch_packet()
+	biome.viz_cache.update_from_bloch_packet(bloch_packet, qc.register_map.num_qubits)
+	biome.viz_cache.update_purity(qc.get_purity())
 
 
 func _diagnose_viz_packets():

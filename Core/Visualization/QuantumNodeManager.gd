@@ -511,9 +511,15 @@ func _apply_buffered_metrics(
 	node.coherence = r_xy * 0.5
 
 	var mass = p0 + p1
-	# Radius represents probability mass (p0+p1), not purity
-	# Purity is encoded spatially via force system (pure → center, mixed → edge)
-	node.radius = lerpf(node.MIN_RADIUS, node.MAX_RADIUS * 0.7, clampf(mass * 2.0, 0.0, 1.0))
+	# Base radius from probability mass
+	var base_radius = lerpf(node.MIN_RADIUS, node.MAX_RADIUS * 0.7, clampf(mass * 2.0, 0.0, 1.0))
+
+	# Purity boost: makes pure states visibly larger
+	# Purity ranges from 0.5 (maximally mixed qubit) to 1.0 (pure)
+	var purity_normalized = clampf((purity - 0.5) / 0.5, 0.0, 1.0)
+	var purity_boost = purity_normalized * purity_normalized * (node.MAX_RADIUS * 0.3)
+
+	node.radius = base_radius + purity_boost
 
 	# Berry phase accumulation DISABLED - should come from C++ geometric phase
 	# Real berry phase = ∮ ⟨ψ|i∇|ψ⟩·dλ computed during evolution path in C++
