@@ -931,7 +931,7 @@ func _create_empty_grid_config() -> GridConfig:
 	config.keyboard_layout = keyboard
 
 	# Create plot configs for each grid position (unassigned to any biome)
-	var plots = []
+	var plots: Array[PlotConfig] = []
 	for x in range(4):
 		var plot = PlotConfig.new()
 		plot.position = Vector2i(x, 0)

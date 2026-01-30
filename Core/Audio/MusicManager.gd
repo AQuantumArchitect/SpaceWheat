@@ -232,11 +232,11 @@ func _check_register_state() -> void:
 		return
 
 	var biome = farm.grid.biomes.get(biome_name)
-	if not biome or not biome.quantum_computer:
+	if not biome or not biome.quantum_computer or not biome.quantum_computer.register_map:
 		return
 
-	var has_registers := biome.quantum_computer.register_map.num_qubits > 0
-	var is_playing := _active_player.playing
+	var has_registers: bool = biome.quantum_computer.register_map.num_qubits > 0
+	var is_playing: bool = _active_player.playing
 
 	if has_registers and not is_playing and not _current_track.is_empty():
 		# Registers exist but music stopped - resume
