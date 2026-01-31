@@ -67,6 +67,30 @@ func _init():
 		_visual_asset_registry = tree.root.get_node_or_null("/root/VisualAssetRegistry")
 
 
+## CRITICAL: Normalize emoji strings to handle variation selector inconsistencies.
+## Some emojis may have U+FE0F (variation selector) or other Unicode markers
+## that differ between atlas building and rendering. This strips them for consistent lookup.
+func _normalize_emoji(emoji: String) -> String:
+	"""Normalize emoji string for consistent lookup.
+
+	Removes variation selectors (U+FE0F) and zero-width joiners to ensure
+	emojis match between atlas building and rendering phases.
+
+	Example: "⚙️" (with U+FE0F) becomes "⚙" (without)
+	"""
+	if emoji.is_empty():
+		return emoji
+
+	# Remove all variation selectors (U+FE0F) - these are often added inconsistently
+	# by text editors, terminals, and different Unicode implementations
+	var normalized = emoji.replace("\uFE0F", "")
+
+	# Also remove zero-width joiners (U+200D) which can combine emojis inconsistently
+	normalized = normalized.replace("\u200D", "")
+
+	return normalized
+
+
 func build_atlas(emoji_list: Array, font_size: int = 48) -> bool:
 	"""Pre-render all emojis to a GPU texture atlas.
 
@@ -135,8 +159,10 @@ func build_atlas(emoji_list: Array, font_size: int = 48) -> bool:
 		var uv_w = float(ATLAS_CELL_SIZE) / float(_atlas_width)
 		var uv_h = float(ATLAS_CELL_SIZE) / float(_atlas_height)
 
-		_emoji_uvs[emoji] = Rect2(uv_x, uv_y, uv_w, uv_h)
-		_emoji_cells[emoji] = cell_index
+		# CRITICAL: Normalize emoji for consistent lookup
+		var normalized_emoji = _normalize_emoji(emoji)
+		_emoji_uvs[normalized_emoji] = Rect2(uv_x, uv_y, uv_w, uv_h)
+		_emoji_cells[normalized_emoji] = cell_index
 
 		cell_index += 1
 
@@ -299,8 +325,10 @@ func build_atlas_async(emoji_list: Array, parent_node: Node, font_size: int = 48
 			var uv_y = float(cell_y) / float(_atlas_height)
 			var uv_w = float(ATLAS_CELL_SIZE) / float(_atlas_width)
 			var uv_h = float(ATLAS_CELL_SIZE) / float(_atlas_height)
-			_emoji_uvs[emoji] = Rect2(uv_x, uv_y, uv_w, uv_h)
-			_emoji_cells[emoji] = cell_index
+			# CRITICAL: Normalize emoji for consistent lookup
+			var normalized_emoji = _normalize_emoji(emoji)
+			_emoji_uvs[normalized_emoji] = Rect2(uv_x, uv_y, uv_w, uv_h)
+			_emoji_cells[normalized_emoji] = cell_index
 			successful_count += 1
 		else:
 			print("[EmojiAtlasBatcher] DEBUG: emoji_image is null for '%s' (svg=%s, vp=%s, failed=%s)" % [emoji, svg_count, viewport_count, failed_count])
@@ -361,12 +389,15 @@ func add_emoji_by_name(position: Vector2, size: Vector2, emoji: String, color: C
 
 	This is the FAST path - all emojis batch into one draw call!
 	"""
-	if not _atlas_built or not _emoji_uvs.has(emoji):
+	# CRITICAL: Normalize emoji string for consistent lookup
+	var normalized_emoji = _normalize_emoji(emoji)
+
+	if not _atlas_built or not _emoji_uvs.has(normalized_emoji):
 		_fallback_count += 1
 		if not _missing_emojis.has(emoji):
 			_missing_emojis[emoji] = true
 			# Only warn once per emoji to avoid spam
-			push_warning("[EmojiAtlasBatcher] Missing emoji: '%s' (UV map has %d emojis)" % [emoji, _emoji_uvs.size()])
+			push_warning("[EmojiAtlasBatcher] Missing emoji: '%s' (normalized: '%s', UV map has %d emojis)" % [emoji, normalized_emoji, _emoji_uvs.size()])
 		# Fallback: try SVG texture
 		if _visual_asset_registry:
 			var tex = _visual_asset_registry.get_texture(emoji)
@@ -383,7 +414,7 @@ func add_emoji_by_name(position: Vector2, size: Vector2, emoji: String, color: C
 		return
 
 	_atlas_hit_count += 1
-	var uv_rect = _emoji_uvs[emoji]
+	var uv_rect = _emoji_uvs[normalized_emoji]
 	_add_quad_to_batch(position, size, uv_rect, color, shadow_offset)
 	_emoji_count += 1
 
@@ -530,7 +561,8 @@ func flush_text_fallbacks(graph: Node2D) -> void:
 
 func has_emoji(emoji: String) -> bool:
 	"""Check if emoji is in the atlas."""
-	return _emoji_uvs.has(emoji)
+	var normalized_emoji = _normalize_emoji(emoji)
+	return _emoji_uvs.has(normalized_emoji)
 
 
 func _count_non_empty_cells() -> int:
