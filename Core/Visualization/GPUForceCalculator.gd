@@ -44,35 +44,27 @@ func _init_gpu() -> void:
 
 func _compile_force_shader() -> bool:
 	"""Compile force calculation compute shader."""
-	# Load pre-compiled shader (SPIR-V)
-	var shader_file = "res://shaders/compute_forces.glsl"
-
-	if not ResourceLoader.exists(shader_file):
-		print("GPUForceCalculator: Shader file not found: ", shader_file)
-		return false
-
-	# Try to load shader - in Godot 4, .glsl files are loaded as Shader resources
-	var shader = load(shader_file)
-	if not shader:
-		print("GPUForceCalculator: Failed to load shader: ", shader_file)
-		return false
-
-	# For compute shaders in Godot 4.5, we need to create from SPIR-V or use RDShaderFile
-	# Let's create a fallback: we'll use inline SPIR-V if the shader isn't precompiled
-
-	# Actually, let's use a simpler approach: create shader from source directly
+	# In Godot 4.5, we create shader directly from GLSL source
 	var shader_code = _get_force_shader_glsl()
 
-	# Create shader bytecode from source
-	var shader_bytecode = RDShaderSource.new()
-	shader_bytecode.source_compute = shader_code
+	# Create RDShaderSource with compute shader code
+	var rd_shader_source = RDShaderSource.new()
+	rd_shader_source.source_compute = shader_code
 
-	# Create RDShader
-	var rd_shader = RDShader.new()
-	rd_shader.bytecode = shader_bytecode.get_rid()
+	# Create shader from source
+	var shader_spirv = rd.shader_compile_spirv_from_source(rd_shader_source)
+	if shader_spirv.compile_error_compute != "":
+		print("GPUForceCalculator: Shader compile error: ", shader_spirv.compile_error_compute)
+		return false
+
+	# Create shader RID
+	var shader_rid = rd.shader_create_from_spirv(shader_spirv)
+	if shader_rid == RID():
+		print("GPUForceCalculator: Failed to create shader RID")
+		return false
 
 	# Create pipeline
-	force_pipeline = rd.compute_pipeline_create(rd_shader)
+	force_pipeline = rd.compute_pipeline_create(shader_rid)
 
 	return force_pipeline != RID()
 
@@ -293,7 +285,9 @@ func compute_forces(
 	# Dispatch compute
 	var compute_list = rd.compute_list_begin()
 	rd.compute_list_bind_uniform_set(compute_list, uniform_set, 0)
-	rd.compute_list_set_push_constant(compute_list, push_const.to_byte_array())
+
+	var push_bytes = push_const.to_byte_array()
+	rd.compute_list_set_push_constant(compute_list, push_bytes, push_bytes.size())
 
 	var workgroups = ceilf(float(num_nodes) / 24.0)
 	rd.compute_list_dispatch(compute_list, int(workgroups), 1, 1)

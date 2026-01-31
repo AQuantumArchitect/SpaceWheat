@@ -1,6 +1,9 @@
 class_name QuantumForceSystem
 extends RefCounted
 
+# GPU compute acceleration (optional)
+const GPUForceCalculator = preload("res://Core/Visualization/GPUForceCalculator.gd")
+
 ## Quantum Force System - Physics-Grounded Bubble Dynamics
 ##
 ## Forces are derived from quantum observables:
