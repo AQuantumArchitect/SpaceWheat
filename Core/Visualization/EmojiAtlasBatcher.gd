@@ -248,6 +248,9 @@ func build_atlas_async(emoji_list: Array, parent_node: Node, font_size: int = 48
 	# Render each emoji
 	var cell_index = 0
 	var successful_count = 0
+	var svg_count = 0
+	var viewport_count = 0
+	var failed_count = 0
 	for emoji in emoji_list:
 		if cell_index >= _cells_per_row * (MAX_ATLAS_SIZE / cell_total):
 			break
@@ -266,6 +269,7 @@ func build_atlas_async(emoji_list: Array, parent_node: Node, font_size: int = 48
 				if emoji_image:
 					emoji_image = emoji_image.duplicate()
 					emoji_image.resize(ATLAS_CELL_SIZE, ATLAS_CELL_SIZE)
+					svg_count += 1
 
 		# Fall back to viewport text rendering
 		if not emoji_image:
@@ -278,7 +282,11 @@ func build_atlas_async(emoji_list: Array, parent_node: Node, font_size: int = 48
 			var vp_texture = viewport.get_texture()
 			if vp_texture:
 				emoji_image = vp_texture.get_image()
+				if emoji_image:
+					viewport_count += 1
 			# In headless mode, texture is null - that's expected, atlas won't work
+			if not emoji_image:
+				failed_count += 1
 
 		# Only add to atlas if emoji was successfully rendered
 		if emoji_image:
@@ -297,10 +305,11 @@ func build_atlas_async(emoji_list: Array, parent_node: Node, font_size: int = 48
 
 		cell_index += 1
 
-	# Log which emojis failed to render
-	if successful_count < emoji_list.size():
-		var failed = emoji_list.size() - successful_count
-		print("[EmojiAtlasBatcher] Warning: %d of %d emojis failed to render" % [failed, emoji_list.size()])
+	# Log rendering breakdown and stored emojis
+	print("[EmojiAtlasBatcher] Rendering breakdown: SVG=%d, Viewport=%d, Failed=%d, Total=%d" % [svg_count, viewport_count, failed_count, emoji_list.size()])
+	print("[EmojiAtlasBatcher] Stored %d emojis in UV map:" % _emoji_uvs.size())
+	for e in _emoji_uvs.keys():
+		print("  - '%s'" % e)
 
 	# Cleanup viewport
 	viewport.queue_free()
