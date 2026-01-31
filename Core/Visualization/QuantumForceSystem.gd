@@ -20,13 +20,29 @@ extends RefCounted
 ##
 ## NATIVE ACCELERATION: If ForceGraphEngine is available, use C++ path (3-5× faster)
 
-# === NATIVE ENGINE ===
+# === ACCELERATION ENGINES ===
+## GPU compute (preferred)
+var _gpu_calculator = null
+var _gpu_enabled: bool = false
+
+## C++ native (fallback)
 var _native_engine = null
 var _native_enabled: bool = false
 
 func _init():
-	# Try to use native force graph engine
-	if ClassDB.class_exists("ForceGraphEngine"):
+	# Priority: GPU > C++ > GDScript
+
+	# Try GPU compute first (fastest, offloads CPU)
+	_gpu_calculator = GPUForceCalculator.new()
+	if _gpu_calculator and _gpu_calculator.gpu_available:
+		_gpu_enabled = true
+		print("QuantumForceSystem: GPU compute ENABLED (best CPU usage)")
+	else:
+		print("QuantumForceSystem: GPU compute unavailable")
+		_gpu_calculator = null
+
+	# Try C++ native engine as fallback
+	if not _gpu_enabled and ClassDB.class_exists("ForceGraphEngine"):
 		_native_engine = ClassDB.instantiate("ForceGraphEngine")
 		if _native_engine:
 			# Configure with same constants as GDScript
@@ -38,7 +54,7 @@ func _init():
 			print("QuantumForceSystem: Native C++ engine ENABLED (3-5x faster)")
 		else:
 			print("QuantumForceSystem: Native engine instantiation failed - using GDScript")
-	else:
+	elif not _gpu_enabled:
 		print("QuantumForceSystem: ForceGraphEngine not available - using GDScript fallback")
 
 
@@ -89,11 +105,105 @@ func update(delta: float, nodes: Array, ctx: Dictionary) -> void:
 		if _is_active(node):
 			active_nodes.append(node)
 
-	# DUAL-PATH: Native C++ (fast) vs GDScript (fallback)
-	if _native_enabled and _native_engine:
+	# TRIPLE-PATH: GPU (fastest) > C++ (fast) > GDScript (fallback)
+	if _gpu_enabled and _gpu_calculator:
+		_update_gpu(delta, active_nodes, biomes, layout_calculator)
+	elif _native_enabled and _native_engine:
 		_update_native(delta, active_nodes, biomes, layout_calculator)
 	else:
 		_update_gdscript(delta, active_nodes, biomes)
+
+
+func _update_gpu(delta: float, nodes: Array, biomes: Dictionary, layout_calculator) -> void:
+	"""GPU compute path: Offload force calculations to graphics card."""
+	if nodes.is_empty():
+		return
+
+	# Pack node data
+	var positions = PackedVector2Array()
+	var velocities = PackedVector2Array()
+
+	for node in nodes:
+		positions.append(node.position)
+		velocities.append(node.velocity)
+
+	# Get quantum data from biomes
+	var mi_values = PackedFloat64Array()
+	var bloch_packet = PackedFloat64Array()
+	var biome_center = Vector2.ZERO
+	var num_qubits = 0
+
+	# Group nodes by biome
+	var biome_nodes: Dictionary = {}
+	for node in nodes:
+		if not biome_nodes.has(node.biome_name):
+			biome_nodes[node.biome_name] = []
+		biome_nodes[node.biome_name].append(node)
+
+	# Get data from first active biome
+	if biome_nodes.size() > 0:
+		var first_biome_name = biome_nodes.keys()[0]
+
+		# Get biome center
+		if layout_calculator and layout_calculator.has_method("get_biome_oval"):
+			var oval = layout_calculator.get_biome_oval(first_biome_name)
+			biome_center = oval.get("center", Vector2(960, 540))
+
+		# Get MI and Bloch from viz_cache
+		if biomes.has(first_biome_name):
+			var biome = biomes[first_biome_name]
+			if biome and biome.viz_cache:
+				mi_values = biome.viz_cache._mi_values
+				num_qubits = biome.viz_cache.get_num_qubits()
+
+				# Pack Bloch data: [x, y, z, r] per qubit
+				for q in range(num_qubits):
+					var bloch = biome.viz_cache.get_bloch(q)
+					if not bloch.is_empty():
+						bloch_packet.append(bloch.get("x", 0.0))
+						bloch_packet.append(bloch.get("y", 0.0))
+						bloch_packet.append(bloch.get("z", 0.0))
+						bloch_packet.append(bloch.get("r", 0.0))
+
+	# Force configuration
+	var config = {
+		"purity_radial_spring": 0.08,
+		"phase_angular_spring": 0.04,
+		"correlation_spring": 0.12,
+		"repulsion_strength": REPULSION,
+		"damping": DRAG,
+		"base_distance": BASE_SEPARATION,
+		"min_distance": MIN_DISTANCE,
+	}
+
+	# Compute on GPU
+	var result = _gpu_calculator.compute_forces(
+		positions,
+		velocities,
+		mi_values,
+		bloch_packet,
+		num_qubits,
+		biome_center,
+		delta,
+		config
+	)
+
+	if result.is_empty():
+		# GPU compute failed, fall back to GDScript
+		print("QuantumForceSystem: GPU compute failed, falling back to GDScript")
+		_gpu_enabled = false
+		_update_gdscript(delta, nodes, biomes)
+		return
+
+	# Unpack results
+	var new_positions = result.get("positions", PackedVector2Array())
+	var new_velocities = result.get("velocities", PackedVector2Array())
+
+	for i in range(nodes.size()):
+		if i < new_positions.size():
+			nodes[i].position = new_positions[i]
+		if i < new_velocities.size():
+			nodes[i].velocity = new_velocities[i]
 
 
 func _update_native(delta: float, nodes: Array, biomes: Dictionary, layout_calculator) -> void:
