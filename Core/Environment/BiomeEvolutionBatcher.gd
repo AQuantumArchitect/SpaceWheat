@@ -112,7 +112,7 @@ const BATCH_TIME_SMOOTHING = 0.3  # EMA smoothing for batch time (0-1, higher = 
 
 # Rate limit batch processing to prevent physics from blocking rendering
 var _physics_frame_counter: int = 0
-const PHYSICS_FRAMES_PER_BATCH = 2  # Only process one batch every N physics frames (allows rendering to run)
+const PHYSICS_FRAMES_PER_BATCH = 4  # Only process one batch every N physics frames (allows rendering to run)
 
 
 func initialize(biome_array: Array, p_plot_pool = null):
