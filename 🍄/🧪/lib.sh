@@ -55,8 +55,9 @@ validate_emoji_atlas() {
     fi
 
     # Check for missing emoji warnings (bad sign)
-    local missing_count=$(echo "$test_output" | grep -c "Missing emoji:" || echo "0")
-    if [ "$missing_count" -gt 0 ]; then
+    local missing_count=$(echo "$test_output" | grep -c "Missing emoji:" 2>/dev/null || echo "0")
+    missing_count=$(echo "$missing_count" | tr -d ' \t\n')  # Strip whitespace
+    if [ ! -z "$missing_count" ] && [ "$missing_count" -gt 0 ] 2>/dev/null; then
         echo -e "${RED}✗ Missing emoji warnings detected: $missing_count${NC}"
     else
         echo -e "${GREEN}✓ No missing emoji warnings${NC}"
