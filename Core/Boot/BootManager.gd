@@ -541,38 +541,47 @@ func _get_biome_script_path(biome_name: String) -> String:
 
 ## Helper: Collect all unique emojis from all biomes for atlas building
 func _collect_all_emojis(biomes: Dictionary) -> Array:
-	"""Extract all unique emojis from biome quantum computers.
+	"""Extract ALL unique emojis from loaded biomes.
+
+	Collects emojis from multiple sources to ensure complete atlas:
+	1. Primary: viz_cache.get_emojis() - comprehensive emoji list
+	2. Fallback: register_map.coordinates - coordinate-based emojis
+	3. Fallback: register_map.axes - north/south pole emojis
 
 	Returns an array of unique emoji strings for atlas building.
 	"""
 	var unique_emojis: Dictionary = {}
-	print("[BootManager] Collecting emojis from %d biomes" % biomes.size())
 
 	for biome_name in biomes:
 		var biome = biomes[biome_name]
-		print("[BootManager]   Biome '%s': has_quantum_computer=%s" % [biome_name, biome != null and "quantum_computer" in biome])
-		if not biome or not biome.quantum_computer:
-			print("[BootManager]     Skipping '%s' - no quantum_computer" % biome_name)
+		if not biome:
+			continue
+
+		# PRIMARY SOURCE: Use viz_cache.get_emojis() if available (most complete)
+		if biome.has_method("get_emoji_pair_for_qubit") or (biome.has_meta("viz_cache") or "viz_cache" in biome):
+			if biome.viz_cache and biome.viz_cache.has_method("get_emojis"):
+				var biome_emojis = biome.viz_cache.get_emojis()
+				if biome_emojis:
+					for emoji in biome_emojis:
+						unique_emojis[emoji] = true
+					continue  # Got emojis from viz_cache, skip to next biome
+
+		# FALLBACK: Use quantum_computer register_map
+		if not biome.quantum_computer:
 			continue
 
 		var qc = biome.quantum_computer
 		var register_map = qc.register_map
-		print("[BootManager]     '%s' qc has register_map=%s" % [biome_name, register_map != null])
 		if not register_map:
-			print("[BootManager]     Skipping '%s' - no register_map" % biome_name)
 			continue
 
 		# Get all emojis from register map coordinates
 		if "coordinates" in register_map:
-			print("[BootManager]     '%s' has coordinates: %d items" % [biome_name, register_map.coordinates.size()])
 			for emoji in register_map.coordinates.keys():
 				unique_emojis[emoji] = true
-		else:
-			print("[BootManager]     '%s' NO COORDINATES property!" % biome_name)
 
 		# Also get from axes (north/south poles)
 		if "axes" in register_map:
-			print("[BootManager]     '%s' has axes: %d items" % [biome_name, register_map.axes.size()])
 			for axis_id in register_map.axes:
 				var axis = register_map.axes[axis_id]
 				if axis.has("north"):
@@ -580,5 +589,4 @@ func _collect_all_emojis(biomes: Dictionary) -> Array:
 				if axis.has("south"):
 					unique_emojis[axis.south] = true
 
-	print("[BootManager] Collected %d unique emojis total" % unique_emojis.size())
 	return unique_emojis.keys()
