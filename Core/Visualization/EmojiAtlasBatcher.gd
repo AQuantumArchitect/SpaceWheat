@@ -233,10 +233,12 @@ func build_atlas_async(emoji_list: Array, parent_node: Node, font_size: int = 48
 	Must be called from scene tree context (e.g., during _ready).
 	Uses coroutines to avoid blocking.
 	"""
+	print("[EmojiAtlasBatcher] build_atlas_async called with %d emojis" % emoji_list.size())
 	if emoji_list.is_empty():
 		push_warning("[EmojiAtlasBatcher] No emojis provided for atlas")
 		return
 
+	print("[EmojiAtlasBatcher] Starting to process emojis: %s" % str(emoji_list))
 	var start_time = Time.get_ticks_msec()
 
 	# Calculate atlas dimensions
