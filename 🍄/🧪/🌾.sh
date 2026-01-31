@@ -1,23 +1,19 @@
 #!/bin/bash
 
-# 🌾 - SpaceWheat Visual Bubble Test
+# 🌾 - SpaceWheat Visual Bubble Test with GPU Emoji Atlas Verification
 # Watch quantum bubbles evolve and interact
+# Verifies that emoji rendering is GPU-accelerated via atlas batching
 
-cd "/home/tehcr33d/ws/SpaceWheat"
+# Source shared test library for DRY utilities
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/lib.sh"
 
-echo "🌾 Visual Bubble Test (20s)"
-echo "==========================="
-echo "Quantum bubbles evolving..."
-echo ""
-
-# Auto-close after 20 seconds
-timeout 20 godot --scene VisualBubbleTest.tscn
+# Run visual bubble test with emoji atlas validation
+run_test_scene "VisualBubbleTest.tscn" 20 "🌾 Visual Bubble Test - GPU Emoji Verification"
 EXIT_CODE=$?
 
-if [ $EXIT_CODE -eq 124 ]; then
-    echo ""
-    echo "✅ Test completed (timeout)"
-else
-    echo ""
-    echo "✅ Test completed"
-fi
+# Additional GPU offload analysis
+BUBBLE_OUTPUT=$(timeout 20 godot --scene VisualBubbleTest.tscn 2>&1 || true)
+verify_gpu_offload "$BUBBLE_OUTPUT"
+
+exit $EXIT_CODE
