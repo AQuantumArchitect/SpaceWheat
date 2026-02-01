@@ -70,41 +70,68 @@ validate_emoji_atlas() {
 # TEST RUNNER UTILITIES
 # =============================================================================
 
-# Run a Godot test scene with timeout
+# Generic test runner with output logging and analysis
+run_test_with_log() {
+    local scene_path="$1"
+    local timeout_secs="${2:-20}"
+    local test_name="${3:-Test}"
+    local headless="${4:-false}"
+
+    echo "$test_name"
+    echo "==========================="
+
+    # Create timestamped log file
+    local timestamp=$(date +"%Y%m%d_%H%M%S")
+    local log_file="${test_name,,}_${timestamp}.log"
+
+    echo "Running test for ${timeout_secs} seconds..."
+    echo "Output will be saved to: $log_file"
+    echo ""
+
+    # Build godot command
+    local godot_cmd="godot"
+    if [ "$headless" = "true" ]; then
+        godot_cmd="$godot_cmd --headless"
+    fi
+    godot_cmd="$godot_cmd --scene $scene_path"
+
+    # Run test and tee to both console and log
+    timeout "$timeout_secs" $godot_cmd 2>&1 | tee "$log_file"
+    local exit_code=${PIPESTATUS[0]}
+
+    # Analyze results
+    echo ""
+    echo "================================================================"
+    if [ $exit_code -eq 124 ]; then
+        echo -e "${GREEN}✅ Test completed (timeout after ${timeout_secs}s)${NC}"
+    elif [ $exit_code -eq 0 ]; then
+        echo -e "${GREEN}✅ Test completed successfully${NC}"
+    else
+        echo -e "${YELLOW}⚠️  Test exited with code: $exit_code${NC}"
+    fi
+    echo "📝 Full log saved to: $log_file"
+    echo "================================================================"
+    echo ""
+
+    # Read log file for analysis
+    local output=$(cat "$log_file")
+
+    # Validate emoji atlas
+    validate_emoji_atlas "$output" "$test_name"
+
+    # Verify GPU offload
+    verify_gpu_offload "$output"
+
+    return $exit_code
+}
+
+# Run a Godot test scene with timeout (legacy, uses new generic runner)
 run_test_scene() {
     local scene_path="$1"
     local timeout_secs="${2:-20}"
     local test_name="${3:-Test}"
 
-    echo "🌾 $test_name"
-    echo "==========================="
-
-    # Run test and capture output
-    local output
-    local exit_code=0
-
-    output=$(timeout "$timeout_secs" godot --scene "$scene_path" 2>&1 || true)
-    exit_code=$?
-
-    # Print relevant output
-    echo "$output" | grep -E "🎨|emoji|atlas|WARNING.*emoji|Using pre-built" || true
-
-    # Analyze results
-    if [ $exit_code -eq 124 ]; then
-        echo ""
-        echo -e "${GREEN}✅ Test completed (timeout after ${timeout_secs}s)${NC}"
-    elif [ $exit_code -eq 0 ]; then
-        echo ""
-        echo -e "${GREEN}✅ Test completed successfully${NC}"
-    else
-        echo ""
-        echo -e "${YELLOW}⚠️  Test exited with code: $exit_code${NC}"
-    fi
-
-    # Validate emoji atlas if test ran
-    validate_emoji_atlas "$output" "$test_name"
-
-    return $exit_code
+    run_test_with_log "$scene_path" "$timeout_secs" "$test_name" "false"
 }
 
 # =============================================================================
@@ -139,5 +166,6 @@ verify_gpu_offload() {
 }
 
 export -f validate_emoji_atlas
+export -f run_test_with_log
 export -f run_test_scene
 export -f verify_gpu_offload
