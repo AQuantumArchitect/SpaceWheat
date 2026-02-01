@@ -118,9 +118,12 @@ verify_gpu_offload() {
     echo ""
     echo -e "${BLUE}=== 💻 GPU OFFLOAD ANALYSIS ===${NC}"
 
-    # Check for native renderer (GPU-accelerated bubbles)
-    if echo "$test_output" | grep -q "Native renderer available"; then
-        echo -e "${GREEN}✓ Bubble rendering: GPU-accelerated${NC}"
+    # Check for GPU-accelerated bubble rendering (atlas priority)
+    # With new optimization: Native C++ not instantiated when using atlas
+    if echo "$test_output" | grep -q "Using pre-built bubble atlas"; then
+        echo -e "${GREEN}✓ Bubble rendering: GPU-accelerated (atlas, C++ bypassed)${NC}"
+    elif echo "$test_output" | grep -q "Native renderer available"; then
+        echo -e "${GREEN}✓ Bubble rendering: GPU-accelerated (native C++)${NC}"
     else
         echo -e "${YELLOW}⚠ Bubble rendering: GDScript fallback${NC}"
     fi

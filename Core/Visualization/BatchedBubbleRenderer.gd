@@ -6,6 +6,11 @@ extends RefCounted
 ## High-performance renderer that batches all bubble draw calls into ONE
 ## GDScript→C++ call per frame, structured like a density matrix.
 ##
+## Rendering priority:
+##   1. Atlas (GPU texture batching) - fastest, ~18 triangles per bubble
+##   2. Native (C++ triangulation) - fast, ~200 triangles per bubble
+##   3. GDScript fallback - slow, individual draw calls
+##
 ## Data layout per bubble (32 floats = 1 row of the matrix):
 ## [0-1]   x, y position
 ## [2]     base_radius
@@ -22,6 +27,11 @@ extends RefCounted
 ## [21]    time_accumulator
 ## [22-23] emoji_north_opacity, emoji_south_opacity
 ## [24-31] reserved
+
+# Atlas renderer (GPU texture batching - fastest)
+# Note: Untyped to avoid circular dependency with BubbleAtlasBatcher.gd load order
+var _bubble_atlas_batcher = null
+var _use_atlas: bool = false
 
 # Native renderer (will be instantiated if available)
 var _native_renderer = null
@@ -67,18 +77,31 @@ var _emoji_queue: Array = []
 # Emoji batcher for reduced draw calls (group by texture)
 var _emoji_batcher: EmojiAtlasBatcher = null
 
+# Shadow influence cache (computed once per frame)
+var _shadow_influences: Dictionary = {}  # node_instance_id → {tint: Color, strength: float}
+var _shadow_compute_enabled: bool = false  # DISABLED by default - GDScript O(n²) too slow!
+# TODO: Enable when GPU compute is wired up via GPUQuantumCompute.compute_shadow_gpu()
+var _gpu_compute: Node = null  # Optional GPUQuantumCompute for fast shadow calc
+
+# Season constants for shadow computation
+const SEASON_ANGLES: Array[float] = [0.0, TAU / 3.0, 2.0 * TAU / 3.0]
+const SEASON_COLORS: Array[Color] = [
+	Color(1.0, 0.3, 0.3),  # Red
+	Color(0.3, 1.0, 0.3),  # Green
+	Color(0.3, 0.3, 1.0),  # Blue
+]
+
 
 func _init():
-	# Try to instantiate native renderer (different name to avoid GDScript class_name collision)
-	if ClassDB.class_exists("NativeBubbleRenderer"):
-		_native_renderer = ClassDB.instantiate("NativeBubbleRenderer")
-		_use_native = _native_renderer != null
-		if _use_native:
-			print("[BatchedBubbleRenderer] Native renderer available - batching enabled")
+	# IMPORTANT: Do NOT instantiate native renderer here - defer until needed
+	# This allows the atlas renderer (when available) to completely bypass C++ code
+	# Native renderer will only be created if:
+	#   1. Atlas is not available AND
+	#   2. Native code is needed (lazy initialization)
 
-	if not _use_native:
-		print("[BatchedBubbleRenderer] Using GDScript fallback renderer")
-		_fallback_renderer = QuantumBubbleRenderer.new()
+	# Always create GDScript fallback (lightweight, used if native unavailable)
+	print("[BatchedBubbleRenderer] Initializing renderers (native deferred, atlas-priority)")
+	_fallback_renderer = QuantumBubbleRenderer.new()
 
 	# Pre-allocate for 32 bubbles (24 + sun + margin)
 	_bubble_data.resize(32 * STRIDE)
@@ -94,25 +117,215 @@ func set_emoji_atlas_batcher(atlas_batcher: EmojiAtlasBatcher) -> void:
 	"""
 	if atlas_batcher and atlas_batcher._atlas_built:
 		_emoji_batcher = atlas_batcher
-		print("[BatchedBubbleRenderer] 🎨 Using pre-built emoji atlas (%d emojis)" % atlas_batcher._emoji_uvs.size())
+		print("[BatchedBubbleRenderer] Using pre-built emoji atlas (%d emojis)" % atlas_batcher._emoji_uvs.size())
+
+
+func set_bubble_atlas_batcher(atlas_batcher) -> void:
+	"""Set a pre-built bubble atlas batcher for GPU-accelerated bubble rendering.
+
+	Call this after building the atlas during boot to enable fast batched drawing.
+	Priority: Atlas → Native → GDScript
+	"""
+	if atlas_batcher and atlas_batcher.is_atlas_built():
+		_bubble_atlas_batcher = atlas_batcher
+		_use_atlas = true
+		print("[BatchedBubbleRenderer] Using pre-built bubble atlas (priority over C++)")
+
+
+func is_atlas_enabled() -> bool:
+	"""Check if GPU atlas bubble renderer is being used."""
+	return _use_atlas
 
 
 func draw(graph: Node2D, ctx: Dictionary) -> void:
 	"""Draw all quantum bubbles.
 
+	Rendering priority: Atlas (GPU) → Native C++ (GPU triangles) → GDScript (CPU)
+
+	IMPORTANT: When using atlas, C++ renderer is NEVER instantiated or called.
+	Early return at line below ensures complete bypass of native code.
+
 	Args:
 	    graph: The QuantumForceGraph node (for drawing calls)
 	    ctx: Context with {quantum_nodes, biomes, time_accumulator, plot_pool, etc.}
 	"""
+	# Check for pre-built bubble atlas in context (first-time setup)
+	var bubble_atlas = ctx.get("bubble_atlas_batcher")
+	if bubble_atlas and bubble_atlas != _bubble_atlas_batcher and bubble_atlas.is_atlas_built():
+		set_bubble_atlas_batcher(bubble_atlas)
+
+	# Priority 1: GPU Atlas rendering (fastest) - COMPLETELY BYPASSES C++ CODE
+	if _use_atlas and _bubble_atlas_batcher:
+		_draw_with_atlas(graph, ctx)
+		return  # <-- C++ native renderer is NOT instantiated or executed when atlas is used
+
+	# Priority 2: Native C++ rendering
+	if _use_native:
+		_draw_with_native(graph, ctx)
+		return
+
+	# Priority 3: GDScript fallback (slowest)
+	_fallback_renderer.draw(graph, ctx)
+
+
+func _draw_with_atlas(graph: Node2D, ctx: Dictionary) -> void:
+	"""Draw all bubbles using GPU texture atlas batching.
+
+	This is the fastest path - pre-rendered templates + per-vertex color modulation.
+	"""
+	# Check for pre-built emoji atlas in context
+	var emoji_atlas = ctx.get("emoji_atlas_batcher")
+	if emoji_atlas and emoji_atlas != _emoji_batcher and emoji_atlas._atlas_built:
+		set_emoji_atlas_batcher(emoji_atlas)
+
+	var quantum_nodes = ctx.get("quantum_nodes", [])
+	var biomes = ctx.get("biomes", {})
+	var time_accumulator = ctx.get("time_accumulator", 0.0)
+	var plot_pool = ctx.get("plot_pool")
+	var batcher = ctx.get("biome_evolution_batcher", null)
+
+	# Compute shadow influences once per frame (O(n²) but n is small)
+	if _shadow_compute_enabled:
+		_compute_shadow_influences(quantum_nodes, biomes)
+
+	_emoji_queue.clear()
+	_bubble_atlas_batcher.begin(graph.get_canvas_item())
+
+	for node in quantum_nodes:
+		if not node.visible:
+			continue
+		if not node.plot and node.emoji_north.is_empty():
+			continue
+
+		# FAST PATH: Get interpolated phi for smooth wedge rotation
+		# Avoids expensive full update_from_quantum_state() call
+		var interpolated_phi = node.phi_raw
+		var interpolated_coherence = node.coherence
+		var biome = biomes.get(node.biome_name) if node.biome_name != "" else null
+		if batcher and batcher.lookahead_enabled and biome and biome.viz_cache:
+			var qubit_idx = biome.viz_cache.get_qubit(node.emoji_north)
+			if qubit_idx >= 0:
+				var snap = batcher.get_interpolated_snapshot(node.biome_name, qubit_idx)
+				if not snap.is_empty():
+					interpolated_phi = snap.get("phi", node.phi_raw)
+					var r_xy = snap.get("r_xy", 0.0)
+					interpolated_coherence = r_xy * 0.5
+					# Update season projections from interpolated phi
+					for i in range(3):
+						var angle_diff = interpolated_phi - node.SEASON_ANGLES[i]
+						node.season_projections[i] = (1.0 + cos(angle_diff)) * 0.5 * interpolated_coherence
+
+		# Get bubble parameters
+		var anim_scale = node.visual_scale
+		var anim_alpha = node.visual_alpha
+		if anim_scale <= 0.0:
+			continue
+
+		var is_measured = _is_node_measured(node, plot_pool)
+		var is_celestial = false  # Regular bubbles, not sun
+
+		# Calculate pulse phase
+		var pulse_rate = node.get_pulse_rate()
+		var pulse_phase = sin(time_accumulator * pulse_rate * TAU) * 0.5 + 0.5
+
+		# Get purity and probability data
+		var individual_purity = 0.5
+		var biome_purity = 0.5
+		var global_prob = 0.0
+		var p_north = 0.0
+		var p_south = 0.0
+		var sink_flux = 0.0
+
+		# biome already looked up above
+		if biome and biome.viz_cache:
+			biome_purity = biome.viz_cache.get_purity()
+			if biome_purity < 0.0:
+				biome_purity = 0.5
+
+			p_north = node.emoji_north_opacity
+			p_south = node.emoji_south_opacity
+			global_prob = clampf(p_north + p_south, 0.0, 1.0)
+			individual_purity = node.energy if node.energy > 0.0 else 0.5
+
+		# Get shadow influence for this node (computed earlier this frame)
+		var shadow_influence = _shadow_influences.get(node.get_instance_id(), {})
+
+		# Draw bubble with all visual layers (including spinning wedges)
+		# Use interpolated phi/coherence for smooth 60fps wedge rotation
+		_bubble_atlas_batcher.draw_bubble(
+			node.position,
+			node.radius,
+			anim_scale,
+			anim_alpha,
+			node.color,
+			node.energy,
+			time_accumulator,
+			is_measured,
+			is_celestial,
+			individual_purity,
+			biome_purity,
+			global_prob,
+			p_north,
+			p_south,
+			sink_flux,
+			pulse_phase,
+			interpolated_phi,
+			node.season_projections,
+			interpolated_coherence,
+			shadow_influence
+		)
+
+		# Queue emoji for drawing
+		_emoji_queue.append({
+			"position": node.position,
+			"radius": node.radius,
+			"emoji_north": node.emoji_north,
+			"emoji_south": node.emoji_south,
+			"emoji_north_opacity": node.emoji_north_opacity,
+			"emoji_south_opacity": node.emoji_south_opacity,
+			"is_celestial": false
+		})
+
+	# Flush bubble atlas (ONE or TWO draw calls for all bubbles!)
+	_bubble_atlas_batcher.flush()
+
+	# Draw emojis (batched via GPU atlas when available)
+	_draw_emoji_pass(graph)
+
+
+func _draw_with_native(graph: Node2D, ctx: Dictionary) -> void:
+	"""Draw all bubbles using native C++ triangulation.
+
+	Fallback when atlas is not available. Still fast, but more triangles.
+
+	LAZY INITIALIZATION: C++ renderer only instantiated when actually needed
+	(i.e., when atlas is not available).
+	"""
+	# Lazily instantiate native renderer only if not yet created
+	if not _native_renderer and not _use_native:
+		if ClassDB.class_exists("NativeBubbleRenderer"):
+			_native_renderer = ClassDB.instantiate("NativeBubbleRenderer")
+			_use_native = _native_renderer != null
+			if _use_native:
+				print("[BatchedBubbleRenderer] Native renderer instantiated (lazy init)")
+			else:
+				print("[BatchedBubbleRenderer] Native renderer instantiation failed - falling back to GDScript")
+				_fallback_renderer.draw(graph, ctx)
+				return
+		else:
+			print("[BatchedBubbleRenderer] NativeBubbleRenderer not available - using GDScript fallback")
+			_fallback_renderer.draw(graph, ctx)
+			return
+
+	# If we got here without native renderer, fallback to GDScript
 	if not _use_native:
-		# Fallback to original renderer
 		_fallback_renderer.draw(graph, ctx)
 		return
 
-	# Check for pre-built atlas in context (first-time setup)
-	var atlas_batcher = ctx.get("emoji_atlas_batcher")
-	if atlas_batcher and atlas_batcher != _emoji_batcher and atlas_batcher._atlas_built:
-		set_emoji_atlas_batcher(atlas_batcher)
+	# Check for pre-built emoji atlas in context
+	var emoji_atlas = ctx.get("emoji_atlas_batcher")
+	if emoji_atlas and emoji_atlas != _emoji_batcher and emoji_atlas._atlas_built:
+		set_emoji_atlas_batcher(emoji_atlas)
 
 	var quantum_nodes = ctx.get("quantum_nodes", [])
 	var biomes = ctx.get("biomes", {})
@@ -166,7 +379,128 @@ func draw(graph: Node2D, ctx: Dictionary) -> void:
 
 
 func draw_sun_qubit(graph: Node2D, ctx: Dictionary) -> void:
-	"""Draw the sun/moon qubit node with celestial styling."""
+	"""Draw the sun/moon qubit node with celestial styling.
+
+	Rendering priority: Atlas (GPU) → Native C++ (GPU triangles) → GDScript (CPU)
+
+	IMPORTANT: When using atlas, C++ renderer is NEVER instantiated or called.
+	"""
+	var sun_qubit_node = ctx.get("sun_qubit_node")
+	if not sun_qubit_node:
+		return
+
+	# Priority 1: GPU Atlas rendering - COMPLETELY BYPASSES C++ CODE
+	if _use_atlas and _bubble_atlas_batcher:
+		_draw_sun_qubit_with_atlas(graph, ctx)
+		return  # <-- C++ native renderer is NOT instantiated or executed when atlas is used
+
+	# Priority 2: Native C++ rendering
+	if _use_native:
+		_draw_sun_qubit_with_native(graph, ctx)
+		return
+
+	# Priority 3: GDScript fallback
+	_fallback_renderer.draw_sun_qubit(graph, ctx)
+
+
+func _draw_sun_qubit_with_atlas(graph: Node2D, ctx: Dictionary) -> void:
+	"""Draw sun qubit using GPU atlas rendering."""
+	var sun_qubit_node = ctx.get("sun_qubit_node")
+	var biotic_flux_biome = ctx.get("biotic_flux_biome")
+	var time_accumulator = ctx.get("time_accumulator", 0.0)
+
+	if not sun_qubit_node:
+		return
+
+	sun_qubit_node.visual_scale = 1.0
+	sun_qubit_node.visual_alpha = 1.0
+
+	_emoji_queue.clear()
+	_bubble_atlas_batcher.begin(graph.get_canvas_item())
+
+	# Draw pulsing energy aura (special sun effect - direct draw, not batched)
+	if biotic_flux_biome:
+		var sun_vis = biotic_flux_biome.get_sun_visualization()
+		var energy_strength = abs(cos(sun_vis["theta"]))
+
+		var aura_radius = sun_qubit_node.radius * (1.5 + energy_strength * 0.5)
+		var aura_color = sun_vis["color"]
+		aura_color.a = energy_strength * 0.3
+		graph.draw_circle(sun_qubit_node.position, aura_radius, aura_color)
+
+		# Sun rays
+		if energy_strength > 0.3:
+			for i in range(8):
+				var angle = (TAU / 8.0) * i
+				var ray_start = sun_qubit_node.position + Vector2(cos(angle), sin(angle)) * sun_qubit_node.radius
+				var ray_end = sun_qubit_node.position + Vector2(cos(angle), sin(angle)) * (sun_qubit_node.radius + 15.0 * energy_strength)
+				var ray_color = aura_color
+				ray_color.a = energy_strength * 0.6
+				graph.draw_line(ray_start, ray_end, ray_color, 1.5, true)
+
+	# Calculate pulse phase
+	var pulse_rate = sun_qubit_node.get_pulse_rate()
+	var pulse_phase = sin(time_accumulator * pulse_rate * TAU) * 0.5 + 0.5
+
+	# Sun uses celestial color (golden yellow)
+	var base_color = Color(1.0, 0.8, 0.2)
+
+	# Draw sun bubble with celestial styling
+	_bubble_atlas_batcher.draw_bubble(
+		sun_qubit_node.position,
+		sun_qubit_node.radius,
+		1.0,  # anim_scale
+		1.0,  # anim_alpha
+		base_color,
+		sun_qubit_node.energy,
+		time_accumulator,
+		false,  # is_measured
+		true,   # is_celestial
+		0.5, 0.5, 0.0, 0.0, 0.0, 0.0,  # data ring params (unused for celestial)
+		pulse_phase
+	)
+
+	# Flush bubble atlas
+	_bubble_atlas_batcher.flush()
+
+	# Queue sun emoji
+	_emoji_queue.append({
+		"position": sun_qubit_node.position,
+		"radius": sun_qubit_node.radius,
+		"emoji_north": sun_qubit_node.emoji_north,
+		"emoji_south": sun_qubit_node.emoji_south,
+		"emoji_north_opacity": sun_qubit_node.emoji_north_opacity,
+		"emoji_south_opacity": sun_qubit_node.emoji_south_opacity,
+		"is_celestial": true
+	})
+
+	# Draw sun emoji
+	_draw_emoji_pass(graph)
+
+	# Celestial label
+	var font = ThemeDB.fallback_font
+	var label_color = Color(1.0, 0.85, 0.3, 0.7)
+	var label_pos = sun_qubit_node.position + Vector2(0, sun_qubit_node.radius + 25)
+	graph.draw_string(font, label_pos, "Celestial", HORIZONTAL_ALIGNMENT_CENTER, -1, 10, label_color)
+
+
+func _draw_sun_qubit_with_native(graph: Node2D, ctx: Dictionary) -> void:
+	"""Draw sun qubit using native C++ triangulation.
+
+	LAZY INITIALIZATION: C++ renderer only instantiated when actually needed.
+	"""
+	# Lazily instantiate native renderer if needed
+	if not _native_renderer and not _use_native:
+		if ClassDB.class_exists("NativeBubbleRenderer"):
+			_native_renderer = ClassDB.instantiate("NativeBubbleRenderer")
+			_use_native = _native_renderer != null
+			if not _use_native:
+				_fallback_renderer.draw_sun_qubit(graph, ctx)
+				return
+		else:
+			_fallback_renderer.draw_sun_qubit(graph, ctx)
+			return
+
 	if not _use_native:
 		_fallback_renderer.draw_sun_qubit(graph, ctx)
 		return
@@ -425,6 +759,117 @@ func _is_node_measured(node, plot_pool) -> bool:
 	return false
 
 
+func _compute_shadow_influences(nodes: Array, biomes: Dictionary) -> void:
+	"""Compute shadow influences for all nodes (O(n²) but n is small ~24).
+
+	When bubble B is in bubble A's dominant wedge direction AND they have
+	Hamiltonian coupling, B's wedges get tinted toward A's dominant season.
+	"""
+	_shadow_influences.clear()
+
+	var node_count = nodes.size()
+	if node_count < 2:
+		return
+
+	# Build lookup for fast node access
+	var visible_nodes = []
+	for node in nodes:
+		if node.visible and node.coherence > 0.05:
+			visible_nodes.append(node)
+
+	var n = visible_nodes.size()
+	if n < 2:
+		return
+
+	# For each node B, accumulate influences from all nodes A
+	for node_b in visible_nodes:
+		var accumulated_tint = Color.WHITE
+		var accumulated_strength = 0.0
+
+		for node_a in visible_nodes:
+			if node_a == node_b:
+				continue
+
+			# Skip if A has weak coherence (no clear season)
+			if node_a.coherence < 0.1:
+				continue
+
+			# Get A's season projections
+			var proj_a = node_a.season_projections
+			if proj_a.size() < 3:
+				continue
+
+			# Find A's dominant season
+			var dominant_idx = 0
+			var dominant_intensity = proj_a[0]
+			for i in range(1, 3):
+				if proj_a[i] > dominant_intensity:
+					dominant_idx = i
+					dominant_intensity = proj_a[i]
+
+			# Skip if dominant season is weak
+			if dominant_intensity < 0.15:
+				continue
+
+			# A's wedge angle = season angle + phi rotation
+			var wedge_angle = SEASON_ANGLES[dominant_idx] + node_a.phi_raw
+
+			# Vector from A to B
+			var a_to_b = node_b.position - node_a.position
+			var dist = a_to_b.length()
+
+			# Skip if too far (max influence distance 300px)
+			if dist > 300.0 or dist < 1.0:
+				continue
+
+			var angle_to_b = a_to_b.angle()
+
+			# Check if B is within A's wedge cone (30° half-angle)
+			var angle_diff = _wrap_angle(wedge_angle - angle_to_b)
+			var wedge_half_angle = PI / 6.0  # 30 degrees
+
+			if absf(angle_diff) > wedge_half_angle:
+				continue
+
+			# Get coupling strength from biome viz_cache
+			var coupling = 0.0
+			if node_a.biome_name != "" and biomes.has(node_a.biome_name):
+				var biome = biomes[node_a.biome_name]
+				if biome and biome.viz_cache:
+					var couplings = biome.viz_cache.get_hamiltonian_couplings(node_a.emoji_north)
+					coupling = couplings.get(node_b.emoji_north, 0.0)
+
+			# Skip if no coupling
+			if coupling < 0.01:
+				continue
+
+			# Compute influence strength
+			var distance_factor = 1.0 - clampf(dist / 300.0, 0.0, 1.0)
+			var angle_factor = 1.0 - absf(angle_diff) / wedge_half_angle
+			var strength = coupling * distance_factor * angle_factor * dominant_intensity
+
+			# Accumulate weighted tint
+			var season_color = SEASON_COLORS[dominant_idx]
+			accumulated_tint = accumulated_tint.lerp(season_color, strength * 0.4)
+			accumulated_strength = minf(accumulated_strength + strength, 1.0)
+
+		# Store influence for this node
+		if accumulated_strength > 0.05:
+			_shadow_influences[node_b.get_instance_id()] = {
+				"tint": accumulated_tint,
+				"strength": accumulated_strength
+			}
+
+
+func _wrap_angle(angle: float) -> float:
+	"""Wrap angle to [-PI, PI] range."""
+	while angle > PI:
+		angle -= TAU
+	while angle < -PI:
+		angle += TAU
+	return angle
+
+
 func get_emoji_stats() -> Dictionary:
 	"""Get emoji batching statistics for performance monitoring."""
 	if _emoji_batcher:
@@ -432,6 +877,23 @@ func get_emoji_stats() -> Dictionary:
 	return {"emoji_count": 0, "draw_calls": 0, "unique_textures": 0, "savings": 0}
 
 
+func get_bubble_stats() -> Dictionary:
+	"""Get bubble batching statistics for performance monitoring."""
+	if _bubble_atlas_batcher:
+		return _bubble_atlas_batcher.get_stats()
+	return {"layer_count": 0, "arc_count": 0, "draw_calls": 0, "templates": 0}
+
+
 func is_native_enabled() -> bool:
 	"""Check if native bubble renderer is being used."""
-	return _use_native
+	return _use_native and not _use_atlas
+
+
+func get_renderer_type() -> String:
+	"""Get the current active renderer type."""
+	if _use_atlas:
+		return "atlas"
+	elif _use_native:
+		return "native"
+	else:
+		return "gdscript"

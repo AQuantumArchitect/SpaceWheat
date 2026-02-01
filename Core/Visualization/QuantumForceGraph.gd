@@ -38,6 +38,7 @@ const GraphInputScript = preload("res://Core/Visualization/QuantumGraphInput.gd"
 const NodeManagerScript = preload("res://Core/Visualization/QuantumNodeManager.gd")
 const QuantumNode = preload("res://Core/Visualization/QuantumNode.gd")
 const BiomeLayoutCalculator = preload("res://Core/Visualization/BiomeLayoutCalculator.gd")
+const GeometryBatcherScript = preload("res://Core/Visualization/GeometryBatcher.gd")
 
 # Logging
 @onready var _verbose = get_node("/root/VerboseConfig")
@@ -86,6 +87,8 @@ var imperium_icon = null
 
 var biome_evolution_batcher = null
 var emoji_atlas_batcher = null  # Pre-built emoji atlas for GPU-accelerated rendering
+var bubble_atlas_batcher = null  # Pre-built bubble atlas for GPU-accelerated rendering
+var geometry_batcher = null  # Unified batcher for edges/effects/regions/infra
 var lookahead_offset: int = 0  # 0 = render current frame; set >0 to preview lookahead
 
 var center_position: Vector2 = Vector2.ZERO
@@ -155,6 +158,9 @@ func _initialize_components():
 	# Create layout calculator
 	layout_calculator = BiomeLayoutCalculator.new()
 
+	# Create geometry batcher for unified draw call batching
+	geometry_batcher = GeometryBatcherScript.new()
+
 
 func _process(delta: float):
 	var t0 = Time.get_ticks_usec()
@@ -179,8 +185,8 @@ func _process(delta: float):
 	node_manager.update_animations(quantum_nodes, time_accumulator, delta)
 	var t4 = Time.get_ticks_usec()
 
-	# Update physics forces
-	force_system.update(delta, quantum_nodes, ctx)
+	# Update physics forces - BATCHED from evolution packets (NEW!)
+	_apply_batched_force_positions(ctx)
 	var t5 = Time.get_ticks_usec()
 
 	# Update particle effects
@@ -193,12 +199,12 @@ func _process(delta: float):
 	var t7 = Time.get_ticks_usec()
 	
 	if frame_count % 60 == 0:
-		if _verbose:
-			var total_us = t7 - t0
-			var total_ms = total_us / 1000.0
-			_verbose.debug("trace", "⏱️", "QFG: %.2fms (Viewport: %.2f, Context: %.2f, Visuals: %.2f, Forces: %.2f)" % [
-				total_ms, (t1 - t0) / 1000.0, (t2 - t1) / 1000.0, (t3 - t2) / 1000.0, (t5 - t4) / 1000.0
-			])
+		var total_us = t7 - t0
+		var total_ms = total_us / 1000.0
+		var visuals_ms = (t3 - t2) / 1000.0
+		var forces_ms = (t5 - t4) / 1000.0
+		# Always print timing for debugging
+		print("[PROCESS] %.1fms (visuals=%.1fms forces=%.1fms)" % [total_ms, visuals_ms, forces_ms])
 
 
 func _draw():
@@ -206,7 +212,10 @@ func _draw():
 	var ctx = _build_context()
 	var t_ctx = Time.get_ticks_usec()
 
-	# Draw in layers (back to front)
+	# Begin geometry batch for all untextured primitives
+	geometry_batcher.begin(get_canvas_item())
+
+	# Draw in layers (back to front) - all add to geometry batch
 	# 1. Background regions
 	region_renderer.draw(self, ctx)
 	var t_region = Time.get_ticks_usec()
@@ -223,7 +232,11 @@ func _draw():
 	effects_renderer.draw(self, ctx)
 	var t_effects = Time.get_ticks_usec()
 
-	# 5. Quantum bubbles
+	# Flush ALL untextured geometry in ONE draw call
+	geometry_batcher.flush()
+	var t_flush = Time.get_ticks_usec()
+
+	# 5. Quantum bubbles (use their own atlas batcher)
 	bubble_renderer.draw(self, ctx)
 	var t_bubble = Time.get_ticks_usec()
 
@@ -239,13 +252,13 @@ func _draw():
 	# Performance logging (every 60 frames)
 	if frame_count % 60 == 0:
 		var total_ms = (t_end - t_start) / 1000.0
-		var bubble_ms = (t_bubble - t_effects) / 1000.0
-		var sun_ms = (t_sun - t_bubble) / 1000.0
-
-		if _verbose:
-			_verbose.debug("trace", "🎨", "Draw: %.2fms (Bubbles: %.2fms, Sun: %.2fms) [%d nodes]" % [
-				total_ms, bubble_ms, sun_ms, quantum_nodes.size()
-			])
+		var bubble_ms = (t_bubble - t_flush) / 1000.0
+		var geom_stats = geometry_batcher.get_stats()
+		# Always print timing for debugging
+		print("[DRAW] %.1fms (bubbles=%.1fms) [%d nodes] [geom: %d prims, %d tris, %d calls]" % [
+			total_ms, bubble_ms, quantum_nodes.size(),
+			geom_stats.primitive_count, geom_stats.triangle_count, geom_stats.draw_calls
+		])
 
 
 func _build_context() -> Dictionary:
@@ -264,6 +277,7 @@ func _build_context() -> Dictionary:
 		"plot_pool": plot_pool,
 		"biome_evolution_batcher": biome_evolution_batcher,
 		"emoji_atlas_batcher": emoji_atlas_batcher,
+		"bubble_atlas_batcher": bubble_atlas_batcher,
 		"lookahead_offset": lookahead_offset,
 		"biotic_flux_biome": biotic_flux_biome,
 		"biotic_icon": biotic_icon,
@@ -280,6 +294,7 @@ func _build_context() -> Dictionary:
 		"particle_life": PARTICLE_LIFE,
 		"particle_speed": PARTICLE_SPEED,
 		"particle_size": PARTICLE_SIZE,
+		"geometry_batcher": geometry_batcher,
 	}
 
 
@@ -498,6 +513,13 @@ func set_emoji_atlas_batcher(atlas_batcher):
 		bubble_renderer.set_emoji_atlas_batcher(atlas_batcher)
 
 
+func set_bubble_atlas_batcher(atlas_batcher):
+	"""Set the pre-built bubble atlas batcher for GPU-accelerated bubble rendering."""
+	bubble_atlas_batcher = atlas_batcher
+	if bubble_renderer and bubble_renderer.has_method("set_bubble_atlas_batcher"):
+		bubble_renderer.set_bubble_atlas_batcher(atlas_batcher)
+
+
 func print_snapshot(reason: String = ""):
 	"""Print debug snapshot of graph state."""
 	if DEBUG_MODE:
@@ -592,6 +614,53 @@ func _on_bubble_tapped(node: QuantumNode):
 func _on_node_swiped_to(from_grid_pos: Vector2i, to_grid_pos: Vector2i):
 	"""Handle node swipe from input handler."""
 	node_swiped_to.emit(from_grid_pos, to_grid_pos)
+
+
+func _apply_batched_force_positions(ctx: Dictionary):
+	"""Apply pre-computed force positions from BiomeEvolutionBatcher buffers.
+
+	Replaces synchronous force calculation with buffered position reads + interpolation.
+	Force positions are computed at 10Hz in C++ alongside evolution, then consumed
+	here at 60 FPS with smooth interpolation.
+	"""
+	var biome_batcher = ctx.get("biome_batcher")
+	if not biome_batcher:
+		return
+
+	# Group nodes by biome for batch position lookup
+	var nodes_by_biome: Dictionary = {}
+	for node in quantum_nodes:
+		if not node or not node.biome_name:
+			continue
+		if not nodes_by_biome.has(node.biome_name):
+			nodes_by_biome[node.biome_name] = []
+		nodes_by_biome[node.biome_name].append(node)
+
+	# Apply interpolated positions per biome
+	for biome_name in nodes_by_biome:
+		var biome_nodes = nodes_by_biome[biome_name]
+		var interpolated_positions = biome_batcher.get_interpolated_force_positions(biome_name)
+
+		if interpolated_positions.is_empty():
+			continue
+
+		# Map positions to nodes by qubit index (NOT array iteration order!)
+		# Force positions are indexed by qubit ID, nodes may be in different order
+		for node in biome_nodes:
+			# Get qubit index from plot_id (format: "biome_q0", "biome_q1", etc.)
+			var qubit_idx = _extract_qubit_index(node.plot_id)
+			if qubit_idx >= 0 and qubit_idx < interpolated_positions.size():
+				node.position = interpolated_positions[qubit_idx]
+
+
+func _extract_qubit_index(plot_id: String) -> int:
+	"""Extract qubit index from plot_id (e.g., 'forest_q2' → 2)."""
+	if "_q" not in plot_id:
+		return -1
+	var parts = plot_id.split("_q")
+	if parts.size() < 2:
+		return -1
+	return int(parts[1])
 
 
 # ============================================================================

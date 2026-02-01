@@ -59,6 +59,9 @@ var _atlas_built: bool = false
 # Fallback for visual asset registry textures
 var _visual_asset_registry = null
 
+# Cache for persistent atlas storage
+var _atlas_cache = null
+
 
 func _init():
 	# Try to get visual asset registry for SVG fallback
@@ -352,6 +355,95 @@ func build_atlas_async(emoji_list: Array, parent_node: Node, font_size: int = 48
 	print("[EmojiAtlasBatcher] 🎨 Atlas built: %dx%d (%d emojis) in %dms" % [
 		_atlas_width, _atlas_height, _emoji_uvs.size(), elapsed
 	])
+
+
+func build_atlas_cached(emoji_list: Array, parent_node: Node, font_size: int = 48) -> void:
+	"""Build atlas with cache support (preferred method).
+
+	Attempts to load from cache first. On cache miss, builds from scratch
+	and saves to cache for next boot.
+
+	This is the RECOMMENDED entry point for atlas building.
+
+	Args:
+		emoji_list: Array of emoji strings to include
+		parent_node: Node to attach SubViewport for rendering
+		font_size: Font size for rendering (default 48)
+	"""
+	var start_time = Time.get_ticks_msec()
+	print("[EmojiAtlasBatcher] build_atlas_cached called with %d emojis" % emoji_list.size())
+
+	if emoji_list.is_empty():
+		push_warning("[EmojiAtlasBatcher] No emojis provided for atlas")
+		return
+
+	# Initialize cache if needed
+	if not _atlas_cache:
+		var CacheClass = load("res://Core/Visualization/EmojiAtlasCache.gd")
+		_atlas_cache = CacheClass.new()
+
+	# Try loading from cache
+	var cache_result = _atlas_cache.try_load(emoji_list, font_size)
+
+	if cache_result.success:
+		# Cache HIT - use cached data
+		_atlas_image = cache_result.atlas_image
+		_emoji_uvs = cache_result.emoji_uvs
+		_atlas_width = cache_result.atlas_width
+		_atlas_height = cache_result.atlas_height
+		_cells_per_row = cache_result.cells_per_row
+
+		# Rebuild emoji_cells from emoji_uvs (needed for some internal operations)
+		var cell_index = 0
+		for emoji in _emoji_uvs.keys():
+			_emoji_cells[emoji] = cell_index
+			cell_index += 1
+
+		# Create GPU texture from cached image
+		_atlas_texture = ImageTexture.create_from_image(_atlas_image)
+		_atlas_built = true
+
+		var elapsed = Time.get_ticks_msec() - start_time
+		print("[EmojiAtlasBatcher] ⚡ Loaded from %s (%d emojis, %dx%d) in %dms" % [
+			cache_result.source,
+			_emoji_uvs.size(),
+			_atlas_width,
+			_atlas_height,
+			elapsed
+		])
+		return
+
+	# Cache MISS - build from scratch
+	print("[EmojiAtlasBatcher] Cache miss - building atlas from scratch...")
+	var build_start = Time.get_ticks_msec()
+	build_atlas_async(emoji_list, parent_node, font_size)
+	var build_elapsed = Time.get_ticks_msec() - build_start
+
+	# Save to cache after building
+	if _atlas_built and _atlas_image:
+		var save_success = _atlas_cache.save(
+			emoji_list,
+			font_size,
+			_atlas_image,
+			_emoji_uvs,
+			_atlas_width,
+			_atlas_height,
+			_cells_per_row
+		)
+		if save_success:
+			print("[EmojiAtlasBatcher] ✓ Saved to cache for next boot")
+		else:
+			push_warning("[EmojiAtlasBatcher] Failed to save atlas to cache")
+
+	var total_elapsed = Time.get_ticks_msec() - start_time
+	print("[EmojiAtlasBatcher] Total time: %dms (build: %dms)" % [total_elapsed, build_elapsed])
+
+
+func get_cache_stats() -> Dictionary:
+	"""Get cache statistics for monitoring."""
+	if _atlas_cache:
+		return _atlas_cache.get_stats()
+	return {}
 
 
 func begin(canvas_item: RID) -> void:

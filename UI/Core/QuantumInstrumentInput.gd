@@ -72,6 +72,18 @@ signal mode_cycled(group: int, mode_index: int, mode_label: String)
 signal submenu_changed(submenu_name: String, submenu_actions: Dictionary)
 signal plot_checked(grid_pos: Vector2i, is_checked: bool)  # Multi-select checkbox toggled
 
+# Actions that modify density matrix at phrame 0 (require buffer invalidation)
+const BUFFER_INVALIDATING_ACTIONS: Array[String] = [
+	# Tool 1: Unitary gates (apply gates to density matrix)
+	"rotate_up", "rotate_down", "hadamard",
+	# Tool 2: Lindbladian (energy exchange modifies state)
+	"drain", "transfer", "pump",
+	# Tool 3: Measure (collapse wavefunction + build entangled states)
+	"measure", "build_gate", "remove_gates",
+	# Tool 4: Meta (system expansion/contraction adds/removes qubits)
+	"inject_vocabulary", "remove_vocabulary"
+]
+
 
 func _ready() -> void:
 	add_to_group("quantum_instrument_input")
@@ -461,6 +473,10 @@ func _execute_inject_vocabulary(vocab_pair: Dictionary) -> void:
 			farm.discover_pair(vocab_pair.get("north", ""), vocab_pair.get("south", ""))
 
 		_verbose.info("input", "+", "Injected vocab %s/%s into %s" % [vocab_pair.get("north", ""), vocab_pair.get("south", ""), biome.name])
+
+		# Invalidate buffer (vocab injection adds qubits, modifies density matrix)
+		_invalidate_biome_buffer_for_action("inject_vocabulary")
+
 		action_performed.emit("inject_vocabulary", {
 			"success": true,
 			"north_emoji": vocab_pair.get("north", ""),
@@ -522,6 +538,10 @@ func _execute_build_gate(gate_type: String) -> void:
 
 	if result.get("success", false):
 		_verbose.info("input", "⚛️", "Built %s gate on %d qubits" % [gate_type, positions.size()])
+
+		# Invalidate buffer (building gate modifies density matrix)
+		_invalidate_biome_buffer_for_action("build_gate")
+
 		# Clear selections after successful gate build
 		clear_all_checks()
 	else:
@@ -876,6 +896,10 @@ func _perform_batch_gate_action(action_name: String, positions: Array, symbol: S
 		_verbose.info("input", "✓", "Applied %d gates, order preserved: %s" % [
 			result.applied_count, result.order
 		])
+
+		# Invalidate buffer ONCE after batch gate application
+		if action_name in BUFFER_INVALIDATING_ACTIONS:
+			_invalidate_biome_buffer_for_action(action_name)
 	else:
 		_verbose.warn("input", "✗", "Batch gate failed: %s" % result.get("error", "unknown"))
 
@@ -928,6 +952,11 @@ func _get_qubit_for_position(pos: Vector2i, biome) -> int:
 func _run_action(action_name: String, log_symbol: String, action_label: String) -> void:
 	"""Execute an action and emit logging + signal."""
 	var result = _execute_action(action_name)
+
+	# Invalidate buffer if action modified density matrix at phrame 0
+	if result.get("success", false) and action_name in BUFFER_INVALIDATING_ACTIONS:
+		_invalidate_biome_buffer_for_action(action_name)
+
 	_log_action_result(action_name, log_symbol, action_label, result)
 
 
@@ -958,6 +987,37 @@ func _log_action_result(action_name: String, log_symbol: String, action_label: S
 		else:
 			_verbose.warn("input", "✗", "%s failed: %s" % [label, message])
 	action_performed.emit(action_name, result)
+
+
+func _invalidate_biome_buffer_for_action(action_name: String) -> void:
+	"""Invalidate biome buffer after density matrix modification.
+
+	When actions modify the density matrix at phrame 0, the lookahead buffer
+	becomes invalid and must be recomputed. This triggers high-priority emergency refill.
+
+	Args:
+		action_name: Name of action that modified the density matrix
+	"""
+	# Get affected biome
+	var biome = _get_current_biome()
+	if not biome:
+		_verbose.debug("input", "🔄", "No biome to invalidate for %s" % action_name)
+		return
+
+	var biome_name = biome.get_biome_type() if biome.has_method("get_biome_type") else biome.name
+
+	# Get batcher reference from farm
+	var batcher = farm.biome_evolution_batcher if farm and "biome_evolution_batcher" in farm else null
+	if not batcher:
+		_verbose.debug("input", "🔄", "No batcher available for buffer invalidation")
+		return
+
+	# Invalidate buffer (triggers emergency refill with high priority)
+	if batcher.has_method("invalidate_biome_buffer"):
+		batcher.invalidate_biome_buffer(biome_name)
+		_verbose.info("input", "🔄", "Buffer invalidated for %s (action: %s)" % [biome_name, action_name])
+	else:
+		_verbose.warn("input", "⚠️", "Batcher missing invalidate_biome_buffer() method")
 
 
 func _execute_action(action_name: String) -> Dictionary:

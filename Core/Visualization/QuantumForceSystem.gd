@@ -1,7 +1,8 @@
 class_name QuantumForceSystem
 extends RefCounted
 
-# GPU compute acceleration (optional)
+# Compute backend selection
+const ComputeBackendSelector = preload("res://Core/Visualization/ComputeBackendSelector.gd")
 const GPUForceCalculator = preload("res://Core/Visualization/GPUForceCalculator.gd")
 
 ## Quantum Force System - Physics-Grounded Bubble Dynamics
@@ -33,19 +34,44 @@ var _native_engine = null
 var _native_enabled: bool = false
 
 func _init():
-	# Priority: GPU > C++ > GDScript
+	# Use ComputeBackendSelector for intelligent backend selection
+	var selector = ComputeBackendSelector.new()
 
-	# Try GPU compute first (fastest, offloads CPU)
+	print("QuantumForceSystem: Platform=%s Backend=%s" % [
+		selector.get_platform_name(),
+		selector.get_backend_name()
+	])
+
+	# Initialize based on selected backend
+	match selector.get_backend():
+		ComputeBackendSelector.Backend.GPU_COMPUTE:
+			_init_gpu_backend()
+
+		ComputeBackendSelector.Backend.NATIVE_CPU:
+			_init_native_backend()
+
+		ComputeBackendSelector.Backend.GDSCRIPT_CPU:
+			print("QuantumForceSystem: Using GDScript fallback")
+
+		_:
+			print("QuantumForceSystem: Unknown backend - using GDScript fallback")
+
+
+func _init_gpu_backend() -> void:
+	"""Initialize GPU compute backend."""
 	_gpu_calculator = GPUForceCalculator.new()
 	if _gpu_calculator and _gpu_calculator.gpu_available:
 		_gpu_enabled = true
-		print("QuantumForceSystem: GPU compute ENABLED (best CPU usage)")
+		print("QuantumForceSystem: GPU compute ENABLED")
 	else:
-		print("QuantumForceSystem: GPU compute unavailable")
+		print("QuantumForceSystem: GPU compute failed - falling back to native")
 		_gpu_calculator = null
+		_init_native_backend()
 
-	# Try C++ native engine as fallback
-	if not _gpu_enabled and ClassDB.class_exists("ForceGraphEngine"):
+
+func _init_native_backend() -> void:
+	"""Initialize C++ native backend."""
+	if ClassDB.class_exists("ForceGraphEngine"):
 		_native_engine = ClassDB.instantiate("ForceGraphEngine")
 		if _native_engine:
 			# Configure with same constants as GDScript
@@ -54,11 +80,11 @@ func _init():
 			_native_engine.set_base_distance(BASE_SEPARATION)
 			_native_engine.set_min_distance(MIN_DISTANCE)
 			_native_enabled = true
-			print("QuantumForceSystem: Native C++ engine ENABLED (3-5x faster)")
+			print("QuantumForceSystem: Native C++ engine ENABLED")
 		else:
 			print("QuantumForceSystem: Native engine instantiation failed - using GDScript")
-	elif not _gpu_enabled:
-		print("QuantumForceSystem: ForceGraphEngine not available - using GDScript fallback")
+	else:
+		print("QuantumForceSystem: ForceGraphEngine not available - using GDScript")
 
 
 # === FORCE CONSTANTS ===
@@ -82,6 +108,17 @@ const CACHE_INTERVAL = 0.1             # Refresh caches at 10Hz
 var _debug_enabled: bool = true
 var _debug_timer: float = 0.0
 const DEBUG_INTERVAL = 2.0
+
+# Performance profiling
+var _profile_enabled: bool = false
+var _profile_frame_count: int = 0
+var _profile_times: Dictionary = {
+	"gpu_compute": [],
+	"cpu_compute": [],
+	"gdscript_compute": [],
+	"total": []
+}
+const PROFILE_FRAMES = 300  # Profile 300 frames (~5 seconds at 60fps)
 
 
 func update(delta: float, nodes: Array, ctx: Dictionary) -> void:
@@ -108,6 +145,9 @@ func update(delta: float, nodes: Array, ctx: Dictionary) -> void:
 		if _is_active(node):
 			active_nodes.append(node)
 
+	# Profiling: measure force calculation time
+	var frame_start_us = Time.get_ticks_usec() if _profile_enabled else 0
+
 	# TRIPLE-PATH: GPU (fastest) > C++ (fast) > GDScript (fallback)
 	if _gpu_enabled and _gpu_calculator:
 		_update_gpu(delta, active_nodes, biomes, layout_calculator)
@@ -115,6 +155,14 @@ func update(delta: float, nodes: Array, ctx: Dictionary) -> void:
 		_update_native(delta, active_nodes, biomes, layout_calculator)
 	else:
 		_update_gdscript(delta, active_nodes, biomes)
+
+	# Profiling: record timing
+	if _profile_enabled:
+		var frame_end_us = Time.get_ticks_usec()
+		var frame_time_ms = (frame_end_us - frame_start_us) / 1000.0
+		_profile_frame_count += 1
+		_profile_times["total"].append(frame_time_ms)
+		_check_profile_complete()
 
 
 func _update_gpu(delta: float, nodes: Array, biomes: Dictionary, layout_calculator) -> void:
@@ -660,3 +708,55 @@ func _test_log(message: String) -> void:
 	var verbose = tree.root.get_node_or_null("/root/VerboseConfig")
 	if verbose:
 		verbose.trace("test", "📊", message)
+
+
+func enable_profiling() -> void:
+	"""Enable force calculation profiling."""
+	_profile_enabled = true
+	_profile_frame_count = 0
+	_profile_times["total"].clear()
+	print("\n[PROFILING] Force system profiling ENABLED - will profile %d frames" % PROFILE_FRAMES)
+
+
+func _check_profile_complete() -> void:
+	"""Check if profiling is complete and report results."""
+	if _profile_frame_count >= PROFILE_FRAMES:
+		_report_profile_results()
+		_profile_enabled = false
+
+
+func _report_profile_results() -> void:
+	"""Report profiling results."""
+	if _profile_times["total"].is_empty():
+		return
+
+	var times = _profile_times["total"]
+	var total_ms = times.reduce(func(acc, x): return acc + x, 0.0)
+	var avg_ms = total_ms / times.size()
+	var max_ms = times.reduce(func(acc, x): return max(acc, x), 0.0)
+	var min_ms = times.reduce(func(acc, x): return min(acc, x), 999.0)
+
+	print("\n" + "=".repeat(70))
+	print("FORCE CALCULATION PROFILE - %d frames" % PROFILE_FRAMES)
+	print("=".repeat(70))
+	print("")
+	print("Backend: %s" % ("GPU" if _gpu_enabled else "C++ Native" if _native_enabled else "GDScript"))
+	print("")
+	print("Timing (ms per frame):")
+	print("  Average: %.3f ms" % avg_ms)
+	print("  Min:     %.3f ms" % min_ms)
+	print("  Max:     %.3f ms" % max_ms)
+	print("  Total:   %.1f ms" % total_ms)
+	print("")
+	print("Frame budget analysis (60 FPS = 16.67 ms):")
+	var pct = (avg_ms / 16.67) * 100.0
+	print("  Force calc: %.1f%% of frame" % pct)
+	if pct > 50:
+		print("  ⚠️  WARNING: Force calc taking >50% of frame budget!")
+	elif pct > 33:
+		print("  ⚠️  CAUTION: Force calc taking >33% of frame budget")
+	else:
+		print("  ✅ Force calc reasonable (<33% of frame)")
+	print("")
+	print("=".repeat(70))
+	print("")

@@ -226,22 +226,66 @@ func _stage_visualization(farm: Node, quantum_viz: Node) -> void:
 		quantum_viz.graph.setup(biomes, farm_grid, plot_pool)
 		_verbose.info("boot", "✓", "Created %d quantum bubbles" % quantum_viz.graph.quantum_nodes.size())
 
+	# Pre-compile GPU shaders before creating force graph
+	if biomes.size() > 0:
+		_verbose.info("boot", "🔧", "Pre-compiling GPU compute shaders...")
+		var GPUForceCalculatorClass = load("res://Core/Visualization/GPUForceCalculator.gd")
+		var compile_result = GPUForceCalculatorClass.pre_compile_shader()
+		if compile_result.success:
+			_verbose.info("boot", "✓", "Shader compiled on %s (%.0fms)" % [
+				compile_result.device_name,
+				compile_result.duration_ms
+			])
+		else:
+			_verbose.warn("boot", "⚠️", "Shader compilation failed: %s" % compile_result.message)
+
 	if biomes.size() > 0:
 		_verbose.info("boot", "🎨", "Building emoji atlas...")
-		var all_emojis = _collect_all_emojis(biomes)
-		_verbose.info("boot", "🎨", "  Found %d unique emojis" % all_emojis.size())
 
+		# Collect emojis from biomes JSON (all biomes, not just loaded ones)
+		var biome_emojis = _collect_emojis_from_biomes_json()
+		_verbose.info("boot", "🎨", "  Found %d emojis in biomes" % biome_emojis.size())
+
+		# Collect emojis from factions JSON (all factions)
+		var faction_emojis = _collect_emojis_from_factions_json()
+		_verbose.info("boot", "🎨", "  Found %d emojis in factions" % faction_emojis.size())
+
+		# Merge both sources (union) + runtime emojis from loaded biomes
+		var emoji_set: Dictionary = {}
+		for emoji in biome_emojis:
+			emoji_set[emoji] = true
+		for emoji in faction_emojis:
+			emoji_set[emoji] = true
+
+		# Also include runtime emojis from loaded biomes (catches any dynamic additions)
+		var runtime_emojis = _collect_all_emojis(biomes)
+		for emoji in runtime_emojis:
+			emoji_set[emoji] = true
+
+		var all_emojis = emoji_set.keys()
+		_verbose.info("boot", "🎨", "  Total unique: %d emojis" % all_emojis.size())
+
+		# Build atlas with caching (loads from cache if available, else builds + saves)
 		var EmojiAtlasBatcherClass = load("res://Core/Visualization/EmojiAtlasBatcher.gd")
 		var atlas_batcher = EmojiAtlasBatcherClass.new()
-		# CRITICAL: Call build_atlas_async() synchronously (no await)
-		# It now uses RenderingServer.force_draw() to render immediately, not awaits
-		# This ensures atlas is COMPLETELY BUILT before first frame renders
-		atlas_batcher.build_atlas_async(all_emojis, quantum_viz.graph)
+		atlas_batcher.build_atlas_cached(all_emojis, quantum_viz.graph)
 		_verbose.info("boot", "✓", "Emoji atlas ready (%d emojis)" % atlas_batcher._emoji_uvs.size())
 
 		# Pass atlas to the quantum viz context for use by bubble renderer
 		if quantum_viz.graph.has_method("set_emoji_atlas_batcher"):
 			quantum_viz.graph.set_emoji_atlas_batcher(atlas_batcher)
+
+		# Build bubble shape atlas for GPU-accelerated bubble rendering
+		_verbose.info("boot", "🔮", "Building bubble atlas...")
+		var BubbleAtlasBatcherClass = load("res://Core/Visualization/BubbleAtlasBatcher.gd")
+		var bubble_atlas = BubbleAtlasBatcherClass.new()
+		if bubble_atlas.build_atlas():
+			_verbose.info("boot", "✓", "Bubble atlas ready (%d templates)" % bubble_atlas._template_uvs.size())
+			# Pass atlas to the quantum viz graph for use by bubble renderer
+			if quantum_viz.graph.has_method("set_bubble_atlas_batcher"):
+				quantum_viz.graph.set_bubble_atlas_batcher(bubble_atlas)
+		else:
+			_verbose.warn("boot", "⚠️", "Bubble atlas build failed - using C++ fallback")
 
 	visualization_ready.emit()
 
@@ -590,3 +634,164 @@ func _collect_all_emojis(biomes: Dictionary) -> Array:
 					unique_emojis[axis.south] = true
 
 	return unique_emojis.keys()
+
+
+## Helper: Collect emojis from biomes JSON file
+func _collect_emojis_from_biomes_json() -> Array:
+	"""Extract ALL emojis from biomes_merged.json.
+
+	Parses the JSON file directly to get emojis from all biomes,
+	not just the ones currently loaded in memory.
+	"""
+	return _collect_emojis_from_json_file(
+		"res://Core/Biomes/data/biomes_merged.json",
+		"biomes"
+	)
+
+
+## Helper: Collect emojis from factions JSON file
+func _collect_emojis_from_factions_json() -> Array:
+	"""Extract ALL emojis from factions_merged.json.
+
+	Parses the JSON file directly to get emojis from all factions,
+	including hamiltonian couplings and alignment couplings.
+	"""
+	return _collect_emojis_from_json_file(
+		"res://Core/Factions/data/factions_merged.json",
+		"factions"
+	)
+
+
+## Generic JSON emoji extractor
+func _collect_emojis_from_json_file(json_path: String, source_type: String) -> Array:
+	"""Parse JSON and extract emojis based on source type.
+
+	Args:
+		json_path: Path to the JSON file
+		source_type: "biomes" or "factions" (determines parsing logic)
+
+	Returns:
+		Array of unique emoji strings
+	"""
+	var file = FileAccess.open(json_path, FileAccess.READ)
+	if not file:
+		push_warning("[Boot] Could not open %s" % json_path)
+		return []
+
+	var json_text = file.get_as_text()
+	file.close()
+
+	var json = JSON.new()
+	if json.parse(json_text) != OK:
+		push_warning("[Boot] Failed to parse %s: %s" % [json_path, json.get_error_message()])
+		return []
+
+	var data_array = json.data
+	var unique_emojis: Dictionary = {}
+
+	if source_type == "biomes":
+		# Extract from biomes structure
+		for biome_data in data_array:
+			# Primary emoji list
+			if "emojis" in biome_data:
+				for emoji in biome_data["emojis"]:
+					if _is_valid_emoji(emoji):
+						unique_emojis[emoji] = true
+
+			# Icon components (all emoji interactions)
+			if "icon_components" in biome_data:
+				for emoji_key in biome_data["icon_components"].keys():
+					if _is_valid_emoji(emoji_key):
+						unique_emojis[emoji_key] = true
+
+					var component = biome_data["icon_components"][emoji_key]
+
+					# Lindblad outgoing targets
+					if "lindblad_outgoing" in component:
+						for target in component["lindblad_outgoing"].keys():
+							if _is_valid_emoji(target):
+								unique_emojis[target] = true
+
+					# Lindblad incoming sources
+					if "lindblad_incoming" in component:
+						for source in component["lindblad_incoming"].keys():
+							if _is_valid_emoji(source):
+								unique_emojis[source] = true
+
+					# Decay targets
+					if "decay" in component and "target" in component["decay"]:
+						var target = component["decay"]["target"]
+						if _is_valid_emoji(target):
+							unique_emojis[target] = true
+
+	elif source_type == "factions":
+		# Extract from factions structure
+		for faction_data in data_array:
+			# self_energies keys are emojis
+			if "self_energies" in faction_data:
+				for emoji in faction_data["self_energies"].keys():
+					if _is_valid_emoji(emoji):
+						unique_emojis[emoji] = true
+
+			# hamiltonian keys and values are emojis
+			if "hamiltonian" in faction_data:
+				for emoji1 in faction_data["hamiltonian"].keys():
+					if _is_valid_emoji(emoji1):
+						unique_emojis[emoji1] = true
+					for emoji2 in faction_data["hamiltonian"][emoji1].keys():
+						if _is_valid_emoji(emoji2):
+							unique_emojis[emoji2] = true
+
+			# alignment_couplings keys and values are emojis
+			if "alignment_couplings" in faction_data:
+				for emoji1 in faction_data["alignment_couplings"].keys():
+					if _is_valid_emoji(emoji1):
+						unique_emojis[emoji1] = true
+					for emoji2 in faction_data["alignment_couplings"][emoji1].keys():
+						if _is_valid_emoji(emoji2):
+							unique_emojis[emoji2] = true
+
+			# sig array contains emojis (faction signature)
+			if "sig" in faction_data:
+				for emoji in faction_data["sig"]:
+					if _is_valid_emoji(emoji):
+						unique_emojis[emoji] = true
+
+			# gated_lindblad sources and gates are emojis
+			if "gated_lindblad" in faction_data:
+				for target in faction_data["gated_lindblad"].keys():
+					if _is_valid_emoji(target):
+						unique_emojis[target] = true
+					for gate_def in faction_data["gated_lindblad"][target]:
+						if "source" in gate_def and _is_valid_emoji(gate_def["source"]):
+							unique_emojis[gate_def["source"]] = true
+						if "gate" in gate_def and _is_valid_emoji(gate_def["gate"]):
+							unique_emojis[gate_def["gate"]] = true
+
+	return unique_emojis.keys()
+
+
+## Validate emoji strings (filter out non-emoji entries)
+func _is_valid_emoji(text) -> bool:
+	"""Filter out non-emoji entries.
+
+	Rejects:
+	- Empty strings
+	- Special keywords like "everything"
+	- Suffixed variants like "🌊_evap"
+	- Non-string values
+
+	Returns:
+		true if text is a valid emoji string
+	"""
+	if not text is String:
+		return false
+	if text.is_empty():
+		return false
+	if text in ["everything"]:  # Special keywords in JSON
+		return false
+	if "_" in text:  # Suffixed variants
+		return false
+	# Must be emoji codepoint range (above basic ASCII)
+	var first_char = text.unicode_at(0)
+	return first_char > 0x2000  # Emoji codepoint range

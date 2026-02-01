@@ -46,6 +46,7 @@ func _draw_strange_attractor(graph: Node2D, ctx: Dictionary) -> void:
 	"""
 	var imperium_icon = ctx.get("imperium_icon")
 	var center_position = ctx.get("center_position", Vector2.ZERO)
+	var batcher = ctx.get("geometry_batcher")
 
 	if not imperium_icon:
 		return
@@ -75,7 +76,10 @@ func _draw_strange_attractor(graph: Node2D, ctx: Dictionary) -> void:
 		var line_color = attractor_color
 		line_color.a = fade * 0.5
 
-		graph.draw_line(prev_pos, curr_pos, line_color, 2.0, true)
+		if batcher:
+			batcher.add_line(prev_pos, curr_pos, line_color, 2.0)
+		else:
+			graph.draw_line(prev_pos, curr_pos, line_color, 2.0, true)
 
 	# Current position
 	if history.size() > 0:
@@ -83,10 +87,14 @@ func _draw_strange_attractor(graph: Node2D, ctx: Dictionary) -> void:
 		var current_2d = imperium_icon.project_4d_to_2d(current)
 		var current_pos = attractor_offset + current_2d
 
-		graph.draw_circle(current_pos, 5.0, Color(1.0, 0.8, 0.3, 0.8))
-		graph.draw_circle(current_pos, 3.0, Color(1.0, 0.9, 0.5, 1.0))
+		if batcher:
+			batcher.add_circle(current_pos, 5.0, Color(1.0, 0.8, 0.3, 0.8))
+			batcher.add_circle(current_pos, 3.0, Color(1.0, 0.9, 0.5, 1.0))
+		else:
+			graph.draw_circle(current_pos, 5.0, Color(1.0, 0.8, 0.3, 0.8))
+			graph.draw_circle(current_pos, 3.0, Color(1.0, 0.9, 0.5, 1.0))
 
-	# Label
+	# Label (still use direct draw for text - not batched)
 	var label_pos = attractor_offset + Vector2(-80, -90)
 	var label_color = Color(0.8, 0.7, 0.3, 0.7)
 	var font = ThemeDB.fallback_font
@@ -104,6 +112,7 @@ func _draw_energy_transfer_forces(graph: Node2D, ctx: Dictionary) -> void:
 	var sun_qubit_node = ctx.get("sun_qubit_node")
 	var biotic_flux_biome = ctx.get("biotic_flux_biome")
 	var quantum_nodes = ctx.get("quantum_nodes", [])
+	var batcher = ctx.get("geometry_batcher")
 
 	if not sun_qubit_node or not biotic_flux_biome:
 		return
@@ -139,7 +148,6 @@ func _draw_energy_transfer_forces(graph: Node2D, ctx: Dictionary) -> void:
 
 		var from = sun_qubit_node.position
 		var to = node.position
-		graph.draw_line(from, to, arrow_color, arrow_thickness, true)
 
 		# Arrow head
 		var direction = (to - from).normalized()
@@ -149,7 +157,13 @@ func _draw_energy_transfer_forces(graph: Node2D, ctx: Dictionary) -> void:
 
 		var arrow_head_color = arrow_color
 		arrow_head_color.a = arrow_color.a * 0.8
-		graph.draw_colored_polygon([to, arrow_left, arrow_right], arrow_head_color)
+
+		if batcher:
+			batcher.add_line(from, to, arrow_color, arrow_thickness)
+			batcher.add_colored_polygon([to, arrow_left, arrow_right], arrow_head_color)
+		else:
+			graph.draw_line(from, to, arrow_color, arrow_thickness, true)
+			graph.draw_colored_polygon([to, arrow_left, arrow_right], arrow_head_color)
 
 	# Icon influence forces
 	_draw_icon_influence_forces(graph, ctx)
@@ -162,6 +176,7 @@ func _draw_icon_influence_forces(graph: Node2D, ctx: Dictionary) -> void:
 	"""
 	var biotic_flux_biome = ctx.get("biotic_flux_biome")
 	var quantum_nodes = ctx.get("quantum_nodes", [])
+	var batcher = ctx.get("geometry_batcher")
 
 	if not biotic_flux_biome:
 		return
@@ -201,7 +216,10 @@ func _draw_icon_influence_forces(graph: Node2D, ctx: Dictionary) -> void:
 				var indicator_center = node.position
 				var indicator_direction = Vector2(cos(qubit.theta), sin(qubit.theta))
 				var indicator_end = indicator_center + indicator_direction * force_magnitude * force_direction
-				graph.draw_line(indicator_center, indicator_end, wheat_color, 1.0, true)
+				if batcher:
+					batcher.add_line(indicator_center, indicator_end, wheat_color, 1.0)
+				else:
+					graph.draw_line(indicator_center, indicator_end, wheat_color, 1.0, true)
 
 		# Mushroom icon force
 		if biotic_flux_biome.mushroom_icon and mushroom_deviation > 0.1:
@@ -216,12 +234,16 @@ func _draw_icon_influence_forces(graph: Node2D, ctx: Dictionary) -> void:
 				var indicator_center = node.position
 				var indicator_direction = Vector2(cos(qubit.theta), sin(qubit.theta))
 				var indicator_end = indicator_center + indicator_direction * force_magnitude * force_direction * 1.5
-				graph.draw_line(indicator_center, indicator_end, mushroom_color, 1.0, true)
+				if batcher:
+					batcher.add_line(indicator_center, indicator_end, mushroom_color, 1.0)
+				else:
+					graph.draw_line(indicator_center, indicator_end, mushroom_color, 1.0, true)
 
 
 func _draw_particles(graph: Node2D, ctx: Dictionary) -> void:
 	"""Draw entanglement particles flowing along Bell pair lines."""
 	var entanglement_particles = ctx.get("entanglement_particles", [])
+	var batcher = ctx.get("geometry_batcher")
 
 	for particle in entanglement_particles:
 		var life_ratio = particle.life / particle.get("max_life", 1.0)
@@ -230,17 +252,23 @@ func _draw_particles(graph: Node2D, ctx: Dictionary) -> void:
 		# Outer glow
 		var glow_color = particle.color
 		glow_color.a = alpha * 0.4
-		graph.draw_circle(particle.position, particle.size * 2.0, glow_color)
 
 		# Core
 		var core_color = Color.WHITE
 		core_color.a = alpha * 0.9
-		graph.draw_circle(particle.position, particle.size, core_color)
+
+		if batcher:
+			batcher.add_circle(particle.position, particle.size * 2.0, glow_color)
+			batcher.add_circle(particle.position, particle.size, core_color)
+		else:
+			graph.draw_circle(particle.position, particle.size * 2.0, glow_color)
+			graph.draw_circle(particle.position, particle.size, core_color)
 
 
 func _draw_life_cycle_effects(graph: Node2D, ctx: Dictionary) -> void:
 	"""Draw life cycle effects: spawns, deaths, coherence strikes."""
 	var life_cycle_effects = ctx.get("life_cycle_effects", {})
+	var batcher = ctx.get("geometry_batcher")
 	var font = ThemeDB.fallback_font
 
 	# Spawn effects
@@ -256,18 +284,26 @@ func _draw_life_cycle_effects(graph: Node2D, ctx: Dictionary) -> void:
 		var ring_radius = 10.0 + progress * 50.0
 		var ring_color = color
 		ring_color.a = alpha * 0.6
-		graph.draw_arc(pos, ring_radius, 0, TAU, 32, ring_color, 3.0, true)
 
 		var glow_color = color.lightened(0.3)
 		glow_color.a = alpha * 0.4
-		graph.draw_circle(pos, ring_radius * 0.5, glow_color)
+
+		if batcher:
+			batcher.add_arc(pos, ring_radius, 0, TAU, 3.0, ring_color)
+			batcher.add_circle(pos, ring_radius * 0.5, glow_color)
+		else:
+			graph.draw_arc(pos, ring_radius, 0, TAU, 32, ring_color, 3.0, true)
+			graph.draw_circle(pos, ring_radius * 0.5, glow_color)
 
 		for i in range(4):
 			var angle = (t * 3.0 + i * TAU / 4.0)
 			var sparkle_pos = pos + Vector2(cos(angle), sin(angle)) * ring_radius * 0.7
 			var sparkle_color = Color.WHITE
 			sparkle_color.a = alpha * 0.8
-			graph.draw_circle(sparkle_pos, 3.0 * (1.0 - progress), sparkle_color)
+			if batcher:
+				batcher.add_circle(sparkle_pos, 3.0 * (1.0 - progress), sparkle_color)
+			else:
+				graph.draw_circle(sparkle_pos, 3.0 * (1.0 - progress), sparkle_color)
 
 	# Death effects
 	for effect in life_cycle_effects.get("deaths", []):
@@ -282,7 +318,7 @@ func _draw_life_cycle_effects(graph: Node2D, ctx: Dictionary) -> void:
 		var ghost_pos = pos + Vector2(0, -progress * 30.0)
 		var emoji_alpha = alpha * 0.8
 
-		# Try SVG glyph, fallback to emoji text (safe autoload access)
+		# Try SVG glyph, fallback to emoji text (safe autoload access) - not batched
 		var texture: Texture2D = null
 		var visual_asset_registry = graph.get_node_or_null("/root/VisualAssetRegistry")
 		if visual_asset_registry and visual_asset_registry.has_method("get_texture"):
@@ -300,7 +336,10 @@ func _draw_life_cycle_effects(graph: Node2D, ctx: Dictionary) -> void:
 			var dist = progress * 40.0
 			var particle_pos = pos + Vector2(cos(angle), sin(angle) - progress) * dist
 			var particle_color = Color(0.5, 0.5, 0.5, alpha * 0.5)
-			graph.draw_circle(particle_pos, 2.0 * (1.0 - progress), particle_color)
+			if batcher:
+				batcher.add_circle(particle_pos, 2.0 * (1.0 - progress), particle_color)
+			else:
+				graph.draw_circle(particle_pos, 2.0 * (1.0 - progress), particle_color)
 
 	# Coherence strike effects
 	for effect in life_cycle_effects.get("strikes", []):
@@ -327,15 +366,22 @@ func _draw_life_cycle_effects(graph: Node2D, ctx: Dictionary) -> void:
 
 			var glow = flash_color
 			glow.a = alpha * 0.3
-			graph.draw_line(prev_point, point, glow, 8.0, true)
-			graph.draw_line(prev_point, point, flash_color, 3.0, true)
+			if batcher:
+				batcher.add_line(prev_point, point, glow, 8.0)
+				batcher.add_line(prev_point, point, flash_color, 3.0)
+			else:
+				graph.draw_line(prev_point, point, glow, 8.0, true)
+				graph.draw_line(prev_point, point, flash_color, 3.0, true)
 
 			prev_point = point
 
 		var impact_size = 20.0 * (1.0 - progress)
 		var impact_color = flash_color
 		impact_color.a = alpha * 0.6
-		graph.draw_circle(to_pos, impact_size, impact_color)
+		if batcher:
+			batcher.add_circle(to_pos, impact_size, impact_color)
+		else:
+			graph.draw_circle(to_pos, impact_size, impact_color)
 
 
 func _update_entanglement_particles(delta: float, ctx: Dictionary) -> void:

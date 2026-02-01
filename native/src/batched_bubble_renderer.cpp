@@ -1,3 +1,30 @@
+/**
+ * @file batched_bubble_renderer.cpp
+ * @brief Native C++ bubble triangulation renderer
+ *
+ * DEPRECATION NOTICE:
+ * ====================
+ * This C++ renderer is being replaced by BubbleAtlasBatcher.gd which uses
+ * GPU texture atlas batching for significantly better performance:
+ *
+ *   - Before (C++): ~200 triangles per bubble, CPU-bound triangulation
+ *   - After (Atlas): ~18 triangles per bubble, GPU-batched with pre-rendered templates
+ *
+ * The atlas approach pre-renders grayscale geometric templates (circles, rings)
+ * at boot time and applies per-vertex color modulation at runtime. This reduces
+ * draw calls from 48+ to 1-2 per frame and eliminates per-frame CPU triangulation.
+ *
+ * This file is kept as a fallback for platforms where atlas building fails,
+ * and as a reference for the visual layer logic that BubbleAtlasBatcher replicates.
+ *
+ * Migration path:
+ *   1. BubbleAtlasBatcher.gd is now the primary renderer
+ *   2. BatchedBubbleRenderer.gd checks for atlas first, falls back to this C++ code
+ *   3. This file will be removed after 1-2 release cycles
+ *
+ * See: Core/Visualization/BubbleAtlasBatcher.gd for the new implementation
+ */
+
 #include "batched_bubble_renderer.h"
 #include <godot_cpp/core/class_db.hpp>
 #include <godot_cpp/variant/utility_functions.hpp>

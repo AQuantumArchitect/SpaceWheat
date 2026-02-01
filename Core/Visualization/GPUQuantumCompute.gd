@@ -17,6 +17,7 @@ var gpu_available: bool = false
 ## Shader pipelines
 var mi_pipeline: RID = RID()
 var force_pipeline: RID = RID()
+var shadow_pipeline: RID = RID()
 
 ## Storage buffers (GPU-side)
 var _mi_buffer: RID = RID()
@@ -54,6 +55,10 @@ func _init_gpu_compute() -> bool:
 	if not _compile_shader("force"):
 		return false
 
+	# Compile shadow influence shader
+	if not _compile_shader("shadow"):
+		push_warning("GPUQuantumCompute: Shadow shader not available, will skip shadow influences")
+
 	return true
 
 
@@ -86,6 +91,11 @@ func _compile_shader(shader_type: String) -> bool:
 			var shader_rid = rd.shader_create_from_spirv(shader_spirv)
 			force_pipeline = rd.compute_pipeline_create(shader_rid)
 			return force_pipeline != RID()
+
+		"shadow":
+			var shader_rid = rd.shader_create_from_spirv(shader_spirv)
+			shadow_pipeline = rd.compute_pipeline_create(shader_rid)
+			return shadow_pipeline != RID()
 
 	return false
 
@@ -324,6 +334,140 @@ func compute_forces_gpu(
 		"positions": new_positions,
 		"velocities": new_velocities
 	}
+
+
+## =============================================================================
+## SHADOW INFLUENCE GPU COMPUTATION
+## =============================================================================
+
+func compute_shadow_gpu(
+	positions: PackedVector2Array,
+	phi_values: PackedFloat32Array,
+	season_projections: Array,  # Array of [r, g, b, coherence] per node
+	coupling_matrix: PackedFloat32Array,  # N×N flattened
+	max_distance: float = 300.0,
+	wedge_half_angle: float = 0.523599  # 30 degrees in radians
+) -> Array:
+	"""Compute shadow influences on GPU.
+
+	Args:
+		positions: Node positions
+		phi_values: Raw phase angles per node
+		season_projections: Array of [r, g, b, coherence] arrays per node
+		coupling_matrix: N×N coupling strengths (flattened row-major)
+		max_distance: Maximum influence distance
+		wedge_half_angle: Half-angle of wedge cone in radians
+
+	Returns:
+		Array of {tint: Color, strength: float} per node
+		Returns empty array if GPU unavailable.
+	"""
+	if not gpu_available or shadow_pipeline == RID():
+		return []
+
+	var num_nodes = positions.size()
+	if num_nodes == 0:
+		return []
+
+	# Pack season projections to vec4 array (xyz = rgb, w = coherence)
+	var season_packed = PackedFloat32Array()
+	for i in range(num_nodes):
+		if i < season_projections.size():
+			var proj = season_projections[i]
+			season_packed.append(proj[0] if proj.size() > 0 else 0.5)  # r
+			season_packed.append(proj[1] if proj.size() > 1 else 0.5)  # g
+			season_packed.append(proj[2] if proj.size() > 2 else 0.5)  # b
+			season_packed.append(proj[3] if proj.size() > 3 else 0.5)  # coherence
+		else:
+			season_packed.append_array([0.5, 0.5, 0.5, 0.0])
+
+	# Pack positions as float pairs
+	var pos_packed = PackedFloat32Array()
+	for p in positions:
+		pos_packed.append(p.x)
+		pos_packed.append(p.y)
+
+	# Convert to bytes
+	var pos_bytes = pos_packed.to_byte_array()
+	var phi_bytes = phi_values.to_byte_array()
+	var season_bytes = season_packed.to_byte_array()
+	var coupling_bytes = coupling_matrix.to_byte_array()
+
+	# Create buffers
+	var pos_buffer = rd.storage_buffer_create(pos_bytes.size(), pos_bytes)
+	var phi_buffer = rd.storage_buffer_create(phi_bytes.size(), phi_bytes)
+	var season_buffer = rd.storage_buffer_create(season_bytes.size(), season_bytes)
+	var coupling_buffer = rd.storage_buffer_create(coupling_bytes.size(), coupling_bytes)
+
+	# Output buffer: vec4 per node (rgb tint + strength)
+	var output_size = num_nodes * 4 * 4  # 4 floats × 4 bytes each
+	var output_buffer = rd.storage_buffer_create(output_size)
+
+	# Set up uniforms
+	var uniforms = []
+	for i in range(5):
+		var u = RDUniform.new()
+		u.uniform_type = RenderingDevice.UNIFORM_TYPE_STORAGE_BUFFER
+		u.binding = i
+		uniforms.append(u)
+
+	uniforms[0].add_id(pos_buffer)
+	uniforms[1].add_id(phi_buffer)
+	uniforms[2].add_id(season_buffer)
+	uniforms[3].add_id(coupling_buffer)
+	uniforms[4].add_id(output_buffer)
+
+	var uniform_set = rd.uniform_set_create(uniforms, shadow_pipeline, 0)
+
+	# Push constants
+	var push_const = PackedFloat32Array([
+		float(num_nodes),
+		max_distance,
+		wedge_half_angle,
+		0.0  # padding for alignment
+	])
+	# Repack as uint + 2 floats to match shader layout
+	var push_bytes = PackedByteArray()
+	push_bytes.append_array(PackedInt32Array([num_nodes]).to_byte_array())
+	push_bytes.append_array(PackedFloat32Array([max_distance, wedge_half_angle]).to_byte_array())
+
+	# Dispatch compute
+	var compute_list = rd.compute_list_begin()
+	rd.compute_list_bind_uniform_set(compute_list, uniform_set, 0)
+	rd.compute_list_set_push_constant(compute_list, push_bytes, push_bytes.size())
+
+	var workgroup_count = ceili(float(num_nodes) / 32.0)
+	rd.compute_list_dispatch(compute_list, workgroup_count, 1, 1)
+	rd.compute_list_end()
+
+	# Submit and wait
+	rd.submit()
+	rd.sync()
+
+	# Read back results
+	var result_bytes = rd.buffer_get_data(output_buffer)
+	var result_floats = result_bytes.to_float32_array()
+
+	# Convert to array of dictionaries
+	var results = []
+	for i in range(num_nodes):
+		var base = i * 4
+		if base + 3 < result_floats.size():
+			results.append({
+				"tint": Color(result_floats[base], result_floats[base + 1], result_floats[base + 2]),
+				"strength": result_floats[base + 3]
+			})
+		else:
+			results.append({"tint": Color.WHITE, "strength": 0.0})
+
+	# Clean up buffers
+	rd.free_rid(pos_buffer)
+	rd.free_rid(phi_buffer)
+	rd.free_rid(season_buffer)
+	rd.free_rid(coupling_buffer)
+	rd.free_rid(output_buffer)
+
+	return results
 
 
 ## =============================================================================

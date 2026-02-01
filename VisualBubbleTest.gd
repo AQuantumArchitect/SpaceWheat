@@ -11,11 +11,14 @@ const SimStatsOverlay = preload("res://UI/Overlays/SimStatsOverlay.gd")
 const TestInspectorOverlay = preload("res://Tests/TestInspectorOverlay.gd")
 const FrameBudgetProfiler = preload("res://Tests/FrameBudgetProfiler.gd")
 const RenderingProfiler = preload("res://Tests/RenderingProfiler.gd")
+const ComputeBenchmark = preload("res://Tests/ComputeBenchmark.gd")
 
 var boot_manager: TestBootManager = null
 var biomes: Dictionary = {}
 var batcher = null
+var lookahead_engine = null  # Native C++ evolution engine (shared across all biomes)
 var emoji_atlas = null  # Pre-built emoji atlas for GPU-accelerated rendering
+var bubble_atlas = null  # Pre-built bubble atlas for GPU-accelerated bubble rendering
 var force_graph: QuantumForceGraph = null
 var stats_overlay = null
 var inspector_overlay = null
@@ -23,6 +26,15 @@ var frame = 0
 var test_phase = "init"
 var screen_center: Vector2 = Vector2.ZERO
 var window_ready: bool = false
+
+# Benchmark
+var benchmark: ComputeBenchmark = null
+var benchmark_results: Dictionary = {}
+var run_benchmark: bool = false  # Disabled during profiling (too slow)
+
+# Profiling
+var profiling_enabled: bool = true  # Enable force calculation profiling
+var profiling_started: bool = false
 
 # Controls
 var evolution_enabled = true
@@ -140,7 +152,9 @@ func _start_boot():
 
 	biomes = result.get("biomes", {})
 	batcher = result.get("batcher")
+	lookahead_engine = result.get("lookahead_engine")  # Store for dynamic biome loading
 	emoji_atlas = result.get("emoji_atlas_batcher")
+	bubble_atlas = result.get("bubble_atlas_batcher")
 
 	# Initialize biome visibility (all start visible)
 	for biome_name in biomes:
@@ -168,7 +182,7 @@ func _create_visualization():
 	"""Create QuantumForceGraph with booted biomes"""
 	print("\n[VIZ] Creating QuantumForceGraph...")
 
-	force_graph = boot_manager.create_force_graph(self, biomes, batcher, emoji_atlas)
+	force_graph = boot_manager.create_force_graph(self, biomes, batcher, emoji_atlas, bubble_atlas)
 
 	# Center the graph at screen center
 	print("  Centering at: %s" % screen_center)
@@ -235,6 +249,16 @@ func _create_visualization():
 	else:
 		print("  WARNING: No bubbles created!")
 
+	# Run benchmark if enabled (skip in headless mode)
+	if run_benchmark and DisplayServer.get_name() != "headless":
+		print("\n[BENCHMARK] Running compute backend benchmark...")
+		test_phase = "benchmarking"
+		_run_benchmark()
+		await benchmark.benchmark_complete
+		print("[BENCHMARK] Complete!")
+	else:
+		print("\n[BENCHMARK] Skipped (headless or disabled)")
+
 	test_phase = "running"
 	frame = 0
 
@@ -261,8 +285,33 @@ func _process(delta):
 	match test_phase:
 		"waiting_for_window":
 			_check_window_ready()
+		"benchmarking":
+			pass  # Benchmark runs async
 		"running":
 			_run_visual_update(delta)
+
+
+func _run_benchmark():
+	"""Run compute backend benchmark."""
+	benchmark = ComputeBenchmark.new()
+
+	# Connect progress signal for live updates
+	benchmark.benchmark_progress.connect(_on_benchmark_progress)
+
+	# Run benchmark (uses first biome for test data)
+	var first_biome = biomes.values()[0] if biomes.size() > 0 else null
+	benchmark_results = benchmark.run_benchmark(first_biome)
+
+	# Store results for later reference
+	if force_graph and force_graph.force_system:
+		# TODO: Could update force_system's backend based on results
+		pass
+
+
+func _on_benchmark_progress(backend: String, iteration: int, total: int):
+	"""Handle benchmark progress updates."""
+	if iteration == 1:
+		print("  %s: iteration %d/%d..." % [backend.to_upper(), iteration, total])
 
 
 func _physics_process(delta):
@@ -305,6 +354,11 @@ func _run_visual_update(delta):
 		if position_tracker.size() > 600:
 			position_tracker.pop_front()
 
+	# Enable profiling at frame 1 of running phase
+	if frame == 1 and profiling_enabled and not profiling_started and force_graph and force_graph.force_system:
+		profiling_started = true
+		force_graph.force_system.enable_profiling()
+
 	# Set initial velocities at frame 3
 	if frame == 3 and force_graph:
 		print("\n[Frame 3] Setting initial velocities...")
@@ -326,20 +380,19 @@ func _run_visual_update(delta):
 			node.emoji_north_opacity, node.emoji_south_opacity
 		])
 
-	# Detailed per-frame batching log (frames 10-40) to verify interpolation
-	if frame >= 10 and frame <= 40 and batcher and batcher.has_method("get_batching_diagnostics"):
-		var diag = batcher.get_batching_diagnostics()
+	# Detailed per-frame batching log (frames 10-100) to verify batching
+	if frame >= 10 and frame <= 100 and batcher:
+		var diag = batcher.get_batching_diagnostics() if batcher.has_method("get_batching_diagnostics") else {}
+		var metrics = batcher.get_performance_metrics() if batcher.has_method("get_performance_metrics") else {}
 		var cursor = diag.get("buffer_cursor", -1)
 		var buffer_size = diag.get("buffer_size", 0)
-		var next_cursor = (cursor + 1) % buffer_size if buffer_size > 0 else -1
-		print("[F%d] cursor=%d→%d/%d t=%.3f evol_accum=%.3f vframes=%d" % [
-			frame,
-			cursor,
-			next_cursor,
-			buffer_size,
-			diag.get("interpolation_t", 0.0),
-			diag.get("evolution_accumulator", 0.0),
-			diag.get("visual_frames_since_refill", 0)
+		var depth = buffer_size - cursor if buffer_size > 0 else 0
+		var pending = metrics.get("batches_pending", 0)
+		var in_flight = metrics.get("batches_in_flight", 0)
+		var batch_ms = metrics.get("last_batch_time_ms", 0.0)
+		print("[F%d] buf=%d/%d pend=%d fly=%d t=%.2f batch=%.1fms" % [
+			frame, depth, buffer_size, pending, in_flight,
+			diag.get("interpolation_t", 0.0), batch_ms
 		])
 
 	# Headless: exit after 500 frames
@@ -351,34 +404,18 @@ func _run_visual_update(delta):
 	# Stats every 60 frames
 	if frame % 60 == 0 and frame >= 5:
 		var total_bubbles = force_graph.quantum_nodes.size() if force_graph else 0
-		var vfps = Engine.get_frames_per_second()  # Visual FPS
-		var pfps = batcher.physics_frames_per_second if batcher else 0.0  # Physics FPS
+		var vfps = Engine.get_frames_per_second()
+		var metrics = batcher.get_performance_metrics() if batcher and batcher.has_method("get_performance_metrics") else {}
 
-		print("\n[Frame %d] VFPS=%.1f  PFPS=%.1f" % [frame, vfps, pfps])
-		print("  Simulation: %s at %.3fx speed" % [
-			"ENABLED" if evolution_enabled else "DISABLED",
-			simulation_time_scale
+		var depth = metrics.get("buffer_depth", 0)
+		var coverage_ms = metrics.get("buffer_coverage_ms", 0.0)
+		var pending = metrics.get("batches_pending", 0)
+		var batch_ms = metrics.get("avg_batch_time_ms", 0.0)
+		var refills = metrics.get("refill_count", 0)
+
+		print("\n[F%d] %.0f FPS | buf=%d (%.0fms) | pend=%d | batch=%.1fms | refills=%d | %d bubbles" % [
+			frame, vfps, depth, coverage_ms, pending, batch_ms, refills, total_bubbles
 		])
-		print("  Bubbles: %d across %d biomes" % [total_bubbles, biomes.size()])
-
-		# Detailed batching diagnostics
-		if batcher and batcher.has_method("get_batching_diagnostics"):
-			var diag = batcher.get_batching_diagnostics()
-			print("  [BATCH] cursor=%d/%d, t=%.3f, evol_tick=%d, refills=%d" % [
-				diag.get("buffer_cursor", -1),
-				diag.get("buffer_size", 0),
-				diag.get("interpolation_t", 0.0),
-				diag.get("evolution_tick", 0),
-				diag.get("refill_count", 0)
-			])
-
-		if tracking_node and position_tracker.size() >= 60:
-			var total_distance = 0.0
-			for i in range(1, position_tracker.size()):
-				total_distance += position_tracker[i].distance_to(position_tracker[i-1])
-			print("  Movement (last 60f): %.1fpx traveled, velocity=%.1fpx/s" % [
-				total_distance, tracking_node.velocity.length()
-			])
 
 	# Detailed C++ task profiling every ~10 physics frames (100 visual frames)
 	if frame % 100 == 0 and frame >= 100 and batcher:
@@ -409,6 +446,9 @@ func _toggle_biome_visibility(keycode: int):
 
 	When toggled OFF: Remove from evolution and rendering
 	When toggled ON: Pick random biome and load it in this slot
+
+	IMPORTANT: Uses lightweight build_single_biome() to avoid creating
+	new engine/batcher instances. Reuses existing infrastructure.
 	"""
 	if not BIOME_KEYS.has(keycode):
 		return
@@ -427,83 +467,89 @@ func _toggle_biome_visibility(keycode: int):
 			slot_biome_name.substr(0, 1), random_biome
 		])
 
-		# Rebuild biome using BiomeBuilder
-		var rebuild_result = await boot_manager.boot_biomes(self, [random_biome])
-		if rebuild_result.get("success", false):
-			var rebuilt_biomes = rebuild_result.get("biomes", {})
-			if rebuilt_biomes.has(random_biome):
-				var new_biome = rebuilt_biomes[random_biome]
+		# Remove old biome from slot if exists
+		if biomes.has(slot_biome_name):
+			var old_biome = biomes[slot_biome_name]
+			var actual_old_name = slot_to_actual_biome.get(slot_biome_name, slot_biome_name)
 
-				# Remove old biome from slot if exists
-				if biomes.has(slot_biome_name):
-					var old_biome = biomes[slot_biome_name]
-					if batcher:
-						var idx = batcher.biomes.find(old_biome)
-						if idx >= 0:
-							batcher.biomes.remove_at(idx)
-					biomes.erase(slot_biome_name)
+			# Use lightweight unregister
+			boot_manager.unregister_biome(old_biome, batcher)
 
-				# Assign new biome to slot
-				biomes[slot_biome_name] = new_biome
+			# Remove nodes from force graph
+			if force_graph:
+				force_graph.remove_nodes_for_biome(actual_old_name)
 
-				# Track which actual biome is in this slot (for incremental node removal)
-				slot_to_actual_biome[slot_biome_name] = random_biome
+			biomes.erase(slot_biome_name)
 
-				# Position biome at slot location
-				var positions = {
-					"CyberDebtMegacity": Vector2(-0.9, -0.6),   # T
-					"StellarForges": Vector2(0, -0.6),          # Y
-					"VolcanicWorlds": Vector2(0.9, -0.6),       # U
-					"BioticFlux": Vector2(-0.9, 0.6),           # I
-					"FungalNetworks": Vector2(0, 0.6),          # O
-					"TidalPools": Vector2(0.9, 0.6)             # P
-				}
-				if positions.has(slot_biome_name):
-					new_biome.visual_center_offset = positions[slot_biome_name]
+		# Build single biome using LIGHTWEIGHT method (reuses existing engine/batcher)
+		var build_result = boot_manager.build_single_biome(
+			random_biome,
+			self,
+			batcher,
+			lookahead_engine
+		)
 
-				# Register with batcher
-				if batcher:
-					batcher.register_biome(new_biome)
+		if build_result.get("success", false):
+			var new_biome = build_result.get("biome")
 
-				# Register biome with layout calculator BEFORE creating nodes
-				if force_graph and force_graph.layout_calculator:
-					# Ensure layout calculator knows about this biome type
-					force_graph.layout_calculator.get_biome_oval(random_biome)
+			# Assign new biome to slot
+			biomes[slot_biome_name] = new_biome
 
-				# Add nodes for this biome only (incremental, not full rebuild)
-				if force_graph:
-					force_graph.add_nodes_for_biome(random_biome, new_biome)
+			# Track which actual biome is in this slot (for incremental node removal)
+			slot_to_actual_biome[slot_biome_name] = random_biome
 
-				# Update inspector
-				if inspector_overlay:
-					inspector_overlay.set_biomes(biomes)
+			# Position biome at slot location
+			var positions = {
+				"CyberDebtMegacity": Vector2(-0.9, -0.6),   # T
+				"StellarForges": Vector2(0, -0.6),          # Y
+				"VolcanicWorlds": Vector2(0.9, -0.6),       # U
+				"BioticFlux": Vector2(-0.9, 0.6),           # I
+				"FungalNetworks": Vector2(0, 0.6),          # O
+				"TidalPools": Vector2(0.9, 0.6)             # P
+			}
+			if positions.has(slot_biome_name):
+				new_biome.visual_center_offset = positions[slot_biome_name]
 
-				print("  Slot %s ← %s (%d qubits)" % [
-					slot_biome_name.substr(0, 1),
-					random_biome,
-					new_biome.quantum_computer.register_map.num_qubits
-				])
+			# Register biome with layout calculator BEFORE creating nodes
+			if force_graph and force_graph.layout_calculator:
+				# Ensure layout calculator knows about this biome type
+				force_graph.layout_calculator.get_biome_oval(random_biome)
+
+			# Add nodes for this biome only (incremental, not full rebuild)
+			if force_graph:
+				force_graph.add_nodes_for_biome(random_biome, new_biome)
+
+			# Update inspector
+			if inspector_overlay:
+				inspector_overlay.set_biomes(biomes)
+
+			print("  Slot %s ← %s (%d qubits, engine_id=%d)" % [
+				slot_biome_name.substr(0, 1),
+				random_biome,
+				new_biome.quantum_computer.register_map.num_qubits,
+				build_result.get("biome_id", -1)
+			])
 		else:
-			print("  REBUILD FAILED: %s" % random_biome)
+			print("  REBUILD FAILED: %s (%s)" % [random_biome, build_result.get("error", "unknown")])
+			biome_visibility[slot_biome_name] = false  # Revert toggle state
 	else:
 		# Toggling OFF: Remove from batcher and remove nodes
 		var biome = biomes.get(slot_biome_name)
-		if biome and batcher:
-			# Remove from batcher's biomes array
-			var idx = batcher.biomes.find(biome)
-			if idx >= 0:
-				batcher.biomes.remove_at(idx)
+		var actual_biome_name = slot_to_actual_biome.get(slot_biome_name, slot_biome_name)
+
+		if biome:
+			# Use lightweight unregister (cleans up batcher buffers properly)
+			boot_manager.unregister_biome(biome, batcher)
 
 		# Remove nodes for this biome from force graph (incremental)
-		# Use actual biome name, not slot name
-		var actual_biome_name = slot_to_actual_biome.get(slot_biome_name, slot_biome_name)
 		if force_graph:
 			force_graph.remove_nodes_for_biome(actual_biome_name)
 
 		# Clean up tracking
 		slot_to_actual_biome.erase(slot_biome_name)
+		biomes.erase(slot_biome_name)
 
-		print("Slot %s: Evolution DISABLED" % slot_biome_name.substr(0, 1))
+		print("Slot %s: Evolution DISABLED (%s)" % [slot_biome_name.substr(0, 1), actual_biome_name])
 
 
 func _get_speed_fraction(speed: float) -> String:
@@ -575,66 +621,110 @@ func _input(event):
 
 
 func _print_cpp_profiling_report():
-	"""Print detailed C++ task profiling and resource usage over last 10 physics frames."""
+	"""Print detailed frame budget breakdown and batching status."""
 	if not batcher or not batcher.has_method("get_performance_metrics"):
 		return
 
 	var metrics = batcher.get_performance_metrics()
 	var vfps = Engine.get_frames_per_second()
-	var frame_budget_ms = 16.67  # 60 FPS target
+	var frame_time_ms = 1000.0 / vfps if vfps > 0 else 16.67
 
-	print("\n" + "=".repeat(75))
-	print("📊 C++ TASK PROFILING - Frame %d (10 Physics Frames Window)" % frame)
-	print("=".repeat(75))
+	print("\n" + "─".repeat(70))
+	print("📊 FRAME BUDGET BREAKDOWN - Frame %d" % frame)
+	print("─".repeat(70))
 
-	# Frame budget analysis
-	var estimated_render_ms = 5.1  # From rendering profiler
-	var physics_frame_time = 1000.0 / (metrics.get("physics_fps", 10.0) if metrics.get("physics_fps", 10.0) > 0 else 10.0)
+	# Visual FPS and frame time
+	var physics_fps = metrics.get("physics_fps", 10.0)
+	var avg_frame_ms = metrics.get("avg_frame_time_ms", 16.67)
 
-	print("\n⏱️  FRAME BUDGET:")
-	print("  Visual FPS:     %.1f fps (%.2fms/frame)" % [vfps, 1000.0 / vfps if vfps > 0 else 0])
-	print("  Physics FPS:    %.1f Hz  (%.2fms/frame)" % [
-		metrics.get("physics_fps", 0.0),
-		physics_frame_time
-	])
-	print("  Target budget:  16.67ms (60 fps)")
+	print("\n🎯 TARGET: 16.67ms (60 FPS)  |  ACTUAL: %.2fms (%.1f FPS)" % [frame_time_ms, vfps])
 
-	# C++ task breakdown
-	print("\n⚙️  C++ TASK TIMINGS:")
-	print("  Evolution (C++):   %.2fms/batch  (avg: %.2fms)" % [
-		metrics.get("last_batch_time_ms", 0.0),
-		metrics.get("avg_batch_time_ms", 0.0)
-	])
-	print("    ├─ Batches pending:   %d" % metrics.get("batches_pending", 0))
-	print("    ├─ Batches in flight: %d" % metrics.get("batches_in_flight", 0))
-	print("    └─ Total evolutions:  %d" % metrics.get("total_evolutions", 0))
+	# Frame budget breakdown
+	var batch_time = metrics.get("avg_batch_time_ms", 0.0)
+	var last_batch_time = metrics.get("last_batch_time_ms", 0.0)
+	var batches_pending = metrics.get("batches_pending", 0)
 
-	print("\n  Force calc (GPU):  [active - check GPU usage]")
-	print("  Rendering (GPU):   ~%.1fms (estimated)" % estimated_render_ms)
+	# Estimate how often batches run (when queue is not empty)
+	# Approximate elapsed time: frame count / assumed 60 FPS
+	var elapsed_seconds = max(1.0, frame / 60.0)
+	var batches_per_second = metrics.get("refill_count", 0) / elapsed_seconds
+	var batches_per_visual_frame = batches_per_second / max(1.0, vfps)
 
-	# Resource usage (requires external monitoring)
-	print("\n💻 RESOURCE USAGE (last 10 physics frames):")
-	print("  CPU:  Check system monitor (top/htop)")
-	print("  GPU:  Check nvidia-smi / radeontop / intel_gpu_top")
-	print("  Note: Frame %d, Refills: %d" % [frame, metrics.get("refill_count", 0)])
-
-	# Buffer health
-	var diag = batcher.get_batching_diagnostics() if batcher.has_method("get_batching_diagnostics") else {}
-	var buffer_size = diag.get("buffer_size", 0)
-	var cursor = diag.get("buffer_cursor", 0)
-	var steps_remaining = buffer_size - cursor
-	var buffer_ms_remaining = steps_remaining * 100.0  # 100ms per step
-
-	print("\n📦 BUFFER HEALTH:")
-	print("  Steps remaining:  %d / %d  (%.0fms coverage)" % [
-		steps_remaining,
-		buffer_size,
-		buffer_ms_remaining
-	])
-	print("  Refill threshold: 2000ms")
-	if buffer_ms_remaining < 2000:
-		print("  ⚠️  Buffer low - refill imminent")
+	print("\n⏱️  WHERE TIME GOES (per visual frame):")
+	print("  ┌─────────────────────────────────────────────────────────┐")
+	if batches_pending > 0:
+		print("  │ ⚠️  BATCH BLOCKING: ~%.2fms  (SYNCHRONOUS!)           │" % last_batch_time)
 	else:
-		print("  ✅ Buffer healthy")
+		print("  │ C++ Evolution:     ~%.2fms  (avg, amortized)           │" % [batch_time * batches_per_visual_frame])
 
-	print("=".repeat(75) + "\n")
+	# Estimate rendering time (varies by scene complexity)
+	var estimated_render_ms = frame_time_ms * 0.5  # Rough estimate: 50% of frame time
+	print("  │ Rendering:         ~%.2fms  (estimated)                │" % estimated_render_ms)
+	print("  │ Force calc (GPU):  ~1-2ms   (parallel, estimated)     │")
+
+	# GDScript overhead (remainder after accounting for known components)
+	var accounted_time = (batch_time * batches_per_visual_frame) + estimated_render_ms + 2.0
+	var overhead_ms = max(0.0, frame_time_ms - accounted_time)
+	print("  │ GDScript overhead: ~%.2fms  (remainder)                │" % overhead_ms)
+	print("  └─────────────────────────────────────────────────────────┘")
+	print("  Note: With async batches, visual frames should no longer block!")
+
+	# Batching status (Adaptive Fibonacci mode)
+	var batch_size = metrics.get("batch_size", 5)
+	var batches_per_refill = metrics.get("batches_per_refill", 1)
+	var buffer_state = metrics.get("buffer_state", "UNKNOWN")
+	var fib_index = metrics.get("fib_index", 4)
+	var pending = metrics.get("batches_pending", 0)
+	var in_flight = metrics.get("batches_in_flight", 0)
+
+	print("\n📦 BATCHING (Adaptive Fibonacci):")
+	if batches_per_refill == 1:
+		# Adaptive mode: 1 batch of variable size
+		print("  Mode:     %s (fib_index=%d)" % [buffer_state, fib_index])
+		print("  Batch:    %d steps/refill (Fib[%d])" % [batch_size, fib_index])
+	else:
+		# Legacy mode: multiple fixed-size batches
+		print("  Config:   %d steps/batch × %d batches = %d steps/refill" % [
+			batch_size, batches_per_refill, batch_size * batches_per_refill
+		])
+	print("  Queue:    %d pending, %d in-flight" % [pending, in_flight])
+	print("  Timing:   %.2fms last | %.2fms avg" % [
+		metrics.get("last_batch_time_ms", 0.0),
+		batch_time
+	])
+
+	# Buffer state
+	var depth = metrics.get("buffer_depth", 0)
+	var coverage_ms = metrics.get("buffer_coverage_ms", 0.0)
+	var threshold_ms = metrics.get("refill_threshold_ms", 2000.0)
+	var coast_target = metrics.get("coast_target", 10)
+
+	var bar_width = 30
+	var max_coverage_ms = 2400.0  # 24 steps × 100ms = 2.4s max buffer
+	var fill = int(clampf(coverage_ms / max_coverage_ms, 0.0, 1.0) * bar_width)
+	var threshold_pos = int(clampf(threshold_ms / max_coverage_ms, 0.0, 1.0) * bar_width)
+	var bar = ""
+	for i in range(bar_width):
+		if i == threshold_pos:
+			bar += "|"
+		elif i < fill:
+			bar += "█"
+		else:
+			bar += "░"
+
+	print("\n🔋 BUFFER: %d steps (%.0fms)" % [depth, coverage_ms])
+	print("  [%s] %.0fms threshold" % [bar, threshold_ms])
+
+	if coverage_ms < threshold_ms:
+		print("  ⚠️  LOW - refill triggered")
+	elif coverage_ms < threshold_ms * 1.5:
+		print("  🟡 OK - will refill soon")
+	else:
+		print("  ✅ HEALTHY")
+
+	# Stats
+	print("\n📈 STATS: %d refills | PFPS: %.1f Hz" % [
+		metrics.get("refill_count", 0),
+		physics_fps
+	])
+	print("─".repeat(70))

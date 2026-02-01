@@ -1,6 +1,18 @@
 #ifndef BATCHED_BUBBLE_RENDERER_H
 #define BATCHED_BUBBLE_RENDERER_H
 
+/**
+ * DEPRECATION NOTICE:
+ * ====================
+ * This C++ renderer is being replaced by BubbleAtlasBatcher.gd which uses
+ * GPU texture atlas batching for significantly better performance.
+ *
+ * See batched_bubble_renderer.cpp and Core/Visualization/BubbleAtlasBatcher.gd
+ * for details on the migration path.
+ *
+ * This file will be removed after 1-2 release cycles.
+ */
+
 #include <godot_cpp/classes/ref_counted.hpp>
 #include <godot_cpp/variant/packed_float64_array.hpp>
 #include <godot_cpp/variant/packed_vector2_array.hpp>

@@ -59,6 +59,7 @@ func _draw_plot_tethers(graph: Node2D, ctx: Dictionary) -> void:
 	var quantum_nodes = ctx.get("quantum_nodes", [])
 	var plot_positions = ctx.get("all_plot_positions", {})
 	var plot_tether_colors = ctx.get("plot_tether_colors", {})
+	var batcher = ctx.get("geometry_batcher")
 
 	if plot_positions.is_empty():
 		return
@@ -79,15 +80,23 @@ func _draw_plot_tethers(graph: Node2D, ctx: Dictionary) -> void:
 		var line_color = plot_tether_colors.get(node.grid_position, Color(0.8, 0.85, 0.9, 0.25))
 		var dist = node.position.distance_to(anchor_pos)
 		line_color.a *= clampf(1.0 - dist / 450.0, 0.2, 1.0)
-		_draw_dashed_line(graph, anchor_pos, node.position, line_color, 1.5, 6.0, 4.0)
+
+		if batcher:
+			batcher.add_dashed_line(anchor_pos, node.position, line_color, 1.5, 6.0, 4.0)
+		else:
+			_draw_dashed_line(graph, anchor_pos, node.position, line_color, 1.5, 6.0, 4.0)
 
 		# Anchor dot (draw once per plot)
 		if not drawn_anchors.has(node.grid_position):
 			drawn_anchors[node.grid_position] = true
 			var base = Color(0.08, 0.08, 0.1, 0.7)
 			var glow = Color(0.9, 0.9, 1.0, 0.6)
-			graph.draw_circle(anchor_pos, 7.0, base)
-			graph.draw_circle(anchor_pos, 3.0, glow)
+			if batcher:
+				batcher.add_circle(anchor_pos, 7.0, base)
+				batcher.add_circle(anchor_pos, 3.0, glow)
+			else:
+				graph.draw_circle(anchor_pos, 7.0, base)
+				graph.draw_circle(anchor_pos, 3.0, glow)
 
 
 # ============================================================================
@@ -108,6 +117,7 @@ func _draw_mutual_information_web(graph: Node2D, ctx: Dictionary) -> void:
 	var biomes = ctx.get("biomes", {})
 	var force_system = ctx.get("force_system")
 	var active_biome = ctx.get("active_biome", "")
+	var batcher = ctx.get("geometry_batcher")
 
 	# Get visible nodes
 	var visible_nodes: Array = []
@@ -166,7 +176,10 @@ func _draw_mutual_information_web(graph: Node2D, ctx: Dictionary) -> void:
 				# Line width scales with MI
 				var width = 1.0 + mi * 1.5
 
-				graph.draw_line(node_a.position, node_b.position, color, width, true)
+				if batcher:
+					batcher.add_line(node_a.position, node_b.position, color, width)
+				else:
+					graph.draw_line(node_a.position, node_b.position, color, width, true)
 
 
 # ============================================================================
@@ -182,6 +195,7 @@ func _draw_entanglement_lines(graph: Node2D, ctx: Dictionary) -> void:
 	var quantum_nodes = ctx.get("quantum_nodes", [])
 	var node_by_plot_id = ctx.get("node_by_plot_id", {})
 	var time_accumulator = ctx.get("time_accumulator", 0.0)
+	var batcher = ctx.get("geometry_batcher")
 
 	var drawn_pairs = {}
 
@@ -221,17 +235,23 @@ func _draw_entanglement_lines(graph: Node2D, ctx: Dictionary) -> void:
 			# Outer glow
 			var glow_outer = base_color
 			glow_outer.a = alpha * 0.25
-			graph.draw_line(node.position, partner_node.position, glow_outer, pulsed_width * 3.5, true)
 
 			# Mid glow
 			var glow_mid = base_color
 			glow_mid.a = alpha * 0.5
-			graph.draw_line(node.position, partner_node.position, glow_mid, pulsed_width * 2.0, true)
 
 			# Core line
 			var core_color = Color(0.6, 1.0, 1.0)
 			core_color.a = alpha * 0.95
-			graph.draw_line(node.position, partner_node.position, core_color, pulsed_width, true)
+
+			if batcher:
+				batcher.add_line(node.position, partner_node.position, glow_outer, pulsed_width * 3.5)
+				batcher.add_line(node.position, partner_node.position, glow_mid, pulsed_width * 2.0)
+				batcher.add_line(node.position, partner_node.position, core_color, pulsed_width)
+			else:
+				graph.draw_line(node.position, partner_node.position, glow_outer, pulsed_width * 3.5, true)
+				graph.draw_line(node.position, partner_node.position, glow_mid, pulsed_width * 2.0, true)
+				graph.draw_line(node.position, partner_node.position, core_color, pulsed_width, true)
 
 			# Midpoint indicator
 			var mid_point = (node.position + partner_node.position) / 2
@@ -239,11 +259,16 @@ func _draw_entanglement_lines(graph: Node2D, ctx: Dictionary) -> void:
 
 			var glow_color = base_color
 			glow_color.a = alpha * 0.4
-			graph.draw_circle(mid_point, indicator_size * 1.8, glow_color)
 
 			var core_indicator = Color(0.8, 1.0, 1.0)
 			core_indicator.a = alpha * 0.95
-			graph.draw_circle(mid_point, indicator_size * 0.8, core_indicator)
+
+			if batcher:
+				batcher.add_circle(mid_point, indicator_size * 1.8, glow_color)
+				batcher.add_circle(mid_point, indicator_size * 0.8, core_indicator)
+			else:
+				graph.draw_circle(mid_point, indicator_size * 1.8, glow_color)
+				graph.draw_circle(mid_point, indicator_size * 0.8, core_indicator)
 
 
 # ============================================================================
@@ -260,6 +285,7 @@ func _draw_food_web_as_knot(graph: Node2D, ctx: Dictionary) -> void:
 	"""
 	var quantum_nodes = ctx.get("quantum_nodes", [])
 	var time_accumulator = ctx.get("time_accumulator", 0.0)
+	var batcher = ctx.get("geometry_batcher")
 
 	# Find forest nodes
 	var forest_nodes: Array = []
@@ -290,7 +316,7 @@ func _draw_food_web_as_knot(graph: Node2D, ctx: Dictionary) -> void:
 			var prey_emoji = prey_node.emoji_north
 
 			if prey_emoji in prey_targets:
-				_draw_linked_orbits(graph, predator_node, prey_node, 0.7, time_accumulator, Color(1.0, 0.4, 0.2, 0.5))
+				_draw_linked_orbits(graph, predator_node, prey_node, 0.7, time_accumulator, Color(1.0, 0.4, 0.2, 0.5), batcher)
 
 		# Get escape targets
 		var escape_targets = pred_qubit.get_graph_targets("🏃")
@@ -304,10 +330,10 @@ func _draw_food_web_as_knot(graph: Node2D, ctx: Dictionary) -> void:
 			var threat_emoji = threat_node.emoji_north
 
 			if threat_emoji in escape_targets:
-				_draw_linked_orbits(graph, predator_node, threat_node, 0.4, time_accumulator, Color(0.3, 0.7, 1.0, 0.4))
+				_draw_linked_orbits(graph, predator_node, threat_node, 0.4, time_accumulator, Color(0.3, 0.7, 1.0, 0.4), batcher)
 
 
-func _draw_linked_orbits(graph: Node2D, node_a, node_b, coupling: float, time: float, color: Color) -> void:
+func _draw_linked_orbits(graph: Node2D, node_a, node_b, coupling: float, time: float, color: Color, batcher = null) -> void:
 	"""Draw two linked orbit curves representing the relationship.
 
 	The linking number (how many times curves wind around each other)
@@ -341,7 +367,10 @@ func _draw_linked_orbits(graph: Node2D, node_a, node_b, coupling: float, time: f
 			if i > 0:
 				var segment_color = color
 				segment_color.a = color.a * (0.5 + 0.5 * sin(t * 2 + time * 3))
-				graph.draw_line(prev_point, point, segment_color, 1.5, true)
+				if batcher:
+					batcher.add_line(prev_point, point, segment_color, 1.5)
+				else:
+					graph.draw_line(prev_point, point, segment_color, 1.5, true)
 
 			prev_point = point
 
@@ -367,6 +396,7 @@ func _draw_hamiltonian_coupling_web(graph: Node2D, ctx: Dictionary) -> void:
 	var quantum_nodes = ctx.get("quantum_nodes", [])
 	var biomes = ctx.get("biomes", {})
 	var active_biome = ctx.get("active_biome", "")
+	var batcher = ctx.get("geometry_batcher")
 
 	var drawn_pairs: Dictionary = {}
 
@@ -411,7 +441,10 @@ func _draw_hamiltonian_coupling_web(graph: Node2D, ctx: Dictionary) -> void:
 				var color = Color(0.3, 0.9, 0.4, 0.4)
 				var line_width = clampf(abs(strength) * 2.0 + 1.0, 1.0, 3.0)
 
-				_draw_dashed_line(graph, source_pos, target_pos, color, line_width, 10.0, 6.0)
+				if batcher:
+					batcher.add_dashed_line(source_pos, target_pos, color, line_width, 10.0, 6.0)
+				else:
+					_draw_dashed_line(graph, source_pos, target_pos, color, line_width, 10.0, 6.0)
 
 
 # ============================================================================
@@ -425,6 +458,7 @@ func _draw_lindblad_flow_arrows(graph: Node2D, ctx: Dictionary) -> void:
 	var active_biome = ctx.get("active_biome", "")
 	var time_accumulator = ctx.get("time_accumulator", 0.0)
 	var layout_calculator = ctx.get("layout_calculator")
+	var batcher = ctx.get("geometry_batcher")
 
 	for biome_name in biomes:
 		if active_biome != "" and biome_name != active_biome:
@@ -461,10 +495,10 @@ func _draw_lindblad_flow_arrows(graph: Node2D, ctx: Dictionary) -> void:
 				if target_pos == Vector2.ZERO:
 					continue
 
-				_draw_flow_arrow(graph, source_pos, target_pos, rate, Color(1.0, 0.5, 0.2, 0.5), time_accumulator)
+				_draw_flow_arrow(graph, source_pos, target_pos, rate, Color(1.0, 0.5, 0.2, 0.5), time_accumulator, batcher)
 
 
-func _draw_flow_arrow(graph: Node2D, from_pos: Vector2, to_pos: Vector2, rate: float, color: Color, time: float) -> void:
+func _draw_flow_arrow(graph: Node2D, from_pos: Vector2, to_pos: Vector2, rate: float, color: Color, time: float, batcher = null) -> void:
 	"""Draw a curved flow arrow."""
 	var direction = (to_pos - from_pos).normalized()
 	var distance = from_pos.distance_to(to_pos)
@@ -492,7 +526,10 @@ func _draw_flow_arrow(graph: Node2D, from_pos: Vector2, to_pos: Vector2, rate: f
 
 		var seg_color = color
 		seg_color.a = segment_alpha
-		graph.draw_line(prev_point, p, seg_color, arrow_width, true)
+		if batcher:
+			batcher.add_line(prev_point, p, seg_color, arrow_width)
+		else:
+			graph.draw_line(prev_point, p, seg_color, arrow_width, true)
 		prev_point = p
 
 	# Arrowhead
@@ -503,7 +540,10 @@ func _draw_flow_arrow(graph: Node2D, from_pos: Vector2, to_pos: Vector2, rate: f
 
 	var arrow_color = color
 	arrow_color.a = color.a * 1.2
-	graph.draw_colored_polygon([arrow_tip, arrow_left, arrow_right], arrow_color)
+	if batcher:
+		batcher.add_colored_polygon([arrow_tip, arrow_left, arrow_right], arrow_color)
+	else:
+		graph.draw_colored_polygon([arrow_tip, arrow_left, arrow_right], arrow_color)
 
 
 # ============================================================================
@@ -514,6 +554,7 @@ func _draw_entanglement_clusters(graph: Node2D, ctx: Dictionary) -> void:
 	"""Draw convex hull glow around multi-body entangled groups."""
 	var quantum_nodes = ctx.get("quantum_nodes", [])
 	var node_by_plot_id = ctx.get("node_by_plot_id", {})
+	var batcher = ctx.get("geometry_batcher")
 
 	if quantum_nodes.is_empty():
 		return
@@ -579,7 +620,10 @@ func _draw_entanglement_clusters(graph: Node2D, ctx: Dictionary) -> void:
 			var ring_radius = max_dist * (0.8 + float(ring) * 0.3)
 			var ring_color = cluster_color
 			ring_color.a = cluster_color.a * (1.0 - float(ring) * 0.3)
-			graph.draw_arc(centroid, ring_radius, 0, TAU, 32, ring_color, 2.0, true)
+			if batcher:
+				batcher.add_arc(centroid, ring_radius, 0, TAU, 2.0, ring_color)
+			else:
+				graph.draw_arc(centroid, ring_radius, 0, TAU, 32, ring_color, 2.0, true)
 
 
 # ============================================================================

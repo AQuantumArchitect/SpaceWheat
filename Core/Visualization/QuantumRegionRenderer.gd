@@ -71,6 +71,7 @@ func _draw_temperature_heatmap(graph: Node2D, ctx: Dictionary) -> void:
 	var biomes = ctx.get("biomes", {})
 	var layout_calculator = ctx.get("layout_calculator")
 	var active_biome = ctx.get("active_biome", "")
+	var batcher = ctx.get("geometry_batcher")
 
 	if not layout_calculator:
 		return
@@ -111,7 +112,6 @@ func _draw_temperature_heatmap(graph: Node2D, ctx: Dictionary) -> void:
 			heat_color = Color(0.4 + t * 0.5, 0.2 - t * 0.15, 0.4 - t * 0.3, 0.15)
 
 		# Draw radial gradient
-		var segments = 32
 		for ring in range(3):
 			var ring_t = float(ring) / 3.0
 			var ring_radius = (semi_a + semi_b) / 2.0 * (0.4 + ring_t * 0.5)
@@ -120,12 +120,16 @@ func _draw_temperature_heatmap(graph: Node2D, ctx: Dictionary) -> void:
 			ring_color.a = heat_color.a * (0.5 + ring_t * 0.5)
 
 			if ring > 0:
-				graph.draw_arc(center, ring_radius, 0, TAU, segments, ring_color, 3.0, true)
+				if batcher:
+					batcher.add_arc(center, ring_radius, 0, TAU, 3.0, ring_color)
+				else:
+					graph.draw_arc(center, ring_radius, 0, TAU, 32, ring_color, 3.0, true)
 
 
 func _draw_orbit_trails(graph: Node2D, ctx: Dictionary) -> void:
 	"""Draw fading trails showing bubble evolution history."""
 	var quantum_nodes = ctx.get("quantum_nodes", [])
+	var batcher = ctx.get("geometry_batcher")
 
 	for node in quantum_nodes:
 		if not node.visible:
@@ -149,10 +153,16 @@ func _draw_orbit_trails(graph: Node2D, ctx: Dictionary) -> void:
 
 			var width = 1.0 + t * 2.0
 
-			graph.draw_line(node.position_history[i], node.position_history[i + 1], line_color, width, true)
+			if batcher:
+				batcher.add_line(node.position_history[i], node.position_history[i + 1], line_color, width)
+			else:
+				graph.draw_line(node.position_history[i], node.position_history[i + 1], line_color, width, true)
 
 		# Connect to current position
 		if history_size > 0:
 			var line_color = trail_color
 			line_color.a = 0.4 * node.visual_alpha
-			graph.draw_line(node.position_history[history_size - 1], node.position, line_color, 3.0, true)
+			if batcher:
+				batcher.add_line(node.position_history[history_size - 1], node.position, line_color, 3.0)
+			else:
+				graph.draw_line(node.position_history[history_size - 1], node.position, line_color, 3.0, true)

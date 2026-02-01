@@ -47,14 +47,14 @@ float cabs2(vec2 c) {
 // Simplified: for 2D reduced state, compute directly
 float compute_entropy_2x2(vec2 rho00, vec2 rho01, vec2 rho10, vec2 rho11) {
     // For 2x2 matrix, eigenvalues are from characteristic equation
-    // Simplified: use Tr(ρ²) as purity, then S ≈ -log(1 - (1-p))
+    // Simplified: use Tr(ρ²) as purity, then S ~= -log(1 - (1-p))
     float purity = cabs2(rho00) + cabs2(rho11) + 2.0 * (rho01.x * rho10.x + rho01.y * rho10.y);
 
     // Clamp to valid range [0, 1]
     purity = clamp(purity, 0.0, 1.0);
 
-    // For 2-level system: max entropy = ln(2) ≈ 0.693
-    // Entropy ≈ -purity * log(purity) - (1-purity) * log(1-purity)
+    // For 2-level system: max entropy = ln(2) ~= 0.693
+    // Entropy ~= -purity * log(purity) - (1-purity) * log(1-purity)
     // Approximation: entropy = (1 - purity) * ln(2)
     if (purity > 0.9999) {
         return 0.0;  // Pure state
@@ -64,8 +64,8 @@ float compute_entropy_2x2(vec2 rho00, vec2 rho01, vec2 rho10, vec2 rho11) {
     }
 
     // Use simplified formula for 2x2: entropy = -Tr(ρ log ρ)
-    // For numerical stability: S(ρ) = (1 - purity) when purity ≈ 1
-    return (1.0 - purity) * 0.693;  // ln(2) ≈ 0.693
+    // For numerical stability: S(ρ) = (1 - purity) when purity ~= 1
+    return (1.0 - purity) * 0.693;  // ln(2) ~= 0.693
 }
 
 // Extract reduced density matrix ρ_ij from full density matrix
@@ -81,14 +81,14 @@ void extract_reduced_rho(
     rho11 = vec2(0.0);
 
     // Partial trace: trace out all qubits except qi and qj
-    // For each basis state |s⟩ of qubits other than (qi, qj),
-    // include contribution from states containing |00⟩, |01⟩, |10⟩, |11⟩ at (qi, qj)
+    // For each basis state |s> of qubits other than (qi, qj),
+    // include contribution from states containing |00>, |01>, |10>, |11> at (qi, qj)
 
     for (uint s = 0; s < dim; s++) {
         // Build indices for full density matrix
         // Only include states that can contribute to reduced matrix
 
-        // Contribution from |0⟩_i, |0⟩_j basis
+        // Contribution from |0>_i, |0>_j basis
         uint idx_00_10 = (s & ~((3u << qi))) | (s & ~((3u << qj)));
         uint idx_00_00 = idx_00_10;
 

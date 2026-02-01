@@ -1,0 +1,14 @@
+[remap]
+
+importer="glsl"
+type="RDShaderFile"
+uid="uid://dscv60d02saih"
+path="res://.godot/imported/compute_shadow.glsl-a04f0fc42ea0bd0829fd4746fe00ade0.res"
+
+[deps]
+
+source_file="res://shaders/compute_shadow.glsl"
+dest_files=["res://.godot/imported/compute_shadow.glsl-a04f0fc42ea0bd0829fd4746fe00ade0.res"]
+
+[params]
+

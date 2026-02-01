@@ -8,9 +8,9 @@
  * One GPU thread per node.
  *
  * Forces:
- * - Purity radial: pure states → center, mixed → edge (based on Bloch radius)
- * - Phase angular: same phase → cluster (tangential force)
- * - Correlation: high MI → attract (spring force)
+ * - Purity radial: pure states -> center, mixed -> edge (based on Bloch radius)
+ * - Phase angular: same phase -> cluster (tangential force)
+ * - Correlation: high MI -> attract (spring force)
  * - Repulsion: prevent overlap (inverse-square)
  */
 
@@ -83,8 +83,8 @@ void main() {
     // ==========================================
     // 1. PURITY RADIAL FORCE
     // ==========================================
-    // Pure states (purity ≈ 1) stay near center
-    // Mixed states (purity ≈ 0) pushed toward edge
+    // Pure states (purity ~= 1) stay near center
+    // Mixed states (purity ~= 0) pushed toward edge
 
     if (node_id < num_qubits && node_id < bloch.length()) {
         float purity = bloch[node_id].w;  // w component is Bloch radius (purity proxy)
@@ -142,7 +142,7 @@ void main() {
     // ==========================================
     // 3. CORRELATION FORCES (MI-based springs)
     // ==========================================
-    // High MI → strong attraction (coupled behavior)
+    // High MI -> strong attraction (coupled behavior)
 
     for (uint j = 0u; j < num_nodes; j++) {
         if (j == node_id) continue;

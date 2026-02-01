@@ -1,0 +1,14 @@
+[remap]
+
+importer="glsl"
+type="RDShaderFile"
+uid="uid://c3hgmg4evdp0g"
+path="res://.godot/imported/compute_mi.glsl-255cdfd3524f1b028be5dc6b25cb4d40.res"
+
+[deps]
+
+source_file="res://shaders/compute_mi.glsl"
+dest_files=["res://.godot/imported/compute_mi.glsl-255cdfd3524f1b028be5dc6b25cb4d40.res"]
+
+[params]
+

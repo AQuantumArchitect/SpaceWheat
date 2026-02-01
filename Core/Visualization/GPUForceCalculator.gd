@@ -7,10 +7,17 @@ extends RefCounted
 
 class_name GPUForceCalculator
 
+# Shared shader cache (class-level) to avoid recompilation
+static var _shared_shader: RID = RID()
+static var _shared_pipeline: RID = RID()
+static var _shared_rd: RenderingDevice = null
+static var _shader_compiled: bool = false
+
 var rd: RenderingDevice = null
 var gpu_available: bool = false
 
-var force_pipeline: RID = RID()
+var force_shader: RID = RID()     # Shader RID (needed for uniform set creation)
+var force_pipeline: RID = RID()   # Pipeline RID (needed for dispatch)
 var position_buffer: RID = RID()
 var velocity_buffer: RID = RID()
 var mi_buffer: RID = RID()
@@ -23,23 +30,106 @@ func _init():
 	"""Initialize GPU compute on construction."""
 	_init_gpu()
 
+static func pre_compile_shader() -> Dictionary:
+	"""Pre-compile shader at boot time (called once, shared by all instances).
+
+	Returns: {success: bool, device_name: String, message: String, duration_ms: float}
+	"""
+	if _shader_compiled:
+		return {
+			"success": true,
+			"device_name": _shared_rd.get_device_name() if _shared_rd else "unknown",
+			"message": "Shader already compiled (cached)",
+			"duration_ms": 0.0
+		}
+
+	var start_time = Time.get_ticks_msec()
+
+	# Create shared rendering device
+	_shared_rd = RenderingServer.create_local_rendering_device()
+	if not _shared_rd:
+		return {
+			"success": false,
+			"device_name": "unknown",
+			"message": "Failed to create RenderingDevice",
+			"duration_ms": 0.0
+		}
+
+	var device_name = _shared_rd.get_device_name()
+
+	# Compile shader
+	var shader_code = _get_force_shader_glsl_static()
+	var rd_shader_source = RDShaderSource.new()
+	rd_shader_source.source_compute = shader_code
+
+	var shader_spirv = _shared_rd.shader_compile_spirv_from_source(rd_shader_source)
+	if shader_spirv.compile_error_compute != "":
+		_shared_rd.free()
+		_shared_rd = null
+		return {
+			"success": false,
+			"device_name": device_name,
+			"message": "Shader compile error: %s" % shader_spirv.compile_error_compute,
+			"duration_ms": Time.get_ticks_msec() - start_time
+		}
+
+	# Create shader RID
+	_shared_shader = _shared_rd.shader_create_from_spirv(shader_spirv)
+	if _shared_shader == RID():
+		_shared_rd.free()
+		_shared_rd = null
+		return {
+			"success": false,
+			"device_name": device_name,
+			"message": "Failed to create shader RID",
+			"duration_ms": Time.get_ticks_msec() - start_time
+		}
+
+	# Create pipeline
+	_shared_pipeline = _shared_rd.compute_pipeline_create(_shared_shader)
+	if _shared_pipeline == RID():
+		_shared_rd.free_rid(_shared_shader)
+		_shared_rd.free()
+		_shared_rd = null
+		_shared_shader = RID()
+		return {
+			"success": false,
+			"device_name": device_name,
+			"message": "Failed to create compute pipeline",
+			"duration_ms": Time.get_ticks_msec() - start_time
+		}
+
+	_shader_compiled = true
+	var duration = Time.get_ticks_msec() - start_time
+
+	return {
+		"success": true,
+		"device_name": device_name,
+		"message": "Shader compiled successfully",
+		"duration_ms": duration
+	}
+
 func _init_gpu() -> void:
-	"""Try to initialize GPU compute."""
+	"""Try to initialize GPU compute (uses pre-compiled shader if available)."""
 	# Create local rendering device for compute
 	rd = RenderingServer.create_local_rendering_device()
 	if not rd:
-		print("GPUForceCalculator: Failed to create RenderingDevice")
 		return
 
-	# Compile force compute shader
+	# If shader was pre-compiled, use the shared version
+	if _shader_compiled and _shared_shader != RID() and _shared_pipeline != RID():
+		force_shader = _shared_shader
+		force_pipeline = _shared_pipeline
+		gpu_available = true
+		return
+
+	# Fallback: compile on-demand (shouldn't happen if boot did pre-compilation)
 	if not _compile_force_shader():
-		print("GPUForceCalculator: Failed to compile force shader")
 		rd.free()
 		rd = null
 		return
 
 	gpu_available = true
-	print("GPUForceCalculator: GPU acceleration ENABLED")
 
 
 func _compile_force_shader() -> bool:
@@ -57,27 +147,20 @@ func _compile_force_shader() -> bool:
 		print("GPUForceCalculator: Shader compile error: ", shader_spirv.compile_error_compute)
 		return false
 
-	# Create shader RID
-	var shader_rid = rd.shader_create_from_spirv(shader_spirv)
-	if shader_rid == RID():
+	# Create shader RID and store it (needed for uniform set creation)
+	force_shader = rd.shader_create_from_spirv(shader_spirv)
+	if force_shader == RID():
 		print("GPUForceCalculator: Failed to create shader RID")
 		return false
 
-	# Create pipeline
-	force_pipeline = rd.compute_pipeline_create(shader_rid)
+	# Create pipeline from shader
+	force_pipeline = rd.compute_pipeline_create(force_shader)
 
 	return force_pipeline != RID()
 
 
-func _get_force_shader_glsl() -> String:
-	"""Return inline force calculation shader source.
-
-	Matches C++ ForceGraphEngine calculations:
-	1. Purity radial force - pure states at center, mixed at edge
-	2. Phase angular force - tangent force based on Bloch theta
-	3. Correlation forces - MI-based springs between coupled nodes
-	4. Repulsion forces - inverse-square prevents overlap
-	"""
+static func _get_force_shader_glsl_static() -> String:
+	"""Static version of shader source getter for pre-compilation."""
 	return """
 #version 450
 
@@ -114,7 +197,7 @@ layout(std430, binding = 6) writeonly buffer OutVelocities {
 	vec2 new_vel[];
 };
 
-// Push constants
+// Push constants (64 bytes total, 16-byte aligned)
 layout(push_constant) uniform PushConstants {
 	vec2 biome_center;
 	float dt;
@@ -129,6 +212,8 @@ layout(push_constant) uniform PushConstants {
 	float min_distance;
 	float correlation_scaling;
 	float max_biome_radius;
+	float _pad1;  // Padding for 64-byte alignment
+	float _pad2;  // Padding for 64-byte alignment
 } pc;
 
 const float PI = 3.14159265359;
@@ -284,6 +369,17 @@ void main() {
 }
 """
 
+func _get_force_shader_glsl() -> String:
+	"""Return inline force calculation shader source.
+
+	Matches C++ ForceGraphEngine calculations:
+	1. Purity radial force - pure states at center, mixed at edge
+	2. Phase angular force - tangent force based on Bloch theta
+	3. Correlation forces - MI-based springs between coupled nodes
+	4. Repulsion forces - inverse-square prevents overlap
+	"""
+	return _get_force_shader_glsl_static()
+
 
 func compute_forces(
 	positions: PackedVector2Array,
@@ -361,18 +457,27 @@ func compute_forces(
 	uniforms[5].add_id(out_position_buffer)
 	uniforms[6].add_id(out_velocity_buffer)
 
-	var uniform_set = rd.uniform_set_create(uniforms, force_pipeline, 0)
+	# Create uniform set (requires shader RID, not pipeline RID)
+	var uniform_set = rd.uniform_set_create(uniforms, force_shader, 0)
 
 	# Pack push constants (must match shader layout exactly)
-	# Layout: biome_center(vec2), dt, num_nodes, num_qubits,
+	# Layout: biome_center(vec2), dt, num_nodes(uint), num_qubits(uint),
 	#         purity_radial_spring, phase_angular_spring, mi_spring,
 	#         repulsion_strength, damping, base_distance, min_distance,
-	#         correlation_scaling, max_biome_radius
-	var push_const = PackedFloat32Array([
-		biome_center.x, biome_center.y,
-		delta,
-		float(num_nodes),
-		float(num_qubits),
+	#         correlation_scaling, max_biome_radius, _pad1, _pad2
+	# Total: 64 bytes (16-byte alignment required by Vulkan)
+	var push_bytes = PackedByteArray()
+
+	# vec2 biome_center (8 bytes)
+	push_bytes.append_array(PackedFloat32Array([biome_center.x, biome_center.y]).to_byte_array())
+	# float dt (4 bytes)
+	push_bytes.append_array(PackedFloat32Array([delta]).to_byte_array())
+	# uint num_nodes (4 bytes)
+	push_bytes.append_array(PackedInt32Array([num_nodes]).to_byte_array())
+	# uint num_qubits (4 bytes)
+	push_bytes.append_array(PackedInt32Array([num_qubits]).to_byte_array())
+	# 9 floats (36 bytes)
+	push_bytes.append_array(PackedFloat32Array([
 		purity_spring,
 		phase_spring,
 		mi_spring,
@@ -382,13 +487,15 @@ func compute_forces(
 		min_dist,
 		corr_scaling,
 		max_radius,
-	])
+	]).to_byte_array())
+	# Padding to 64 bytes (8 bytes)
+	push_bytes.append_array(PackedFloat32Array([0.0, 0.0]).to_byte_array())
 
 	# Dispatch compute
 	var compute_list = rd.compute_list_begin()
+	rd.compute_list_bind_compute_pipeline(compute_list, force_pipeline)  # CRITICAL: Must bind pipeline before dispatch
 	rd.compute_list_bind_uniform_set(compute_list, uniform_set, 0)
 
-	var push_bytes = push_const.to_byte_array()
 	rd.compute_list_set_push_constant(compute_list, push_bytes, push_bytes.size())
 
 	var workgroups = ceilf(float(num_nodes) / 24.0)
@@ -419,19 +526,23 @@ func compute_forces(
 
 
 func _pack_vector2_to_bytes(arr: PackedVector2Array) -> PackedByteArray:
+	"""Pack Vector2 array as raw float32 data for GPU (8 bytes per vector)."""
 	var bytes = PackedByteArray()
 	for v in arr:
-		bytes.append_array(var_to_bytes(v))
+		# Each Vector2 = 2 float32 values (4 bytes each)
+		bytes.append_array(PackedFloat32Array([v.x, v.y]).to_byte_array())
 	return bytes
 
 func _unpack_vector2_from_bytes(bytes: PackedByteArray) -> PackedVector2Array:
+	"""Unpack Vector2 array from raw float32 GPU data (8 bytes per vector)."""
 	var result = PackedVector2Array()
-	var pos = 0
-	while pos + 8 <= bytes.size():
-		var v = bytes_to_var(bytes.slice(pos, pos + 8))
-		if v is Vector2:
-			result.append(v)
-		pos += 8
+	var num_vectors = bytes.size() / 8
+	for i in range(num_vectors):
+		var offset = i * 8
+		# Decode 2 float32 values (x, y)
+		var floats = bytes.slice(offset, offset + 8).to_float32_array()
+		if floats.size() >= 2:
+			result.append(Vector2(floats[0], floats[1]))
 	return result
 
 func _pack_float64_to_bytes(arr: PackedFloat64Array) -> PackedByteArray:

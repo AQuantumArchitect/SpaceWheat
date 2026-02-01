@@ -7,8 +7,10 @@
 #include <godot_cpp/variant/dictionary.hpp>
 #include "quantum_evolution_engine.h"
 #include "liquid_neural_net.h"
+#include "force_graph_engine.h"
 #include <vector>
 #include <memory>
+#include <chrono>
 
 namespace godot {
 
@@ -77,6 +79,24 @@ public:
     bool is_lnn_enabled(int biome_id) const;
 
     // ========================================================================
+    // PACING CONFIGURATION (CPU-gentle mode)
+    // ========================================================================
+
+    /**
+     * Set pacing delay between evolution steps (milliseconds).
+     * When > 0, C++ sleeps between steps to spread CPU load over time.
+     * This prevents CPU spikes without requiring more GDScript↔C++ calls.
+     *
+     * @param delay_ms Milliseconds to sleep between steps (0 = disabled, default 1)
+     */
+    void set_pacing_delay_ms(int delay_ms);
+
+    /**
+     * Get current pacing delay.
+     */
+    int get_pacing_delay_ms() const;
+
+    // ========================================================================
     // BATCHED EVOLUTION (single call for ALL biomes, ALL steps)
     // ========================================================================
 
@@ -103,6 +123,10 @@ public:
      *         bloch_steps[biome_id][step] = packed [p0,p1,x,y,z,r,theta,phi] per qubit
      *   "purity_steps": Array<Array<float>>
      *         purity_steps[biome_id][step] = Tr(rho^2)
+     *   "position_steps": Array<Array<PackedVector2Array>>
+     *         position_steps[biome_id][step] = node positions for step
+     *   "velocity_steps": Array<Array<PackedVector2Array>>
+     *         velocity_steps[biome_id][step] = node velocities for step
      *   "metadata": Array<Dictionary>
      *         metadata[biome_id] = emoji/axis mapping payload
      *   "couplings": Array<Dictionary>
@@ -144,6 +168,54 @@ public:
     Dictionary evolve_single_biome(int biome_id, const PackedFloat64Array& rho_packed,
                                    int steps, float dt, float max_dt);
 
+    // ========================================================================
+    // TIME-SLICED COMPUTATION (yields CPU periodically)
+    // ========================================================================
+
+    /**
+     * Start a time-sliced computation. Call continue_sliced_compute() repeatedly
+     * until is_sliced_compute_complete() returns true, then get_sliced_compute_result().
+     *
+     * This prevents the engine from hogging the CPU - it will yield after max_time_ms.
+     *
+     * @param biome_rhos Array of current density matrices (one per biome)
+     * @param steps Number of lookahead steps to compute
+     * @param dt Time step per step
+     * @param max_dt Maximum substep for numerical stability
+     */
+    void start_sliced_compute(const Array& biome_rhos, int steps, float dt, float max_dt);
+
+    /**
+     * Continue time-sliced computation for up to max_time_ms.
+     *
+     * @param max_time_ms Maximum milliseconds to compute before yielding (e.g., 5)
+     * @return true if computation completed, false if more work remains
+     */
+    bool continue_sliced_compute(int max_time_ms);
+
+    /**
+     * Check if sliced computation is complete.
+     */
+    bool is_sliced_compute_complete() const;
+
+    /**
+     * Get the result of a completed sliced computation.
+     * Only valid after is_sliced_compute_complete() returns true.
+     *
+     * @return Same Dictionary format as evolve_all_lookahead()
+     */
+    Dictionary get_sliced_compute_result();
+
+    /**
+     * Cancel an in-progress sliced computation.
+     */
+    void cancel_sliced_compute();
+
+    /**
+     * Get progress of current sliced computation (0.0 to 1.0).
+     */
+    float get_sliced_compute_progress() const;
+
 protected:
     static void _bind_methods();
 
@@ -154,8 +226,19 @@ private:
     std::vector<Dictionary> m_metadata;
     std::vector<Dictionary> m_couplings;
 
+    // Pacing: sleep between steps to spread CPU load (0 = disabled)
+    int m_pacing_delay_ms = 1;  // Default: 1ms sleep between steps (gentle)
+
     // Phase-shadow LNN (one per biome, nullptr if disabled)
     std::vector<std::unique_ptr<LiquidNeuralNet>> m_lnns;
+
+    // Force graph engine for computing node positions (shared across all biomes)
+    Ref<ForceGraphEngine> m_force_engine;
+
+    // Current node positions/velocities per biome (for force integration)
+    std::vector<PackedVector2Array> m_node_positions;
+    std::vector<PackedVector2Array> m_node_velocities;
+    std::vector<Vector2> m_biome_centers;  // Center position per biome
 
     // Apply LNN phase modulation to density matrix diagonal
     void _apply_lnn_phase_modulation(int biome_id, PackedFloat64Array& rho_packed);
@@ -166,6 +249,8 @@ private:
         std::vector<PackedFloat64Array> mi_steps;
         std::vector<PackedFloat64Array> bloch_steps;
         std::vector<double> purity_steps;
+        std::vector<PackedVector2Array> position_steps;
+        std::vector<PackedVector2Array> velocity_steps;
         Dictionary icon_map;
     };
 
@@ -175,6 +260,47 @@ private:
 
     Dictionary _build_icon_map(int biome_id,
                                const std::vector<PackedFloat64Array>& bloch_steps);
+
+    // ========================================================================
+    // TIME-SLICED COMPUTATION STATE
+    // ========================================================================
+
+    // Sliced computation state
+    struct SlicedComputeState {
+        bool in_progress = false;
+        bool complete = false;
+
+        // Input parameters (saved from start_sliced_compute)
+        Array biome_rhos;
+        int total_steps = 0;
+        float dt = 0.1f;
+        float max_dt = 0.02f;
+
+        // Progress tracking
+        int current_biome = 0;      // Which biome we're processing
+        int current_step = 0;       // Which step within current biome
+        PackedFloat64Array current_rho;  // Current state being evolved
+
+        // Accumulated results per biome
+        std::vector<BiomeStepResult> biome_results;
+
+        void reset() {
+            in_progress = false;
+            complete = false;
+            biome_rhos = Array();
+            total_steps = 0;
+            current_biome = 0;
+            current_step = 0;
+            current_rho = PackedFloat64Array();
+            biome_results.clear();
+        }
+    };
+
+    SlicedComputeState m_sliced_state;
+
+    // Helper: do one evolution step for current biome, update state
+    // Returns true if this biome is complete
+    bool _do_one_sliced_step();
 };
 
 }  // namespace godot
