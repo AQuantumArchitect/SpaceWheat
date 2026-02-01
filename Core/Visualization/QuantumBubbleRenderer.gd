@@ -1,7 +1,14 @@
 class_name QuantumBubbleRenderer
 extends RefCounted
 
-## Quantum Bubble Renderer
+## Quantum Bubble Renderer (FALLBACK ONLY - NOT USED IN PRODUCTION)
+##
+## ⚠️ LEGACY RENDERER - This is only used as a fallback when:
+##    1. BubbleAtlasBatcher fails to build, AND
+##    2. NativeBubbleRenderer (C++) is unavailable
+##
+## In production, BubbleAtlasBatcher (GPU atlas) is always used.
+## This code path is maintained for safety but rarely executed.
 ##
 ## Renders individual quantum bubbles with physics-grounded visual encoding:
 ##
@@ -110,13 +117,8 @@ func _draw_quantum_bubble(graph: Node2D, node, biomes: Dictionary, time_accumula
 	# Check if measured
 	var is_measured = _is_node_measured(node, plot_pool)
 
-	# Pulse animation disabled - berry phase now affects glow only
-	# var pulse_rate = node.get_pulse_rate()  # Berry phase (evolution speed)
-	# var measurement_uncertainty = _get_measurement_uncertainty(node, biomes, is_celestial)
-	# var pulse_amplitude = 0.12 * measurement_uncertainty  # 0-12% breathing amplitude
-	# var pulse_phase = sin(time_accumulator * pulse_rate * TAU) * 0.5 + 0.5
-	# var pulse_scale = 1.0 + pulse_phase * pulse_amplitude
-	var pulse_scale = 1.0  # Fixed scale - no breathing
+	# No pulse animation - replaced by berry phase glow (see line 143)
+	var pulse_scale = 1.0
 
 	# Color scheme
 	var base_color: Color
@@ -185,8 +187,7 @@ func _draw_quantum_bubble(graph: Node2D, node, biomes: Dictionary, time_accumula
 		_draw_measurement_uncertainty_ring(graph, node, biomes, effective_radius, anim_alpha)
 
 	# === LAYER 6e: Sink flux particles ===
-	if not is_celestial and node.biome_name != "":
-		_draw_sink_flux_particles(graph, node, biomes, effective_radius, anim_alpha, time_accumulator)
+	# REMOVED: sink_flux not provided by viz cache
 
 	# === LAYER 6f: AZIMUTHAL SEASON RINGS ===
 	# Three colored arcs showing phi decomposition into RGB-like "seasons"
@@ -366,12 +367,6 @@ func _draw_measurement_uncertainty_ring(graph: Node2D, node, biomes: Dictionary,
 		graph.draw_arc(node.position, ring_radius, 0, TAU, 32, glow_color, thickness * 2.0, true)
 
 
-func _draw_sink_flux_particles(graph: Node2D, node, biomes: Dictionary, effective_radius: float, anim_alpha: float, time: float) -> void:
-	"""Draw particles showing decoherence rate."""
-	# Disabled: sink flux is not provided by native viz cache.
-	return
-
-
 func _draw_season_rings(graph: Node2D, node, effective_radius: float, anim_alpha: float, time: float) -> void:
 	"""Draw three azimuthal 'season' rings showing phi decomposition.
 
@@ -385,13 +380,9 @@ func _draw_season_rings(graph: Node2D, node, effective_radius: float, anim_alpha
 
 	The rings create emergent angular force when combined across nodes.
 	"""
-	# Season ring constants
-	const SEASON_ANGLES: Array[float] = [0.0, TAU / 3.0, 2.0 * TAU / 3.0]
-	const SEASON_COLORS: Array[Color] = [
-		Color(1.0, 0.3, 0.3),  # Season 0: Red
-		Color(0.3, 1.0, 0.4),  # Season 1: Green
-		Color(0.4, 0.4, 1.0),  # Season 2: Blue
-	]
+	# Season ring constants - imported from shared source
+	var SEASON_ANGLES = VisualizationConstants.SEASON_ANGLES
+	var SEASON_COLORS = VisualizationConstants.SEASON_COLORS
 
 	var ring_radius = effective_radius * 1.4  # Outside the main bubble
 	var max_arc_length = TAU / 4.0  # Each season covers up to 90° of arc

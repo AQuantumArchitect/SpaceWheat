@@ -43,13 +43,9 @@ const TEMPLATES: Array = [
 	["spin_spiral", 9, 1.0, false, 0.0],     # Rotating internal pattern for spin illusion
 ]
 
-# Season angles (in radians): 0°, 120°, 240°
-const SEASON_ANGLES: Array[float] = [0.0, TAU / 3.0, 2.0 * TAU / 3.0]
-const SEASON_COLORS: Array[Color] = [
-	Color(1.0, 0.3, 0.3, 0.8),  # Season 0: Red
-	Color(0.3, 1.0, 0.3, 0.8),  # Season 1: Green
-	Color(0.3, 0.3, 1.0, 0.8),  # Season 2: Blue
-]
+# Season constants - imported from shared source
+const SEASON_ANGLES = VisualizationConstants.SEASON_ANGLES
+const SEASON_COLORS = VisualizationConstants.SEASON_COLORS
 
 # Atlas texture (generated at startup)
 var _atlas_texture: ImageTexture = null

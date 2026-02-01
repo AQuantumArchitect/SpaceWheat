@@ -1,15 +1,26 @@
 class_name BatchedBubbleRenderer
 extends RefCounted
 
-## Batched Bubble Renderer
+## Batched Bubble Renderer - Rendering Tier Coordinator
 ##
-## High-performance renderer that batches all bubble draw calls into ONE
-## GDScript→C++ call per frame, structured like a density matrix.
+## Routes bubble rendering to one of three implementations based on availability:
 ##
-## Rendering priority:
-##   1. Atlas (GPU texture batching) - fastest, ~18 triangles per bubble
-##   2. Native (C++ triangulation) - fast, ~200 triangles per bubble
-##   3. GDScript fallback - slow, individual draw calls
+## RENDERING TIER DECISION (checked in draw() at line ~140):
+##   1. ✅ BubbleAtlasBatcher (GPU texture atlas) - PRODUCTION PATH
+##      - Fastest: ~18 triangles/bubble, 1-2 draw calls total
+##      - Pre-rendered templates with per-vertex color modulation
+##      - Used when: bubble_atlas_batcher in context AND atlas built
+##      - Status: ALWAYS ACTIVE in production (atlas build succeeds)
+##
+##   2. 🔶 NativeBubbleRenderer (C++ triangulation) - UNUSED FALLBACK
+##      - Fast: ~200 triangles/bubble, 1 draw call (batched)
+##      - Lazy-init: Only instantiated if atlas unavailable
+##      - Status: NEVER REACHED (atlas always available)
+##
+##   3. 🔴 QuantumBubbleRenderer (GDScript) - LEGACY FALLBACK
+##      - Slow: individual draw calls per layer
+##      - Always instantiated but only used if both above fail
+##      - Status: NEVER EXECUTED in production (safety net only)
 ##
 ## Data layout per bubble (32 floats = 1 row of the matrix):
 ## [0-1]   x, y position
@@ -83,13 +94,9 @@ var _shadow_compute_enabled: bool = false  # DISABLED by default - GDScript O(n�
 # TODO: Enable when GPU compute is wired up via GPUQuantumCompute.compute_shadow_gpu()
 var _gpu_compute: Node = null  # Optional GPUQuantumCompute for fast shadow calc
 
-# Season constants for shadow computation
-const SEASON_ANGLES: Array[float] = [0.0, TAU / 3.0, 2.0 * TAU / 3.0]
-const SEASON_COLORS: Array[Color] = [
-	Color(1.0, 0.3, 0.3),  # Red
-	Color(0.3, 1.0, 0.3),  # Green
-	Color(0.3, 0.3, 1.0),  # Blue
-]
+# Season constants - imported from shared source
+const SEASON_ANGLES = VisualizationConstants.SEASON_ANGLES
+const SEASON_COLORS = VisualizationConstants.SEASON_COLORS
 
 
 func _init():

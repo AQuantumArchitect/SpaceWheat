@@ -86,13 +86,9 @@ var season_projections: Array[float] = [0.5, 0.5, 0.5]  # [R, G, B] season inten
 var season_angular_momentum: float = 0.0  # Frame-to-frame spin accumulation
 var phi_raw: float = 0.0  # Raw phi for force calculations
 
-# Season angles (in radians): 0°, 120°, 240°
-const SEASON_ANGLES: Array[float] = [0.0, TAU / 3.0, 2.0 * TAU / 3.0]
-const SEASON_COLORS: Array[Color] = [
-	Color(1.0, 0.3, 0.3, 0.6),  # Season 0: Red-ish
-	Color(0.3, 1.0, 0.3, 0.6),  # Season 1: Green-ish
-	Color(0.3, 0.3, 1.0, 0.6),  # Season 2: Blue-ish
-]
+# Season constants - imported from shared source
+const SEASON_ANGLES = VisualizationConstants.SEASON_ANGLES
+const SEASON_COLORS = VisualizationConstants.SEASON_COLORS
 
 # Legacy compatibility (deprecated - use biome_name + parametric coords)
 var venn_zone: int = -1      # Zone enum value (-1 = not set)
