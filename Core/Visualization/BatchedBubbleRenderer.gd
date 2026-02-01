@@ -154,6 +154,11 @@ func draw(graph: Node2D, ctx: Dictionary) -> void:
 	if bubble_atlas and bubble_atlas != _bubble_atlas_batcher and bubble_atlas.is_atlas_built():
 		set_bubble_atlas_batcher(bubble_atlas)
 
+	# Pass geometry batcher to emoji batcher for batched placeholder rendering (once)
+	var geometry_batcher = ctx.get("geometry_batcher")
+	if geometry_batcher and _emoji_batcher and _emoji_batcher._geometry_batcher != geometry_batcher:
+		_emoji_batcher.set_geometry_batcher(geometry_batcher)
+
 	# Priority 1: GPU Atlas rendering (fastest) - COMPLETELY BYPASSES C++ CODE
 	if _use_atlas and _bubble_atlas_batcher:
 		_draw_with_atlas(graph, ctx)
@@ -279,7 +284,8 @@ func _draw_with_atlas(graph: Node2D, ctx: Dictionary) -> void:
 			interpolated_phi,
 			node.season_projections,
 			interpolated_coherence,
-			shadow_influence
+			shadow_influence,
+			node.berry_phase  # Berry phase drives glow intensity
 		)
 
 		# Queue emoji for drawing
@@ -490,7 +496,12 @@ func _draw_sun_qubit_with_atlas(graph: Node2D, ctx: Dictionary) -> void:
 		false,  # is_measured
 		true,   # is_celestial
 		0.5, 0.5, 0.0, 0.0, 0.0, 0.0,  # data ring params (unused for celestial)
-		pulse_phase
+		pulse_phase,
+		0.0,  # phi_raw (celestial doesn't spin)
+		[],   # season_projections (none for celestial)
+		0.0,  # coherence (none for celestial)
+		{},   # shadow_influence (none for celestial)
+		sun_qubit_node.berry_phase  # Berry phase drives sun glow
 	)
 
 	# Flush bubble atlas

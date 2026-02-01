@@ -90,27 +90,72 @@ var _arc_count: int = 0
 var _draw_calls: int = 0
 var _atlas_built: bool = false
 
-# Software rendering mode - reduces visual complexity for llvmpipe
-# Set via configure_for_software_rendering()
-var software_mode: bool = false
+# Graphics quality settings - layer toggles
 var draw_glow_layers: bool = true
 var draw_data_rings: bool = true
 var enable_spin_pattern: bool = true
 var enable_season_wedges: bool = true
 
+# Quality presets
+enum GraphicsQuality { LOW, MEDIUM, HIGH }
+var current_quality: GraphicsQuality = GraphicsQuality.HIGH
+
+
+func set_graphics_quality(quality: GraphicsQuality) -> void:
+	"""Configure visual layers based on quality preset.
+
+	LOW:    Minimal layers for max FPS (37-50 FPS on llvmpipe)
+	        - Core bubble + border + emoji only
+	        - No glows, rings, spin, or wedges
+
+	MEDIUM: Balanced visuals (20-27 FPS on llvmpipe)
+	        - Core bubble + border + emoji
+	        - Berry phase glow (1 circle)
+	        - Spin pattern (subtle internal spiral)
+	        - No data rings or season wedges
+
+	HIGH:   Full visual fidelity (12-18 FPS on llvmpipe, 60+ on GPU)
+	        - All layers enabled
+	        - Berry phase glow
+	        - Spin pattern
+	        - Season wedges (phi broadcast)
+	        - Data rings (purity, uncertainty)
+	"""
+	current_quality = quality
+
+	match quality:
+		GraphicsQuality.LOW:
+			draw_glow_layers = false
+			draw_data_rings = false
+			enable_spin_pattern = false
+			enable_season_wedges = false
+			print("[BubbleAtlasBatcher] Graphics: LOW (minimal layers, max FPS)")
+
+		GraphicsQuality.MEDIUM:
+			draw_glow_layers = true   # Berry phase glow
+			draw_data_rings = false
+			enable_spin_pattern = true
+			enable_season_wedges = false
+			print("[BubbleAtlasBatcher] Graphics: MEDIUM (glow + spin, no rings/wedges)")
+
+		GraphicsQuality.HIGH:
+			draw_glow_layers = true
+			draw_data_rings = true
+			enable_spin_pattern = true
+			enable_season_wedges = true
+			print("[BubbleAtlasBatcher] Graphics: HIGH (all layers)")
+
 
 func configure_for_software_rendering(enabled: bool = true) -> void:
-	"""Enable simplified rendering for software renderers (llvmpipe).
+	"""Auto-configure quality for software rendering (llvmpipe).
 
-	Reduces layers from ~12 to ~4 per bubble for ~3x FPS improvement.
+	DEPRECATED: Use set_graphics_quality() instead.
+	This sets MEDIUM quality for software renderers, LOW for hardware.
 	"""
-	software_mode = enabled
-	draw_glow_layers = not enabled
-	draw_data_rings = not enabled
-	enable_spin_pattern = not enabled
-	enable_season_wedges = not enabled
 	if enabled:
-		print("[BubbleAtlasBatcher] Software rendering mode: ENABLED (simplified visuals)")
+		set_graphics_quality(GraphicsQuality.MEDIUM)
+	else:
+		set_graphics_quality(GraphicsQuality.HIGH)
 
 # Arc configuration
 const ARC_SEGMENTS: int = 24  # Segments for full circle arc
@@ -819,7 +864,8 @@ func draw_bubble(pos: Vector2, base_radius: float, anim_scale: float, anim_alpha
 				 global_prob: float = 0.0, p_north: float = 0.0, p_south: float = 0.0,
 				 sink_flux: float = 0.0, pulse_phase: float = 0.0,
 				 phi_raw: float = 0.0, season_projections: Array = [],
-				 coherence: float = 0.0, shadow_influence: Dictionary = {}) -> void:
+				 coherence: float = 0.0, shadow_influence: Dictionary = {},
+				 berry_phase: float = 0.0) -> void:
 	"""Draw a complete bubble with all visual layers.
 
 	Replicates the C++ batched_bubble_renderer visual appearance.
@@ -830,6 +876,7 @@ func draw_bubble(pos: Vector2, base_radius: float, anim_scale: float, anim_alpha
 		season_projections: [R, G, B] intensities at 0°, 120°, 240°
 		coherence: Coherence magnitude for spin pattern visibility
 		shadow_influence: Optional {tint: Color, strength: float} from nearby bubbles
+		berry_phase: Accumulated geometric phase (drives glow intensity)
 	"""
 	if anim_scale <= 0.0:
 		return
@@ -838,9 +885,10 @@ func draw_bubble(pos: Vector2, base_radius: float, anim_scale: float, anim_alpha
 	var pulse_scale = 1.0 + pulse_phase * 0.08
 	var effective_radius = base_radius * anim_scale * pulse_scale
 
-	# Glow tint (complementary hue)
+	# Glow tint (complementary hue) and alpha (from berry phase)
 	var glow_tint = _get_complementary_color(base_color)
-	var glow_alpha = (energy * 0.5 + 0.3) * anim_alpha
+	var berry_glow = clampf(berry_phase * 0.1, 0.0, 1.0)  # Berry phase -> [0, 1] glow strength
+	var glow_alpha = (0.3 + berry_glow * 0.7) * anim_alpha  # Base 0.3, up to 1.0 with berry
 
 	# === LAYERS 1-2: OUTER GLOWS ===
 	if draw_glow_layers:
@@ -897,43 +945,22 @@ func draw_bubble(pos: Vector2, base_radius: float, anim_scale: float, anim_alpha
 
 
 func _draw_measured_glow(pos: Vector2, base_radius: float, anim_scale: float, anim_alpha: float, time: float) -> void:
-	"""Draw cyan pulsing glow for measured bubbles."""
+	"""Draw single cyan pulsing glow for measured bubbles (simplified for performance)."""
 	var measured_pulse = 0.5 + 0.5 * sin(time * 4.0)
 
-	# Outer pulsing ring
-	var outer_alpha = (0.4 + 0.3 * measured_pulse) * anim_alpha
-	add_circle_layer("circle_220", pos,
-		base_radius * (2.2 + 0.3 * measured_pulse) * anim_scale,
-		Color(0.0, 1.0, 1.0, outer_alpha))
-
-	# Mid glow
-	add_circle_layer("circle_160", pos, base_radius * 1.6 * anim_scale,
-		Color(0.2, 0.95, 1.0, 0.8 * anim_alpha))
-
-	# Inner glow
-	add_circle_layer("circle_110", pos, base_radius * 1.3 * anim_scale,
-		Color(0.8, 1.0, 1.0, 0.95 * anim_alpha))
+	# Single pulsing glow circle
+	var glow_alpha = (0.5 + 0.3 * measured_pulse) * anim_alpha
+	var glow_radius = base_radius * (1.8 + 0.2 * measured_pulse) * anim_scale
+	add_circle_layer("circle_220", pos, glow_radius, Color(0.0, 1.0, 1.0, glow_alpha))
 
 
 func _draw_unmeasured_glow(pos: Vector2, effective_radius: float, glow_tint: Color, glow_alpha: float, is_celestial: bool) -> void:
-	"""Draw complementary-hued glow for unmeasured bubbles."""
-	# Outer glow
-	var outer_mult = 2.2 if is_celestial else 1.6
-	var outer_glow = glow_tint
-	outer_glow.a = glow_alpha * 0.4
-	add_circle_layer("circle_220", pos, effective_radius * outer_mult, outer_glow)
-
-	# Mid glow
-	var mid_mult = 1.8 if is_celestial else 1.3
-	var mid_glow = glow_tint
-	mid_glow.a = glow_alpha * 0.6
-	add_circle_layer("circle_160", pos, effective_radius * mid_mult, mid_glow)
-
-	# Extra inner glow for celestial
-	if is_celestial and glow_alpha > 0:
-		var inner_glow = _lighten(glow_tint, 0.2)
-		inner_glow.a = glow_alpha * 0.8
-		add_circle_layer("circle_110", pos, effective_radius * 1.4, inner_glow)
+	"""Draw single complementary-hued glow for unmeasured bubbles (shows berry phase via glow_alpha)."""
+	# Single glow circle - glow_alpha encodes energy/berry phase
+	var glow_mult = 2.0 if is_celestial else 1.7
+	var glow_color = glow_tint
+	glow_color.a = glow_alpha * 0.5
+	add_circle_layer("circle_220", pos, effective_radius * glow_mult, glow_color)
 
 
 func _draw_measured_outline(pos: Vector2, base_radius: float, anim_scale: float, anim_alpha: float, time: float) -> void:
@@ -979,12 +1006,7 @@ func _draw_data_rings(pos: Vector2, effective_radius: float, anim_alpha: float,
 		# Use cached arc geometry (no per-frame trig calls!)
 		add_purity_ring_from_band(pos, purity_radius, 2.0, purity_band, purity_color)
 
-	# Probability ring (outer)
-	if global_prob > 0.01:
-		var arc_color = Color(1.0, 1.0, 1.0, 0.4 * anim_alpha)
-		var arc_radius = effective_radius * 1.25
-		var arc_extent = global_prob * TAU
-		add_arc_layer(pos, arc_radius, -PI / 2, -PI / 2 + arc_extent, 2.0, arc_color)
+	# Probability ring - REMOVED (redundant with bubble size)
 
 	# Uncertainty ring
 	var mass = p_north + p_south
