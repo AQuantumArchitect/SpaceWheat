@@ -1,6 +1,9 @@
 class_name BatchedBubbleRenderer
 extends RefCounted
 
+# Shared constants
+const VisualizationConstants = preload("res://Core/Visualization/VisualizationConstants.gd")
+
 ## Batched Bubble Renderer - Rendering Tier Coordinator
 ##
 ## Routes bubble rendering to one of three implementations based on availability:

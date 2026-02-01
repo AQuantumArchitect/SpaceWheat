@@ -1,6 +1,9 @@
 class_name BubbleAtlasBatcher
 extends RefCounted
 
+# Shared constants
+const VisualizationConstants = preload("res://Core/Visualization/VisualizationConstants.gd")
+
 ## Bubble Atlas Batcher - GPU-Accelerated Bubble Rendering
 ##
 ## PRE-RENDERS grayscale geometric templates (circles, rings) to a texture atlas
@@ -935,9 +938,9 @@ func draw_bubble(pos: Vector2, base_radius: float, anim_scale: float, anim_alpha
 		_draw_data_rings(pos, effective_radius, anim_alpha,
 			individual_purity, biome_purity, global_prob, p_north, p_south, sink_flux, time)
 
-	# === LAYER 7: Season wedges (non-celestial, non-measured only) ===
+	# === LAYER 7: Phi arc + directional wedge (non-celestial, non-measured only) ===
 	if enable_season_wedges and not is_celestial and not is_measured and season_projections.size() >= 3:
-		draw_season_wedges(pos, effective_radius, phi_raw, season_projections, anim_alpha, shadow_influence)
+		draw_phi_arc_and_wedge(pos, effective_radius, phi_raw, season_projections, coherence, anim_alpha)
 
 
 func _draw_measured_glow(pos: Vector2, base_radius: float, anim_scale: float, anim_alpha: float, time: float) -> void:
@@ -1115,6 +1118,64 @@ func draw_season_wedges(pos: Vector2, radius: float, phi_raw: float,
 		# Draw wedge rotated to point outward from bubble
 		# The template points "up" (-Y), so we rotate to match angle
 		add_rotated_quad("wedge_gradient", wedge_center, wedge_radius, angle + PI / 2.0, wedge_color)
+
+
+func draw_phi_arc_and_wedge(pos: Vector2, radius: float, phi_raw: float,
+							season_projections: Array, coherence: float, anim_alpha: float) -> void:
+	"""Draw phi arc + directional wedge (Option B: clean phi visualization).
+
+	Replaces 3-wedge system with:
+	1. Phi arc: Small arc at bubble edge showing current phi position
+	2. Color wedge: Single wedge showing coupling direction & dominant season
+
+	Args:
+		pos: Bubble center position
+		radius: Bubble radius
+		phi_raw: Current phi angle (drives rotation)
+		season_projections: [R, G, B] intensities at 0°, 120°, 240°
+		coherence: Coherence magnitude (0-1)
+		anim_alpha: Animation alpha for fade-in
+	"""
+	if anim_alpha < 0.01 or coherence < 0.05:
+		return
+
+	# Blend season colors based on projections to get dominant color
+	var r_proj = season_projections[0] if season_projections.size() > 0 else 0.33
+	var g_proj = season_projections[1] if season_projections.size() > 1 else 0.33
+	var b_proj = season_projections[2] if season_projections.size() > 2 else 0.33
+
+	var blended_color = (
+		VisualizationConstants.SEASON_COLORS[0] * r_proj +
+		VisualizationConstants.SEASON_COLORS[1] * g_proj +
+		VisualizationConstants.SEASON_COLORS[2] * b_proj
+	)
+
+	# Normalize to prevent oversaturation
+	var total_proj = r_proj + g_proj + b_proj
+	if total_proj > 0.01:
+		blended_color = blended_color / total_proj
+
+	# === 1. PHI ARC (at bubble edge) ===
+	# Small arc showing current phi position
+	var arc_radius = radius * 1.08
+	var arc_width = 3.0
+	var arc_span = deg_to_rad(45.0)  # 45° arc span
+	var arc_from = phi_raw - arc_span / 2.0
+	var arc_to = phi_raw + arc_span / 2.0
+
+	var arc_color = blended_color
+	arc_color.a = (0.7 + 0.3 * coherence) * anim_alpha
+	add_arc_layer(pos, arc_radius, arc_from, arc_to, arc_width, arc_color)
+
+	# === 2. DIRECTIONAL WEDGE (coupling zone) ===
+	# Single wedge pointing in phi direction showing force application
+	var wedge_radius = radius * 1.5
+	var wedge_offset = radius * 1.1
+	var wedge_center = pos + Vector2.from_angle(phi_raw) * wedge_offset
+
+	var wedge_color = blended_color
+	wedge_color.a = (0.3 + 0.4 * coherence) * anim_alpha
+	add_rotated_quad("wedge_gradient", wedge_center, wedge_radius, phi_raw + PI / 2.0, wedge_color)
 
 
 func draw_spin_pattern(pos: Vector2, radius: float, phi_raw: float,

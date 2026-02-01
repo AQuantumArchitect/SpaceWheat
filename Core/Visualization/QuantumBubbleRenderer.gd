@@ -1,6 +1,9 @@
 class_name QuantumBubbleRenderer
 extends RefCounted
 
+# Shared constants
+const VisualizationConstants = preload("res://Core/Visualization/VisualizationConstants.gd")
+
 ## Quantum Bubble Renderer (FALLBACK ONLY - NOT USED IN PRODUCTION)
 ##
 ## ⚠️ LEGACY RENDERER - This is only used as a fallback when:

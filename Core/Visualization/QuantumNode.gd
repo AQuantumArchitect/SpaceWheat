@@ -1,6 +1,9 @@
 class_name QuantumNode
 extends RefCounted
 
+# Shared constants
+const VisualizationConstants = preload("res://Core/Visualization/VisualizationConstants.gd")
+
 ## Quantum Node - Force-Directed Graph Representation
 ## First-class quantum visualization that represents density matrix states directly.
 ##
