@@ -185,14 +185,23 @@ func initialize(biome_array: Array, p_plot_pool = null):
 
 
 func register_biome(biome) -> void:
-	"""Register a biome dynamically (after initial batcher setup).
+	"""Register a biome with the batcher for evolution tracking.
+
+	TERMINOLOGY: register_biome() adds biome to evolution tracking.
+	The batcher then "enrolls" it in the native engine (internal detail).
+
+	IDEMPOTENT: Safe to call multiple times. If biome is already registered,
+	this method returns early without side effects.
 
 	If native engine isn't ready yet, queues the biome for later registration.
 	Biome is only 'ready' after its 10-step lookahead buffers are primed.
 	"""
 	if not _is_valid_biome(biome):
 		return
+
 	if biomes.has(biome):
+		var biome_name = _get_biome_name(biome)
+		_log("debug", "batcher", "ℹ️", "Biome '%s' already registered (idempotent)" % biome_name)
 		return
 
 	biomes.append(biome)
@@ -1162,13 +1171,12 @@ func _run_biome_packet_in_thread(packet_req: Dictionary) -> Dictionary:
 	var target_biome_index = packet_req["target_biome_index"]
 	var num_steps = packet_req["num_steps"]
 
-	# Use pre-packed rhos directly (no node method calls in worker thread!)
-	var biome_rhos = all_biome_rhos
-
-	# Call C++ (evolves only target biome, freezes others)
+	# Call C++ (evolves ALL biomes - we filter results during merge)
+	# Note: C++ always evolves all biomes. The per-biome filtering happens in
+	# _on_biome_packet_completed() where we only save THIS biome's results.
 	var packet_start = Time.get_ticks_usec()
 	var result = lookahead_engine.evolve_all_lookahead(
-		biome_rhos, num_steps, LOOKAHEAD_DT, MAX_SUBSTEP_DT
+		all_biome_rhos, num_steps, LOOKAHEAD_DT, MAX_SUBSTEP_DT
 	)
 	var packet_end = Time.get_ticks_usec()
 

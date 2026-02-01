@@ -54,25 +54,70 @@ func load_emojis() -> bool:
 	var all_factions = faction_registry.get_all()
 
 	for faction in all_factions:
-		# Get emojis from icon_components
-		var icon_components = faction.icon_components
-		for emoji in icon_components:
+		# Get emojis from signature (primary emojis this faction speaks)
+		for emoji in faction.signature:
 			_faction_emojis[emoji] = true
 			_all_emojis[emoji] = true
 
-		# Get emojis from hamiltonian couplings (target emojis)
-		for source_emoji in icon_components:
-			var component = icon_components[source_emoji]
-			var h_couplings = component.get("hamiltonian", {})
-			for target_emoji in h_couplings:
+		# Get emojis from self_energies
+		for emoji in faction.self_energies.keys():
+			_faction_emojis[emoji] = true
+			_all_emojis[emoji] = true
+
+		# Get emojis from hamiltonian (source and target emojis)
+		for source_emoji in faction.hamiltonian.keys():
+			_faction_emojis[source_emoji] = true
+			_all_emojis[source_emoji] = true
+			for target_emoji in faction.hamiltonian[source_emoji].keys():
 				_faction_emojis[target_emoji] = true
 				_all_emojis[target_emoji] = true
 
-			# Get emojis from alignment couplings
-			var align_couplings = component.get("alignment", {})
-			for observable_emoji in align_couplings:
+		# Get emojis from alignment couplings (emoji and observable emojis)
+		for emoji in faction.alignment_couplings.keys():
+			_faction_emojis[emoji] = true
+			_all_emojis[emoji] = true
+			for observable_emoji in faction.alignment_couplings[emoji].keys():
 				_faction_emojis[observable_emoji] = true
 				_all_emojis[observable_emoji] = true
+
+		# Get emojis from lindblad_outgoing (source and target emojis)
+		for source_emoji in faction.lindblad_outgoing.keys():
+			_faction_emojis[source_emoji] = true
+			_all_emojis[source_emoji] = true
+			for target_emoji in faction.lindblad_outgoing[source_emoji].keys():
+				_faction_emojis[target_emoji] = true
+				_all_emojis[target_emoji] = true
+
+		# Get emojis from lindblad_incoming (target and source emojis)
+		for target_emoji in faction.lindblad_incoming.keys():
+			_faction_emojis[target_emoji] = true
+			_all_emojis[target_emoji] = true
+			for source_emoji in faction.lindblad_incoming[target_emoji].keys():
+				_faction_emojis[source_emoji] = true
+				_all_emojis[source_emoji] = true
+
+		# Get emojis from gated_lindblad (target, source, and gate emojis)
+		for target_emoji in faction.gated_lindblad.keys():
+			_faction_emojis[target_emoji] = true
+			_all_emojis[target_emoji] = true
+			for gate_def in faction.gated_lindblad[target_emoji]:
+				if "source" in gate_def:
+					_faction_emojis[gate_def["source"]] = true
+					_all_emojis[gate_def["source"]] = true
+				if "gate" in gate_def:
+					_faction_emojis[gate_def["gate"]] = true
+					_all_emojis[gate_def["gate"]] = true
+
+		# Get emojis from decay (emoji and decay target)
+		for emoji in faction.decay.keys():
+			_faction_emojis[emoji] = true
+			_all_emojis[emoji] = true
+			var decay_info = faction.decay[emoji]
+			if decay_info is Dictionary and "target" in decay_info:
+				var target = decay_info["target"]
+				if target != "":
+					_faction_emojis[target] = true
+					_all_emojis[target] = true
 
 	_loaded = true
 	return true

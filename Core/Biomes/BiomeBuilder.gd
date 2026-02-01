@@ -213,19 +213,19 @@ static func _build_lindblad_spec_from_biome(biome_def) -> BiomeLindblad:
 	for emoji in biome_def.icon_components:
 		var component = biome_def.icon_components[emoji]
 
-		# Outgoing transitions (pumps/drains)
+		# Outgoing transitions (drains: emoji → target)
 		var lindblad_out = component.get("lindblad_outgoing", {})
 		if not lindblad_out.is_empty():
 			for target in lindblad_out:
 				var rate = lindblad_out[target]
-				spec.add_transition(emoji, target, rate)
+				spec.add_drain(emoji, target, rate)
 
-		# Incoming transitions
+		# Incoming transitions (pumps: source → emoji)
 		var lindblad_in = component.get("lindblad_incoming", {})
 		if not lindblad_in.is_empty():
 			for source in lindblad_in:
 				var rate = lindblad_in[source]
-				spec.add_transition(source, emoji, rate)
+				spec.add_pump(emoji, source, rate)
 
 		# Decay processes
 		var decay = component.get("decay", {})
