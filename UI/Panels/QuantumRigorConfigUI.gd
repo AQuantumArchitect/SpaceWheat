@@ -4,7 +4,6 @@ extends PanelContainer
 ##
 ## Allows player to:
 ## - View current readout mode (HARDWARE vs INSPECTOR)
-## - View current backaction mode (KID_LIGHT vs LAB_TRUE)
 ## - View selective measure model (POSTSELECT_COSTED vs CLICK_NOCLICK)
 ## - Toggle modes (if design allows)
 ##
@@ -85,7 +84,6 @@ func _setup_layout() -> void:
 
 	# Add sections
 	_add_readout_mode_section()
-	_add_backaction_mode_section()
 	_add_selective_measure_section()
 	_add_invariant_checks_section()
 
@@ -123,29 +121,6 @@ func _add_readout_mode_section() -> void:
 	)
 	inspector_btn_container.get_child(0).pressed.connect(func(): _set_readout_mode(QuantumRigorConfig.ReadoutMode.INSPECTOR))
 	section.add_child(inspector_btn_container)
-
-	content_vbox.add_child(section)
-
-
-func _add_backaction_mode_section() -> void:
-	"""Add backaction mode selection section"""
-	var section = _create_section("⚛️ Backaction Mode", "How measurement affects quantum state:")
-
-	var kid_light_btn_container = _create_mode_button(
-		"KID_LIGHT",
-		"😌 Gentle partial collapse (preserves some quantum coherence)",
-		config.backaction_mode == QuantumRigorConfig.BackactionMode.KID_LIGHT
-	)
-	kid_light_btn_container.get_child(0).pressed.connect(func(): _set_backaction_mode(QuantumRigorConfig.BackactionMode.KID_LIGHT))
-	section.add_child(kid_light_btn_container)
-
-	var lab_true_btn_container = _create_mode_button(
-		"LAB_TRUE",
-		"🔬 Rigorous projective collapse (full Born rule, no coherence)",
-		config.backaction_mode == QuantumRigorConfig.BackactionMode.LAB_TRUE
-	)
-	lab_true_btn_container.get_child(0).pressed.connect(func(): _set_backaction_mode(QuantumRigorConfig.BackactionMode.LAB_TRUE))
-	section.add_child(lab_true_btn_container)
 
 	content_vbox.add_child(section)
 
@@ -238,13 +213,6 @@ func _set_readout_mode(mode: QuantumRigorConfig.ReadoutMode) -> void:
 	"""Change readout mode"""
 	config.readout_mode = mode
 	print("🎲 Readout mode changed: %s" % ("HARDWARE" if mode == QuantumRigorConfig.ReadoutMode.HARDWARE else "INSPECTOR"))
-	_update_display()
-
-
-func _set_backaction_mode(mode: QuantumRigorConfig.BackactionMode) -> void:
-	"""Change backaction mode"""
-	config.backaction_mode = mode
-	print("⚛️ Backaction mode changed: %s" % ("LAB_TRUE" if mode == QuantumRigorConfig.BackactionMode.LAB_TRUE else "KID_LIGHT"))
 	_update_display()
 
 

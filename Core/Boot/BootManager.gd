@@ -225,14 +225,15 @@ func _stage_visualization(farm: Node, quantum_viz: Node) -> void:
 		if farm.village_biome:
 			biomes["Village"] = farm.village_biome
 
-	# CRITICAL: Call setup() to create quantum nodes from biome registers
-	# This was missing - without it, quantum_nodes array stays empty and bubbles don't render
+	# PRODUCTION: Setup quantum viz in terminal-driven mode
+	# Bubbles only appear when terminals bind via EXPLORE action (not at boot)
 	if biomes.size() > 0:
-		_verbose.info("boot", "💭", "Creating quantum nodes from biome registers...")
+		_verbose.info("boot", "💭", "Setting up quantum visualization (terminal-driven mode)...")
 		var farm_grid = farm.grid if "grid" in farm else null
 		var plot_pool = farm.plot_pool if "plot_pool" in farm else null
-		quantum_viz.graph.setup(biomes, farm_grid, plot_pool)
-		_verbose.info("boot", "✓", "Created %d quantum bubbles" % quantum_viz.graph.quantum_nodes.size())
+		var skip_boot_bubbles = true  # PRODUCTION: Only show terminal bubbles
+		quantum_viz.graph.setup(biomes, farm_grid, plot_pool, skip_boot_bubbles)
+		_verbose.info("boot", "✓", "Quantum viz ready (bubbles appear on EXPLORE)")
 
 	# Pre-compile GPU shaders before creating force graph
 	if biomes.size() > 0:

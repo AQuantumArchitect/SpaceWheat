@@ -117,7 +117,7 @@ var _perf_samples: Dictionary = {
 	"draw_bubble": [],
 	"draw_sun": [],
 }
-var _perf_report_interval: int = 120  # Report every N frames
+var _perf_report_interval: int = 300  # Report every N frames (less noise)
 
 # Legacy compatibility properties
 var lock_dimensions: bool = false  # Used by BathQuantumVisualizationController
@@ -167,6 +167,8 @@ func _initialize_components():
 	effects_renderer = EffectsRendererScript.new()
 	input_handler = GraphInputScript.new()
 	node_manager = NodeManagerScript.new()
+	geometry_batcher = GeometryBatcherScript.new()
+	print("[QuantumForceGraph] GeometryBatcher initialized: %s" % geometry_batcher)
 
 	# Default: tether force off (visuals only)
 	if "enable_plot_tether_force" in force_system:
@@ -188,6 +190,13 @@ func _process(delta: float):
 	time_accumulator += delta
 	frame_count += 1
 
+	# GATE: Skip all rendering if no bubbles exist
+	if quantum_nodes.is_empty():
+		return
+
+	# GATE: Check for active terminal bubbles (explored, not measured)
+	var has_active = _has_active_terminal_bubbles()
+
 	# Check for viewport resize
 	var viewport = get_viewport()
 	if viewport:
@@ -203,15 +212,19 @@ func _process(delta: float):
 	# Update node visuals from quantum state
 	node_manager.update_node_visuals(quantum_nodes, ctx)
 	var t3 = Time.get_ticks_usec()
-	node_manager.update_animations(quantum_nodes, time_accumulator, delta)
+
+	# GATE: Only run animations and particles if we have active (not measured) bubbles
+	if has_active:
+		node_manager.update_animations(quantum_nodes, time_accumulator, delta)
 	var t4 = Time.get_ticks_usec()
 
 	# Update physics forces - BATCHED from evolution packets (NEW!)
 	_apply_batched_force_positions(ctx)
 	var t5 = Time.get_ticks_usec()
 
-	# Update particle effects
-	effects_renderer.update_particles(delta, ctx)
+	# GATE: Only update particles if we have active bubbles
+	if has_active:
+		effects_renderer.update_particles(delta, ctx)
 	var t6 = Time.get_ticks_usec()
 
 	# Request redraw (throttled for perf)
@@ -265,6 +278,9 @@ func _draw():
 
 	# Flush ALL untextured geometry in ONE draw call
 	geometry_batcher.flush()
+	if frame_count % 60 == 0:  # Print stats every 60 frames
+		var stats = geometry_batcher.get_stats()
+		print("[GeometryBatcher] Stats: %s" % stats)
 	var t_flush = Time.get_ticks_usec()
 
 	# 5. Quantum bubbles (use their own atlas batcher)
@@ -292,6 +308,23 @@ func _draw():
 	_perf_samples["draw_sun"].append(t_sun - t_bubble)
 
 
+func _has_active_terminal_bubbles() -> bool:
+	"""Check if any terminal bubbles are actively explored (not measured).
+
+	Used to gate animations, particles, and music.
+	A bubble is "active" if it has a farm_tether AND is not measured.
+
+	Returns:
+		true if at least one bubble is bound and not measured
+	"""
+	for node in quantum_nodes:
+		if node.has_farm_tether and node.terminal:
+			# Must be bound AND not measured (frozen state)
+			if node.terminal.is_bound and not node.terminal.is_measured:
+				return true
+	return false
+
+
 func _build_context() -> Dictionary:
 	"""Build the shared context dictionary for all components."""
 	return {
@@ -309,6 +342,7 @@ func _build_context() -> Dictionary:
 		"biome_evolution_batcher": biome_evolution_batcher,
 		"emoji_atlas_batcher": emoji_atlas_batcher,
 		"bubble_atlas_batcher": bubble_atlas_batcher,
+		"geometry_batcher": geometry_batcher,
 		"lookahead_offset": lookahead_offset,
 		"biotic_flux_biome": biotic_flux_biome,
 		"biotic_icon": biotic_icon,
@@ -325,7 +359,6 @@ func _build_context() -> Dictionary:
 		"particle_life": PARTICLE_LIFE,
 		"particle_speed": PARTICLE_SPEED,
 		"particle_size": PARTICLE_SIZE,
-		"geometry_batcher": geometry_batcher,
 	}
 
 
@@ -333,17 +366,25 @@ func _build_context() -> Dictionary:
 # PUBLIC API (Backward Compatibility)
 # ============================================================================
 
-func setup(p_biomes: Dictionary, p_farm_grid = null, p_plot_pool = null):
+## Skip boot bubble creation (terminal-driven mode)
+## Set to true in production, false for tests
+var skip_quantum_register_bubbles: bool = false
+
+
+func setup(p_biomes: Dictionary, p_farm_grid = null, p_plot_pool = null, p_skip_bubbles: bool = false):
 	"""Initialize the quantum force graph.
 
 	Args:
 	    p_biomes: Dictionary of biome_name → BiomeBase
 	    p_farm_grid: Optional FarmGrid reference
 	    p_plot_pool: Optional PlotPool reference
+	    p_skip_bubbles: If true, skip boot-time bubble creation (terminal-driven mode).
+	        DEFAULT=false for tests. Set true in BootManager for production.
 	"""
 	biomes = p_biomes
 	farm_grid = p_farm_grid
 	plot_pool = p_plot_pool
+	skip_quantum_register_bubbles = p_skip_bubbles
 
 	# Connect to PlotPool signals for dynamic updates (optional game mechanic overlay)
 	if plot_pool:
@@ -374,7 +415,7 @@ func setup(p_biomes: Dictionary, p_farm_grid = null, p_plot_pool = null):
 func rebuild_nodes():
 	"""Rebuild all quantum nodes from current biomes and farm grid."""
 	var ctx = _build_context()
-	quantum_nodes = node_manager.create_quantum_nodes(ctx)
+	quantum_nodes = node_manager.create_quantum_nodes(ctx, skip_quantum_register_bubbles)
 
 
 func register_biome(biome_name: String, biome):
@@ -530,6 +571,21 @@ func highlight_node(node: QuantumNode):
 func get_stats() -> Dictionary:
 	"""Get graph statistics."""
 	return input_handler.get_stats(quantum_nodes, node_by_plot_id)
+
+
+func get_perf_averages() -> Dictionary:
+	"""Get averaged performance data for external profiling displays."""
+	var avg = {}
+	for key in _perf_samples:
+		var samples = _perf_samples[key]
+		if samples.size() > 0:
+			var total = 0.0
+			for s in samples:
+				total += s
+			avg[key] = total / samples.size() / 1000.0  # Convert to ms
+		else:
+			avg[key] = 0.0
+	return avg
 
 
 func get_bubble_renderer():

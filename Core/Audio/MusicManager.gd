@@ -219,7 +219,13 @@ func _connect_biome_manager() -> void:
 
 
 func _check_register_state() -> void:
-	"""Check if active biome has registers and control music playback accordingly."""
+	"""Check if active biome has ACTIVE terminals and control music playback.
+
+	Music plays ONLY when there are explored (not measured) terminal bubbles.
+	Pauses when:
+	- No terminals bound
+	- All terminals measured (frozen state)
+	"""
 	if not ActiveBiomeManager:
 		return
 
@@ -228,30 +234,42 @@ func _check_register_state() -> void:
 		return
 
 	var farm = get_node_or_null("/root/Farm")
-	if not farm or not farm.grid:
+	if not farm or not farm.plot_pool:
 		return
 
-	var biome = farm.grid.biomes.get(biome_name)
-	if not biome or not biome.quantum_computer or not biome.quantum_computer.register_map:
-		return
-
-	var has_registers: bool = biome.quantum_computer.register_map.num_qubits > 0
+	# Check for ACTIVE terminals (bound but NOT measured)
+	var has_active_terminals = _biome_has_active_terminals(farm, biome_name)
 	var is_playing: bool = _active_player.playing
 
-	if has_registers and not is_playing and not _current_track.is_empty():
-		# Registers exist but music stopped - resume
+	if has_active_terminals and not is_playing and not _current_track.is_empty():
+		# Active terminals exist but music stopped - resume
 		if VerboseConfig:
-			VerboseConfig.debug("music", "▶️", "Registers detected - resuming music")
+			VerboseConfig.debug("music", "▶️", "Active terminals detected - resuming music")
 		var stream = _get_or_load_stream(_current_track)
 		if stream:
 			_active_player.stream = stream
 			_active_player.volume_db = _volume_to_db(_volume)
 			_active_player.play()
-	elif not has_registers and is_playing:
-		# No registers but music playing - pause
+	elif not has_active_terminals and is_playing:
+		# No active terminals but music playing - pause
 		if VerboseConfig:
-			VerboseConfig.debug("music", "⏸️", "No registers - pausing music")
+			VerboseConfig.debug("music", "⏸️", "No active terminals - pausing music")
 		_active_player.stop()
+
+
+func _biome_has_active_terminals(farm, biome_name: String) -> bool:
+	"""Check if biome has terminals that are BOUND but NOT MEASURED.
+
+	Active terminals = exploring bubbles (not frozen/measured)
+	"""
+	if not farm.plot_pool or not farm.plot_pool.has_method("get_terminals_in_biome"):
+		return false
+
+	var terminals = farm.plot_pool.get_terminals_in_biome(biome_name)
+	for terminal in terminals:
+		if terminal.is_bound and not terminal.is_measured:
+			return true  # Found active exploration
+	return false
 
 
 func _on_biome_changed(new_biome: String, _old_biome: String) -> void:

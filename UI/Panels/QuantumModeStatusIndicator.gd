@@ -4,7 +4,6 @@ extends PanelContainer
 ##
 ## Shows:
 ## - Current readout mode (HARDWARE vs INSPECTOR)
-## - Current backaction mode (KID_LIGHT vs LAB_TRUE)
 ## - Selective measure model (POSTSELECT_COSTED)
 ##
 ## Placed in top-right corner of FarmUI
@@ -85,17 +84,15 @@ func _update_status() -> void:
 
 	# Build mode display string
 	var readout = "HARDWARE" if config.readout_mode == QuantumRigorConfig.ReadoutMode.HARDWARE else "INSPECTOR"
-	var backaction = "LAB_TRUE" if config.backaction_mode == QuantumRigorConfig.BackactionMode.LAB_TRUE else "KID_LIGHT"
 	var measure = "COSTED" if config.selective_measure_model == QuantumRigorConfig.SelectiveMeasureModel.POSTSELECT_COSTED else "CLICK"
 
 	# Display with emojis for clarity
 	var readout_emoji = "📡" if config.readout_mode == QuantumRigorConfig.ReadoutMode.HARDWARE else "🔍"
-	var backaction_emoji = "🔬" if config.backaction_mode == QuantumRigorConfig.BackactionMode.LAB_TRUE else "😌"
 	var measure_emoji = "💰" if config.selective_measure_model == QuantumRigorConfig.SelectiveMeasureModel.POSTSELECT_COSTED else "✓"
 
 	status_label.text = "%s %s | %s %s" % [
 		readout_emoji, readout,
-		backaction_emoji, backaction
+		measure_emoji, measure
 	]
 
 

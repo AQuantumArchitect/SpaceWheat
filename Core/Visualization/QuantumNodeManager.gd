@@ -12,17 +12,21 @@ const QuantumNode = preload("res://Core/Visualization/QuantumNode.gd")
 ## - Animation updates
 
 
-func create_quantum_nodes(ctx: Dictionary) -> Array:
+func create_quantum_nodes(ctx: Dictionary, skip_quantum_register_bubbles: bool = false) -> Array:
 	"""Create quantum nodes from quantum registers (first-class architecture).
 
 	Args:
 	    ctx: Context dictionary with {biomes, farm_grid, plot_pool, layout_calculator}
+	    skip_quantum_register_bubbles: If true, skip boot-time bubble creation.
+	        Only creates bubbles when terminals bind via _on_terminal_bound().
+	        DEFAULT=false to preserve test behavior.
+	        Set to true in BootManager for production (terminal-driven mode).
 
 	Returns:
 	    Array of created QuantumNode instances
 
 	NEW ARCHITECTURE:
-	  1. Create bubbles FROM quantum registers (primary source)
+	  1. Create bubbles FROM quantum registers (primary source) - unless skipped
 	  2. Optionally overlay terminal/plot data (secondary game mechanics)
 	  3. Plots are UI-only, don't drive bubble creation
 	"""
@@ -33,6 +37,12 @@ func create_quantum_nodes(ctx: Dictionary) -> Array:
 
 	var nodes: Array = []
 	var nodes_by_register: Dictionary = {}  # Key: "biome_name:register_id"
+
+	# GATE: Skip boot-time bubble creation in production (terminal-driven mode)
+	if skip_quantum_register_bubbles:
+		print("  [QuantumNodeManager] Skipping quantum register bubbles (terminal-driven mode)")
+		print("  [QuantumNodeManager] Bubbles will appear when terminals bind via EXPLORE")
+		return nodes
 
 	# PRIMARY: Create nodes from quantum registers (one bubble per register)
 	var total_registers = 0
