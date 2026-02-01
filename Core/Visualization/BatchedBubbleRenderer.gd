@@ -168,11 +168,18 @@ func draw(graph: Node2D, ctx: Dictionary) -> void:
 	_fallback_renderer.draw(graph, ctx)
 
 
+var _perf_loop_us: int = 0
+var _perf_flush_us: int = 0
+var _perf_emoji_us: int = 0
+var _perf_frame_count: int = 0
+
 func _draw_with_atlas(graph: Node2D, ctx: Dictionary) -> void:
 	"""Draw all bubbles using GPU texture atlas batching.
 
 	This is the fastest path - pre-rendered templates + per-vertex color modulation.
 	"""
+	var t0 = Time.get_ticks_usec()
+
 	# Check for pre-built emoji atlas in context
 	var emoji_atlas = ctx.get("emoji_atlas_batcher")
 	if emoji_atlas and emoji_atlas != _emoji_batcher and emoji_atlas._atlas_built:
@@ -286,11 +293,37 @@ func _draw_with_atlas(graph: Node2D, ctx: Dictionary) -> void:
 			"is_celestial": false
 		})
 
+	var t1 = Time.get_ticks_usec()
+
 	# Flush bubble atlas (ONE or TWO draw calls for all bubbles!)
 	_bubble_atlas_batcher.flush()
 
+	var t2 = Time.get_ticks_usec()
+
 	# Draw emojis (batched via GPU atlas when available)
 	_draw_emoji_pass(graph)
+
+	var t3 = Time.get_ticks_usec()
+
+	# Accumulate timing
+	_perf_loop_us += (t1 - t0)
+	_perf_flush_us += (t2 - t1)
+	_perf_emoji_us += (t3 - t2)
+	_perf_frame_count += 1
+
+	# Report every 120 frames
+	if _perf_frame_count >= 120:
+		var loop_ms = _perf_loop_us / 1000.0 / _perf_frame_count
+		var flush_ms = _perf_flush_us / 1000.0 / _perf_frame_count
+		var emoji_ms = _perf_emoji_us / 1000.0 / _perf_frame_count
+		var total_ms = loop_ms + flush_ms + emoji_ms
+		print("[BUBBLE_PERF] loop=%.2fms flush=%.2fms emoji=%.2fms total=%.2fms" % [
+			loop_ms, flush_ms, emoji_ms, total_ms
+		])
+		_perf_loop_us = 0
+		_perf_flush_us = 0
+		_perf_emoji_us = 0
+		_perf_frame_count = 0
 
 
 func _draw_with_native(graph: Node2D, ctx: Dictionary) -> void:

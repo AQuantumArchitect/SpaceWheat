@@ -95,7 +95,7 @@ const FIB_SEQUENCE: Array[int] = [1, 1, 2, 3, 5, 8, 13, 21]  # Fibonacci packet 
 const RECOVERY_THRESHOLD: int = 5   # Phrames - below this = RECOVERY mode
 const BATCH_TIME_SMOOTHING: float = 0.3  # EMA smoothing
 
-# Adaptive state
+# Adaptive state (DEPRECATED - use per-biome state below)
 var _buffer_state: BufferState = BufferState.RECOVERY
 var _fib_index: int = 4             # Start at Fib[4]=5 for reasonable default
 var _emergency_refill: bool = false # True if buffer hit 0 (urgent recovery)
@@ -106,10 +106,15 @@ var COAST_TARGET: int:
 		var batch_size = FIB_SEQUENCE[mini(_fib_index, FIB_SEQUENCE.size() - 1)]
 		return batch_size * 2
 
-# === PER-BIOME ASYNC PACKET QUEUES (Option A: Fully Independent) ===
-# Each biome has its own queue, thread, and state tracking
-var biome_packet_queues: Dictionary = {}  # biome_name -> Array[packet_request]
-var biome_threads: Dictionary = {}        # biome_name -> Thread (one per biome, up to 6 parallel)
+# === PER-BIOME ADAPTIVE STATE (Self-Balancing) ===
+# Each biome independently tracks its own RECOVERY/COAST state and Fibonacci index
+var biome_buffer_states: Dictionary = {}  # biome_name -> BufferState (RECOVERY/COAST)
+var biome_fib_indices: Dictionary = {}    # biome_name -> int (Fibonacci index)
+var biome_emergency_refill: Dictionary = {}  # biome_name -> bool (hit depth=0)
+
+# === PER-BIOME ASYNC PACKET QUEUES (DEPRECATED - using hybrid global) ===
+var biome_packet_queues: Dictionary = {}  # DEPRECATED
+var biome_threads: Dictionary = {}        # DEPRECATED
 var biome_pending: Dictionary = {}        # biome_name -> bool (has queued packet)
 var biome_in_flight: Dictionary = {}      # biome_name -> bool (thread currently running)
 var biome_paused: Dictionary = {}         # biome_name -> bool (no peeked terminals, skip evolution)
@@ -221,6 +226,11 @@ func register_biome(biome) -> void:
 	metadata_payloads[biome_name] = _build_metadata_payload(biome)
 	coupling_payloads[biome_name] = _get_coupling_payload_from_viz_cache(biome)
 	icon_map_payloads[biome_name] = {}
+
+	# Initialize per-biome adaptive state (self-balancing Fibonacci)
+	biome_buffer_states[biome_name] = BufferState.RECOVERY  # Start in RECOVERY
+	biome_fib_indices[biome_name] = 4  # Start at Fib[4]=5
+	biome_emergency_refill[biome_name] = false
 
 	# If native engine is ready, register and prime immediately
 	if _engine_ready and lookahead_engine and ENABLE_LOOKAHEAD:
@@ -705,8 +715,14 @@ func _physics_process_lookahead(delta: float):
 		# CONSUME: Advance all buffer cursors (1 phrame per biome)
 		_advance_all_buffers()
 
-		# Update buffer state based on consumption
+		# Update buffer state based on consumption (GLOBAL - for compatibility)
 		_update_buffer_state()
+
+		# Update PER-BIOME buffer states (self-balancing Fibonacci)
+		for biome in biomes:
+			if _is_valid_biome(biome):
+				var biome_name = _get_biome_name(biome)
+				_update_biome_buffer_state(biome_name)
 
 		# REFILL CHECK: Hybrid global packet with per-biome active_flags
 		# ONE packet evolves only biomes that need refill
@@ -956,13 +972,48 @@ func _update_buffer_state() -> void:
 
 
 func _get_adaptive_batch_size() -> int:
-	"""Get batch size using Fibonacci escalation.
+	"""Get batch size using Fibonacci escalation (GLOBAL - deprecated).
 
 	Always uses FIB_SEQUENCE[_fib_index].
 	RECOVERY: Advance index when buffer low (escalate)
 	COAST: Maintain index (stable batch size)
 	"""
 	return FIB_SEQUENCE[mini(_fib_index, FIB_SEQUENCE.size() - 1)]
+
+
+func _update_biome_buffer_state(biome_name: String) -> void:
+	"""Update RECOVERY/COAST state for a SINGLE biome based on its buffer depth.
+
+	Each biome independently tracks its own state and Fibonacci index.
+	"""
+	var depth = _get_biome_depth(biome_name)
+	var prev_state = biome_buffer_states.get(biome_name, BufferState.RECOVERY)
+	var fib_index = biome_fib_indices.get(biome_name, 4)
+
+	if depth <= 0:
+		biome_buffer_states[biome_name] = BufferState.RECOVERY
+		biome_emergency_refill[biome_name] = true
+		if prev_state == BufferState.COAST:
+			# Emergency: drop fib_index to ramp up quickly
+			biome_fib_indices[biome_name] = maxi(2, fib_index - 1)
+			_log("info", "STATE", "🔥", "%s: COAST→RECOVERY (empty! fib=%d)" % [biome_name, biome_fib_indices[biome_name]])
+	elif depth < RECOVERY_THRESHOLD:
+		biome_buffer_states[biome_name] = BufferState.RECOVERY
+		if prev_state == BufferState.COAST:
+			_log("info", "STATE", "⚠️", "%s: COAST→RECOVERY (depth=%d < %d, fib=%d)" % [biome_name, depth, RECOVERY_THRESHOLD, fib_index])
+	else:
+		biome_buffer_states[biome_name] = BufferState.COAST
+		if prev_state == BufferState.RECOVERY:
+			_log("info", "STATE", "✅", "%s: RECOVERY→COAST (depth=%d >= %d, fib=%d)" % [biome_name, depth, RECOVERY_THRESHOLD, fib_index])
+
+
+func _get_biome_batch_size(biome_name: String) -> int:
+	"""Get batch size for a SINGLE biome using its Fibonacci index.
+
+	Each biome maintains its own fib_index, allowing independent escalation/de-escalation.
+	"""
+	var fib_index = biome_fib_indices.get(biome_name, 4)
+	return FIB_SEQUENCE[mini(fib_index, FIB_SEQUENCE.size() - 1)]
 
 
 func _should_trigger_refill() -> bool:
@@ -1083,18 +1134,19 @@ func _trigger_hybrid_refill():
 
 
 func _queue_hybrid_packet():
-	"""Queue ONE global packet with per-biome active_flags.
+	"""Queue ONE global packet with per-biome active_flags and batch sizes.
 
-	Determines which biomes need evolution based on their buffer depths.
-	Biomes with low buffers → active_flag = true
-	Biomes with full buffers → active_flag = false (frozen)
-	Biomes that were invalidated → active_flag = true
+	Each biome independently determines:
+	- Whether it needs refill (active_flag)
+	- Its own Fibonacci batch size (self-balancing)
+
+	C++ evolves all active biomes for MAX(batch_sizes).
+	Merge saves only needed steps per biome.
 	"""
-	var batch_size = _get_adaptive_batch_size()
-
 	# Build active_flags and collect rhos for all biomes
 	var biome_rhos: Array = []
 	var active_flags_arr: Array = []
+	var max_batch_size = 0
 
 	for biome in biomes:
 		if not _is_valid_biome(biome):
@@ -1114,13 +1166,23 @@ func _queue_hybrid_packet():
 		var should_evolve = _should_trigger_biome_refill(biome_name, depth)
 		active_flags_arr.append(should_evolve)
 
+		# Track max batch size (C++ uses this for all biomes)
+		if should_evolve:
+			var biome_batch = _get_biome_batch_size(biome_name)
+			if biome_batch > max_batch_size:
+				max_batch_size = biome_batch
+
+	# Use max batch size (some biomes may "overcook" but this avoids C++ API changes)
+	if max_batch_size == 0:
+		max_batch_size = FIB_SEQUENCE[4]  # Default if no biomes active
+
 	# Queue ONE global packet with active_flags
-	_queue_adaptive_packet(biome_rhos, active_flags_arr, batch_size)
+	_queue_adaptive_packet(biome_rhos, active_flags_arr, max_batch_size)
 
 	# Log which biomes are being evolved
 	var active_count = active_flags_arr.count(true)
-	_log("trace", "REFILL", "🔄", "Global packet: batch=%d, %d/%d biomes active, fib=%d" % [
-		batch_size, active_count, biomes.size(), _fib_index
+	_log("trace", "REFILL", "🔄", "Global packet: batch=%d (max), %d/%d biomes active" % [
+		max_batch_size, active_count, biomes.size()
 	])
 
 

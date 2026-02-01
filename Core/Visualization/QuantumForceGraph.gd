@@ -704,6 +704,104 @@ func _extract_qubit_index(plot_id: String) -> int:
 
 
 # ============================================================================
+# PERFORMANCE PROFILING
+# ============================================================================
+
+func _print_perf_report():
+	"""Print detailed performance breakdown with averages."""
+	var fps = Engine.get_frames_per_second()
+
+	# Calculate averages
+	var avg = {}
+	for key in _perf_samples:
+		var samples = _perf_samples[key]
+		if samples.size() > 0:
+			var total = 0.0
+			for s in samples:
+				total += s
+			avg[key] = total / samples.size() / 1000.0  # Convert to ms
+		else:
+			avg[key] = 0.0
+
+	# Calculate max values (P95 approximation)
+	var p95 = {}
+	for key in _perf_samples:
+		var samples = _perf_samples[key].duplicate()
+		if samples.size() > 5:
+			samples.sort()
+			var idx = int(samples.size() * 0.95)
+			p95[key] = samples[idx] / 1000.0
+		elif samples.size() > 0:
+			p95[key] = samples[-1] / 1000.0
+		else:
+			p95[key] = 0.0
+
+	print("\n" + "═".repeat(78))
+	print("🔬 GDSCRIPT PERFORMANCE BREAKDOWN - Frame %d (%.0f FPS)" % [frame_count, fps])
+	print("═".repeat(78))
+
+	# Frame budget
+	var frame_ms = 1000.0 / fps if fps > 0 else 100.0
+	var total_tracked = avg["process_total"] + avg["draw_total"]
+	var untracked = frame_ms - total_tracked
+
+	print("\n🎯 FRAME BUDGET: %.1fms/frame (target: 16.67ms)" % frame_ms)
+	print("   ├─ Tracked GDScript: %.2fms" % total_tracked)
+	print("   └─ Untracked (GPU wait, other): %.2fms" % maxf(0, untracked))
+
+	# _process breakdown
+	print("\n📊 _process() breakdown (avg | P95):")
+	print("   ├─ Viewport check:   %5.2fms | %5.2fms" % [avg["process_viewport"], p95["process_viewport"]])
+	print("   ├─ Build context:    %5.2fms | %5.2fms  ← Dictionary creation" % [avg["process_context"], p95["process_context"]])
+	print("   ├─ Update visuals:   %5.2fms | %5.2fms  ← node_manager loop" % [avg["process_visuals"], p95["process_visuals"]])
+	print("   ├─ Animations:       %5.2fms | %5.2fms" % [avg["process_animations"], p95["process_animations"]])
+	print("   ├─ Force positions:  %5.2fms | %5.2fms" % [avg["process_forces"], p95["process_forces"]])
+	print("   └─ Particles:        %5.2fms | %5.2fms" % [avg["process_particles"], p95["process_particles"]])
+	print("   TOTAL:               %5.2fms | %5.2fms" % [avg["process_total"], p95["process_total"]])
+
+	# _draw breakdown
+	print("\n🎨 _draw() breakdown (avg | P95):")
+	print("   ├─ Build context:    %5.2fms | %5.2fms  ← Dictionary creation (2nd time!)" % [avg["draw_context"], p95["draw_context"]])
+	print("   ├─ Region renderer:  %5.2fms | %5.2fms" % [avg["draw_region"], p95["draw_region"]])
+	print("   ├─ Infra renderer:   %5.2fms | %5.2fms" % [avg["draw_infra"], p95["draw_infra"]])
+	print("   ├─ Edge renderer:    %5.2fms | %5.2fms" % [avg["draw_edge"], p95["draw_edge"]])
+	print("   ├─ Effects renderer: %5.2fms | %5.2fms" % [avg["draw_effects"], p95["draw_effects"]])
+	print("   ├─ Geometry flush:   %5.2fms | %5.2fms  ← GeometryBatcher→GPU" % [avg["draw_flush"], p95["draw_flush"]])
+	print("   ├─ Bubble renderer:  %5.2fms | %5.2fms  ← BubbleAtlasBatcher" % [avg["draw_bubble"], p95["draw_bubble"]])
+	print("   └─ Sun qubit:        %5.2fms | %5.2fms" % [avg["draw_sun"], p95["draw_sun"]])
+	print("   TOTAL:               %5.2fms | %5.2fms" % [avg["draw_total"], p95["draw_total"]])
+
+	# Identify bottleneck
+	var bottlenecks: Array = []
+	if avg["process_visuals"] > 2.0:
+		bottlenecks.append("🚨 update_visuals: %.1fms - node loop too slow" % avg["process_visuals"])
+	if avg["process_context"] + avg["draw_context"] > 1.0:
+		bottlenecks.append("🚨 context build: %.1fms - called twice per frame!" % (avg["process_context"] + avg["draw_context"]))
+	if avg["draw_edge"] > 3.0:
+		bottlenecks.append("🚨 edge_renderer: %.1fms - too many edges?" % avg["draw_edge"])
+	if avg["draw_bubble"] > 5.0:
+		bottlenecks.append("🚨 bubble_renderer: %.1fms - emoji/atlas overhead" % avg["draw_bubble"])
+	if untracked > 10.0:
+		bottlenecks.append("🚨 untracked: %.1fms - GPU stall or vsync?" % untracked)
+
+	if bottlenecks.size() > 0:
+		print("\n⚠️  BOTTLENECKS DETECTED:")
+		for b in bottlenecks:
+			print("   %s" % b)
+	else:
+		print("\n✅ No major bottlenecks detected")
+
+	# Node counts
+	var geom_stats = geometry_batcher.get_stats() if geometry_batcher else {}
+	print("\n📈 STATS: %d nodes | %d tris | %d draw calls" % [
+		quantum_nodes.size(),
+		geom_stats.get("triangle_count", 0),
+		geom_stats.get("draw_calls", 0)
+	])
+	print("═".repeat(78))
+
+
+# ============================================================================
 # DEBUG
 # ============================================================================
 

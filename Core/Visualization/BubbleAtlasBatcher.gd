@@ -70,9 +70,19 @@ var _colors: PackedColorArray = PackedColorArray()
 var _arc_points: PackedVector2Array = PackedVector2Array()
 var _arc_colors: PackedColorArray = PackedColorArray()
 
+# Capacity tracking to avoid frequent reallocations
+var _last_vertex_count: int = 0
+var _last_arc_count: int = 0
+
 # Empty arrays for RenderingServer call
 var _empty_bones := PackedInt32Array()
 var _empty_weights := PackedFloat32Array()
+
+# Pre-allocated indices arrays (reused each frame to avoid GDScript loop)
+var _indices: PackedInt32Array = PackedInt32Array()
+var _arc_indices: PackedInt32Array = PackedInt32Array()
+var _max_indices_size: int = 0
+var _max_arc_indices_size: int = 0
 
 # Stats
 var _layer_count: int = 0
@@ -84,15 +94,40 @@ var _atlas_built: bool = false
 const ARC_SEGMENTS: int = 24  # Segments for full circle arc
 
 
+func _ensure_indices_capacity(size: int) -> void:
+	"""Ensure pre-allocated indices array is large enough."""
+	if size <= _max_indices_size:
+		return
+	# Grow with headroom to avoid frequent reallocations
+	var new_size = maxi(size, _max_indices_size * 2)
+	new_size = maxi(new_size, 2048)  # Minimum reasonable size
+	_indices.resize(new_size)
+	# Fill new indices (only need to fill newly allocated portion)
+	for i in range(_max_indices_size, new_size):
+		_indices[i] = i
+	_max_indices_size = new_size
+
+
+func _ensure_arc_indices_capacity(size: int) -> void:
+	"""Ensure pre-allocated arc indices array is large enough."""
+	if size <= _max_arc_indices_size:
+		return
+	var new_size = maxi(size, _max_arc_indices_size * 2)
+	new_size = maxi(new_size, 2048)
+	_arc_indices.resize(new_size)
+	for i in range(_max_arc_indices_size, new_size):
+		_arc_indices[i] = i
+	_max_arc_indices_size = new_size
+
+
 func _init():
-	# Pre-allocate typical capacity (24 bubbles × 9 layers × 6 verts)
-	var typical_verts = 24 * 9 * 6
-	_points.resize(typical_verts)
-	_uvs.resize(typical_verts)
-	_colors.resize(typical_verts)
-	_points.clear()
-	_uvs.clear()
-	_colors.clear()
+	# Pre-allocate typical capacity
+	var typical_verts = 2048
+	var typical_arc_verts = 4096
+
+	# Pre-allocate indices array (avoids slow GDScript loop in flush())
+	_ensure_indices_capacity(typical_verts)
+	_ensure_arc_indices_capacity(typical_arc_verts)
 
 
 func build_atlas() -> bool:
@@ -482,14 +517,6 @@ func add_arc_layer(pos: Vector2, radius: float, from_angle: float, to_angle: flo
 	"""Add an arc layer using dynamic geometry (batched).
 
 	For variable-angle arcs that can't be pre-rendered.
-
-	Args:
-		pos: Center position
-		radius: Arc radius (center of stroke)
-		from_angle: Start angle in radians
-		to_angle: End angle in radians
-		width: Stroke width in pixels
-		color: Arc color
 	"""
 	if color.a < 0.01:
 		return
@@ -546,15 +573,7 @@ func add_arc_layer(pos: Vector2, radius: float, from_angle: float, to_angle: flo
 
 
 func add_filled_arc(pos: Vector2, radius: float, from_angle: float, to_angle: float, color: Color) -> void:
-	"""Add a filled arc (pie slice) using dynamic geometry.
-
-	Args:
-		pos: Center position
-		radius: Arc radius
-		from_angle: Start angle in radians
-		to_angle: End angle in radians
-		color: Fill color
-	"""
+	"""Add a filled arc (pie slice) using dynamic geometry."""
 	if color.a < 0.01:
 		return
 
@@ -592,20 +611,25 @@ func flush() -> void:
 	"""Submit all batched draws to RenderingServer.
 
 	ONE draw call for textured quads (atlas), ONE for arcs (untextured).
+	Uses pre-allocated indices arrays to avoid slow GDScript loops.
 	"""
 	if not _canvas_item.is_valid():
 		return
 
-	# Draw atlas-textured geometry (circles from templates)
-	if _points.size() > 0 and _atlas_texture:
-		var indices = PackedInt32Array()
-		indices.resize(_points.size())
-		for i in range(_points.size()):
-			indices[i] = i
+	# Track counts for pre-allocation next frame
+	_last_vertex_count = _points.size()
+	_last_arc_count = _arc_points.size()
 
+	# Draw atlas-textured geometry (circles from templates)
+	var point_count = _points.size()
+	if point_count > 0 and _atlas_texture:
+		# Ensure indices array is large enough
+		_ensure_indices_capacity(point_count)
+
+		# Submit with indices slice
 		RenderingServer.canvas_item_add_triangle_array(
 			_canvas_item,
-			indices,
+			_indices.slice(0, point_count),
 			_points,
 			_colors,
 			_uvs,
@@ -616,15 +640,13 @@ func flush() -> void:
 		_draw_calls += 1
 
 	# Draw untextured arc geometry
-	if _arc_points.size() > 0:
-		var arc_indices = PackedInt32Array()
-		arc_indices.resize(_arc_points.size())
-		for i in range(_arc_points.size()):
-			arc_indices[i] = i
+	var arc_count = _arc_points.size()
+	if arc_count > 0:
+		_ensure_arc_indices_capacity(arc_count)
 
 		RenderingServer.canvas_item_add_triangle_array(
 			_canvas_item,
-			arc_indices,
+			_arc_indices.slice(0, arc_count),
 			_arc_points,
 			_arc_colors,
 			PackedVector2Array(),  # No UVs for solid color
@@ -647,14 +669,15 @@ func get_atlas_texture() -> ImageTexture:
 
 func get_stats() -> Dictionary:
 	"""Get batching statistics for performance monitoring."""
+	var total_verts = _last_vertex_count + _last_arc_count
 	return {
 		"layer_count": _layer_count,
 		"arc_count": _arc_count,
 		"draw_calls": _draw_calls,
 		"templates": _template_uvs.size(),
 		"atlas_size": Vector2i(ATLAS_WIDTH, ATLAS_HEIGHT),
-		"vertex_count": _points.size() + _arc_points.size(),
-		"triangle_count": (_points.size() + _arc_points.size()) / 3,
+		"vertex_count": total_verts,
+		"triangle_count": total_verts / 3,
 	}
 
 
