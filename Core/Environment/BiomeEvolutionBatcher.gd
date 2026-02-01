@@ -1063,7 +1063,7 @@ func _queue_biome_packet(biome_name: String, current_depth: int):
 	var batch_size = _get_adaptive_batch_size()
 
 	# PRE-PACK ALL biomes in main thread (thread-safe)
-	# Workaround: We need all biome rhos pre-packed so worker thread doesn't call _to_packed()
+	# IMPORTANT: Each packet gets INDEPENDENT copies to avoid shared references
 	var all_biome_rhos: Array = []
 	var engine_biome_count = lookahead_engine.get_biome_count() if lookahead_engine else 0
 
@@ -1074,15 +1074,16 @@ func _queue_biome_packet(biome_name: String, current_depth: int):
 		if target_biome and _is_valid_biome(target_biome):
 			var qc = target_biome.quantum_computer
 			var rho_packed = qc.density_matrix._to_packed() if qc.density_matrix else PackedFloat64Array()
-			all_biome_rhos.append(rho_packed)
+			# DUPLICATE to create independent copy for this packet
+			all_biome_rhos.append(rho_packed.duplicate())
 		else:
 			all_biome_rhos.append(PackedFloat64Array())
 
 	# Create packet request with all rhos pre-packed
-	# PackedFloat64Array is safe to pass to threads as long as we don't modify it
+	# Each packet has INDEPENDENT array copies (no shared references between packets)
 	var packet_req = {
 		"biome_name": biome_name,
-		"all_biome_rhos": all_biome_rhos,  # Pre-packed in main thread
+		"all_biome_rhos": all_biome_rhos,  # Independent copies per packet
 		"target_biome_index": _get_engine_id_for_biome(biome_name),  # Which one to evolve
 		"num_steps": batch_size,
 		"timestamp": Time.get_ticks_msec(),

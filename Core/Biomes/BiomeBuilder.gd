@@ -65,6 +65,206 @@ static func _get_icon_registry():
 	return _icon_registry
 
 
+## ============================================================================
+## UNIFIED BIOME CONSTRUCTION FROM REGISTRY
+## ============================================================================
+
+## Build complete biome from BiomeRegistry (JSON-driven)
+## This is the NEW unified entry point for all contexts:
+## - BootManager (game boot)
+## - TestBootManager (test harness)
+## - Dynamic biome toggle (runtime)
+static func build_from_registry(
+	biome_name: String,
+	parent_node: Node,
+	options: Dictionary = {}
+) -> Dictionary:
+	"""Build a complete DynamicBiome from BiomeRegistry.
+
+	This method:
+	1. Loads biome definition from BiomeRegistry
+	2. Extracts emoji pairs from biome.emojis
+	3. Builds Lindblad spec from biome.icon_components
+	4. Calls build_biome_quantum_system() to create QuantumComputer
+	5. Creates DynamicBiome node with viz_cache
+	6. Adds biome to parent_node
+
+	Args:
+		biome_name: Name of biome in BiomeRegistry (e.g., "StarterForest")
+		parent_node: Node to add biome as child
+		options: Optional parameters {
+			faction_standings: Dictionary (faction_name -> weight),
+			skip_tree_add: bool (don't add to parent_node),
+		}
+
+	Returns:
+		{
+			success: bool,
+			biome_node: DynamicBiome (if success),
+			quantum_computer: QuantumComputer (if success),
+			icons: Dictionary (emoji -> Icon),
+			error: String (if failure)
+		}
+	"""
+	var result = {
+		"success": false,
+		"biome_node": null,
+		"quantum_computer": null,
+		"icons": {},
+		"error": ""
+	}
+
+	# 1. Load biome from registry
+	var biome_registry = _get_biome_registry()
+	var biome_def = biome_registry.get_by_name(biome_name)
+
+	if not biome_def:
+		result.error = "Biome '%s' not found in BiomeRegistry" % biome_name
+		return result
+
+	# 2. Extract emoji pairs from biome.emojis
+	var emoji_pairs = _group_emojis_into_pairs(biome_def.emojis)
+
+	if emoji_pairs.is_empty():
+		result.error = "No emoji pairs for biome '%s'" % biome_name
+		return result
+
+	# 3. Build Lindblad spec from biome icon_components
+	var lindblad_spec = _build_lindblad_spec_from_biome(biome_def)
+
+	# 4. Build quantum system (H + L)
+	var faction_standings = options.get("faction_standings", {})
+	var quantum_result = build_biome_quantum_system(
+		biome_name,
+		emoji_pairs,
+		faction_standings,
+		lindblad_spec
+	)
+
+	if not quantum_result.success:
+		result.error = quantum_result.error
+		return result
+
+	var qc = quantum_result.quantum_computer
+	var icons = quantum_result.icons
+
+	# 5. Create DynamicBiome node
+	var biome = DynamicBiome.new()
+	biome.set_biome_type(biome_name)
+	biome.name = biome_name
+	biome.quantum_computer = qc
+
+	# Store icons for viz_cache coupling data
+	biome.set_meta("icons", icons)
+
+	# Store biome definition for later reference
+	biome.set_meta("biome_def", biome_def)
+
+	# 6. Create viz_cache with metadata
+	var viz_metadata = _build_viz_metadata(emoji_pairs, biome_def)
+	var QuantumVizCache = load("res://Core/Visualization/QuantumVizCache.gd")
+	biome.viz_cache = QuantumVizCache.new()
+	biome.viz_cache.update_metadata_from_payload(viz_metadata)
+
+	# 7. Seed viz_cache with coupling data from icons
+	# (Must be done AFTER icons are set but BEFORE biome enters tree)
+	if biome.has_method("_seed_viz_couplings"):
+		biome._seed_viz_couplings()
+
+	# 8. Add to tree (unless skip_tree_add)
+	if not options.get("skip_tree_add", false) and parent_node:
+		parent_node.add_child(biome)
+
+	result.success = true
+	result.biome_node = biome
+	result.quantum_computer = qc
+	result.icons = icons
+	return result
+
+
+## INTERNAL: Group emojis into north/south pairs
+static func _group_emojis_into_pairs(emojis: Array) -> Array:
+	"""Convert flat emoji list into axis pairs.
+
+	Pairs emojis sequentially: [0,1], [2,3], [4,5], ...
+	If odd count, last emoji pairs with itself.
+
+	Returns: [{north: emoji, south: emoji}]
+	"""
+	var pairs: Array = []
+
+	for i in range(0, emojis.size(), 2):
+		var north = emojis[i]
+		var south = emojis[i + 1] if i + 1 < emojis.size() else emojis[i]
+		pairs.append({"north": north, "south": south})
+
+	return pairs
+
+
+## INTERNAL: Build BiomeLindblad spec from Biome definition
+static func _build_lindblad_spec_from_biome(biome_def) -> BiomeLindblad:
+	"""Extract Lindblad dissipation spec from biome icon_components.
+
+	Converts biome.icon_components into BiomeLindblad format.
+	"""
+	var spec = BiomeLindblad.new()
+
+	# Extract Lindblad terms from each emoji's icon_component
+	for emoji in biome_def.icon_components:
+		var component = biome_def.icon_components[emoji]
+
+		# Outgoing transitions (pumps/drains)
+		var lindblad_out = component.get("lindblad_outgoing", {})
+		if not lindblad_out.is_empty():
+			for target in lindblad_out:
+				var rate = lindblad_out[target]
+				spec.add_transition(emoji, target, rate)
+
+		# Incoming transitions
+		var lindblad_in = component.get("lindblad_incoming", {})
+		if not lindblad_in.is_empty():
+			for source in lindblad_in:
+				var rate = lindblad_in[source]
+				spec.add_transition(source, emoji, rate)
+
+		# Decay processes
+		var decay = component.get("decay", {})
+		if not decay.is_empty():
+			var decay_rate = decay.get("rate", 0.0)
+			var decay_target = decay.get("target", "")
+			if decay_rate > 0.0 and decay_target != "":
+				spec.add_decay(emoji, decay_target, decay_rate)
+
+	return spec
+
+
+## INTERNAL: Build viz_cache metadata from emoji pairs
+static func _build_viz_metadata(emoji_pairs: Array, biome_def) -> Dictionary:
+	"""Create visualization metadata for QuantumVizCache.
+
+	Returns metadata dict with axes, emoji mappings, and emoji list.
+	"""
+	var metadata = {
+		"num_qubits": emoji_pairs.size(),
+		"axes": {},
+		"emoji_to_qubit": {},
+		"emoji_to_pole": {},
+		"emoji_list": []
+	}
+
+	for i in range(emoji_pairs.size()):
+		var pair = emoji_pairs[i]
+		metadata.axes[i] = {"north": pair.north, "south": pair.south}
+		metadata.emoji_to_qubit[pair.north] = i
+		metadata.emoji_to_qubit[pair.south] = i
+		metadata.emoji_to_pole[pair.north] = 0
+		metadata.emoji_to_pole[pair.south] = 1
+		metadata.emoji_list.append(pair.north)
+		metadata.emoji_list.append(pair.south)
+
+	return metadata
+
+
 ## Build complete quantum system for a biome
 ## INVARIANT: Can be called at boot OR during gameplay (same logic)
 static func build_biome_quantum_system(

@@ -18,9 +18,17 @@ var _booted: bool = false  # Full boot (core + UI)
 var is_ready: bool = false  # Public flag for checking boot completion
 var _current_stage: String = ""
 
+# Registries for O(1) lookups
+var _biome_registry = null  # BiomeRegistry (lazy-loaded)
+
 ## Autoload singleton - ready to use as global
 func _ready() -> void:
 	_verbose.info("boot", "🔧", "BootManager autoload ready")
+
+	# Pre-load BiomeRegistry for fast lookups
+	const BiomeRegistry = preload("res://Core/Biomes/BiomeRegistry.gd")
+	_biome_registry = BiomeRegistry.new()
+	_verbose.debug("boot", "📚", "BiomeRegistry initialized (%d biomes)" % _biome_registry.get_all().size())
 
 ## Main boot sequence entry point - call after farm and shell are created
 func boot_core(load_slot: int = -1, scenario_id: String = "default", headless: bool = false) -> Node:
@@ -500,13 +508,29 @@ func load_biome(biome_name: String, farm: Node) -> Dictionary:
 			}
 
 	# ====== STEP 1: LOAD SCRIPT & INSTANTIATE ======
-	var biome = farm._safe_load_biome(_get_biome_script_path(biome_name), biome_name)
+	var script_path = _get_biome_script_path(biome_name)
+	var biome = null
+
+	if script_path != "":
+		# Hand-crafted script biome
+		biome = farm._safe_load_biome(script_path, biome_name)
+	else:
+		# JSON-driven biome from BiomeRegistry
+		const BiomeBuilder = preload("res://Core/Biomes/BiomeBuilder.gd")
+		var result = BiomeBuilder.build_from_registry(biome_name, farm.grid, {"skip_tree_add": true})
+
+		if result.success:
+			biome = result.biome_node
+			_verbose.debug("boot", "🔧", "Built '%s' from BiomeRegistry" % biome_name)
+		else:
+			_verbose.error("boot", "❌", "BiomeBuilder failed: %s" % result.error)
+
 	if not biome:
 		_verbose.error("boot", "❌", "Failed to load biome: %s" % biome_name)
 		return {
 			"success": false,
 			"error": "load_failed",
-			"message": "Could not load biome script for '%s'" % biome_name
+			"message": "Could not load biome for '%s'" % biome_name
 		}
 
 	# ====== STEP 2: REGISTER WITH GRID ======
@@ -562,6 +586,17 @@ func load_biome(biome_name: String, farm: Node) -> Dictionary:
 
 ## Helper: Get script path for a biome name
 func _get_biome_script_path(biome_name: String) -> String:
+	"""Get biome script path (empty string = use BiomeBuilder).
+
+	Returns:
+		- Script path for hand-crafted biomes
+		- Empty string for JSON biomes (signals load_biome to use BiomeBuilder)
+	"""
+	# Check BiomeRegistry first - prefer JSON-driven builds
+	if _biome_registry and _biome_registry.get_by_name(biome_name):
+		return ""  # Signal to use BiomeBuilder.build_from_registry()
+
+	# Fallback: hand-crafted script biomes (legacy support)
 	match biome_name:
 		"StarterForest":
 			return "res://Core/Environment/StarterForestBiome.gd"
@@ -576,26 +611,27 @@ func _get_biome_script_path(biome_name: String) -> String:
 		"VolcanicWorlds":
 			return "res://Core/Environment/VolcanicWorldsBiome.gd"
 		_:
-			# Fallback: data-driven biomes from registry
-			var registry = load("res://Core/Biomes/BiomeRegistry.gd").new()
-			if registry.get_by_name(biome_name):
-				return "res://Core/Environment/DataDrivenBiome.gd"
-			return ""
+			return ""  # Not found
 
 
-## Helper: Collect all unique emojis from all biomes for atlas building
+## Helper: Collect all unique emojis from all sources
 func _collect_all_emojis(biomes: Dictionary) -> Array:
-	"""Extract ALL unique emojis from loaded biomes.
+	"""Extract ALL unique emojis for atlas building.
 
-	Collects emojis from multiple sources to ensure complete atlas:
-	1. Primary: viz_cache.get_emojis() - comprehensive emoji list
-	2. Fallback: register_map.coordinates - coordinate-based emojis
-	3. Fallback: register_map.axes - north/south pole emojis
+	Uses EmojiRegistry to get emojis from BiomeRegistry + FactionRegistry,
+	plus runtime emojis from currently loaded biomes.
 
 	Returns an array of unique emoji strings for atlas building.
 	"""
-	var unique_emojis: Dictionary = {}
+	const EmojiRegistry = preload("res://Core/Biomes/EmojiRegistry.gd")
+	var emoji_registry = EmojiRegistry.new()
 
+	# Start with all emojis from BiomeRegistry + FactionRegistry
+	var unique_emojis: Dictionary = {}
+	for emoji in emoji_registry.get_all_emojis():
+		unique_emojis[emoji] = true
+
+	# Also include runtime emojis from currently loaded biomes
 	for biome_name in biomes:
 		var biome = biomes[biome_name]
 		if not biome:
@@ -636,162 +672,23 @@ func _collect_all_emojis(biomes: Dictionary) -> Array:
 	return unique_emojis.keys()
 
 
-## Helper: Collect emojis from biomes JSON file
+## Helper: Collect emojis from biomes JSON file (DEPRECATED - use EmojiRegistry)
 func _collect_emojis_from_biomes_json() -> Array:
-	"""Extract ALL emojis from biomes_merged.json.
+	"""DEPRECATED: Use EmojiRegistry instead.
 
-	Parses the JSON file directly to get emojis from all biomes,
-	not just the ones currently loaded in memory.
+	Kept for backwards compatibility only.
 	"""
-	return _collect_emojis_from_json_file(
-		"res://Core/Biomes/data/biomes_merged.json",
-		"biomes"
-	)
+	const EmojiRegistry = preload("res://Core/Biomes/EmojiRegistry.gd")
+	var registry = EmojiRegistry.new()
+	return registry.get_biome_emojis()
 
 
-## Helper: Collect emojis from factions JSON file
+## Helper: Collect emojis from factions JSON file (DEPRECATED - use EmojiRegistry)
 func _collect_emojis_from_factions_json() -> Array:
-	"""Extract ALL emojis from factions_merged.json.
+	"""DEPRECATED: Use EmojiRegistry instead.
 
-	Parses the JSON file directly to get emojis from all factions,
-	including hamiltonian couplings and alignment couplings.
+	Kept for backwards compatibility only.
 	"""
-	return _collect_emojis_from_json_file(
-		"res://Core/Factions/data/factions_merged.json",
-		"factions"
-	)
-
-
-## Generic JSON emoji extractor
-func _collect_emojis_from_json_file(json_path: String, source_type: String) -> Array:
-	"""Parse JSON and extract emojis based on source type.
-
-	Args:
-		json_path: Path to the JSON file
-		source_type: "biomes" or "factions" (determines parsing logic)
-
-	Returns:
-		Array of unique emoji strings
-	"""
-	var file = FileAccess.open(json_path, FileAccess.READ)
-	if not file:
-		push_warning("[Boot] Could not open %s" % json_path)
-		return []
-
-	var json_text = file.get_as_text()
-	file.close()
-
-	var json = JSON.new()
-	if json.parse(json_text) != OK:
-		push_warning("[Boot] Failed to parse %s: %s" % [json_path, json.get_error_message()])
-		return []
-
-	var data_array = json.data
-	var unique_emojis: Dictionary = {}
-
-	if source_type == "biomes":
-		# Extract from biomes structure
-		for biome_data in data_array:
-			# Primary emoji list
-			if "emojis" in biome_data:
-				for emoji in biome_data["emojis"]:
-					if _is_valid_emoji(emoji):
-						unique_emojis[emoji] = true
-
-			# Icon components (all emoji interactions)
-			if "icon_components" in biome_data:
-				for emoji_key in biome_data["icon_components"].keys():
-					if _is_valid_emoji(emoji_key):
-						unique_emojis[emoji_key] = true
-
-					var component = biome_data["icon_components"][emoji_key]
-
-					# Lindblad outgoing targets
-					if "lindblad_outgoing" in component:
-						for target in component["lindblad_outgoing"].keys():
-							if _is_valid_emoji(target):
-								unique_emojis[target] = true
-
-					# Lindblad incoming sources
-					if "lindblad_incoming" in component:
-						for source in component["lindblad_incoming"].keys():
-							if _is_valid_emoji(source):
-								unique_emojis[source] = true
-
-					# Decay targets
-					if "decay" in component and "target" in component["decay"]:
-						var target = component["decay"]["target"]
-						if _is_valid_emoji(target):
-							unique_emojis[target] = true
-
-	elif source_type == "factions":
-		# Extract from factions structure
-		for faction_data in data_array:
-			# self_energies keys are emojis
-			if "self_energies" in faction_data:
-				for emoji in faction_data["self_energies"].keys():
-					if _is_valid_emoji(emoji):
-						unique_emojis[emoji] = true
-
-			# hamiltonian keys and values are emojis
-			if "hamiltonian" in faction_data:
-				for emoji1 in faction_data["hamiltonian"].keys():
-					if _is_valid_emoji(emoji1):
-						unique_emojis[emoji1] = true
-					for emoji2 in faction_data["hamiltonian"][emoji1].keys():
-						if _is_valid_emoji(emoji2):
-							unique_emojis[emoji2] = true
-
-			# alignment_couplings keys and values are emojis
-			if "alignment_couplings" in faction_data:
-				for emoji1 in faction_data["alignment_couplings"].keys():
-					if _is_valid_emoji(emoji1):
-						unique_emojis[emoji1] = true
-					for emoji2 in faction_data["alignment_couplings"][emoji1].keys():
-						if _is_valid_emoji(emoji2):
-							unique_emojis[emoji2] = true
-
-			# sig array contains emojis (faction signature)
-			if "sig" in faction_data:
-				for emoji in faction_data["sig"]:
-					if _is_valid_emoji(emoji):
-						unique_emojis[emoji] = true
-
-			# gated_lindblad sources and gates are emojis
-			if "gated_lindblad" in faction_data:
-				for target in faction_data["gated_lindblad"].keys():
-					if _is_valid_emoji(target):
-						unique_emojis[target] = true
-					for gate_def in faction_data["gated_lindblad"][target]:
-						if "source" in gate_def and _is_valid_emoji(gate_def["source"]):
-							unique_emojis[gate_def["source"]] = true
-						if "gate" in gate_def and _is_valid_emoji(gate_def["gate"]):
-							unique_emojis[gate_def["gate"]] = true
-
-	return unique_emojis.keys()
-
-
-## Validate emoji strings (filter out non-emoji entries)
-func _is_valid_emoji(text) -> bool:
-	"""Filter out non-emoji entries.
-
-	Rejects:
-	- Empty strings
-	- Special keywords like "everything"
-	- Suffixed variants like "🌊_evap"
-	- Non-string values
-
-	Returns:
-		true if text is a valid emoji string
-	"""
-	if not text is String:
-		return false
-	if text.is_empty():
-		return false
-	if text in ["everything"]:  # Special keywords in JSON
-		return false
-	if "_" in text:  # Suffixed variants
-		return false
-	# Must be emoji codepoint range (above basic ASCII)
-	var first_char = text.unicode_at(0)
-	return first_char > 0x2000  # Emoji codepoint range
+	const EmojiRegistry = preload("res://Core/Biomes/EmojiRegistry.gd")
+	var registry = EmojiRegistry.new()
+	return registry.get_faction_emojis()
