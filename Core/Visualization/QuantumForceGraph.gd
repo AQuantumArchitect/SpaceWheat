@@ -280,16 +280,16 @@ func _draw():
 		_draw_debug_overlay()
 	var t_end = Time.get_ticks_usec()
 
-	# Performance logging (every 60 frames)
-	if frame_count % 60 == 0:
-		var total_ms = (t_end - t_start) / 1000.0
-		var bubble_ms = (t_bubble - t_flush) / 1000.0
-		var geom_stats = geometry_batcher.get_stats()
-		# Always print timing for debugging
-		print("[DRAW] %.1fms (bubbles=%.1fms) [%d nodes] [geom: %d prims, %d tris, %d calls]" % [
-			total_ms, bubble_ms, quantum_nodes.size(),
-			geom_stats.primitive_count, geom_stats.triangle_count, geom_stats.draw_calls
-		])
+	# Store timing samples
+	_perf_samples["draw_total"].append(t_end - t_start)
+	_perf_samples["draw_context"].append(t_ctx - t_start)
+	_perf_samples["draw_region"].append(t_region - t_ctx)
+	_perf_samples["draw_infra"].append(t_infra - t_region)
+	_perf_samples["draw_edge"].append(t_edge - t_infra)
+	_perf_samples["draw_effects"].append(t_effects - t_edge)
+	_perf_samples["draw_flush"].append(t_flush - t_effects)
+	_perf_samples["draw_bubble"].append(t_bubble - t_flush)
+	_perf_samples["draw_sun"].append(t_sun - t_bubble)
 
 
 func _build_context() -> Dictionary:

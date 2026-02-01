@@ -1296,22 +1296,10 @@ func invalidate_biome_buffer(biome_name: String):
 
 	Does NOT affect other biomes (per-biome independence).
 	"""
-	# Purge pending packets for this biome
-	if biome_packet_queues.has(biome_name):
-		var queue_size = biome_packet_queues[biome_name].size()
-		biome_packet_queues[biome_name].clear()
-		biome_pending[biome_name] = false
+	# Hybrid system: ONE global packet, per-biome buffers
+	# Just clear this biome's buffers - next packet will refill it
 
-		if queue_size > 0:
-			_log("info", "INVALIDATE", "🗑️", "%s: purged %d pending packets" % [biome_name, queue_size])
-
-	# Note: Can't stop running thread (Thread API limitation)
-	# Thread will complete, but we discard its result
-	if biome_in_flight.get(biome_name, false):
-		_log("warn", "INVALIDATE", "⚠️", "%s: thread running, will discard result" % biome_name)
-		# TODO: Add flag to discard result in _on_biome_packet_completed
-
-	# Clear buffers for this biome
+	# Clear buffers for this biome only (other biomes unaffected!)
 	frame_buffers[biome_name] = []
 	mi_buffers[biome_name] = []
 	bloch_buffers[biome_name] = []
@@ -1320,14 +1308,15 @@ func invalidate_biome_buffer(biome_name: String):
 	velocity_buffers[biome_name] = []
 	buffer_cursors[biome_name] = 0
 
-	# Re-prime this biome from current state
+	# Re-prime this biome from current state (frozen 13 phrames)
 	var biome = _get_biome_by_name(biome_name)
 	if biome:
 		_prime_single_biome_frozen(biome)
 
-	_log("info", "INVALIDATE", "🔄", "%s: buffer cleared, re-priming with %d phrames" % [
+	_log("info", "INVALIDATE", "🔄", "%s: buffer cleared, re-primed with %d frozen phrames" % [
 		biome_name, LOOKAHEAD_STEPS
 	])
+	_log("info", "INVALIDATE", "📦", "Next packet will refill %s (active_flag=true)" % biome_name)
 
 
 func _prime_single_biome_frozen(biome):
