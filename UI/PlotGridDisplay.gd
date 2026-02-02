@@ -1303,6 +1303,10 @@ func _process(delta: float) -> void:
 	time_accumulator += delta
 	var t1 = Time.get_ticks_usec()
 
+	# OPTIMIZATION: Viewport culling - only show tiles that are on-screen
+	_apply_viewport_culling()
+	var t1b = Time.get_ticks_usec()
+
 	# CRITICAL: Redraw EVERY FRAME while rejection effects are active (they're animated!)
 	if rejection_effects.size() > 0:
 		queue_redraw()
@@ -1325,6 +1329,59 @@ func _process(delta: float) -> void:
 	
 	if Engine.get_process_frames() % 60 == 0:
 		_verbose.trace("ui", "⏱️", "PGD Process Trace: Total %d us (Sync: %d, Rejection: %d, Cleanup: %d, Connections: %d)" % [t4 - t0, t1 - t0, t2 - t1, t3 - t2, t4 - t3])
+
+	# Report timing to UIPerformanceTracker
+	var tracker = get_node_or_null("/root/UIPerformanceTracker")
+	if tracker:
+		tracker.record_time("PlotGridDisplay._process", t4 - t0)
+	elif Engine.get_process_frames() % 300 == 0:
+		print("[PGD_DEBUG] UIPerformanceTracker not found!")
+
+
+func _apply_viewport_culling() -> void:
+	"""OPTIMIZATION: Hide tiles that are off-screen to reduce rendering overhead.
+
+	Only tiles within viewport + margin are rendered.
+	With 7 tiles on-screen (max) instead of 192, this is a 27x reduction in rendering!
+	"""
+	var viewport = get_viewport()
+	if not viewport:
+		return
+
+	var viewport_rect = viewport.get_visible_rect()
+	var margin = 100.0  # Extra margin to catch tiles being scrolled in
+	var culling_rect = viewport_rect.grow(margin)
+
+	# Track stats
+	var visible_count = 0
+	var culled_count = 0
+
+	for pos in tiles:
+		var tile = tiles[pos]
+		if not tile:
+			continue
+
+		# Skip if already hidden by biome filter
+		if tile.visible == false:
+			culled_count += 1
+			continue
+
+		# Get tile's global rect
+		var tile_rect = tile.get_global_rect()
+
+		# Check if tile intersects with viewport + margin
+		if culling_rect.intersects(tile_rect):
+			tile.visible = true
+			visible_count += 1
+		else:
+			tile.visible = false
+			culled_count += 1
+
+	# Debug output (every 5 seconds)
+	if Engine.get_process_frames() % 300 == 0:
+		_verbose.trace("ui", "📐", "Viewport culling: %d visible, %d culled (%.1fx reduction)" % [
+			visible_count, culled_count, float(visible_count + culled_count) / max(visible_count, 1)
+		])
 
 
 func _has_visual_connections() -> bool:
@@ -1354,6 +1411,8 @@ func _draw() -> void:
 	Biomes are responsible for rendering qubit-level entanglement visuals.
 	PlotGridDisplay only draws plot-level infrastructure (gates from 2-Q).
 	"""
+	var t0 = Time.get_ticks_usec()
+
 	# ALWAYS draw rejection effects (even if farm is null)
 	# These are drawn at z-index=2, above the UI (z-index=1)
 	_draw_rejection_effects()
@@ -1364,6 +1423,11 @@ func _draw() -> void:
 	# Draw persistent gate infrastructure only
 	# (entanglement visualization is delegated to biomes)
 	_draw_persistent_gate_infrastructure()
+
+	var t1 = Time.get_ticks_usec()
+	var tracker = get_node_or_null("/root/UIPerformanceTracker")
+	if tracker:
+		tracker.record_time("PlotGridDisplay._draw", t1 - t0)
 
 
 func _draw_rejection_effects():

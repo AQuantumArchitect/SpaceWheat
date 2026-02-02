@@ -18,6 +18,7 @@ config/features=PackedStringArray("4.5")
 [autoload]
 
 VerboseConfig="*res://Core/Config/VerboseConfig.gd"
+UIPerformanceTracker="*res://Core/Debug/UIPerformanceTracker.gd"
 BootManager="*res://Core/Boot/BootManager.gd"
 IconRegistry="*res://Core/QuantumSubstrate/IconRegistry.gd"
 VisualAssetRegistry="*res://Core/QuantumSubstrate/VisualAssetRegistry.gd"

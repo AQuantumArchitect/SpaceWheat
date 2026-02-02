@@ -194,11 +194,12 @@ func create_overlays(parent: Control) -> void:
 
 	_verbose.info("ui", "📋", "Quest Board created (press C to toggle - modal 4-slot system)")
 
-	# Create simulation stats overlay (time scale + FPS)
-	sim_stats_overlay = SimStatsOverlay.new()
-	sim_stats_overlay.z_index = 4096  # Max z_index in Godot 4 (was 5000, exceeded limit)
-	parent.add_child(sim_stats_overlay)
-	_verbose.info("ui", "⏱", "Simulation stats overlay created (upper-left)")
+	# SimStatsOverlay REMOVED - merged into InspectorOverlay (N key)
+	# Performance stats now only visible when user presses N to open Inspector
+	# sim_stats_overlay = SimStatsOverlay.new()
+	# sim_stats_overlay.z_index = 4096  # Max z_index in Godot 4 (was 5000, exceeded limit)
+	# parent.add_child(sim_stats_overlay)
+	_verbose.info("ui", "⏱", "Simulation stats overlay removed - now in InspectorOverlay (N key)")
 
 	# Create Vocabulary Overlay
 	vocabulary_overlay = _create_vocabulary_overlay()

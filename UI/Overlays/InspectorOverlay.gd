@@ -7,6 +7,7 @@ extends "res://UI/Core/OverlayBase.gd"
 ##   - Density matrix heatmap (|ρ_ij| magnitudes)
 ##   - Probability bars for each register
 ##   - Per-register details (amplitude, phase, entropy)
+##   - Performance stats (FPS, VFPS, PFPS, sim time scale)
 ##
 ## Controls:
 ##   Q = Select/confirm register
@@ -15,6 +16,8 @@ extends "res://UI/Core/OverlayBase.gd"
 ##   F = Cycle view mode (heatmap → bars → heatmap)
 ##   WASD = Navigate registers
 ##   ESC = Close overlay
+##
+## Note: Performance stats merged from SimStatsOverlay - only visible when overlay is open (N key)
 
 const UIStyleFactory_Local = preload("res://UI/Core/UIStyleFactory.gd")
 
@@ -28,6 +31,8 @@ var current_view_mode: int = ViewMode.HEATMAP
 var biome = null  # BiomeBase reference
 var quantum_computer = null  # QuantumComputer reference
 var register_data: Array = []  # Cached register info
+var farm_ref = null  # Farm reference for stats
+var batcher_ref = null  # Batcher reference for PFPS
 
 # UI components
 var view_mode_label: Label
@@ -35,6 +40,9 @@ var heatmap_container: Control
 var bars_container: Control
 var details_panel: Control
 var register_grid: GridContainer
+var stats_panel: Control  # Performance stats footer
+var sim_label: Label  # Simulation speed
+var fps_label: Label  # FPS/VFPS/PFPS
 
 # Visual constants
 const HEATMAP_SIZE: int = 280
@@ -90,6 +98,10 @@ func _build_content(container: Control) -> void:
 	# Details panel (bottom)
 	details_panel = _create_details_panel()
 	container.add_child(details_panel)
+
+	# Performance stats footer (FPS, sim speed, etc.)
+	stats_panel = _create_stats_panel()
+	container.add_child(stats_panel)
 
 
 func _create_title_bar_with_mode(mode_text: String) -> HBoxContainer:
@@ -181,6 +193,38 @@ func _create_details_panel() -> Control:
 	return panel
 
 
+func _create_stats_panel() -> Control:
+	"""Create performance stats footer panel (FPS, sim speed, etc.)."""
+	var panel = PanelContainer.new()
+	panel.custom_minimum_size = Vector2(0, 60)
+
+	var style = StyleBoxFlat.new()
+	style.bg_color = Color(0.08, 0.10, 0.18, 0.9)
+	style.set_corner_radius_all(8)
+	style.set_content_margin_all(8)
+	panel.add_theme_stylebox_override("panel", style)
+
+	var vbox = VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 4)
+	panel.add_child(vbox)
+
+	# Simulation speed label
+	sim_label = Label.new()
+	sim_label.text = "Sim time scale: --"
+	sim_label.add_theme_font_size_override("font_size", 12)
+	sim_label.add_theme_color_override("font_color", Color(0.95, 0.95, 0.95))
+	vbox.add_child(sim_label)
+
+	# FPS label
+	fps_label = Label.new()
+	fps_label.text = "FPS: --"
+	fps_label.add_theme_font_size_override("font_size", 12)
+	fps_label.add_theme_color_override("font_color", Color(0.8, 0.9, 1.0))
+	vbox.add_child(fps_label)
+
+	return panel
+
+
 # ============================================================================
 # LIFECYCLE
 # ============================================================================
@@ -206,6 +250,10 @@ func _process(delta: float) -> void:
 	if not visible:
 		return
 
+	# Update performance stats every frame
+	_update_stats()
+
+	# Update quantum data periodically
 	update_timer += delta
 	if update_timer >= update_interval:
 		_refresh_data()
@@ -443,6 +491,100 @@ func _update_details() -> void:
 func _update_selection_visual() -> void:
 	"""Update visual highlight of selected register."""
 	_update_view()
+
+
+# ============================================================================
+# PERFORMANCE STATS
+# ============================================================================
+
+func _update_stats() -> void:
+	"""Update performance stats labels (FPS, sim speed, etc.)."""
+	if not sim_label or not fps_label:
+		return
+
+	# Update simulation speed
+	var speed = _get_simulation_speed()
+	var fraction = _get_speed_fraction(speed)
+	var suffix = (" %s" % fraction) if fraction != "" else ""
+	sim_label.text = "Sim time scale: %.3fx%s" % [speed, suffix]
+
+	# Update FPS
+	var vfps = Engine.get_frames_per_second()
+	var pfps = _get_physics_fps()
+	fps_label.text = "FPS: %d | VFPS: %d | PFPS: %.1f" % [vfps, vfps, pfps]
+
+
+func _get_simulation_speed() -> float:
+	"""Get current simulation time scale."""
+	var farm = _locate_farm()
+	if farm and farm.grid:
+		for biome_entry in farm.grid.biomes.values():
+			if not biome_entry:
+				continue
+			if "quantum_time_scale" in biome_entry:
+				return biome_entry.quantum_time_scale
+			if biome_entry.has_method("get_quantum_time_scale"):
+				return biome_entry.get_quantum_time_scale()
+	if farm and "quantum_time_scale" in farm:
+		return farm.quantum_time_scale
+	return 1.0
+
+
+func _get_speed_fraction(speed: float) -> String:
+	"""Convert decimal speed to fraction string."""
+	var lookup = {
+		0.03125: "1/32",
+		0.0625: "1/16",
+		0.125: "1/8",
+		0.25: "1/4",
+		0.5: "1/2",
+		1.0: "1",
+		2.0: "2",
+		4.0: "4",
+		8.0: "8",
+		16.0: "16"
+	}
+	for key in lookup.keys():
+		if abs(speed - key) < 1e-4:
+			return lookup[key]
+	return ""
+
+
+func _get_physics_fps() -> float:
+	"""Get physics frames per second from batcher."""
+	# Check cached batcher reference
+	if batcher_ref and "physics_frames_per_second" in batcher_ref:
+		return batcher_ref.physics_frames_per_second
+
+	# Try to find farm's batcher
+	var farm = _locate_farm()
+	if farm and "biome_evolution_batcher" in farm:
+		var batcher = farm.biome_evolution_batcher
+		if batcher and "physics_frames_per_second" in batcher:
+			batcher_ref = batcher
+			return batcher.physics_frames_per_second
+
+	return 0.0
+
+
+func _locate_farm():
+	"""Find the active farm instance."""
+	if farm_ref and farm_ref.is_inside_tree():
+		return farm_ref
+
+	var root = get_tree().root if get_tree() else null
+	if root:
+		var candidate = root.get_node_or_null("/root/FarmView/Farm")
+		if not candidate:
+			candidate = root.get_node_or_null("/root/Farm")
+		if not candidate:
+			var gsm = root.get_node_or_null("/root/GameStateManager")
+			if gsm and "active_farm" in gsm and gsm.active_farm:
+				candidate = gsm.active_farm
+		if candidate:
+			farm_ref = candidate
+			return farm_ref
+	return null
 
 
 # ============================================================================

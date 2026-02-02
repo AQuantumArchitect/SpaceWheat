@@ -84,6 +84,15 @@ const BIOME_TRACKS: Dictionary = {
 	"MagneticAnomaly": "magnetic_anomaly",
 	"PowerStation": "magnetic_anomaly",
 	"AntimatterFoundry": "magnetic_anomaly",
+	# Additional biomes (from biomes_merged.json)
+	"PastoralCommons": "afterbirth_arbor",
+	"Apiary": "quantum_harvest",
+	"OrbitalStrike": "magnetic_anomaly",
+	"DemolitionSite": "workshop_scrap",
+	"Woodlot": "afterbirth_arbor",
+	"MirrorChamber": "magnetic_anomaly",
+	"TrappersCamp": "harbor_water",
+	"EnforcementPost": "workshop_scrap",
 }
 
 ## Icon (emoji) to track mapping
@@ -119,9 +128,12 @@ var _crossfade_tween: Tween = null
 var _last_crossfade_time: float = 0.0
 var _health_check_timer: float = 0.0  # 10Hz health check
 
-## Track position preservation with ghost timer
-var preserve_track_positions: bool = true  # Resume tracks with ghost advancement
-var _track_positions: Dictionary = {}  # track_key -> {position: float, timestamp: float}
+## Track position preservation with ghost timer (evolution-synced)
+## Ghost timer advances based on biome evolution steps, not wall-clock time.
+## This keeps music synced with biome evolution - if biome is paused, music position is frozen.
+var preserve_track_positions: bool = true  # Resume tracks with evolution-synced advancement
+var _track_positions: Dictionary = {}  # track_key -> {position: float, evolution_count: int, biome_name: String}
+const EVOLUTION_DT: float = 0.1  # Seconds per evolution step (matches BiomeEvolutionBatcher.LOOKAHEAD_DT)
 
 ## Register-based playback control (Layer 3 - music tied to evolution)
 ## When true: Music only plays when active biome has explored bubbles (terminals bound)
@@ -133,6 +145,9 @@ const REGISTER_CHECK_INTERVAL: float = 0.5  # Check register state every 0.5s
 ## Loaded streams cache
 var _stream_cache: Dictionary = {}
 var _disabled: bool = false
+
+## Layer 3 intentional stop flag (prevents watchdog from restarting)
+var _layer3_stopped: bool = false
 
 ## IconMap-driven music mode
 var iconmap_mode_enabled: bool = false  # Enable quantum state-driven music selection (disabled by default)
@@ -158,22 +173,25 @@ const ICONMAP_MAX_SAMPLES: int = 10  # Rolling window size
 const ICONMAP_MIN_SIMILARITY: float = 0.05  # Only switch if similarity > 5%
 const ICONMAP_HYSTERESIS: float = 0.03  # New track must be 3% better to switch
 
+## Verbose logging (set via environment variable MUSIC_VERBOSE=1)
+var _verbose: bool = false
+
 
 func _ready() -> void:
-	print("[MusicManager] _ready() called")
-	if _is_headless():
-		_disabled = true
-		print("[MusicManager] Headless mode - DISABLED")
-		return
+	_verbose = OS.get_environment("MUSIC_VERBOSE") == "1"
+	if _verbose:
+		print("[MusicManager] _ready() called")
 
 	process_mode = Node.PROCESS_MODE_ALWAYS  # Volume control works when paused
 	_setup_audio_players()
 	_connect_biome_manager()
+	_connect_farm_signals()
 	_load_volume_preference()
 
 	# Monitor playback health - restart if it unexpectedly stops
 	set_process(true)
-	print("[MusicManager] Ready - volume=%.1f, muted=%s" % [_volume, _muted])
+	if _verbose:
+		print("[MusicManager] Ready - volume=%.1f, muted=%s" % [_volume, _muted])
 
 
 func _process(delta: float) -> void:
@@ -185,7 +203,8 @@ func _process(delta: float) -> void:
 	if _health_check_timer >= 0.1:  # 10Hz health check
 		_health_check_timer = 0.0
 		# If we should be playing music but aren't, restart it
-		if not _current_track.is_empty() and not _active_player.playing and (_crossfade_tween == null or not _crossfade_tween.is_valid()):
+		# (but NOT if Layer 3 intentionally stopped it)
+		if not _current_track.is_empty() and not _active_player.playing and not _layer3_stopped and (_crossfade_tween == null or not _crossfade_tween.is_valid()):
 			push_warning("MusicManager: Playback stopped unexpectedly, restarting track: %s" % _current_track)
 			var stream = _get_or_load_stream(_current_track)
 			if stream:
@@ -275,6 +294,103 @@ func _connect_biome_manager() -> void:
 			print("[MusicManager] ERROR: ActiveBiomeManager not available!")
 
 
+func _connect_farm_signals() -> void:
+	"""Connect to Farm signals for immediate music response to terminal changes.
+
+	Layer 3: Music should respond immediately when:
+	- Terminal bound (bubble explored) → start music
+	- Terminal released (bubble reaped/measured) → stop music if last bubble
+	"""
+	# Deferred connection - Farm may not exist yet
+	call_deferred("_deferred_connect_farm")
+
+
+func _deferred_connect_farm() -> void:
+	await get_tree().process_frame
+	await get_tree().process_frame  # Wait 2 frames for Farm to be ready
+
+	var farm = get_node_or_null("/root/Farm")
+	if not farm:
+		print("[MusicManager] Farm not found - Layer 3 signals not connected")
+		return
+
+	# Connect to terminal state changes
+	if farm.has_signal("terminal_bound"):
+		farm.terminal_bound.connect(_on_terminal_bound)
+		print("[MusicManager] Connected to Farm.terminal_bound")
+	if farm.has_signal("terminal_released"):
+		farm.terminal_released.connect(_on_terminal_released)
+		print("[MusicManager] Connected to Farm.terminal_released")
+	if farm.has_signal("terminal_measured"):
+		farm.terminal_measured.connect(_on_terminal_measured)
+		print("[MusicManager] Connected to Farm.terminal_measured")
+
+
+func _on_terminal_bound(grid_pos: Vector2i, terminal_id: String, _emoji_pair: Dictionary) -> void:
+	"""Called when a terminal is bound (bubble explored). Start music if not playing."""
+	if _verbose:
+		print("[MusicManager] SIGNAL: terminal_bound - %s at %s" % [terminal_id, grid_pos])
+
+	if not stop_music_when_no_registers:
+		return
+
+	if not ActiveBiomeManager:
+		return
+
+	var active_biome = ActiveBiomeManager.get_active_biome()
+	if not _active_player.playing:
+		print("[MusicManager] Layer 3: Bubble explored in %s - starting music" % active_biome)
+		play_biome_track(active_biome)
+	else:
+		print("[MusicManager] Layer 3: Already playing - ignoring bound signal")
+
+
+func _on_terminal_released(grid_pos: Vector2i, terminal_id: String, _credits: int) -> void:
+	"""Called when a terminal is released. Stop music if this was the last bubble."""
+	if _verbose:
+		print("[MusicManager] SIGNAL: terminal_released - %s at %s" % [terminal_id, grid_pos])
+	_check_and_stop_if_empty()
+
+
+func _on_terminal_measured(grid_pos: Vector2i, terminal_id: String, outcome: String, _prob: float) -> void:
+	"""Called when a terminal is measured (reaped). Stop music if no more active bubbles."""
+	if _verbose:
+		print("[MusicManager] SIGNAL: terminal_measured - %s at %s, outcome=%s" % [terminal_id, grid_pos, outcome])
+	# Note: measured terminals are no longer "active" (bound but not measured)
+	# So we need to check if there are still active bubbles
+	_check_and_stop_if_empty()
+
+
+func _check_and_stop_if_empty() -> void:
+	"""Check if active biome has no more active terminals and stop music if so."""
+	if not stop_music_when_no_registers:
+		return
+
+	if not ActiveBiomeManager:
+		return
+
+	var active_biome = ActiveBiomeManager.get_active_biome()
+	if active_biome.is_empty():
+		return
+
+	var farm = get_node_or_null("/root/Farm")
+	if not farm or not farm.plot_pool:
+		return
+
+	var has_bubbles = _biome_has_active_terminals(farm, active_biome)
+	var is_playing = _active_player.playing
+	if _verbose:
+		print("[MusicManager] _check_and_stop_if_empty: biome=%s, has_bubbles=%s, is_playing=%s" % [
+			active_biome, has_bubbles, is_playing])
+
+	if not has_bubbles and is_playing:
+		if _verbose:
+			print("[MusicManager] Layer 3: Last bubble gone in %s - stopping music" % active_biome)
+		_stop_for_layer3()
+	elif has_bubbles and is_playing:
+		print("[MusicManager] Layer 3: Still have bubbles in %s - music continues" % active_biome)
+
+
 func _check_register_state() -> void:
 	"""Layer 3: Sync music with biome evolution.
 
@@ -305,20 +421,62 @@ func _check_register_state() -> void:
 
 	if has_active_terminals and not is_playing:
 		# Active terminals exist but music stopped - START music for this biome
-		print("[MusicManager] Layer 3: Bubbles detected in %s - starting music" % biome_name)
+		if _verbose:
+			print("[MusicManager] Layer 3: Bubbles detected in %s - starting music" % biome_name)
 		play_biome_track(biome_name)
 	elif not has_active_terminals and is_playing:
 		# No active terminals but music playing - PAUSE (save position via ghost timer)
-		print("[MusicManager] Layer 3: No bubbles in %s - pausing music" % biome_name)
-		# Save position for ghost timer before stopping
-		if preserve_track_positions and not _current_track.is_empty():
+		if _verbose:
+			print("[MusicManager] Layer 3: No bubbles in %s - pausing music" % biome_name)
+		_stop_for_layer3()
+
+
+func _stop_for_layer3() -> void:
+	"""Stop music for Layer 3 (no bubbles). Saves ghost timer position and stops ALL players."""
+	# Set flag to prevent watchdog from restarting
+	_layer3_stopped = true
+
+	# Kill any crossfade in progress
+	if _crossfade_tween and _crossfade_tween.is_valid():
+		_crossfade_tween.kill()
+		_crossfade_tween = null
+
+	# Save position for ghost timer before stopping (evolution-synced)
+	if preserve_track_positions and not _current_track.is_empty():
+		if _active_player.playing:
 			var current_pos := _active_player.get_playback_position()
-			var current_time := Time.get_ticks_msec() / 1000.0
+			var biome_name := ""
+			var evolution_count := 0
+
+			if ActiveBiomeManager:
+				biome_name = ActiveBiomeManager.get_active_biome()
+				evolution_count = _get_biome_evolution_count(biome_name)
+
 			_track_positions[_current_track] = {
 				"position": current_pos,
-				"timestamp": current_time
+				"evolution_count": evolution_count,
+				"biome_name": biome_name
 			}
-		_active_player.stop()
+			if _verbose:
+				print("[MusicManager] Ghost timer: saved %s at %.1fs (evo=%d, biome=%s)" % [
+					_current_track, current_pos, evolution_count, biome_name])
+
+	# Stop BOTH players (in case crossfade was in progress)
+	_active_player.stop()
+	_inactive_player.stop()
+
+
+func _get_biome_evolution_count(biome_name: String) -> int:
+	"""Query BiomeEvolutionBatcher for cumulative evolution count."""
+	var farm = get_node_or_null("/root/Farm")
+	if not farm:
+		return 0
+
+	var batcher = farm.get("biome_evolution_batcher")
+	if not batcher or not batcher.has_method("get_biome_evolution_count"):
+		return 0
+
+	return batcher.get_biome_evolution_count(biome_name)
 
 
 func _biome_has_active_terminals(farm, biome_name: String) -> bool:
@@ -330,14 +488,28 @@ func _biome_has_active_terminals(farm, biome_name: String) -> bool:
 		return false
 
 	var terminals = farm.plot_pool.get_terminals_in_biome(biome_name)
+	var active_count := 0
+	var measured_count := 0
+	var unbound_count := 0
+
 	for terminal in terminals:
 		if terminal.is_bound and not terminal.is_measured:
-			return true  # Found active exploration
-	return false
+			active_count += 1
+		elif terminal.is_measured:
+			measured_count += 1
+		else:
+			unbound_count += 1
+
+	var has_active = active_count > 0
+	if _verbose:
+		print("[MusicManager] _biome_has_active_terminals(%s): active=%d, measured=%d, unbound=%d → %s" % [
+			biome_name, active_count, measured_count, unbound_count, has_active])
+	return has_active
 
 
 func _on_biome_changed(new_biome: String, old_biome: String) -> void:
-	print("[MusicManager] Biome changed: %s → %s" % [old_biome, new_biome])
+	if _verbose:
+		print("[MusicManager] Biome changed: %s → %s" % [old_biome, new_biome])
 
 	# In iconmap mode, let the quantum state drive music (don't auto-switch on biome change)
 	if iconmap_mode_enabled:
@@ -354,21 +526,13 @@ func _on_biome_changed(new_biome: String, old_biome: String) -> void:
 		if farm and farm.plot_pool:
 			var has_bubbles = _biome_has_active_terminals(farm, new_biome)
 			if not has_bubbles:
-				print("[MusicManager] Layer 3: %s has no bubbles - staying silent" % new_biome)
-				# Stop current music if playing (we switched away from a biome with bubbles)
-				if _active_player.playing:
-					# Save position for ghost timer
-					if preserve_track_positions and not _current_track.is_empty():
-						var current_pos := _active_player.get_playback_position()
-						var current_time := Time.get_ticks_msec() / 1000.0
-						_track_positions[_current_track] = {
-							"position": current_pos,
-							"timestamp": current_time
-						}
-					_active_player.stop()
+				if _verbose:
+					print("[MusicManager] Layer 3: %s has no bubbles - stopping music" % new_biome)
+				_stop_for_layer3()
 				return
 
-	print("[MusicManager] Playing biome track for: %s" % new_biome)
+	if _verbose:
+		print("[MusicManager] Playing biome track for: %s" % new_biome)
 	play_biome_track(new_biome)
 
 
@@ -664,32 +828,36 @@ func is_portfolio_mode() -> bool:
 func play_biome_track(biome_name: String) -> void:
 	"""Play the track associated with a biome.
 
-	If the biome has a dedicated track in BIOME_TRACKS, play it directly.
-	Otherwise, parametrically select the best matching track using cos² similarity.
+	Layer 1: Direct biome→track lookup from BIOME_TRACKS.
+	Layer 4 (optional): If iconmap_mode is enabled and no direct mapping, use parametric selection.
+	Fallback: entropy_garden
 	"""
-	print("[MusicManager] play_biome_track(%s)" % biome_name)
+	if _verbose:
+		print("[MusicManager] play_biome_track(%s)" % biome_name)
 	if _disabled:
 		print("[MusicManager] DISABLED - skipping")
 		return
 
-	# Check for dedicated track first
+	# Layer 1: Direct biome→track mapping
 	if BIOME_TRACKS.has(biome_name):
 		var track_key = BIOME_TRACKS[biome_name]
-		print("[MusicManager] Found dedicated track: %s → %s" % [biome_name, track_key])
+		print("[MusicManager] Layer 1: %s → %s" % [biome_name, track_key])
 		crossfade_to(track_key)
 		return
 
-	# No dedicated track - use parametric selection based on biome vector
-	print("[MusicManager] No dedicated track for %s, trying parametric..." % biome_name)
-	_ensure_cache_loaded()
-	if _biome_vectors.has(biome_name):
-		var best_track := _select_track_for_biome_vector(biome_name)
-		if not best_track.is_empty():
-			print("[MusicManager] Parametric selected: %s" % best_track)
-			crossfade_to(best_track)
-			return
+	# Layer 4 (only if enabled): Parametric selection based on biome vector
+	if iconmap_mode_enabled:
+		print("[MusicManager] Layer 4: No mapping for %s, trying parametric..." % biome_name)
+		_ensure_cache_loaded()
+		if _biome_vectors.has(biome_name):
+			var best_track := _select_track_for_biome_vector(biome_name)
+			if not best_track.is_empty():
+				print("[MusicManager] Layer 4 selected: %s" % best_track)
+				crossfade_to(best_track)
+				return
 
-	# Ultimate fallback
+	# Fallback - no mapping found
+	print("[MusicManager] Fallback: %s has no track mapping, using %s" % [biome_name, FALLBACK_TRACK])
 	crossfade_to(FALLBACK_TRACK)
 
 
@@ -812,7 +980,9 @@ func play_track(track_key: String, instant: bool = false) -> void:
 
 func crossfade_to(track_key: String) -> void:
 	"""Crossfade to a new track"""
-	print("[MusicManager] crossfade_to(%s)" % track_key)
+	if _verbose:
+		print("[MusicManager] crossfade_to(%s)" % track_key)
+	_layer3_stopped = false  # Clear intentional stop flag
 	if _disabled:
 		print("[MusicManager] DISABLED - skipping crossfade")
 		return
@@ -838,21 +1008,28 @@ func crossfade_to(track_key: String) -> void:
 		print("[MusicManager] ERROR: Failed to load stream for '%s'" % track_key)
 		return
 
-	print("[MusicManager] Starting crossfade to '%s'" % track_key)
+	if _verbose:
+		print("[MusicManager] Starting crossfade to '%s'" % track_key)
 
 	var previous_track := _current_track
 
-	# Save playback position + timestamp of current track (ghost timer)
+	# Save playback position + evolution count of current track (ghost timer)
 	if preserve_track_positions and not previous_track.is_empty():
 		if _active_player.playing:
 			var current_pos := _active_player.get_playback_position()
-			var current_time := Time.get_ticks_msec() / 1000.0
+			var biome_name := ""
+			var evolution_count := 0
+
+			if ActiveBiomeManager:
+				biome_name = ActiveBiomeManager.get_active_biome()
+				evolution_count = _get_biome_evolution_count(biome_name)
+
 			_track_positions[previous_track] = {
 				"position": current_pos,
-				"timestamp": current_time
+				"evolution_count": evolution_count,
+				"biome_name": biome_name
 			}
-			if VerboseConfig:
-				VerboseConfig.debug("music", "👻", "Ghost timer started for %s at %.1fs" % [previous_track, current_pos])
+			print("[MusicManager] Ghost timer: saving %s at %.1fs (evo=%d)" % [previous_track, current_pos, evolution_count])
 
 	# Cancel any existing crossfade
 	if _crossfade_tween and _crossfade_tween.is_valid():
@@ -868,16 +1045,20 @@ func crossfade_to(track_key: String) -> void:
 	_active_player.volume_db = -80.0  # Start silent
 	_active_player.play()
 
-	# Calculate virtual position using ghost timer (if enabled)
+	# Calculate virtual position using evolution-synced ghost timer
 	if preserve_track_positions and _track_positions.has(track_key):
 		var track_info: Dictionary = _track_positions[track_key]
-		var saved_pos: float = track_info["position"]
-		var saved_time: float = track_info["timestamp"]
-		var current_time := Time.get_ticks_msec() / 1000.0
-		var elapsed := current_time - saved_time
+		var saved_pos: float = track_info.get("position", 0.0)
+		var saved_evo: int = track_info.get("evolution_count", 0)
+		var saved_biome: String = track_info.get("biome_name", "")
 
-		# Calculate where the track "would be" if it had been playing
-		var virtual_pos := saved_pos + elapsed
+		# Get current evolution count for the saved biome
+		var current_evo := _get_biome_evolution_count(saved_biome)
+		var evo_steps := current_evo - saved_evo
+
+		# Calculate where the track "would be" based on evolution steps
+		var elapsed_time := float(evo_steps) * EVOLUTION_DT
+		var virtual_pos := saved_pos + elapsed_time
 
 		# Handle looping - wrap around track length
 		var track_length := stream.get_length()
@@ -885,11 +1066,8 @@ func crossfade_to(track_key: String) -> void:
 			virtual_pos = fmod(virtual_pos, track_length)
 
 		_active_player.seek(virtual_pos)
-
-		if VerboseConfig:
-			VerboseConfig.debug("music", "⏩", "Ghost advanced %s: %.1fs elapsed → now at %.1fs" % [
-				track_key, elapsed, virtual_pos
-			])
+		print("[MusicManager] Ghost timer: %s advanced %d evo steps (%.1fs) → now at %.1fs" % [
+			track_key, evo_steps, elapsed_time, virtual_pos])
 
 	# Crossfade tween
 	_crossfade_tween = create_tween()
@@ -1059,6 +1237,7 @@ func _get_or_load_stream(track_key: String) -> AudioStream:
 
 
 func _play_instant(stream: AudioStream, track_key: String) -> void:
+	_layer3_stopped = false  # Clear intentional stop flag
 	_active_player.stream = stream
 	_active_player.volume_db = _volume_to_db(_volume)
 	_active_player.play()

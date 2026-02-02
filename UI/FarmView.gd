@@ -6,12 +6,14 @@ extends Control
 const BathQuantumViz = preload("res://Core/Visualization/BathQuantumVisualizationController.gd")
 const ProbeActions = preload("res://Core/Actions/ProbeActions.gd")
 const BiomeBackgroundClass = preload("res://Core/Visualization/BiomeBackground.gd")
+const PerformanceHUDClass = preload("res://UI/Overlays/PerformanceHUD.gd")
 # BootManager is an autoload singleton - no need to preload
 
 var shell = null  # PlayerShell (from scene)
 var farm: Node = null
 var quantum_viz: BathQuantumViz = null
 var biome_background: Control = null  # BiomeBackground for full-screen biome art
+var performance_hud: Control = null  # Performance profiling overlay
 
 # Helpers to access autoloads safely (avoids compile-time errors in tests)
 @onready var _verbose = get_node("/root/VerboseConfig")
@@ -87,6 +89,13 @@ func _ready():
 	# Set z_index low so it renders behind UI and overlays
 	add_child(quantum_viz)
 	quantum_viz.z_index = -100  # Behind everything (plots are -10, overlays are 1000+)
+
+	# Create performance HUD overlay
+	_verbose.debug("ui", "🔬", "Creating performance profiling HUD...")
+	performance_hud = PerformanceHUDClass.new()
+	add_child(performance_hud)
+	performance_hud.z_index = 2000  # Above all UI
+	_verbose.info("ui", "✅", "Performance HUD created")
 
 	# ═══════════════════════════════════════════════════════════════════════
 	# PRE-BOOT: Signal connections needed before game starts

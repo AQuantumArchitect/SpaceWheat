@@ -14,6 +14,10 @@ func _ready() -> void:
 	set_process(true)
 
 func _process(delta: float) -> void:
+	# Skip processing when overlay is hidden
+	if not visible:
+		return
+
 	if sim_label == null or fps_label == null:
 		_ensure_ui()
 		if sim_label == null or fps_label == null:

@@ -111,12 +111,15 @@ static func calculate_affinity_with_populations(vocab_pair: Dictionary, biome, p
 
 static func _get_biome_emojis(biome) -> Array[String]:
 	"""Get all emojis registered in biome's quantum computer."""
+	var result: Array[String] = []
 	if not biome:
-		return []
+		return result
 
 	if biome.viz_cache:
-		return biome.viz_cache.get_emojis()
-	return []
+		var emojis = biome.viz_cache.get_emojis()
+		for e in emojis:
+			result.append(e)
+	return result
 
 static func _get_icon_registry():
 	"""Get the icon registry from GameStateManager."""
