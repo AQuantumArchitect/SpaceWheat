@@ -46,6 +46,11 @@ var spam_interval = 0.2
 var spam_timer = 0.0
 var spam_slot_index = 0
 
+# Buffer invalidation testing
+var test_invalidation = true  # Enable buffer invalidation test
+var invalidation_phase = 0
+var frames_since_invalidation = 0
+
 # Biome visibility (TYUIOP toggles)
 var biome_visibility: Dictionary = {}  # biome_name → bool
 var slot_to_actual_biome: Dictionary = {}  # slot_name → actual_biome_name (for random loading)
@@ -75,6 +80,16 @@ func _ready():
 	print("\n" + "=".repeat(70))
 	print("VISUAL BUBBLE TEST - TestBootManager")
 	print("=".repeat(70))
+
+	# Check if stress test mode enabled
+	var args = OS.get_cmdline_user_args()
+	if "--stress-test" in args or OS.get_environment("STRESS_TEST") == "1":
+		var StressTestController = load("res://Tests/StressTestController.gd")
+		if StressTestController:
+			var controller = StressTestController.new()
+			add_child(controller)
+			print("🧪 Stress test controller loaded")
+		test_invalidation = false  # Disable built-in invalidation test
 
 	# Create boot manager
 	boot_manager = TestBootManager.new()
@@ -279,7 +294,22 @@ func _create_visualization():
 	print("")
 
 
+# Frame timing for untracked detection
+var _frame_start_us: int = 0
+var _last_frame_end_us: int = 0
+var _frame_gap_us: int = 0  # Time between frames (vsync/GPU wait)
+var _frame_gap_samples: Array = []
+
 func _process(delta):
+	# Track gap since last frame ended (this is vsync/GPU wait time)
+	var now = Time.get_ticks_usec()
+	if _last_frame_end_us > 0:
+		_frame_gap_us = now - _last_frame_end_us
+		_frame_gap_samples.append(_frame_gap_us)
+		if _frame_gap_samples.size() > 120:
+			_frame_gap_samples.pop_front()
+	_frame_start_us = now
+
 	queue_redraw()
 
 	match test_phase:
@@ -289,6 +319,8 @@ func _process(delta):
 			pass  # Benchmark runs async
 		"running":
 			_run_visual_update(delta)
+
+	_last_frame_end_us = Time.get_ticks_usec()
 
 
 func _run_benchmark():
@@ -320,12 +352,26 @@ func _physics_process(delta):
 		_run_physics_update(delta)
 
 
+var _physics_time_us: int = 0
+var _physics_call_count: int = 0
+
 func _run_physics_update(delta):
 	"""Physics loop - quantum evolution only"""
 	# Evolution with time scaling
 	if evolution_enabled and batcher:
+		var t0 = Time.get_ticks_usec()
 		var scaled_delta = delta * simulation_time_scale
 		batcher.physics_process(scaled_delta)
+		var t1 = Time.get_ticks_usec()
+		_physics_time_us += (t1 - t0)
+		_physics_call_count += 1
+
+		# Report every 60 physics frames (~1 second)
+		if _physics_call_count >= 60:
+			var avg_ms = _physics_time_us / 1000.0 / _physics_call_count
+			print("[PHYSICS_TIMING] batcher.physics_process() avg: %.2fms per call" % avg_ms)
+			_physics_time_us = 0
+			_physics_call_count = 0
 
 
 func _run_visual_update(delta):
@@ -380,6 +426,29 @@ func _run_visual_update(delta):
 			node.emoji_north_opacity, node.emoji_south_opacity
 		])
 
+	# Buffer invalidation test
+	if test_invalidation and batcher:
+		frames_since_invalidation += 1
+
+		# Phase 0: Let system stabilize (250 frames)
+		if invalidation_phase == 0 and frame >= 250:
+			print("\n=== INVALIDATION TEST: Phase 1 - Invalidate biome 0 (CyberDebtMegacity) ===")
+			_invalidate_biome(0)
+			invalidation_phase = 1
+			frames_since_invalidation = 0
+
+		# Phase 1: Watch recovery (150 frames)
+		elif invalidation_phase == 1 and frames_since_invalidation >= 150:
+			print("\n=== INVALIDATION TEST: Phase 2 - Invalidate biome 3 (BioticFlux) ===")
+			_invalidate_biome(3)
+			invalidation_phase = 2
+			frames_since_invalidation = 0
+
+		# Phase 2: Watch recovery (150 frames)
+		elif invalidation_phase == 2 and frames_since_invalidation >= 150:
+			print("\n=== INVALIDATION TEST: Complete ===")
+			invalidation_phase = 3
+
 	# Detailed per-frame batching log (frames 10-100) to verify batching
 	if frame >= 10 and frame <= 100 and batcher:
 		var diag = batcher.get_batching_diagnostics() if batcher.has_method("get_batching_diagnostics") else {}
@@ -395,9 +464,9 @@ func _run_visual_update(delta):
 			diag.get("interpolation_t", 0.0), batch_ms
 		])
 
-	# Headless: exit after 500 frames
-	if DisplayServer.get_name() == "headless" and frame >= 500:
-		print("\n[HEADLESS] Completed 500 frames, exiting...")
+	# Headless: exit after 4000 frames (allow time for full stress test with 43 biomes)
+	if DisplayServer.get_name() == "headless" and frame >= 4000:
+		print("\n[HEADLESS] Completed 4000 frames, exiting...")
 		get_tree().quit()
 		return
 
@@ -418,7 +487,7 @@ func _run_visual_update(delta):
 		])
 
 	# Detailed C++ task profiling every ~10 physics frames (100 visual frames)
-	if frame % 100 == 0 and frame >= 100 and batcher:
+	if frame % 300 == 0 and frame >= 300 and batcher:
 		_print_cpp_profiling_report()
 
 
@@ -630,44 +699,63 @@ func _print_cpp_profiling_report():
 	var frame_time_ms = 1000.0 / vfps if vfps > 0 else 16.67
 
 	print("\n" + "─".repeat(70))
-	print("📊 FRAME BUDGET BREAKDOWN - Frame %d" % frame)
+	print("📊 FRAME BUDGET - Frame %d" % frame)
 	print("─".repeat(70))
 
 	# Visual FPS and frame time
 	var physics_fps = metrics.get("physics_fps", 10.0)
-	var avg_frame_ms = metrics.get("avg_frame_time_ms", 16.67)
 
 	print("\n🎯 TARGET: 16.67ms (60 FPS)  |  ACTUAL: %.2fms (%.1f FPS)" % [frame_time_ms, vfps])
 
-	# Frame budget breakdown
-	var batch_time = metrics.get("avg_batch_time_ms", 0.0)
-	var last_batch_time = metrics.get("last_batch_time_ms", 0.0)
-	var batches_pending = metrics.get("batches_pending", 0)
+	# Get real tracked data from QuantumForceGraph if available
+	var perf = {}
+	if force_graph and force_graph.has_method("get_perf_averages"):
+		perf = force_graph.get_perf_averages()
 
-	# Estimate how often batches run (when queue is not empty)
-	# Approximate elapsed time: frame count / assumed 60 FPS
-	var elapsed_seconds = max(1.0, frame / 60.0)
-	var batches_per_second = metrics.get("refill_count", 0) / elapsed_seconds
-	var batches_per_visual_frame = batches_per_second / max(1.0, vfps)
+	var process_total = perf.get("process_total", 0.0)
+	var draw_total = perf.get("draw_total", 0.0)
+	var tracked_total = process_total + draw_total
+	var untracked = maxf(0.0, frame_time_ms - tracked_total)
 
-	print("\n⏱️  WHERE TIME GOES (per visual frame):")
-	print("  ┌─────────────────────────────────────────────────────────┐")
-	if batches_pending > 0:
-		print("  │ ⚠️  BATCH BLOCKING: ~%.2fms  (SYNCHRONOUS!)           │" % last_batch_time)
-	else:
-		print("  │ C++ Evolution:     ~%.2fms  (avg, amortized)           │" % [batch_time * batches_per_visual_frame])
+	# Calculate frame gap average (time waiting between frames)
+	var frame_gap_avg = 0.0
+	if _frame_gap_samples.size() > 0:
+		var gap_total = 0.0
+		for g in _frame_gap_samples:
+			gap_total += g
+		frame_gap_avg = gap_total / _frame_gap_samples.size() / 1000.0  # to ms
 
-	# Estimate rendering time (varies by scene complexity)
-	var estimated_render_ms = frame_time_ms * 0.5  # Rough estimate: 50% of frame time
-	print("  │ Rendering:         ~%.2fms  (estimated)                │" % estimated_render_ms)
-	print("  │ Force calc (GPU):  ~1-2ms   (parallel, estimated)     │")
+	print("\n⏱️  FRAME TIME BREAKDOWN:")
+	print("  ┌────────────────────────────────────────────────────────┐")
+	print("  │ GDScript _process():    %6.2fms                       │" % process_total)
+	print("  │ GDScript _draw():       %6.2fms                       │" % draw_total)
+	print("  │ Frame gap (wait):       %6.2fms  ← between frames     │" % frame_gap_avg)
+	print("  │ ─────────────────────────────────────────────────────  │")
+	print("  │ TRACKED TOTAL:          %6.2fms                       │" % tracked_total)
+	print("  │ UNTRACKED:              %6.2fms                       │" % untracked)
+	print("  └────────────────────────────────────────────────────────┘")
 
-	# GDScript overhead (remainder after accounting for known components)
-	var accounted_time = (batch_time * batches_per_visual_frame) + estimated_render_ms + 2.0
-	var overhead_ms = max(0.0, frame_time_ms - accounted_time)
-	print("  │ GDScript overhead: ~%.2fms  (remainder)                │" % overhead_ms)
-	print("  └─────────────────────────────────────────────────────────┘")
-	print("  Note: With async batches, visual frames should no longer block!")
+	# Diagnose untracked time
+	if untracked > 5.0:
+		if frame_gap_avg > untracked * 0.5:
+			print("  ⚠️  Likely VSYNC or GPU stall (gap=%.1fms)" % frame_gap_avg)
+		else:
+			print("  ⚠️  Hidden work outside QuantumForceGraph (%.1fms)" % untracked)
+
+	# Show top bottlenecks from tracked time
+	if perf.size() > 0:
+		print("\n  Top GDScript costs:")
+		var costs = [
+			["_process visuals", perf.get("process_visuals", 0.0)],
+			["_process forces", perf.get("process_forces", 0.0)],
+			["_draw bubbles", perf.get("draw_bubble", 0.0)],
+			["_draw edges", perf.get("draw_edge", 0.0)],
+			["_draw context", perf.get("draw_context", 0.0)],
+		]
+		costs.sort_custom(func(a, b): return a[1] > b[1])
+		for i in range(mini(3, costs.size())):
+			if costs[i][1] > 0.1:
+				print("    %s: %.2fms" % [costs[i][0], costs[i][1]])
 
 	# Batching status (Adaptive Fibonacci mode)
 	var batch_size = metrics.get("batch_size", 5)
@@ -690,7 +778,7 @@ func _print_cpp_profiling_report():
 	print("  Queue:    %d pending, %d in-flight" % [pending, in_flight])
 	print("  Timing:   %.2fms last | %.2fms avg" % [
 		metrics.get("last_batch_time_ms", 0.0),
-		batch_time
+		metrics.get("avg_batch_time_ms", 0.0)
 	])
 
 	# Buffer state
@@ -751,3 +839,40 @@ func _print_cpp_profiling_report():
 		physics_fps
 	])
 	print("─".repeat(70))
+
+func _invalidate_biome(index: int):
+	"""Invalidate a biome's buffer to test escalation behavior."""
+	if not batcher or index >= batcher.biomes.size():
+		print("ERROR: Cannot invalidate biome %d (out of range or no batcher)" % index)
+		return
+
+	var biome = batcher.biomes[index]
+	var biome_name = biome.get_biome_type() if biome.has_method("get_biome_type") else biome.name
+
+	# Get metrics before invalidation
+	var metrics_before = batcher.get_lookahead_metrics() if batcher.has_method("get_lookahead_metrics") else {}
+	var fib_before = batcher._fib_index
+
+	print("  Invalidating buffer: %s" % biome_name)
+	print("    Before: min_depth=%d, fib_index=%d" % [
+		metrics_before.get("buffer_depth", -1),
+		fib_before
+	])
+
+	# Clear the buffer
+	batcher.frame_buffers[biome_name] = []
+	batcher.buffer_cursors[biome_name] = 0
+
+	# Force immediate metrics update
+	await get_tree().process_frame
+
+	var metrics_after = batcher.get_lookahead_metrics() if batcher.has_method("get_lookahead_metrics") else {}
+	print("    After: min_depth=%d, fib_index=%d" % [
+		metrics_after.get("buffer_depth", -1),
+		batcher._fib_index
+	])
+
+	if batcher._fib_index > fib_before:
+		print("    ✅ ESCALATED: fib %d→%d" % [fib_before, batcher._fib_index])
+	else:
+		print("    ⏳ Waiting for escalation...")

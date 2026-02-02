@@ -109,13 +109,16 @@ var _perf_samples: Dictionary = {
 	"process_particles": [],
 	"draw_total": [],
 	"draw_context": [],
+	"draw_canvas_item": [],
+	"draw_geom_begin": [],
 	"draw_region": [],
 	"draw_infra": [],
 	"draw_edge": [],
 	"draw_effects": [],
-	"draw_flush": [],
 	"draw_bubble": [],
+	"draw_flush": [],
 	"draw_sun": [],
+	"draw_debug": [],
 }
 var _perf_report_interval: int = 300  # Report every N frames (less noise)
 
@@ -256,8 +259,13 @@ func _draw():
 	var ctx = _build_context()
 	var t_ctx = Time.get_ticks_usec()
 
+	# Get canvas item (might stall waiting for GPU)
+	var canvas_item = get_canvas_item()
+	var t_canvas = Time.get_ticks_usec()
+
 	# Begin geometry batch for all untextured primitives
-	geometry_batcher.begin(get_canvas_item())
+	geometry_batcher.begin(canvas_item)
+	var t_geom_begin = Time.get_ticks_usec()
 
 	# Draw in layers (back to front) - all add to geometry batch
 	# 1. Background regions
@@ -268,26 +276,23 @@ func _draw():
 	infra_renderer.draw(self, ctx)
 	var t_infra = Time.get_ticks_usec()
 
-	# 3. Edge relationships (MI web, entanglement, coherence, etc.)
+	# 3. Edge relationships
 	edge_renderer.draw(self, ctx)
 	var t_edge = Time.get_ticks_usec()
 
-	# 4. Effects (particles, attractors)
+	# 4. Effects
 	effects_renderer.draw(self, ctx)
 	var t_effects = Time.get_ticks_usec()
 
-	# Flush ALL untextured geometry in ONE draw call
-	geometry_batcher.flush()
-	if frame_count % 60 == 0:  # Print stats every 60 frames
-		var stats = geometry_batcher.get_stats()
-		print("[GeometryBatcher] Stats: %s" % stats)
-	var t_flush = Time.get_ticks_usec()
-
-	# 5. Quantum bubbles (use their own atlas batcher)
+	# 5. Quantum bubbles
 	bubble_renderer.draw(self, ctx)
 	var t_bubble = Time.get_ticks_usec()
 
-	# 6. Sun qubit (always on top)
+	# Flush geometry batch (RenderingServer call)
+	geometry_batcher.flush()
+	var t_flush = Time.get_ticks_usec()
+
+	# 6. Sun qubit
 	bubble_renderer.draw_sun_qubit(self, ctx)
 	var t_sun = Time.get_ticks_usec()
 
@@ -296,16 +301,19 @@ func _draw():
 		_draw_debug_overlay()
 	var t_end = Time.get_ticks_usec()
 
-	# Store timing samples
+	# Store timing samples (consolidated sub-1ms steps)
 	_perf_samples["draw_total"].append(t_end - t_start)
 	_perf_samples["draw_context"].append(t_ctx - t_start)
-	_perf_samples["draw_region"].append(t_region - t_ctx)
+	_perf_samples["draw_canvas_item"].append(t_canvas - t_ctx)  # GPU stall?
+	_perf_samples["draw_geom_begin"].append(t_geom_begin - t_canvas)
+	_perf_samples["draw_region"].append(t_region - t_geom_begin)
 	_perf_samples["draw_infra"].append(t_infra - t_region)
 	_perf_samples["draw_edge"].append(t_edge - t_infra)
 	_perf_samples["draw_effects"].append(t_effects - t_edge)
-	_perf_samples["draw_flush"].append(t_flush - t_effects)
-	_perf_samples["draw_bubble"].append(t_bubble - t_flush)
-	_perf_samples["draw_sun"].append(t_sun - t_bubble)
+	_perf_samples["draw_bubble"].append(t_bubble - t_effects)
+	_perf_samples["draw_flush"].append(t_flush - t_bubble)  # RenderingServer.canvas_item_add_triangle_array()
+	_perf_samples["draw_sun"].append(t_sun - t_flush)
+	_perf_samples["draw_debug"].append(t_end - t_sun)
 
 
 func _has_active_terminal_bubbles() -> bool:
@@ -815,17 +823,16 @@ func _print_perf_report():
 	print("   └─ Particles:        %5.2fms | %5.2fms" % [avg["process_particles"], p95["process_particles"]])
 	print("   TOTAL:               %5.2fms | %5.2fms" % [avg["process_total"], p95["process_total"]])
 
-	# _draw breakdown
+	# _draw breakdown (consolidated sub-1ms, detailed GPU tracking)
 	print("\n🎨 _draw() breakdown (avg | P95):")
-	print("   ├─ Build context:    %5.2fms | %5.2fms  ← Dictionary creation (2nd time!)" % [avg["draw_context"], p95["draw_context"]])
-	print("   ├─ Region renderer:  %5.2fms | %5.2fms" % [avg["draw_region"], p95["draw_region"]])
-	print("   ├─ Infra renderer:   %5.2fms | %5.2fms" % [avg["draw_infra"], p95["draw_infra"]])
-	print("   ├─ Edge renderer:    %5.2fms | %5.2fms" % [avg["draw_edge"], p95["draw_edge"]])
-	print("   ├─ Effects renderer: %5.2fms | %5.2fms" % [avg["draw_effects"], p95["draw_effects"]])
-	print("   ├─ Geometry flush:   %5.2fms | %5.2fms  ← GeometryBatcher→GPU" % [avg["draw_flush"], p95["draw_flush"]])
-	print("   ├─ Bubble renderer:  %5.2fms | %5.2fms  ← BubbleAtlasBatcher" % [avg["draw_bubble"], p95["draw_bubble"]])
-	print("   └─ Sun qubit:        %5.2fms | %5.2fms" % [avg["draw_sun"], p95["draw_sun"]])
-	print("   TOTAL:               %5.2fms | %5.2fms" % [avg["draw_total"], p95["draw_total"]])
+	print("   ├─ Context + Canvas:  %5.2fms | %5.2fms  ← Dict + get_canvas_item()" % [avg["draw_context"] + avg["draw_canvas_item"], p95["draw_context"] + p95["draw_canvas_item"]])
+	print("   ├─ Geom Setup:        %5.2fms | %5.2fms  ← batcher.begin()" % [avg["draw_geom_begin"], p95["draw_geom_begin"]])
+	print("   ├─ Renderers:         %5.2fms | %5.2fms  ← region+infra+edge+effects" % [avg["draw_region"] + avg["draw_infra"] + avg["draw_edge"] + avg["draw_effects"], p95["draw_region"] + p95["draw_infra"] + p95["draw_edge"] + p95["draw_effects"]])
+	print("   ├─ Bubble renderer:   %5.2fms | %5.2fms  ← BubbleAtlasBatcher" % [avg["draw_bubble"], p95["draw_bubble"]])
+	print("   ├─ Geometry flush:    %5.2fms | %5.2fms  ← RenderingServer call" % [avg["draw_flush"], p95["draw_flush"]])
+	print("   ├─ Sun qubit:         %5.2fms | %5.2fms  ← draw_sun_qubit()" % [avg["draw_sun"], p95["draw_sun"]])
+	print("   └─ Debug + other:     %5.2fms | %5.2fms" % [avg.get("draw_debug", 0), p95.get("draw_debug", 0)])
+	print("   TOTAL:                %5.2fms | %5.2fms" % [avg["draw_total"], p95["draw_total"]])
 
 	# Identify bottleneck
 	var bottlenecks: Array = []

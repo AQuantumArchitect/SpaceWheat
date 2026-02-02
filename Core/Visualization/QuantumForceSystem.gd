@@ -1,9 +1,12 @@
 class_name QuantumForceSystem
 extends RefCounted
 
-# Compute backend selection
 const ComputeBackendSelector = preload("res://Core/Visualization/ComputeBackendSelector.gd")
 const GPUForceCalculator = preload("res://Core/Visualization/GPUForceCalculator.gd")
+const GPUForceCalculatorV2 = preload("res://Core/Visualization/GPUForceCalculatorV2.gd")
+
+# Logger
+var _verbose: Node = null
 
 ## Quantum Force System - Physics-Grounded Bubble Dynamics
 ##
@@ -25,7 +28,11 @@ const GPUForceCalculator = preload("res://Core/Visualization/GPUForceCalculator.
 ## NATIVE ACCELERATION: If ForceGraphEngine is available, use C++ path (3-5× faster)
 
 # === ACCELERATION ENGINES ===
-## GPU compute (preferred)
+## GPU compute V2 (preferred - async, multi-biome, angular momentum)
+var _gpu_calculator_v2 = null
+var _gpu_v2_enabled: bool = false
+
+## GPU compute V1 (legacy fallback)
 var _gpu_calculator = null
 var _gpu_enabled: bool = false
 
@@ -33,58 +40,63 @@ var _gpu_enabled: bool = false
 var _native_engine = null
 var _native_enabled: bool = false
 
+## Angular velocity tracking (for V2 angular momentum)
+var _angular_velocities: Dictionary = {}  # node_id -> float (radians/sec)
+
 func _init():
-	# Use ComputeBackendSelector for intelligent backend selection
+	_verbose = Engine.get_main_loop().root.get_node_or_null("/root/VerboseConfig")
 	var selector = ComputeBackendSelector.new()
 
-	print("QuantumForceSystem: Platform=%s Backend=%s" % [
+	_log("info", "Platform=%s Backend=%s" % [
 		selector.get_platform_name(),
 		selector.get_backend_name()
 	])
 
-	# Initialize based on selected backend
 	match selector.get_backend():
 		ComputeBackendSelector.Backend.GPU_COMPUTE:
 			_init_gpu_backend()
-
 		ComputeBackendSelector.Backend.NATIVE_CPU:
 			_init_native_backend()
-
 		ComputeBackendSelector.Backend.GDSCRIPT_CPU:
-			print("QuantumForceSystem: Using GDScript fallback")
-
+			_log("info", "Using GDScript fallback")
 		_:
-			print("QuantumForceSystem: Unknown backend - using GDScript fallback")
+			_log("info", "Unknown backend - using GDScript fallback")
 
 
 func _init_gpu_backend() -> void:
-	"""Initialize GPU compute backend."""
+	"""Initialize GPU compute backend (V2 preferred, V1 fallback)."""
+	var v2_result = GPUForceCalculatorV2.pre_compile_shader()
+	if v2_result.get("success", false):
+		_gpu_calculator_v2 = GPUForceCalculatorV2.new()
+		if _gpu_calculator_v2 and _gpu_calculator_v2.gpu_available:
+			_gpu_v2_enabled = true
+			_log("info", "GPU V2 (async, multi-biome, angular) ENABLED - Device: %s" % v2_result.get("device_name", "unknown"))
+			return
+
 	_gpu_calculator = GPUForceCalculator.new()
 	if _gpu_calculator and _gpu_calculator.gpu_available:
 		_gpu_enabled = true
-		print("QuantumForceSystem: GPU compute ENABLED")
+		_log("info", "GPU V1 compute ENABLED")
 	else:
-		print("QuantumForceSystem: GPU compute failed - falling back to native")
+		_log("info", "GPU compute failed - falling back to native")
 		_gpu_calculator = null
 		_init_native_backend()
 
 
 func _init_native_backend() -> void:
-	"""Initialize C++ native backend."""
 	if ClassDB.class_exists("ForceGraphEngine"):
 		_native_engine = ClassDB.instantiate("ForceGraphEngine")
 		if _native_engine:
-			# Configure with same constants as GDScript
 			_native_engine.set_repulsion_strength(REPULSION)
 			_native_engine.set_damping(DRAG)
 			_native_engine.set_base_distance(BASE_SEPARATION)
 			_native_engine.set_min_distance(MIN_DISTANCE)
 			_native_enabled = true
-			print("QuantumForceSystem: Native C++ engine ENABLED")
+			_log("info", "Native C++ engine ENABLED")
 		else:
-			print("QuantumForceSystem: Native engine instantiation failed - using GDScript")
+			_log("info", "Native engine instantiation failed - using GDScript")
 	else:
-		print("QuantumForceSystem: ForceGraphEngine not available - using GDScript")
+		_log("info", "ForceGraphEngine not available - using GDScript")
 
 
 # === FORCE CONSTANTS ===
@@ -148,8 +160,10 @@ func update(delta: float, nodes: Array, ctx: Dictionary) -> void:
 	# Profiling: measure force calculation time
 	var frame_start_us = Time.get_ticks_usec() if _profile_enabled else 0
 
-	# TRIPLE-PATH: GPU (fastest) > C++ (fast) > GDScript (fallback)
-	if _gpu_enabled and _gpu_calculator:
+	# QUAD-PATH: GPU V2 (fastest, async) > GPU V1 > C++ > GDScript
+	if _gpu_v2_enabled and _gpu_calculator_v2:
+		_update_gpu_v2(delta, active_nodes, biomes, layout_calculator)
+	elif _gpu_enabled and _gpu_calculator:
 		_update_gpu(delta, active_nodes, biomes, layout_calculator)
 	elif _native_enabled and _native_engine:
 		_update_native(delta, active_nodes, biomes, layout_calculator)
@@ -206,20 +220,7 @@ func _update_gpu(delta: float, nodes: Array, biomes: Dictionary, layout_calculat
 			if biome and biome.viz_cache:
 				mi_values = biome.viz_cache._mi_values
 				num_qubits = biome.viz_cache.get_num_qubits()
-
-				# Pack full Bloch data: [p0, p1, x, y, z, r, theta, phi] per qubit (8 floats each)
-				# This matches C++ ForceGraphEngine format
-				for q in range(num_qubits):
-					var bloch = biome.viz_cache.get_bloch(q)
-					if not bloch.is_empty():
-						bloch_packet.append(bloch.get("p0", 0.5))
-						bloch_packet.append(bloch.get("p1", 0.5))
-						bloch_packet.append(bloch.get("x", 0.0))
-						bloch_packet.append(bloch.get("y", 0.0))
-						bloch_packet.append(bloch.get("z", 0.0))
-						bloch_packet.append(bloch.get("r", 0.0))
-						bloch_packet.append(bloch.get("theta", 0.0))
-						bloch_packet.append(bloch.get("phi", 0.0))
+				_pack_bloch_data(biome.viz_cache, bloch_packet)
 
 	# Force configuration
 	var config = {
@@ -245,8 +246,7 @@ func _update_gpu(delta: float, nodes: Array, biomes: Dictionary, layout_calculat
 	)
 
 	if result.is_empty():
-		# GPU compute failed, fall back to GDScript
-		print("QuantumForceSystem: GPU compute failed, falling back to GDScript")
+		_log("warn", "GPU compute failed, falling back to GDScript")
 		_gpu_enabled = false
 		_update_gdscript(delta, nodes, biomes)
 		return
@@ -260,6 +260,115 @@ func _update_gpu(delta: float, nodes: Array, biomes: Dictionary, layout_calculat
 			nodes[i].position = new_positions[i]
 		if i < new_velocities.size():
 			nodes[i].velocity = new_velocities[i]
+
+
+func _update_gpu_v2(delta: float, nodes: Array, biomes: Dictionary, layout_calculator) -> void:
+	"""GPU V2: Async multi-biome dispatch with angular momentum."""
+	if nodes.is_empty():
+		return
+
+	if _gpu_calculator_v2.is_computing():
+		var result = _gpu_calculator_v2.poll_results()
+		if not result.is_empty():
+			_apply_gpu_v2_results(result, nodes)
+
+	var biome_nodes: Dictionary = {}
+	for node in nodes:
+		var biome_name = node.biome_name if "biome_name" in node else "default"
+		if not biome_nodes.has(biome_name):
+			biome_nodes[biome_name] = []
+		biome_nodes[biome_name].append(node)
+
+	var biome_data_array: Array[GPUForceCalculatorV2.BiomeForceData] = []
+	var biome_id = 0
+	var node_to_global_idx: Dictionary = {}
+	var global_idx = 0
+	for biome_name in biome_nodes:
+		var bd = GPUForceCalculatorV2.BiomeForceData.new()
+		bd.biome_id = biome_id
+
+		if layout_calculator and layout_calculator.has_method("get_biome_oval"):
+			var oval = layout_calculator.get_biome_oval(biome_name)
+			bd.center = oval.get("center", Vector2(960, 540))
+		else:
+			bd.center = Vector2(960, 540)
+		var biome_node_list = biome_nodes[biome_name]
+		for node in biome_node_list:
+			bd.positions.append(node.position)
+			bd.velocities.append(node.velocity if "velocity" in node else Vector2.ZERO)
+
+			# Get angular velocity from cache (or initialize)
+			var node_id = node.get_instance_id()
+			var ang_vel = _angular_velocities.get(node_id, 0.0)
+			bd.angular_velocities.append(ang_vel)
+
+			bd.frozen_mask.append(1 if node.is_frozen else 0)
+
+			node_to_global_idx[node] = global_idx
+			global_idx += 1
+
+		# Get quantum data from biome
+		if biomes.has(biome_name):
+			var biome = biomes[biome_name]
+			if biome and biome.viz_cache:
+				bd.mi_values = biome.viz_cache._mi_values
+				bd.num_qubits = biome.viz_cache.get_num_qubits()
+				_pack_bloch_data(biome.viz_cache, bd.bloch_packet)
+
+		biome_data_array.append(bd)
+		biome_id += 1
+
+	# Store node mapping for result application
+	_pending_node_mapping = node_to_global_idx
+
+	# Submit async compute
+	var config = {
+		"dt": delta,
+		"purity_radial_spring": 0.08,
+		"phase_angular_spring": 0.04,
+		"angular_momentum_spring": 0.15,
+		"angular_damping": 0.95,
+		"orbit_speed_scale": 0.5,
+		"correlation_spring": 0.12,
+		"correlation_scaling": 3.0,
+		"base_distance": BASE_SEPARATION,
+		"min_distance": MIN_DISTANCE,
+		"repulsion_strength": REPULSION,
+		"velocity_damping": DRAG,
+		"max_velocity": 500.0,
+		"max_biome_radius": 250.0,
+	}
+
+	if not _gpu_calculator_v2.submit_multi_biome_forces(biome_data_array, config):
+		# If submit failed (busy), use sync fallback
+		var result = _gpu_calculator_v2.compute_forces_sync(biome_data_array, config)
+		if not result.is_empty():
+			_apply_gpu_v2_results(result, nodes)
+
+
+# Node mapping for async result application
+var _pending_node_mapping: Dictionary = {}
+
+
+func _apply_gpu_v2_results(result: Dictionary, nodes: Array) -> void:
+	"""Apply GPU V2 results to nodes."""
+	var new_positions = result.get("positions", PackedVector2Array())
+	var new_velocities = result.get("velocities", PackedVector2Array())
+	var new_angular_vels = result.get("angular_velocities", PackedFloat32Array())
+
+	for node in nodes:
+		var global_idx = _pending_node_mapping.get(node, -1)
+		if global_idx < 0:
+			continue
+
+		if global_idx < new_positions.size():
+			node.position = new_positions[global_idx]
+		if global_idx < new_velocities.size():
+			node.velocity = new_velocities[global_idx]
+		if global_idx < new_angular_vels.size():
+			# Update angular velocity cache
+			var node_id = node.get_instance_id()
+			_angular_velocities[node_id] = new_angular_vels[global_idx]
 
 
 func _update_native(delta: float, nodes: Array, biomes: Dictionary, layout_calculator) -> void:
@@ -303,20 +412,8 @@ func _update_native(delta: float, nodes: Array, biomes: Dictionary, layout_calcu
 			var biome = biomes[biome_name]
 			if biome and biome.viz_cache:
 				mi_values = biome.viz_cache._mi_values
-				# Get bloch data
-				var num_qubits = biome.viz_cache.get_num_qubits()
-				for q in range(num_qubits):
-					var bloch = biome.viz_cache.get_bloch(q)
-					if not bloch.is_empty():
-						bloch_packet.append(bloch.get("p0", 0.5))
-						bloch_packet.append(bloch.get("p1", 0.5))
-						bloch_packet.append(bloch.get("x", 0.0))
-						bloch_packet.append(bloch.get("y", 0.0))
-						bloch_packet.append(bloch.get("z", 0.0))
-						bloch_packet.append(bloch.get("r", 0.0))
-						bloch_packet.append(bloch.get("theta", 0.0))
-						bloch_packet.append(bloch.get("phi", 0.0))
-				break  # Use first biome's data for now
+				_pack_bloch_data(biome.viz_cache, bloch_packet)
+				break
 
 	# Call native engine
 	var result = _native_engine.update_positions(
@@ -760,3 +857,25 @@ func _report_profile_results() -> void:
 	print("")
 	print("=".repeat(70))
 	print("")
+
+
+func _log(level: String, message: String) -> void:
+	if _verbose and _verbose.has_method("log"):
+		_verbose.log("FORCE", level, message)
+	elif level == "error" or level == "warn":
+		push_warning("[FORCE] %s" % message)
+
+
+func _pack_bloch_data(viz_cache, packet: PackedFloat64Array) -> void:
+	"""Pack Bloch sphere data: [p0, p1, x, y, z, r, theta, phi] per qubit."""
+	for q in range(viz_cache.get_num_qubits()):
+		var bloch = viz_cache.get_bloch(q)
+		if not bloch.is_empty():
+			packet.append(bloch.get("p0", 0.5))
+			packet.append(bloch.get("p1", 0.5))
+			packet.append(bloch.get("x", 0.0))
+			packet.append(bloch.get("y", 0.0))
+			packet.append(bloch.get("z", 0.0))
+			packet.append(bloch.get("r", 0.0))
+			packet.append(bloch.get("theta", 0.0))
+			packet.append(bloch.get("phi", 0.0))

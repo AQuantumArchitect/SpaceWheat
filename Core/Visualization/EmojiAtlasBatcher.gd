@@ -42,6 +42,9 @@ var _cells_per_row: int = 0
 # Current canvas item we're drawing to
 var _canvas_item: RID = RID()
 
+# Optional geometry batcher for placeholder rendering
+var _geometry_batcher = null
+
 # Batch data (single texture = single batch!)
 var _points: PackedVector2Array = PackedVector2Array()
 var _uvs: PackedVector2Array = PackedVector2Array()
@@ -55,6 +58,7 @@ var _empty_weights := PackedFloat32Array()
 var _emoji_count: int = 0
 var _draw_calls: int = 0
 var _atlas_built: bool = false
+var _debug_placeholder_printed: bool = false
 
 # Fallback for visual asset registry textures
 var _visual_asset_registry = null
@@ -462,6 +466,15 @@ func begin(canvas_item: RID) -> void:
 	_atlas_hit_count = 0
 
 
+func set_geometry_batcher(batcher) -> void:
+	"""Set the geometry batcher for batched placeholder rendering.
+
+	Args:
+		batcher: GeometryBatcher instance to use for placeholders
+	"""
+	_geometry_batcher = batcher
+
+
 func add_emoji(position: Vector2, size: Vector2, texture: Texture2D, color: Color, shadow_offset: Vector2 = Vector2(2, 2)) -> void:
 	"""Add an emoji to the batch using provided texture.
 
@@ -492,21 +505,16 @@ func add_emoji_by_name(position: Vector2, size: Vector2, emoji: String, color: C
 		_fallback_count += 1
 		if not _missing_emojis.has(emoji):
 			_missing_emojis[emoji] = true
-			# Only warn once per emoji to avoid spam
-			push_warning("[EmojiAtlasBatcher] Missing emoji: '%s' (normalized: '%s', UV map has %d emojis)" % [emoji, normalized_emoji, _emoji_uvs.size()])
+			# Only warn once per emoji to avoid spam (use push_warning for proper filtering)
+			push_warning("[EmojiAtlasBatcher] Missing from atlas: '%s'" % emoji)
 		# Fallback: try SVG texture
 		if _visual_asset_registry:
 			var tex = _visual_asset_registry.get_texture(emoji)
 			if tex:
 				_draw_textured_quad_immediate(tex, position, size, color, shadow_offset)
 				return
-		# Ultimate fallback: queue for text rendering
-		_text_fallback_queue.append({
-			"pos": position,
-			"size": size,
-			"emoji": emoji,
-			"color": color
-		})
+		# Ultimate fallback: draw a placeholder shape (text rendering doesn't work for unsupported emojis)
+		_draw_placeholder(position, size, color, shadow_offset)
 		return
 
 	_atlas_hit_count += 1
@@ -590,6 +598,58 @@ func _draw_textured_quad_immediate(texture: Texture2D, position: Vector2, size: 
 	_emoji_count += 1
 
 
+func _draw_placeholder(position: Vector2, size: Vector2, color: Color, shadow_offset: Vector2) -> void:
+	"""Draw a placeholder rectangle for missing emojis (avoids invisible bubbles).
+
+	Uses GeometryBatcher if available for batched rendering, otherwise falls back
+	to individual draw calls.
+	"""
+	var half_size = size * 0.5
+
+	# Use geometry batcher if available (batches all placeholders into ONE draw call)
+	if _geometry_batcher:
+		# Shadow quad
+		if shadow_offset != Vector2.ZERO:
+			var shadow_points = PackedVector2Array([
+				position + Vector2(-half_size.x, -half_size.y) + shadow_offset,
+				position + Vector2(half_size.x, -half_size.y) + shadow_offset,
+				position + Vector2(half_size.x, half_size.y) + shadow_offset,
+				position + Vector2(-half_size.x, half_size.y) + shadow_offset
+			])
+			_geometry_batcher.add_polygon(shadow_points, Color(0, 0, 0, 0.7 * color.a))
+
+		# Main quad
+		var main_points = PackedVector2Array([
+			position + Vector2(-half_size.x, -half_size.y),
+			position + Vector2(half_size.x, -half_size.y),
+			position + Vector2(half_size.x, half_size.y),
+			position + Vector2(-half_size.x, half_size.y)
+		])
+		var placeholder_color = Color(color.r * 0.5, color.g * 0.5, color.b * 0.5, color.a * 0.3)
+		_geometry_batcher.add_polygon(main_points, placeholder_color)
+	else:
+		# Fallback: individual draw calls (not batched)
+		if not _canvas_item.is_valid():
+			return
+
+		var rect = Rect2(position - half_size, size)
+
+		# Shadow
+		if shadow_offset != Vector2.ZERO:
+			var shadow_rect = Rect2(rect.position + shadow_offset, rect.size)
+			RenderingServer.canvas_item_add_rect(
+				_canvas_item, shadow_rect, Color(0, 0, 0, 0.7 * color.a)
+			)
+			_draw_calls += 1
+
+		# Main
+		var placeholder_color = Color(color.r * 0.5, color.g * 0.5, color.b * 0.5, color.a * 0.3)
+		RenderingServer.canvas_item_add_rect(_canvas_item, rect, placeholder_color)
+		_draw_calls += 1
+
+	_emoji_count += 1
+
+
 func add_emoji_text_fallback(graph: Node2D, position: Vector2, emoji: String, font_size: int, color: Color) -> void:
 	"""Fallback for emojis without textures - uses immediate draw_string.
 
@@ -636,23 +696,13 @@ func flush() -> void:
 
 
 func flush_text_fallbacks(graph: Node2D) -> void:
-	"""Flush any queued text fallback emojis."""
-	var font = ThemeDB.fallback_font
-	var font_size = 24  # Default size
+	"""No-op: Text fallback has been replaced with placeholder rendering.
 
-	for fb in _text_fallback_queue:
-		var text_pos = fb["pos"] - Vector2(font_size * 0.4, -font_size * 0.25)
-		var color = fb["color"]
-		var emoji = fb["emoji"]
-
-		# Shadow
-		var shadow_color = Color(0, 0, 0, 0.7 * color.a)
-		graph.draw_string(font, text_pos + Vector2(2, 2), emoji, HORIZONTAL_ALIGNMENT_CENTER, -1, font_size, shadow_color)
-
-		# Main
-		graph.draw_string(font, text_pos, emoji, HORIZONTAL_ALIGNMENT_CENTER, -1, font_size, color)
-
-	_text_fallback_queue.clear()
+	This function is kept for compatibility but does nothing since text
+	fallback doesn't work for unsupported emojis (font can't render them).
+	Placeholders are now drawn immediately via _draw_placeholder().
+	"""
+	pass
 
 
 func has_emoji(emoji: String) -> bool:

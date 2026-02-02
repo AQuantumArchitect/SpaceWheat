@@ -17,6 +17,7 @@ signal track_changed(track_name: String)
 
 ## Track paths (relative to res://Assets/Audio/Music/)
 const TRACKS: Dictionary = {
+	# Named tracks (biome-mapped)
 	"quantum_harvest": "res://Assets/Audio/Music/Quantum Harvest Dawn.mp3",
 	"fungal_lattice": "res://Assets/Audio/Music/Fungal Lattice Symphony.mp3",
 	"black_horizon": "res://Assets/Audio/Music/Black Horizon Whisper.mp3",
@@ -32,10 +33,22 @@ const TRACKS: Dictionary = {
 	"echoing_chasm": "res://Assets/Audio/Music/Echoing Chasm.mp3",
 	"tidal_pools": "res://Assets/Audio/Music/Tidal Pools.mp3",
 	"cyberdebt_megacity": "res://Assets/Audio/Music/CyberDebt Megacity.mp3",
+	# Emoji-signature tracks (for IconMap parametric selection)
+	"broadcast_satellite": "res://Assets/Audio/Music/📡📶🧩🛰📼⭐.mp3",  # BroadcastTower, SatelliteGraveyard
+	"clinic_medicine": "res://Assets/Audio/Music/💉💊🩺🧪🧬🚫.mp3",      # Clinic
+	"workshop_scrap": "res://Assets/Audio/Music/🔧🔨🪛♻️🗑🏭.mp3",      # Workshop, ScrapYard
+	"market_trading": "res://Assets/Audio/Music/💰💳🐂🐻💱📦.mp3",      # MarketDistrict, TradingFloor
+	"weaver_textile": "res://Assets/Audio/Music/🧵🪢🧷👘📿🪡.mp3",      # WeaversLoft
+	"battlefield_war": "res://Assets/Audio/Music/⚔💥🛡💀🧨🔥.mp3",     # Battlefield, RevolutionSquare
+	"harbor_water": "res://Assets/Audio/Music/💧🧊🌊⚓🪝🛶.mp3",        # Harbor, FreshwaterSpring
+	"meditation_occult": "res://Assets/Audio/Music/🧘🏮🕯🧿📿⚱.mp3",   # MeditationGarden, OccultSanctum
+	"ruins_ancient": "res://Assets/Audio/Music/🏰🏚️🏛🪨🥀📜.mp3",      # ForgottenCastle, Archives
+	"magnetic_anomaly": "res://Assets/Audio/Music/⚡🌀⚫🧲✨🕳.mp3",    # MagneticAnomaly, PowerStation
 }
 
 ## Biome to track mapping
 const BIOME_TRACKS: Dictionary = {
+	# Core biomes
 	"BioticFlux": "quantum_harvest",
 	"StellarForges": "black_horizon",
 	"FungalNetworks": "fungal_lattice",
@@ -45,10 +58,32 @@ const BIOME_TRACKS: Dictionary = {
 	"CyberDebtMegacity": "cyberdebt_megacity",
 	"EchoingChasm": "echoing_chasm",
 	"HorizonFracture": "horizon_fracture",
-	# New biomes from biomes_merged.json
 	"BureaucraticAbyss": "bureaucratic_abyss",
 	"TidalPools": "tidal_pools",
-	"GildedRot": "yeast_prophet",  # Dark/decadent vibe matches
+	"GildedRot": "yeast_prophet",
+	# Emoji-track biomes (new songs)
+	"BroadcastTower": "broadcast_satellite",
+	"SatelliteGraveyard": "broadcast_satellite",
+	"Clinic": "clinic_medicine",
+	"Workshop": "workshop_scrap",
+	"ScrapYard": "workshop_scrap",
+	"MarketDistrict": "market_trading",
+	"TradingFloor": "market_trading",
+	"WeaversLoft": "weaver_textile",
+	"Battlefield": "battlefield_war",
+	"RevolutionSquare": "battlefield_war",
+	"Harbor": "harbor_water",
+	"FreshwaterSpring": "harbor_water",
+	"MeditationGarden": "meditation_occult",
+	"OccultSanctum": "meditation_occult",
+	"BindingCircle": "meditation_occult",
+	"ShrineOfAshes": "meditation_occult",
+	"ForgottenCastle": "ruins_ancient",
+	"Archives": "ruins_ancient",
+	"AbandonedQuarter": "ruins_ancient",
+	"MagneticAnomaly": "magnetic_anomaly",
+	"PowerStation": "magnetic_anomaly",
+	"AntimatterFoundry": "magnetic_anomaly",
 }
 
 ## Icon (emoji) to track mapping
@@ -88,8 +123,10 @@ var _health_check_timer: float = 0.0  # 10Hz health check
 var preserve_track_positions: bool = true  # Resume tracks with ghost advancement
 var _track_positions: Dictionary = {}  # track_key -> {position: float, timestamp: float}
 
-## Register-based playback control
-var stop_music_when_no_registers: bool = true  # Pause music when active biome has no bubbles
+## Register-based playback control (Layer 3 - music tied to evolution)
+## When true: Music only plays when active biome has explored bubbles (terminals bound)
+## This syncs music with biome evolution - both pause when no bubbles
+var stop_music_when_no_registers: bool = true  # Layer 3 enabled
 var _last_register_check: float = 0.0
 const REGISTER_CHECK_INTERVAL: float = 0.5  # Check register state every 0.5s
 
@@ -123,8 +160,10 @@ const ICONMAP_HYSTERESIS: float = 0.03  # New track must be 3% better to switch
 
 
 func _ready() -> void:
+	print("[MusicManager] _ready() called")
 	if _is_headless():
 		_disabled = true
+		print("[MusicManager] Headless mode - DISABLED")
 		return
 
 	process_mode = Node.PROCESS_MODE_ALWAYS  # Volume control works when paused
@@ -134,6 +173,7 @@ func _ready() -> void:
 
 	# Monitor playback health - restart if it unexpectedly stops
 	set_process(true)
+	print("[MusicManager] Ready - volume=%.1f, muted=%s" % [_volume, _muted])
 
 
 func _process(delta: float) -> void:
@@ -170,7 +210,7 @@ func _process(delta: float) -> void:
 
 
 func _unhandled_key_input(event: InputEvent) -> void:
-	"""Global volume controls: , = down, . = up, / = mute"""
+	"""Global controls: , = vol down, . = vol up, / = mute, M = play biome track"""
 	if _disabled:
 		return
 
@@ -186,6 +226,18 @@ func _unhandled_key_input(event: InputEvent) -> void:
 			get_viewport().set_input_as_handled()
 		KEY_SLASH:
 			set_muted(not _muted)
+			get_viewport().set_input_as_handled()
+		KEY_F9:
+			# Manual music trigger for testing (F9 to avoid conflicts)
+			print("[MusicManager] F9 pressed - manual music trigger")
+			debug_status()
+			if ActiveBiomeManager:
+				var biome = ActiveBiomeManager.get_active_biome()
+				print("[MusicManager] Force-playing track for: %s" % biome)
+				play_biome_track(biome)
+			else:
+				print("[MusicManager] No ActiveBiomeManager - playing fallback")
+				crossfade_to(FALLBACK_TRACK)
 			get_viewport().set_input_as_handled()
 
 
@@ -211,20 +263,30 @@ func _connect_biome_manager() -> void:
 	# Connect to ActiveBiomeManager when available
 	if ActiveBiomeManager:
 		ActiveBiomeManager.active_biome_changed.connect(_on_biome_changed)
+		print("[MusicManager] Connected to ActiveBiomeManager.active_biome_changed")
 	else:
+		print("[MusicManager] ActiveBiomeManager not ready, waiting...")
 		# Fallback: try connecting after tree is ready
 		await get_tree().process_frame
 		if ActiveBiomeManager:
 			ActiveBiomeManager.active_biome_changed.connect(_on_biome_changed)
+			print("[MusicManager] Connected to ActiveBiomeManager.active_biome_changed (deferred)")
+		else:
+			print("[MusicManager] ERROR: ActiveBiomeManager not available!")
 
 
 func _check_register_state() -> void:
-	"""Check if active biome has ACTIVE terminals and control music playback.
+	"""Layer 3: Sync music with biome evolution.
 
 	Music plays ONLY when there are explored (not measured) terminal bubbles.
+	This ties music to evolution - both pause together, both resume together.
+
 	Pauses when:
-	- No terminals bound
+	- No terminals bound in active biome
 	- All terminals measured (frozen state)
+
+	Resumes/Starts when:
+	- First bubble explored in active biome
 	"""
 	if not ActiveBiomeManager:
 		return
@@ -241,19 +303,21 @@ func _check_register_state() -> void:
 	var has_active_terminals = _biome_has_active_terminals(farm, biome_name)
 	var is_playing: bool = _active_player.playing
 
-	if has_active_terminals and not is_playing and not _current_track.is_empty():
-		# Active terminals exist but music stopped - resume
-		if VerboseConfig:
-			VerboseConfig.debug("music", "▶️", "Active terminals detected - resuming music")
-		var stream = _get_or_load_stream(_current_track)
-		if stream:
-			_active_player.stream = stream
-			_active_player.volume_db = _volume_to_db(_volume)
-			_active_player.play()
+	if has_active_terminals and not is_playing:
+		# Active terminals exist but music stopped - START music for this biome
+		print("[MusicManager] Layer 3: Bubbles detected in %s - starting music" % biome_name)
+		play_biome_track(biome_name)
 	elif not has_active_terminals and is_playing:
-		# No active terminals but music playing - pause
-		if VerboseConfig:
-			VerboseConfig.debug("music", "⏸️", "No active terminals - pausing music")
+		# No active terminals but music playing - PAUSE (save position via ghost timer)
+		print("[MusicManager] Layer 3: No bubbles in %s - pausing music" % biome_name)
+		# Save position for ghost timer before stopping
+		if preserve_track_positions and not _current_track.is_empty():
+			var current_pos := _active_player.get_playback_position()
+			var current_time := Time.get_ticks_msec() / 1000.0
+			_track_positions[_current_track] = {
+				"position": current_pos,
+				"timestamp": current_time
+			}
 		_active_player.stop()
 
 
@@ -272,14 +336,39 @@ func _biome_has_active_terminals(farm, biome_name: String) -> bool:
 	return false
 
 
-func _on_biome_changed(new_biome: String, _old_biome: String) -> void:
+func _on_biome_changed(new_biome: String, old_biome: String) -> void:
+	print("[MusicManager] Biome changed: %s → %s" % [old_biome, new_biome])
+
 	# In iconmap mode, let the quantum state drive music (don't auto-switch on biome change)
 	if iconmap_mode_enabled:
 		# Reset accumulator - don't mix data from different biomes
 		_reset_iconmap_accumulator()
 		# Start fresh accumulation
 		_iconmap_sample_timer = ICONMAP_SAMPLE_INTERVAL  # Force immediate sample
+		print("[MusicManager] IconMap mode - skipping biome track")
 		return
+
+	# Layer 3: Only play if new biome has active terminals (bubbles)
+	if stop_music_when_no_registers:
+		var farm = get_node_or_null("/root/Farm")
+		if farm and farm.plot_pool:
+			var has_bubbles = _biome_has_active_terminals(farm, new_biome)
+			if not has_bubbles:
+				print("[MusicManager] Layer 3: %s has no bubbles - staying silent" % new_biome)
+				# Stop current music if playing (we switched away from a biome with bubbles)
+				if _active_player.playing:
+					# Save position for ghost timer
+					if preserve_track_positions and not _current_track.is_empty():
+						var current_pos := _active_player.get_playback_position()
+						var current_time := Time.get_ticks_msec() / 1000.0
+						_track_positions[_current_track] = {
+							"position": current_pos,
+							"timestamp": current_time
+						}
+					_active_player.stop()
+				return
+
+	print("[MusicManager] Playing biome track for: %s" % new_biome)
 	play_biome_track(new_biome)
 
 
@@ -578,19 +667,25 @@ func play_biome_track(biome_name: String) -> void:
 	If the biome has a dedicated track in BIOME_TRACKS, play it directly.
 	Otherwise, parametrically select the best matching track using cos² similarity.
 	"""
+	print("[MusicManager] play_biome_track(%s)" % biome_name)
 	if _disabled:
+		print("[MusicManager] DISABLED - skipping")
 		return
 
 	# Check for dedicated track first
 	if BIOME_TRACKS.has(biome_name):
-		crossfade_to(BIOME_TRACKS[biome_name])
+		var track_key = BIOME_TRACKS[biome_name]
+		print("[MusicManager] Found dedicated track: %s → %s" % [biome_name, track_key])
+		crossfade_to(track_key)
 		return
 
 	# No dedicated track - use parametric selection based on biome vector
+	print("[MusicManager] No dedicated track for %s, trying parametric..." % biome_name)
 	_ensure_cache_loaded()
 	if _biome_vectors.has(biome_name):
 		var best_track := _select_track_for_biome_vector(biome_name)
 		if not best_track.is_empty():
+			print("[MusicManager] Parametric selected: %s" % best_track)
 			crossfade_to(best_track)
 			return
 
@@ -717,25 +812,33 @@ func play_track(track_key: String, instant: bool = false) -> void:
 
 func crossfade_to(track_key: String) -> void:
 	"""Crossfade to a new track"""
+	print("[MusicManager] crossfade_to(%s)" % track_key)
 	if _disabled:
+		print("[MusicManager] DISABLED - skipping crossfade")
 		return
 
 	if track_key == _current_track:
+		print("[MusicManager] Already playing %s - skipping" % track_key)
 		return
 
 	# Prevent rapid successive crossfades (minimum 0.5s between crossfades)
 	var now = Time.get_ticks_msec() / 1000.0
 	if now - _last_crossfade_time < 0.5:
+		print("[MusicManager] Rate limited - skipping crossfade")
 		return
 	_last_crossfade_time = now
 
 	if not TRACKS.has(track_key):
 		push_warning("MusicManager: Unknown track '%s'" % track_key)
+		print("[MusicManager] ERROR: Unknown track '%s'" % track_key)
 		return
 
 	var stream = _get_or_load_stream(track_key)
 	if not stream:
+		print("[MusicManager] ERROR: Failed to load stream for '%s'" % track_key)
 		return
+
+	print("[MusicManager] Starting crossfade to '%s'" % track_key)
 
 	var previous_track := _current_track
 
@@ -899,6 +1002,32 @@ func reset() -> void:
 	_last_crossfade_time = 0.0
 	_health_check_timer = 0.0
 	_track_positions.clear()  # Clear saved positions on reset
+
+
+func debug_test_audio() -> void:
+	"""DEBUG: Test if audio playback works. Call from console: MusicManager.debug_test_audio()"""
+	print("[MusicManager] DEBUG: Testing audio playback...")
+	print("[MusicManager] _disabled=%s, _active_player=%s" % [_disabled, _active_player != null])
+	if _disabled:
+		print("[MusicManager] DISABLED - cannot play")
+		return
+	print("[MusicManager] Playing fallback track: %s" % FALLBACK_TRACK)
+	crossfade_to(FALLBACK_TRACK)
+
+
+func debug_status() -> void:
+	"""DEBUG: Print current music manager status."""
+	print("[MusicManager] === STATUS ===")
+	print("  disabled: %s" % _disabled)
+	print("  current_track: '%s'" % _current_track)
+	print("  volume: %.2f (muted: %s)" % [_volume, _muted])
+	print("  active_player.playing: %s" % (_active_player.playing if _active_player else "N/A"))
+	print("  iconmap_mode: %s" % iconmap_mode_enabled)
+	print("  register_gating: %s" % stop_music_when_no_registers)
+	if ActiveBiomeManager:
+		print("  ActiveBiomeManager: connected, current='%s'" % ActiveBiomeManager.get_active_biome())
+	else:
+		print("  ActiveBiomeManager: NOT AVAILABLE")
 
 
 ## ============================================================================

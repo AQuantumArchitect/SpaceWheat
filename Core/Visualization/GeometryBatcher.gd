@@ -34,6 +34,8 @@ const ARC_SEGMENTS: int = 24
 # Stats
 var _primitive_count: int = 0
 var _draw_calls: int = 0
+var _debug_printed_begin: bool = false
+var _debug_printed_add: bool = false
 
 
 func _init():
@@ -56,6 +58,11 @@ func begin(canvas_item: RID) -> void:
 	_colors.clear()
 	_primitive_count = 0
 	_draw_calls = 0
+
+	# Debug: print once to confirm begin() is called
+	if not _debug_printed_begin:
+		print("[GeometryBatcher] begin() called with canvas_item: %s" % canvas_item)
+		_debug_printed_begin = true
 
 
 func flush() -> void:
@@ -92,6 +99,10 @@ func add_line(from: Vector2, to: Vector2, color: Color, width: float = 1.0) -> v
 		color: Line color
 		width: Line width in pixels
 	"""
+	if not _debug_printed_add:
+		print("[GeometryBatcher] add_line() called!")
+		_debug_printed_add = true
+
 	if color.a < 0.01:
 		return
 

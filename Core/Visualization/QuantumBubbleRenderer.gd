@@ -131,11 +131,16 @@ func _draw_quantum_bubble(graph: Node2D, node, biomes: Dictionary, time_accumula
 		base_color = Color(1.0, 0.8, 0.2)
 		glow_tint = base_color
 	else:
-		base_color = node.color
+		# Compute phi-driven color from season projections
+		var phi_color = _compute_phi_color(node)
+
+		# Blend phi color with original node color (70% phi, 30% original for stability)
+		base_color = phi_color.lerp(node.color, 0.3)
+
 		glow_tint = Color.from_hsv(
-			fmod(node.color.h + 0.5, 1.0),
-			min(node.color.s * 1.3, 1.0),
-			max(node.color.v * 0.6, 0.3)
+			fmod(base_color.h + 0.5, 1.0),
+			min(base_color.s * 1.3, 1.0),
+			max(base_color.v * 0.6, 0.3)
 		)
 
 	# Glow based on berry phase (will be real when C++ computes geometric phase)
@@ -532,6 +537,42 @@ func _draw_emoji_with_opacity(graph: Node2D, font, text_pos: Vector2, emoji: Str
 
 		var main_color = Color(1, 1, 1, opacity)
 		graph.draw_string(font, text_pos, emoji, HORIZONTAL_ALIGNMENT_CENTER, -1, font_size, main_color)
+
+
+func _compute_phi_color(node) -> Color:
+	"""Compute bubble interior color driven by phi and season projections.
+
+	Blends the three season colors (Red/Green/Blue at 0°/120°/240°)
+	based on how strongly phi projects onto each season basis.
+
+	Returns:
+		Color blended from season projections (defaults to neutral gray if no data)
+	"""
+	var projections: Array = node.season_projections
+	if projections.size() < 3:
+		# No season data - return neutral gray
+		return Color(0.5, 0.5, 0.5)
+
+	var r_proj = projections[0]
+	var g_proj = projections[1]
+	var b_proj = projections[2]
+
+	# Blend season colors weighted by projections
+	var blended_color = (
+		VisualizationConstants.SEASON_COLORS[0] * r_proj +
+		VisualizationConstants.SEASON_COLORS[1] * g_proj +
+		VisualizationConstants.SEASON_COLORS[2] * b_proj
+	)
+
+	# Normalize by total projection
+	var total_proj = r_proj + g_proj + b_proj
+	if total_proj > 0.01:
+		blended_color = blended_color / total_proj
+	else:
+		# No projections - default to neutral
+		blended_color = Color(0.5, 0.5, 0.5)
+
+	return blended_color
 
 
 func _get_measurement_uncertainty(node, biomes: Dictionary, is_celestial: bool) -> float:

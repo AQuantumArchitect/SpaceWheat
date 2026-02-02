@@ -272,6 +272,11 @@ func _draw_with_atlas(graph: Node2D, ctx: Dictionary) -> void:
 		# Get shadow influence for this node (computed earlier this frame)
 		var shadow_influence = _shadow_influences.get(node.get_instance_id(), {})
 
+		# Compute phi-driven color from season projections
+		var phi_color = _compute_phi_color(node)
+		# Blend phi color with original (70% phi, 30% original for stability)
+		var base_color = phi_color.lerp(node.color, 0.3)
+
 		# Draw bubble with all visual layers (including spinning wedges)
 		# Use interpolated phi/coherence for smooth 60fps wedge rotation
 		_bubble_atlas_batcher.draw_bubble(
@@ -279,7 +284,7 @@ func _draw_with_atlas(graph: Node2D, ctx: Dictionary) -> void:
 			node.radius,
 			anim_scale,
 			anim_alpha,
-			node.color,
+			base_color,  # Phi-driven color
 			node.energy,
 			time_accumulator,
 			is_measured,
@@ -640,12 +645,15 @@ func _pack_bubble_data(node, biomes: Dictionary, time_accumulator: float, plot_p
 	var pulse_rate = node.get_pulse_rate()
 	var pulse_phase = sin(time_accumulator * pulse_rate * TAU) * 0.5 + 0.5
 
-	# Get base color
+	# Get base color (phi-driven for non-celestial bubbles)
 	var base_color: Color
 	if is_celestial:
 		base_color = Color(1.0, 0.8, 0.2)
 	else:
-		base_color = node.color
+		# Compute phi-driven color from season projections
+		var phi_color = _compute_phi_color(node)
+		# Blend phi color with original (70% phi, 30% original for stability)
+		base_color = phi_color.lerp(node.color, 0.3)
 
 	# Calculate purity and probability data
 	var individual_purity = 0.5
@@ -971,3 +979,42 @@ func get_renderer_type() -> String:
 		return "native"
 	else:
 		return "gdscript"
+
+
+func _compute_phi_color(node) -> Color:
+	"""Compute bubble interior color driven by phi and season projections.
+
+	Blends the three season colors (Red/Green/Blue at 0°/120°/240°)
+	based on how strongly phi projects onto each season basis.
+
+	Args:
+		node: QuantumNode with season_projections array
+
+	Returns:
+		Color blended from season projections (defaults to neutral gray if no data)
+	"""
+	var projections: Array = node.season_projections
+	if projections.size() < 3:
+		# No season data - return neutral gray
+		return Color(0.5, 0.5, 0.5)
+
+	var r_proj = projections[0]
+	var g_proj = projections[1]
+	var b_proj = projections[2]
+
+	# Blend season colors weighted by projections
+	var blended_color = (
+		VisualizationConstants.SEASON_COLORS[0] * r_proj +
+		VisualizationConstants.SEASON_COLORS[1] * g_proj +
+		VisualizationConstants.SEASON_COLORS[2] * b_proj
+	)
+
+	# Normalize by total projection
+	var total_proj = r_proj + g_proj + b_proj
+	if total_proj > 0.01:
+		blended_color = blended_color / total_proj
+	else:
+		# No projections - default to neutral
+		blended_color = Color(0.5, 0.5, 0.5)
+
+	return blended_color

@@ -415,8 +415,11 @@ func _stage_start_simulation(farm: Node) -> void:
 	_verbose.info("boot", "✓", "Ready to accept player input")
 
 
-## Stage 3E: Start music (cherry on top - after all UI is ready)
-func _stage_music(farm: Node) -> void:
+## Stage 3E: Music system check (no auto-play - Layer 1 design)
+##
+## Music starts in SILENCE. Biome changes trigger music via ActiveBiomeManager signal.
+## This avoids hardcoded boot-time music selection.
+func _stage_music(_farm: Node) -> void:
 	_current_stage = "MUSIC"
 	_verbose.info("boot", "📍", "Stage 3E: Music")
 
@@ -425,32 +428,9 @@ func _stage_music(farm: Node) -> void:
 		_verbose.warn("boot", "⚠️", "MusicManager not found - skipping music")
 		return
 
-	# Check if we have biomes loaded
-	var has_biomes = farm and farm.grid and farm.grid.biomes and not farm.grid.biomes.is_empty()
-
-	if has_biomes:
-		# In iconmap mode, let the dynamic system handle music selection
-		# Just start accumulating - music will play once enough samples are gathered
-		if music.iconmap_mode_enabled:
-			_verbose.info("boot", "🎵", "IconMap mode active - dynamic music selection will begin shortly")
-			# Play fallback until iconmap system has enough data
-			music.crossfade_to(music.FALLBACK_TRACK)
-		else:
-			var biome_mgr = get_node_or_null("/root/ActiveBiomeManager")
-			var active_biome = ""
-			if biome_mgr and biome_mgr.has_method("get_active_biome"):
-				active_biome = biome_mgr.get_active_biome()
-
-			if active_biome != "":
-				music.play_biome_track(active_biome)
-				_verbose.info("boot", "🎵", "Playing biome track for: %s" % active_biome)
-			else:
-				music.crossfade_to(music.FALLBACK_TRACK)
-				_verbose.info("boot", "🎵", "Playing fallback track")
-	else:
-		# No biomes - stop any music
-		music.stop()
-		_verbose.info("boot", "🔇", "No biomes loaded - music stopped")
+	# Layer 1: Game starts in silence
+	# Music will play when biome changes (via ActiveBiomeManager.active_biome_changed signal)
+	_verbose.info("boot", "🔇", "Music ready - starts silent (Layer 1: biome changes trigger music)")
 
 
 ## ============================================================================

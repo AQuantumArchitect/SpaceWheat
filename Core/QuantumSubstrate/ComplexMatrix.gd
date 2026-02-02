@@ -38,6 +38,16 @@ func _get_native():
 
 ## Marshal GDScript data to PackedFloat64Array for native (DENSE)
 func _to_packed() -> PackedFloat64Array:
+	# Fast path: return cached packed data if _data hasn't been modified
+	if _packed_cache.size() >= n * n * 2 and not _data_valid:
+		return _packed_cache
+
+	# Native path: get from native backend if available
+	if _native_available and _native_backend != null:
+		return _native_backend.to_packed()
+
+	# Fallback: marshal from _data (slow)
+	_ensure_data_valid()
 	var packed = PackedFloat64Array()
 	packed.resize(n * n * 2)
 	for i in range(n * n):
@@ -46,11 +56,35 @@ func _to_packed() -> PackedFloat64Array:
 	return packed
 
 ## Unmarshal PackedFloat64Array back to GDScript (DENSE)
+## Uses native backend when available for O(1) load, lazy-populates _data on access
 func _from_packed(packed: PackedFloat64Array, dim: int) -> void:
 	n = dim
+	_packed_cache = packed
+
+	# Fast path: use native backend, defer _data population
+	if _native_available:
+		var native = _get_native()
+		if native:
+			native.from_packed(packed, dim)
+			_data_valid = false  # _data will be populated lazily if needed
+			return
+
+	# Fallback: populate _data immediately (slow but always works)
+	_populate_data_from_packed()
+
+## Internal: populate _data array from _packed_cache (GDScript fallback)
+func _populate_data_from_packed() -> void:
 	_data = []
 	for i in range(n * n):
-		_data.append(Complex.new(packed[i * 2], packed[i * 2 + 1]))
+		_data.append(Complex.new(_packed_cache[i * 2], _packed_cache[i * 2 + 1]))
+	_data_valid = true
+
+## Ensure _data is valid (lazy population from native/packed cache)
+func _ensure_data_valid() -> void:
+	if _data_valid:
+		return
+	if _packed_cache.size() >= n * n * 2:
+		_populate_data_from_packed()
 
 #region Sparse Matrix Transfer (CSR Format)
 
@@ -186,11 +220,15 @@ func _result_from_packed(packed: PackedFloat64Array, dim: int):
 
 var n: int = 0  # Dimension
 var _data: Array = []  # Flat array: element (i,j) at index i*n + j
+var _packed_cache: PackedFloat64Array = PackedFloat64Array()  # Native packed data cache
+var _data_valid: bool = true  # True if _data is in sync with _packed_cache
 
 func _init(dimension: int = 0):
 	_check_native()
 	n = dimension
 	_data = []
+	_packed_cache = PackedFloat64Array()
+	_data_valid = true
 	for i in range(n * n):
 		_data.append(Complex.zero())
 
@@ -236,13 +274,30 @@ func get_element(i: int, j: int):
 	if i < 0 or i >= n or j < 0 or j >= n:
 		push_error("ComplexMatrix index out of bounds: (%d, %d) for %dx%d matrix" % [i, j, n, n])
 		return Complex.zero()
+	_ensure_data_valid()
 	return _data[i * n + j]
+
+## Fast path for reading diagonal real values without populating _data
+## Used by get_marginal() to avoid O(n²) object creation
+func get_diagonal_real(i: int) -> float:
+	if i < 0 or i >= n:
+		return 0.0
+	# Fast path: read directly from packed cache
+	if _packed_cache.size() >= n * n * 2:
+		var idx = (i * n + i) * 2  # Diagonal element (i,i) real part
+		return _packed_cache[idx]
+	# Fallback: use _data
+	_ensure_data_valid()
+	return _data[i * n + i].re
 
 func set_element(i: int, j: int, value):
 	if i < 0 or i >= n or j < 0 or j >= n:
 		push_error("ComplexMatrix index out of bounds: (%d, %d) for %dx%d matrix" % [i, j, n, n])
 		return
+	_ensure_data_valid()
 	_data[i * n + j] = value
+	# Invalidate packed cache since _data changed
+	_packed_cache = PackedFloat64Array()
 
 #endregion
 

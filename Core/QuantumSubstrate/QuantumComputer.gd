@@ -858,9 +858,10 @@ func get_marginal(qubit_index: int, pole_value: int) -> float:
 	var shift = num_qubits - 1 - qubit_index
 	var prob = 0.0
 
+	# Use fast path for diagonal reads (avoids O(n²) object creation)
 	for i in range(dim):
 		if ((i >> shift) & 1) == pole_value:
-			prob += density_matrix.get_element(i, i).re
+			prob += density_matrix.get_diagonal_real(i)
 
 	return clamp(prob, 0.0, 1.0)
 

@@ -95,10 +95,12 @@ const FIB_SEQUENCE: Array[int] = [1, 1, 2, 3, 5, 8, 13, 21]  # Fibonacci packet 
 const RECOVERY_THRESHOLD: int = 5   # Phrames - below this = RECOVERY mode
 const BATCH_TIME_SMOOTHING: float = 0.3  # EMA smoothing
 
-# Adaptive state (DEPRECATED - use per-biome state below)
+# Adaptive state (DEPRECATED - NO LONGER USED FOR PACKET SIZING)
+# These variables remain for backwards compatibility with diagnostics only
+# Actual packet sizing uses per-biome state below
 var _buffer_state: BufferState = BufferState.RECOVERY
-var _fib_index: int = 4             # Start at Fib[4]=5 for reasonable default
-var _emergency_refill: bool = false # True if buffer hit 0 (urgent recovery)
+var _fib_index: int = 4             # UNUSED - diagnostics only
+var _emergency_refill: bool = false # UNUSED - per-biome version used instead
 
 # Computed constants (parametric, based on current Fibonacci index)
 var COAST_TARGET: int:
@@ -111,6 +113,7 @@ var COAST_TARGET: int:
 var biome_buffer_states: Dictionary = {}  # biome_name -> BufferState (RECOVERY/COAST)
 var biome_fib_indices: Dictionary = {}    # biome_name -> int (Fibonacci index)
 var biome_emergency_refill: Dictionary = {}  # biome_name -> bool (hit depth=0)
+var biome_last_escalation_time: Dictionary = {}  # biome_name -> float (msec timestamp of last fib increment)
 
 # === PER-BIOME ASYNC PACKET QUEUES (DEPRECATED - using hybrid global) ===
 var biome_packet_queues: Dictionary = {}  # DEPRECATED
@@ -129,6 +132,14 @@ var _current_batch_request: Dictionary = {} # OLD: Global request tracking
 
 # Physics frame guard (prevents duplicate calls in same frame)
 var _last_physics_frame: int = -1
+
+# CPU throttle: prevent packet processing from slamming CPU when catching up
+var _last_packet_completion_time: int = 0  # msec timestamp
+
+# Emergency rescue: Time-based starvation detection (Tier 1 - Tactical)
+const EMERGENCY_RESCUE_STEPS = 5           # Small packet: 5 frames (500ms @ 10Hz)
+const EMERGENCY_SAFETY_MARGIN = 1.5        # Trigger when buffer_time < batch_time × 1.5
+var _emergency_rescues: int = 0            # Track emergency packet count
 
 # Statistics
 var total_evolutions: int = 0
@@ -153,6 +164,34 @@ var _avg_batch_time_ms: float = 10.0
 var _avg_frame_time_ms: float = 16.67
 var _last_frame_time: int = 0
 var _physics_frame_counter: int = 0
+
+
+func _notification(what: int) -> void:
+	"""Handle cleanup when object is freed."""
+	if what == NOTIFICATION_PREDELETE:
+		# Clean up C++ engine first (just null it - GDExtension objects are freed automatically)
+		if lookahead_engine and is_instance_valid(lookahead_engine):
+			lookahead_engine = null
+
+		# Safely null out threads without waiting
+		# In Godot 4, threads clean themselves up automatically
+		# Waiting on threads during cleanup can cause deadlocks if called from a worker thread
+		if _batch_thread != null:
+			_batch_thread = null
+
+		for biome_name in biome_threads.keys():
+			if biome_threads[biome_name] != null:
+				biome_threads[biome_name] = null
+
+
+func _cleanup_lookahead_engine() -> void:
+	"""Clean up C++ lookahead engine to prevent memory leaks.
+
+	Call this explicitly before destroying the batcher, or let _notification handle it.
+	GDExtension objects are automatically freed when unreferenced.
+	"""
+	if lookahead_engine and is_instance_valid(lookahead_engine):
+		lookahead_engine = null
 
 
 func initialize(biome_array: Array, p_plot_pool = null):
@@ -231,6 +270,7 @@ func register_biome(biome) -> void:
 	biome_buffer_states[biome_name] = BufferState.RECOVERY  # Start in RECOVERY
 	biome_fib_indices[biome_name] = 4  # Start at Fib[4]=5
 	biome_emergency_refill[biome_name] = false
+	biome_last_escalation_time[biome_name] = 0.0  # Never escalated yet
 
 	# If native engine is ready, register and prime immediately
 	if _engine_ready and lookahead_engine and ENABLE_LOOKAHEAD:
@@ -681,6 +721,13 @@ func physics_process(delta: float):
 		_physics_process_rotation(delta)
 
 
+# Detailed physics timing
+var _phys_timing_time_track_us: int = 0
+var _phys_timing_consume_us: int = 0
+var _phys_timing_refill_us: int = 0
+var _phys_timing_packet_us: int = 0
+var _phys_timing_count: int = 0
+
 func _physics_process_lookahead(delta: float):
 	"""Stage 2: Lookahead mode - distributed C++ packet processing.
 
@@ -691,6 +738,8 @@ func _physics_process_lookahead(delta: float):
 
 	Key fix: Refill check runs at 10Hz phrame rate (consumption), not 20Hz (physics rate).
 	"""
+	var t0 = Time.get_ticks_usec()
+
 	# Track frame timing (for diagnostics only, not control logic)
 	var now_ms = Time.get_ticks_msec()
 	if _last_frame_time > 0:
@@ -703,9 +752,14 @@ func _physics_process_lookahead(delta: float):
 		if biome and biome.time_tracker:
 			biome.time_tracker.update(delta)
 
+	var t1 = Time.get_ticks_usec()
+	_phys_timing_time_track_us += (t1 - t0)
+
 	# === 10Hz CONSUMPTION AND REFILL CYCLE (phrames) ===
 	# Advance buffer cursors at 10Hz phrame rate (physics/evolution frames)
 	evolution_accumulator += delta
+
+	var t2 = Time.get_ticks_usec()
 
 	if evolution_accumulator >= EVOLUTION_INTERVAL:
 		evolution_accumulator -= EVOLUTION_INTERVAL  # Subtract, don't reset (preserves fractional delta)
@@ -716,7 +770,8 @@ func _physics_process_lookahead(delta: float):
 		_advance_all_buffers()
 
 		# Update buffer state based on consumption (GLOBAL - for compatibility)
-		_update_buffer_state()
+		# DISABLED: Using per-biome and simple 2x threshold escalation instead
+		# _update_buffer_state()
 
 		# Update PER-BIOME buffer states (self-balancing Fibonacci)
 		for biome in biomes:
@@ -724,16 +779,43 @@ func _physics_process_lookahead(delta: float):
 				var biome_name = _get_biome_name(biome)
 				_update_biome_buffer_state(biome_name)
 
+		var t2b = Time.get_ticks_usec()
+		_phys_timing_consume_us += (t2b - t2)
+
 		# REFILL CHECK: Hybrid global packet with per-biome active_flags
 		# ONE packet evolves only biomes that need refill
 		# Per-biome buffer tracking + single C++ call = best of both worlds
 		if lookahead_enabled and lookahead_batch_queue.is_empty() and not _batch_thread:
 			_trigger_hybrid_refill()
 
+		var t2c = Time.get_ticks_usec()
+		_phys_timing_refill_us += (t2c - t2b)
+
+	var t3 = Time.get_ticks_usec()
+
 	# === PACKET PROCESSING (per physics frame at 20Hz) ===
 	# Process ONE global packet (non-threaded, C++ is serialized via mutex anyway)
 	if lookahead_enabled and (not lookahead_batch_queue.is_empty() or _batch_thread != null):
 		process_one_lookahead_packet()
+
+	var t4 = Time.get_ticks_usec()
+	_phys_timing_packet_us += (t4 - t3)
+	_phys_timing_count += 1
+
+	# Report every 60 physics calls
+	if _phys_timing_count >= 60:
+		var n = float(_phys_timing_count)
+		print("[PHYS_DETAIL] time_track=%.2fms consume=%.2fms refill=%.2fms packet=%.2fms" % [
+			_phys_timing_time_track_us / 1000.0 / n,
+			_phys_timing_consume_us / 1000.0 / n,
+			_phys_timing_refill_us / 1000.0 / n,
+			_phys_timing_packet_us / 1000.0 / n
+		])
+		_phys_timing_time_track_us = 0
+		_phys_timing_consume_us = 0
+		_phys_timing_refill_us = 0
+		_phys_timing_packet_us = 0
+		_phys_timing_count = 0
 
 
 # =============================================================================
@@ -765,7 +847,14 @@ func _get_biome_name(biome) -> String:
 	"""Get biome name with fallback to biome.name."""
 	if biome == null:
 		return ""
-	return biome.get_biome_type() if biome.has_method("get_biome_type") else biome.name
+	# If biome is a String, return it directly
+	if typeof(biome) == TYPE_STRING:
+		return biome
+	# If biome is an object, check for get_biome_type() method
+	if typeof(biome) == TYPE_OBJECT and biome.has_method("get_biome_type"):
+		return biome.get_biome_type()
+	# Fallback to .name property
+	return biome.name if "name" in biome else str(biome)
 
 
 func _get_biome_buffer_state(biome) -> BiomeBufferState:
@@ -882,20 +971,30 @@ func _get_engine_id_for_biome(biome_name: String) -> int:
 
 
 func _update_biome_pause_states():
-	"""Update pause state for all biomes based on peeked terminals.
+	"""Update pause state for all biomes based on bound terminals.
 
 	Paused biomes (no bubbles):
 	- Don't queue refill packets (saves computation)
 	- Don't consume buffer (freeze at current state)
-	- Can be unpaused when terminals are peeked
+	- Can be unpaused when terminals are bound
+
+	Music and evolution should be in sync - both pause when no bubbles.
 	"""
 	for biome in biomes:
 		if not _is_valid_biome(biome):
 			continue
 
 		var biome_name = _get_biome_name(biome)
-		var has_bubbles = _biome_has_peeked_terminals(biome)
+		var has_bubbles = _biome_has_bound_terminals(biome)
+		var was_paused = biome_paused.get(biome_name, false)
 		biome_paused[biome_name] = not has_bubbles
+
+		# Log state changes
+		if was_paused != (not has_bubbles):
+			if has_bubbles:
+				print("[BiomeEvolution] %s: RESUMED (has bubbles)" % biome_name)
+			else:
+				print("[BiomeEvolution] %s: PAUSED (no bubbles)" % biome_name)
 
 
 func _biome_has_peeked_terminals(biome) -> bool:
@@ -927,9 +1026,11 @@ func _biome_has_peeked_terminals(biome) -> bool:
 
 
 func _should_trigger_biome_refill(biome_name: String, depth: int) -> bool:
-	"""Check if a SINGLE biome needs refill (per-biome logic).
+	"""Check if a SINGLE biome needs refill (per-biome batch-size-relative logic).
 
-	Same logic as _should_trigger_refill but for individual biomes.
+	Uses batch-size-relative thresholds for the 'all in one packet' model:
+	- Always refill when depth < 2x batch_size (maintain buffer health)
+	- Emergency if depth <= 0
 	"""
 	# Check if biome is paused (no bubbles)
 	if biome_paused.get(biome_name, false):
@@ -938,11 +1039,12 @@ func _should_trigger_biome_refill(biome_name: String, depth: int) -> bool:
 	if depth <= 0:
 		return true  # Emergency
 
-	if _buffer_state == BufferState.RECOVERY:
-		return true  # Always refill in recovery
+	var batch_size = _get_biome_batch_size(biome_name)
 
-	# COAST: refill when below 2x target (lazy maintenance)
-	return depth < COAST_TARGET * 2
+	# Refill when buffer drops below 2x batch_size
+	# This ensures we always have enough buffer to avoid starvation
+	# while the next packet is being computed
+	return depth < batch_size * 2
 
 
 func _update_buffer_state() -> void:
@@ -985,26 +1087,54 @@ func _update_biome_buffer_state(biome_name: String) -> void:
 	"""Update RECOVERY/COAST state for a SINGLE biome based on its buffer depth.
 
 	Each biome independently tracks its own state and Fibonacci index.
+	Uses batch-size-relative thresholds for the 'all in one packet' model:
+	- STARVATION: depth < 2x batch_size → fib up (escalate)
+	- COAST: depth > 3x batch_size → fib down (de-escalate)
+	- STABLE: 2x ≤ depth ≤ 3x batch_size → maintain
 	"""
 	var depth = _get_biome_depth(biome_name)
 	var prev_state = biome_buffer_states.get(biome_name, BufferState.RECOVERY)
 	var fib_index = biome_fib_indices.get(biome_name, 4)
+	var batch_size = _get_biome_batch_size(biome_name)  # Current batch size for this biome
 
-	if depth <= 0:
+	# STARVATION: depth < 2x batch_size → escalate
+	# Must match refill threshold to avoid chicken-and-egg problem
+	if depth < batch_size * 2:
 		biome_buffer_states[biome_name] = BufferState.RECOVERY
-		biome_emergency_refill[biome_name] = true
-		if prev_state == BufferState.COAST:
-			# Emergency: drop fib_index to ramp up quickly
-			biome_fib_indices[biome_name] = maxi(2, fib_index - 1)
-			_log("info", "STATE", "🔥", "%s: COAST→RECOVERY (empty! fib=%d)" % [biome_name, biome_fib_indices[biome_name]])
-	elif depth < RECOVERY_THRESHOLD:
-		biome_buffer_states[biome_name] = BufferState.RECOVERY
-		if prev_state == BufferState.COAST:
-			_log("info", "STATE", "⚠️", "%s: COAST→RECOVERY (depth=%d < %d, fib=%d)" % [biome_name, depth, RECOVERY_THRESHOLD, fib_index])
-	else:
+		if depth <= 0:
+			biome_emergency_refill[biome_name] = true
+
+		# Escalate fib_index with 500ms cooldown
+		# Allows multiple escalations during startup, but prevents tick-by-tick spam
+		var now_ms = Time.get_ticks_msec()
+		var last_escalation = biome_last_escalation_time.get(biome_name, 0.0)
+		var time_since_last = now_ms - last_escalation
+
+		# Escalate if: transitioning from COAST, OR 500ms cooldown elapsed while in RECOVERY
+		if prev_state == BufferState.COAST or time_since_last > 500:
+			var new_fib = mini(fib_index + 1, FIB_SEQUENCE.size() - 1)
+			if new_fib != fib_index:
+				biome_fib_indices[biome_name] = new_fib
+				biome_last_escalation_time[biome_name] = now_ms
+				_log("info", "STATE", "📈", "%s: STARVATION (depth=%d < 2×batch=%d), fib %d→%d" % [
+					biome_name, depth, batch_size * 2, fib_index, new_fib
+				])
+
+	# COAST: depth > 3x batch_size → de-escalate
+	elif depth > batch_size * 3:
 		biome_buffer_states[biome_name] = BufferState.COAST
+		biome_emergency_refill[biome_name] = false
+
+		# De-escalate fib_index on transition to COAST
 		if prev_state == BufferState.RECOVERY:
-			_log("info", "STATE", "✅", "%s: RECOVERY→COAST (depth=%d >= %d, fib=%d)" % [biome_name, depth, RECOVERY_THRESHOLD, fib_index])
+			var new_fib = maxi(fib_index - 1, 2)  # Min fib_index=2 (batch_size=2)
+			biome_fib_indices[biome_name] = new_fib
+			_log("info", "STATE", "📉", "%s: RECOVERY→COAST, depth=%d > 3×batch=%d, fib %d→%d" % [
+				biome_name, depth, batch_size * 3, fib_index, new_fib
+			])
+
+	# STABLE ZONE: batch_size ≤ depth ≤ 3x batch_size
+	# Keep current state and fib_index (no change)
 
 
 func _get_biome_batch_size(biome_name: String) -> int:
@@ -1033,8 +1163,8 @@ func _should_trigger_refill() -> bool:
 	if _buffer_state == BufferState.RECOVERY:
 		return true  # Always refill in recovery
 
-	# COAST: refill when below 2x target (lazy maintenance)
-	return depth < COAST_TARGET * 2
+	# COAST: refill when below 2× batch_size (lazy maintenance)
+	return depth < COAST_TARGET
 
 
 func _trigger_adaptive_refill() -> void:
@@ -1095,6 +1225,123 @@ func _trigger_adaptive_refill() -> void:
 
 # === HYBRID GLOBAL PACKET WITH PER-BIOME BUFFER TRACKING ===
 
+func _check_starving_by_time() -> Array[String]:
+	"""TIER 1: Detect biomes that will starve before next packet completes (time-based).
+
+	Starvation = buffer_time < batch_compute_time × safety_margin
+
+	Where:
+	- buffer_time = depth × EVOLUTION_INTERVAL (ms of game time buffered)
+	- batch_compute_time = max(last_batch_time_ms, _avg_batch_time_ms)
+	- safety_margin = 1.5 (need 1.5x buffer to be safe)
+
+	Example:
+	- depth = 2 frames → buffer_time = 200ms
+	- last_batch = 150ms → need 150ms × 1.5 = 225ms
+	- 200ms < 225ms → STARVING!
+
+	This is adaptive to actual C++ performance - if C++ slows down,
+	we detect starvation earlier.
+	"""
+	var starving: Array[String] = []
+
+	# Use max of last and average for conservative estimate
+	var batch_time = max(last_batch_time_ms, _avg_batch_time_ms)
+	if batch_time < 1.0:
+		return starving  # No timing data yet
+
+	var threshold_time = batch_time * EMERGENCY_SAFETY_MARGIN
+
+	for biome in biomes:
+		if not _is_valid_biome(biome):
+			continue
+
+		var biome_name = _get_biome_name(biome)
+		var depth = _get_biome_depth(biome_name)
+		var buffer_time_ms = depth * EVOLUTION_INTERVAL * 1000.0  # Convert to ms
+
+		if buffer_time_ms < threshold_time:
+			starving.append(biome_name)
+			_log("warn", "RESCUE", "🚨",
+				"%s: buffer=%dms < %dms (%.1fx batch)" %
+				[biome_name, buffer_time_ms, threshold_time, EMERGENCY_SAFETY_MARGIN])
+
+	return starving
+
+
+func _queue_emergency_packet(starving_biomes: Array[String]) -> void:
+	"""Queue small PRIORITY packet for starving biomes only (Tier 1 rescue).
+
+	This packet:
+	- Is small (5 frames = 500ms buffer)
+	- Processes only starving biomes (via active_flags)
+	- Queued with push_front() for priority
+	- Takes ~30-50ms C++ time (fast!)
+
+	This is tactical rescue - Fibonacci escalation (Tier 2) handles
+	strategic capacity adjustment.
+	"""
+	if not lookahead_engine:
+		return
+
+	var biome_rhos: Array = []
+	var active_flags_arr: Array = []
+	var rescued_count = 0
+
+	# Build packet with only starving biomes active
+	for engine_id in range(lookahead_engine.get_biome_count()):
+		var biome_name = _engine_id_to_biome.get(engine_id, "")
+
+		if biome_name == "" or biome_name not in starving_biomes:
+			# Skip non-starving biomes
+			biome_rhos.append(PackedFloat64Array())
+			active_flags_arr.append(false)
+			continue
+
+		# Include starving biome
+		var biome = _find_biome_by_name(biome_name)
+		if biome and biome.quantum_computer:
+			var qc = biome.quantum_computer
+			var rho_packed = qc.density_matrix._to_packed() if qc.density_matrix else PackedFloat64Array()
+			biome_rhos.append(rho_packed)
+			active_flags_arr.append(true)
+			rescued_count += 1
+		else:
+			biome_rhos.append(PackedFloat64Array())
+			active_flags_arr.append(false)
+
+	if rescued_count == 0:
+		return  # No valid starving biomes
+
+	# Create emergency packet
+	# EMERGENCY_RESCUE_STEPS = 5 frames = FIB_SEQUENCE[4], so fib_index = 4
+	var packet = {
+		"biome_rhos": biome_rhos,
+		"active_flags": active_flags_arr,
+		"num_steps": EMERGENCY_RESCUE_STEPS,  # Small: 5 frames (consistent field name)
+		"batch_num": lookahead_refills,
+		"total_batches": 1,
+		"is_emergency": true,
+		"fib_index": 4,  # 5 frames = FIB_SEQUENCE[4] → delay = 5ms
+	}
+
+	# PRIORITY: Push to front of queue
+	lookahead_batch_queue.push_front(packet)
+	_emergency_rescues += 1
+
+	_log("info", "RESCUE", "🚑",
+		"Emergency packet queued: %d biomes, %d frames (~%.0fms)" %
+		[rescued_count, EMERGENCY_RESCUE_STEPS, last_batch_time_ms * 0.3])
+
+
+func _find_biome_by_name(biome_name: String):
+	"""Helper to find biome by name."""
+	for biome in biomes:
+		if _is_valid_biome(biome) and _get_biome_name(biome) == biome_name:
+			return biome
+	return null
+
+
 func _trigger_hybrid_refill():
 	"""Hybrid approach: ONE global packet with per-biome active_flags.
 
@@ -1106,11 +1353,20 @@ func _trigger_hybrid_refill():
 	- Single C++ call (no threading issues)
 	- Per-biome buffer invalidation (independent depths)
 	- Efficient (frozen biomes don't evolve)
+
+	EMERGENCY RESCUE (Tier 1 - Tactical):
+	Before queuing normal packet, check if any biomes are starving based on
+	time (buffer_time < batch_time). If so, prepend small emergency packet.
 	"""
 	# Update pause states (check for peeked terminals)
 	_update_biome_pause_states()
 
-	# Check which biomes need refill
+	# TIER 1: Check for time-based starvation (emergency rescue)
+	var starving_biomes = _check_starving_by_time()
+	if not starving_biomes.is_empty():
+		_queue_emergency_packet(starving_biomes)
+
+	# TIER 2: Check which biomes need regular refill
 	var needs_refill = false
 	var min_depth = 999999
 
@@ -1147,6 +1403,7 @@ func _queue_hybrid_packet():
 	var biome_rhos: Array = []
 	var active_flags_arr: Array = []
 	var max_batch_size = 0
+	var max_fib_index = 0
 
 	for biome in biomes:
 		if not _is_valid_biome(biome):
@@ -1166,20 +1423,23 @@ func _queue_hybrid_packet():
 		var should_evolve = _should_trigger_biome_refill(biome_name, depth)
 		active_flags_arr.append(should_evolve)
 
-		# Track max batch size (C++ uses this for all biomes)
+		# Track max batch size AND fib_index (C++ uses max, delay uses fib_index)
 		if should_evolve:
-			var biome_batch = _get_biome_batch_size(biome_name)
+			var biome_fib_index = biome_fib_indices.get(biome_name, 4)
+			var biome_batch = FIB_SEQUENCE[mini(biome_fib_index, FIB_SEQUENCE.size() - 1)]
 			if biome_batch > max_batch_size:
 				max_batch_size = biome_batch
+				max_fib_index = biome_fib_index
 
 	# Use max batch size (some biomes may "overcook" but this avoids C++ API changes)
 	if max_batch_size == 0:
 		max_batch_size = FIB_SEQUENCE[4]  # Default if no biomes active
+		max_fib_index = 4
 
-	# Queue ONE global packet with active_flags
-	_queue_adaptive_packet(biome_rhos, active_flags_arr, max_batch_size)
+	# Queue ONE global packet with active_flags and fib_index for delay calculation
+	_queue_adaptive_packet(biome_rhos, active_flags_arr, max_batch_size, max_fib_index)
 
-	# Log which biomes are being evolved
+	# Log which biomes are being evolved (with their individual batch sizes)
 	var active_count = active_flags_arr.count(true)
 	_log("trace", "REFILL", "🔄", "Global packet: batch=%d (max), %d/%d biomes active" % [
 		max_batch_size, active_count, biomes.size()
@@ -1429,6 +1689,14 @@ func _advance_all_buffers():
 		_apply_buffered_step(biome)
 
 
+# Timing for _apply_buffered_step breakdown
+var _abs_load_us: int = 0
+var _abs_mi_us: int = 0
+var _abs_bloch_us: int = 0
+var _abs_other_us: int = 0
+var _abs_post_us: int = 0
+var _abs_count: int = 0
+
 func _apply_buffered_step(biome, apply_post: bool = true) -> void:
 	"""Apply current buffered state to a single biome and update viz_cache."""
 	if not _is_valid_biome(biome):
@@ -1442,11 +1710,16 @@ func _apply_buffered_step(biome, apply_post: bool = true) -> void:
 	if cursor >= buffer.size():
 		return
 
+	var t0 = Time.get_ticks_usec()
+
 	# Update density matrix from buffer
 	var rho_packed = buffer[cursor]
 	var qc = biome.quantum_computer  # Cache reference (accessed multiple times below)
 	var dim = qc.register_map.dim()
 	qc.load_packed_state(rho_packed, dim, true)
+
+	var t1 = Time.get_ticks_usec()
+	_abs_load_us += (t1 - t0)
 
 	var metadata_payload = metadata_payloads.get(biome_name, {})
 	var num_qubits = metadata_payload.get("num_qubits", 0)
@@ -1463,6 +1736,9 @@ func _apply_buffered_step(biome, apply_post: bool = true) -> void:
 			var mi_cached = mi_cache[biome_name]
 			if mi_cached is PackedFloat64Array and not mi_cached.is_empty():
 				biome.viz_cache.update_mi_values(mi_cached, num_qubits)
+
+		var t2 = Time.get_ticks_usec()
+		_abs_mi_us += (t2 - t1)
 
 		# Update visualization cache from precomputed lookahead packets
 		var bloch_steps = bloch_buffers.get(biome_name, [])
@@ -1481,6 +1757,10 @@ func _apply_buffered_step(biome, apply_post: bool = true) -> void:
 			var frame_buffer = frame_buffers.get(biome_name, [])
 			var frame_cursor = buffer_cursors.get(biome_name, 0)
 			print("  → frame_buffer cursor=%d, size=%d" % [frame_cursor, frame_buffer.size()])
+
+		var t3 = Time.get_ticks_usec()
+		_abs_bloch_us += (t3 - t2)
+
 		var purity_steps = purity_buffers.get(biome_name, [])
 		if cursor < purity_steps.size():
 			biome.viz_cache.update_purity(purity_steps[cursor])
@@ -1493,11 +1773,34 @@ func _apply_buffered_step(biome, apply_post: bool = true) -> void:
 		if icon_map_payload:
 			biome.viz_cache.update_icon_map(icon_map_payload)
 
+		var t4 = Time.get_ticks_usec()
+		_abs_other_us += (t4 - t3)
+
 	buffer_cursors[biome_name] = cursor + 1
 
 	# Post-evolution updates
+	var t_post_start = Time.get_ticks_usec()
 	if apply_post and biome.quantum_evolution_enabled and not biome.evolution_paused:
 		_post_evolution_update(biome)
+	var t_post_end = Time.get_ticks_usec()
+	_abs_post_us += (t_post_end - t_post_start)
+
+	_abs_count += 1
+	if _abs_count >= 60:
+		var load_ms = _abs_load_us / 1000.0 / _abs_count
+		var mi_ms = _abs_mi_us / 1000.0 / _abs_count
+		var bloch_ms = _abs_bloch_us / 1000.0 / _abs_count
+		var other_ms = _abs_other_us / 1000.0 / _abs_count
+		var post_ms = _abs_post_us / 1000.0 / _abs_count
+		print("[ABS_TIMING] load_packed=%.2fms update_mi=%.2fms update_bloch=%.2fms other_viz=%.2fms post_evol=%.2fms" % [
+			load_ms, mi_ms, bloch_ms, other_ms, post_ms
+		])
+		_abs_load_us = 0
+		_abs_mi_us = 0
+		_abs_bloch_us = 0
+		_abs_other_us = 0
+		_abs_post_us = 0
+		_abs_count = 0
 
 
 func prime_lookahead_buffers() -> void:
@@ -1763,7 +2066,7 @@ func _biome_has_bound_terminals(biome) -> bool:
 		return true
 
 	if plot_pool.has_method("get_terminals_in_biome"):
-		var biome_name = biome.get_biome_type() if biome.has_method("get_biome_type") else biome.name
+		var biome_name = _get_biome_name(biome)  # Use helper with proper type checking
 		return plot_pool.get_terminals_in_biome(biome_name).size() > 0
 
 	return true
@@ -2231,7 +2534,7 @@ func get_performance_metrics() -> Dictionary:
 # DISTRIBUTED LOOKAHEAD - Queue-based C++ packet processing (async compute)
 # ============================================================================
 
-func _queue_adaptive_packet(biome_rhos: Array, active_flags_arr: Array, packet_size: int) -> void:
+func _queue_adaptive_packet(biome_rhos: Array, active_flags_arr: Array, packet_size: int, fib_index: int = 4) -> void:
 	"""Queue a SINGLE C++ packet with adaptive size (Fibonacci-based).
 
 	Terminology:
@@ -2240,6 +2543,9 @@ func _queue_adaptive_packet(biome_rhos: Array, active_flags_arr: Array, packet_s
 
 	RECOVERY: packet_size from Fibonacci sequence (1,1,2,3,5,8... phrames)
 	COAST: fixed size for maintenance
+
+	Args:
+		fib_index: Fibonacci index (0-based) for delay calculation (delay_ms = fib_index + 1)
 	"""
 	if biome_rhos.is_empty():
 		return
@@ -2257,6 +2563,7 @@ func _queue_adaptive_packet(biome_rhos: Array, active_flags_arr: Array, packet_s
 		"num_steps": packet_size,  # Number of phrames to compute
 		"biome_rhos": biome_rhos,
 		"total_batches": 1,  # Legacy key: always 1 packet per refill in adaptive mode
+		"fib_index": fib_index,  # For proportional delay calculation
 	}
 	lookahead_batch_queue.append(packet_request)
 
@@ -2294,17 +2601,65 @@ func process_one_lookahead_packet() -> void:
 			# Thread still running - don't start new one, don't block
 			return
 
-		# Thread finished - get result (non-blocking, thread already done)
+		# Thread finished - ALWAYS get result and merge (never skip this part!)
 		var result = _batch_thread.wait_to_finish()
+		var min_depth_before = _get_minimum_buffer_depth()
 		_on_packet_completed(result)
 		_batch_thread = null
+		_last_packet_completion_time = Time.get_ticks_msec()
+
+		# DIAGNOSTIC: Log packet completion
+		if OS.is_debug_build():
+			var min_depth_after = _get_minimum_buffer_depth()
+			var is_emergency = _current_batch_request.get("is_emergency", false)
+			var packet_time_ms = result.get("time_us", 0) / 1000.0
+			print("[PACKET_DONE] %s: %.1fms, depth %d→%d, queue=%d" % [
+				"EMERGENCY" if is_emergency else "NORMAL",
+				packet_time_ms, min_depth_before, min_depth_after,
+				lookahead_batch_queue.size()
+			])
+
+		# Proportional CPU throttle: 1ms delay per Fibonacci index
+		# fib_index: 0,1,2,3,4,5,6,7 → delay: 1,2,3,4,5,6,7,8ms
+		# Bigger batches did more work → more breathing room for game logic
+		# SKIP delay for emergency packets (urgent!)
+		var is_emergency = _current_batch_request.get("is_emergency", false)
+		if not is_emergency and _current_batch_request.has("fib_index"):
+			var fib_index = _current_batch_request["fib_index"]
+			var delay_ms = fib_index + 1  # 1-indexed delay (fib 0→1ms, fib 1→2ms, etc.)
+			OS.delay_msec(delay_ms)
 
 	# START: Queue not empty and no packet running?
 	if lookahead_batch_queue.is_empty():
 		return
 
+	# FRAME BUDGET: Only throttle when STARTING new threads, not when completing
+	# CRITICAL: Never skip if buffer can't cover 2× the expected packet completion time
+	var frame_time_ms = Performance.get_monitor(Performance.TIME_PROCESS) * 1000.0
+	var min_depth = _get_minimum_buffer_depth()
+
+	# Calculate buffer headroom: do we have enough buffer to wait?
+	# min_depth × 100ms (consumption rate) vs expected packet time
+	var buffer_time_ms = min_depth * EVOLUTION_INTERVAL * 1000.0  # Buffer in milliseconds
+	var expected_packet_ms = max(last_batch_time_ms, _avg_batch_time_ms)
+	var safety_margin = expected_packet_ms * 2.0  # Need 2× packet time for safety
+
+	# Only skip if: frame time high AND buffer has plenty of headroom
+	# Always process if buffer is running low (buffer_time < 2× packet_time)
+	if frame_time_ms > 10.0 and buffer_time_ms >= safety_margin:
+		return  # Skip starting new packet this frame (buffers have enough headroom)
+
 	# Dequeue next packet request
 	_current_batch_request = lookahead_batch_queue.pop_front()
+
+	# DIAGNOSTIC: Log packet start
+	if OS.is_debug_build():
+		var is_emergency = _current_batch_request.get("is_emergency", false)
+		var num_steps = _current_batch_request.get("num_steps", 0)
+		print("[PACKET_START] %s: steps=%d, depth=%d, frame=%.1fms" % [
+			"EMERGENCY" if is_emergency else "NORMAL",
+			num_steps, min_depth, frame_time_ms
+		])
 
 	# Start packet computation in background thread (NON-BLOCKING!)
 	_batch_thread = Thread.new()
@@ -2389,22 +2744,10 @@ func _on_packet_completed(result: Dictionary) -> void:
 		lookahead_refills += 1
 		var depth_after = _get_buffer_depth()
 
-		# Fibonacci adaptation based on buffer state
-		if _buffer_state == BufferState.RECOVERY and depth_after < COAST_TARGET:
-			# RECOVERY: Escalate if buffer still low
-			if _fib_index < FIB_SEQUENCE.size() - 1:
-				_fib_index += 1
-				_log("debug", "PACKET", "📈", "Fib advance: %d→%d (depth=%d, target=%d)" % [
-					_fib_index - 1, _fib_index, depth_after, COAST_TARGET
-				])
-		elif _buffer_state == BufferState.COAST and depth_after > COAST_TARGET * 3:
-			# COAST: De-escalate if buffer consistently too large (3x target)
-			# This prevents runaway escalation and excessive batch times
-			if _fib_index > 2:  # Never go below fib_index=2 (batch_size=2)
-				_fib_index -= 1
-				_log("debug", "PACKET", "📉", "Fib de-escalate: %d→%d (depth=%d > 3×target=%d)" % [
-					_fib_index + 1, _fib_index, depth_after, COAST_TARGET * 3
-				])
+		# REMOVED: Global escalation logic (System 3)
+		# Escalation is now handled per-biome in _update_biome_buffer_state()
+		# Called at 10Hz during consumption (line 778)
+		# Each biome independently escalates at depth < 2×batch_size
 
 		# Log completion
 		_log("trace", "PACKET", "✓", "Complete: %.1fms, depth %d→%d, state=%s" % [
@@ -2427,7 +2770,11 @@ func _merge_accumulated_packets() -> void:
 	Terminology:
 	- phrame = physics/evolution frame (10 Hz)
 	- packet = C++ batch result containing N phrames
+
+	Performance: Yields to renderer every 5 biomes to prevent frame stuttering.
 	"""
+	var biomes_processed_since_yield = 0
+	const BIOMES_PER_YIELD = 5  # Yield to renderer every 5 biomes
 	# Build lookup of active biomes (those still in batcher.biomes)
 	var active_biome_lookup: Dictionary = {}
 	for biome in biomes:
@@ -2512,32 +2859,27 @@ func _merge_accumulated_packets() -> void:
 			var unconsumed_positions = _extract_unconsumed_buffer(biome_name, position_buffers)
 			var unconsumed_velocities = _extract_unconsumed_buffer(biome_name, velocity_buffers)
 
-			# APPEND new phrames to unconsumed (don't replace!)
-			var new_frames = unconsumed_frames.duplicate()
-			new_frames.append_array(accumulated_frames.get(biome_name, []))
-			frame_buffers[biome_name] = new_frames
+			# APPEND new phrames to unconsumed directly (no duplicate!)
+			# This saves 6 array copies per biome (~40% faster merge)
+			unconsumed_frames.append_array(accumulated_frames.get(biome_name, []))
+			frame_buffers[biome_name] = unconsumed_frames
 			buffer_cursors[biome_name] = 0  # Reset cursor since we sliced
 
-			var new_mi = unconsumed_mi.duplicate()
-			new_mi.append_array(accumulated_mi_steps.get(biome_name, []))
-			mi_buffers[biome_name] = new_mi
+			unconsumed_mi.append_array(accumulated_mi_steps.get(biome_name, []))
+			mi_buffers[biome_name] = unconsumed_mi
 
-			var new_bloch = unconsumed_bloch.duplicate()
-			new_bloch.append_array(accumulated_bloch_steps.get(biome_name, []))
-			bloch_buffers[biome_name] = new_bloch
+			unconsumed_bloch.append_array(accumulated_bloch_steps.get(biome_name, []))
+			bloch_buffers[biome_name] = unconsumed_bloch
 
-			var new_purity = unconsumed_purity.duplicate()
-			new_purity.append_array(accumulated_purity_steps.get(biome_name, []))
-			purity_buffers[biome_name] = new_purity
+			unconsumed_purity.append_array(accumulated_purity_steps.get(biome_name, []))
+			purity_buffers[biome_name] = unconsumed_purity
 
 			# Merge force positions/velocities
-			var new_positions = unconsumed_positions.duplicate()
-			new_positions.append_array(accumulated_position_steps.get(biome_name, []))
-			position_buffers[biome_name] = new_positions
+			unconsumed_positions.append_array(accumulated_position_steps.get(biome_name, []))
+			position_buffers[biome_name] = unconsumed_positions
 
-			var new_velocities = unconsumed_velocities.duplicate()
-			new_velocities.append_array(accumulated_velocity_steps.get(biome_name, []))
-			velocity_buffers[biome_name] = new_velocities
+			unconsumed_velocities.append_array(accumulated_velocity_steps.get(biome_name, []))
+			velocity_buffers[biome_name] = unconsumed_velocities
 		else:
 			# Frozen buffer for inactive biomes
 			var qc = biome.quantum_computer
@@ -2545,15 +2887,7 @@ func _merge_accumulated_packets() -> void:
 			frame_buffers[biome_name] = _create_frozen_buffer(rho_packed, LOOKAHEAD_STEPS)
 			buffer_cursors[biome_name] = 0
 
-	# Safety cap: prevent buffer overflow from multiple packet accumulation
-	var depth_after = _get_minimum_buffer_depth()
-	if depth_after > COAST_TARGET * 4:
-		if _fib_index > 2:
-			var old_fib = _fib_index
-			_fib_index -= 2  # Drop by 2 steps for faster correction
-			_log("warn", "PACKET", "📉📉", "Buffer overflow: depth=%d > 4×target=%d, fib de-escalate: %d→%d" % [
-				depth_after, COAST_TARGET * 4, old_fib, _fib_index
-			])
+	# Emergency de-escalation removed (handled by normal per-biome escalation logic)
 
 
 

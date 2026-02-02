@@ -1,6 +1,10 @@
 class_name QuantumEdgeRenderer
 extends RefCounted
 
+# Debug flags
+var _debug_batcher_checked: bool = false
+var _debug_draw_checked: bool = false
+
 ## Quantum Edge Renderer
 ##
 ## Draws relationships between quantum nodes:
@@ -119,11 +123,20 @@ func _draw_mutual_information_web(graph: Node2D, ctx: Dictionary) -> void:
 	var active_biome = ctx.get("active_biome", "")
 	var batcher = ctx.get("geometry_batcher")
 
+	# Debug: check batcher value
+	if not _debug_batcher_checked:
+		print("[EdgeRenderer] Batcher: %s | null: %s | truthy: %s" % [str(batcher), batcher == null, not not batcher])
+		_debug_batcher_checked = true
+
 	# Get visible nodes
 	var visible_nodes: Array = []
 	for node in quantum_nodes:
 		if node.visible and _is_active_node(node):
 			visible_nodes.append(node)
+
+	if not _debug_draw_checked:
+		print("[EdgeRenderer] visible_nodes count: %d" % visible_nodes.size())
+		_debug_draw_checked = true
 
 	if visible_nodes.size() < 2:
 		return
@@ -175,6 +188,10 @@ func _draw_mutual_information_web(graph: Node2D, ctx: Dictionary) -> void:
 
 				# Line width scales with MI
 				var width = 1.0 + mi * 1.5
+
+				if not _debug_draw_checked:
+					print("[EdgeRenderer] About to draw MI line, batcher=%s" % batcher)
+					_debug_draw_checked = true
 
 				if batcher:
 					batcher.add_line(node_a.position, node_b.position, color, width)
