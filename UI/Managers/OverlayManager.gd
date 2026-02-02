@@ -128,6 +128,37 @@ func _get_current_biome(farm_ref):
 	return null
 
 
+## ========================================
+## VISIBILITY-BASED PROCESS MANAGEMENT
+## ========================================
+
+func _setup_visibility_processing(panel: Node) -> void:
+	"""Configure panel to enable/disable processing based on visibility.
+
+	When panel becomes visible, enable processing (_process() runs).
+	When panel becomes invisible, disable processing (saves CPU).
+	"""
+	if not panel:
+		return
+
+	# Disable processing initially if panel is hidden
+	if panel.has_method("set_process"):
+		if "visible" in panel and not panel.visible:
+			panel.set_process(false)
+			_verbose.debug("ui", "⏸️", "Disabled processing for hidden panel: %s" % panel.name)
+
+	# Connect visibility change signal to toggle processing
+	if panel.has_signal("visibility_changed"):
+		panel.visibility_changed.connect(func():
+			if panel.has_method("set_process"):
+				panel.set_process(panel.visible)
+				if panel.visible:
+					_verbose.debug("ui", "▶️", "Enabled processing for panel: %s" % panel.name)
+				else:
+					_verbose.debug("ui", "⏸️", "Disabled processing for panel: %s" % panel.name)
+		)
+
+
 func create_overlays(parent: Control) -> void:
 	"""Create all overlay panels and add them to parent"""
 	# HAUNTED UI FIX: Guard against duplicate overlay creation
@@ -159,6 +190,7 @@ func create_overlays(parent: Control) -> void:
 	quest_panel.z_index = 1001
 	parent.add_child(quest_panel)
 	_verbose.info("ui", "📜", "Quest panel created (press C to toggle)")
+	_setup_visibility_processing(quest_panel)
 
 	# Create Faction Quest Offers Panel (Legacy - kept for compatibility)
 	faction_quest_offers_panel = FactionQuestOffersPanel.new()
@@ -175,6 +207,7 @@ func create_overlays(parent: Control) -> void:
 	faction_quest_offers_panel.panel_closed.connect(_on_quest_offers_panel_closed)
 
 	_verbose.info("ui", "⚛️", "Faction Quest Offers panel created (legacy)")
+	_setup_visibility_processing(faction_quest_offers_panel)
 
 	# Create Quest Board (New Modal 4-Slot System - Primary Interface)
 	quest_board = QuestBoard.new()
@@ -193,6 +226,7 @@ func create_overlays(parent: Control) -> void:
 	quest_board.board_closed.connect(_on_quest_board_closed)
 
 	_verbose.info("ui", "📋", "Quest Board created (press C to toggle - modal 4-slot system)")
+	_setup_visibility_processing(quest_board)
 
 	# SimStatsOverlay REMOVED - merged into InspectorOverlay (N key)
 	# Performance stats now only visible when user presses N to open Inspector
@@ -205,6 +239,7 @@ func create_overlays(parent: Control) -> void:
 	vocabulary_overlay = _create_vocabulary_overlay()
 	parent.add_child(vocabulary_overlay)
 	_verbose.info("ui", "📖", "Vocabulary overlay created (press V to toggle)")
+	_setup_visibility_processing(vocabulary_overlay)
 
 	# Network overlay - DISABLED (being redesigned)
 	# Will be implemented differently in future update
@@ -237,6 +272,7 @@ func create_overlays(parent: Control) -> void:
 	escape_menu.reload_last_save_pressed.connect(_on_reload_last_save_pressed)
 	# Note: EscapeMenu doesn't have debug_environment_selected - removed this connection
 	_verbose.info("ui", "🎮", "Escape menu created (ESC to toggle)")
+	_setup_visibility_processing(escape_menu)
 
 	# KeyboardHintButton REMOVED - K key now opens ControlsOverlay via v2 overlay system
 
@@ -256,6 +292,7 @@ func create_overlays(parent: Control) -> void:
 	save_load_menu.debug_environment_selected.connect(_on_debug_environment_selected)
 	save_load_menu.menu_closed.connect(_on_save_load_menu_closed)
 	_verbose.debug("save", "💾", "Save/Load menu signals connected")
+	_setup_visibility_processing(save_load_menu)
 
 	# Create Biome Inspector Overlay (now extends Control with internal CanvasLayer)
 	biome_inspector = BiomeInspectorOverlay.new()
@@ -263,6 +300,7 @@ func create_overlays(parent: Control) -> void:
 	parent.add_child(biome_inspector)
 	biome_inspector.overlay_closed.connect(_on_biome_inspector_closed)
 	_verbose.info("ui", "🌍", "Biome inspector overlay created (B to toggle)")
+	_setup_visibility_processing(biome_inspector)
 
 	# Create Quantum Rigor Config UI (Phase 1 UI Integration)
 	quantum_config_ui = QuantumRigorConfigUI.new()
@@ -270,10 +308,12 @@ func create_overlays(parent: Control) -> void:
 	quantum_config_ui.z_index = 1003  # Above other overlays
 	parent.add_child(quantum_config_ui)
 	_verbose.info("ui", "🔬", "Quantum rigor config panel created (Shift+Q to toggle)")
+	_setup_visibility_processing(quantum_config_ui)
 
 	# Create Touch Button Bar (for touch devices)
 	touch_button_bar = _create_touch_button_bar()
 	parent.add_child(touch_button_bar)
+	_setup_visibility_processing(touch_button_bar)
 	# Note: Function logs "C/V/B/N/K on LEFT side" - no need for duplicate log
 	_verbose.debug("ui", "📏", "Parent (OverlayLayer) size: %s" % parent.size)
 	_verbose.debug("ui", "📏", "Parent (OverlayLayer) position: (%s, %s)" % [parent.position.x, parent.position.y])
@@ -289,6 +329,7 @@ func create_overlays(parent: Control) -> void:
 	parent.add_child(icon_detail_panel)
 	icon_detail_panel.panel_closed.connect(_on_icon_detail_panel_closed)
 	_verbose.info("ui", "📖", "Icon detail panel created (click emojis in vocab to view)")
+	_setup_visibility_processing(icon_detail_panel)
 
 	# Create v2 Overlays
 	_create_v2_overlays(parent)
@@ -1198,6 +1239,7 @@ func _create_v2_overlays(parent: Control) -> void:
 		inspector_overlay.set_layout_manager(layout_manager)
 	parent.add_child(inspector_overlay)
 	register_v2_overlay("inspector", inspector_overlay)
+	_setup_visibility_processing(inspector_overlay)
 
 	# Create Controls Overlay (keyboard reference)
 	controls_overlay = ControlsOverlay.new()
@@ -1206,6 +1248,7 @@ func _create_v2_overlays(parent: Control) -> void:
 		controls_overlay.set_layout_manager(layout_manager)
 	parent.add_child(controls_overlay)
 	register_v2_overlay("controls", controls_overlay)
+	_setup_visibility_processing(controls_overlay)
 
 	# Create Semantic Map Overlay (vocabulary + octants)
 	semantic_map_overlay = SemanticMapOverlay.new()
@@ -1214,6 +1257,7 @@ func _create_v2_overlays(parent: Control) -> void:
 		semantic_map_overlay.set_layout_manager(layout_manager)
 	parent.add_child(semantic_map_overlay)
 	register_v2_overlay("semantic_map", semantic_map_overlay)
+	_setup_visibility_processing(semantic_map_overlay)
 
 	# Register existing overlays with v2 interface
 	# QuestBoard already has v2 interface methods

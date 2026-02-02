@@ -150,10 +150,10 @@ var _disabled: bool = false
 var _layer3_stopped: bool = false
 
 ## IconMap-driven music mode
-var iconmap_mode_enabled: bool = false  # Enable quantum state-driven music selection (disabled by default)
+var iconmap_mode_enabled: bool = true  # Enable quantum state-driven music selection
 
 ## Portfolio-driven music mode (blends economy resources with IconMap)
-var portfolio_mode_enabled: bool = false  # Enable resource portfolio influence (disabled by default)
+var portfolio_mode_enabled: bool = true  # Enable resource portfolio influence
 const PORTFOLIO_BLEND_WEIGHT: float = 0.3  # How much portfolio contributes (0.0-1.0), rest is IconMap
 
 # Sampling: accumulate and evaluate every 1 second
