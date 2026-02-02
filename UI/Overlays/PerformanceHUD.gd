@@ -86,12 +86,25 @@ func _locate_graph() -> void:
 
 func _update_display() -> void:
 	"""Update performance display with current data."""
+	var fps = Engine.get_frames_per_second()
+
+	# Collect Godot engine metrics
+	var time_process = Performance.get_monitor(Performance.TIME_PROCESS) * 1000.0  # Convert to ms
+	var time_physics = Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS) * 1000.0
+	var node_count = Performance.get_monitor(Performance.OBJECT_NODE_COUNT)
+	var orphan_nodes = Performance.get_monitor(Performance.OBJECT_ORPHAN_NODE_COUNT)
+
+	# Print detailed metrics to console
+	print("[PERF_GODOT] Frame: %d | FPS: %d" % [frame_counter, fps])
+	print("[PERF_GODOT] TIME_PROCESS: %.2fms | TIME_PHYSICS: %.2fms" % [time_process, time_physics])
+	print("[PERF_GODOT] Nodes: %d | Orphans: %d" % [node_count, orphan_nodes])
+
+	# If graph is available, also show graph-specific data
 	if not graph_ref or not "_perf_samples" in graph_ref:
-		_show_no_data()
+		_show_engine_metrics_only(fps, time_process, time_physics, node_count)
 		return
 
 	var samples = graph_ref._perf_samples
-	var fps = Engine.get_frames_per_second()
 
 	# Calculate averages
 	var avg = {}
