@@ -63,7 +63,7 @@ var _debug_placeholder_printed: bool = false
 # Track fallback usage for debugging (MUST be declared before begin() uses them)
 var _fallback_count: int = 0
 var _atlas_hit_count: int = 0
-var _missing_emojis: Dictionary = {}  # Track which emojis are missing
+var _missing_emojis_this_frame: Dictionary = {}  # Track emojis missing from atlas this frame (for batched warning)
 
 # Fallback for visual asset registry textures
 var _visual_asset_registry = null
@@ -488,6 +488,7 @@ func begin(canvas_item: RID) -> void:
 	_uvs.clear()
 	_colors.clear()
 	_text_fallback_queue.clear()
+	_missing_emojis_this_frame.clear()  # Reset per-frame tracking for batched warning
 	_emoji_count = 0
 	_draw_calls = 0
 	_fallback_count = 0
@@ -545,11 +546,10 @@ func add_emoji_by_name(position: Vector2, size: Vector2, emoji: String, color: C
 	# ATLAS MISS - try fallbacks
 	_fallback_count += 1
 
-	# Warn once per emoji (only if atlas was built - don't warn if atlas is disabled)
-	if not _missing_emojis.has(emoji):
-		_missing_emojis[emoji] = true
-		if _atlas_built:
-			push_warning("[EmojiAtlasBatcher] Missing from atlas: '%s' (will use text fallback)" % emoji)
+	# Track missing emojis for batched warning at end of frame
+	# (only if atlas was built - don't track if atlas is disabled)
+	if _atlas_built:
+		_missing_emojis_this_frame[normalized_emoji] = emoji
 
 	# FALLBACK 1: Try SVG texture from VisualAssetRegistry
 	if _visual_asset_registry:
@@ -694,6 +694,8 @@ func flush_text_fallbacks(graph: Node2D) -> void:
 	glyph but will show the Unicode character(s), making debugging easier.
 
 	Called AFTER flush() to maintain proper z-order.
+
+	Emits a batched warning at the end if any emojis are missing from atlas.
 	"""
 	if _text_fallback_queue.is_empty():
 		return
@@ -705,6 +707,14 @@ func flush_text_fallbacks(graph: Node2D) -> void:
 	for item in _text_fallback_queue:
 		_draw_text_box(graph, font, item.position, item.size, item.emoji, item.color, item.shadow_offset)
 		_emoji_count += 1
+
+	# Emit batched warning for all missing emojis at end of frame
+	if _missing_emojis_this_frame.size() > 0:
+		var emoji_list = _missing_emojis_this_frame.values()
+		var count = emoji_list.size()
+		emoji_list.sort()  # Sort for consistent warning message
+		var emojis_str = " ".join(emoji_list) if count <= 10 else "%d emojis" % count
+		push_warning("[EmojiAtlasBatcher] %d emoji(s) missing from atlas, rendering as text boxes: %s" % [count, emojis_str])
 
 	_text_fallback_queue.clear()
 
