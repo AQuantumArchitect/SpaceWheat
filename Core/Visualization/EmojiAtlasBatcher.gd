@@ -71,12 +71,16 @@ var _visual_asset_registry = null
 # Cache for persistent atlas storage
 var _atlas_cache = null
 
+# Verbose config (for gating per-frame logs)
+var _verbose_config = null
+
 
 func _init():
 	# Try to get visual asset registry for SVG fallback
 	var tree = Engine.get_main_loop()
 	if tree and tree is SceneTree:
 		_visual_asset_registry = tree.root.get_node_or_null("/root/VisualAssetRegistry")
+		_verbose_config = tree.root.get_node_or_null("/root/VerboseConfig")
 
 
 ## CRITICAL: Normalize emoji strings to handle variation selector inconsistencies.
@@ -724,13 +728,16 @@ func flush_text_fallbacks(graph: Node2D) -> void:
 		_draw_text_box(graph, font, item.position, item.size, item.emoji, item.color, item.shadow_offset)
 		_emoji_count += 1
 
-	# Log batched info for all missing emojis at end of frame (verbose debugging)
+	# Log batched info for all missing emojis at end of frame (verbose debugging only)
+	# Gated behind VerboseConfig to avoid cluttering main game logs
 	if _missing_emojis_this_frame.size() > 0:
-		var emoji_list = _missing_emojis_this_frame.values()
-		var count = emoji_list.size()
-		emoji_list.sort()  # Sort for consistent message
-		var emojis_str = " ".join(emoji_list) if count <= 10 else "%d emojis" % count
-		print("[EmojiAtlasBatcher] ℹ️  %d emoji(s) missing from atlas, rendering as text boxes: %s" % [count, emojis_str])
+		var should_log = _verbose_config and _verbose_config.is_verbose("viz")
+		if should_log:
+			var emoji_list = _missing_emojis_this_frame.values()
+			var count = emoji_list.size()
+			emoji_list.sort()  # Sort for consistent message
+			var emojis_str = " ".join(emoji_list) if count <= 10 else "%d emojis" % count
+			print("[EmojiAtlasBatcher] ℹ️  %d emoji(s) missing from atlas, rendering as text boxes: %s" % [count, emojis_str])
 
 	_text_fallback_queue.clear()
 
