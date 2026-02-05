@@ -15,18 +15,21 @@ extends RefCounted
 
 const BiomeMetaQuantum = preload("res://Core/Visualization/BiomeMetaQuantum.gd")
 
-# Force constants - calibrated for screen-space pixels
-# Integration: vel += force * dt, pos += vel * dt → need forces ~100-300 for ~30 px/sec movement
-const REPULSION_STRENGTH = 6000.0   # Inverse-linear: force = R/dist (not R/dist²)
-const CORRELATION_SPRING = 30.0     # MI-based attraction: force = displacement * spring * mi
-const MI_LOW_BOOST = 0.05           # Minimum MI floor for loose clustering
+# Force constants - calibrated for screen-space pixels with double-delta integration
+# Euler: vel += force * delta, vel *= DAMPING, pos += vel * delta
+# Double-delta scales position changes as force * delta²
+# With delta=0.01s: force=100 → pos_change=0.0001 px (invisible)
+# Need ~100,000 force to get 1 px/frame movement
+const REPULSION_STRENGTH = 600000.0   # Inverse-linear: force = R/dist (not R/dist²)
+const CORRELATION_SPRING = 3000.0     # MI-based attraction: force = displacement * spring * mi
+const MI_LOW_BOOST = 0.05            # Minimum MI floor for loose clustering
 const MIN_DISTANCE = 20.0
-const DAMPING = 0.92
+const DAMPING = 0.85                 # Slightly less damping to let vel accumulate
 
 # Meta-level constants
-const META_REPULSION = 8000.0
-const META_CENTERING = 5.0            # Pull biomes toward graph center
-const META_DAMPING = 0.90
+const META_REPULSION = 800000.0
+const META_CENTERING = 500.0           # Pull biomes toward graph center
+const META_DAMPING = 0.85
 const BIOME_RADIUS = 150.0
 
 # Meta-quantum system
