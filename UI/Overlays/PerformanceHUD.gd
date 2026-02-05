@@ -14,6 +14,7 @@ var frame_counter: int = 0
 # Performance logging to file (silent console mode)
 var _perf_log_file: FileAccess = null
 var _perf_log_path: String = ""
+var _verbose = null
 
 # UI elements
 var panel: PanelContainer
@@ -26,6 +27,7 @@ var bottleneck_label: Label
 
 func _ready() -> void:
 	_build_ui()
+	_verbose = get_node_or_null("/root/VerboseConfig")
 	set_process(true)
 	_open_perf_log()
 
@@ -52,9 +54,9 @@ func _open_perf_log() -> void:
 		_perf_log_file.store_line("=== Godot Performance Log Started: %s ===" % Time.get_datetime_string_from_system())
 		_perf_log_file.store_line("Frame | FPS | TIME_PROCESS (ms) | TIME_PHYSICS (ms) | Nodes | Orphans")
 		_perf_log_file.store_line("=".repeat(80))
-		VerboseConfig.info("perf_hud", "📝", "Logging to: %s" % _perf_log_path)
+		_v_info("perf_hud", "📝", "Logging to: %s" % _perf_log_path)
 	else:
-		VerboseConfig.warn("perf_hud", "📝", "Failed to open log file: %s" % _perf_log_path)
+		_v_warn("perf_hud", "📝", "Failed to open log file: %s" % _perf_log_path)
 
 func _log_perf(message: String) -> void:
 	"""Write performance data to log file (silent - no console spam)."""
@@ -84,7 +86,7 @@ func _locate_graph() -> void:
 	"""Find QuantumForceGraph in the scene tree."""
 	var root = get_tree().root if get_tree() else null
 	if not root:
-		VerboseConfig.error("perf_hud", "🔬", "ERROR: No scene tree root")
+		_v_error("perf_hud", "🔬", "ERROR: No scene tree root")
 		return
 
 	# Try FarmView → QuantumForceGraph (direct - no controller)
@@ -96,27 +98,27 @@ func _locate_graph() -> void:
 			farm_view = farm.get_node_or_null("FarmView")
 
 	if farm_view:
-		VerboseConfig.debug("perf_hud", "🔬", "Found FarmView at: %s" % farm_view.get_path())
+		_v_debug("perf_hud", "🔬", "Found FarmView at: %s" % farm_view.get_path())
 		if "quantum_viz" in farm_view and farm_view.quantum_viz:
 			# quantum_viz is now QuantumForceGraph directly (no controller middleman)
 			graph_ref = farm_view.quantum_viz
-			VerboseConfig.debug("perf_hud", "🔬", "✅ Found QuantumForceGraph (direct): %s" % graph_ref.get_path())
+			_v_debug("perf_hud", "🔬", "✅ Found QuantumForceGraph (direct): %s" % graph_ref.get_path())
 			return
 		else:
-			VerboseConfig.error("perf_hud", "🔬", "ERROR: FarmView has no quantum_viz")
+			_v_error("perf_hud", "🔬", "ERROR: FarmView has no quantum_viz")
 	else:
-		VerboseConfig.error("perf_hud", "🔬", "ERROR: Could not find FarmView")
+		_v_error("perf_hud", "🔬", "ERROR: Could not find FarmView")
 
 	# Fallback: search for QuantumForceGraph directly
-	VerboseConfig.debug("perf_hud", "🔬", "Searching for QuantumForceGraph in root children...")
+	_v_debug("perf_hud", "🔬", "Searching for QuantumForceGraph in root children...")
 	for child in root.get_children():
-		VerboseConfig.debug("perf_hud", "🔬", "  - %s" % child.name)
+		_v_debug("perf_hud", "🔬", "  - %s" % child.name)
 		if child.name == "QuantumForceGraph":
 			graph_ref = child
-			VerboseConfig.debug("perf_hud", "🔬", "✅ Found QuantumForceGraph via fallback: %s" % graph_ref.get_path())
+			_v_debug("perf_hud", "🔬", "✅ Found QuantumForceGraph via fallback: %s" % graph_ref.get_path())
 			return
 
-	VerboseConfig.error("perf_hud", "🔬", "ERROR: QuantumForceGraph not found anywhere!")
+	_v_error("perf_hud", "🔬", "ERROR: QuantumForceGraph not found anywhere!")
 
 func _update_display() -> void:
 	"""Update performance display with current data."""
@@ -179,9 +181,9 @@ func _update_display() -> void:
 
 	# Print to console for easy grepping
 	var frame_num = graph_ref.frame_count if "frame_count" in graph_ref else 0
-	VerboseConfig.debug("perf_hud", "🔬", "═══════════════════════════════════════════════════════════")
-	VerboseConfig.debug("perf_hud", "🔬", "Frame %d | FPS: %.0f%s" % [frame_num, fps, batcher_stats])
-	VerboseConfig.debug("perf_hud", "🔬", "ENGINE: process=%.2fms physics=%.2fms" % [process_time, physics_time])
+	_v_debug("perf_hud", "🔬", "═══════════════════════════════════════════════════════════")
+	_v_debug("perf_hud", "🔬", "Frame %d | FPS: %.0f%s" % [frame_num, fps, batcher_stats])
+	_v_debug("perf_hud", "🔬", "ENGINE: process=%.2fms physics=%.2fms" % [process_time, physics_time])
 
 	# Update header
 	header_label.text = "🔬 Performance (Frame %d | %.0f FPS)" % [frame_num, fps]
@@ -255,36 +257,36 @@ func _update_display() -> void:
 		ui_breakdown = ui_tracker.get_all_averages()
 
 	# Print console summary
-	VerboseConfig.debug("perf_hud", "🔬", "Total: %.1fms (Graph:%.1f UI:%.1f Phys:%.1f)" % [
+	_v_debug("perf_hud", "🔬", "Total: %.1fms (Graph:%.1f UI:%.1f Phys:%.1f)" % [
 		process_time, graph_total, ui_and_other, physics_time
 	])
-	VerboseConfig.debug("perf_hud", "🔬", "Graph._process: %.2fms (viewport:%.2f ctx:%.2f vis:%.2f forces:%.2f)" % [
+	_v_debug("perf_hud", "🔬", "Graph._process: %.2fms (viewport:%.2f ctx:%.2f vis:%.2f forces:%.2f)" % [
 		process_ms, process_viewport, process_context, process_visuals, process_forces
 	])
-	VerboseConfig.debug("perf_hud", "🔬", "Graph._draw: %.2fms (bubble:%.2f edge:%.2f region:%.2f flush:%.2f)" % [
+	_v_debug("perf_hud", "🔬", "Graph._draw: %.2fms (bubble:%.2f edge:%.2f region:%.2f flush:%.2f)" % [
 		draw_ms, draw_bubble, draw_edge, draw_region, draw_flush
 	])
-	VerboseConfig.debug("perf_hud", "🔬", "Rendering: %d objs, %d primitives, %d draw calls" % [
+	_v_debug("perf_hud", "🔬", "Rendering: %d objs, %d primitives, %d draw calls" % [
 		int(render_cpu), int(render_primitives), int(render_draw_calls)
 	])
 
 	# Print UI component breakdown if available
 	if not ui_breakdown.is_empty():
-		VerboseConfig.debug("perf_hud", "🔬", "UI Components:")
+		_v_debug("perf_hud", "🔬", "UI Components:")
 		var sorted_ui = ui_breakdown.keys()
 		sorted_ui.sort_custom(func(a, b): return ui_breakdown[a] > ui_breakdown[b])
 		for component in sorted_ui:
 			var time_ms = ui_breakdown[component]
 			if time_ms > 0.01:  # Lower threshold to see all components
-				VerboseConfig.debug("perf_hud", "🔬", "   %s: %.2fms" % [component, time_ms])
+				_v_debug("perf_hud", "🔬", "   %s: %.2fms" % [component, time_ms])
 
 	# Print Godot's built-in node timing data
-	VerboseConfig.debug("perf_hud", "🔬", "Top expensive nodes (Godot internal):")
+	_v_debug("perf_hud", "🔬", "Top expensive nodes (Godot internal):")
 	var root = get_tree().root
 	_profile_node_tree(root, 0, 3)  # Profile up to 3 levels deep
 
 	if bottlenecks.size() > 0:
-		VerboseConfig.warn("perf_hud", "🔬", "⚠️  BOTTLENECKS: " + ", ".join(bottlenecks))
+		_v_warn("perf_hud", "🔬", "⚠️  BOTTLENECKS: " + ", ".join(bottlenecks))
 		bottleneck_label.text = "⚠️ Bottlenecks:\n   " + "\n   ".join(bottlenecks)
 		bottleneck_label.visible = true
 		# Change border color to red when bottlenecks detected
@@ -292,14 +294,14 @@ func _update_display() -> void:
 		if style:
 			style.border_color = Color(0.9, 0.2, 0.2, 0.9)
 	else:
-		VerboseConfig.debug("perf_hud", "🔬", "✅ No bottlenecks detected")
+		_v_debug("perf_hud", "🔬", "✅ No bottlenecks detected")
 		bottleneck_label.visible = false
 		# Green border when all good
 		var style = panel.get_theme_stylebox("panel") as StyleBoxFlat
 		if style:
 			style.border_color = Color(0.2, 0.9, 0.4, 0.7)
 
-	VerboseConfig.debug("perf_hud", "🔬", "═══════════════════════════════════════════════════════════")
+	_v_debug("perf_hud", "🔬", "═══════════════════════════════════════════════════════════")
 
 func _show_engine_metrics_only(fps: int, time_process: float, time_physics: float, node_count: int) -> void:
 	"""Display engine metrics when graph data is unavailable."""
@@ -411,11 +413,31 @@ func _profile_node_tree(node: Node, depth: int, max_depth: int) -> void:
 
 		# Only show Control nodes (UI elements)
 		if node is Control:
-			VerboseConfig.debug("perf_hud", "🔬", " %s[%s] %s (%s)" % [indent, marker, node.name, node_type])
+			_v_debug("perf_hud", "🔬", " %s[%s] %s (%s)" % [indent, marker, node.name, node_type])
 
 	# Recurse to children
 	for child in node.get_children():
 		_profile_node_tree(child, depth + 1, max_depth)
+
+
+func _v_debug(category: String, emoji: String, message: String) -> void:
+	if _verbose and _verbose.has_method("debug"):
+		_verbose.debug(category, emoji, message)
+
+
+func _v_info(category: String, emoji: String, message: String) -> void:
+	if _verbose and _verbose.has_method("info"):
+		_verbose.info(category, emoji, message)
+
+
+func _v_warn(category: String, emoji: String, message: String) -> void:
+	if _verbose and _verbose.has_method("warn"):
+		_verbose.warn(category, emoji, message)
+
+
+func _v_error(category: String, emoji: String, message: String) -> void:
+	if _verbose and _verbose.has_method("error"):
+		_verbose.error(category, emoji, message)
 
 
 func _create_label(text_value: String, color: Color, bold: bool = false) -> Label:

@@ -1,8 +1,8 @@
 #!/bin/bash
 set -euo pipefail
 
-PROJECT_ROOT="/home/tehcr33d/ws/SpaceWheat"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="${PROJECT_ROOT:-$(cd "${SCRIPT_DIR}/../.." && pwd)}"
 LOG_DIR="${SCRIPT_DIR}/logs"
 XDG_ROOT="/tmp/spacewheat_godot"
 source "${SCRIPT_DIR}/lib_qii.sh"

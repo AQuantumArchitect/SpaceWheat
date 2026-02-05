@@ -18,8 +18,9 @@ from pathlib import Path
 import os
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-TOKEN_DIR = PROJECT_ROOT / "🍄" / "🎛️" / "logs" / "tokens"
 DEFAULT_PLAN = PROJECT_ROOT / "🍄" / "🎛️" / "🧭📜.json"
+RIG_LOG_DIR = PROJECT_ROOT / "🍄" / "🎛️" / "🧾"
+RIG_TOKEN_DIR = RIG_LOG_DIR / "🔖"
 
 
 def load_plan(path: Path):
@@ -32,7 +33,7 @@ def load_plan(path: Path):
     return plan
 
 
-def docmd(step, log_dir: Path):
+def docmd(step, log_dir: Path, timeout_s: int):
     script = step.get("script")
     if not script:
         raise ValueError("Turn is missing 'script'.")
@@ -45,34 +46,45 @@ def docmd(step, log_dir: Path):
     output_log = log_dir / f"{name}_{ts}.log"
     summary_log = log_dir / f"{name}_{ts}.json"
 
-    before_tokens = {p.name for p in TOKEN_DIR.glob("*.tok")}
+    before_tokens = {p.name for p in RIG_TOKEN_DIR.glob("*.tok")}
 
     cmd = ["bash", str(script_path)]
     start = time.time()
     env = os.environ.copy()
     env["PROJECT_ROOT"] = str(PROJECT_ROOT)
-    proc = subprocess.run(
-        cmd,
-        cwd=PROJECT_ROOT,
-        capture_output=True,
-        text=True,
-        env=env,
-    )
-    duration = time.time() - start
+    env["QII_TOKEN_DIR"] = str(RIG_TOKEN_DIR)
+    try:
+        proc = subprocess.run(
+            cmd,
+            cwd=PROJECT_ROOT,
+            capture_output=True,
+            text=True,
+            env=env,
+            timeout=timeout_s,
+        )
+        duration = time.time() - start
+        stdout = proc.stdout
+        stderr = proc.stderr
+        returncode = proc.returncode
+    except subprocess.TimeoutExpired as exc:
+        duration = time.time() - start
+        stdout = exc.stdout or ""
+        stderr = exc.stderr or ""
+        returncode = 124
 
     with output_log.open("w", encoding="utf-8") as outf:
-        outf.write(proc.stdout)
+        outf.write(stdout)
         outf.write("\n--- STDERR ---\n")
-        outf.write(proc.stderr)
+        outf.write(stderr)
 
-    after_tokens = {p.name for p in TOKEN_DIR.glob("*.tok")}
+    after_tokens = {p.name for p in RIG_TOKEN_DIR.glob("*.tok")}
     new_tokens = sorted(list(after_tokens - before_tokens))
 
     summary = {
         "name": name,
         "description": step.get("description", ""),
         "command": " ".join(cmd),
-        "returncode": proc.returncode,
+        "returncode": returncode,
         "start": datetime.utcfromtimestamp(start).isoformat(),
         "duration_seconds": round(duration, 3),
         "token_logs": new_tokens,
@@ -82,12 +94,12 @@ def docmd(step, log_dir: Path):
     with summary_log.open("w", encoding="utf-8") as f:
         json.dump(summary, f, indent=2)
 
-    return summary, proc.returncode
+    return summary, returncode
 
 
 def ensure_dirs(log_dir: Path):
     log_dir.mkdir(parents=True, exist_ok=True)
-    TOKEN_DIR.mkdir(parents=True, exist_ok=True)
+    RIG_TOKEN_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def main():
@@ -101,8 +113,14 @@ def main():
     parser.add_argument(
         "--log-dir",
         type=Path,
-        default=PROJECT_ROOT / "🍄" / "🎛️" / "🧾",
+        default=RIG_LOG_DIR,
         help="Directory to store orchestrator logs",
+    )
+    parser.add_argument(
+        "--timeout",
+        type=int,
+        default=300,
+        help="Timeout per turn in seconds (default 300)",
     )
     parser.add_argument("--dry-run", action="store_true", help="Only print the plan")
     parser.add_argument(
@@ -134,7 +152,7 @@ def main():
     while True:
         for idx, turn in enumerate(plan, start=1):
             print(f"--> Turn {idx}/{len(plan)}: {turn.get('name', 'unnamed')}")
-            summary, rc = docmd(turn, args.log_dir)
+            summary, rc = docmd(turn, args.log_dir, args.timeout)
             print(f"    cmd: {summary['command']}")
             print(f"    duration: {summary['duration_seconds']}s returncode={rc}")
             if summary["token_logs"]:
@@ -146,6 +164,8 @@ def main():
             if not prompt_continue("Continue to next turn?"):
                 return
 
+        if args.no_interactive:
+            return
         if not prompt_continue("Run another pass through the turn plan?", default_yes=False):
             return
 

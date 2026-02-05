@@ -1,0 +1,8 @@
+VOCAB_FILE=/home/tehcr33d/ws/SpaceWheat/🍄/🎛️/VOCAB_QII.tsv
+SCRIPT=vocab_sequence
+START=20260204_183042
+2026-02-04T18:30:42-0800\tS.QIIVSEQ\tscript
+2026-02-04T18:30:42-0800\tG4.Q\tinject village
+2026-02-04T18:30:42-0800\tGRID.CHK\tgrid after village
+2026-02-04T18:30:42-0800\tG4.Q\tinject forest
+2026-02-04T18:30:42-0800\tGRID.CHK\tgrid after forest

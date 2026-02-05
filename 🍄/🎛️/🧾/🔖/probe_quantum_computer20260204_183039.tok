@@ -1,0 +1,10 @@
+VOCAB_FILE=/home/tehcr33d/ws/SpaceWheat/🍄/🎛️/VOCAB_QII.tsv
+SCRIPT=probe_quantum_computer
+START=20260204_183039
+2026-02-04T18:30:39-0800\tS.QIIQC\tscript
+2026-02-04T18:30:39-0800\tG3.Q\texplore
+2026-02-04T18:30:39-0800\tG3.E\tmeasure
+2026-02-04T18:30:39-0800\tG3.R\treap
+2026-02-04T18:30:39-0800\tG1.E\thadamard
+2026-02-04T18:30:39-0800\tG4.Q\tinject
+2026-02-04T18:30:39-0800\tG4.R\tremove

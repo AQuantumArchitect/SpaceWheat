@@ -4,7 +4,7 @@ set -euo pipefail
 # QII log/vocab helpers for emoji scripts
 
 QII_VOCAB_FILE="${QII_VOCAB_FILE:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/VOCAB_QII.tsv}"
-QII_TOKEN_DIR="${QII_TOKEN_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/logs/tokens}"
+QII_TOKEN_DIR="${QII_TOKEN_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/🧾/🔖}"
 
 qii_init_vocab() {
   local emoji="$1"

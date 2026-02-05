@@ -84,6 +84,25 @@ func get_resource_snapshot() -> Dictionary:
 	}
 
 
+func get_grid_snapshot() -> Dictionary:
+	"""Return a minimal grid snapshot for QA turn-by-turn rigs."""
+	if not farm or not ("grid" in farm) or not farm.grid:
+		return {"ok": false, "error": "no_grid"}
+	var grid = farm.grid
+	var snapshot: Dictionary = {"ok": true}
+	if "grid_width" in grid:
+		snapshot["grid_width"] = grid.grid_width
+	if "grid_height" in grid:
+		snapshot["grid_height"] = grid.grid_height
+	if "biomes" in grid and grid.biomes:
+		var biome_names = grid.biomes.keys()
+		biome_names.sort()
+		snapshot["biomes"] = biome_names
+	if snapshot.has("grid_width") and snapshot.has("grid_height"):
+		snapshot["plot_count"] = int(snapshot["grid_width"]) * int(snapshot["grid_height"])
+	return snapshot
+
+
 func get_active_quests() -> Array:
 	if quest_manager and quest_manager.has_method("get_active_quests"):
 		return quest_manager.get_active_quests()

@@ -58,7 +58,11 @@ class BiomeInnerGraph:
 	func add_bubble(node) -> void:
 		if node not in bubbles:
 			bubbles.append(node)
-			local_positions[node.get_instance_id()] = Vector2.ZERO
+			# Initialize with scattered position (not zero - prevents all bubbles stacking)
+			var scatter_angle = bubbles.size() * 2.4  # Golden angle spread
+			var scatter_radius = 30.0 + randf() * 40.0
+			var initial_pos = Vector2(cos(scatter_angle), sin(scatter_angle)) * scatter_radius
+			local_positions[node.get_instance_id()] = initial_pos
 			local_velocities[node.get_instance_id()] = Vector2.ZERO
 
 	func remove_bubble(node) -> void:
@@ -136,7 +140,14 @@ func register_bubble(node, biome_name: String) -> void:
 		meta_positions[biome_name] = Vector2.ZERO
 		meta_velocities[biome_name] = Vector2.ZERO
 
-	biome_graphs[biome_name].add_bubble(node)
+	var inner = biome_graphs[biome_name]
+	inner.add_bubble(node)
+
+	# Initialize local position from bubble's current world position
+	# (relative to biome center, so forces work correctly)
+	if node and "position" in node:
+		var center = inner.center if inner.center != Vector2.ZERO else meta_positions.get(biome_name, Vector2.ZERO)
+		inner.local_positions[node.get_instance_id()] = node.position - center
 
 
 func unregister_bubble(node, biome_name: String) -> void:
