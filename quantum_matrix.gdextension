@@ -10,12 +10,15 @@ linux.x86_64 = "res://native/bin/linux/libquantummatrix.linux.template_release.x
 linux.debug.x86_64 = "res://native/bin/linux/libquantummatrix.linux.template_release.x86_64.so"
 linux.release.x86_64 = "res://native/bin/linux/libquantummatrix.linux.template_release.x86_64.so"
 
-# Windows (optional - omit to use GDScript fallback)
-# windows.debug.x86_64 = "res://native/bin/windows/libquantummatrix.windows.template_debug.x86_64.dll"
-# windows.release.x86_64 = "res://native/bin/windows/libquantummatrix.windows.template_release.x86_64.dll"
+# Windows (cross-compiled from Linux with MinGW)
+windows.x86_64 = "res://native/bin/windows/libquantummatrix.windows.template_release.x86_64.dll"
+windows.debug.x86_64 = "res://native/bin/windows/libquantummatrix.windows.template_debug.x86_64.dll"
+windows.release.x86_64 = "res://native/bin/windows/libquantummatrix.windows.template_release.x86_64.dll"
 
-# Web/WASM (optional - omit to use GDScript fallback, RECOMMENDED)
-# web.wasm32 = "res://native/bin/web/libquantummatrix.wasm"
+# Web/WASM (compiled with Emscripten)
+# IMPORTANT: Test thoroughly - Eigen may have WASM compatibility issues
+# If web build errors, comment this out to use GDScript fallback
+web.wasm32 = "res://native/bin/web/libquantummatrix.wasm"
 
 # macOS (optional)
 # macos.debug = "res://native/bin/macos/libquantummatrix.macos.template_debug.framework"
