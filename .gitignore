@@ -46,6 +46,7 @@ native/src/*.obj
 
 # User-specific
 *.cfg
+!export_presets.cfg  # Need this for building on other machines
 user_settings/
 local_settings.json
 
