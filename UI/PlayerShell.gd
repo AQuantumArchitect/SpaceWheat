@@ -43,6 +43,7 @@ var farm_ui_container: Control = null
 var action_bar_manager = null  # ActionBarManager - manages bottom toolbars
 var action_preview_row: Control = null  # Cached reference from ActionBarManager
 var logger_config_panel: LoggerConfigPanel = null  # Logger configuration UI
+var farm_instrument = null  # Farm instrumentation node (set by BootManager)
 # quantum_hud_panel REMOVED - content merged into InspectorOverlay (N key)
 var quantum_mode_indicator: QuantumModeStatusIndicator = null  # Current quantum mode display
 var biome_tab_bar: BiomeSelectionRowClass = null  # Top bar for biome selection

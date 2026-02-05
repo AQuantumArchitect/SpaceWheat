@@ -396,6 +396,15 @@ func _stage_ui(farm: Node, shell: Node, quantum_viz: Node) -> void:
 		shell.connect_to_quantum_input()
 		_verbose.info("boot", "✓", "QuantumInstrumentInput connected to action bars")
 
+	# Create FarmInstrument to expose UI/quest/vocabulary helpers
+	const FarmInstrumentClass = preload("res://Core/Instrumentation/FarmInstrument.gd")
+	var farm_instrument = FarmInstrumentClass.new()
+	farm_instrument.name = "FarmInstrument"
+	shell.add_child(farm_instrument)
+	shell.farm_instrument = farm_instrument
+	farm_instrument.setup(farm, shell)
+	_verbose.info("boot", "🎛️", "FarmInstrument ready (classical ↔ quest interface)")
+
 	_verbose.info("boot", "✓", "QuantumInstrumentInput created (Musical Spindle)")
 
 	ui_ready.emit()

@@ -546,6 +546,8 @@ func _on_terminal_released(position: Vector2i, terminal_id: String, credits_earn
 	if bubble.plot_id:
 		node_by_plot_id.erase(bubble.plot_id)
 
+	queue_redraw()
+
 
 func _on_biome_loaded(biome_name: String, biome_ref) -> void:
 	"""Handle dynamically loaded biome - register for visualization"""
