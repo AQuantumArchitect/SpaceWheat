@@ -1,0 +1,22 @@
+# Godot editor ignore file (.gdignore)
+# Prevents Godot from scanning these directories
+
+# Release builds (large tarballs)
+releases/
+
+# Build artifacts
+native/bin/
+native/lib/
+
+# Temporary build directories
+export/
+exports/
+build/
+
+# Editor workspace
+.vscode/
+.idea/
+
+# Logs
+logs/
+player_logs/

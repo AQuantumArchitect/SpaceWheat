@@ -222,16 +222,25 @@ else
     cd "$BUILD_DIR"
     mkdir -p "$EXPORT_DIR"
 
+    # Copy export preset from dev repo
+    EXPORT_PRESET_SOURCE="$HOME/ws/SpaceWheat/export_presets.cfg"
+    if [ -f "$EXPORT_PRESET_SOURCE" ]; then
+        cp "$EXPORT_PRESET_SOURCE" "$BUILD_DIR/"
+        debug "Copied export_presets.cfg from dev repo"
+    else
+        error "export_presets.cfg not found at $EXPORT_PRESET_SOURCE"
+    fi
+
     # Import project first (generates .godot folder)
     debug "Importing project..."
     timeout 60 $GODOT_BIN --headless --import . 2>/dev/null || true
 
     # Export
     debug "Running export..."
-    $GODOT_BIN --headless --export-release "Linux" "$EXPORT_DIR/SpaceWheat.x86_64"
+    $GODOT_BIN --headless --export-release "Linux Desktop" "$EXPORT_DIR/SpaceWheat.x86_64" 2>&1 | grep -v "^$" || true
 
     if [ ! -f "$EXPORT_DIR/SpaceWheat.x86_64" ]; then
-        error "Export failed - SpaceWheat.x86_64 not created"
+        error "Export failed - SpaceWheat.x86_64 not created. Check export preset."
     fi
 
     success "Game exported"

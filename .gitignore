@@ -26,6 +26,7 @@ bin/
 build/
 export/
 exports/
+releases/
 *.exe
 *.dll
 *.so

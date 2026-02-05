@@ -205,19 +205,35 @@ func _process(delta: float) -> void:
 		# If we should be playing music but aren't, restart it
 		# (but NOT if Layer 3 intentionally stopped it)
 		if not _current_track.is_empty() and not _active_player.playing and not _layer3_stopped and (_crossfade_tween == null or not _crossfade_tween.is_valid()):
-			push_warning("MusicManager: Playback stopped unexpectedly, restarting track: %s" % _current_track)
-			var stream = _get_or_load_stream(_current_track)
-			if stream:
-				_active_player.stream = stream
-				_active_player.volume_db = _volume_to_db(_volume)
-				_active_player.play()
+			# Dropout detected - check if anything is actually evolving
+			if not _global_icon_map_has_data():
+				# Nothing evolving - this is correct, don't restart
+				if _verbose:
+					print("[MusicManager] Watchdog: dropout but nothing evolving - setting layer3_stopped")
+				_layer3_stopped = true
+			else:
+				# Something evolving - recover by re-evaluating IconMap
+				push_warning("MusicManager: Playback stopped unexpectedly, recovering via IconMap")
+				if _iconmap_sample_count >= 3:
+					_evaluate_iconmap_decision()
+				if not _active_player.playing:
+					# IconMap didn't start playback - fall back to best biome
+					var best_biome := _get_best_biome_from_global_map()
+					if not best_biome.is_empty():
+						play_biome_track(best_biome)
+					else:
+						# Last resort: restart current track
+						var stream = _get_or_load_stream(_current_track)
+						if stream:
+							_active_player.stream = stream
+							_active_player.volume_db = _volume_to_db(_volume)
+							_active_player.play()
 
-	# Register-based playback control - pause music when no bubbles expressed
-	if stop_music_when_no_registers:
-		_last_register_check += delta
-		if _last_register_check >= REGISTER_CHECK_INTERVAL:
-			_last_register_check = 0.0
-			_check_register_state()
+	# Global evolution check - pause music when nothing evolving anywhere
+	_last_register_check += delta
+	if _last_register_check >= REGISTER_CHECK_INTERVAL:
+		_last_register_check = 0.0
+		_check_register_state()
 
 	# Dynamic music selection (IconMap and/or Portfolio)
 	if iconmap_mode_enabled or portfolio_mode_enabled:
@@ -331,104 +347,150 @@ func _on_terminal_bound(grid_pos: Vector2i, terminal_id: String, _emoji_pair: Di
 	if _verbose:
 		print("[MusicManager] SIGNAL: terminal_bound - %s at %s" % [terminal_id, grid_pos])
 
-	if not stop_music_when_no_registers:
+	if _active_player.playing:
+		if _verbose:
+			print("[MusicManager] Already playing - ignoring bound signal")
 		return
 
-	if not ActiveBiomeManager:
-		return
+	# Music not playing - try IconMap evaluation first, fall back to biome track
+	if _iconmap_sample_count >= 3:
+		print("[MusicManager] Terminal bound - triggering IconMap evaluation")
+		_evaluate_iconmap_decision()
+		if _active_player.playing:
+			return
 
-	var active_biome = ActiveBiomeManager.get_active_biome()
-	if not _active_player.playing:
-		print("[MusicManager] Layer 3: Bubble explored in %s - starting music" % active_biome)
-		play_biome_track(active_biome)
-	else:
-		print("[MusicManager] Layer 3: Already playing - ignoring bound signal")
+	# IconMap doesn't have enough data yet - use biome track for the terminal's biome
+	var farm = get_node_or_null("/root/Farm")
+	if farm and farm.terminal_pool:
+		var terminal = farm.terminal_pool.get_terminal(terminal_id) if farm.terminal_pool.has_method("get_terminal") else null
+		var biome_name := ""
+		if terminal and terminal.get("bound_biome_name"):
+			biome_name = terminal.bound_biome_name
+		elif ActiveBiomeManager:
+			biome_name = ActiveBiomeManager.get_active_biome()
+		if not biome_name.is_empty():
+			print("[MusicManager] Terminal bound in %s - starting music (fallback)" % biome_name)
+			_layer3_stopped = false
+			play_biome_track(biome_name)
+			return
+
+	# Last resort fallback
+	if ActiveBiomeManager:
+		var active_biome = ActiveBiomeManager.get_active_biome()
+		if not active_biome.is_empty():
+			print("[MusicManager] Terminal bound - starting music for active biome %s" % active_biome)
+			_layer3_stopped = false
+			play_biome_track(active_biome)
 
 
 func _on_terminal_released(grid_pos: Vector2i, terminal_id: String, _credits: int) -> void:
-	"""Called when a terminal is released. Stop music if this was the last bubble."""
+	"""Called when a terminal is released. Stop music if nothing evolving anywhere."""
 	if _verbose:
 		print("[MusicManager] SIGNAL: terminal_released - %s at %s" % [terminal_id, grid_pos])
 	_check_and_stop_if_empty()
 
 
 func _on_terminal_measured(grid_pos: Vector2i, terminal_id: String, outcome: String, _prob: float) -> void:
-	"""Called when a terminal is measured (reaped). Stop music if no more active bubbles."""
+	"""Called when a terminal is measured (reaped). Stop music if nothing evolving anywhere."""
 	if _verbose:
 		print("[MusicManager] SIGNAL: terminal_measured - %s at %s, outcome=%s" % [terminal_id, grid_pos, outcome])
-	# Note: measured terminals are no longer "active" (bound but not measured)
-	# So we need to check if there are still active bubbles
 	_check_and_stop_if_empty()
 
 
 func _check_and_stop_if_empty() -> void:
-	"""Check if active biome has no more active terminals and stop music if so."""
-	if not stop_music_when_no_registers:
-		return
-
-	if not ActiveBiomeManager:
-		return
-
-	var active_biome = ActiveBiomeManager.get_active_biome()
-	if active_biome.is_empty():
-		return
-
-	var farm = get_node_or_null("/root/Farm")
-	if not farm or not farm.terminal_pool:
-		return
-
-	var has_bubbles = _biome_has_active_terminals(farm, active_biome)
-	var is_playing = _active_player.playing
+	"""Check if anything is evolving globally. Stop music if nothing is."""
+	var has_evolution := _global_icon_map_has_data()
+	var is_playing := _active_player.playing
 	if _verbose:
-		print("[MusicManager] _check_and_stop_if_empty: biome=%s, has_bubbles=%s, is_playing=%s" % [
-			active_biome, has_bubbles, is_playing])
+		print("[MusicManager] _check_and_stop_if_empty: has_evolution=%s, is_playing=%s" % [
+			has_evolution, is_playing])
 
-	if not has_bubbles and is_playing:
+	if not has_evolution and is_playing:
 		if _verbose:
-			print("[MusicManager] Layer 3: Last bubble gone in %s - stopping music" % active_biome)
+			print("[MusicManager] Nothing evolving globally - stopping music")
 		_stop_for_layer3()
-	elif has_bubbles and is_playing:
-		print("[MusicManager] Layer 3: Still have bubbles in %s - music continues" % active_biome)
+	elif has_evolution and not is_playing and not _layer3_stopped:
+		if _verbose:
+			print("[MusicManager] Evolution detected but music stopped - triggering evaluation")
+		_evaluate_iconmap_decision()
 
 
 func _check_register_state() -> void:
-	"""Layer 3: Sync music with biome evolution.
+	"""Check global evolution state and sync music accordingly.
 
-	Music plays ONLY when there are explored (not measured) terminal bubbles.
-	This ties music to evolution - both pause together, both resume together.
-
-	Pauses when:
-	- No terminals bound in active biome
-	- All terminals measured (frozen state)
-
-	Resumes/Starts when:
-	- First bubble explored in active biome
+	Music plays when anything is evolving globally (any biome has active terminals).
+	Stops when nothing is evolving anywhere.
 	"""
-	if not ActiveBiomeManager:
-		return
-
-	var biome_name := ActiveBiomeManager.get_active_biome()
-	if biome_name.is_empty():
-		return
-
-	var farm = get_node_or_null("/root/Farm")
-	if not farm or not farm.terminal_pool:
-		return
-
-	# Check for ACTIVE terminals (bound but NOT measured)
-	var has_active_terminals = _biome_has_active_terminals(farm, biome_name)
+	var has_evolution := _global_icon_map_has_data()
 	var is_playing: bool = _active_player.playing
 
-	if has_active_terminals and not is_playing:
-		# Active terminals exist but music stopped - START music for this biome
+	if has_evolution and not is_playing and not _layer3_stopped:
+		# Something evolving but music stopped - trigger IconMap evaluation or fallback
 		if _verbose:
-			print("[MusicManager] Layer 3: Bubbles detected in %s - starting music" % biome_name)
-		play_biome_track(biome_name)
-	elif not has_active_terminals and is_playing:
-		# No active terminals but music playing - PAUSE (save position via ghost timer)
+			print("[MusicManager] Global evolution detected - starting music")
+		if _iconmap_sample_count >= 3:
+			_evaluate_iconmap_decision()
+		else:
+			# Not enough IconMap data yet - use highest-weight biome from global map
+			var best_biome := _get_best_biome_from_global_map()
+			if not best_biome.is_empty():
+				play_biome_track(best_biome)
+	elif not has_evolution and is_playing:
+		# Nothing evolving but music playing - stop
 		if _verbose:
-			print("[MusicManager] Layer 3: No bubbles in %s - pausing music" % biome_name)
+			print("[MusicManager] No global evolution - stopping music")
 		_stop_for_layer3()
+
+
+func _global_icon_map_has_data() -> bool:
+	"""Check if anything is evolving globally.
+
+	Primary: Check global icon map from BiomeEvolutionBatcher.
+	Fallback: If batcher has no data yet (early startup, headless), check for
+	any active terminals across all biomes as a proxy for 'something is evolving'.
+	"""
+	var farm = get_node_or_null("/root/Farm")
+	if not farm:
+		return false
+
+	# Primary check: global icon map
+	var batcher = farm.get("biome_evolution_batcher")
+	if batcher and batcher.has_method("get_global_icon_map"):
+		var icon_map: Dictionary = batcher.get_global_icon_map()
+		if icon_map.get("total", 0.0) > 0.0:
+			return true
+
+	# Fallback: check if any terminals are actively bound (not measured)
+	if farm.terminal_pool and farm.terminal_pool.has_method("get_bound_count"):
+		var bound_count: int = farm.terminal_pool.get_bound_count()
+		if bound_count > 0:
+			# Check if any are actually active (bound but not measured)
+			for terminal in farm.terminal_pool.terminals:
+				if terminal.is_bound and not terminal.is_measured:
+					return true
+
+	return false
+
+
+func _get_best_biome_from_global_map() -> String:
+	"""Get the biome name with highest weight in the global icon map.
+	Used as fallback when IconMap accumulator doesn't have enough samples yet."""
+	var farm = get_node_or_null("/root/Farm")
+	if not farm:
+		return ""
+	var batcher = farm.get("biome_evolution_batcher")
+	if not batcher or not batcher.has_method("get_global_icon_map"):
+		return ""
+	var icon_map: Dictionary = batcher.get_global_icon_map()
+	var by_emoji: Dictionary = icon_map.get("by_emoji", {})
+	if by_emoji.is_empty():
+		return ""
+
+	# Use the IconMap similarity to find best biome match
+	var similarities := get_iconmap_similarities(by_emoji)
+	if not similarities.is_empty() and similarities[0]["similarity"] > 0.0:
+		return similarities[0]["biome"]
+	return ""
 
 
 func _stop_for_layer3() -> void:
@@ -509,31 +571,7 @@ func _biome_has_active_terminals(farm, biome_name: String) -> bool:
 
 func _on_biome_changed(new_biome: String, old_biome: String) -> void:
 	if _verbose:
-		print("[MusicManager] Biome changed: %s → %s" % [old_biome, new_biome])
-
-	# In iconmap mode, let the quantum state drive music (don't auto-switch on biome change)
-	if iconmap_mode_enabled:
-		# Reset accumulator - don't mix data from different biomes
-		_reset_iconmap_accumulator()
-		# Start fresh accumulation
-		_iconmap_sample_timer = ICONMAP_SAMPLE_INTERVAL  # Force immediate sample
-		print("[MusicManager] IconMap mode - skipping biome track")
-		return
-
-	# Layer 3: Only play if new biome has active terminals (bubbles)
-	if stop_music_when_no_registers:
-		var farm = get_node_or_null("/root/Farm")
-		if farm and farm.terminal_pool:
-			var has_bubbles = _biome_has_active_terminals(farm, new_biome)
-			if not has_bubbles:
-				if _verbose:
-					print("[MusicManager] Layer 3: %s has no bubbles - stopping music" % new_biome)
-				_stop_for_layer3()
-				return
-
-	if _verbose:
-		print("[MusicManager] Playing biome track for: %s" % new_biome)
-	play_biome_track(new_biome)
+		print("[MusicManager] Biome changed: %s → %s (no musical action - global IconMap drives music)" % [old_biome, new_biome])
 
 
 func _accumulate_music_samples() -> void:
@@ -583,28 +621,21 @@ func _accumulate_music_samples() -> void:
 
 
 func _accumulate_iconmap_sample() -> bool:
-	"""Accumulate a single IconMap sample from the active biome.
+	"""Accumulate a single IconMap sample from the global icon map (all biomes).
 
 	Returns true if data was accumulated, false if no IconMap data available.
+	Uses BiomeEvolutionBatcher.get_global_icon_map() which aggregates across
+	all evolving biomes - music reflects global state, not the viewed biome.
 	"""
-	if not ActiveBiomeManager:
-		return false
-
-	var biome_name: String = ActiveBiomeManager.get_active_biome()
-	if biome_name.is_empty():
-		return false
-
-	# Get the biome instance from FarmGrid
 	var farm = get_node_or_null("/root/Farm")
-	if not farm or not farm.grid:
+	if not farm:
 		return false
 
-	var biome = farm.grid.biomes.get(biome_name)
-	if not biome or not biome.viz_cache:
+	var batcher = farm.get("biome_evolution_batcher")
+	if not batcher or not batcher.has_method("get_global_icon_map"):
 		return false
 
-	# Extract IconMap from viz_cache
-	var icon_map: Dictionary = biome.viz_cache.get_icon_map()
+	var icon_map: Dictionary = batcher.get_global_icon_map()
 	if icon_map.is_empty():
 		return false
 

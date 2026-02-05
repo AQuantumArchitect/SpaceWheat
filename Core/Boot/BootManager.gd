@@ -221,6 +221,26 @@ func _stage_visualization(farm: Node, quantum_viz: Node) -> void:
 		var farm_grid = farm.grid if "grid" in farm else null
 		var terminal_pool = farm.terminal_pool if "terminal_pool" in farm else null
 		quantum_viz.setup(biomes, farm_grid, terminal_pool)
+
+		# Recalculate positions and re-register with nested force optimizer
+		# This ensures bubbles have correct positions before physics starts
+		if quantum_viz.quantum_nodes.size() > 0:
+			for node in quantum_viz.quantum_nodes:
+				if node and node.biome_name and quantum_viz.layout_calculator:
+					var new_pos = quantum_viz.layout_calculator.get_parametric_position(
+						node.biome_name, node.parametric_t, node.parametric_ring
+					)
+					node.position = new_pos
+					node.classical_anchor = new_pos
+
+			# Re-register with nested optimizer using corrected positions
+			if quantum_viz.nested_force_optimizer:
+				for node in quantum_viz.quantum_nodes:
+					if node and node.biome_name:
+						quantum_viz.nested_force_optimizer.unregister_bubble(node, node.biome_name)
+						quantum_viz.nested_force_optimizer.register_bubble(node, node.biome_name, quantum_viz.center_position)
+				_verbose.info("boot", "🔄", "Re-registered %d bubbles with correct positions" % quantum_viz.quantum_nodes.size())
+
 		_verbose.info("boot", "✓", "Quantum viz ready")
 
 	# Pre-compile GPU shaders before creating force graph
