@@ -12,7 +12,7 @@ extends Node2D
 ## - QuantumRegionRenderer: Background regions and heatmaps
 ## - QuantumInfraRenderer: Gate infrastructure
 ## - QuantumEffectsRenderer: Particles, attractors, life cycle effects
-## - QuantumGraphInput: User input handling
+## - TouchInputManager: User input (tap/swipe/drag) via autoload singleton
 ## - QuantumNodeManager: Node lifecycle and visual updates
 ##
 ## Visual Channel → Physics Data Mapping:
@@ -34,7 +34,6 @@ const EdgeRendererScript = preload("res://Core/Visualization/QuantumEdgeRenderer
 const RegionRendererScript = preload("res://Core/Visualization/QuantumRegionRenderer.gd")
 const InfraRendererScript = preload("res://Core/Visualization/QuantumInfraRenderer.gd")
 const EffectsRendererScript = preload("res://Core/Visualization/QuantumEffectsRenderer.gd")
-const GraphInputScript = preload("res://Core/Visualization/QuantumGraphInput.gd")
 const NodeManagerScript = preload("res://Core/Visualization/QuantumNodeManager.gd")
 const QuantumNode = preload("res://Core/Visualization/QuantumNode.gd")
 const BiomeLayoutCalculator = preload("res://Core/Visualization/BiomeLayoutCalculator.gd")
@@ -48,8 +47,8 @@ const NestedForceOptimizerScript = preload("res://Core/Visualization/NestedForce
 # Signals
 signal quantum_node_selected(node: QuantumNode)
 signal biome_selected(biome_name: String)
-signal node_swiped_to(from_grid_pos: Vector2i, to_grid_pos: Vector2i)
 signal node_clicked(grid_pos: Vector2i, button_index: int)
+signal chain_swiped(positions: Array)  # Array[Vector2i] from drag chain
 
 
 # Component instances (untyped to avoid class_name dependency)
@@ -59,12 +58,13 @@ var edge_renderer
 var region_renderer
 var infra_renderer
 var effects_renderer
-var input_handler
 var node_manager
 
 # Autoload references
 @onready var _touch_input_manager = get_node_or_null("/root/TouchInputManager")
 
+# Drag chain state (for chain swipe gesture)
+var _drag_chain: Array = []  # QuantumNode chain during swipe
 
 # State
 var quantum_nodes: Array = []
@@ -99,6 +99,7 @@ var time_accumulator: float = 0.0
 var frame_count: int = 0
 
 var cached_viewport_size: Vector2 = Vector2.ZERO
+var _context_cache: Dictionary = {}
 
 # Detailed performance profiling
 var _perf_samples: Dictionary = {
@@ -139,6 +140,8 @@ const DEBUG_MODE = false
 const PARTICLE_LIFE = 1.5
 const PARTICLE_SPEED = 80.0
 const PARTICLE_SIZE = 3.0
+const REDRAW_STRIDE_ACTIVE = 1
+const REDRAW_STRIDE_IDLE = 2
 
 
 func _ready():
@@ -170,24 +173,31 @@ func _initialize_components():
 	region_renderer = RegionRendererScript.new()
 	infra_renderer = InfraRendererScript.new()
 	effects_renderer = EffectsRendererScript.new()
-	input_handler = GraphInputScript.new()
 	node_manager = NodeManagerScript.new()
 	geometry_batcher = GeometryBatcherScript.new()
-	print("[QuantumForceGraph] GeometryBatcher initialized: %s" % geometry_batcher)
 
 	# Default: tether force off (visuals only)
 	if "enable_plot_tether_force" in force_system:
 		force_system.enable_plot_tether_force = false
 
-	# Connect input signals
-	input_handler.bubble_tapped.connect(_on_bubble_tapped)
-	input_handler.node_swiped_to.connect(_on_node_swiped_to)
+	_connect_touch_input_signals()
 
 	# Create layout calculator
 	layout_calculator = BiomeLayoutCalculator.new()
 
-	# Create geometry batcher for unified draw call batching
-	geometry_batcher = GeometryBatcherScript.new()
+
+func _connect_touch_input_signals() -> void:
+	"""Connect touch input manager signals once."""
+	if not _touch_input_manager:
+		return
+	if not _touch_input_manager.tap_detected.is_connected(_on_touch_tap):
+		_touch_input_manager.tap_detected.connect(_on_touch_tap)
+	if not _touch_input_manager.drag_started.is_connected(_on_drag_start):
+		_touch_input_manager.drag_started.connect(_on_drag_start)
+	if not _touch_input_manager.drag_moved.is_connected(_on_drag_move):
+		_touch_input_manager.drag_moved.connect(_on_drag_move)
+	if not _touch_input_manager.drag_ended.is_connected(_on_drag_end):
+		_touch_input_manager.drag_ended.connect(_on_drag_end)
 
 
 func _process(delta: float):
@@ -241,15 +251,16 @@ func _process(delta: float):
 		# Fallback: flat skating rink forces if nested optimizer not initialized
 		_apply_skating_rink_forces(delta)
 		_integrate_velocities(delta, nodes_with_batched_pos)
-	var t5a = Time.get_ticks_usec()
 
 	# GATE: Only update particles if we have active bubbles
 	if has_active:
 		effects_renderer.update_particles(delta, ctx)
 	var t6 = Time.get_ticks_usec()
 
-	# Request redraw (throttled for perf)
-	if frame_count % 2 == 0:
+	# Redraw every frame when actively rendering gameplay bubbles.
+	# In idle/no-active states we can safely throttle to reduce overhead.
+	var redraw_stride = REDRAW_STRIDE_ACTIVE if has_active else REDRAW_STRIDE_IDLE
+	if frame_count % redraw_stride == 0:
 		queue_redraw()
 	var t7 = Time.get_ticks_usec()
 
@@ -353,44 +364,64 @@ func _has_active_terminal_bubbles() -> bool:
 
 func _build_context() -> Dictionary:
 	"""Build the shared context dictionary for all components."""
-	return {
-		"quantum_nodes": quantum_nodes,
-		"node_by_plot_id": node_by_plot_id,
-		"quantum_nodes_by_grid_pos": quantum_nodes_by_grid_pos,
-		"all_plot_positions": all_plot_positions,
-		"sun_qubit_node": sun_qubit_node,
-		"biomes": biomes,
-		"active_biome": active_biome,
-		"filter_biome": _get_filter_biome(),
-		"layout_calculator": layout_calculator,
-		"farm_grid": farm_grid,
-		"terminal_pool": terminal_pool,
-		"biome_evolution_batcher": biome_evolution_batcher,
-		"emoji_atlas_batcher": emoji_atlas_batcher,
-		"bubble_atlas_batcher": bubble_atlas_batcher,
-		"geometry_batcher": geometry_batcher,
-		"lookahead_offset": lookahead_offset,
-		"biotic_flux_biome": biotic_flux_biome,
-		"biotic_icon": biotic_icon,
-		"chaos_icon": chaos_icon,
-		"imperium_icon": imperium_icon,
-		"center_position": center_position,
-		"graph_radius": graph_radius,
-		"time_accumulator": time_accumulator,
-		"frame_count": frame_count,
-		"entanglement_particles": entanglement_particles,
-		"life_cycle_effects": life_cycle_effects,
-		"plot_tether_colors": plot_tether_colors,
-		"force_system": force_system,
-		"particle_life": PARTICLE_LIFE,
-		"particle_speed": PARTICLE_SPEED,
-		"particle_size": PARTICLE_SIZE,
-	}
+	_context_cache["quantum_nodes"] = quantum_nodes
+	_context_cache["node_by_plot_id"] = node_by_plot_id
+	_context_cache["quantum_nodes_by_grid_pos"] = quantum_nodes_by_grid_pos
+	_context_cache["all_plot_positions"] = all_plot_positions
+	_context_cache["sun_qubit_node"] = sun_qubit_node
+	_context_cache["biomes"] = biomes
+	_context_cache["active_biome"] = active_biome
+	_context_cache["filter_biome"] = _get_filter_biome()
+	_context_cache["layout_calculator"] = layout_calculator
+	_context_cache["farm_grid"] = farm_grid
+	_context_cache["terminal_pool"] = terminal_pool
+	_context_cache["biome_evolution_batcher"] = biome_evolution_batcher
+	_context_cache["emoji_atlas_batcher"] = emoji_atlas_batcher
+	_context_cache["bubble_atlas_batcher"] = bubble_atlas_batcher
+	_context_cache["geometry_batcher"] = geometry_batcher
+	_context_cache["lookahead_offset"] = lookahead_offset
+	_context_cache["biotic_flux_biome"] = biotic_flux_biome
+	_context_cache["biotic_icon"] = biotic_icon
+	_context_cache["chaos_icon"] = chaos_icon
+	_context_cache["imperium_icon"] = imperium_icon
+	_context_cache["center_position"] = center_position
+	_context_cache["graph_radius"] = graph_radius
+	_context_cache["time_accumulator"] = time_accumulator
+	_context_cache["frame_count"] = frame_count
+	_context_cache["entanglement_particles"] = entanglement_particles
+	_context_cache["life_cycle_effects"] = life_cycle_effects
+	_context_cache["plot_tether_colors"] = plot_tether_colors
+	_context_cache["force_system"] = force_system
+	_context_cache["particle_life"] = PARTICLE_LIFE
+	_context_cache["particle_speed"] = PARTICLE_SPEED
+	_context_cache["particle_size"] = PARTICLE_SIZE
+	return _context_cache
 
 
 # ============================================================================
 # PUBLIC API (Backward Compatibility)
 # ============================================================================
+
+func setup_standalone(bubble_defs: Array) -> void:
+	"""Minimal setup for testing — create bubbles without biomes or farm.
+
+	Each dict in bubble_defs:
+		{grid_pos: Vector2i, screen_pos: Vector2, radius: float, emoji_north: String, emoji_south: String}
+	"""
+	for def in bubble_defs:
+		var node = QuantumNode.new(null, def.screen_pos, def.grid_pos, center_position)
+		node.radius = def.get("radius", 20.0)
+		node.emoji_north = def.get("emoji_north", "🌾")
+		node.emoji_south = def.get("emoji_south", "🌿")
+		node.emoji_north_opacity = 1.0
+		node.emoji_south_opacity = 0.3
+		node.visual_scale = 1.0
+		node.visual_alpha = 1.0
+		node.visible = true
+		node.biome_name = "TestBiome"
+		quantum_nodes.append(node)
+		quantum_nodes_by_grid_pos[def.grid_pos] = node
+
 
 func setup(p_biomes: Dictionary, p_farm_grid = null, p_terminal_pool = null, _p_skip_bubbles: bool = false):
 	"""Initialize the quantum force graph.
@@ -556,14 +587,6 @@ func _on_terminal_bound(position: Vector2i, terminal_id: String, emoji_pair: Dic
 		terminal = farm_ref.terminal_pool.get_terminal_at_grid_pos(position)
 		if not terminal:
 			terminal = farm_ref.terminal_pool.get_terminal(terminal_id)
-
-	# Remove test bubble on first EXPLORE (transient boot validation)
-	var test_bubble = node_by_plot_id.get("boot_test")
-	if test_bubble:
-		quantum_nodes.erase(test_bubble)
-		node_by_plot_id.erase("boot_test")
-		if _verbose:
-			_verbose.debug("viz", "🧪", "Test bubble removed (boot validation complete)")
 
 	_create_bubble_for_terminal(biome_name, position, north_emoji, south_emoji, plot, terminal)
 	queue_redraw()
@@ -892,17 +915,38 @@ func _get_filter_biome() -> String:
 
 func get_node_at_position(pos: Vector2) -> QuantumNode:
 	"""Get quantum node at screen position."""
-	return input_handler.get_node_at_position(pos, quantum_nodes)
+	return get_bubble_at_screen_pos(pos)
 
 
-func highlight_node(node: QuantumNode):
-	"""Highlight a quantum node."""
-	input_handler.highlight_node(node)
+func get_bubble_at_screen_pos(screen_pos: Vector2) -> QuantumNode:
+	"""Hit-test bubbles at screen position with touch-friendly expanded radius."""
+	for node in quantum_nodes:
+		if not node.visible:
+			continue
+		var hit_radius = node.radius * 1.5  # Covers body + inner glow
+		if node.position.distance_to(screen_pos) <= hit_radius:
+			return node
+	return null
+
+
+func highlight_node(_node: QuantumNode):
+	"""Highlight a quantum node (placeholder - visual effects handled by rendering)."""
+	pass
 
 
 func get_stats() -> Dictionary:
 	"""Get graph statistics."""
-	return input_handler.get_stats(quantum_nodes, node_by_plot_id)
+	var active_nodes = 0
+	var total_entanglements = 0
+	for node in quantum_nodes:
+		if node.plot and node.plot.is_active() and node.plot.quantum_state:
+			active_nodes += 1
+			total_entanglements += node.plot.entangled_plots.size()
+	return {
+		"total_nodes": quantum_nodes.size(),
+		"active_nodes": active_nodes,
+		"total_entanglements": total_entanglements / 2
+	}
 
 
 func get_perf_averages() -> Dictionary:
@@ -941,8 +985,16 @@ func set_bubble_atlas_batcher(atlas_batcher):
 
 func print_snapshot(reason: String = ""):
 	"""Print debug snapshot of graph state."""
-	if DEBUG_MODE:
-		input_handler.print_snapshot(quantum_nodes, node_by_plot_id, reason)
+	if not DEBUG_MODE:
+		return
+	var stats = get_stats()
+	print("\n  ===== QUANTUM GRAPH SNAPSHOT =====")
+	if reason != "":
+		print("Reason: %s" % reason)
+	print("Total nodes: %d" % stats.total_nodes)
+	print("Active (planted): %d" % stats.active_nodes)
+	print("Entanglements: %d" % stats.total_entanglements)
+	print("===================================\n")
 
 
 func add_life_cycle_effect(effect_type: String, effect_data: Dictionary):
@@ -986,7 +1038,7 @@ func update_plot_positions(plot_positions: Dictionary, biome_name: String = "") 
 		var anchor_pos = plot_positions[node.grid_position]
 		node.classical_anchor = anchor_pos
 		# Keep measured nodes frozen at the new anchor position
-		var is_measured = node.is_terminal_measured() or (node.plot and node.plot.has_been_measured)
+		var is_measured = node.is_terminal_measured() or (node.plot and node.plot.is_measured)
 		if is_measured:
 			node.frozen_anchor = anchor_pos
 			node.position = anchor_pos
@@ -1011,10 +1063,6 @@ func _unhandled_input(event):
 				get_viewport().set_input_as_handled()
 				return
 
-	var ctx = _build_context()
-	if input_handler.handle_input(event, ctx):
-		get_viewport().set_input_as_handled()
-
 
 func _on_pool_terminal_bound(_terminal: RefCounted, _register_id: int):
 	"""Handle terminal binding from TerminalPool.
@@ -1028,22 +1076,50 @@ func _on_pool_terminal_unbound(_terminal: RefCounted):
 	pass
 
 
-func _on_bubble_tapped(node: QuantumNode):
-	"""Handle bubble tap from input handler."""
-	quantum_node_selected.emit(node)
-	# Also emit node_clicked for FarmView compatibility
-	if node and node.grid_position != Vector2i(-1, -1):
-		node_clicked.emit(node.grid_position, MOUSE_BUTTON_LEFT)
+func _on_touch_tap(position: Vector2) -> void:
+	"""Handle tap from TouchInputManager — hit-test bubbles."""
+	var node = get_bubble_at_screen_pos(position)
+	if not node or node.grid_position == Vector2i(-1, -1):
+		return
 
-	# CRITICAL: Mark tap as consumed in TouchInputManager to prevent
-	# PlotGridDisplay from also handling this tap (spatial hierarchy)
+	if _verbose:
+		var measured = node.is_terminal_measured() if node.has_method("is_terminal_measured") else false
+		_verbose.debug("viz", "👆", "Bubble tap at %s (measured=%s)" % [node.grid_position, measured])
+
+	quantum_node_selected.emit(node)
+	node_clicked.emit(node.grid_position, MOUSE_BUTTON_LEFT)
 	if _touch_input_manager:
 		_touch_input_manager.consume_current_tap()
 
 
-func _on_node_swiped_to(from_grid_pos: Vector2i, to_grid_pos: Vector2i):
-	"""Handle node swipe from input handler."""
-	node_swiped_to.emit(from_grid_pos, to_grid_pos)
+func _on_drag_start(position: Vector2) -> void:
+	"""Handle drag start from TouchInputManager — begin chain tracking."""
+	_drag_chain.clear()
+	var node = get_bubble_at_screen_pos(position)
+	if node:
+		_drag_chain.append(node)
+
+
+func _on_drag_move(position: Vector2) -> void:
+	"""Handle drag move from TouchInputManager — extend chain."""
+	if _drag_chain.is_empty():
+		return
+	var node = get_bubble_at_screen_pos(position)
+	if node and node != _drag_chain.back():
+		_drag_chain.append(node)
+
+
+func _on_drag_end(_start_pos: Vector2, _end_pos: Vector2) -> void:
+	"""Handle drag end from TouchInputManager — emit chain if 2+ bubbles."""
+	if _drag_chain.size() < 2:
+		_drag_chain.clear()
+		return
+
+	var positions: Array[Vector2i] = []
+	for n in _drag_chain:
+		positions.append(n.grid_position)
+	chain_swiped.emit(positions)
+	_drag_chain.clear()
 
 
 func _apply_batched_force_positions(ctx: Dictionary) -> Dictionary:

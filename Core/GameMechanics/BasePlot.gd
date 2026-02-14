@@ -1,15 +1,22 @@
 class_name BasePlot
 extends Resource
 
-## BasePlot - Foundation class for all farm plots (Thin Plot Architecture)
+## BasePlot - Foundation class for all farm plots (Register→Plot→Terminal Architecture)
 ##
-## Terminal is the single source of truth for game mechanics state.
-## Plot keeps only visual projection + infrastructure.
+## REFACTOR (2026-02-14): BasePlot is now the single source of truth for game state.
+## - Works in headless mode (no Terminal needed)
+## - Stores register binding (simulation layer)
+## - Terminal is optional UI proxy (instrument layer)
 ##
-## Accessors delegate to bound_terminal:
-##   get_register_id(), get_biome_name(), is_active(),
-##   get_north_emoji(), get_south_emoji(),
-##   get_is_measured(), get_measured_outcome()
+## Architecture:
+##   Register (quantum) → BasePlot (farm/simulation) → Terminal (UI instrument)
+##
+## BasePlot owns:
+##   - Register binding (register_id, biome_name, emoji_pair)
+##   - Measurement state (is_measured, outcome, probability)
+##   - Infrastructure (theta_frozen, lindblad_*, persistent_gates)
+##
+## Terminal delegates to BasePlot (UI-only proxy)
 
 const DualEmojiQubit = preload("res://Core/QuantumSubstrate/DualEmojiQubit.gd")
 const QuantumRigorConfig = preload("res://Core/GameState/QuantumRigorConfig.gd")
@@ -31,8 +38,7 @@ func _log(level: String, category: String, emoji: String, message: String) -> vo
 		"warn":
 			verbose.warn(category, emoji, message)
 
-signal growth_complete
-signal state_collapsed(final_state: String)
+# Signals removed: growth_complete (unused), state_collapsed (unused)
 
 # ============================================================================
 # IDENTITY (kept on plot)
@@ -42,14 +48,24 @@ signal state_collapsed(final_state: String)
 @export var grid_position: Vector2i = Vector2i.ZERO
 
 # ============================================================================
-# TERMINAL BINDING (single source of truth for game mechanics)
+# REGISTER BINDING (single source of truth for game mechanics - headless compatible)
 # ============================================================================
 
-## Reference to bound terminal — source of truth for register_id, biome,
-## emoji pair, measurement state, and outcome.
-var bound_terminal = null  # Terminal instance
+## Register binding state (simulation layer - works in headless mode)
+var bound_register_id: int = -1  # -1 = unbound
+var bound_biome_name: String = ""  # Biome name (decoupled from object reference)
+var north_emoji: String = ""  # North pole emoji
+var south_emoji: String = ""  # South pole emoji
 
-## Cached biome Node (resolved from bound_terminal.bound_biome_name)
+## Measurement state (simulation layer)
+var is_measured: bool = false
+var measured_outcome: String = ""
+var measured_probability: float = 0.0
+
+## Terminal reference (UI layer - optional, only exists when UI is active)
+var ui_terminal = null  # Terminal instance (UI proxy)
+
+## Cached biome Node (resolved from bound_biome_name)
 var _cached_biome = null
 
 # ============================================================================
@@ -105,50 +121,92 @@ func _init():
 
 
 # ============================================================================
-# TERMINAL ACCESSORS (delegate to bound_terminal)
+# REGISTER ACCESSORS (read from BasePlot state - NEW architecture)
 # ============================================================================
 
 func get_register_id() -> int:
-	return bound_terminal.bound_register_id if bound_terminal else -1
+	return bound_register_id
 
 func get_biome_name() -> String:
-	return bound_terminal.bound_biome_name if bound_terminal else ""
+	return bound_biome_name
 
 func is_active() -> bool:
-	return bound_terminal != null and bound_terminal.is_bound
+	return bound_register_id >= 0 and bound_biome_name != ""
 
 func get_north_emoji() -> String:
-	return bound_terminal.north_emoji if bound_terminal else ""
+	return north_emoji
 
 func get_south_emoji() -> String:
-	return bound_terminal.south_emoji if bound_terminal else ""
+	return south_emoji
 
 func get_is_measured() -> bool:
-	return bound_terminal.is_measured if bound_terminal else false
+	return is_measured
 
 func get_measured_outcome() -> String:
-	return bound_terminal.measured_outcome if bound_terminal else ""
+	return measured_outcome
+
+func get_measured_probability() -> float:
+	return measured_probability
+
+# ============================================================================
+# REGISTER BINDING METHODS (simulation layer - headless compatible)
+# ============================================================================
+
+func bind_to_register(register_id: int, biome_name: String, emoji_pair: Dictionary) -> void:
+	"""Bind this plot to a quantum register (simulation layer).
+
+	This is the core simulation state - works in headless mode.
+	UI layer (Terminal) can be created separately.
+	"""
+	bound_register_id = register_id
+	bound_biome_name = biome_name
+	north_emoji = emoji_pair.get("north", "")
+	south_emoji = emoji_pair.get("south", "")
+	is_measured = false
+	measured_outcome = ""
+	measured_probability = 0.0
+	_cached_biome = null  # Invalidate cache
+
+
+func unbind_register() -> void:
+	"""Unbind this plot from its register (simulation layer)."""
+	bound_register_id = -1
+	bound_biome_name = ""
+	north_emoji = ""
+	south_emoji = ""
+	is_measured = false
+	measured_outcome = ""
+	measured_probability = 0.0
+	_cached_biome = null
+
+
+func mark_measured(outcome: String, probability: float) -> void:
+	"""Mark this plot as measured (simulation layer)."""
+	is_measured = true
+	measured_outcome = outcome
+	measured_probability = probability
+
 
 # ============================================================================
 # BIOME RESOLUTION (cached from terminal binding)
 # ============================================================================
 
 func _resolve_biome():
-	"""Resolve biome Node from bound_terminal.bound_biome_name."""
+	"""Resolve biome Node from bound_biome_name."""
 	if _cached_biome:
 		return _cached_biome
-	if not bound_terminal:
+	if bound_biome_name == "":
 		return null
 	var tree = Engine.get_main_loop()
 	if tree and tree is SceneTree:
 		var abm = tree.root.get_node_or_null("/root/ActiveBiomeManager")
 		if abm and abm.has_method("get_biome_by_name"):
-			_cached_biome = abm.get_biome_by_name(bound_terminal.bound_biome_name)
+			_cached_biome = abm.get_biome_by_name(bound_biome_name)
 			return _cached_biome
 		# Fallback: try farm.grid.biomes
 		var farm = tree.root.get_node_or_null("Farm")
 		if farm and farm.grid and "biomes" in farm.grid:
-			_cached_biome = farm.grid.biomes.get(bound_terminal.bound_biome_name)
+			_cached_biome = farm.grid.biomes.get(bound_biome_name)
 			return _cached_biome
 	return null
 
@@ -161,76 +219,32 @@ func _resolve_quantum_computer():
 
 
 func _get_infra_field(field: String, default = null):
-	if not bound_terminal or bound_terminal.bound_register_id < 0:
+	if bound_register_id < 0:
 		return default
 	var qc = _resolve_quantum_computer()
 	if not qc: return default
-	return qc.get_register_infra_field(bound_terminal.bound_register_id, field, default)
+	return qc.get_register_infra_field(bound_register_id, field, default)
 
 
 func _set_infra_field(field: String, value) -> void:
-	if not bound_terminal or bound_terminal.bound_register_id < 0: return
+	if bound_register_id < 0: return
 	var qc = _resolve_quantum_computer()
 	if not qc: return
-	qc.set_register_infra_field(bound_terminal.bound_register_id, field, value)
+	qc.set_register_infra_field(bound_register_id, field, value)
 
 # ============================================================================
-# BACKWARD-COMPATIBLE PROPERTIES
-# These allow existing code to read plot.is_planted, plot.register_id, etc.
-# without changing every caller at once. They delegate to bound_terminal.
+# COMPUTED PROPERTIES
 # ============================================================================
 
-## is_planted: true when terminal is bound (backward compat)
-var is_planted: bool:
-	get:
-		return is_active()
-	set(value):
-		pass  # No-op: terminal binding is the source of truth
-
-## register_id: from bound terminal (backward compat)
-var register_id: int:
-	get:
-		return get_register_id()
-	set(value):
-		pass  # No-op: terminal binding is the source of truth
-
-## parent_biome: resolved from terminal's biome name (backward compat)
+## parent_biome: Computed property for convenient biome access
 var parent_biome:
 	get:
 		return _resolve_biome()
 	set(value):
-		_cached_biome = value  # Allow explicit set for legacy code paths
-
-## north_emoji: from bound terminal (backward compat)
-var north_emoji: String:
-	get:
-		return get_north_emoji()
-	set(value):
-		pass  # No-op: terminal binding is the source of truth
-
-## south_emoji: from bound terminal (backward compat)
-var south_emoji: String:
-	get:
-		return get_south_emoji()
-	set(value):
-		pass  # No-op: terminal binding is the source of truth
-
-## has_been_measured: from bound terminal (backward compat)
-var has_been_measured: bool:
-	get:
-		return get_is_measured()
-	set(value):
-		pass  # No-op: terminal binding is the source of truth
-
-## measured_outcome: from bound terminal (backward compat)
-var measured_outcome: String:
-	get:
-		return get_measured_outcome()
-	set(value):
-		pass  # No-op: terminal binding is the source of truth
+		_cached_biome = value  # Allow explicit set for caching
 
 # ============================================================================
-# QUANTUM STATE ACCESS (Computed from Terminal → Biome's Bath)
+# QUANTUM STATE ACCESS (Computed from Register → Biome's Quantum Computer)
 # ============================================================================
 
 ## Get basis labels for this plot's measurement basis
@@ -296,11 +310,11 @@ func get_dominant_emoji() -> String:
 func get_plot_emojis() -> Dictionary:
 	"""Get the dual-emoji pair for this plot.
 
-	Delegates to bound_terminal when available.
+	Reads from BasePlot fields (Register→Plot architecture).
 	Falls back to biome capabilities or empty dict.
 	"""
-	if bound_terminal and bound_terminal.is_bound:
-		return bound_terminal.get_emoji_pair()
+	if is_active():
+		return {"north": north_emoji, "south": south_emoji}
 
 	var biome = _resolve_biome()
 	if biome and biome.has_method("get_plantable_capabilities"):
@@ -311,11 +325,6 @@ func get_plot_emojis() -> Dictionary:
 					return cap.emoji_pair
 
 	return {"north": get_north_emoji(), "south": get_south_emoji()}
-
-
-## Is this plot measured? Delegates to bound_terminal.
-func is_measured() -> bool:
-	return get_is_measured()
 
 
 ## Is this plot occupied (bound to a terminal)?
@@ -447,17 +456,14 @@ func harvest() -> Dictionary:
 	return result_dict
 
 
-func collapse_to_measurement(outcome: String) -> void:
-	"""Legacy: No-op in thin plot architecture.
-	Measurement state lives on Terminal, not Plot."""
-	state_collapsed.emit(outcome)
+# Method removed: collapse_to_measurement() - unused dead code
 
 
 func reset() -> void:
 	"""Reset plot to initial state.
 	NOTE: Infrastructure (gates, lindblad, etc.) lives on register_infrastructure
 	and naturally survives harvest/replant."""
-	bound_terminal = null
+	unbind_register()
 	_cached_biome = null
 	entangled_plots.clear()
 
@@ -475,10 +481,10 @@ func remove_entanglement(partner_id: String) -> void:
 
 func add_persistent_gate(gate_type: String, linked_plots: Array[Vector2i] = []) -> void:
 	"""Add a persistent gate to this plot. Gates survive harvest/replant."""
-	if not bound_terminal or bound_terminal.bound_register_id < 0: return
+	if bound_register_id < 0: return
 	var qc = _resolve_quantum_computer()
 	if not qc: return
-	qc.add_persistent_gate_to_register(bound_terminal.bound_register_id, gate_type, [])
+	qc.add_persistent_gate_to_register(bound_register_id, gate_type, [])
 	_log("debug", "farm", "🔧", "Added persistent gate '%s' to plot %s (linked: %d plots)" % [gate_type, grid_position, linked_plots.size()])
 
 

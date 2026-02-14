@@ -114,7 +114,7 @@ func test_plant_wheat():
 
 	# Check results
 	var plot = farm_view.farm_grid.get_plot(test_pos)
-	assert_true(plot.is_planted, "Plot should be planted")
+	assert_true(plot.is_active(), "Plot should be planted")
 	assert_equals(farm_view.economy.credits, credits_before - 5, "Credits should decrease by 5")
 	assert_true(plot.quantum_state != null, "Quantum state should be created")
 
@@ -138,7 +138,7 @@ func test_growth_and_harvest():
 	farm_view._on_measure_pressed()
 	await get_tree().process_frame
 
-	assert_true(plot.has_been_measured, "Plot should be measured before harvest")
+	assert_true(plot.is_measured, "Plot should be measured before harvest")
 	assert_true(not farm_view.harvest_button.disabled, "Harvest button should be enabled after measurement")
 
 	# Harvest
@@ -148,7 +148,7 @@ func test_growth_and_harvest():
 	await get_tree().process_frame
 
 	assert_true(farm_view.economy.wheat_inventory > wheat_before, "Wheat inventory should increase")
-	assert_true(not plot.is_planted, "Plot should be empty after harvest")
+	assert_true(not plot.is_active(), "Plot should be empty after harvest")
 
 	print("")
 
@@ -217,7 +217,7 @@ func test_measurement():
 	var pos = Vector2i(2, 2)
 	var plot = farm_view.farm_grid.get_plot(pos)
 
-	if not plot.is_planted:
+	if not plot.is_active():
 		farm_view._select_plot(pos)
 		farm_view._on_plant_pressed()
 		await get_tree().process_frame
@@ -229,7 +229,7 @@ func test_measurement():
 	farm_view._on_measure_pressed()
 	await get_tree().process_frame
 
-	assert_true(plot.has_been_measured, "Plot should be measured")
+	assert_true(plot.is_measured, "Plot should be measured")
 
 	print("")
 

@@ -92,13 +92,13 @@ func get_plot_by_id(plot_id: String) -> FarmPlot:
 func is_plot_empty(position: Vector2i) -> bool:
 	"""Check if plot is empty (not planted)"""
 	var plot = get_plot(position)
-	return plot != null and not plot.is_planted
+	return plot != null and not plot.is_active()
 
 
 func is_plot_mature(position: Vector2i) -> bool:
 	"""Check if plot has planted wheat (quantum-only: instant full size)"""
 	var plot = get_plot(position)
-	return plot != null and plot.is_planted
+	return plot != null and plot.is_active()
 
 
 func get_neighbors(position: Vector2i) -> Array[Vector2i]:
@@ -124,7 +124,7 @@ func get_all_planted_positions() -> Array[Vector2i]:
 	"""Get positions of all planted plots"""
 	var planted: Array[Vector2i] = []
 	for position in plots.keys():
-		if plots[position].is_planted:
+		if plots[position].is_active():
 			planted.append(position)
 	return planted
 
@@ -133,7 +133,7 @@ func get_all_mature_positions() -> Array[Vector2i]:
 	"""Get positions of all mature plots"""
 	var mature: Array[Vector2i] = []
 	for position in plots.keys():
-		if plots[position].is_planted:  # Quantum-only: all planted plots are "mature"
+		if plots[position].is_active():  # Quantum-only: all planted plots are "mature"
 			mature.append(position)
 	return mature
 
@@ -145,7 +145,7 @@ func get_grid_stats() -> Dictionary:
 	var entanglement_count = 0
 
 	for plot in plots.values():
-		if plot.is_planted:
+		if plot.is_active():
 			planted_count += 1
 			mature_count += 1  # Quantum-only: all planted = mature
 		entanglement_count += plot.get_entanglement_count()
@@ -179,7 +179,7 @@ func print_grid_state() -> void:
 				var pos = Vector2i(x, y)
 				var plot = plots.get(pos)
 
-				if plot == null or not plot.is_planted:
+				if plot == null or not plot.is_active():
 					row += "[ ]"
 				else:
 					# Quantum-only: all planted plots shown as [M]

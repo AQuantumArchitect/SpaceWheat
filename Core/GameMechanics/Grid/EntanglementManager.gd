@@ -108,7 +108,7 @@ func create_entanglement(pos_a: Vector2i, pos_b: Vector2i, bell_type: String = "
 		biome_a.mark_bell_gate([pos_a, pos_b])
 
 	# If both plots are NOT planted, just set up infrastructure and return
-	if not plot_a.is_planted or not plot_b.is_planted:
+	if not plot_a.is_active() or not plot_b.is_active():
 		if _verbose:
 			_verbose.info("farm", "→", "Infrastructure ready. Quantum entanglement will auto-activate when both plots are planted.")
 		entanglement_created.emit(pos_a, pos_b)
@@ -228,7 +228,7 @@ func auto_entangle_from_infrastructure(position: Vector2i) -> void:
 	Reads entanglement blueprints from register_infrastructure instead of plot fields.
 	"""
 	var plot = _plot_manager.get_plot(position)
-	if not plot or not plot.is_planted:
+	if not plot or not plot.is_active():
 		return
 
 	var reg_id = _biome_routing.get_register_for_plot(position)
@@ -252,7 +252,7 @@ func auto_entangle_from_infrastructure(position: Vector2i) -> void:
 		var partner_plot = _plot_manager.get_plot(partner_pos)
 
 		# If partner is planted, entangle their quantum states
-		if partner_plot and partner_plot.is_planted:
+		if partner_plot and partner_plot.is_active():
 			# Check if already entangled (avoid duplicates)
 			if not plot.entangled_plots.has(partner_plot.plot_id):
 				_create_quantum_entanglement(position, partner_pos)
@@ -269,7 +269,7 @@ func auto_apply_persistent_gates(position: Vector2i) -> void:
 	var plot = _plot_manager.get_plot(position)
 
 	# Skip if plot not planted
-	if not plot or not plot.is_planted:
+	if not plot or not plot.is_active():
 		return
 
 	var reg_id = _biome_routing.get_register_for_plot(position)
@@ -327,7 +327,7 @@ func _auto_cluster_from_gate(position: Vector2i, linked_plots: Array) -> void:
 			continue  # Skip self
 
 		var linked_plot = _plot_manager.get_plot(linked_pos)
-		if linked_plot and linked_plot.is_planted and linked_plot.quantum_state:
+		if linked_plot and linked_plot.is_active() and linked_plot.quantum_state:
 			# Check if already entangled
 			if not plot.entangled_plots.has(linked_plot.plot_id):
 				_create_quantum_entanglement(position, linked_pos)
@@ -344,7 +344,7 @@ func _create_quantum_entanglement(pos_a: Vector2i, pos_b: Vector2i, _bell_type: 
 	var plot_a = _plot_manager.get_plot(pos_a)
 	var plot_b = _plot_manager.get_plot(pos_b)
 
-	if not plot_a or not plot_b or not plot_a.is_planted or not plot_b.is_planted:
+	if not plot_a or not plot_b or not plot_a.is_active() or not plot_b.is_active():
 		return false
 
 	# MODEL C: Entanglement via apply_gate_2q

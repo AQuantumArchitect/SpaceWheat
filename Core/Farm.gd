@@ -487,12 +487,12 @@ func discover_pair(north: String, south: String) -> bool:
 		if pair.get("north", "") == north and pair.get("south", "") == south:
 			return false  # Already known
 
-	# Check if either emoji already exists in a different pair
+	# North must be new; south may repeat across pairs.
 	for pair in known_pairs:
 		var existing_north = pair.get("north", "")
 		var existing_south = pair.get("south", "")
-		if north == existing_north or north == existing_south or south == existing_north or south == existing_south:
-			# One of the emojis is already registered - can't add overlapping pair
+		if north == existing_north or north == existing_south:
+			# North already known (as north or south) - can't add overlapping north
 			return false
 
 	known_pairs.append({"north": north, "south": south})
@@ -710,7 +710,7 @@ func _get_lindblad_pair_for_plot(plot, pos: Vector2i) -> Dictionary:
 		if terminal and terminal.is_bound:
 			return terminal.get_emoji_pair()
 
-	if plot and plot.is_planted:
+	if plot and plot.is_active():
 		return plot.get_plot_emojis()
 
 	return {}
@@ -731,7 +731,7 @@ func _process_mushroom_composting(delta: float):
 		for y in range(grid.grid_height):
 			for x in range(grid.grid_width):
 				var plot = grid.get_plot(Vector2i(x, y))
-				if plot and plot.is_planted and plot.plot_type == FarmPlot.PlotType.MUSHROOM:
+				if plot and plot.is_active() and plot.plot_type_name == "mushroom":
 					_cached_mushroom_count += 1
 		_mushroom_count_dirty = false
 
@@ -1404,11 +1404,11 @@ func entangle_plots(pos1: Vector2i, pos2: Vector2i, bell_state: String = "phi_pl
 	var plot1 = grid.get_plot(pos1)
 	var plot2 = grid.get_plot(pos2)
 
-	if not plot1 or not plot1.is_planted:
+	if not plot1 or not plot1.is_active():
 		action_result.emit("entangle", false, "First plot must be planted!")
 		return false
 
-	if not plot2 or not plot2.is_planted:
+	if not plot2 or not plot2.is_active():
 		action_result.emit("entangle", false, "Second plot must be planted!")
 		return false
 
@@ -1511,8 +1511,8 @@ func get_state() -> Dictionary:
 			if plot:
 				state["plots"].append({
 					"position": pos,
-					"is_planted": plot.is_planted,
-					"emoji": plot.get_semantic_emoji() if plot.is_planted else ""
+					"is_planted": plot.is_active(),
+					"emoji": plot.get_semantic_emoji() if plot.is_active() else ""
 				})
 
 	return state

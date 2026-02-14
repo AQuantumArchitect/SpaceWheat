@@ -125,7 +125,7 @@ func _draw_energy_transfer_forces(graph: Node2D, ctx: Dictionary) -> void:
 		return
 
 	for node in quantum_nodes:
-		if not node.plot or not node.plot.is_planted or not node.plot.quantum_state:
+		if not node.plot or not node.plot.is_active() or not node.plot.quantum_state:
 			continue
 
 		if node.plot_id == "celestial_sun" or node.plot_id == "celestial_moon":
@@ -185,7 +185,7 @@ func _draw_icon_influence_forces(graph: Node2D, ctx: Dictionary) -> void:
 	var mushroom_stable = PI
 
 	for node in quantum_nodes:
-		if not node.plot or not node.plot.is_planted or not node.plot.quantum_state:
+		if not node.plot or not node.plot.is_active() or not node.plot.quantum_state:
 			continue
 
 		if node.plot_id == "celestial_sun" or node.plot_id == "celestial_moon":

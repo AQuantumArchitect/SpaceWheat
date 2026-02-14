@@ -8,13 +8,7 @@ extends "res://Core/GameMechanics/BasePlot.gd"
 
 const PhaseConstraint = preload("res://Core/GameMechanics/PhaseConstraint.gd")
 
-# Plot type
-# DEPRECATED (Phase 5): Use plot_type_name instead of enum
-# Enum kept for backward compatibility until Phase 6
-enum PlotType { WHEAT, TOMATO, MUSHROOM, MILL, MARKET, KITCHEN, ENERGY_TAP, FIRE, WATER, FLOUR, VEGETATION, RABBIT, WOLF, BREAD }
-@export var plot_type: PlotType = PlotType.WHEAT  # DEPRECATED - use plot_type_name
-
-# PHASE 5 (PARAMETRIC): String-based plot type (replaces enum)
+# Plot type (string-based, data-driven)
 @export var plot_type_name: String = "wheat"
 
 # Phase constraint (for plots that restrict Bloch sphere movement)
@@ -46,8 +40,7 @@ var tap_last_flux_check: float = 0.0     # Timestamp of last flux read from bath
 func _init():
 	super._init()
 	# FarmPlot-specific initialization (subclasses will override this)
-	plot_type = PlotType.WHEAT  # DEPRECATED - kept for backward compatibility
-	plot_type_name = "wheat"  # PHASE 5 (PARAMETRIC): String-based type
+	plot_type_name = "wheat"  # String-based type (data-driven)
 
 
 ## Helper Functions

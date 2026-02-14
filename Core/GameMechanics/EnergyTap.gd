@@ -17,7 +17,7 @@ var adjacent_qubits: Array = []
 
 func _init():
 	super._init()
-	plot_type = PlotType.ENERGY_TAP
+	plot_type_name = "energy_tap"
 	is_planted = true  # Always "active"
 	target_emoji = "💧"  # Water by default
 

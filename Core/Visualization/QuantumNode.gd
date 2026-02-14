@@ -227,7 +227,7 @@ func update_from_quantum_state(batcher = null):
 				biome_name = terminal.bound_biome_name
 
 	# Priority 3: Farm plot (v1 legacy)
-	elif plot and plot.is_planted:
+	elif plot and plot.is_active():
 		biome = plot.parent_biome
 		# Update biome_name for consistency
 		if not biome_name and biome:
@@ -436,7 +436,7 @@ func get_entangled_partner_ids() -> Array:
 
 	# TODO: Query biome's quantum_computer for entangled registers
 	# var partner_ids = []
-	# for reg_id in plot.parent_biome.quantum_computer.get_entangled_registers(plot.register_id):
+	# for reg_id in plot.parent_biome.quantum_computer.get_entangled_registers(plot.bound_register_id):
 	#     partner_ids.append(...)
 	# return partner_ids
 
@@ -607,7 +607,7 @@ func is_terminal_measured() -> bool:
 		return terminal.is_measured
 	# Fallback to plot-based check for v1 compatibility
 	if plot:
-		return plot.is_measured() if plot.has_method("is_measured") else plot.has_been_measured
+		return plot.is_measured if "is_measured" in plot else plot.is_measured
 	return false
 
 

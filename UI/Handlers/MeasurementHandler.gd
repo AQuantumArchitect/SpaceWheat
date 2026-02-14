@@ -49,7 +49,7 @@ static func measure_trigger(farm, positions: Array[Vector2i]) -> Dictionary:
 
 	# Get trigger plot info
 	var trigger_plot = farm.grid.get_plot(trigger_pos)
-	if not trigger_plot or not trigger_plot.is_planted:
+	if not trigger_plot or not trigger_plot.is_active():
 		return {
 			"success": false,
 			"error": "invalid_trigger",
@@ -108,7 +108,7 @@ static func batch_measure(farm, positions: Array[Vector2i]) -> Dictionary:
 
 	for pos in positions:
 		var plot = farm.grid.get_plot(pos)
-		if not plot or not plot.is_planted:
+		if not plot or not plot.is_active():
 			continue
 
 		var biome = farm.grid.get_biome_for_plot(pos)
@@ -173,7 +173,7 @@ static func batch_harvest(farm, positions: Array[Vector2i]) -> Dictionary:
 
 	for pos in positions:
 		var plot = farm.grid.get_plot(pos)
-		if not plot or not plot.is_planted:
+		if not plot or not plot.is_active():
 			continue
 
 		# Get value from plot

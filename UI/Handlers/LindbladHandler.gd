@@ -94,7 +94,7 @@ static func lindblad_drive(farm, positions: Array[Vector2i]) -> Dictionary:
 		# V1 FALLBACK: Get emoji from plot
 		if emoji == "":
 			var plot = farm.grid.get_plot(pos)
-			if plot and plot.is_planted:
+			if plot and plot.is_active():
 				emoji = plot.north_emoji if plot.north_emoji else ""
 
 		if _resolve_qubit_index(biome, emoji) < 0:
@@ -153,7 +153,7 @@ static func lindblad_decay(farm, positions: Array[Vector2i]) -> Dictionary:
 		# V1 FALLBACK: Get emoji from plot
 		if emoji == "":
 			var plot = farm.grid.get_plot(pos)
-			if plot and plot.is_planted:
+			if plot and plot.is_active():
 				emoji = plot.north_emoji if plot.north_emoji else ""
 
 		var qubit_idx = _resolve_qubit_index(biome, emoji)
@@ -369,11 +369,11 @@ static func lindblad_transfer(farm, positions: Array[Vector2i]) -> Dictionary:
 	# V1 FALLBACK: Get emojis from plots
 	if emoji_from == "":
 		var plot_from = farm.grid.get_plot(pos_from)
-		if plot_from and plot_from.is_planted:
+		if plot_from and plot_from.is_active():
 			emoji_from = plot_from.north_emoji if plot_from.north_emoji else ""
 	if emoji_to == "":
 		var plot_to = farm.grid.get_plot(pos_to)
-		if plot_to and plot_to.is_planted:
+		if plot_to and plot_to.is_active():
 			emoji_to = plot_to.north_emoji if plot_to.north_emoji else ""
 
 	if emoji_from == "" or emoji_to == "":
@@ -430,7 +430,7 @@ static func pump_to_wheat(farm, positions: Array[Vector2i]) -> Dictionary:
 
 	for pos in positions:
 		var plot = farm.grid.get_plot(pos)
-		if not plot or not plot.is_planted:
+		if not plot or not plot.is_active():
 			continue
 
 		var north = plot.north_emoji
@@ -463,7 +463,7 @@ static func _resolve_north_emoji(farm, pos: Vector2i) -> String:
 				return north
 
 	var plot = farm.grid.get_plot(pos) if farm.grid else null
-	if plot and plot.is_planted:
+	if plot and plot.is_active():
 		return plot.north_emoji if plot.north_emoji else ""
 
 	return ""

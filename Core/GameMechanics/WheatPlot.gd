@@ -17,7 +17,7 @@ var icon_network = null  # Reference to icon network
 
 func _init():
 	super._init()
-	plot_type = PlotType.WHEAT  # Always wheat
+	plot_type_name = "wheat"  # Always wheat
 	theta_drift_rate = 0.1
 	theta_entangled_target = PI / 2.0  # Entangled qubits stay uncertain
 	theta_isolated_target = PI / 4.0   # Isolated wheat drifts toward growth

@@ -160,13 +160,13 @@ static func get_active_projections(biome: BiomeBase, farm_grid) -> Array[Diction
 		if assigned_biome == biome_name:
 			var plot = farm_grid.get_plot(pos)
 
-			if plot and plot.is_planted:
+			if plot and plot.is_active():
 				var proj_data = {
 					"position": pos,
 					"north_emoji": "",
 					"south_emoji": "",
 					"energy": 0.0,
-					"measured": plot.has_been_measured
+					"measured": plot.is_measured
 				}
 
 				# Get quantum state info

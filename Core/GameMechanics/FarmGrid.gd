@@ -190,7 +190,7 @@ func _process(delta):
 	# Grow all planted plots
 	for position in _plot_manager.plots.keys():
 		var plot = _plot_manager.plots[position]
-		if plot.is_planted:
+		if plot.is_active():
 			var plot_biome = _biome_routing.get_biome_for_plot(position)
 			plot.grow(delta, plot_biome, faction_territory_manager, icon_network, conspiracy_network)
 

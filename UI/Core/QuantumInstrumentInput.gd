@@ -128,6 +128,26 @@ func inject_plot_grid_display(pgd_ref) -> void:
 
 
 ## ============================================================================
+## SELECTION STATE (for save/load)
+## ============================================================================
+
+func get_checked_plots() -> Array[Vector2i]:
+	"""Get current checked plot positions (for save/load)."""
+	return checked_plots.duplicate()
+
+
+func set_checked_plots(positions: Array) -> void:
+	"""Set checked plot positions (for save/load restoration)."""
+	checked_plots.clear()
+	for pos in positions:
+		if pos is Vector2i:
+			checked_plots.append(pos)
+			# Emit signal to update UI
+			plot_checked.emit(pos, true)
+	_verbose.debug("input", "✅", "Restored %d checked plots from save" % checked_plots.size())
+
+
+## ============================================================================
 ## INPUT HANDLING
 ## ============================================================================
 
@@ -550,6 +570,20 @@ func _execute_build_gate(gate_type: String) -> void:
 	action_performed.emit("build_gate", result)
 
 
+func apply_chain_gate(positions) -> void:
+	"""Apply gate from chain swipe gesture.
+	Populates checked_plots, then executes gate build.
+	Default: bell (2 bubbles) or cluster (3+ bubbles).
+	"""
+	clear_all_checks()
+	for pos in positions:
+		checked_plots.append(pos)
+		plot_checked.emit(pos, true)
+
+	var gate_type = "bell" if positions.size() == 2 else "cluster"
+	_execute_build_gate(gate_type)
+
+
 ## ============================================================================
 ## BIOME SELECTION (UIOP Row)
 ## ============================================================================
@@ -943,7 +977,7 @@ func _get_qubit_for_position(pos: Vector2i, biome) -> int:
 
 	# Fallback: try viz_cache lookup
 	var plot = farm.grid.get_plot(pos) if farm.grid else null
-	if plot and plot.is_planted and biome and biome.viz_cache:
+	if plot and plot.is_active() and biome and biome.viz_cache:
 		return biome.viz_cache.get_qubit(plot.north_emoji)
 
 	return -1

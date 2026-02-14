@@ -227,7 +227,7 @@ static func peek_state(farm, positions: Array[Vector2i]) -> Dictionary:
 
 		if register_id < 0:
 			var plot = farm.grid.get_plot(pos)
-			if not plot or not plot.is_planted:
+			if not plot or not plot.is_active():
 				continue
 			emoji = plot.north_emoji if plot.north_emoji else ""
 			if biome.viz_cache:

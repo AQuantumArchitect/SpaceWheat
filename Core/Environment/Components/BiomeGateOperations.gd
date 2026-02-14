@@ -60,12 +60,12 @@ func apply_gate_1q(position: Vector2i, gate_name: String) -> bool:
 		return false
 
 	var reg = register_manager.get_register_for_plot(position)
-	if not reg or not reg.is_planted:
+	if not reg or not reg.is_active():
 		push_error("Plot %s not planted!" % position)
 		return false
 
 	# Validate: no gates on measured plots
-	if reg.has_been_measured:
+	if reg.is_measured:
 		push_error("Cannot apply gates to measured plots!")
 		return false
 
@@ -78,7 +78,7 @@ func apply_gate_1q(position: Vector2i, gate_name: String) -> bool:
 	var U = gate_dict["matrix"]
 
 	# Model C: Apply gate directly using qubit index
-	var success = quantum_computer.apply_gate(reg.register_id, U)
+	var success = quantum_computer.apply_gate(reg.bound_register_id, U)
 
 	if success and time_tracker:
 		reg.record_gate_application(gate_name, time_tracker.turn_count)
@@ -106,12 +106,12 @@ func apply_gate_2q(position_a: Vector2i, position_b: Vector2i, gate_name: String
 	var reg_a = register_manager.get_register_for_plot(position_a)
 	var reg_b = register_manager.get_register_for_plot(position_b)
 
-	if not reg_a or not reg_a.is_planted or not reg_b or not reg_b.is_planted:
+	if not reg_a or not reg_a.is_active() or not reg_b or not reg_b.is_active():
 		push_error("One or both plots not planted!")
 		return false
 
 	# Validate: no gates on measured plots
-	if reg_a.has_been_measured or reg_b.has_been_measured:
+	if reg_a.is_measured or reg_b.is_measured:
 		push_error("Cannot apply gates to measured plots!")
 		return false
 
@@ -124,7 +124,7 @@ func apply_gate_2q(position_a: Vector2i, position_b: Vector2i, gate_name: String
 	var U = gate_dict["matrix"]
 
 	# Model C: Apply gate directly using qubit indices
-	var success = quantum_computer.apply_gate_2q(reg_a.register_id, reg_b.register_id, U)
+	var success = quantum_computer.apply_gate_2q(reg_a.bound_register_id, reg_b.bound_register_id, U)
 
 	if success and time_tracker:
 		reg_a.record_gate_application(gate_name + "(ctrl)", time_tracker.turn_count)
@@ -157,22 +157,22 @@ func entangle_plots(position_a: Vector2i, position_b: Vector2i) -> bool:
 	var reg_a = register_manager.get_register_for_plot(position_a)
 	var reg_b = register_manager.get_register_for_plot(position_b)
 
-	if not reg_a or not reg_b or not reg_a.is_planted or not reg_b.is_planted:
+	if not reg_a or not reg_b or not reg_a.is_active() or not reg_b.is_active():
 		push_error("Both plots must be planted to entangle!")
 		return false
 
 	# Validate: no entangling measured plots
-	if reg_a.has_been_measured or reg_b.has_been_measured:
+	if reg_a.is_measured or reg_b.is_measured:
 		push_error("Cannot entangle measured plots!")
 		return false
 
 	# Call quantum_computer entanglement
-	var success = quantum_computer.entangle_plots(reg_a.register_id, reg_b.register_id)
+	var success = quantum_computer.entangle_plots(reg_a.bound_register_id, reg_b.bound_register_id)
 
 	if success:
 		# Record entanglement
-		reg_a.entangled_with.append(reg_b.register_id)
-		reg_b.entangled_with.append(reg_a.register_id)
+		reg_a.entangled_with.append(reg_b.bound_register_id)
+		reg_b.entangled_with.append(reg_a.bound_register_id)
 
 		# Mark bell gate if tracker available
 		if bell_gate_tracker:
@@ -371,9 +371,9 @@ func batch_measure_plots(position: Vector2i, qubit_measured_callback: Callable =
 		return {}
 
 	# Model C: Get entangled qubits from entanglement graph
-	var entangled_ids = quantum_computer.get_entangled_component(reg.register_id)
+	var entangled_ids = quantum_computer.get_entangled_component(reg.bound_register_id)
 	if entangled_ids.is_empty():
-		entangled_ids = [reg.register_id]
+		entangled_ids = [reg.bound_register_id]
 
 	# Measure all qubits in the entangled component
 	var outcomes: Dictionary = {}

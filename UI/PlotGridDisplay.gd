@@ -219,6 +219,11 @@ func inject_biomes(biomes_dict: Dictionary) -> void:
 			_verbose.debug("ui", "⏳", "Waiting for layout_calculator injection before positioning tiles...")
 
 
+func inject_layout_manager(manager: Node) -> void:
+	"""Inject UILayoutManager for normalized viewport-aware positioning."""
+	layout_manager = manager
+
+
 func _create_tiles() -> void:
 	"""Create plot tiles (positioning is handled separately by _update_layout_for_active_biome)"""
 	# Guard: Don't create tiles if they already exist
@@ -246,8 +251,9 @@ func _create_tiles() -> void:
 
 	# Connect to TouchInputManager for touch selection (do it here after tiles are created)
 	# CONNECT_DEFERRED ensures bubbles process tap first (they connect without DEFERRED)
-	if TouchInputManager and not TouchInputManager.tap_detected.is_connected(_on_touch_tap):
-		TouchInputManager.tap_detected.connect(_on_touch_tap, CONNECT_DEFERRED)
+	var touch_input = _get_touch_input_manager()
+	if touch_input and not touch_input.tap_detected.is_connected(_on_touch_tap):
+		touch_input.tap_detected.connect(_on_touch_tap, CONNECT_DEFERRED)
 		if _verbose:
 			_verbose.info("ui", "✅", "Touch: Tap-to-select connected with DEFERRED (bubbles have priority)")
 
@@ -765,7 +771,7 @@ func _transform_plot_to_ui_data(pos: Vector2i, plot, terminal = null) -> Diction
 
 	This inline transformation replaces the FarmUIState layer for real-time updates.
 	Handles both:
-	- Traditional planted plots (plot.is_planted)
+	- Traditional planted plots (plot.is_active())
 	- Terminal-bound plots from EXPLORE action (terminal.is_bound)
 	"""
 	# Get entangled plots from the plot data
@@ -778,13 +784,13 @@ func _transform_plot_to_ui_data(pos: Vector2i, plot, terminal = null) -> Diction
 	var ui_data = {
 		"position": pos,
 		# Single source of truth for v2 terminals: terminal state overrides plot state
-		"is_planted": terminal_active if terminal_active else (plot and plot.is_planted),
-		"plot_type": _get_plot_type_string(plot.plot_type) if plot else "terminal",
+		"is_planted": terminal_active if terminal_active else (plot and plot.is_active()),
+		"plot_type": plot.plot_type_name if plot else "terminal",
 		"north_emoji": "",
 		"south_emoji": "",
 		"north_probability": 0.0,
 		"south_probability": 0.0,
-		"has_been_measured": (plot and plot.has_been_measured) or (terminal and terminal.is_measured),
+		"has_been_measured": (plot and plot.is_measured) or (terminal and terminal.is_measured),
 		"entangled_plots": entangled_list,
 		"lindblad_pump_active": plot and plot.lindblad_pump_active,
 		"lindblad_drain_active": plot and plot.lindblad_drain_active
@@ -829,7 +835,7 @@ func _transform_plot_to_ui_data(pos: Vector2i, plot, terminal = null) -> Diction
 			ui_data["south_probability"] = south_prob
 
 	# CASE 2: Traditional planted plot (no terminal, or terminal doesn't override)
-	elif plot and plot.is_planted and plot.parent_biome and plot.bath_subplot_id >= 0:
+	elif plot and plot.is_active() and plot.parent_biome and plot.bath_subplot_id >= 0:
 		var emojis = plot.get_plot_emojis()
 		ui_data["north_emoji"] = emojis["north"]
 		ui_data["south_emoji"] = emojis["south"]
@@ -855,20 +861,7 @@ func _transform_plot_to_ui_data(pos: Vector2i, plot, terminal = null) -> Diction
 	return ui_data
 
 
-func _get_plot_type_string(plot_type_enum: int) -> String:
-	"""Convert WheatPlot.PlotType enum to string"""
-	match plot_type_enum:
-		0: return "wheat"
-		1: return "tomato"
-		2: return "mushroom"
-		3: return "mill"
-		4: return "market"
-		5: return "kitchen"
-		6: return "energy_tap"
-		7: return "fire"
-		8: return "water"
-		9: return "flour"
-		_: return "empty"
+# Converter removed: _get_plot_type_string() - no longer needed with plot_type_name
 
 
 func refresh_all_tiles() -> void:
@@ -1094,7 +1087,7 @@ func _get_quad_screen_positions() -> Array[Vector2]:
 		return []
 
 	# Use play area center from UILayoutManager (not viewport center)
-	var ui_layout = get_node_or_null("/root/UILayoutManager")
+	var ui_layout = layout_manager
 	var center: Vector2
 	if ui_layout:
 		center = ui_layout.get_play_area_center()
@@ -1135,6 +1128,10 @@ func get_classical_plot_positions() -> Dictionary:
 func get_plot_position(grid_pos: Vector2i) -> Vector2:
 	"""Get parametric screen position for a specific plot"""
 	return classical_plot_positions.get(grid_pos, Vector2.ZERO)
+
+
+func _get_touch_input_manager() -> Node:
+	return get_node_or_null("/root/TouchInputManager")
 
 
 ## DRAG/SWIPE BATCH SELECTION
@@ -1188,9 +1185,12 @@ func _on_touch_tap(position: Vector2) -> void:
 	Bubbles have priority over plots - if bubble consumed tap, skip plot processing.
 	"""
 	_verbose.debug("ui", "🎯", "PlotGridDisplay._on_touch_tap received! Position: %s" % position)
+	var touch_input = _get_touch_input_manager()
+	if not touch_input:
+		return
 
 	# PRIORITY CHECK: If bubble already consumed this tap, skip plot processing
-	if TouchInputManager.is_current_tap_consumed():
+	if touch_input.is_current_tap_consumed():
 		_verbose.debug("ui", "⏩", "Tap already consumed by bubble, skipping plot selection")
 		return
 
@@ -1199,7 +1199,7 @@ func _on_touch_tap(position: Vector2) -> void:
 	if plot_pos != Vector2i(-1, -1):
 		# FOUND PLOT: Toggle checkbox and consume tap
 		toggle_plot_selection(plot_pos)
-		TouchInputManager.consume_current_tap()
+		touch_input.consume_current_tap()
 		_verbose.debug("ui", "✅", "Plot checkbox toggled via touch tap: %s (tap CONSUMED)" % plot_pos)
 	else:
 		# NO PLOT: Let tap pass through
@@ -1482,7 +1482,7 @@ func _draw_entanglement_lines() -> void:
 
 	for pos in classical_plot_positions:
 		var plot = farm.grid.get_plot(pos)
-		if not plot or not plot.is_planted:
+		if not plot or not plot.is_active():
 			continue
 
 		var screen_pos = classical_plot_positions[pos]

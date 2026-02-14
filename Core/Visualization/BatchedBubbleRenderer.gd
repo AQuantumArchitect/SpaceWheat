@@ -809,7 +809,7 @@ func _is_node_measured(node, terminal_pool) -> bool:
 	"""Check if node has been measured."""
 	if not node:
 		return false
-	if node.plot != null and node.plot.has_been_measured:
+	if node.plot != null and node.plot.is_measured:
 		return true
 	if node.terminal and node.terminal.is_measured:
 		return true

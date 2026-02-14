@@ -27,6 +27,27 @@ func _log(level: String, category: String, emoji: String, message: String) -> vo
 		"error":
 			verbose.error(category, emoji, message)
 
+func _env_truthy(raw: String) -> bool:
+	var val = raw.strip_edges().to_lower()
+	return val in ["1", "true", "yes", "on"]
+
+func _env_flag(key: String, default_value: bool = false) -> bool:
+	var raw = OS.get_environment(key)
+	if raw == "":
+		return default_value
+	return _env_truthy(raw)
+
+func _rig_flags_enabled(headless: bool) -> bool:
+	# Only honor rig flags in headless, unless explicitly overridden.
+	if _env_flag("SW_DISABLE_HEADLESS_GUARD", false):
+		return true
+	return headless
+
+func _resolve_flag(rig_key: String, global_key: String, rig_enabled: bool) -> bool:
+	if _env_flag(global_key, false):
+		return true
+	return rig_enabled and _env_flag(rig_key, false)
+
 
 # Configuration
 const BIOMES_PER_FRAME = 2  # Evolve 2 biomes per frame (Stage 1 fallback)
@@ -38,6 +59,9 @@ const ENABLE_LOOKAHEAD = true  # Enable native lookahead if available, else fall
 const LOOKAHEAD_STEPS = 13  # 13 phrames = 1.3s lookahead (Fib[6])
 const LOOKAHEAD_DT = 0.1  # Time per phrame (matches EVOLUTION_INTERVAL = 10Hz)
 const MAX_SUBSTEP_DT = 0.02  # Numerical stability limit
+const MIN_BUFFER_STEPS = 3
+const TARGET_BUFFER_STEPS = LOOKAHEAD_STEPS
+const MAX_BUFFER_STEPS = LOOKAHEAD_STEPS * 2
 
 # Phase-shadow LNN configuration (disabled by default to avoid boot-time stalls)
 var use_phase_lnn: bool = false  # Enable LNN phase modulation in C++ engine
@@ -57,6 +81,12 @@ var lookahead_engine_mutex: Mutex = Mutex.new()  # Protect concurrent C++ access
 var lookahead_enabled: bool = false
 var lookahead_accumulator: float = 0.0
 var _lookahead_init_started: bool = false
+
+# Runtime toggles (env-driven)
+var _disable_lookahead_env: bool = false
+var _disable_mi_env: bool = false
+var _disable_force_env: bool = false
+var _headless_env: bool = false
 var frame_buffers: Dictionary = {}  # biome_name -> Array[PackedFloat64Array]
 var buffer_cursors: Dictionary = {}  # biome_name -> int
 var mi_cache: Dictionary = {}  # biome_name -> PackedFloat64Array
@@ -73,6 +103,12 @@ var icon_map_payloads: Dictionary = {}  # biome_name -> Dictionary
 # Maps biome_name -> engine_biome_id for correct result distribution
 var _biome_engine_ids: Dictionary = {}  # biome_name -> int (engine biome ID)
 var _engine_id_to_biome: Dictionary = {}  # engine_id -> biome_name (reverse lookup)
+var _biome_engine_dims: Dictionary = {}  # biome_name -> int (registered dimension)
+var biome_last_good_rho: Dictionary = {}  # biome_name -> PackedFloat64Array
+var biome_last_good_bloch: Dictionary = {}  # biome_name -> PackedFloat64Array
+var biome_last_good_purity: Dictionary = {}  # biome_name -> float
+var biome_dirty: Dictionary = {}  # biome_name -> bool (buffer invalidated)
+var biome_pending_reregister: Dictionary = {}  # biome_name -> bool
 
 # Signal for user action (invalidates lookahead)
 signal user_action_detected
@@ -95,9 +131,8 @@ const FIB_SEQUENCE: Array[int] = [1, 1, 2, 3, 5, 8, 13, 21]  # Fibonacci packet 
 const RECOVERY_THRESHOLD: int = 5   # Phrames - below this = RECOVERY mode
 const BATCH_TIME_SMOOTHING: float = 0.3  # EMA smoothing
 
-# Adaptive state (DEPRECATED - NO LONGER USED FOR PACKET SIZING)
-# These variables remain for backwards compatibility with diagnostics only
-# Actual packet sizing uses per-biome state below
+# Adaptive buffer state (diagnostics only - packet sizing uses per-biome state)
+# Kept for backward compatibility with diagnostic tools
 var _buffer_state: BufferState = BufferState.RECOVERY
 var _fib_index: int = 4             # UNUSED - diagnostics only
 var _emergency_refill: bool = false # UNUSED - per-biome version used instead
@@ -115,19 +150,20 @@ var biome_fib_indices: Dictionary = {}    # biome_name -> int (Fibonacci index)
 var biome_emergency_refill: Dictionary = {}  # biome_name -> bool (hit depth=0)
 var biome_last_escalation_time: Dictionary = {}  # biome_name -> float (msec timestamp of last fib increment)
 
-# === PER-BIOME ASYNC PACKET QUEUES (DEPRECATED - using hybrid global) ===
-var biome_packet_queues: Dictionary = {}  # DEPRECATED
-var biome_threads: Dictionary = {}        # DEPRECATED
+# === PER-BIOME ASYNC PACKET QUEUES ===
+# Note: Marked for refactor to hybrid global queue, but still actively used
+var biome_packet_queues: Dictionary = {}  # Per-biome packet queue
+var biome_threads: Dictionary = {}        # Per-biome compute threads
 var biome_pending: Dictionary = {}        # biome_name -> bool (has queued packet)
 var biome_in_flight: Dictionary = {}      # biome_name -> bool (thread currently running)
 var biome_paused: Dictionary = {}         # biome_name -> bool (no peeked terminals, skip evolution)
 var biome_evolution_counts: Dictionary = {}  # biome_name -> int (cumulative evolution steps, for music ghost timer)
 var active_flags: Array = []              # Which biomes are active (populated with terminals)
 
-# Legacy global queue (DEPRECATED - will be removed after migration)
-var lookahead_batch_queue: Array = []     # OLD: Global pending packets
-var _batches_in_flight: Dictionary = {}  # OLD: Global completed packets
-var _batch_thread: Thread = null          # OLD: Global single thread
+# Legacy global queue (scheduled for removal after full per-biome migration)
+var lookahead_batch_queue: Array = []     # Legacy: Global pending packets
+var _batches_in_flight: Dictionary = {}  # Legacy: Global completed packets
+var _batch_thread: Thread = null          # Legacy: Global single thread
 var _batch_result_ready: Dictionary = {}  # OLD: Unused
 var _current_batch_request: Dictionary = {} # OLD: Global request tracking
 
@@ -140,7 +176,10 @@ var _last_packet_completion_time: int = 0  # msec timestamp
 # Emergency rescue: Time-based starvation detection (Tier 1 - Tactical)
 const EMERGENCY_RESCUE_STEPS = 5           # Small packet: 5 frames (500ms @ 10Hz)
 const EMERGENCY_SAFETY_MARGIN = 1.5        # Trigger when buffer_time < batch_time × 1.5
+const EMERGENCY_CRITICAL_DEPTH = 2          # Only rescue when biome is critically low (<= 2 phrames)
+const EMERGENCY_COOLDOWN_MS = 600           # Prevent rescue-loop lock-in (global packet cooldown)
 var _emergency_rescues: int = 0            # Track emergency packet count
+var _last_emergency_packet_time_ms: int = 0
 
 # Statistics
 var total_evolutions: int = 0
@@ -174,14 +213,15 @@ func _notification(what: int) -> void:
 		if lookahead_engine and is_instance_valid(lookahead_engine):
 			lookahead_engine = null
 
-		# Safely null out threads without waiting
-		# In Godot 4, threads clean themselves up automatically
-		# Waiting on threads during cleanup can cause deadlocks if called from a worker thread
+		# Ensure all worker threads finish before releasing references.
+		# This prevents "Thread object is being destroyed without completion".
 		if _batch_thread != null:
+			_batch_thread.wait_to_finish()
 			_batch_thread = null
 
 		for biome_name in biome_threads.keys():
 			if biome_threads[biome_name] != null:
+				biome_threads[biome_name].wait_to_finish()
 				biome_threads[biome_name] = null
 
 
@@ -204,6 +244,14 @@ func initialize(biome_array: Array, p_terminal_pool = null):
 	"""
 	terminal_pool = p_terminal_pool
 
+	# Resolve runtime flags once per session.
+	_headless_env = DisplayServer.get_name() == "headless"
+	var rig_enabled = _rig_flags_enabled(_headless_env)
+	_disable_lookahead_env = _resolve_flag("RIG_DISABLE_LOOKAHEAD", "SW_DISABLE_LOOKAHEAD", rig_enabled)
+	_disable_mi_env = _resolve_flag("RIG_DISABLE_MI", "SW_DISABLE_MI", rig_enabled)
+	_disable_force_env = _resolve_flag("RIG_DISABLE_FORCE_GRAPH", "SW_DISABLE_FORCE", rig_enabled) \
+		or _resolve_flag("RIG_DISABLE_FORCE", "SW_DISABLE_FORCE", rig_enabled)
+
 	# Filter valid biomes (not null, has quantum computer)
 	biomes = biome_array.filter(func(b):
 		return b != null and b.quantum_computer != null
@@ -212,8 +260,12 @@ func initialize(biome_array: Array, p_terminal_pool = null):
 	print("BiomeEvolutionBatcher: Registered %d biomes for batch evolution" % biomes.size())
 
 	# Try to initialize Stage 2 lookahead engine
-	if ENABLE_LOOKAHEAD:
+	if ENABLE_LOOKAHEAD and not _disable_lookahead_env:
 		_setup_lookahead_engine()
+	elif _disable_lookahead_env:
+		lookahead_enabled = false
+		lookahead_engine = null
+		print("  Lookahead disabled by environment flag(s) - using Stage 1 rotation")
 
 	if lookahead_enabled:
 		print("  Mode: Batched lookahead (%d phrames × %.1fs = %.1fs buffer)" % [
@@ -272,6 +324,8 @@ func register_biome(biome) -> void:
 	biome_fib_indices[biome_name] = 4  # Start at Fib[4]=5
 	biome_emergency_refill[biome_name] = false
 	biome_last_escalation_time[biome_name] = 0.0  # Never escalated yet
+	biome_dirty[biome_name] = false
+	biome_pending_reregister[biome_name] = false
 
 	# If native engine is ready, register and prime immediately
 	if _engine_ready and lookahead_engine and ENABLE_LOOKAHEAD:
@@ -333,6 +387,12 @@ func unregister_biome(biome) -> void:
 	metadata_payloads.erase(biome_name)
 	coupling_payloads.erase(biome_name)
 	icon_map_payloads.erase(biome_name)
+	_biome_engine_dims.erase(biome_name)
+	biome_last_good_rho.erase(biome_name)
+	biome_last_good_bloch.erase(biome_name)
+	biome_last_good_purity.erase(biome_name)
+	biome_dirty.erase(biome_name)
+	biome_pending_reregister.erase(biome_name)
 
 	# Clean up per-biome state
 	biome_packet_queues.erase(biome_name)
@@ -364,6 +424,16 @@ func _register_and_prime_biome(biome) -> void:
 	# Check if biome is already registered with engine (by TestBootManager or other caller)
 	var biome_id = _biome_engine_ids.get(biome_name, -1)
 
+	if biome_id >= 0:
+		var engine_dim = _biome_engine_dims.get(biome_name, dim)
+		if engine_dim != dim:
+			biome_pending_reregister[biome_name] = true
+			_log("warn", "batcher", "⚠️", "%s: engine dim %d != qc dim %d, scheduling re-register" % [
+				biome_name, engine_dim, dim
+			])
+			return
+		_biome_engine_dims[biome_name] = dim
+
 	if biome_id < 0:
 		# Not yet registered - register with native engine
 		var H_packed = qc.hamiltonian._to_packed() if qc.hamiltonian else PackedFloat64Array()
@@ -379,6 +449,7 @@ func _register_and_prime_biome(biome) -> void:
 		if biome_id >= 0:
 			_biome_engine_ids[biome_name] = biome_id
 			_engine_id_to_biome[biome_id] = biome_name
+			_biome_engine_dims[biome_name] = dim
 
 		if biome_id >= 0 and lookahead_engine.has_method("set_biome_metadata"):
 			var metadata = _build_metadata_payload(biome)
@@ -395,6 +466,7 @@ func _register_and_prime_biome(biome) -> void:
 	# Prime the biome's 10-step lookahead buffers
 	if lookahead_enabled and biome_id >= 0:
 		_prime_single_biome(biome, biome_id)
+		biome_dirty[biome_name] = false
 		print("BiomeEvolutionBatcher: Registered biome '%s' (native id=%d, primed)" % [biome_name, biome_id])
 		biome_ready.emit(biome_name)
 	else:
@@ -443,6 +515,10 @@ func _create_lookahead_engine_async() -> void:
 		print("  MultiBiomeLookaheadEngine: Failed to instantiate - using Stage 1 fallback")
 		_process_pending_biomes_gdscript()
 		return
+	if _disable_mi_env and lookahead_engine.has_method("set_enable_mi"):
+		lookahead_engine.set_enable_mi(false)
+	if _disable_force_env and lookahead_engine.has_method("set_enable_force"):
+		lookahead_engine.set_enable_force(false)
 
 	print("  MultiBiomeLookaheadEngine: Engine created, processing pending biomes...")
 
@@ -491,6 +567,7 @@ func _create_lookahead_engine_async() -> void:
 		if biome_id >= 0:
 			_biome_engine_ids[biome_name] = biome_id
 			_engine_id_to_biome[biome_id] = biome_name
+			_biome_engine_dims[biome_name] = dim
 
 		if biome_id >= 0 and lookahead_engine.has_method("set_biome_metadata"):
 			var metadata = _build_metadata_payload(biome)
@@ -512,6 +589,8 @@ func _create_lookahead_engine_async() -> void:
 		purity_buffers[biome_name] = []
 		metadata_payloads[biome_name] = _build_metadata_payload(biome)
 		coupling_payloads[biome_name] = _get_coupling_payload_from_viz_cache(biome)
+		biome_dirty[biome_name] = false
+		biome_pending_reregister[biome_name] = false
 
 		if biome_id >= 0:
 			registered_biomes.append(biome)
@@ -759,6 +838,10 @@ func _physics_process_lookahead(delta: float):
 		if biome and biome.time_tracker:
 			biome.time_tracker.update(delta)
 
+	# Handle pending re-registrations when safe (no in-flight packets)
+	if lookahead_enabled:
+		_process_pending_reregisters()
+
 	var t1 = Time.get_ticks_usec()
 	_phys_timing_time_track_us += (t1 - t0)
 
@@ -847,7 +930,7 @@ class BiomeBufferState:
 
 func _is_valid_biome(biome) -> bool:
 	"""Check if biome has quantum computer (standard null check)."""
-	return biome != null and biome.quantum_computer != null
+	return biome != null and is_instance_valid(biome) and biome.quantum_computer != null
 
 
 func _get_biome_name(biome) -> String:
@@ -961,6 +1044,90 @@ func _get_biome_depth(biome_name: String) -> int:
 	return buffer.size() - cursor
 
 
+func _get_biome_buffer_time_ms(biome_name: String) -> float:
+	var depth = _get_biome_depth(biome_name)
+	return depth * EVOLUTION_INTERVAL * 1000.0
+
+
+func _get_biome_rho_status(biome_name: String, biome) -> Dictionary:
+	var status = {
+		"valid": false,
+		"rho": PackedFloat64Array(),
+		"dim": 0,
+		"engine_dim": _biome_engine_dims.get(biome_name, -1),
+		"reason": "unknown"
+	}
+	if biome == null or not is_instance_valid(biome):
+		status.reason = "biome_invalid"
+		return status
+	if not biome.quantum_computer:
+		status.reason = "no_qc"
+		return status
+
+	var qc = biome.quantum_computer
+	if qc.register_map == null:
+		status.reason = "no_register_map"
+		return status
+
+	var dim = qc.register_map.dim()
+	status.dim = dim
+	if dim <= 0:
+		status.reason = "dim_zero"
+		return status
+	if qc.density_matrix == null:
+		status.reason = "no_rho"
+		return status
+
+	var rho_packed = qc.density_matrix._to_packed()
+	status.rho = rho_packed
+	if rho_packed.is_empty():
+		status.reason = "empty_rho"
+		return status
+
+	var engine_dim = status.engine_dim
+	if engine_dim >= 0 and engine_dim != dim:
+		status.reason = "engine_dim_mismatch"
+		biome_pending_reregister[biome_name] = true
+		return status
+
+	status.valid = true
+	status.reason = "ok"
+	biome_last_good_rho[biome_name] = rho_packed
+	return status
+
+
+func _process_pending_reregisters() -> void:
+	if biome_pending_reregister.is_empty():
+		return
+	if lookahead_engine == null:
+		return
+	if _batch_thread != null or not lookahead_batch_queue.is_empty():
+		return
+
+	var pending_names = biome_pending_reregister.keys()
+	for biome_name in pending_names:
+		if biome_pending_reregister.get(biome_name, false):
+			_reregister_biome_by_name(biome_name)
+
+
+func _reregister_biome_by_name(biome_name: String) -> void:
+	var biome = _get_biome_by_name(biome_name)
+	if not _is_valid_biome(biome):
+		biome_pending_reregister.erase(biome_name)
+		return
+
+	var old_id = _biome_engine_ids.get(biome_name, -1)
+	if old_id >= 0:
+		_engine_id_to_biome[old_id] = ""
+
+	_biome_engine_ids[biome_name] = -1
+	_biome_engine_dims.erase(biome_name)
+	_register_and_prime_biome(biome)
+
+	biome_dirty[biome_name] = false
+	biome_pending_reregister.erase(biome_name)
+
+
 func _get_biome_by_name(biome_name: String):
 	"""Find biome object by name. Returns null if not found."""
 	for biome in biomes:
@@ -1032,26 +1199,26 @@ func _biome_has_peeked_terminals(biome) -> bool:
 	return true
 
 
-func _should_trigger_biome_refill(biome_name: String, depth: int) -> bool:
-	"""Check if a SINGLE biome needs refill (per-biome batch-size-relative logic).
+func _should_trigger_biome_refill(biome_name: String, depth: int, rho_valid: bool = true) -> bool:
+	"""Check if a SINGLE biome needs refill (time-based thresholds).
 
-	Uses batch-size-relative thresholds for the 'all in one packet' model:
-	- Always refill when depth < 2x batch_size (maintain buffer health)
-	- Emergency if depth <= 0
+	Decouples refill thresholds from batch size to avoid starvation lock-in.
 	"""
 	# Check if biome is paused (no bubbles)
 	if biome_paused.get(biome_name, false):
 		return false  # Don't refill paused biomes
 
-	if depth <= 0:
-		return true  # Emergency
+	# Don't evolve if rho is invalid
+	if not rho_valid:
+		return false
 
-	var batch_size = _get_biome_batch_size(biome_name)
+	# Invalidation should force a refill even if buffer is still full
+	if biome_dirty.get(biome_name, false):
+		return true
 
-	# Refill when buffer drops below 2x batch_size
-	# This ensures we always have enough buffer to avoid starvation
-	# while the next packet is being computed
-	return depth < batch_size * 2
+	var buffer_time_ms = _get_biome_buffer_time_ms(biome_name)
+	var min_buffer_ms = MIN_BUFFER_STEPS * EVOLUTION_INTERVAL * 1000.0
+	return buffer_time_ms < min_buffer_ms
 
 
 func _update_buffer_state() -> void:
@@ -1094,21 +1261,26 @@ func _update_biome_buffer_state(biome_name: String) -> void:
 	"""Update RECOVERY/COAST state for a SINGLE biome based on its buffer depth.
 
 	Each biome independently tracks its own state and Fibonacci index.
-	Uses batch-size-relative thresholds for the 'all in one packet' model:
-	- STARVATION: depth < 2x batch_size → fib up (escalate)
-	- COAST: depth > 3x batch_size → fib down (de-escalate)
-	- STABLE: 2x ≤ depth ≤ 3x batch_size → maintain
+	Uses time-based thresholds (decoupled from batch size):
+	- STARVATION: buffer_time < MIN_BUFFER_MS → fib up (escalate)
+	- COAST: buffer_time > MAX_BUFFER_MS → fib down (de-escalate)
+	- STABLE: MIN ≤ buffer_time ≤ MAX → maintain
 	"""
-	var depth = _get_biome_depth(biome_name)
+	var biome = _get_biome_by_name(biome_name)
+	var status = _get_biome_rho_status(biome_name, biome)
+	if not status.valid:
+		return
+
+	var buffer_time_ms = _get_biome_buffer_time_ms(biome_name)
 	var prev_state = biome_buffer_states.get(biome_name, BufferState.RECOVERY)
 	var fib_index = biome_fib_indices.get(biome_name, 4)
-	var batch_size = _get_biome_batch_size(biome_name)  # Current batch size for this biome
+	var min_buffer_ms = MIN_BUFFER_STEPS * EVOLUTION_INTERVAL * 1000.0
+	var max_buffer_ms = MAX_BUFFER_STEPS * EVOLUTION_INTERVAL * 1000.0
 
-	# STARVATION: depth < 2x batch_size → escalate
-	# Must match refill threshold to avoid chicken-and-egg problem
-	if depth < batch_size * 2:
+	# STARVATION: buffer_time too low or buffer invalidated → escalate
+	if biome_dirty.get(biome_name, false) or buffer_time_ms < min_buffer_ms:
 		biome_buffer_states[biome_name] = BufferState.RECOVERY
-		if depth <= 0:
+		if buffer_time_ms <= 0.0:
 			biome_emergency_refill[biome_name] = true
 
 		# Escalate fib_index with 500ms cooldown
@@ -1123,12 +1295,12 @@ func _update_biome_buffer_state(biome_name: String) -> void:
 			if new_fib != fib_index:
 				biome_fib_indices[biome_name] = new_fib
 				biome_last_escalation_time[biome_name] = now_ms
-				_log("info", "STATE", "📈", "%s: STARVATION (depth=%d < 2×batch=%d), fib %d→%d" % [
-					biome_name, depth, batch_size * 2, fib_index, new_fib
+				_log("info", "STATE", "📈", "%s: STARVATION (buffer=%.0fms < %.0fms), fib %d→%d" % [
+					biome_name, buffer_time_ms, min_buffer_ms, fib_index, new_fib
 				])
 
-	# COAST: depth > 3x batch_size → de-escalate
-	elif depth > batch_size * 3:
+	# COAST: buffer_time high → de-escalate
+	elif buffer_time_ms > max_buffer_ms:
 		biome_buffer_states[biome_name] = BufferState.COAST
 		biome_emergency_refill[biome_name] = false
 
@@ -1136,11 +1308,11 @@ func _update_biome_buffer_state(biome_name: String) -> void:
 		if prev_state == BufferState.RECOVERY:
 			var new_fib = maxi(fib_index - 1, 2)  # Min fib_index=2 (batch_size=2)
 			biome_fib_indices[biome_name] = new_fib
-			_log("info", "STATE", "📉", "%s: RECOVERY→COAST, depth=%d > 3×batch=%d, fib %d→%d" % [
-				biome_name, depth, batch_size * 3, fib_index, new_fib
+			_log("info", "STATE", "📉", "%s: RECOVERY→COAST, buffer=%.0fms > %.0fms, fib %d→%d" % [
+				biome_name, buffer_time_ms, max_buffer_ms, fib_index, new_fib
 			])
 
-	# STABLE ZONE: batch_size ≤ depth ≤ 3x batch_size
+	# STABLE ZONE: MIN ≤ buffer_time ≤ MAX
 	# Keep current state and fib_index (no change)
 
 
@@ -1209,11 +1381,10 @@ func _trigger_adaptive_refill() -> void:
 		var biome = active_biome_names.get(biome_name, null)
 
 		if biome and _is_valid_biome(biome):
-			# Active biome: include current rho (empty = skip calculation)
-			var qc = biome.quantum_computer
-			var rho_packed = qc.density_matrix._to_packed() if qc.density_matrix else PackedFloat64Array()
-			biome_rhos.append(rho_packed)
-			refill_active_flags.append(true)
+			var biome_depth = _get_biome_depth(biome_name)
+			var status = _get_biome_rho_status(biome_name, biome)
+			biome_rhos.append(status.rho)
+			refill_active_flags.append(status.valid and _should_trigger_biome_refill(biome_name, biome_depth, status.valid))
 		else:
 			# Unregistered biome or unknown: skip calculation (empty array)
 			biome_rhos.append(PackedFloat64Array())
@@ -1232,7 +1403,7 @@ func _trigger_adaptive_refill() -> void:
 
 # === HYBRID GLOBAL PACKET WITH PER-BIOME BUFFER TRACKING ===
 
-func _check_starving_by_time() -> Array[String]:
+func _check_starving_by_time() -> Array:
 	"""TIER 1: Detect biomes that will starve before next packet completes (time-based).
 
 	Starvation = buffer_time < batch_compute_time × safety_margin
@@ -1250,7 +1421,7 @@ func _check_starving_by_time() -> Array[String]:
 	This is adaptive to actual C++ performance - if C++ slows down,
 	we detect starvation earlier.
 	"""
-	var starving: Array[String] = []
+	var starving: Array = []
 
 	# Use max of last and average for conservative estimate
 	var batch_time = max(last_batch_time_ms, _avg_batch_time_ms)
@@ -1264,19 +1435,28 @@ func _check_starving_by_time() -> Array[String]:
 			continue
 
 		var biome_name = _get_biome_name(biome)
+		# Paused biomes don't consume buffers, so they can't starve.
+		if biome_paused.get(biome_name, false):
+			continue
+
+		var status = _get_biome_rho_status(biome_name, biome)
+		if not status.valid:
+			continue
 		var depth = _get_biome_depth(biome_name)
 		var buffer_time_ms = depth * EVOLUTION_INTERVAL * 1000.0  # Convert to ms
 
-		if buffer_time_ms < threshold_time:
+		# Emergency rescue is for CRITICAL depletion only.
+		# Non-critical low buffers are handled by regular hybrid refill.
+		if depth <= EMERGENCY_CRITICAL_DEPTH and buffer_time_ms < threshold_time:
 			starving.append(biome_name)
 			_log("warn", "RESCUE", "🚨",
-				"%s: buffer=%dms < %dms (%.1fx batch)" %
-				[biome_name, buffer_time_ms, threshold_time, EMERGENCY_SAFETY_MARGIN])
+				"%s: CRITICAL depth=%d, buffer=%dms < %dms (%.1fx batch)" %
+				[biome_name, depth, buffer_time_ms, threshold_time, EMERGENCY_SAFETY_MARGIN])
 
 	return starving
 
 
-func _queue_emergency_packet(starving_biomes: Array[String]) -> void:
+func _queue_emergency_packet(starving_biomes: Array) -> void:
 	"""Queue small PRIORITY packet for starving biomes only (Tier 1 rescue).
 
 	This packet:
@@ -1289,6 +1469,12 @@ func _queue_emergency_packet(starving_biomes: Array[String]) -> void:
 	strategic capacity adjustment.
 	"""
 	if not lookahead_engine:
+		return
+	var now_ms = Time.get_ticks_msec()
+	if now_ms - _last_emergency_packet_time_ms < EMERGENCY_COOLDOWN_MS:
+		_log("trace", "RESCUE", "⏳", "Emergency cooldown active (%dms)" % [
+			EMERGENCY_COOLDOWN_MS - (now_ms - _last_emergency_packet_time_ms)
+		])
 		return
 
 	var biome_rhos: Array = []
@@ -1305,16 +1491,15 @@ func _queue_emergency_packet(starving_biomes: Array[String]) -> void:
 			active_flags_arr.append(false)
 			continue
 
-		# Include starving biome (empty = skip if invalid)
+		# Include starving biome (only if rho valid)
 		var biome = _find_biome_by_name(biome_name)
-		if biome and biome.quantum_computer:
-			var qc = biome.quantum_computer
-			var rho_packed = qc.density_matrix._to_packed() if qc.density_matrix else PackedFloat64Array()
-			biome_rhos.append(rho_packed)
-			active_flags_arr.append(true)
-			rescued_count += 1
+		if biome and _is_valid_biome(biome):
+			var status = _get_biome_rho_status(biome_name, biome)
+			biome_rhos.append(status.rho)
+			active_flags_arr.append(status.valid)
+			if status.valid:
+				rescued_count += 1
 		else:
-			# Invalid biome - skip calculation
 			biome_rhos.append(PackedFloat64Array())
 			active_flags_arr.append(false)
 
@@ -1336,6 +1521,7 @@ func _queue_emergency_packet(starving_biomes: Array[String]) -> void:
 	# PRIORITY: Push to front of queue
 	lookahead_batch_queue.push_front(packet)
 	_emergency_rescues += 1
+	_last_emergency_packet_time_ms = now_ms
 
 	_log("info", "RESCUE", "🚑",
 		"Emergency packet queued: %d biomes, %d frames (~%.0fms)" %
@@ -1383,13 +1569,14 @@ func _trigger_hybrid_refill():
 			continue
 		var biome_name = _get_biome_name(biome)
 		var depth = _get_biome_depth(biome_name)
+		var status = _get_biome_rho_status(biome_name, biome)
 
 		# Track minimum depth across all active biomes
 		if depth < min_depth:
 			min_depth = depth
 
 		# Check if this biome needs refill
-		if _should_trigger_biome_refill(biome_name, depth):
+		if _should_trigger_biome_refill(biome_name, depth, status.valid):
 			needs_refill = true
 
 	# Only queue packet if at least one biome needs refill
@@ -1444,17 +1631,12 @@ func _queue_hybrid_packet():
 			active_flags_arr.append(false)
 			continue
 
-		var qc = biome.quantum_computer
 		var depth = _get_biome_depth(biome_name)
-
-		# Pack density matrix - send empty array if invalid (C++ should check active_flag)
-		# Don't invent fake states - a zero state has no Hamiltonian meaning
-		var rho_packed = qc.density_matrix._to_packed() if qc.density_matrix else PackedFloat64Array()
-		biome_rhos.append(rho_packed)
+		var status = _get_biome_rho_status(biome_name, biome)
+		biome_rhos.append(status.rho)
 
 		# Determine if this biome should evolve
-		# Skip calculation if density_matrix is invalid (no Hamiltonian meaning)
-		var should_evolve = qc.density_matrix != null and _should_trigger_biome_refill(biome_name, depth)
+		var should_evolve = status.valid and _should_trigger_biome_refill(biome_name, depth, status.valid)
 		active_flags_arr.append(should_evolve)
 
 		# Track max batch size AND fib_index (C++ uses max, delay uses fib_index)
@@ -1668,6 +1850,7 @@ func invalidate_biome_buffer(biome_name: String):
 	position_buffers[biome_name] = []
 	velocity_buffers[biome_name] = []
 	buffer_cursors[biome_name] = 0
+	biome_dirty[biome_name] = true
 
 	# Re-prime this biome from current state (frozen 13 phrames)
 	var biome = _get_biome_by_name(biome_name)
@@ -1750,14 +1933,23 @@ func _prime_single_biome_frozen(biome):
 	var biome_name = _get_biome_name(biome)
 	# Skip calculation if no valid state (empty = skip)
 	var rho_packed = qc.density_matrix._to_packed() if qc.density_matrix else PackedFloat64Array()
+	if rho_packed.is_empty():
+		var last_good = biome_last_good_rho.get(biome_name, PackedFloat64Array())
+		if last_good.is_empty():
+			_log("warn", "INVALIDATE", "⚠️", "%s: cannot prime frozen buffer (empty rho)" % biome_name)
+			return
+		rho_packed = last_good
 
 	# Fill with frozen current state
 	frame_buffers[biome_name] = _create_frozen_buffer(rho_packed, LOOKAHEAD_STEPS)
 	buffer_cursors[biome_name] = 0
 
 	# Export current Bloch and purity
-	var bloch_packet = qc.export_bloch_packet() if qc.has_method("export_bloch_packet") else PackedFloat64Array()
-	var purity = qc.get_purity() if qc.has_method("get_purity") else 1.0
+	var bloch_packet = qc.export_bloch_packet() if qc.has_method("export_bloch_packet") else biome_last_good_bloch.get(biome_name, PackedFloat64Array())
+	var purity = qc.get_purity() if qc.has_method("get_purity") else biome_last_good_purity.get(biome_name, 1.0)
+	if bloch_packet.size() > 0:
+		biome_last_good_bloch[biome_name] = bloch_packet
+	biome_last_good_purity[biome_name] = purity
 
 	bloch_buffers[biome_name] = _create_frozen_buffer(bloch_packet, LOOKAHEAD_STEPS)
 
@@ -2026,20 +2218,15 @@ func _refill_all_lookahead_buffers(force_all: bool = false):
 		var biome = active_biome_names.get(biome_name, null)
 
 		if biome and _is_valid_biome(biome):
-			var active = true
+			var status = _get_biome_rho_status(biome_name, biome)
+			var active = status.valid
 			if not force_all:
 				if terminal_pool and not _biome_has_bound_terminals(biome):
 					active = false
 				if not biome.quantum_evolution_enabled or biome.evolution_paused:
 					active = false
 
-			# Skip calculation if no valid state (empty = skip)
-			var qc = biome.quantum_computer
-			var rho = qc.density_matrix._to_packed() if qc.density_matrix else PackedFloat64Array()
-			if rho.is_empty():
-				active = false  # Don't evolve if invalid state
-
-			biome_rhos.append(rho)
+			biome_rhos.append(status.rho)
 			refill_active_flags.append(active)
 		else:
 			# Unregistered biome: skip calculation
@@ -3040,17 +3227,16 @@ func _merge_accumulated_packets() -> void:
 
 			unconsumed_velocities.append_array(accumulated_velocity_steps.get(biome_name, []))
 			velocity_buffers[biome_name] = unconsumed_velocities
+			biome_dirty[biome_name] = false
 		else:
 			# PHASE 2 FIX: Only create frozen buffer if buffer is empty
 			# If buffer has unconsumed frames, preserve them (don't overwrite with frozen)
 			# This prevents data loss when biomes temporarily become "inactive"
 			var current_depth = _get_biome_depth(biome_name)
 			if current_depth <= 0:
-				# Buffer empty/depleted - create frozen buffer
-				var qc = biome.quantum_computer
-				var rho_packed = qc.density_matrix._to_packed() if qc.density_matrix else PackedFloat64Array()
-				frame_buffers[biome_name] = _create_frozen_buffer(rho_packed, LOOKAHEAD_STEPS)
-				buffer_cursors[biome_name] = 0
+				# Buffer empty/depleted - prime full frozen payload (rho + bloch + purity)
+				# to prevent nodes from dropping into LIFELESS/frozen force mode.
+				_prime_single_biome_frozen(biome)
 			# else: Keep existing buffer intact (has unconsumed frames)
 
 	# Emergency de-escalation removed (handled by normal per-biome escalation logic)

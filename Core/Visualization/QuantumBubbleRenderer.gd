@@ -44,18 +44,24 @@ func draw(graph: Node2D, ctx: Dictionary) -> void:
 	var terminal_pool = ctx.get("terminal_pool")
 	var frame_count = ctx.get("frame_count", 0)
 
+	# Two-pass rendering: non-measured first, then measured on top (z+10)
 	for node in quantum_nodes:
-		# Skip hidden nodes (single-biome view)
 		if not node.visible:
 			continue
-
-		# v2: Terminal bubbles may have null plot but valid emoji data
 		if not node.plot and node.emoji_north.is_empty():
 			continue
+		if _is_node_measured(node, terminal_pool):
+			continue  # Defer to second pass
+		_draw_quantum_bubble(graph, node, biomes, time_accumulator, terminal_pool, false)
 
-		# NOTE: Visuals are updated by QuantumNodeManager (including terminal bubbles)
-
-		# Draw the bubble
+	# Second pass: measured bubbles drawn on top
+	for node in quantum_nodes:
+		if not node.visible:
+			continue
+		if not node.plot and node.emoji_north.is_empty():
+			continue
+		if not _is_node_measured(node, terminal_pool):
+			continue
 		_draw_quantum_bubble(graph, node, biomes, time_accumulator, terminal_pool, false)
 
 
@@ -605,7 +611,7 @@ func _is_node_measured(node, terminal_pool) -> bool:
 		return false
 
 	# Check plot-based measurement (v1)
-	if node.plot != null and node.plot.has_been_measured:
+	if node.plot != null and node.plot.is_measured:
 		return true
 
 	# Check terminal directly on node (v2 - preferred)

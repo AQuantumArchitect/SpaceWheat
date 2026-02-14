@@ -94,7 +94,7 @@ func update_plot(position: Vector2i, plot) -> void:
 	var ui_data = PlotUIData.new()
 	ui_data.position = position
 	ui_data.is_planted = plot.is_active()
-	ui_data.plot_type = _get_plot_type_string(plot.plot_type)
+	ui_data.plot_type = plot.plot_type_name
 
 	var emojis = plot.get_plot_emojis()
 	ui_data.north_emoji = emojis.get("north", "")
@@ -140,10 +140,4 @@ func refresh_all(farm: Node) -> void:
 ## HELPER METHODS
 ## ============================================================================
 
-func _get_plot_type_string(plot_type_enum: int) -> String:
-	"""Convert WheatPlot.PlotType enum to string"""
-	match plot_type_enum:
-		0: return "wheat"
-		1: return "tomato"
-		2: return "mushroom"
-		_: return "empty"
+# Converter removed: _get_plot_type_string() - no longer needed with plot_type_name

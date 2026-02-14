@@ -503,7 +503,7 @@ static func _apply_single_qubit_gate(farm, position: Vector2i, gate_name: String
 	# V1 MODEL: Fall back to plot-based approach (viz_cache mapping)
 	if register_id < 0 and farm.grid:
 		var plot = farm.grid.get_plot(position)
-		if plot and plot.is_planted:
+		if plot and plot.is_active():
 			biome = farm.grid.get_biome_for_plot(position)
 			# Resolve qubit via viz_cache metadata
 			if biome and plot.north_emoji:
@@ -597,13 +597,13 @@ static func _apply_two_qubit_gate(farm, position_a: Vector2i, position_b: Vector
 		var plot_a = farm.grid.get_plot(position_a)
 		var plot_b = farm.grid.get_plot(position_b)
 
-		if plot_a and plot_a.is_planted and reg_a < 0:
+		if plot_a and plot_a.is_active() and reg_a < 0:
 			biome_a = farm.grid.get_biome_for_plot(position_a)
 			# Resolve qubit via viz_cache metadata
 			if biome_a and plot_a.north_emoji:
 				reg_a = _resolve_register_id(biome_a, plot_a.north_emoji)
 
-		if plot_b and plot_b.is_planted and reg_b < 0:
+		if plot_b and plot_b.is_active() and reg_b < 0:
 			biome_b = farm.grid.get_biome_for_plot(position_b)
 			# Resolve qubit via viz_cache metadata
 			if biome_b and plot_b.north_emoji:

@@ -170,7 +170,7 @@ static func inspect_plot(farm, positions: Array[Vector2i]) -> Dictionary:
 			continue
 
 		info.valid = true
-		info.is_planted = plot.is_planted
+		info.is_planted = plot.is_active()
 		info.north_emoji = plot.north_emoji if plot.north_emoji else ""
 		info.south_emoji = plot.south_emoji if plot.south_emoji else ""
 
@@ -202,7 +202,7 @@ static func inspect_plot(farm, positions: Array[Vector2i]) -> Dictionary:
 				info.has_terminal = false
 
 		# Plot fallback probability (if no terminal info)
-		if biome and (not info.get("has_terminal", false)) and plot.is_planted and plot.north_emoji != "":
+		if biome and (not info.get("has_terminal", false)) and plot.is_active() and plot.north_emoji != "":
 			if biome.viz_cache:
 				var reg_id = biome.viz_cache.get_qubit(plot.north_emoji)
 				if reg_id >= 0:
@@ -320,11 +320,15 @@ static func inject_vocabulary(farm, positions: Array[Vector2i], vocab_pair: Dict
 	var cost_gate = EconomyConstants.preflight_action("vocab_injection", farm.economy, {"south_emoji": south})
 	var cost = cost_gate.get("cost", {})
 	if not cost_gate.get("ok", true):
+		var current: Dictionary = {}
+		if farm.economy and farm.economy.has_method("get_resource"):
+			for emoji in cost:
+				current[emoji] = farm.economy.get_resource(emoji)
 		return {
 			"success": false,
 			"error": "insufficient_funds",
 			"cost": cost,
-			"current": farm.economy.get("energy", 0)
+			"current": current
 		}
 
 	# Perform expansion

@@ -60,7 +60,7 @@ func test_wheat_plot_creation():
 	var plot = WheatPlot.new()
 	plot.plot_id = "test_plot"
 
-	assert_true(not plot.is_planted, "New plot should not be planted")
+	assert_true(not plot.is_active(), "New plot should not be planted")
 	assert_true(plot.growth_progress == 0.0, "Growth should be zero")
 	assert_true(plot.replant_cycles == 0, "Replant cycles should be zero")
 
@@ -73,7 +73,7 @@ func test_wheat_growth():
 	var plot = WheatPlot.new()
 	plot.plant()
 
-	assert_true(plot.is_planted, "Plot should be planted")
+	assert_true(plot.is_active(), "Plot should be planted")
 	assert_true(plot.growth_progress == 0.0, "Initial growth should be zero")
 
 	# Simulate growth
@@ -100,7 +100,7 @@ func test_quantum_measurement():
 	var state_before = plot.get_dominant_emoji()
 	var measured_state = plot.measure()
 
-	assert_true(plot.has_been_measured, "Plot should be marked as measured")
+	assert_true(plot.is_measured, "Plot should be marked as measured")
 	assert_true(measured_state == plot.EMOJI_NORTH or measured_state == plot.EMOJI_SOUTH,
 		"Should collapse to one of the basis states")
 

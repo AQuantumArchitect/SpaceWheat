@@ -13,12 +13,12 @@ const QuantumNode = preload("res://Core/Visualization/QuantumNode.gd")
 
 
 func create_quantum_nodes(ctx: Dictionary, _skip_quantum_register_bubbles: bool = false) -> Array:
-	"""Create quantum nodes: one test bubble + bubbles for already-bound terminals.
+	"""Create quantum nodes for already-bound terminals.
 
 	Architecture:
-	  1. ONE test bubble at (-1,-1) validates the rendering pipeline at boot
-	  2. Terminal bubbles for any pre-bound terminals (from save/load)
-	  3. New terminals create bubbles dynamically via _on_terminal_bound signal
+	  1. Terminal bubbles for any pre-bound terminals (from save/load)
+	  2. New terminals create bubbles dynamically via _on_terminal_bound signal
+	  3. Boot explore is triggered by BootManager after viz setup (real action, not fake)
 
 	Args:
 	    ctx: Context dictionary with {biomes, farm_grid, terminal_pool, layout_calculator}
@@ -32,38 +32,6 @@ func create_quantum_nodes(ctx: Dictionary, _skip_quantum_register_bubbles: bool 
 	var layout_calculator = ctx.get("layout_calculator")
 
 	var nodes: Array = []
-
-	# BOOT BUBBLE: One bubble to validate rendering pipeline and trigger music/evolution
-	# Prefers StarterForest if available, otherwise uses first biome with viz_cache
-	# Made to look like an explored terminal bubble so music and evolution start immediately
-	var boot_biome_name = ""
-
-	# First try to find StarterForest
-	if biomes.has("StarterForest"):
-		var biome = biomes["StarterForest"]
-		if biome and biome.viz_cache and biome.viz_cache.has_metadata():
-			boot_biome_name = "StarterForest"
-
-	# Fallback to first available biome
-	if boot_biome_name == "":
-		for biome_name in biomes:
-			var biome = biomes[biome_name]
-			if biome and biome.viz_cache and biome.viz_cache.has_metadata():
-				boot_biome_name = biome_name
-				break
-
-	if boot_biome_name != "":
-		var test_node = _create_node_for_register(boot_biome_name, 0, biomes, layout_calculator)
-		if test_node:
-			test_node.plot_id = "boot_test"
-			# Make it look like an explored terminal bubble (triggers music/evolution)
-			test_node.has_farm_tether = true
-			test_node.is_terminal_bubble = true
-			test_node.grid_position = Vector2i(0, 0)  # Fake grid position instead of (-1,-1)
-			nodes.append(test_node)
-			var verbose = _get_verbose()
-			if verbose:
-				verbose.debug("viz", "🧪", "Boot bubble created: %s:r0 (explored style)" % boot_biome_name)
 
 	# TERMINAL BUBBLES: Create bubbles for terminals already bound (from save/load)
 	if terminal_pool and terminal_pool.has_method("get_bound_terminals"):
@@ -195,7 +163,7 @@ func _create_node_for_plot(plot, grid_pos: Vector2i, layout_calculator, biomes: 
 			node.parametric_ring = params.get("ring", 0.5)
 
 	# Initialize emojis
-	if plot.is_planted:
+	if plot.is_active():
 		var emojis = plot.get_plot_emojis() if plot.has_method("get_plot_emojis") else {}
 		node.emoji_north = emojis.get("north", "")
 		node.emoji_south = emojis.get("south", "")
@@ -317,7 +285,7 @@ func update_node_visuals(nodes: Array, ctx: Dictionary) -> void:
 			elif node.has_farm_tether and not node.emoji_north.is_empty():
 				node.start_spawn_animation(time_accumulator)
 			# Plot-based nodes
-			elif node.plot and node.plot.is_planted and node.plot.parent_biome and node.plot.bath_subplot_id >= 0:
+			elif node.plot and node.plot.is_active() and node.plot.parent_biome and node.plot.bath_subplot_id >= 0:
 				node.start_spawn_animation(time_accumulator)
 
 		# Update from quantum state (unless terminal bubble with own data)
@@ -393,7 +361,7 @@ func _update_node_visual_batched(
 		return
 
 	# Guard: unplanted plot → invisible
-	if not node.plot or not node.plot.is_planted:
+	if not node.plot or not node.plot.is_active():
 		node.energy = 0.0
 		node.coherence = 1.0
 		node.radius = node.MIN_RADIUS
@@ -417,11 +385,11 @@ func _update_node_visual_batched(
 	node.emoji_north = emojis.get("north", node.emoji_north)
 	node.emoji_south = emojis.get("south", node.emoji_south)
 
-	if use_lookahead and "register_id" in node.plot and node.plot.register_id >= 0:
+	if use_lookahead and "bound_register_id" in node.plot and node.plot.bound_register_id >= 0:
 		if _apply_buffered_metrics(
 			node,
 			biome,
-			node.plot.register_id,
+			node.plot.bound_register_id,
 			use_lookahead,
 			lookahead_offset,
 			batcher

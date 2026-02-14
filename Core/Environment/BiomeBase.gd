@@ -51,6 +51,8 @@ var _gate_operations: BiomeGateOperations
 var _system_builder: BiomeQuantumSystemBuilder
 var _density_mutator: BiomeDensityMatrixMutator
 var viz_cache: QuantumVizCache = QuantumVizCache.new()
+var icons: Dictionary = {}  # Effective icons for this biome (registry + overrides)
+var icon_overrides: Dictionary = {}  # Per-biome icon overrides (never global)
 
 # ============================================================================
 # CORE STATE (remains in BiomeBase)
@@ -200,9 +202,81 @@ func _ready() -> void:
 
 func _wire_component_dependencies() -> void:
 	"""Wire dependencies for components that need IconRegistry (call after _ready)"""
-	_system_builder.set_dependencies(quantum_computer, _resource_registry, _icon_registry)
+	_system_builder.set_dependencies(quantum_computer, _resource_registry, _get_icon_registry(), icon_overrides)
 	_gate_operations.set_dependencies(quantum_computer, null, _bell_gate_tracker, time_tracker)
 	_gate_operations.set_verbose_log_callback(_verbose_log)
+
+
+func _get_icon_registry():
+	"""Refresh IconRegistry reference on demand."""
+	if _icon_registry and is_instance_valid(_icon_registry):
+		return _icon_registry
+	var tree = Engine.get_main_loop()
+	if tree and tree is SceneTree:
+		_icon_registry = tree.root.get_node_or_null("/root/IconRegistry")
+	return _icon_registry
+
+
+func _get_base_icon(emoji: String):
+	"""Get Icon from global registry (no overrides)."""
+	var reg = _get_icon_registry()
+	return reg.get_icon(emoji) if reg else null
+
+
+func _create_local_icon(_emoji: String) -> Icon:
+	"""Override in subclasses to provide biome-local icons."""
+	return null
+
+
+func _ensure_icon_override(emoji: String):
+	"""Ensure a biome-local icon exists for an emoji (never touches global registry)."""
+	if icon_overrides.has(emoji):
+		return icon_overrides[emoji]
+	var created = _create_local_icon(emoji)
+	if created:
+		icon_overrides[emoji] = created
+	return created
+
+
+func _get_or_clone_icon(emoji: String):
+	"""Return a biome-local icon, cloning from registry when available."""
+	if icon_overrides.has(emoji):
+		return icon_overrides[emoji]
+	var base_icon = _get_base_icon(emoji)
+	if base_icon:
+		var clone = base_icon.duplicate(true)
+		icon_overrides[emoji] = clone
+		return clone
+	return _ensure_icon_override(emoji)
+
+
+func _resolve_icon_for_emoji(emoji: String, create_if_missing: bool = false):
+	"""Resolve effective icon (override > registry). Optionally create local fallback."""
+	if icon_overrides.has(emoji):
+		return icon_overrides[emoji]
+	var base_icon = _get_base_icon(emoji)
+	if base_icon:
+		return base_icon
+	if create_if_missing:
+		return _ensure_icon_override(emoji)
+	return null
+
+
+func _refresh_effective_icons() -> Dictionary:
+	"""Rebuild effective icon set for this biome."""
+	icons = {}
+	if not quantum_computer or not quantum_computer.register_map:
+		return icons
+	for emoji in quantum_computer.register_map.coordinates.keys():
+		var icon = _resolve_icon_for_emoji(emoji, true)
+		if icon:
+			icons[emoji] = icon
+	return icons
+
+
+func get_effective_icons() -> Dictionary:
+	"""Public accessor for the biome's effective icon set."""
+	return _refresh_effective_icons()
 
 
 func _seed_viz_metadata() -> void:
@@ -239,11 +313,10 @@ func _seed_viz_couplings() -> void:
 		return
 
 	# Check for icons as property (set by BiomeBuilder) or metadata
-	var icons = null
-	if "icons" in self and self.icons:
-		icons = self.icons
-	elif has_meta("icons"):
+	var icons = _refresh_effective_icons()
+	if icons.is_empty() and has_meta("icons"):
 		icons = get_meta("icons")
+		self.icons = icons
 
 	if not icons or icons.is_empty():
 		print("[BiomeBase] _seed_viz_couplings: No icons found (property or metadata)")
@@ -357,10 +430,14 @@ func _update_quantum_substrate(dt: float) -> void:
 
 func _apply_semantic_drift(dt: float) -> void:
 	"""Apply semantic drift based on 🌀 population"""
-	if not _icon_registry:
+	if not quantum_computer:
 		return
-	if quantum_computer:
-		SemanticDrift.apply_drift(quantum_computer, _icon_registry, dt)
+	var icon_source = _get_icon_registry()
+	if icon_overrides.size() > 0:
+		icon_source = _refresh_effective_icons()
+	if not icon_source:
+		return
+	SemanticDrift.apply_drift(quantum_computer, icon_source, dt)
 
 
 func get_drift_status() -> Dictionary:
@@ -753,7 +830,12 @@ func batch_measure_plots(position: Vector2i) -> Dictionary:
 
 func expand_quantum_system(north_emoji: String, south_emoji: String) -> Dictionary:
 	_wire_component_dependencies()
+	# Ensure biome-local icons exist before expansion (no global mutations)
+	_ensure_icon_override(north_emoji)
+	_ensure_icon_override(south_emoji)
 	var result = _system_builder.expand_quantum_system(north_emoji, south_emoji)
+	if result.get("success", false):
+		_refresh_effective_icons()
 	return result
 
 func inject_coupling(emoji_a: String, emoji_b: String, strength: float) -> Dictionary:
@@ -763,6 +845,78 @@ func inject_coupling(emoji_a: String, emoji_b: String, strength: float) -> Dicti
 func build_operators_cached(biome_name: String, icons: Dictionary) -> void:
 	_wire_component_dependencies()
 	_system_builder.build_operators_cached(biome_name, icons)
+
+
+# ============================================================================
+# SHARED BUILD HELPERS (Biome-local construction)
+# ============================================================================
+
+func _build_quantum_from_pairs(
+	biome_name: String,
+	emoji_pairs: Array,
+	faction_standings: Dictionary = {},
+	lindblad_spec = null,
+	icon_patch_fn: Callable = Callable(),
+	cache_name: String = ""
+) -> Dictionary:
+	"""Build a biome quantum system from emoji pairs (shared helper).
+
+	Uses faction-derived icons, applies biome-local Lindblad spec and optional patch,
+	then builds operators via the unified system builder.
+	"""
+	var result = {"success": false, "quantum_computer": null, "icons": {}, "error": ""}
+	var qc = QuantumComputer.new(biome_name)
+
+	for i in range(emoji_pairs.size()):
+		var pair = emoji_pairs[i]
+		var north = pair.get("north", "")
+		var south = pair.get("south", "")
+		if north == "" or south == "":
+			result.error = "Invalid emoji pair at index %d" % i
+			return result
+		qc.allocate_axis(i, north, south)
+
+	var BiomeBuilder = load("res://Core/Biomes/BiomeBuilder.gd")
+	var icons = BiomeBuilder.rebuild_icons_for_standings(qc.register_map, faction_standings)
+	BiomeBuilder.apply_lindblad_spec_to_icons(icons, lindblad_spec)
+	if icon_patch_fn and icon_patch_fn.is_valid():
+		icon_patch_fn.call(icons)
+
+	quantum_computer = qc
+	self.icons = icons
+	self.icon_overrides = icons.duplicate(true)
+	self.set_meta("icons", icons)
+
+	var cache_key_name = cache_name if cache_name != "" else biome_name
+	build_operators_cached(cache_key_name, icons)
+	qc.initialize_uniform_superposition()
+
+	result.success = true
+	result.quantum_computer = qc
+	result.icons = icons
+	return result
+
+
+func _rebuild_operators_from_register_map(
+	cache_name: String,
+	faction_standings: Dictionary = {},
+	lindblad_spec = null,
+	icon_patch_fn: Callable = Callable()
+) -> void:
+	"""Rebuild operators from current register_map using shared icon pipeline."""
+	if not quantum_computer or not quantum_computer.register_map:
+		return
+
+	var BiomeBuilder = load("res://Core/Biomes/BiomeBuilder.gd")
+	var icons = BiomeBuilder.rebuild_icons_for_standings(quantum_computer.register_map, faction_standings)
+	BiomeBuilder.apply_lindblad_spec_to_icons(icons, lindblad_spec)
+	if icon_patch_fn and icon_patch_fn.is_valid():
+		icon_patch_fn.call(icons)
+
+	self.icons = icons
+	self.icon_overrides = icons.duplicate(true)
+	self.set_meta("icons", icons)
+	build_operators_cached(cache_name, icons)
 
 
 # ============================================================================
@@ -1009,7 +1163,7 @@ func harvest_all_plots() -> Array:
 	var results: Array = []
 	for position in active_projections.keys():
 		var plot = grid.get_plot(position)
-		if plot and plot.is_planted:
+		if plot and plot.is_active():
 			var result = plot.harvest()
 			results.append(result)
 			_verbose_log("debug", "farm", "📍", "Harvested plot at %s: yield=%d" % [position, result.get("yield", 0)])

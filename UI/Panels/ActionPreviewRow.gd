@@ -747,7 +747,7 @@ func _resolve_selected_north_emoji() -> String:
 				return north
 
 	var plot = farm.grid.get_plot(pos) if farm and farm.grid else null
-	if plot and plot.is_planted:
+	if plot and plot.is_active():
 		return plot.north_emoji if plot.north_emoji else ""
 	return ""
 

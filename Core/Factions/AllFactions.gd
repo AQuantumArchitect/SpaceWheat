@@ -3,8 +3,9 @@ extends RefCounted
 
 ## AllFactions: Backward-compatible wrapper for FactionRegistry
 ##
+## ⚠️ TEST-ONLY: Used by 9 test files, not used by Core/UI code.
 ## DEPRECATED: Use FactionRegistry directly for new code.
-## This wrapper maintains API compatibility with existing code.
+## This wrapper maintains API compatibility with existing tests.
 ##
 ## Migration:
 ##   OLD: var factions = AllFactions.get_all()

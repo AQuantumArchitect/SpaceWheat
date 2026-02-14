@@ -677,7 +677,7 @@ func _is_active_node(node) -> bool:
 		return false
 	if node.has_farm_tether and not node.emoji_north.is_empty():
 		return true
-	if node.plot and node.plot.is_planted:
+	if node.plot and node.plot.is_active():
 		return true
 	return false
 
@@ -691,7 +691,7 @@ func _get_qubit_index(node, biome) -> int:
 		return node.register_id
 
 	if node.plot and "register_id" in node.plot:
-		return node.plot.register_id
+		return node.plot.bound_register_id
 
 	if node.emoji_north and ("viz_cache" in biome):
 		return biome.viz_cache.get_qubit(node.emoji_north)

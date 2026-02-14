@@ -637,7 +637,7 @@ func _is_measured(node) -> bool:
 	if node.terminal and node.terminal.is_measured:
 		return true
 	# Plot-based measurement (legacy)
-	if node.plot and node.plot.has_been_measured:
+	if node.plot and node.plot.is_measured:
 		return true
 	return false
 

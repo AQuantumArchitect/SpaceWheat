@@ -51,12 +51,29 @@ extends Resource
 ## Serialized data from PlayerVocabulary autoload
 @export var player_vocab_data: Dictionary = {}
 
+## IconMap Snapshot (tooling cache; NOT canonical gameplay authority)
+## Allows bash/automation to read a compact emoji-weight view without parsing runtime state.
+## Structure:
+## {
+##   "by_emoji": {"🌾": 1.0, "👥": 0.5, ...},
+##   "total": float,
+##   "steps": int
+## }
+@export var icon_map_snapshot: Dictionary = {}
+@export var icon_map_snapshot_source: String = ""  # "batcher_global" | "derived_from_pairs"
+@export var icon_map_snapshot_time: int = 0
+
 ## Unlocked Biomes - Start with StarterForest and Village, unlock more through exploration
 @export var unlocked_biomes: Array[String] = ["StarterForest", "Village"]
 
 ## Pool of unexplored biomes (assigned to UIOP slots dynamically)
 ## These are available but not yet assigned to keyboard slots
 @export var unexplored_biome_pool: Array[String] = ["BioticFlux", "StellarForges", "FungalNetworks", "VolcanicWorlds"]
+
+## Selection State (player's configured multi-select for batch operations)
+## Array of Vector2i positions of selected/checked plots
+## Allows saving complex selection configurations before executing actions
+@export var selected_plot_positions: Array = []  # Array of Vector2i
 
 
 ## Get known emojis (derived from known_pairs)
@@ -103,7 +120,7 @@ func get_pair_for_emoji(emoji: String) -> Variant:
 @export var plots: Array[Dictionary] = []
 # Each plot dictionary contains:
 #   position: Vector2i - Grid coordinates (x, y)
-#   type: int - PlotType enum (WHEAT=0, TOMATO=1, MUSHROOM=2, MILL=3, MARKET=4)
+#   type_name: String - plot type ("wheat", "mushroom", "energy_tap", etc.)
 #   is_planted: bool - Currently has an active crop
 #   has_been_measured: bool - Quantum state has been collapsed
 #   theta_frozen: bool - Measurement locked the theta value (stops Hamiltonian drift)
@@ -130,8 +147,7 @@ func get_pair_for_emoji(emoji: String) -> Variant:
 @export var time_elapsed: float = 0.0  # DEPRECATED: Use biome_states["BioticFlux"]["time_elapsed"]
 @export var sun_theta: float = 0.0  # DEPRECATED: Use biome_states["BioticFlux"]["sun_qubit"]["theta"]
 @export var sun_phi: float = 0.0    # DEPRECATED: Use biome_states["BioticFlux"]["sun_qubit"]["phi"]
-@export var wheat_icon_theta: float = PI/12  # DEPRECATED
-@export var mushroom_icon_theta: float = 11*PI/12  # DEPRECATED
+# Removed: wheat_icon_theta, mushroom_icon_theta - dead code (0 uses)
 @export var biome_state: Dictionary = {}  # DEPRECATED: Use biome_states
 
 ## Phase 2: Multi-Biome Architecture
@@ -198,7 +214,7 @@ func _init():
 		for x in range(grid_width):
 			plots.append({
 				"position": Vector2i(x, y),
-				"type": 0,  # PlotType.WHEAT
+				"type_name": "wheat",
 				"is_planted": false,
 				"has_been_measured": false,
 				"theta_frozen": false,
@@ -232,7 +248,7 @@ static func create_for_grid(width: int, height: int):
 		for x in range(width):
 			state.plots.append({
 				"position": Vector2i(x, y),
-				"type": 0,
+				"type_name": "wheat",
 				"is_planted": false,
 				"has_been_measured": false,
 				"theta_frozen": false,

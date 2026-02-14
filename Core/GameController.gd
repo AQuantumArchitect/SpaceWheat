@@ -186,6 +186,6 @@ func check_plot_harvestable(grid_size: int) -> bool:
 		for x in range(grid_size):
 			var pos = Vector2i(x, y)
 			var plot = farm_grid.get_plot(pos)
-			if plot and plot.is_planted and plot.has_been_measured:
+			if plot and plot.is_active() and plot.is_measured:
 				return true
 	return false
