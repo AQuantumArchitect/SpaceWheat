@@ -82,6 +82,8 @@ func _initialize_bath() -> void:
 	
 	# Install the built quantum computer
 	quantum_computer = result.quantum_computer
+	icons = result.icons
+	icon_overrides = result.icons.duplicate(true)
 	
 	print("  ✅ Hamiltonian: %dx%d matrix (from factions)" % [
 		quantum_computer.hamiltonian.n,
@@ -123,17 +125,13 @@ func _create_forest_lindblad_spec() -> BiomeLindblad:
 	# ═══════════════════════════════════════════════════════════════
 	
 	# Trees decay to leaf litter (forest aging)
-	L.add_drain("🌲", "🍂", 0.1)
-	
+	L.add_drain("🌲", "🍂", 0.04)
+
 	# Decay fertilizes seedlings (nutrient cycling)
 	L.add_pump("🌱", "🍂", 0.03)
-	
-	# ═══════════════════════════════════════════════════════════════
-	# EXPONENTIAL DECAY PROCESSES
-	# ═══════════════════════════════════════════════════════════════
-	
-	# Trees have intrinsic decay (old growth → deadwood)
-	L.add_decay("🌲", "🍂", 0.1)
+
+	# Vegetation matures into trees (closes the lifecycle loop)
+	L.add_pump("🌲", "🌿", 0.02)
 	
 	return L
 
@@ -164,11 +162,9 @@ func _create_forest_emoji_icon(emoji: String) -> Icon:
 		"🦌":  # Deer - large herbivore
 			icon.hamiltonian_couplings = {"🦅": APEX_HUNT_RATE}
 			icon.self_energy = -0.1
-		"🌲":  # Tree - decays over time
+		"🌲":  # Tree - part of forest lifecycle
 			icon.hamiltonian_couplings = {"🍂": DECAY_RATE}
 			icon.self_energy = 0.2
-			icon.decay_rate = DECAY_RATE
-			icon.decay_target = "🍂"
 		"🍂":  # Decay - fertilizes growth
 			icon.hamiltonian_couplings = {"🌲": DECAY_RATE, "🌱": 0.08}
 			icon.self_energy = -0.3
@@ -204,6 +200,10 @@ func get_biome_type() -> String:
 func get_paired_emoji(emoji: String) -> String:
 	"""Get the paired emoji for this biome's quantum axis"""
 	return emoji_pairings.get(emoji, "?")
+
+
+func _create_local_icon(emoji: String) -> Icon:
+	return _create_forest_emoji_icon(emoji)
 
 
 func _update_quantum_substrate(dt: float) -> void:
@@ -243,6 +243,8 @@ func _rebuild_quantum_operators_impl() -> void:
 	if new_icons.is_empty():
 		push_warning("🌲 Rebuild failed: No icons could be built")
 		return
+	icons = new_icons
+	icon_overrides = new_icons.duplicate(true)
 	
 	# Rebuild Hamiltonian (universal dynamics change with faction power)
 	var HamBuilder = load("res://Core/QuantumSubstrate/HamiltonianBuilder.gd")

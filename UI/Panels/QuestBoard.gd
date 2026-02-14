@@ -23,6 +23,7 @@ signal slot_selection_changed(slot_state: int, is_locked: bool)  # For updating 
 # References
 var quest_manager: Node
 var current_biome: Node
+var _player_vocab = null
 
 # UI elements (quest-specific)
 var slot_container: GridContainer  # 2x2 quadrant layout
@@ -60,7 +61,7 @@ func _init():
 	panel_title = "QUEST ORACLE"
 	panel_title_size = 24
 	panel_border_color = Color(0.5, 0.4, 0.6, 0.8)  # Purple border
-	panel_size = Vector2(880, 340)
+	panel_size_mode = PanelSizeMode.LARGE
 	use_scroll_container = false  # We use custom grid layout
 	overlay_name = "quests"
 	overlay_icon = ""
@@ -125,6 +126,28 @@ func set_quest_manager(manager: Node) -> void:
 			if not quest_manager.vocabulary_learned.is_connected(_on_vocabulary_learned):
 				quest_manager.vocabulary_learned.connect(_on_vocabulary_learned)
 
+	# Also refresh on ANY vocabulary learning (not just quest rewards)
+	_ensure_player_vocab_connected()
+
+
+func _ready() -> void:
+	super._ready()
+	_ensure_player_vocab_connected()
+
+
+func _ensure_player_vocab_connected() -> void:
+	if not is_inside_tree():
+		call_deferred("_ensure_player_vocab_connected")
+		return
+
+	if not get_tree() or not get_tree().root:
+		return
+
+	_player_vocab = get_tree().root.get_node_or_null("/root/PlayerVocabulary")
+	if _player_vocab and _player_vocab.has_signal("vocab_learned"):
+		if not _player_vocab.vocab_learned.is_connected(_on_player_vocab_learned):
+			_player_vocab.vocab_learned.connect(_on_player_vocab_learned)
+
 
 func set_biome(biome: Node) -> void:
 	current_biome = biome
@@ -186,7 +209,10 @@ func handle_input(event: InputEvent) -> bool:
 			action_e_on_selected()
 			return true
 		KEY_R:
-			action_r_on_selected()
+			if event.shift_pressed:
+				_refresh_all_unlocked_offers()
+			else:
+				action_r_on_selected()
 			return true
 		KEY_F:
 			on_f_pressed()
@@ -203,9 +229,12 @@ func _handle_browser_input(event: InputEvent) -> void:
 
 func open_board() -> void:
 	"""Open the quest board"""
-	if not quest_manager or not current_biome:
-		push_error("QuestBoard: quest_manager or current_biome not set")
+	if not quest_manager:
+		push_error("QuestBoard: quest_manager not set")
 		return
+	_ensure_biome_context_for_open()
+	if not current_biome and _verbose:
+		_verbose.warn("quest", "⚠️", "No biome context found - opening QuestBoard in no-biome mode")
 
 	# Restore from GameState
 	var gsm = _get_game_state_manager()
@@ -245,6 +274,55 @@ func open_board() -> void:
 	board_opened.emit()
 	overlay_opened.emit()
 	_emit_selection_update()
+
+
+func _ensure_biome_context_for_open() -> void:
+	"""Resolve biome context each time board opens.
+
+	Order:
+	1) Keep existing current_biome if valid
+	2) Use active biome from ActiveBiomeManager
+	3) Fallback to Village
+	4) No biome (leave current_biome null)
+	"""
+	if current_biome:
+		return
+
+	var farm_ref = _resolve_farm_for_open()
+	if not farm_ref or not farm_ref.grid or not farm_ref.grid.biomes:
+		return
+
+	var abm = get_node_or_null("/root/ActiveBiomeManager")
+	if abm and abm.has_method("get_active_biome"):
+		var active_biome_name = abm.get_active_biome()
+		var active_biome = farm_ref.grid.biomes.get(active_biome_name)
+		if active_biome:
+			current_biome = active_biome
+			return
+
+	var village_biome = farm_ref.grid.biomes.get("Village")
+	if village_biome:
+		current_biome = village_biome
+		return
+
+
+func _resolve_farm_for_open() -> Node:
+	"""Find farm reference without relying on a single scene path."""
+	var farm_ref = get_tree().root.get_node_or_null("/root/Farm")
+	if farm_ref:
+		return farm_ref
+
+	var gsm = get_tree().root.get_node_or_null("/root/GameStateManager")
+	if gsm and "active_farm" in gsm:
+		return gsm.active_farm
+
+	var current = get_parent()
+	while current:
+		if current.get_class() == "Farm" or current.name == "Farm":
+			return current
+		current = current.get_parent()
+
+	return null
 
 
 func close_board() -> void:
@@ -351,6 +429,8 @@ func _save_current_page() -> void:
 
 func _load_page(page_num: int) -> bool:
 	"""Load a page from memory and display it. Returns true if found."""
+	if quest_slots.is_empty():
+		return false
 	# Check runtime cache first
 	if quest_pages_memory.has(page_num):
 		var page_slots = quest_pages_memory[page_num]
@@ -374,8 +454,14 @@ func _load_page(page_num: int) -> bool:
 
 func _display_page_slots(page_slots: Array) -> void:
 	"""Set quest slots to match saved page configuration."""
-	for i in range(min(4, page_slots.size())):
+	if quest_slots.is_empty():
+		return
+	var limit = mini(4, page_slots.size())
+	limit = mini(limit, quest_slots.size())
+	for i in range(limit):
 		var slot = quest_slots[i]
+		if slot == null:
+			continue
 		var slot_data = page_slots[i]
 
 		if slot_data == null:
@@ -396,6 +482,10 @@ func _display_page_slots(page_slots: Array) -> void:
 					slot._refresh_ui()
 				_:
 					slot.set_empty()
+	# Clear any remaining slots if saved data is shorter than visible slots.
+	for i in range(limit, quest_slots.size()):
+		if quest_slots[i] != null:
+			quest_slots[i].set_empty()
 
 
 func _generate_and_display_page(page_num: int) -> void:
@@ -405,16 +495,29 @@ func _generate_and_display_page(page_num: int) -> void:
 	- Checks if each quest is in active_quests (show as ACTIVE)
 	- Lock state only prevents reroll, doesn't affect page loading
 	"""
+	page_num = maxi(0, page_num)
 	var start_index = page_num * QUESTS_PER_PAGE
-	var end_index = min(start_index + QUESTS_PER_PAGE, all_available_quests.size())
 
-	for i in range(4):
+	if quest_slots.is_empty():
+		return
+	if all_available_quests.is_empty():
+		for slot in quest_slots:
+			slot.set_empty()
+		current_page = 0
+		_save_current_page()
+		return
+	var pool_size = all_available_quests.size()
+
+	for i in range(min(QUESTS_PER_PAGE, quest_slots.size())):
 		var slot = quest_slots[i]
 		var pool_index = start_index + i
 
 		# Load quest from pool for this slot position
-		if pool_index < end_index:
+		if pool_index < pool_size and pool_index < all_available_quests.size():
 			var quest = all_available_quests[pool_index]
+			if not (quest is Dictionary) or quest.is_empty():
+				slot.set_empty()
+				continue
 			var quest_id = quest.get("id", -1)
 
 			# Check if this quest is already active
@@ -423,7 +526,8 @@ func _generate_and_display_page(page_num: int) -> void:
 				slot.set_quest_active(quest)
 			else:
 				# Quest is offered - preserve lock state if it was already locked
-				var was_locked = (slot.quest_data.get("id", -1) == quest_id and slot.is_locked)
+				var current_slot_id = slot.quest_data.get("id", -1) if slot.quest_data is Dictionary else -1
+				var was_locked = (current_slot_id == quest_id and slot.is_locked)
 				slot.set_quest_offered(quest, was_locked)
 		else:
 			slot.set_empty()
@@ -469,7 +573,7 @@ func _refresh_slots() -> void:
 	- Load page from memory if available
 	- Generate new page if not in memory
 	"""
-	if not quest_manager or not current_biome:
+	if not quest_manager or not current_biome or quest_slots.is_empty():
 		return
 
 	# Build quest pool
@@ -492,11 +596,15 @@ func _update_accessible_count() -> void:
 	if not quest_manager or not current_biome:
 		return
 
+	if not accessible_factions_label:
+		return
 	accessible_factions_label.text = "%d/68 factions accessible (learn more emojis!)" % all_available_quests.size()
 
 
 func _update_page_display() -> void:
 	"""Update page indicator label."""
+	if not accessible_factions_label:
+		return
 	var total_pages = _calculate_total_pages()
 	var total_quests = all_available_quests.size()
 	var visited_pages = quest_pages_memory.size()
@@ -523,6 +631,13 @@ func get_selected_quest() -> Dictionary:
 	snapshot["slot_state"] = slot.state
 	snapshot["slot_locked"] = slot.is_locked
 	return snapshot
+
+
+func _get_selected_slot():
+	"""Return the selected slot or null if selection is invalid."""
+	if selected_slot_index < 0 or selected_slot_index >= quest_slots.size():
+		return null
+	return quest_slots[selected_slot_index]
 
 
 func select_slot(index: int) -> void:
@@ -602,8 +717,9 @@ func action_q_on_selected() -> void:
 	var info = get_action_info("Q")
 	if info.is_empty() or info.get("disabled", false):
 		return
-		
-	var slot = quest_slots[selected_slot_index]
+	var slot = _get_selected_slot()
+	if not slot:
+		return
 	match info.action:
 		"quest_accept": _accept_quest(slot)
 		"quest_claim": _claim_quest(slot)
@@ -616,28 +732,153 @@ func action_e_on_selected() -> void:
 	if info.is_empty() or info.get("disabled", false):
 		return
 
-	var slot = quest_slots[selected_slot_index]
+	var slot = _get_selected_slot()
+	if not slot:
+		return
 	match info.action:
 		"quest_lock":
 			_toggle_lock(slot)
 
 
 func action_r_on_selected() -> void:
-	"""R action: Reroll/Abandon/Reject (UP)"""
-	var info = get_action_info("R")
-	if info.is_empty() or info.get("disabled", false):
+	"""R action: Refresh quest offers (single or all unlocked)."""
+	_refresh_selected_offer()
+
+
+func _refresh_selected_offer() -> void:
+	"""Refresh the selected offer if it's unlocked."""
+	var slot = _get_selected_slot()
+	if not slot:
+		return
+	if slot.state != SlotState.OFFERED:
+		return
+	if slot.is_locked:
+		return
+	_reroll_quest(slot)
+	_save_current_page()
+	_emit_selection_update()
+
+
+func _refresh_all_unlocked_offers() -> void:
+	"""Refresh all unlocked offered quests across ALL pages."""
+	if not quest_manager or not current_biome:
 		return
 
-	var slot = quest_slots[selected_slot_index]
-	match info.action:
-		"quest_reroll":
-			_reroll_quest(slot)
-			_save_current_page()
-			_emit_selection_update()
-		"quest_abandon":
-			_abandon_quest(slot)
-		"quest_reject":
-			_reject_quest(slot)
+	# Ensure current page state is captured before rebuilding memory
+	_save_current_page()
+
+	var refresh_count = _count_unlocked_offers_all_pages()
+	if refresh_count <= 0:
+		return
+
+	var cost = {"🐇": refresh_count}
+	if not _check_can_afford(cost):
+		if _verbose:
+			_verbose.warn("quest", "🐇", "Cannot refresh all: Need %d 🐇." % refresh_count)
+		return
+
+	# Rebuild quest pool
+	all_available_quests = quest_manager.offer_all_faction_quests(current_biome)
+
+	# Collect used factions from locked/active/ready quests across all pages
+	var used_factions: Array = []
+	var pages = quest_pages_memory.keys()
+	pages.sort()
+
+	# Build a fresh page memory while preserving locked/active/ready
+	var new_memory: Dictionary = {}
+	for page in pages:
+		var slots = quest_pages_memory[page]
+		var new_slots: Array = []
+		if slots is Array:
+			for slot_data in slots:
+				if slot_data is Dictionary:
+					var state = slot_data.get("state", SlotState.EMPTY)
+					var locked = slot_data.get("is_locked", false)
+					if state == SlotState.ACTIVE or state == SlotState.READY or (state == SlotState.OFFERED and locked):
+						new_slots.append(slot_data)
+						var faction = slot_data.get("offered_quest", {}).get("faction", "")
+						if faction != "" and faction not in used_factions:
+							used_factions.append(faction)
+						continue
+					if state == SlotState.OFFERED and not locked:
+						# Placeholder: refresh this unlocked offer
+						new_slots.append({
+							"quest_id": -1,
+							"offered_quest": {},
+							"faction": "",
+							"is_locked": false,
+							"state": SlotState.OFFERED
+						})
+						continue
+				# Default empty slot
+				new_slots.append(null)
+		else:
+			for i in range(4):
+				new_slots.append(null)
+		new_memory[page] = new_slots
+
+	# Available quests excluding used factions
+	var available_quests: Array = []
+	for quest in all_available_quests:
+		var quest_faction = quest.get("faction", "")
+		if quest_faction not in used_factions:
+			available_quests.append(quest)
+
+	var quest_idx = 0
+	for page in pages:
+		var slots = new_memory[page]
+		if not (slots is Array):
+			continue
+		for i in range(slots.size()):
+			var slot_data = slots[i]
+			if not (slot_data is Dictionary):
+				continue
+			var state = slot_data.get("state", SlotState.EMPTY)
+			var locked = slot_data.get("is_locked", false)
+			if state == SlotState.OFFERED and not locked:
+				if quest_idx < available_quests.size():
+					var quest = available_quests[quest_idx]
+					slots[i] = {
+						"quest_id": quest.get("id", -1),
+						"offered_quest": quest,
+						"faction": quest.get("faction", ""),
+						"is_locked": false,
+						"state": SlotState.OFFERED
+					}
+					used_factions.append(quest.get("faction", ""))
+					quest_idx += 1
+				else:
+					slots[i] = null
+
+	quest_pages_memory = new_memory
+
+	if quest_manager.economy:
+		if not quest_manager.economy.spend_cost(cost, "quest_refresh_all"):
+			if _verbose:
+				_verbose.warn("quest", "🐇", "Failed to spend refresh-all cost.")
+
+	# Refresh current page UI from memory
+	_load_page(current_page)
+	_save_current_page()
+	_emit_selection_update()
+
+
+func _count_unlocked_offers_all_pages() -> int:
+	var count = 0
+	var pages = quest_pages_memory.keys()
+	for page in pages:
+		var slots = quest_pages_memory[page]
+		if not (slots is Array):
+			continue
+		for slot_data in slots:
+			if not (slot_data is Dictionary):
+				continue
+			var state = slot_data.get("state", SlotState.EMPTY)
+			var locked = slot_data.get("is_locked", false)
+			if state == SlotState.OFFERED and not locked:
+				count += 1
+	return count
 
 
 func _toggle_lock(slot) -> void:
@@ -940,6 +1181,8 @@ func _check_can_complete(slot) -> bool:
 
 func _on_faction_selected(faction_quest: Dictionary) -> void:
 	"""Handle faction selected from browser"""
+	if selected_slot_index < 0 or selected_slot_index >= quest_slots.size():
+		return
 	var slot = quest_slots[selected_slot_index]
 	slot.set_quest_offered(faction_quest, slot.is_locked)
 	_save_current_page()
@@ -955,7 +1198,7 @@ func _on_quest_completed(quest_id: int, rewards: Dictionary) -> void:
 			break
 
 	# Find and clear the slot with this quest (preserves other slots)
-	for i in range(4):
+	for i in range(quest_slots.size()):
 		var slot = quest_slots[i]
 		if slot.quest_data.get("id", -1) == quest_id:
 			slot.set_empty()
@@ -968,7 +1211,7 @@ func _on_quest_completed(quest_id: int, rewards: Dictionary) -> void:
 func _on_quest_ready_to_claim(quest_id: int) -> void:
 	"""Handle quest ready to claim signal from manager (non-DELIVERY quest conditions met)"""
 	# Find slot with this quest and update to READY state
-	for i in range(4):
+	for i in range(quest_slots.size()):
 		var slot = quest_slots[i]
 		if slot.quest_data.get("id", -1) == quest_id:
 			slot.state = SlotState.READY
@@ -985,8 +1228,7 @@ func _on_vocabulary_learned(emoji: String, faction: String) -> void:
 	When vocabulary is learned:
 	1. Update known vocabulary (already done by Farm)
 	2. Check for new accessible factions (rebuild quest pool)
-	3. Refresh unlocked quests (locked/accepted set aside)
-	4. Invalidate locked/accepted quests if North emoji was learned
+	3. Refresh unlocked quests (locked/accepted preserved)
 	"""
 	if _verbose:
 		_verbose.debug("quest", "📚", "Vocabulary learned: %s (%s)" % [emoji, faction])
@@ -1004,13 +1246,16 @@ func _on_vocabulary_learned(emoji: String, faction: String) -> void:
 	if _verbose and new_pool_size != old_pool_size:
 		_verbose.info("quest", "🆕", "Quest pool updated: %d → %d factions accessible" % [old_pool_size, new_pool_size])
 
+	# Some board instances may receive signals before slot UI exists.
+	if quest_slots.is_empty():
+		return
+
 	# Step 3: Refresh unlocked quests (1 quest per faction max)
 	# Preserve locked and accepted slots, regenerate unlocked/offered slots
 	var unlocked_slots = []
-	var downgrade_count = 0
 	var invalidated_locked_count = 0
 
-	for i in range(4):
+	for i in range(min(QUESTS_PER_PAGE, quest_slots.size())):
 		var slot = quest_slots[i]
 
 		# Skip empty slots
@@ -1024,26 +1269,18 @@ func _on_vocabulary_learned(emoji: String, faction: String) -> void:
 			SlotState.OFFERED:
 				if slot.is_locked:
 					# Locked quest - preserve it (mark if invalid)
-					if is_invalidated and _verbose:
-						_verbose.debug("quest", "🔒", "Locked quest %d invalidated but preserved" % slot.quest_data.get("id", -1))
+					if is_invalidated:
 						invalidated_locked_count += 1
+						if _verbose:
+							_verbose.debug("quest", "🔒", "Locked quest %d invalidated but preserved" % slot.quest_data.get("id", -1))
 					# Keep locked slot as-is
 				else:
 					# Unlocked offered slot - will be regenerated
 					unlocked_slots.append(i)
 
 			SlotState.ACTIVE:
-				# Active quest - check for invalidation
-				if is_invalidated:
-					# Downgrade to locked (player can see it's invalid)
-					if _verbose:
-						_verbose.warn("quest", "⚠️", "Downgrading active quest %d to locked (vocab invalidated)" % slot.quest_data.get("id", -1))
-					slot.set_quest_offered(slot.quest_data, true)  # Convert to locked offer
-					slot.state = SlotState.OFFERED
-					slot.is_locked = true
-					slot._refresh_ui()
-					downgrade_count += 1
-				# Keep active slot as-is (still working on it)
+				# Active quest - preserve as-is
+				pass
 
 			SlotState.READY:
 				# Ready quest - keep as-is (player about to claim it)
@@ -1056,13 +1293,21 @@ func _on_vocabulary_learned(emoji: String, faction: String) -> void:
 			_verbose.info("quest", "🔄", "Regenerated %d unlocked slot(s) with updated quest pool" % unlocked_slots.size())
 
 	# Summary
-	if downgrade_count > 0 or invalidated_locked_count > 0:
+	if invalidated_locked_count > 0:
 		if _verbose:
-			_verbose.info("quest", "✅", "Vocab invalidation: %d downgraded, %d locked invalidated" % [downgrade_count, invalidated_locked_count])
+			_verbose.info("quest", "✅", "Vocab invalidation: %d locked invalidated" % invalidated_locked_count)
 
 	# Save state
 	_save_current_page()
 	_update_page_display()
+
+
+func _on_player_vocab_learned(north: String, south: String) -> void:
+	"""Refresh quest board when player learns a vocab pair by any means."""
+	var primary = north if north != "" else south
+	if primary == "":
+		return
+	_on_vocabulary_learned(primary, "player")
 
 
 func _regenerate_unlocked_slots(slot_indices: Array) -> void:
@@ -1070,15 +1315,19 @@ func _regenerate_unlocked_slots(slot_indices: Array) -> void:
 
 	Respects 1 quest per faction - avoids factions already in locked/active slots.
 	"""
+	if quest_slots.is_empty():
+		return
+
 	if all_available_quests.is_empty():
 		# No quests available - clear the unlocked slots
 		for idx in slot_indices:
-			quest_slots[idx].set_empty()
+			if idx >= 0 and idx < quest_slots.size():
+				quest_slots[idx].set_empty()
 		return
 
 	# Collect factions already in use (locked/active slots)
 	var used_factions = []
-	for i in range(4):
+	for i in range(min(QUESTS_PER_PAGE, quest_slots.size())):
 		if i in slot_indices:
 			continue  # Skip slots we're regenerating
 		var slot = quest_slots[i]
@@ -1095,6 +1344,8 @@ func _regenerate_unlocked_slots(slot_indices: Array) -> void:
 	# Assign quests to unlocked slots
 	var quest_idx = 0
 	for slot_idx in slot_indices:
+		if slot_idx < 0 or slot_idx >= quest_slots.size():
+			continue
 		var slot = quest_slots[slot_idx]
 
 		if quest_idx < available_quests.size():
@@ -1165,7 +1416,7 @@ func on_e_pressed() -> void:
 
 
 func on_r_pressed() -> void:
-	"""v2 overlay action: R key handler."""
+	"""v2 overlay action: R key handler (refresh selected)."""
 	action_r_on_selected()
 	action_performed.emit("quest_action_r", {"slot": selected_slot_index})
 
@@ -1239,33 +1490,22 @@ func get_action_info(key: String) -> Dictionary:
 					# E disabled for ACTIVE/READY
 					return {}
 		"R":
-			# UP = Reroll/Abandon/Reject (extract, remove, destroy)
+			# UP = Refresh offers
 			match slot.state:
 				SlotState.OFFERED:
 					if slot.is_locked:
-						# Locked offered quest - allow abandon (for downgraded active quests)
-						return {"action": "quest_abandon", "label": "Abandon", "emoji": "🗑️"}
+						return {}
 					return {
-						"action": "quest_reroll",
-						"label": "Reroll",
+						"action": "quest_refresh",
+						"label": "Refresh",
 						"emoji": "🔄",
 						"cost": {"🐇": 1},
 						"cost_display": "🐇",
 						"can_afford": _check_can_afford({"🐇": 1})
 					}
 				SlotState.ACTIVE:
-					return {
-						"action": "quest_abandon",
-						"label": "Abandon",
-						"emoji": "🗑️"
-					}
+					return {}
 				SlotState.READY:
-					if quest_type != 0:
-						return {
-							"action": "quest_reject",
-							"label": "Reject",
-							"emoji": "❌"
-						}
 					return {}
 				_:
 					return {}
@@ -1323,6 +1563,7 @@ class QuestSlot extends PanelContainer:
 	var quest_data: Dictionary = {}
 	var is_locked: bool = false
 	var is_selected: bool = false
+	var _ui_built: bool = false
 
 	# UI elements - Header row
 	var slot_label: Label        # [U] Lock
@@ -1357,6 +1598,8 @@ class QuestSlot extends PanelContainer:
 
 	func _create_ui() -> void:
 		"""Two-column layout: requirement on left, reward on right"""
+		if _ui_built:
+			return
 		var scale = layout_manager.scale_factor if layout_manager else 1.0
 
 		# Font sizes
@@ -1474,6 +1717,7 @@ class QuestSlot extends PanelContainer:
 		alignment_bar_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 		bottom_hbox.add_child(alignment_bar_label)
 
+		_ui_built = true
 		_refresh_ui()
 
 	func set_empty() -> void:
@@ -1503,6 +1747,14 @@ class QuestSlot extends PanelContainer:
 
 	func _refresh_ui() -> void:
 		"""Update all UI elements based on state"""
+		if not _ui_built:
+			_create_ui()
+		if not _ui_built or not slot_label or not faction_label or not status_label:
+			return
+		if not action_type_label or not requirement_label or not north_label or not south_label:
+			return
+		if not separator_label or not signature_label or not alignment_bar_label:
+			return
 		# Header: slot key + lock
 		var lock_icon = "Lock" if is_locked else ""
 		slot_label.text = "[%s]%s" % [slot_letter, lock_icon]
@@ -1644,7 +1896,31 @@ class QuestSlot extends PanelContainer:
 				requirement_label.text = quest_data.get("body", "???")
 
 	func _set_reward_display() -> void:
-		"""Set right column with vocab pair"""
+		"""Set right column with resource rewards (fallback: vocab pair)."""
+		var reward_resources = quest_data.get("reward_resources", {})
+		if reward_resources is Dictionary and not reward_resources.is_empty():
+			var entries: Array = []
+			for emoji in reward_resources.keys():
+				var amount = int(reward_resources.get(emoji, 0))
+				if amount <= 0:
+					continue
+				entries.append({"emoji": emoji, "amount": amount})
+			if not entries.is_empty():
+				entries.sort_custom(func(a, b): return int(a["amount"]) > int(b["amount"]))
+				var first = entries[0]
+				north_label.text = "%s+%d" % [first["emoji"], int(first["amount"])]
+				north_label.modulate = Color(1.0, 1.0, 1.0)
+				if entries.size() > 1:
+					var second = entries[1]
+					separator_label.visible = true
+					south_label.text = "%s+%d" % [second["emoji"], int(second["amount"])]
+					south_label.modulate = Color(1.0, 1.0, 1.0)
+				else:
+					separator_label.visible = false
+					south_label.text = "reward"
+					south_label.modulate = Color(0.7, 0.7, 0.7)
+				return
+
 		var north = quest_data.get("reward_vocab_north", "")
 		var south = quest_data.get("reward_vocab_south", "")
 

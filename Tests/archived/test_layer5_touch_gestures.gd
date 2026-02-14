@@ -331,7 +331,7 @@ func test_end_to_end_flow():
 		test_failed += 1
 
 	# Step 7: Verify complete flow
-	if plot.is_planted and not plot.has_been_measured:
+	if plot.is_planted and not plot.is_measured:
 		print("    7️⃣  End-to-end flow complete!")
 		test_passed += 1
 	else:

@@ -7,6 +7,8 @@ extends Node
 ## Handles 3 save slots, scenarios, and state capture/restore
 
 const GameState = preload("res://Core/GameState/GameState.gd")
+const GameStateSerializer = preload("res://Core/GameState/GameStateSerializer.gd")
+const SaveStore = preload("res://Core/GameState/SaveStore.gd")
 const VocabularyEvolution = preload("res://Core/QuantumSubstrate/VocabularyEvolution.gd")
 const FactionDatabase = preload("res://Core/Quests/FactionDatabaseV2.gd")
 const QuantumRigorConfig = preload("res://Core/GameState/QuantumRigorConfig.gd")
@@ -18,18 +20,12 @@ signal pair_discovered(north: String, south: String)
 signal factions_unlocked(factions: Array)
 signal farm_ready(farm: Node, state: GameState)
 
-# Save configuration
-const SAVE_DIR = "user://saves/"
-const NUM_SAVE_SLOTS = 3
-const SCENARIO_DIR = "res://Scenarios/"
-
 # Current state
 var current_state: GameState = null
 var current_scenario_id: String = "default"
 var last_saved_slot: int = -1  # Track most recent save for "Reload Last Save"
 
-# Reference to active game (set by FarmView)
-var active_farm_view = null  # DEPRECATED: Use active_farm instead
+# Removed: active_farm_view (never used)
 
 # Direct reference to Farm simulation (Phase 1: Simulation-only saves)
 var active_farm = null
@@ -37,13 +33,20 @@ var active_farm = null
 # PERSISTENT VOCABULARY EVOLUTION - Travels with player across farms/biomes
 var vocabulary_evolution: VocabularyEvolution = null
 
+# Serializer for capture/apply (keeps GSM orchestration-only)
+var _serializer: GameStateSerializer = null
+
+# Milk autosave
+const MILK_EMOJI := "🍼"
+const MILK_AUTOSAVE_SLOT := 2
+var _milk_autosave_done := false
+var last_milk_autosave_path: String = ""
+
 
 func _ready():
 	# Ensure save directory exists
-	var dir = DirAccess.open("user://")
-	if not dir.dir_exists("saves"):
-		dir.make_dir("saves")
-	_verbose.info("save", "💾", "GameStateManager ready - Save dir: " + SAVE_DIR)
+	SaveStore.ensure_save_dir()
+	_verbose.info("save", "💾", "GameStateManager ready - Save dir: " + SaveStore.SAVE_DIR)
 
 	# Initialize quantum rigor configuration (singleton)
 	if not QuantumRigorConfig.instance:
@@ -190,6 +193,37 @@ func discover_pair(north: String, south: String) -> void:
 					var sig = faction.get("sig", [])
 					_verbose.info("quest", "-", "%s %s" % ["".join(sig.slice(0, 3)), faction.get("name", "?")])
 
+	# Autosave on first milk discovery.
+	if MILK_EMOJI in new_emojis and MILK_EMOJI not in old_emojis:
+		_handle_milk_autosave(north, south)
+
+
+func _handle_milk_autosave(north: String, south: String) -> void:
+	if _milk_autosave_done:
+		return
+	if not active_farm:
+		_verbose.warn("save", "🥛", "Milk autosave skipped: no active farm")
+		return
+	var state = capture_state_from_game()
+	var slot_result = SaveStore.save_state(state, MILK_AUTOSAVE_SLOT)
+	if slot_result == OK:
+		last_saved_slot = MILK_AUTOSAVE_SLOT
+	else:
+		_verbose.warn("save", "🥛", "Milk vocab autosave failed (slot %d)" % (MILK_AUTOSAVE_SLOT + 1))
+
+	var stamp = "%s_%s" % [Time.get_datetime_string_from_system().replace(":", ""), str(Time.get_ticks_msec())]
+	var milk_path = SaveStore.SAVE_DIR + "milk_autosave_" + stamp + ".tres"
+	var file_result = SaveStore.save_state_to_path(state, milk_path)
+	if file_result == OK:
+		_milk_autosave_done = true
+		last_milk_autosave_path = milk_path
+		_verbose.info("save", "🥛", "Milk vocab autosave → slot %d (%s) [%s/%s]" % [
+			MILK_AUTOSAVE_SLOT + 1, SaveStore.get_save_path(MILK_AUTOSAVE_SLOT), north, south
+		])
+		_verbose.info("save", "🥛", "Milk vocab autosave file → %s" % milk_path)
+	else:
+		_verbose.warn("save", "🥛", "Milk vocab autosave file failed: %s" % milk_path)
+
 
 func _check_newly_accessible_factions(new_emoji: String, old_emojis: Array, new_emojis: Array) -> Array:
 	"""Find factions that just became accessible due to vocabulary overlap
@@ -253,14 +287,8 @@ func new_game(scenario_id: String = "default") -> GameState:
 	_verbose.info("quest", "🎮", "Starting new game with scenario: " + scenario_id)
 	current_scenario_id = scenario_id
 
-	# Try to load scenario file, fall back to default state
-	var scenario_path = SCENARIO_DIR + scenario_id + ".tres"
-	if ResourceLoader.exists(scenario_path):
-		current_state = ResourceLoader.load(scenario_path).duplicate()
-		_verbose.info("quest", "✓", "Loaded scenario from: " + scenario_path)
-	else:
-		_verbose.info("quest", "⚠", "Scenario not found, using default state")
-		current_state = GameState.new()
+	current_state = SaveStore.load_scenario(scenario_id)
+	if current_state and current_state.scenario_id == "":
 		current_state.scenario_id = scenario_id
 
 	current_state.save_timestamp = Time.get_unix_time_from_system()
@@ -272,10 +300,6 @@ func new_game(scenario_id: String = "default") -> GameState:
 
 func save_game(slot: int) -> bool:
 	"""Save current game state to slot (0-2)"""
-	if slot < 0 or slot >= NUM_SAVE_SLOTS:
-		push_error("Invalid save slot: " + str(slot))
-		return false
-	
 	if not active_farm:
 		push_error("No active game to save!")
 		return false
@@ -284,12 +308,10 @@ func save_game(slot: int) -> bool:
 	var state = capture_state_from_game()
 	
 	# Save to disk
-	var path = get_save_path(slot)
-	var result = ResourceSaver.save(state, path)
-
+	var result = SaveStore.save_state(state, slot)
 	if result == OK:
 		last_saved_slot = slot
-		_verbose.info("save", "💾", "Game saved to slot " + str(slot + 1) + ": " + path)
+		_verbose.info("save", "💾", "Game saved to slot " + str(slot + 1) + ": " + SaveStore.get_save_path(slot))
 		return true
 	else:
 		push_error("Failed to save game to slot " + str(slot))
@@ -298,70 +320,55 @@ func save_game(slot: int) -> bool:
 
 func get_save_path(slot: int) -> String:
 	"""Get file path for save slot"""
-	return SAVE_DIR + "save_slot_" + str(slot) + ".tres"
+	return SaveStore.get_save_path(slot)
 
 
 func save_exists(slot: int) -> bool:
 	"""Check if save file exists in slot"""
-	return FileAccess.file_exists(get_save_path(slot))
+	return SaveStore.save_exists(slot)
 
 
 func get_save_info(slot: int) -> Dictionary:
 	"""Get save file info for display in load menu"""
-	if not save_exists(slot):
-		return {"exists": false, "slot": slot}
-	
-	var state = load_game_state(slot)
-	if not state:
-		return {"exists": false, "slot": slot}
-	
-	var money = state.all_emoji_credits.get("💰", 0) if state.all_emoji_credits else 0
-	return {
-		"exists": true,
-		"slot": slot,
-		"display_name": state.get_save_display_name(),
-		"scenario": state.scenario_id,
-		"credits": money,
-		"playtime": state.game_time
-	}
+	return SaveStore.get_save_info(slot)
 
 
 ## Load Operations
 
 func load_new_game_template() -> GameState:
 	"""Load new game template from new_game_easy.tres"""
-	var path = SAVE_DIR + "new_game_easy.tres"
-	if not FileAccess.file_exists(path):
-		_verbose.warn("save", "⚠", "new_game_easy.tres not found, creating blank state")
-		return new_game("default")
-
-	var state = ResourceLoader.load(path)
-	if state:
-		_verbose.info("save", "📂", "Loaded new game template from new_game_easy.tres")
-		return state
+	var user_path = SaveStore.SAVE_DIR + SaveStore.NEW_GAME_TEMPLATE
+	var project_path = SaveStore.SCENARIO_DIR + SaveStore.NEW_GAME_TEMPLATE
+	var has_user = FileAccess.file_exists(user_path)
+	var has_project = ResourceLoader.exists(project_path)
+	var state = SaveStore.load_new_game_template()
+	if has_user:
+		_verbose.info("save", "📂", "Loaded new game template from: " + user_path)
+	elif has_project:
+		_verbose.info("save", "📂", "Loaded new game template from: " + project_path)
 	else:
-		push_error("Failed to load new_game_easy.tres, creating blank state")
-		return new_game("default")
+		_verbose.warn("save", "⚠", "new_game_easy.tres not found, creating blank state")
+	return state
 
 
 func load_game_state(slot: int) -> GameState:
 	"""Load game state from slot (returns state, doesn't apply it)"""
-	if slot < 0 or slot >= NUM_SAVE_SLOTS:
-		push_error("Invalid save slot: " + str(slot))
-		return null
-
-	var path = get_save_path(slot)
-	if not FileAccess.file_exists(path):
-		_verbose.info("save", "⚠", "No save file in slot " + str(slot + 1))
-		return null
-
-	var state = ResourceLoader.load(path)
+	var state = SaveStore.load_state(slot)
 	if state:
 		_verbose.info("save", "📂", "Loaded save from slot " + str(slot + 1))
 		return state
-	else:
-		push_error("Failed to load save from slot " + str(slot))
-		return null
+	_verbose.info("save", "⚠", "No save file in slot " + str(slot + 1))
+	return null
+
+
+func load_game_state_by_alias(alias_filename: String) -> GameState:
+	"""Load game state from emoji alias filename/path (returns state, doesn't apply it)."""
+	var state = SaveStore.load_state_by_emoji_alias(alias_filename)
+	if state:
+		_verbose.info("save", "📂", "Loaded save alias: " + alias_filename)
+		return state
+	_verbose.info("save", "⚠", "No save found for alias: " + alias_filename)
+	return null
 
 
 func load_and_apply(slot: int) -> bool:
@@ -387,6 +394,25 @@ func load_and_apply(slot: int) -> bool:
 	return true
 
 
+func load_and_apply_emoji_alias(alias_filename: String) -> bool:
+	"""Load game state from emoji alias filename/path and apply it to active game."""
+	var state = load_game_state_by_alias(alias_filename)
+	if not state:
+		return false
+
+	if not active_farm:
+		active_farm = _create_farm()
+		call_deferred("_apply_loaded_state_deferred", state)
+		current_state = state
+		current_scenario_id = state.scenario_id
+		return true
+
+	apply_state_to_game(state)
+	current_state = state
+	current_scenario_id = state.scenario_id
+	return true
+
+
 func _apply_loaded_state_deferred(state: GameState) -> void:
 	if not active_farm or not state:
 		return
@@ -400,11 +426,11 @@ func reload_last_save() -> bool:
 	var latest_timestamp = 0.0
 
 	# Scan all save slots to find the most recent
-	for slot in range(NUM_SAVE_SLOTS):
-		if not save_exists(slot):
+	for slot in range(SaveStore.NUM_SAVE_SLOTS):
+		if not SaveStore.save_exists(slot):
 			continue
 
-		var state = load_game_state(slot)
+		var state = SaveStore.load_state(slot)
 		if state and state.save_timestamp > latest_timestamp:
 			latest_timestamp = state.save_timestamp
 			latest_slot = slot
@@ -418,782 +444,25 @@ func reload_last_save() -> bool:
 	return load_and_apply(latest_slot)
 
 
-## State Capture/Restore
+## State Capture/Restore (delegates to serializer)
+
+func _get_serializer() -> GameStateSerializer:
+	if not _serializer:
+		_serializer = GameStateSerializer.new()
+	_serializer.set_verbose(_verbose)
+	_serializer.set_vocabulary_evolution(vocabulary_evolution)
+	_serializer.set_player_vocab(get_node_or_null("/root/PlayerVocabulary"))
+	return _serializer
+
 
 func capture_state_from_game() -> GameState:
-	"""Capture current game state from active Farm (from FarmView)
-
-	Refactored for Farm/Biome/Qubit architecture:
-	- Economy: All resource inventories
-	- Plots: Configuration, planted/measured/entanglement state
-	- Goals: Progress
-	- Icons: Activation levels
-	- Time: Biome elapsed time + sun/moon phase
-	- Quantum State: Complete biome_state tree (sun qubit, icon qubits, emoji qubits)
-	"""
-	var state = GameState.new()
-
-	# Phase 1: Use direct farm reference (simulation-only saves)
-	var farm = active_farm
-	if not farm:
-		push_error("Farm not found - cannot capture state (is GameStateManager.active_farm set?)")
-		return state
-
-	# Meta
-	state.scenario_id = current_scenario_id
-	state.save_timestamp = Time.get_unix_time_from_system()
-	state.game_time = current_state.game_time if current_state else 0.0
-
-	# Simulation speed (from first biome)
-	if farm.grid.biomes and not farm.grid.biomes.is_empty():
-		var first_biome = farm.grid.biomes.values()[0]
-		if "quantum_time_scale" in first_biome:
-			state.quantum_time_scale = first_biome.quantum_time_scale
-			_verbose.debug("save", "⏱️", "Captured simulation speed: %.4fx" % state.quantum_time_scale)
-
-	# Grid Dimensions (from Farm.grid)
-	state.grid_width = farm.grid.grid_width
-	state.grid_height = farm.grid.grid_height
-
-	# Economy (from Farm.economy) - save ALL emoji credits
-	var economy = farm.economy
-
-	# NEW: Save complete emoji_credits dictionary (persists ALL resources)
-	state.all_emoji_credits = economy.emoji_credits.duplicate()
-	state.tributes_paid = economy.total_tributes_paid if "total_tributes_paid" in economy else 0
-	state.tributes_failed = economy.total_tributes_failed if "total_tributes_failed" in economy else 0
-
-	_verbose.debug("save", "💰", "Captured %d emoji types in economy" % state.all_emoji_credits.size())
-
-	# Player Vocabulary (farm-owned canonical)
-	if farm and farm.has_method("get_known_pairs"):
-		state.known_pairs = farm.get_known_pairs()
-		# Derive emojis from pairs (kept for backward compatibility)
-		state.known_emojis = []
-		for pair in state.known_pairs:
-			var north = pair.get("north", "")
-			var south = pair.get("south", "")
-			if north != "" and north not in state.known_emojis:
-				state.known_emojis.append(north)
-			if south != "" and south not in state.known_emojis:
-				state.known_emojis.append(south)
-		_verbose.debug("save", "📖", "Captured vocabulary: %d pairs → %d emojis" % [state.known_pairs.size(), state.known_emojis.size()])
-
-	# Player Vocabulary Quantum Computer (for affinity calculations)
-	var player_vocab = get_node_or_null("/root/PlayerVocabulary")
-	if player_vocab:
-		state.player_vocab_data = player_vocab.serialize()
-		_verbose.debug("save", "🔬", "Captured PlayerVocabulary QC data")
-
-	# Plots (from Farm.grid)
-	state.plots.clear()
-	var grid = farm.grid
-	for y in range(state.grid_height):
-		for x in range(state.grid_width):
-			var pos = Vector2i(x, y)
-			var plot = grid.get_plot(pos)
-
-			# Capture plot configuration and terminal binding state
-			# Terminal is source of truth for is_planted/has_been_measured
-			var plot_data = {
-				"position": pos,
-				"type": plot.plot_type,
-				"is_planted": plot.is_active(),
-				"has_been_measured": plot.get_is_measured(),
-				"theta_frozen": plot.theta_frozen,
-				"entangled_with": plot.entangled_plots.keys(),
-				"lindblad_pump_active": plot.lindblad_pump_active if "lindblad_pump_active" in plot else false,
-				"lindblad_drain_active": plot.lindblad_drain_active if "lindblad_drain_active" in plot else false,
-				"lindblad_pump_rate": plot.lindblad_pump_rate if "lindblad_pump_rate" in plot else 0.0,
-				"lindblad_drain_rate": plot.lindblad_drain_rate if "lindblad_drain_rate" in plot else 0.0
-			}
-			# Serialize terminal binding for load reconstruction
-			if plot.bound_terminal:
-				plot_data["terminal_id"] = plot.bound_terminal.terminal_id
-				plot_data["register_id"] = plot.bound_terminal.bound_register_id
-				plot_data["biome_name"] = plot.bound_terminal.bound_biome_name
-				plot_data["north_emoji"] = plot.bound_terminal.north_emoji
-				plot_data["south_emoji"] = plot.bound_terminal.south_emoji
-				if plot.bound_terminal.is_measured:
-					plot_data["measured_outcome"] = plot.bound_terminal.measured_outcome
-					plot_data["measured_probability"] = plot.bound_terminal.measured_probability
-			# Phase 5.2: Serialize persistent gate infrastructure (Tool #2 gates)
-			# These gates survive harvest/replant cycles
-			if "persistent_gates" in plot:
-				var serialized_gates = []
-				for gate in plot.persistent_gates:
-					var serialized_gate = {
-						"type": gate.get("type", ""),
-						"active": gate.get("active", true)
-					}
-					# Serialize linked_registers (new format)
-					serialized_gate["linked_registers"] = gate.get("linked_registers", [])
-					# Backward compat: also serialize linked_plots if present
-					var linked_plots_serialized = []
-					for linked_pos in gate.get("linked_plots", []):
-						linked_plots_serialized.append({"x": linked_pos.x, "y": linked_pos.y})
-					serialized_gate["linked_plots"] = linked_plots_serialized
-					serialized_gates.append(serialized_gate)
-				plot_data["persistent_gates"] = serialized_gates
-			else:
-				plot_data["persistent_gates"] = []
-
-			state.plots.append(plot_data)
-
-	# Icons (DEPRECATED: Icons now managed by IconRegistry autoload)
-	# Set to 0.0 - icon state no longer persisted per-farm
-	state.biotic_activation = 0.0
-	state.chaos_activation = 0.0
-	state.imperium_activation = 0.0
-
-	# Phase 2: Multi-Biome Capture
-	# Capture quantum states from all registered biomes
-	state.biome_states = _capture_all_biome_states(farm)
-
-	# Capture plot→biome assignments
-	state.plot_biome_assignments = {}
-	if farm.grid and "plot_biome_assignments" in farm.grid:
-		for pos_key in farm.grid.plot_biome_assignments.keys():
-			state.plot_biome_assignments[pos_key] = farm.grid.plot_biome_assignments[pos_key]
-
-	# LEGACY: Also populate old single-biome fields for backward compatibility
-	# Use BioticFlux as the "primary" biome for old saves
-	if state.biome_states.has("BioticFlux"):
-		var bf = state.biome_states["BioticFlux"]
-		state.time_elapsed = bf.get("time_elapsed", 0.0)
-		if bf.has("sun_qubit"):
-			state.sun_theta = bf["sun_qubit"].get("theta", 0.0)
-			state.sun_phi = bf["sun_qubit"].get("phi", 0.0)
-		state.biome_state = bf  # Copy full state for backward compat
-
-	# Vocabulary Evolution State (PERSISTED - player's discovered vocabulary travels with them)
-	if vocabulary_evolution:
-		state.vocabulary_state = vocabulary_evolution.serialize()
-		_verbose.debug("save", "📚", "Captured vocabulary: %d discovered, %d evolving" % [
-			state.vocabulary_state.get("discovered_vocabulary", []).size(),
-			state.vocabulary_state.get("evolving_qubits", []).size()
-		])
-
-	# Conspiracy Network NOT saved (dynamic, regenerated each session)
-
-	var money = state.all_emoji_credits.get("💰", 0)
-	_verbose.info("save", "📸", "Captured game state: grid=" + str(state.grid_width) + "x" + str(state.grid_height) +
-		  ", plots=" + str(state.plots.size()) + ", 💰=" + str(money))
-	return state
-
-
-## Phase 2: Multi-Biome Capture Helpers
-
-func _capture_all_biome_states(farm: Node) -> Dictionary:
-	"""Capture quantum state from all registered biomes (DYNAMIC)
-
-	Phase 7: Supports arbitrary biomes by discovering them from grid.biomes registry.
-	Each biome's class type is saved so it can be recreated on load.
-	"""
-	var all_states = {}
-
-	# Dynamically discover all registered biomes from grid
-	if not farm.grid or not "biomes" in farm.grid:
-		push_warning("Farm grid has no biomes registry - cannot capture biome states")
-		return all_states
-
-	# Capture each registered biome
-	for biome_name in farm.grid.biomes.keys():
-		var biome = farm.grid.biomes[biome_name]
-		if biome:
-			var state = _capture_single_biome_state(biome, biome_name)
-
-			# Add biome class type for recreation on load
-			state["biome_class"] = biome.get_script().resource_path
-
-			all_states[biome_name] = state
-			_verbose.debug("save", "💾", "Captured %s biome (%s)" % [biome_name, state["biome_class"]])
-
-	return all_states
-
-
-func _capture_single_biome_state(biome: Node, biome_name: String) -> Dictionary:
-	"""Capture quantum state from one biome"""
-	var state_dict = {
-		"time_elapsed": 0.0,
-		"quantum_states": []
-	}
-
-	# Capture time
-	if "time_elapsed" in biome:
-		state_dict["time_elapsed"] = biome.time_elapsed
-	elif "time_tracker" in biome and biome.time_tracker:
-		state_dict["time_elapsed"] = biome.time_tracker.time_elapsed
-
-	# Capture sun/moon qubit (BioticFlux specific)
-	if biome_name == "BioticFlux" and "sun_qubit" in biome and biome.sun_qubit:
-		state_dict["sun_qubit"] = {
-			"theta": biome.sun_qubit.theta,
-			"phi": biome.sun_qubit.phi,
-			"radius": biome.sun_qubit.radius
-			# energy removed - now derived from theta (excitation = sin²(θ/2))
-		}
-
-	# Capture icon states (if they have internal_qubit)
-	if "wheat_icon" in biome and biome.wheat_icon:
-		if biome.wheat_icon is Dictionary and biome.wheat_icon.has("internal_qubit"):
-			var iq = biome.wheat_icon["internal_qubit"]
-			state_dict["wheat_icon"] = {
-				"theta": iq.theta, "phi": iq.phi, "radius": iq.radius
-				# energy removed - derived from theta
-			}
-		elif biome.wheat_icon.has("internal_qubit"):
-			var iq = biome.wheat_icon.internal_qubit
-			state_dict["wheat_icon"] = {
-				"theta": iq.theta, "phi": iq.phi, "radius": iq.radius
-				# energy removed - derived from theta
-			}
-
-	if "mushroom_icon" in biome and biome.mushroom_icon:
-		if biome.mushroom_icon is Dictionary and biome.mushroom_icon.has("internal_qubit"):
-			var iq = biome.mushroom_icon["internal_qubit"]
-			state_dict["mushroom_icon"] = {
-				"theta": iq.theta, "phi": iq.phi, "radius": iq.radius
-				# energy removed - derived from theta
-			}
-		elif biome.mushroom_icon.has("internal_qubit"):
-			var iq = biome.mushroom_icon.internal_qubit
-			state_dict["mushroom_icon"] = {
-				"theta": iq.theta, "phi": iq.phi, "radius": iq.radius
-				# energy removed - derived from theta
-			}
-
-	# PHASE 6: Don't save individual qubit states for bath-mode biomes
-	# Qubits are live projections - theta/phi/radius computed from bath
-	# We only save bath state + projection metadata (active_projections)
-	# For backwards compat with non-bath biomes, still save quantum_states
-	if "quantum_states" in biome and not ("bath" in biome and biome.bath):
-		# Legacy mode: save qubit states for biomes without bath
-		for pos in biome.quantum_states.keys():
-			var qubit = biome.quantum_states[pos]
-			if qubit:
-				var qubit_data = {
-					"position": pos,
-					"theta": qubit.theta,
-					"phi": qubit.phi,
-					"radius": qubit.radius
-				}
-				if "north_emoji" in qubit:
-					qubit_data["north_emoji"] = qubit.north_emoji
-				if "south_emoji" in qubit:
-					qubit_data["south_emoji"] = qubit.south_emoji
-				state_dict["quantum_states"].append(qubit_data)
-
-	# Phase 5.1: Capture gate infrastructure (Bell gates, CNOT gates, cluster gates)
-	state_dict["bell_gates"] = []
-	if "bell_gates" in biome:
-		for gate in biome.bell_gates:
-			# Each gate is an array of Vector2i positions
-			# Convert to serializable format (Array[Vector2i] → Array[Dictionary])
-			var gate_positions = []
-			for pos in gate:
-				gate_positions.append({"x": pos.x, "y": pos.y})
-			state_dict["bell_gates"].append(gate_positions)
-
-	# Phase 3: Capture bath state (all biomes now use bath mode)
-	# Serialize bath state if biome has a bath
-	if "bath" in biome and biome.bath:
-		# Serialize QuantumBath amplitudes
-		state_dict["bath_state"] = _serialize_bath_state(biome.bath)
-
-		# Serialize active projections
-		state_dict["active_projections"] = []
-		if "active_projections" in biome:
-			for pos in biome.active_projections.keys():
-				var proj_data = biome.active_projections[pos]
-				state_dict["active_projections"].append({
-					"position": pos,
-					"north": proj_data.north,
-					"south": proj_data.south
-				})
-
-	# Phase 3 Register Infrastructure: Serialize per-register infrastructure
-	if biome.quantum_computer and biome.quantum_computer.register_infrastructure.size() > 0:
-		var infra = {}
-		for reg_id in biome.quantum_computer.register_infrastructure:
-			infra[str(reg_id)] = biome.quantum_computer.register_infrastructure[reg_id].duplicate(true)
-		state_dict["register_infrastructure"] = infra
-
-	return state_dict
-
-
-## Phase 2: Multi-Biome Restore Helpers
-
-func _restore_all_biome_states(farm: Node, biome_states: Dictionary) -> void:
-	"""Restore quantum states to all biomes (DYNAMIC)
-
-	Phase 7: Handles arbitrary biomes by discovering them from grid.biomes registry.
-	Biomes must already be registered in the grid (Farm._ready() handles this).
-	"""
-	if not farm.grid or not "biomes" in farm.grid:
-		push_warning("Farm grid has no biomes registry - cannot restore biome states")
-		return
-
-	for biome_name in biome_states.keys():
-		var biome_state = biome_states[biome_name]
-
-		# Get biome from grid registry
-		var biome = farm.grid.biomes.get(biome_name, null)
-
-		if not biome:
-			push_warning("Biome %s not found in grid registry - skipping restore" % biome_name)
-			continue
-
-		# Restore state
-		_restore_single_biome_state(biome, biome_state, biome_name)
-		_verbose.debug("save", "📂", "Restored %s biome" % biome_name)
-
-
-func _restore_single_biome_state(biome: Node, state: Dictionary, biome_name: String) -> void:
-	"""Restore quantum state to one biome"""
-
-	# Restore time
-	if state.has("time_elapsed"):
-		if "time_elapsed" in biome:
-			biome.time_elapsed = state.time_elapsed
-		elif "time_tracker" in biome and biome.time_tracker:
-			biome.time_tracker.time_elapsed = state.time_elapsed
-
-	# Restore sun/moon qubit (BioticFlux specific)
-	if biome_name == "BioticFlux" and state.has("sun_qubit") and "sun_qubit" in biome and biome.sun_qubit:
-		var sq = state.sun_qubit
-		biome.sun_qubit.theta = sq.get("theta", 0.0)
-		biome.sun_qubit.phi = sq.get("phi", 0.0)
-		biome.sun_qubit.radius = sq.get("radius", 1.0)
-		# energy removed - derived from theta automatically
-
-	# Restore wheat icon (if has internal_qubit)
-	if state.has("wheat_icon") and "wheat_icon" in biome and biome.wheat_icon:
-		var wi = state.wheat_icon
-		if biome.wheat_icon is Dictionary and biome.wheat_icon.has("internal_qubit"):
-			var iq = biome.wheat_icon["internal_qubit"]
-			iq.theta = wi.get("theta", PI/4.0)
-			iq.phi = wi.get("phi", 0.0)
-			iq.radius = wi.get("radius", 1.0)
-			# energy removed - derived from theta
-		elif biome.wheat_icon.has("internal_qubit"):
-			var iq = biome.wheat_icon.internal_qubit
-			iq.theta = wi.get("theta", PI/4.0)
-			iq.phi = wi.get("phi", 0.0)
-			iq.radius = wi.get("radius", 1.0)
-			# energy removed - derived from theta
-
-	# Restore mushroom icon (if has internal_qubit)
-	if state.has("mushroom_icon") and "mushroom_icon" in biome and biome.mushroom_icon:
-		var mi = state.mushroom_icon
-		if biome.mushroom_icon is Dictionary and biome.mushroom_icon.has("internal_qubit"):
-			var iq = biome.mushroom_icon["internal_qubit"]
-			iq.theta = mi.get("theta", PI)
-			iq.phi = mi.get("phi", 0.0)
-			iq.radius = mi.get("radius", 1.0)
-			# energy removed - derived from theta
-		elif biome.mushroom_icon.has("internal_qubit"):
-			var iq = biome.mushroom_icon.internal_qubit
-			iq.theta = mi.get("theta", PI)
-			iq.phi = mi.get("phi", 0.0)
-			iq.radius = mi.get("radius", 1.0)
-			# energy removed - derived from theta
-
-	# Restore quantum states (emoji qubits)
-	if state.has("quantum_states") and "quantum_states" in biome:
-		for qubit_data in state.quantum_states:
-			var pos = qubit_data["position"]
-			if biome.quantum_states.has(pos):
-				var qubit = biome.quantum_states[pos]
-				qubit.theta = qubit_data.get("theta", PI/2.0)
-				qubit.phi = qubit_data.get("phi", 0.0)
-				qubit.radius = qubit_data.get("radius", 0.3)
-				# energy removed - derived from theta (excitation = sin²(θ/2))
-
-	# Phase 5.1: Restore gate infrastructure (Bell gates, CNOT gates, cluster gates)
-	if state.has("bell_gates") and "bell_gates" in biome:
-		biome.bell_gates.clear()
-		for gate_data in state.bell_gates:
-			# Convert serialized format back to Vector2i array
-			var gate_positions = []
-			for pos_dict in gate_data:
-				gate_positions.append(Vector2i(pos_dict.x, pos_dict.y))
-			biome.bell_gates.append(gate_positions)
-
-	# Phase 3: Restore bath state (all biomes now use bath mode)
-	# Wait for bath initialization (async process)
-	if not "bath" in biome or not biome.bath:
-		await biome.get_tree().process_frame
-
-	# Restore bath state if saved
-	if state.has("bath_state") and "bath" in biome and biome.bath:
-		_deserialize_bath_state(biome.bath, state.bath_state)
-
-		# Recreate projections
-		if state.has("active_projections") and biome.has_method("create_projection"):
-			biome.active_projections.clear()
-			for proj in state.active_projections:
-				biome.create_projection(proj.position, proj.north, proj.south)
-
-	# Restore register_infrastructure
-	if state.has("register_infrastructure") and biome.quantum_computer:
-		var qc = biome.quantum_computer
-		for reg_str in state["register_infrastructure"]:
-			qc.register_infrastructure[int(reg_str)] = state["register_infrastructure"][reg_str]
-
-
-func _migrate_plot_infra_to_register(farm: Node, state: GameState) -> void:
-	"""Backward compat: migrate per-plot infrastructure to register_infrastructure.
-
-	Called when loading old saves that don't have register_infrastructure in biome state.
-	Reads theta_frozen, lindblad_*, persistent_gates from plot_data and writes
-	to the corresponding register_infrastructure.
-	"""
-	if not farm.grid:
-		return
-
-	var migrated_count = 0
-	for plot_data in state.plots:
-		var pos = plot_data.get("position", Vector2i(-1, -1))
-		if pos == Vector2i(-1, -1):
-			continue
-
-		# Get register_id and biome for this plot
-		var reg_id = plot_data.get("register_id", -1)
-		var biome_name = plot_data.get("biome_name", "")
-		if reg_id < 0 or biome_name == "":
-			continue
-
-		var biome = farm.grid.biomes.get(biome_name, null)
-		if not biome or not biome.quantum_computer:
-			continue
-
-		var qc = biome.quantum_computer
-		var infra = qc._ensure_register_infra(reg_id)
-
-		# Migrate fields from plot data
-		infra["theta_frozen"] = plot_data.get("theta_frozen", false)
-		infra["lindblad_pump_active"] = plot_data.get("lindblad_pump_active", false)
-		infra["lindblad_drain_active"] = plot_data.get("lindblad_drain_active", false)
-		infra["lindblad_pump_rate"] = plot_data.get("lindblad_pump_rate", 0.5)
-		infra["lindblad_drain_rate"] = plot_data.get("lindblad_drain_rate", 0.5)
-
-		# Migrate persistent gates
-		if plot_data.has("persistent_gates"):
-			var gates = []
-			for gate_data in plot_data["persistent_gates"]:
-				gates.append({
-					"type": gate_data.get("type", ""),
-					"active": gate_data.get("active", true),
-					"linked_registers": []  # Old saves used linked_plots; no easy mapping
-				})
-			infra["persistent_gates"] = gates
-
-		migrated_count += 1
-
-	if migrated_count > 0 and _verbose:
-		_verbose.info("save", "🔄", "Migrated %d plot infra entries to register_infrastructure (old save compat)" % migrated_count)
-
-
-## Phase 6: Plot-Projection Reconnection
-
-func _reconnect_plots_to_projections(farm: Node, state: GameState) -> void:
-	"""Reconnect plots to their biome projections after load
-
-	After biomes recreate projections via create_projection(), plots need
-	to have their quantum_state references updated to point to those projections.
-	"""
-	if not farm.grid:
-		return
-
-	var reconnected_count = 0
-
-	for plot_data in state.plots:
-		var pos = plot_data["position"]
-
-		# Get plot
-		var plot = farm.grid.get_plot(pos)
-		if not plot:
-			continue
-
-		# Skip if plot not active (check actual plot, not save data)
-		if not plot.is_active():
-			continue
-
-		# Get biome for this plot
-		var biome_name = ""
-		if farm.grid.plot_biome_assignments.has(pos):
-			biome_name = farm.grid.plot_biome_assignments[pos]
-		else:
-			continue
-
-		# Get biome reference from grid registry (DYNAMIC)
-		var biome = farm.grid.biomes.get(biome_name, null)
-
-		if not biome:
-			push_warning("Biome %s not found for plot reconnection" % biome_name)
-			continue
-
-		# Look up projection in biome's active_projections
-		if not "active_projections" in biome:
-			continue
-
-		if not pos in biome.active_projections:
-			continue
-
-		var projection = biome.active_projections[pos]
-		if not projection.has("qubit"):
-			continue
-
-		# Model C: Reconnect plot to projection via bath_subplot_id
-		# (backwards compatible with old register_id saves)
-		if projection.has("bath_subplot_id"):
-			plot.bath_subplot_id = projection.bath_subplot_id
-			reconnected_count += 1
-		elif projection.has("register_id"):
-			# Backwards compatibility with Model B saves
-			plot.bath_subplot_id = projection.register_id
-			reconnected_count += 1
-
-	if reconnected_count > 0:
-		_verbose.debug("farm", "🔗", "Reconnected %d plots to biome projections" % reconnected_count)
-
-
-## Phase 3: Bath-First Serialization Helpers
-
-func _serialize_bath_state(bath: RefCounted) -> Dictionary:
-	"""Convert QuantumBath to serializable dict (Phase 3)"""
-	var serialized_amps = {}
-
-	# Serialize Complex amplitudes to {real, imag} dictionaries
-	for emoji in bath.emoji_list:
-		var amp = bath.get_amplitude(emoji)
-		serialized_amps[emoji] = {
-			"real": amp.re,
-			"imag": amp.im
-		}
-
-	return {
-		"emojis": bath.emoji_list.duplicate(),
-		"amplitudes": serialized_amps,
-		"bath_time": bath.bath_time
-	}
-
-
-func _deserialize_bath_state(bath: RefCounted, state: Dictionary) -> void:
-	"""Restore QuantumBath from serialized dict (Phase 3)"""
-	const Complex = preload("res://Core/QuantumSubstrate/Complex.gd")
-
-	# Restore amplitudes array
-	for i in range(state.emojis.size()):
-		var emoji = state.emojis[i]
-		if state.amplitudes.has(emoji):
-			var amp_data = state.amplitudes[emoji]
-			var amp = Complex.new(amp_data.real, amp_data.imag)
-			bath.amplitudes[i] = amp
-
-	bath.bath_time = state.bath_time
+	var serializer = _get_serializer()
+	return serializer.capture_state_from_farm(active_farm, current_state, current_scenario_id)
 
 
 func apply_state_to_game(state: GameState):
-	"""Apply loaded state to active Farm (through FarmView)
-
-	Refactored for Farm/Biome/Qubit architecture:
-	- Loads economy, plot configuration, time from GameState
-	- Restores complete biome quantum state tree (all qubits)
-	- UI layer (icons, visuals) updated through FarmView
-	"""
-	# Phase 1: Use direct farm reference (simulation-only saves)
-	var farm = active_farm
-
-	if not farm:
-		push_error("Farm not found - cannot apply state (is GameStateManager.active_farm set?)")
-		return
-
-	# Phase 4: Validation
-	# Version check
-	if state.save_version != 1:
-		push_error("Save file version mismatch: expected 1, got %d" % state.save_version)
-		push_error("This save may be incompatible with current game version")
-		# Continue anyway - attempt to load what we can
-
-	# Grid size validation
-	if farm.grid:
-		if state.grid_width != farm.grid.grid_width or state.grid_height != farm.grid.grid_height:
-			push_warning("Grid size mismatch: save has %dx%d, farm has %dx%d" % [
-				state.grid_width, state.grid_height,
-				farm.grid.grid_width, farm.grid.grid_height
-			])
-			push_warning("Out-of-bounds plots will be skipped")
-
-	_verbose.info("save", "🔄", "Applying game state to farm (" + str(state.grid_width) + "x" + str(state.grid_height) + ")...")
-
-	# Apply Economy (from Farm.economy)
-	var economy = farm.economy
-
-	# Load from all_emoji_credits if available (full persistence)
-	if state.all_emoji_credits and state.all_emoji_credits.size() > 0:
-		for emoji in state.all_emoji_credits.keys():
-			economy.emoji_credits[emoji] = state.all_emoji_credits[emoji]
-		_verbose.debug("save", "💰", "Loaded %d emoji types from all_emoji_credits" % state.all_emoji_credits.size())
-
-	if "total_tributes_paid" in economy:
-		economy.total_tributes_paid = state.tributes_paid
-	if "total_tributes_failed" in economy:
-		economy.total_tributes_failed = state.tributes_failed
-
-	# Emit signals for UI updates
-	for emoji in economy.emoji_credits.keys():
-		economy._emit_resource_change(emoji)
-
-	# Apply Simulation Speed (to all biomes)
-	if farm.grid and farm.grid.biomes:
-		var biome_count = 0
-		for biome in farm.grid.biomes.values():
-			if "quantum_time_scale" in biome:
-				biome.quantum_time_scale = state.quantum_time_scale
-				biome_count += 1
-		_verbose.debug("save", "⏱️", "Applied simulation speed %.4fx to %d biomes" % [state.quantum_time_scale, biome_count])
-
-	# Apply Player Vocabulary (farm-owned canonical)
-	var has_player_vocab_data = state.player_vocab_data and not state.player_vocab_data.is_empty()
-	if farm and farm.has_method("set_known_pairs"):
-		farm.set_known_pairs(state.known_pairs, not has_player_vocab_data, false)
-
-	# Apply Plot Configuration (from Farm.grid)
-	var grid = farm.grid
-	# Ensure grid is sized for explored biomes before applying plots
-	if farm.has_method("refresh_grid_for_biomes"):
-		farm.refresh_grid_for_biomes()
-		grid = farm.grid
-	# Track and summarize out-of-bounds plots
-	var oob_count = 0
-	var oob_first_pos = null
-	for plot_data in state.plots:
-		var pos = plot_data["position"]
-
-		# Phase 4: Bounds checking - skip out-of-bounds plots
-		if pos.x < 0 or pos.x >= grid.grid_width or pos.y < 0 or pos.y >= grid.grid_height:
-			oob_count += 1
-			if oob_first_pos == null:
-				oob_first_pos = pos
-			continue
-
-		var plot = grid.get_plot(pos)
-
-		if plot:
-			plot.plot_type = plot_data["type"]
-
-			# Restore terminal binding from saved data (Thin Plot Architecture)
-			# Terminal is the source of truth for is_planted/has_been_measured
-			# NOTE: Must bind terminal BEFORE setting computed properties
-			# (theta_frozen, lindblad_*) which delegate to register_infrastructure
-			if plot_data.get("is_planted", false) and farm.terminal_pool:
-				var saved_register = plot_data.get("register_id", -1)
-				var saved_biome = plot_data.get("biome_name", "")
-				var saved_north = plot_data.get("north_emoji", "")
-				var saved_south = plot_data.get("south_emoji", "")
-				if saved_register >= 0 and saved_biome != "":
-					var terminal = farm.terminal_pool.get_unbound_terminal()
-					if terminal:
-						var emoji_pair = {"north": saved_north, "south": saved_south}
-						farm.terminal_pool.bind_terminal(terminal, saved_register, saved_biome, emoji_pair)
-						terminal.grid_position = pos
-						plot.bound_terminal = terminal
-						# Restore measurement state on terminal
-						if plot_data.get("has_been_measured", false):
-							var outcome = plot_data.get("measured_outcome", "")
-							var probability = plot_data.get("measured_probability", 0.5)
-							terminal.mark_measured(outcome, probability, 0.0, {})
-
-			# Restore per-plot infrastructure via computed properties
-			# (these delegate to register_infrastructure; terminal must be bound first)
-			plot.theta_frozen = plot_data.get("theta_frozen", false)
-			plot.lindblad_pump_active = plot_data.get("lindblad_pump_active", false)
-			plot.lindblad_drain_active = plot_data.get("lindblad_drain_active", false)
-			plot.lindblad_pump_rate = plot_data.get("lindblad_pump_rate", 0.5)
-			plot.lindblad_drain_rate = plot_data.get("lindblad_drain_rate", 0.5)
-
-			# Restore entanglement relationships
-			plot.entangled_plots.clear()
-			for entangled_pos in plot_data.get("entangled_with", []):
-				var other_plot = grid.get_plot(entangled_pos)
-				if other_plot:
-					plot.entangled_plots[other_plot.plot_id] = 1.0
-
-	# Summarize out-of-bounds plots (if any)
-	if oob_count > 0:
-		_verbose.debug("save", "🧹", "Skipped %d out-of-bounds plots (grid %dx%d). First: %s" % [
-			oob_count, grid.grid_width, grid.grid_height, str(oob_first_pos)
-		])
-
-	# Apply Goals
-	# Phase 2: Multi-Biome Restore
-	# Restore plot→biome assignments FIRST (before restoring states)
-	if state.plot_biome_assignments and farm.grid:
-		if "plot_biome_assignments" in farm.grid:
-			farm.grid.plot_biome_assignments = state.plot_biome_assignments.duplicate()
-
-	# Restore quantum states to all biomes
-	var has_register_infra = false
-	if state.biome_states:
-		_restore_all_biome_states(farm, state.biome_states)
-		# Check if any biome had register_infrastructure
-		for bs in state.biome_states.values():
-			if bs.has("register_infrastructure"):
-				has_register_infra = true
-				break
-	elif state.biome_state:
-		# LEGACY: Old saves only have single biome_state - restore to BioticFlux
-		if farm.biotic_flux_biome:
-			_restore_single_biome_state(farm.biotic_flux_biome, state.biome_state, "BioticFlux")
-
-	# Backward compat: migrate per-plot infra to register_infrastructure for old saves
-	if not has_register_infra:
-		_migrate_plot_infra_to_register(farm, state)
-
-	# Phase 6: Reconnect plots to their biome projections
-	# After biomes recreate projections, plots need to know about them
-	_reconnect_plots_to_projections(farm, state)
-
-	# Apply Icon Activation (Phase 1: Now from Farm simulation layer)
-	if "biotic_icon" in farm and farm.biotic_icon and farm.biotic_icon.has_method("set_activation"):
-		farm.biotic_icon.set_activation(state.biotic_activation)
-	if "chaos_icon" in farm and farm.chaos_icon and farm.chaos_icon.has_method("set_activation"):
-		farm.chaos_icon.set_activation(state.chaos_activation)
-	if "imperium_icon" in farm and farm.imperium_icon and farm.imperium_icon.has_method("set_activation"):
-		farm.imperium_icon.set_activation(state.imperium_activation)
-
-	# Restore Vocabulary Evolution State (PERSISTED - player's discovered vocabulary)
-	if vocabulary_evolution and state.vocabulary_state:
-		vocabulary_evolution.deserialize(state.vocabulary_state)
-		_verbose.debug("save", "📚", "Restored vocabulary evolution from save")
-
-	# Restore Player Vocabulary Quantum Computer
-	var player_vocab = get_node_or_null("/root/PlayerVocabulary")
-	if player_vocab and state.player_vocab_data and not state.player_vocab_data.is_empty():
-		player_vocab.deserialize(state.player_vocab_data)
-		_verbose.debug("save", "🔬", "Restored PlayerVocabulary QC data")
-
-	# Conspiracy Network NOT loaded (dynamic, regenerate each session)
-
-	# Phase 5: Visualizer Rebuild Strategy
-	# ARCHITECTURE: GameStateManager (simulation layer) doesn't access UI visualizers directly
-	#
-	# Automatic rebuild via signals:
-	# - ResourcePanel: ✅ Already rebuilds via economy.resource_changed (emitted above)
-	# - PlotGridDisplay: ✅ Has rebuild_from_grid() method (UI layer calls it after load)
-	# - QuantumForceGraph: ✅ Has rebuild_from_biomes() method (UI layer calls it after load)
-	#
-	# The UI layer (FarmView/FarmUI) is responsible for calling rebuild methods after
-	# GameStateManager.apply_state_to_game() completes. This maintains clean separation:
-	# - Simulation layer (this file) restores game state
-	# - UI layer responds by rebuilding visualizations
-	#
-	# NOTE: Economy signals are emitted above, so ResourcePanel updates happen automatically.
-	# Other visualizers need explicit rebuild.
-
-	_verbose.info("save", "✓", "State applied to farm successfully - quantum states will regenerate from biome")
+	var serializer = _get_serializer()
+	serializer.apply_state_to_farm(state, active_farm)
 
 
 ## Scenario Completion Tracking
@@ -1222,7 +491,7 @@ func clear_completed_scenarios():
 
 func _load_completed_scenarios() -> Array:
 	"""Load completed scenarios from save file"""
-	var completed_file = SAVE_DIR + "completed_scenarios.json"
+	var completed_file = SaveStore.SAVE_DIR + "completed_scenarios.json"
 	if not FileAccess.file_exists(completed_file):
 		return []
 
@@ -1236,7 +505,7 @@ func _load_completed_scenarios() -> Array:
 
 func _save_completed_scenarios(completed: Array):
 	"""Save completed scenarios to save file"""
-	var completed_file = SAVE_DIR + "completed_scenarios.json"
+	var completed_file = SaveStore.SAVE_DIR + "completed_scenarios.json"
 	var file = FileAccess.open(completed_file, FileAccess.WRITE)
 	if file:
 		var json_string = JSON.stringify(completed)

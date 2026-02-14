@@ -79,7 +79,7 @@ func _ready():
 	print("-".repeat(60))
 	var outcome = farm.biome.measure_qubit(pos)
 	plot.measure(outcome)
-	if plot.has_been_measured:
+	if plot.is_measured:
 		print("✓ Measurement successful")
 		print("  Outcome: %s" % outcome)
 		print("  Theta frozen: %s" % plot.theta_frozen)

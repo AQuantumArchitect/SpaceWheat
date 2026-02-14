@@ -507,7 +507,7 @@ func test_persona_quantum_experimentalist():
 				for x in range(5):
 					for y in range(5):
 						var plot = farm_grid.get_plot(Vector2i(x, y))
-						if plot.has_been_measured:
+						if plot.is_measured:
 							collapsed_count += 1
 
 				results.interesting_observations.append("Measurement cascade: %d plots collapsed" % collapsed_count)

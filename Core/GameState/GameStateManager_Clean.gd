@@ -18,11 +18,7 @@
 extends Node
 
 const GameState = preload("res://Core/GameState/GameState.gd")
-
-# Save configuration
-const SAVE_DIR = "user://saves/"
-const NUM_SAVE_SLOTS = 3
-const SCENARIO_DIR = "res://Scenarios/"
+const SaveStore = preload("res://Core/GameState/SaveStore.gd")
 
 # Signals for UI layer to observe
 signal game_state_created(state: GameState)
@@ -36,10 +32,8 @@ var current_state: GameState = null
 
 func _ready():
 	# Ensure save directory exists
-	var dir = DirAccess.open("user://")
-	if not dir.dir_exists("saves"):
-		dir.make_dir("saves")
-	print("💾 GameStateManager (clean) ready - Save dir: " + SAVE_DIR)
+	SaveStore.ensure_save_dir()
+	print("💾 GameStateManager (clean) ready - Save dir: " + SaveStore.SAVE_DIR)
 
 
 ## CREATE NEW GAME STATE
@@ -48,16 +42,8 @@ func new_game(scenario_id: String = "default") -> GameState:
 	"""Create new game state from scenario template"""
 	print("🎮 Creating new game: " + scenario_id)
 
-	var state: GameState
-
-	# Try to load scenario file, fall back to default
-	var scenario_path = SCENARIO_DIR + scenario_id + ".tres"
-	if ResourceLoader.exists(scenario_path):
-		state = ResourceLoader.load(scenario_path).duplicate()
-		print("✓ Loaded scenario from: " + scenario_path)
-	else:
-		print("⚠ Scenario not found, creating default state")
-		state = GameState.new()
+	var state = SaveStore.load_scenario(scenario_id)
+	if state and state.scenario_id == "":
 		state.scenario_id = scenario_id
 
 	state.save_timestamp = Time.get_unix_time_from_system()
@@ -72,10 +58,6 @@ func new_game(scenario_id: String = "default") -> GameState:
 ## Saves a GameState object to disk
 func save_game(state: GameState, slot: int) -> bool:
 	"""Save GameState to slot (0-2)"""
-	if slot < 0 or slot >= NUM_SAVE_SLOTS:
-		push_error("Invalid save slot: " + str(slot))
-		return false
-
 	if not state:
 		push_error("No game state to save!")
 		return false
@@ -84,12 +66,10 @@ func save_game(state: GameState, slot: int) -> bool:
 	state.save_timestamp = Time.get_unix_time_from_system()
 
 	# Save to disk
-	var path = get_save_path(slot)
-	var result = ResourceSaver.save(state, path)
-
+	var result = SaveStore.save_state(state, slot)
 	if result == OK:
 		var money = state.all_emoji_credits.get("💰", 0) if state.all_emoji_credits else 0
-		print("💾 Game saved to slot " + str(slot + 1) + ": " + path)
+		print("💾 Game saved to slot " + str(slot + 1) + ": " + SaveStore.get_save_path(slot))
 		print("   💰: %d | Plots: %d | Time: %.1fs" % [
 			money,
 			state.plots.size(),
@@ -107,16 +87,7 @@ func save_game(state: GameState, slot: int) -> bool:
 ## Loads a GameState object from disk (doesn't apply it)
 func load_game(slot: int) -> GameState:
 	"""Load GameState from slot (returns state, doesn't apply it)"""
-	if slot < 0 or slot >= NUM_SAVE_SLOTS:
-		push_error("Invalid save slot: " + str(slot))
-		return null
-
-	var path = get_save_path(slot)
-	if not FileAccess.file_exists(path):
-		print("⚠ No save file in slot " + str(slot + 1))
-		return null
-
-	var state = ResourceLoader.load(path) as GameState
+	var state = SaveStore.load_state(slot)
 	if state:
 		var money = state.all_emoji_credits.get("💰", 0) if state.all_emoji_credits else 0
 		print("📂 Loaded save from slot " + str(slot + 1))
@@ -137,37 +108,21 @@ func load_game(slot: int) -> GameState:
 ## Get metadata about a save slot without loading full state
 func get_save_info(slot: int) -> Dictionary:
 	"""Get save slot info for display in UI"""
-	if not save_exists(slot):
-		return {"exists": false, "slot": slot}
-
-	var state = load_game(slot)
-	if not state:
-		return {"exists": false, "slot": slot}
-
-	var money = state.all_emoji_credits.get("💰", 0) if state.all_emoji_credits else 0
-	return {
-		"exists": true,
-		"slot": slot,
-		"display_name": state.get_save_display_name(),
-		"scenario": state.scenario_id,
-		"credits": money,
-		"playtime": state.game_time,
-		"grid_size": "%dx%d" % [state.grid_width, state.grid_height]
-	}
+	return SaveStore.get_save_info(slot)
 
 
 ## SAVE EXISTS
 ## Check if save file exists
 func save_exists(slot: int) -> bool:
 	"""Check if save file exists in slot"""
-	return FileAccess.file_exists(get_save_path(slot))
+	return SaveStore.save_exists(slot)
 
 
 ## GET SAVE PATH
 ## Get file path for save slot
 func get_save_path(slot: int) -> String:
 	"""Get file path for save slot"""
-	return SAVE_DIR + "save_slot_" + str(slot) + ".tres"
+	return SaveStore.get_save_path(slot)
 
 
 ## LIST ALL SAVES
@@ -175,6 +130,6 @@ func get_save_path(slot: int) -> String:
 func get_all_saves() -> Array[Dictionary]:
 	"""Get info about all save slots"""
 	var saves: Array[Dictionary] = []
-	for slot in range(NUM_SAVE_SLOTS):
+	for slot in range(SaveStore.NUM_SAVE_SLOTS):
 		saves.append(get_save_info(slot))
 	return saves

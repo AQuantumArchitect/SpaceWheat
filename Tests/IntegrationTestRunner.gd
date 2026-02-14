@@ -273,7 +273,7 @@ func test_quantum_mechanics():
 		log_pass("Measurement successful")
 
 		var plot_a = farm.grid.get_plot(pos_a)
-		if plot_a.has_been_measured:
+		if plot_a.is_measured:
 			log_pass("Plot marked as measured")
 			log_info("  Outcome: %s" % plot_a.measured_outcome)
 		else:

@@ -27,17 +27,18 @@ static func for_biome(biome_name: String, icon_registry) -> String:
 	return _hash_config(config_data)
 
 ## Collect all Icon data that affects this biome's operators
-static func _collect_icon_configs(biome_name: String, icon_registry) -> Dictionary:
+## Reads emojis directly from the icons Dictionary passed by callers.
+static func _collect_icon_configs(_biome_name: String, icon_registry) -> Dictionary:
 	var configs = {}
 
-	# Get list of emojis used by this biome
-	var emojis = _get_biome_emojis(biome_name)
+	if not icon_registry is Dictionary:
+		push_warning("CacheKey: icon_registry is not a Dictionary — cache key will not reflect Icon configs")
+		return configs
 
-	for emoji in emojis:
-		if not icon_registry.icons.has(emoji):
+	for emoji in icon_registry.keys():
+		var icon = icon_registry.get(emoji, null)
+		if not icon:
 			continue
-
-		var icon = icon_registry.icons[emoji]
 
 		# Extract ONLY fields that affect operators
 		# Changes to other fields (display_name, description, etc.) don't invalidate cache
@@ -52,33 +53,6 @@ static func _collect_icon_configs(biome_name: String, icon_registry) -> Dictiona
 		}
 
 	return configs
-
-## Get list of emojis that affect each biome's operators
-## TODO: Make this dynamic by reading biome.OPERATOR_EMOJIS constant
-static func _get_biome_emojis(biome_name: String) -> Array:
-	match biome_name:
-		"BioticFluxBiome":
-			return ["☀", "🌙", "🌾", "🏰", "🍄", "🐰", "🐺", "🍂", "🌲", "🌿", "💀"]
-		"StellarForgesBiome":
-			return ["⚡", "🔋", "⚙", "🔩", "🚀", "🛸"]
-		"FungalNetworksBiome":
-			return ["🦗", "🐜", "🍄", "🦠", "🧫", "🍂", "🌙", "☀"]
-		"VolcanicWorldsBiome":
-			return ["🔥", "🪨", "💎", "⛏", "🌫", "✨"]
-		"StarterForestBiome":
-			return ["☀", "🌙", "🐺", "🐇", "🦅", "🦌", "🌲", "🍂", "🌱", "🌿"]
-		"VillageBiome":
-			return ["🔥", "❄️", "🌾", "🍞", "⚙️", "💨", "🦠", "👥", "💰", "🧺"]
-		# Legacy biomes (kept for cache compatibility)
-		"MarketBiome":
-			return ["⚖️", "💰", "🌾", "🍄", "🐰", "🐺", "🏰"]
-		"QuantumKitchen_Biome":
-			return ["🔥", "❄️", "💧", "🏜️", "💨", "🌾", "🍞"]
-		"ForestEcosystem_Biome":
-			return ["🌲", "🌿", "🍂", "🌾", "🐰", "🐺", "☀️", "🌙"]
-		_:
-			push_warning("Unknown biome for cache key: %s" % biome_name)
-			return []
 
 ## Generate deterministic hash from config Dictionary
 static func _hash_config(config: Dictionary) -> String:

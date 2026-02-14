@@ -315,7 +315,7 @@ func _test_measure_action():
 		_record_result(false, "No planted plot for measure test")
 		return
 
-	var before_measured = plot.has_been_measured
+	var before_measured = plot.is_measured
 	print("  Before: has_been_measured=%s" % before_measured)
 
 	# Set selection
@@ -325,7 +325,7 @@ func _test_measure_action():
 	print("  Calling _execute_tool_action('E') for MEASURE...")
 	input_handler._execute_tool_action("E")
 
-	var after_measured = plot.has_been_measured
+	var after_measured = plot.is_measured
 	var outcome = plot.measured_outcome
 	print("  After: has_been_measured=%s, outcome='%s'" % [after_measured, outcome])
 

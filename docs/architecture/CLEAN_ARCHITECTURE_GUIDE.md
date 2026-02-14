@@ -1,5 +1,10 @@
 # Clean Architecture: GameState as Source of Truth
 
+## Status (Current)
+
+The live game uses **GameStateManager.gd** for orchestration and **SaveStore.gd** for disk IO.  
+`MemoryManager.gd` and `GameStateManager_Clean.gd` are legacy/experimental references.
+
 ## ✅ Test Results: FULLY WORKING
 
 ```

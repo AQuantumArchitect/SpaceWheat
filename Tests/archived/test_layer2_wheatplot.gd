@@ -155,18 +155,18 @@ func test_measurement_mechanics():
 	}
 
 	print("  Before measure:")
-	print("    planted: %s, measured: %s" % [plot.is_planted, plot.has_been_measured])
+	print("    planted: %s, measured: %s" % [plot.is_planted, plot.is_measured])
 
 	# Measure the plot (collapse superposition)
-	plot.has_been_measured = true
+	plot.is_measured = true
 	var qubit = plot.quantum_state
 	qubit.theta = 0.0  # Collapse to north
 
 	print("  After measure:")
-	print("    planted: %s, measured: %s" % [plot.is_planted, plot.has_been_measured])
+	print("    planted: %s, measured: %s" % [plot.is_planted, plot.is_measured])
 	print("    qubit θ: %.2f (collapsed)" % qubit.theta)
 
-	if plot.has_been_measured and (qubit.theta == 0.0 or qubit.theta == PI):
+	if plot.is_measured and (qubit.theta == 0.0 or qubit.theta == PI):
 		print("  ✅ Measurement collapsed to definite state")
 		test_passed += 1
 	else:
@@ -200,7 +200,7 @@ func test_state_transitions():
 
 	# Step 3: Measure
 	plot.state = "measured"
-	plot.has_been_measured = true
+	plot.is_measured = true
 	plot.quantum_state.theta = PI/2 + randf() * PI  # Random collapse
 	print("    3️⃣  MEASURED (collapsed emoji)")
 	test_passed += 1

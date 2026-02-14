@@ -149,6 +149,77 @@ func _discover_vocab_pair(north: String, south: String) -> bool:
 	return false
 
 
+func _grant_resource_rewards(reward, faction_name: String) -> Dictionary:
+	"""Grant resource rewards to economy and return granted payload."""
+	var granted: Dictionary = {}
+	if reward == null:
+		return granted
+	var rewards = reward.resource_rewards
+	if not (rewards is Dictionary) or rewards.is_empty():
+		return granted
+	if economy == null:
+		push_warning("QuestManager: economy not connected, cannot grant resource rewards")
+		return granted
+
+	var source = "quest_reward:%s" % faction_name.replace(" ", "_").to_lower()
+	for emoji in rewards.keys():
+		var amount = int(rewards.get(emoji, 0))
+		if amount <= 0:
+			continue
+		economy.add_resource(emoji, amount, source)
+		granted[emoji] = amount
+
+	return granted
+
+
+func _grant_vocabulary_rewards(reward, faction_name: String) -> void:
+	"""Grant vocabulary rewards and emit discovery signals."""
+	if reward == null:
+		return
+	var gsm = _get_gsm()
+
+	# Paired vocabulary is preferred (north/south axis)
+	for pair in reward.learned_pairs:
+		var north = pair.get("north", "")
+		var south = pair.get("south", "")
+		if north == "" or south == "":
+			continue
+		var was_new = _discover_vocab_pair(north, south)
+		if was_new:
+			vocabulary_pair_learned.emit(north, south, faction_name)
+			vocabulary_learned.emit(north, faction_name)
+			vocabulary_learned.emit(south, faction_name)
+			print("📖 %s taught you: %s/%s axis" % [faction_name, north, south])
+		else:
+			print("📖 %s tried to teach %s/%s but you already know it" % [faction_name, north, south])
+
+	# Fallback for solo vocabulary rewards
+	if reward.learned_pairs.is_empty():
+		for emoji in reward.learned_vocabulary:
+			if gsm and gsm.has_method("discover_emoji"):
+				gsm.discover_emoji(emoji)
+			vocabulary_learned.emit(emoji, faction_name)
+			print("📖 %s taught you: %s" % [faction_name, emoji])
+
+
+func _build_reward_payload(reward, granted_resources: Dictionary) -> Dictionary:
+	"""Convert reward object to plain dictionary for UI/signals."""
+	var payload: Dictionary = {
+		"resource_rewards": granted_resources.duplicate(true),
+		"learned_vocabulary": [],
+		"learned_pairs": [],
+		"bonus_multiplier": 1.0,
+		"money_amount": 0
+	}
+	if reward == null:
+		return payload
+	payload["learned_vocabulary"] = reward.learned_vocabulary.duplicate()
+	payload["learned_pairs"] = reward.learned_pairs.duplicate(true)
+	payload["bonus_multiplier"] = reward.bonus_multiplier
+	payload["money_amount"] = reward.money_amount
+	return payload
+
+
 func _get_simulated_vocab_emojis(biome: Node) -> Array:
 	if not biome or not biome.has_method("get"):
 		return []
@@ -181,6 +252,8 @@ func offer_quest(faction: Dictionary, biome_name: String, resources: Array) -> D
 	var quest = QuestGenerator.generate_quest(faction, biome_name, resources)
 	if quest.is_empty():
 		return {}
+	if not _is_valid_offer(quest):
+		return {}
 
 	# Assign unique ID
 	quest["id"] = next_quest_id
@@ -200,6 +273,8 @@ func offer_emoji_quest(faction: Dictionary, biome_name: String, resources: Array
 
 	var quest = QuestGenerator.generate_emoji_quest(faction, biome_name, resources)
 	if quest.is_empty():
+		return {}
+	if not _is_valid_offer(quest):
 		return {}
 
 	quest["id"] = next_quest_id
@@ -235,6 +310,8 @@ func offer_quest_emergent(faction: Dictionary, biome) -> Dictionary:
 	# Check for vocabulary mismatch error
 	if quest.is_empty() or quest.has("error"):
 		return {}  # Faction inaccessible - no vocabulary overlap
+	if not _is_valid_offer(quest):
+		return {}
 
 	# Assign ID and metadata
 	quest["id"] = next_quest_id
@@ -274,6 +351,8 @@ func offer_all_faction_quests(biome) -> Array:
 		# Skip factions with no vocabulary overlap
 		if quest.is_empty() or quest.has("error"):
 			continue
+		if not _is_valid_offer(quest):
+			continue
 
 		# Add metadata
 		quest["id"] = next_quest_id
@@ -288,6 +367,28 @@ func offer_all_faction_quests(biome) -> Array:
 		quests.append(quest)
 
 	return quests  # Return all accessible quests for player to browse
+
+
+func _is_valid_offer(quest: Dictionary) -> bool:
+	"""Reject broken offers (delivery with no resource/qty, north duplicate)."""
+	if quest.is_empty():
+		return false
+	var quest_type = quest.get("type", QuestTypes.Type.DELIVERY)
+	if quest_type == QuestTypes.Type.DELIVERY:
+		var resource = quest.get("resource", "")
+		var quantity = quest.get("quantity", 0)
+		if resource == "" or quantity <= 0:
+			return false
+
+	# North pole should be new; south may repeat.
+	var player_vocab = _get_player_vocab_emojis()
+	var north = quest.get("reward_vocab_north", "")
+	var south = quest.get("reward_vocab_south", "")
+	if north == "" or south == "":
+		return false
+	if north in player_vocab:
+		return false
+	return true
 
 
 func get_biome_observables(biome) -> Dictionary:
@@ -410,32 +511,9 @@ func complete_quest(quest_id: int) -> bool:
 	# Generate rewards (vocabulary only)
 	var player_vocab = _get_player_vocab_emojis()
 	var reward = QuestRewards.generate_reward(quest, null, player_vocab)
-	var gsm = _get_gsm()
-
-	# Grant vocabulary rewards
 	var faction_name = quest.get("faction", "Unknown")
-
-	# Paired vocabulary (preferred - uses discover_pair which handles both emojis)
-	for pair in reward.learned_pairs:
-		var north = pair.get("north", "")
-		var south = pair.get("south", "")
-		if north != "" and south != "":
-			var was_new = _discover_vocab_pair(north, south)
-			if was_new:
-				vocabulary_pair_learned.emit(north, south, faction_name)
-				vocabulary_learned.emit(north, faction_name)
-				vocabulary_learned.emit(south, faction_name)
-				print("📖 %s taught you: %s/%s axis" % [faction_name, north, south])
-			else:
-				print("📖 %s tried to teach %s/%s but you already know it" % [faction_name, north, south])
-
-	# Single emojis (fallback for emojis without connections)
-	if reward.learned_pairs.is_empty():
-		for emoji in reward.learned_vocabulary:
-			if gsm and gsm.has_method("discover_emoji"):
-				gsm.discover_emoji(emoji)
-			vocabulary_learned.emit(emoji, faction_name)
-			print("📖 %s taught you: %s" % [faction_name, emoji])
+	var granted_resources = _grant_resource_rewards(reward, faction_name)
+	_grant_vocabulary_rewards(reward, faction_name)
 
 	# Update quest status
 	quest["status"] = "completed"
@@ -449,9 +527,23 @@ func complete_quest(quest_id: int) -> bool:
 	# Stop timer
 	_stop_quest_timer(quest_id)
 
-	quest_completed.emit(quest_id, {})
+	quest_completed.emit(quest_id, _build_reward_payload(reward, granted_resources))
 	active_quests_changed.emit()
 	return true
+
+
+func complete_or_claim(quest_id: int) -> bool:
+	"""Complete delivery quests or claim ready non-delivery quests."""
+	if not active_quests.has(quest_id):
+		return false
+	var quest = active_quests[quest_id]
+	var quest_type = quest.get("type", QuestTypes.Type.DELIVERY)
+	if quest_type == QuestTypes.Type.DELIVERY:
+		return complete_quest(quest_id)
+	# Non-delivery: must be ready
+	if quest.get("status", "") == "ready":
+		return claim_quest(quest_id)
+	return false
 
 # =============================================================================
 # QUEST FAILURE
@@ -526,30 +618,12 @@ func claim_quest(quest_id: int) -> bool:
 		push_warning("Cannot claim quest %d: not ready (status=%s)" % [quest_id, quest.get("status", "?")])
 		return false
 
-	# Generate and grant rewards (vocabulary only)
-	var gsm = _get_gsm()
+	# Generate and grant rewards
 	var player_vocab = _get_player_vocab_emojis()
 	var reward = QuestRewards.generate_reward(quest, null, player_vocab)
-
-	# Grant vocabulary rewards
 	var faction_name = quest.get("faction", "Unknown")
-
-	for pair in reward.learned_pairs:
-		var north = pair.get("north", "")
-		var south = pair.get("south", "")
-		if north != "" and south != "":
-			_discover_vocab_pair(north, south)
-			vocabulary_pair_learned.emit(north, south, faction_name)
-			vocabulary_learned.emit(north, faction_name)
-			vocabulary_learned.emit(south, faction_name)
-			print("📖 %s taught you: %s/%s axis" % [faction_name, north, south])
-
-	if reward.learned_pairs.is_empty():
-		for emoji in reward.learned_vocabulary:
-			if gsm and gsm.has_method("discover_emoji"):
-				gsm.discover_emoji(emoji)
-			vocabulary_learned.emit(emoji, faction_name)
-			print("📖 %s taught you: %s" % [faction_name, emoji])
+	var granted_resources = _grant_resource_rewards(reward, faction_name)
+	_grant_vocabulary_rewards(reward, faction_name)
 
 	# Update quest status
 	quest["status"] = "completed"
@@ -563,7 +637,7 @@ func claim_quest(quest_id: int) -> bool:
 	# Stop timer
 	_stop_quest_timer(quest_id)
 
-	quest_completed.emit(quest_id, {})
+	quest_completed.emit(quest_id, _build_reward_payload(reward, granted_resources))
 	active_quests_changed.emit()
 	return true
 

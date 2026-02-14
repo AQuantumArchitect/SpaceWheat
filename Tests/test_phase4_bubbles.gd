@@ -354,7 +354,7 @@ func _test_bubble_measurement_visual():
 		return
 
 	# Check has_been_measured before
-	var before_measured = plot.has_been_measured
+	var before_measured = plot.is_measured
 	print("  Before: has_been_measured=%s" % before_measured)
 
 	# Check bubble has opacity properties

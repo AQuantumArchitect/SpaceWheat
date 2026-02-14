@@ -310,15 +310,30 @@ func _stage_visualization(farm: Node, quantum_viz: Node) -> void:
 		if bubble_atlas.build_atlas():
 			_verbose.info("boot", "✓", "Bubble atlas ready (%d templates)" % bubble_atlas._template_uvs.size())
 
-			# Enable software rendering mode if on llvmpipe (reduces layers for ~3x FPS)
+			# Software renderer detected — keep HIGH quality for visual fidelity
 			if PerfOptimizer.detect_software_renderer():
-				bubble_atlas.configure_for_software_rendering(true)
+				_verbose.info("boot", "🖥️", "Software renderer detected — keeping HIGH quality")
 
 			# Pass atlas to the quantum viz graph for use by bubble renderer
 			if quantum_viz.has_method("set_bubble_atlas_batcher"):
 				quantum_viz.set_bubble_atlas_batcher(bubble_atlas)
 		else:
 			_verbose.warn("boot", "⚠️", "Bubble atlas build failed - using C++ fallback")
+
+	# Boot explore: trigger a real EXPLORE action at position "j" (x=0) in first biome
+	# This creates a real terminal binding, emits terminal_bound, and creates a real bubble
+	if biomes.size() > 0 and farm.terminal_pool:
+		var boot_biome_name = "StarterForest" if biomes.has("StarterForest") else biomes.keys()[0]
+		var boot_biome = biomes[boot_biome_name]
+		var result = ProbeActions.action_explore(farm.terminal_pool, boot_biome, farm.economy)
+		if result.get("success"):
+			var biome_row = farm.get_biome_row(boot_biome_name)
+			var grid_pos = Vector2i(0, biome_row)  # "j" = x=0 in the biome's row
+			farm.emit_action_signal("explore", result, grid_pos)
+			_verbose.info("boot", "🌱", "Boot explore: %s at %s (register %d)" % [
+				boot_biome_name, grid_pos, result.get("register_id", -1)])
+		else:
+			_verbose.warn("boot", "⚠️", "Boot explore failed: %s" % result.get("message", "unknown"))
 
 	visualization_ready.emit()
 

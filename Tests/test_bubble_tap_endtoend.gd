@@ -65,7 +65,7 @@ func run_test() -> void:
 
 	print("  After plant:")
 	print("    Plot planted: %s" % plot_after.is_planted)
-	print("    Plot measured: %s" % plot_after.has_been_measured)
+	print("    Plot measured: %s" % plot_after.is_measured)
 	print("    Bubble count: %d" % bubbles_after)
 
 	if plot_after.is_planted and bubbles_after > bubbles_before:
@@ -100,9 +100,9 @@ func run_test() -> void:
 
 	print("  After click:")
 	print("    Plot planted: %s" % plot_after.is_planted)
-	print("    Plot measured: %s" % plot_after.has_been_measured)
+	print("    Plot measured: %s" % plot_after.is_measured)
 
-	if plot_after.has_been_measured:
+	if plot_after.is_measured:
 		test_results["tap_measures_plot"] = true
 		print("  ✓ Tap measured the plot\n")
 	else:
@@ -124,7 +124,7 @@ func run_test() -> void:
 
 	print("  After second click:")
 	print("    Plot planted: %s" % plot_after.is_planted)
-	print("    Plot measured: %s" % plot_after.has_been_measured)
+	print("    Plot measured: %s" % plot_after.is_measured)
 	print("    Bubble count: %d" % bubbles_final)
 
 	if not plot_after.is_planted:

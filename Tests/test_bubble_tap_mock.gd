@@ -59,9 +59,9 @@ func run_test() -> void:
 
 	plot = farm.grid.get_plot(test_pos)
 	print("  Plot planted: %s" % plot.is_planted)
-	print("  Plot measured: %s" % plot.has_been_measured)
+	print("  Plot measured: %s" % plot.is_measured)
 
-	if not plot.has_been_measured:
+	if not plot.is_measured:
 		print("  ❌ FAILED: Plot NOT measured\n")
 		return
 
@@ -78,7 +78,7 @@ func run_test() -> void:
 	bubbles = quantum_viz.graph.quantum_nodes.size()
 
 	print("  Plot planted: %s" % plot.is_planted)
-	print("  Plot measured: %s" % plot.has_been_measured)
+	print("  Plot measured: %s" % plot.is_measured)
 	print("  Bubbles: %d" % bubbles)
 
 	if plot.is_planted:

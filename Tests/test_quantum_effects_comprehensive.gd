@@ -192,7 +192,7 @@ func run_test():
 	for pos in wheat_positions:
 		var outcome = farm.biome.measure_qubit(pos)
 		var plot = farm.grid.get_plot(pos)
-		plot.has_been_measured = true
+		plot.is_measured = true
 		if outcome:
 			print("  ✓ Measured %s: %s" % [pos, outcome])
 

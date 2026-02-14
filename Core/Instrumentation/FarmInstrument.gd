@@ -113,6 +113,16 @@ func add_resource(emoji: String, credits_amount: int, reason: String = "rig_seed
 	return true
 
 
+func set_resource(emoji: String, credits_amount: int, reason: String = "rig_set") -> bool:
+	"""Set emoji-credits to an exact amount (used by deterministic rig seeding)."""
+	if not farm or not ("economy" in farm) or not farm.economy:
+		return false
+	if not farm.economy.has_method("set_resource"):
+		return false
+	farm.economy.set_resource(emoji, credits_amount, reason)
+	return true
+
+
 func get_active_quests() -> Array:
 	if quest_manager and quest_manager.has_method("get_active_quests"):
 		return quest_manager.get_active_quests()
@@ -143,6 +153,14 @@ func complete_quest(quest_id: int) -> bool:
 	if not quest_manager:
 		return false
 	return quest_manager.complete_quest(quest_id)
+
+
+func complete_or_claim_quest(quest_id: int) -> bool:
+	if not quest_manager:
+		return false
+	if quest_manager.has_method("complete_or_claim"):
+		return quest_manager.complete_or_claim(quest_id)
+	return false
 
 
 func claim_quest(quest_id: int) -> bool:

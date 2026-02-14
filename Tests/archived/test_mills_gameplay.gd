@@ -65,7 +65,7 @@ func test_wheat_coupling_to_mill():
 		plot.quantum_state = DualEmojiQubit.new()
 		plot.quantum_state.theta = PI / 2.0
 		plot.quantum_state.phi = 0.0
-		plot.has_been_measured = false
+		plot.is_measured = false
 		wheat_plots.append(plot)
 
 	var mill = QuantumMill.new()
@@ -91,7 +91,7 @@ func test_measurement_stochasticity():
 		plot.quantum_state = DualEmojiQubit.new()
 		plot.quantum_state.theta = PI / 2.0
 		plot.quantum_state.phi = 0.0
-		plot.has_been_measured = false
+		plot.is_measured = false
 		wheat_plots.append(plot)
 
 	var mill = QuantumMill.new()
@@ -124,7 +124,7 @@ func test_flour_production_accumulation():
 		plot.quantum_state = DualEmojiQubit.new()
 		plot.quantum_state.theta = PI / 2.0
 		plot.quantum_state.phi = 0.0
-		plot.has_been_measured = false
+		plot.is_measured = false
 		wheat_plots.append(plot)
 
 	var mill = QuantumMill.new()
@@ -156,7 +156,7 @@ func test_flow_rate_statistics():
 		plot.quantum_state = DualEmojiQubit.new()
 		plot.quantum_state.theta = PI / 2.0
 		plot.quantum_state.phi = 0.0
-		plot.has_been_measured = false
+		plot.is_measured = false
 		wheat_plots.append(plot)
 
 	var mill = QuantumMill.new()
@@ -190,7 +190,7 @@ func test_measurement_collapses_wheat():
 		plot.quantum_state = DualEmojiQubit.new()
 		plot.quantum_state.theta = PI / 2.0
 		plot.quantum_state.phi = PI / 4.0
-		plot.has_been_measured = false
+		plot.is_measured = false
 		wheat_plots.append(plot)
 
 	var mill = QuantumMill.new()
@@ -198,14 +198,14 @@ func test_measurement_collapses_wheat():
 	mill.biome = biome
 
 	for plot in wheat_plots:
-		assert_equal(plot.has_been_measured, false, "Wheat not measured initially")
+		assert_equal(plot.is_measured, false, "Wheat not measured initially")
 		assert_true(plot.quantum_state.theta > 0.1 and plot.quantum_state.theta < PI - 0.1, "Wheat in superposition")
 
 	mill.perform_quantum_measurement()
 
 	for i in range(wheat_plots.size()):
 		var plot = wheat_plots[i]
-		assert_true(plot.has_been_measured, "Wheat marked as measured")
+		assert_true(plot.is_measured, "Wheat marked as measured")
 		var at_north = abs(plot.quantum_state.theta) < 0.01
 		var at_south = abs(plot.quantum_state.theta - PI) < 0.01
 		var collapsed = at_north or at_south

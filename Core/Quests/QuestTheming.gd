@@ -12,6 +12,7 @@ const FactionStateMatcher = preload("res://Core/QuantumSubstrate/FactionStateMat
 const QuestTypes = preload("res://Core/Quests/QuestTypes.gd")
 const FactionDatabase = preload("res://Core/Quests/FactionDatabaseV2.gd")
 const VocabularyPairing = preload("res://Core/Quests/VocabularyPairing.gd")
+const QuestRewards = preload("res://Core/Quests/QuestRewards.gd")
 const EconomyConstants = preload("res://Core/GameMechanics/EconomyConstants.gd")
 
 # Light bias toward simulated vocab when selecting north pole.
@@ -506,10 +507,17 @@ static func generate_quest(
 	# 11. PRE-ROLL VOCABULARY REWARD PAIR
 	# Roll the vocab pair NOW (at quest creation) so player knows what they'll learn
 	var vocab_pair = _roll_vocabulary_reward_pair(signature, player_vocab, bias_emojis)
+	if vocab_pair.get("north", "") == "" or vocab_pair.get("south", "") == "":
+		return {
+			"error": "no_reward_pair",
+			"message": "No valid reward vocabulary pair available",
+			"faction": faction.get("name", "Unknown")
+		}
 	quest["reward_vocab_north"] = vocab_pair.get("north", "")
 	quest["reward_vocab_south"] = vocab_pair.get("south", "")
 	quest["reward_vocab_probability"] = vocab_pair.get("probability", 0.0)
 	quest["reward_vocab_weight"] = vocab_pair.get("weight", 0.0)
+	quest["reward_resources"] = QuestRewards.plan_resource_rewards(quest, faction)
 
 	_log("debug", "quest", "📖", "Pre-rolled vocab pair: %s/%s (%.0f%%)" % [
 		vocab_pair.get("north", "?"),
@@ -526,15 +534,38 @@ static func generate_quest(
 
 static func generate_display_text(quest: Dictionary) -> String:
 	"""Generate human-readable quest description"""
-	var resource = quest.get("resource", "?")
-	var quantity = quest.get("quantity", 1)
+	var quest_type = quest.get("type", QuestTypes.Type.DELIVERY)
 	var time_limit = quest.get("time_limit", -1)
 
-	var text = "%s x %d" % [resource, quantity]
-	if time_limit > 0:
-		text += " in %ds" % int(time_limit)
-
-	return text
+	match quest_type:
+		QuestTypes.Type.DELIVERY:
+			var resource = quest.get("resource", "?")
+			var quantity = quest.get("quantity", 1)
+			var text = "%s x %d" % [resource, quantity]
+			if time_limit > 0:
+				text += " in %ds" % int(time_limit)
+			return text
+		QuestTypes.Type.SHAPE_ACHIEVE:
+			var observable = quest.get("observable", "purity")
+			var comparison = quest.get("comparison", ">")
+			var target = quest.get("target", 0.0)
+			return "%s %s %.2f" % [observable, comparison, target]
+		QuestTypes.Type.SHAPE_MAINTAIN:
+			var observable = quest.get("observable", "purity")
+			var comparison = quest.get("comparison", ">")
+			var target = quest.get("target", 0.0)
+			var duration = quest.get("duration", 0.0)
+			return "%s %s %.2f for %ds" % [observable, comparison, target, int(duration)]
+		QuestTypes.Type.EVOLUTION:
+			var observable = quest.get("observable", "coherence")
+			var delta = quest.get("delta", 0.0)
+			var direction = quest.get("direction", "increase")
+			return "%s %s by %.2f" % [direction, observable, delta]
+		QuestTypes.Type.ENTANGLEMENT:
+			var target_coherence = quest.get("target_coherence", 0.0)
+			return "coherence > %.2f" % target_coherence
+		_:
+			return QuestTypes.get_type_description(quest_type)
 
 
 static func describe_alignment_reason(quest: Dictionary) -> String:

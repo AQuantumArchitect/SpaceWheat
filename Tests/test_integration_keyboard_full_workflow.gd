@@ -257,9 +257,9 @@ func _test_full_keyboard_workflow():
 	var plot_1 = farm.get_plot(Vector2i(1, 0))
 	var plot_2 = farm.get_plot(Vector2i(2, 0))
 
-	assert(plot_0.has_been_measured == true, "Plot 0 should be measured (cascade)")
-	assert(plot_1.has_been_measured == true, "Plot 1 should be measured")
-	assert(plot_2.has_been_measured == true, "Plot 2 should be measured (cascade)")
+	assert(plot_0.is_measured == true, "Plot 0 should be measured (cascade)")
+	assert(plot_1.is_measured == true, "Plot 1 should be measured")
+	assert(plot_2.is_measured == true, "Plot 2 should be measured (cascade)")
 	print("  ✓ Measurement cascaded through entangled network")
 
 	print("\n✅ All 3 plots measured (spooky action at a distance!)\n")

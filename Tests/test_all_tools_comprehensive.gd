@@ -179,14 +179,14 @@ func _test_tool_2_quantum():
 	print("\n[2.3] measure_batch")
 	# Measure all selected plots
 	var plot_before = farm.grid.get_plot(Vector2i(3, 0))
-	var was_measured_before = plot_before.has_been_measured if plot_before else false
+	var was_measured_before = plot_before.is_measured if plot_before else false
 
 	if farm.grid.has_method("measure_plot"):
 		farm.grid.measure_plot(Vector2i(3, 0))
 		await get_tree().process_frame
 
 		var plot_after = farm.grid.get_plot(Vector2i(3, 0))
-		var measured_after = plot_after.has_been_measured if plot_after else false
+		var measured_after = plot_after.is_measured if plot_after else false
 
 		if measured_after and not was_measured_before:
 			_pass("Plot measured")

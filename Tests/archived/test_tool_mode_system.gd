@@ -211,7 +211,7 @@ func test_complete_game_flow():
 	_simulate_key_press(KEY_E)
 	await get_tree().process_frame
 
-	if plot and plot.has_been_measured:
+	if plot and plot.is_measured:
 		print("✅ Plot measured - state collapsed")
 	else:
 		print("❌ Measure failed")

@@ -131,7 +131,7 @@ func experiment_1_basic_planting():
 	press_key("R")
 	await wait(0.5)
 
-	if plot and plot.has_been_measured:
+	if plot and plot.is_measured:
 		log_success("✅ Measurement successful!")
 		print("   Outcome: %s" % plot.measured_outcome)
 
@@ -402,7 +402,7 @@ func experiment_6_purity_harvest():
 			print("  Expected multiplier: %.2f×" % expected_multiplier)
 
 	# Measure if not already measured
-	if plot_t and not plot_t.has_been_measured:
+	if plot_t and not plot_t.is_measured:
 		print("\nStep 1: Measure plot T (Tool 1, R)")
 		press_key("1")
 		await wait(0.2)

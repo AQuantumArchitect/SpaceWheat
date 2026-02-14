@@ -60,42 +60,25 @@ func _initialize_bath() -> void:
 	"""Initialize QuantumComputer for Stellar Forges biome (3 qubits)."""
 	print("🚀 Initializing Stellar Forges QuantumComputer...")
 
-	# Create QuantumComputer with RegisterMap
-	quantum_computer = QuantumComputer.new("StellarForges")
-
-	# Allocate 3 qubits with emoji axes
-	quantum_computer.allocate_axis(0, "⚡", "🔋")  # Energy: Power/Storage
-	quantum_computer.allocate_axis(1, "⚙", "🔩")  # Production: Active/Raw
-	quantum_computer.allocate_axis(2, "🚀", "🛸")  # Output: Rocket/Saucer
-
-	# Initialize to uniform superposition across all basis states
-	quantum_computer.initialize_uniform_superposition()
-
-	print("  📊 RegisterMap configured (3 qubits, 8 basis states)")
-
-	# Get Icons from IconRegistry
-	var icon_registry = get_node_or_null("/root/IconRegistry")
-	if not icon_registry:
-		push_error("🚀 IconRegistry not available!")
+	# Build quantum system from shared helper (unified path)
+	var emoji_pairs = [
+		{"north": "⚡", "south": "🔋"},  # Energy: Power/Storage
+		{"north": "⚙", "south": "🔩"},  # Production: Active/Raw
+		{"north": "🚀", "south": "🛸"}   # Output: Rocket/Saucer
+	]
+	var build_result = _build_quantum_from_pairs(
+		"StellarForges",
+		emoji_pairs,
+		{},
+		null,
+		Callable(self, "_patch_forge_icons"),
+		"StellarForgesBiome"
+	)
+	if not build_result.success:
+		push_error("StellarForges: Failed to build quantum system: %s" % build_result.get("error", "unknown"))
 		return
 
-	# Get or create Icons for forge emojis
-	var forge_emojis = ["⚡", "🔋", "⚙", "🔩", "🚀", "🛸"]
-	var icons = {}
-
-	for emoji in forge_emojis:
-		var icon = icon_registry.get_icon(emoji)
-		if not icon:
-			# Create basic forge icon if not found
-			icon = _create_forge_emoji_icon(emoji)
-			icon_registry.register_icon(icon)
-		icons[emoji] = icon
-
-	# Configure forge-specific dynamics
-	_configure_forge_dynamics(icons, icon_registry)
-
-	# Build operators using cached method
-	build_operators_cached("StellarForgesBiome", icons)
+	print("  📊 RegisterMap configured (3 qubits, 8 basis states)")
 
 	print("  ✅ Hamiltonian: %dx%d matrix" % [
 		quantum_computer.hamiltonian.n if quantum_computer.hamiltonian else 0,
@@ -130,10 +113,10 @@ func _create_forge_emoji_icon(emoji: String) -> Icon:
 			icon.hamiltonian_couplings = {"⚙": 0.2}
 			icon.self_energy = -0.1
 		"🚀":  # Rocket - output option 1
-			icon.hamiltonian_couplings = {"🛸": 0.05}
+			icon.hamiltonian_couplings = {"🛸": 0.15}
 			icon.self_energy = 0.4
 		"🛸":  # Saucer - output option 2
-			icon.hamiltonian_couplings = {"🚀": 0.05}
+			icon.hamiltonian_couplings = {"🚀": 0.15}
 			icon.self_energy = 0.4
 
 	return icon
@@ -151,14 +134,18 @@ func _configure_forge_dynamics(icons: Dictionary, _icon_registry) -> void:
 		icons["⚙"].hamiltonian_couplings["🔩"] = 0.2
 		icons["🔩"].hamiltonian_couplings["⚙"] = 0.2
 
-	# Output preference (slow drift between rocket/saucer)
+	# Output preference (visible oscillation between rocket/saucer)
 	if icons.has("🚀") and icons.has("🛸"):
-		icons["🚀"].hamiltonian_couplings["🛸"] = 0.05
-		icons["🛸"].hamiltonian_couplings["🚀"] = 0.05
+		icons["🚀"].hamiltonian_couplings["🛸"] = 0.15
+		icons["🛸"].hamiltonian_couplings["🚀"] = 0.15
 
-	# Energy powers production
+	# Energy powers production (reduced from 0.15 to preserve power axis coherence)
 	if icons.has("⚡") and icons.has("⚙"):
-		icons["⚡"].lindblad_outgoing["⚙"] = 0.15
+		icons["⚡"].lindblad_outgoing["⚙"] = 0.06
+
+	# Production waste heat returns energy (closes the energy loop)
+	if icons.has("⚙") and icons.has("⚡"):
+		icons["⚙"].lindblad_outgoing["⚡"] = 0.02
 
 	# Gated production: Gears + Energy → Rockets
 	if icons.has("⚙"):
@@ -198,24 +185,23 @@ func rebuild_quantum_operators() -> void:
 		return
 
 	print("  🔧 StellarForges: Rebuilding quantum operators...")
-
-	var icon_registry = get_node_or_null("/root/IconRegistry")
-	if not icon_registry:
-		return
-
-	var forge_emojis = ["⚡", "🔋", "⚙", "🔩", "🚀", "🛸"]
-	var icons = {}
-
-	for emoji in forge_emojis:
-		var icon = icon_registry.get_icon(emoji)
-		if icon:
-			icons[emoji] = icon
-
-	_configure_forge_dynamics(icons, icon_registry)
-
-	build_operators_cached("StellarForgesBiome", icons)
+	_rebuild_operators_from_register_map(
+		"StellarForgesBiome",
+		{},
+		null,
+		Callable(self, "_patch_forge_icons")
+	)
 
 	print("  ✅ StellarForges: Rebuilt operators")
+
+
+func _patch_forge_icons(icons: Dictionary) -> void:
+	"""Biome-local icon tweaks for Stellar Forges."""
+	_configure_forge_dynamics(icons, null)
+
+
+func _create_local_icon(emoji: String) -> Icon:
+	return _create_forge_emoji_icon(emoji)
 
 
 func _update_quantum_substrate(dt: float) -> void:

@@ -255,7 +255,7 @@ func capture_comprehensive_state() -> Dictionary:
 						"position": pos,
 						"type": plot.plot_type,
 						"is_planted": plot.is_planted,
-						"has_been_measured": plot.has_been_measured,
+						"has_been_measured": plot.is_measured,
 						"persistent_gates": []
 					}
 

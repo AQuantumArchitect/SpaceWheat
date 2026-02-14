@@ -51,6 +51,15 @@ void MultiBiomeLookaheadEngine::_bind_methods() {
                          &MultiBiomeLookaheadEngine::set_pacing_delay_ms);
     ClassDB::bind_method(D_METHOD("get_pacing_delay_ms"),
                          &MultiBiomeLookaheadEngine::get_pacing_delay_ms);
+
+    ClassDB::bind_method(D_METHOD("set_enable_mi", "enabled"),
+                         &MultiBiomeLookaheadEngine::set_enable_mi);
+    ClassDB::bind_method(D_METHOD("set_enable_force", "enabled"),
+                         &MultiBiomeLookaheadEngine::set_enable_force);
+    ClassDB::bind_method(D_METHOD("is_mi_enabled"),
+                         &MultiBiomeLookaheadEngine::is_mi_enabled);
+    ClassDB::bind_method(D_METHOD("is_force_enabled"),
+                         &MultiBiomeLookaheadEngine::is_force_enabled);
 }
 
 MultiBiomeLookaheadEngine::MultiBiomeLookaheadEngine() {
@@ -69,6 +78,22 @@ void MultiBiomeLookaheadEngine::set_pacing_delay_ms(int delay_ms) {
 
 int MultiBiomeLookaheadEngine::get_pacing_delay_ms() const {
     return m_pacing_delay_ms;
+}
+
+void MultiBiomeLookaheadEngine::set_enable_mi(bool enabled) {
+    m_enable_mi = enabled;
+}
+
+void MultiBiomeLookaheadEngine::set_enable_force(bool enabled) {
+    m_enable_force = enabled;
+}
+
+bool MultiBiomeLookaheadEngine::is_mi_enabled() const {
+    return m_enable_mi;
+}
+
+bool MultiBiomeLookaheadEngine::is_force_enabled() const {
+    return m_enable_force;
 }
 
 MultiBiomeLookaheadEngine::~MultiBiomeLookaheadEngine() {}
@@ -413,18 +438,20 @@ MultiBiomeLookaheadEngine::_evolve_biome_steps(
         // - Steps 1+: Only compute for candidates, skip negligible pairs
         // - Uses linear entropy (no eigendecomp) when purity > 0.9
         PackedFloat64Array mi_values;
-        if (compute_mi) {
+        if (compute_mi && m_enable_mi) {
             bool force_full_scan = (step == 0);  // Screen on first step only
             mi_values = engine->compute_mi_adaptive(
                 evolved_rho, num_qubits, purity, force_full_scan);
             out.mi_steps.push_back(mi_values);
         } else {
             mi_values = PackedFloat64Array();  // Empty placeholder
-            out.mi_steps.push_back(mi_values);
+            if (m_enable_mi) {
+                out.mi_steps.push_back(mi_values);
+            }
         }
 
         // NEW: Compute force-directed positions using Bloch + MI data
-        if (m_force_engine.is_valid()) {
+        if (m_enable_force && m_force_engine.is_valid()) {
             Dictionary force_result = m_force_engine->update_positions(
                 current_positions,
                 current_velocities,
@@ -442,7 +469,7 @@ MultiBiomeLookaheadEngine::_evolve_biome_steps(
             // Store for this step
             out.position_steps.push_back(current_positions);
             out.velocity_steps.push_back(current_velocities);
-        } else {
+        } else if (m_enable_force) {
             // No force engine - use previous positions
             out.position_steps.push_back(current_positions);
             out.velocity_steps.push_back(current_velocities);

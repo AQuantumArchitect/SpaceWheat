@@ -239,7 +239,7 @@ func _find_unmeasured_plot() -> Vector2i:
 		var plot = farm.grid.get_plot(pos)
 		if plot:
 			# Debug: Check plot state
-			if plot.is_planted and not plot.has_been_measured:
+			if plot.is_planted and not plot.is_measured:
 				return pos
 		else:
 			print("   ⚠️  Plot at %s not found" % pos)
@@ -249,7 +249,7 @@ func _find_measured_plot() -> Vector2i:
 	# Find plot that's been measured and ready to harvest
 	for pos in measured_plots:
 		var plot = farm.grid.get_plot(pos)
-		if plot and plot.is_planted and plot.has_been_measured:
+		if plot and plot.is_planted and plot.is_measured:
 			return pos
 	return Vector2i(-1, -1)
 

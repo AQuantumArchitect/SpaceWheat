@@ -90,7 +90,7 @@ func capture_state(state: Dictionary, label: String):
 			var plot = farm_view.farm_grid.get_plot(Vector2i(x, y))
 			if plot.is_planted:
 				planted_count += 1
-			if plot.has_been_measured:
+			if plot.is_measured:
 				measured_count += 1
 			if plot.is_mature:
 				mature_count += 1

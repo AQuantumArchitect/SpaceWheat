@@ -111,6 +111,8 @@ var verbose_network: bool = false     # Maps to "network"
 # ============================================================================
 
 func _ready():
+	var disable_file_logging = OS.get_environment("DISABLE_VERBOSE_FILE_LOGGING") == "1"
+
 	# Check for --verbose flag or VERBOSE_LOGGING env var
 	var args = OS.get_cmdline_args()
 	if "--verbose" in args or OS.get_environment("VERBOSE_LOGGING") == "1":
@@ -118,11 +120,13 @@ func _ready():
 		_enable_all_verbose()
 		print("🔍 VERBOSE LOGGING ENABLED (ALL CATEGORIES AT TRACE LEVEL)")
 
-	# Enable file logging in debug builds by default
-	if OS.is_debug_build():
+	# Enable file logging in debug builds by default (unless disabled explicitly)
+	if not disable_file_logging and OS.is_debug_build():
 		enable_file_logging = true
 		_ensure_log_path()
 		_init_file_logging()
+	elif disable_file_logging:
+		print("📝 File logging disabled by environment")
 
 	# Legacy: Check for subsystem-specific flags
 	if OS.get_environment("VERBOSE_FOREST") == "1":

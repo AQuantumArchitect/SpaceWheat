@@ -405,11 +405,7 @@ static func get_all_actions(group_num: int) -> Dictionary:
 # BACKWARD COMPATIBILITY - Legacy v2 API
 # ============================================================================
 
-## Legacy mode tracking (play/build modes deprecated)
-static var current_mode: String = "play"
-
-## Legacy tool mode indices
-static var tool_mode_indices: Dictionary = {}
+# Removed: current_mode, tool_mode_indices (never used)
 
 ## Alias for backward compatibility
 const TOOL_ACTIONS = TOOL_GROUPS
@@ -486,18 +482,4 @@ static func get_tool_count() -> int:
 	return 4
 
 
-# ============================================================================
-# BACKWARD COMPATIBILITY - Legacy Submenu API (for ActionValidator)
-# ============================================================================
-
-## Legacy submenu definitions (deprecated - use F-cycling in QuantumInstrumentInput)
-const SUBMENUS = {}
-
-static func get_submenu(submenu_name_or_tool = null, action_key: String = "") -> Dictionary:
-	"""Legacy: Get submenu by name or (tool, key) pair. Returns empty dict (submenus deprecated)."""
-	return {}
-
-
-static func get_dynamic_submenu(_arg1 = null, _arg2 = null, _arg3 = null) -> Dictionary:
-	"""Legacy: Get dynamic submenu. Returns empty dict (submenus deprecated)."""
-	return {}
+# Removed: SUBMENUS, get_submenu(), get_dynamic_submenu() - dead code (never used)

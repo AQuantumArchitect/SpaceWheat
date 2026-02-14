@@ -102,7 +102,7 @@ func test_single_plot() -> bool:
 	var outcome = farm.biome.measure_qubit(pos)
 	plot.measure(outcome)
 
-	if not plot.has_been_measured:
+	if not plot.is_measured:
 		print("  ❌ Plot not measured\n")
 		return false
 	print("  ✓ Plot measured (outcome: %s)" % outcome)
@@ -148,7 +148,7 @@ func test_multi_plot() -> bool:
 		var pos = positions[i]
 		var outcome = farm.biome.measure_qubit(pos)
 		plots[i].measure(outcome)
-		if plots[i].has_been_measured:
+		if plots[i].is_measured:
 			measured += 1
 
 	if measured != positions.size():
@@ -204,7 +204,7 @@ func test_entanglement() -> bool:
 	var outcome2 = farm.biome.measure_qubit(pos2)
 	plot2.measure(outcome2)
 
-	if not (plot1.has_been_measured and plot2.has_been_measured):
+	if not (plot1.is_measured and plot2.is_measured):
 		print("  ❌ Not both measured\n")
 		return false
 	print("  ✓ Both measured (outcomes: %s, %s)" % [outcome1, outcome2])

@@ -7,7 +7,6 @@ extends "res://Core/Environment/BiomeBase.gd"
 
 const BiomeRegistry = preload("res://Core/Biomes/BiomeRegistry.gd")
 const BiomeBuilder = preload("res://Core/Biomes/BiomeBuilder.gd")
-const BiomeLindblad = preload("res://Core/Biomes/BiomeLindblad.gd")
 
 var _biome_data = null
 var _emoji_pairs: Array = []
@@ -38,13 +37,13 @@ func _initialize_bath() -> void:
 		return
 
 	# Build emoji pairs from ordered emoji list (pairs are [0,1], [2,3], ...)
-	_emoji_pairs = _build_pairs_from_emojis(_biome_data.emojis)
+	_emoji_pairs = BiomeBuilder._group_emojis_into_pairs(_biome_data.emojis)
 	if _emoji_pairs.is_empty():
 		push_error("DataDrivenBiome: No emoji pairs for biome %s" % name)
 		return
 
 	# Build Lindblad spec from biome icon_components
-	var lindblad_spec = _build_lindblad_spec(_biome_data.icon_components)
+	var lindblad_spec = BiomeBuilder._build_lindblad_spec_from_biome(_biome_data)
 
 	# Build quantum system using unified builder (H from factions, L from biome)
 	var result = BiomeBuilder.build_biome_quantum_system(
@@ -59,59 +58,3 @@ func _initialize_bath() -> void:
 		return
 
 	quantum_computer = result.quantum_computer
-
-
-func _build_pairs_from_emojis(emojis: Array) -> Array:
-	var pairs: Array = []
-	if emojis.size() < 2:
-		return pairs
-	if emojis.size() % 2 != 0:
-		push_warning("DataDrivenBiome: Emoji list odd length for %s (dropping last): %d" % [name, emojis.size()])
-	var limit = emojis.size() - (emojis.size() % 2)
-	for i in range(0, limit, 2):
-		var north = emojis[i]
-		var south = emojis[i + 1]
-		pairs.append({"north": north, "south": south})
-	return pairs
-
-
-func _build_lindblad_spec(icon_components: Dictionary) -> BiomeLindblad:
-	var L = BiomeLindblad.new()
-	if not icon_components:
-		return L
-
-	for emoji in icon_components.keys():
-		var comp = icon_components[emoji]
-		if not comp is Dictionary:
-			continue
-
-		# Incoming flows: source -> emoji (pump)
-		var incoming = comp.get("lindblad_incoming", {})
-		for source in incoming.keys():
-			L.add_pump(emoji, source, float(incoming[source]))
-
-		# Outgoing flows: emoji -> target (drain)
-		var outgoing = comp.get("lindblad_outgoing", {})
-		for target in outgoing.keys():
-			L.add_drain(emoji, target, float(outgoing[target]))
-
-		# Decay process
-		var decay = comp.get("decay", {})
-		if decay is Dictionary and decay.has("rate") and decay.has("target"):
-			L.add_decay(emoji, decay.get("target", ""), float(decay.get("rate", 0.0)))
-
-		# Gated Lindblad (per-emoji source)
-		var gated_list = comp.get("gated_lindblad_source", [])
-		if gated_list is Array:
-			for gated in gated_list:
-				if not gated is Dictionary:
-					continue
-				var target = gated.get("target", "")
-				var gate = gated.get("gate", "")
-				var rate = float(gated.get("rate", 0.0))
-				var power = float(gated.get("power", 1.0))
-				var inverse = bool(gated.get("inverse", false))
-				if target != "" and gate != "" and rate > 0.0:
-					L.add_gated(emoji, target, gate, rate, power, inverse)
-
-	return L

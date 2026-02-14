@@ -107,52 +107,29 @@ func _initialize_bath() -> void:
 	"""
 	print("🌿 Initializing BioticFlux Model C quantum computer...")
 
-	# Create QuantumComputer with RegisterMap
-	quantum_computer = QuantumComputer.new("BioticFlux")
-
-	# Allocate 3 qubits with emoji axes
-	quantum_computer.allocate_axis(0, "☀", "🌙")   # Celestial: Sun/Moon
-	quantum_computer.allocate_axis(1, "🌾", "🍄")  # Flora: Wheat/Mushroom
-	quantum_computer.allocate_axis(2, "🍂", "💀")  # Matter: Organic/Death
-
-	# Initialize to uniform superposition across all basis states
-	quantum_computer.initialize_uniform_superposition()
+	# Build quantum system from shared helper (unified path)
+	var emoji_pairs = [
+		{"north": "☀", "south": "🌙"},   # Celestial: Sun/Moon
+		{"north": "🌾", "south": "🍄"},  # Flora: Wheat/Mushroom
+		{"north": "🍂", "south": "💀"}   # Matter: Organic/Death
+	]
+	var build_result = _build_quantum_from_pairs(
+		"BioticFlux",
+		emoji_pairs,
+		{},
+		null,
+		Callable(self, "_patch_bioticflux_icons"),
+		"BioticFluxBiome"
+	)
+	if not build_result.success:
+		push_error("BioticFlux: Failed to build quantum system: %s" % build_result.get("error", "unknown"))
+		return
 
 	# Initialize sun_qubit for visualization bridge (synced from quantum_computer)
 	sun_qubit = DualEmojiQubit.new("☀", "🌙", 0.0, null)
 	sun_qubit.radius = 1.0
 
 	print("  📊 RegisterMap configured (3 qubits, 8 basis states)")
-
-	# Get Icons from IconRegistry
-	var icon_registry = get_node_or_null("/root/IconRegistry")
-	if not icon_registry:
-		push_error("🌿 IconRegistry not available!")
-		return
-
-	var icon_emojis = ["☀", "🌙", "🌾", "🍄", "🍂", "💀"]
-	var icons = {}
-
-	for emoji in icon_emojis:
-		var icon = icon_registry.get_icon(emoji)
-		if icon:
-			icons[emoji] = icon
-		else:
-			push_warning("🌿 Icon not found: %s" % emoji)
-
-	# Tune BioticFlux-specific Icon parameters
-	var wheat_icon_ref = icon_registry.get_icon("🌾")
-	if wheat_icon_ref:
-		wheat_icon_ref.lindblad_incoming["☀"] = 0.017
-		print("  🌾 Wheat: Lindblad incoming from ☀ = 0.017")
-
-	var mushroom_icon_ref = icon_registry.get_icon("🍄")
-	if mushroom_icon_ref:
-		mushroom_icon_ref.lindblad_incoming["🌙"] = 0.40
-		print("  🍄 Mushroom: Lindblad incoming from 🌙 = 0.40")
-
-	# Build operators using cached method
-	build_operators_cached("BioticFluxBiome", icons)
 
 	print("  ✅ Hamiltonian: %dx%d matrix" % [
 		quantum_computer.hamiltonian.n if quantum_computer.hamiltonian else 0,
@@ -174,40 +151,31 @@ func rebuild_quantum_operators() -> void:
 		return
 
 	print("  🔧 BioticFlux: Rebuilding quantum operators...")
-
-	# Get Icons from IconRegistry (now guaranteed to be ready)
-	var icon_registry = get_node_or_null("/root/IconRegistry")
-	if not icon_registry:
-		push_warning("🌿 IconRegistry not available for BioticFlux rebuild!")
-		return
-
-	var icon_emojis = ["☀", "🌙", "🌾", "🍄", "🍂", "💀"]
-	var icons = {}
-
-	for emoji in icon_emojis:
-		var icon = icon_registry.get_icon(emoji)
-		if icon:
-			icons[emoji] = icon
-		else:
-			push_warning("🌿 Icon not found during rebuild: %s" % emoji)
-
-	# Tune BioticFlux-specific Icon parameters
-	var wheat = icon_registry.get_icon("🌾")
-	if wheat:
-		wheat.lindblad_incoming["☀"] = 0.017  # Wheat gains from sun
-
-	var mushroom = icon_registry.get_icon("🍄")
-	if mushroom:
-		mushroom.lindblad_incoming["🌙"] = 0.40  # Mushroom gains from moon
-
-	# Rebuild operators using cached method
-	build_operators_cached("BioticFluxBiome", icons)
+	_rebuild_operators_from_register_map(
+		"BioticFluxBiome",
+		{},
+		null,
+		Callable(self, "_patch_bioticflux_icons")
+	)
 
 	print("  ✅ BioticFlux: Hamiltonian %dx%d, Lindblad %d operators + %d gated" % [
 		quantum_computer.hamiltonian.n if quantum_computer.hamiltonian else 0,
 		quantum_computer.hamiltonian.n if quantum_computer.hamiltonian else 0,
 		quantum_computer.lindblad_operators.size(),
 		quantum_computer.gated_lindblad_configs.size()])
+
+
+func _patch_bioticflux_icons(icons: Dictionary) -> void:
+	"""Biome-local icon tweaks for BioticFlux."""
+	var wheat_icon = icons.get("🌾", null)
+	if wheat_icon:
+		wheat_icon.lindblad_incoming["☀"] = 0.017
+		print("  🌾 Wheat: Lindblad incoming from ☀ = 0.017")
+
+	var mushroom_icon = icons.get("🍄", null)
+	if mushroom_icon:
+		mushroom_icon.lindblad_incoming["🌙"] = 0.04
+		print("  🍄 Mushroom: Lindblad incoming from 🌙 = 0.04")
 
 
 func _update_quantum_substrate(dt: float) -> void:

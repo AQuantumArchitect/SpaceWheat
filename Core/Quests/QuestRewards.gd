@@ -6,7 +6,15 @@ extends RefCounted
 
 const FactionDatabase = preload("res://Core/Quests/FactionDatabaseV2.gd")
 const VocabularyPairing = preload("res://Core/Quests/VocabularyPairing.gd")
+const FactionRegistry = preload("res://Core/Factions/FactionRegistry.gd")
 
+static var _faction_registry_cache = null
+static var _faction_dynamic_cache: Dictionary = {}
+
+const RESOURCE_REWARD_MIN_TOTAL: int = 8
+const RESOURCE_REWARD_MAX_TOTAL: int = 240
+const RESOURCE_REWARD_MIN_PER_EMOJI: int = 4
+const RESOURCE_REWARD_BASE_RATIO: float = 0.4
 
 ## Icon Modification: How quest rewards can modify icon physics
 class IconModification:
@@ -34,6 +42,7 @@ class IconModification:
 class QuestReward:
 	"""Rewards for completing a quest"""
 	var money_amount: int = 0  # 💰-credits reward (no universal currency!)
+	var resource_rewards: Dictionary = {}  # {emoji: credits} primary payout
 	var learned_vocabulary: Array[String] = []  # Emojis player learned (both north and south)
 	var learned_pairs: Array = []  # Array of {north, south, weight, probability} - paired vocabulary
 	var reputation_gain: int = 0  # Future: faction reputation
@@ -62,6 +71,15 @@ static func generate_reward(quest: Dictionary, bath, player_vocab: Array) -> Que
 	reward.money_amount = 0  # No universal currency
 	reward.bonus_multiplier = quest.get("reward_multiplier", 1.0)
 
+	# Primary payout: faction-shaped resource rewards
+	var faction_name = quest.get("faction", "")
+	var faction_dict = _get_faction_by_name(faction_name)
+	var pre_rolled_resources = quest.get("reward_resources", {})
+	if pre_rolled_resources is Dictionary and not pre_rolled_resources.is_empty():
+		reward.resource_rewards = _sanitize_resource_rewards(pre_rolled_resources)
+	else:
+		reward.resource_rewards = _build_resource_reward_plan(quest, faction_dict, false)
+
 	# Use PRE-ROLLED vocabulary pair from quest creation
 	var north = quest.get("reward_vocab_north", "")
 	var south = quest.get("reward_vocab_south", "")
@@ -83,13 +101,281 @@ static func generate_reward(quest: Dictionary, bath, player_vocab: Array) -> Que
 			push_warning("QuestRewards: Quest has north=%s but no south" % north)
 
 	# Icon modification reward (for higher-tier quests)
-	var faction_name = quest.get("faction", "")
-	var faction_dict = _get_faction_by_name(faction_name)
 	if faction_dict and should_grant_icon_modification(quest):
 		var mod = generate_icon_modification(faction_dict, quest)
 		reward.icon_modifications.append(mod)
 
 	return reward
+
+
+static func plan_resource_rewards(quest: Dictionary, faction: Dictionary = {}) -> Dictionary:
+	"""Pre-roll resource rewards at quest creation time for deterministic UI/claim."""
+	return _build_resource_reward_plan(quest, faction, false)
+
+
+static func estimate_resource_rewards(quest: Dictionary, faction: Dictionary = {}) -> Dictionary:
+	"""Deterministic estimate for preview paths when quest has no pre-rolled bundle."""
+	return _build_resource_reward_plan(quest, faction, true)
+
+
+static func _build_resource_reward_plan(quest: Dictionary, faction: Dictionary, deterministic: bool) -> Dictionary:
+	var faction_name = quest.get("faction", faction.get("name", ""))
+	var signature = quest.get("faction_signature", faction.get("sig", faction.get("signature", [])))
+	var faction_dynamic = _get_faction_dynamic_data(faction_name, signature)
+	var profile = _compute_hamiltonian_reward_profile(faction_dynamic)
+
+	if profile.get("weights", {}).is_empty():
+		return {}
+
+	var total_budget = _compute_total_resource_budget(quest, profile.get("dominant_eigenvalue", 0.0))
+	if total_budget <= 0:
+		return {}
+
+	var weights: Dictionary = profile["weights"]
+	var reward_count = 1
+	if total_budget >= 70 and weights.size() >= 2:
+		reward_count = 2
+	if total_budget >= 140 and weights.size() >= 3:
+		reward_count = 3
+	if not deterministic and reward_count < weights.size() and randf() < 0.2:
+		reward_count += 1
+
+	var selected = _pick_reward_emojis(weights, reward_count, deterministic)
+	if selected.is_empty():
+		return {}
+
+	var selected_weight_total = 0.0
+	for emoji in selected:
+		selected_weight_total += float(weights.get(emoji, 0.0))
+	if selected_weight_total <= 0.0:
+		return {}
+
+	var rewards: Dictionary = {}
+	var remaining = total_budget
+	for i in range(selected.size()):
+		var emoji = selected[i]
+		var amount = RESOURCE_REWARD_MIN_PER_EMOJI
+		if i == selected.size() - 1:
+			amount = max(RESOURCE_REWARD_MIN_PER_EMOJI, remaining)
+		else:
+			var ratio = float(weights.get(emoji, 0.0)) / selected_weight_total
+			amount = max(RESOURCE_REWARD_MIN_PER_EMOJI, int(round(total_budget * ratio)))
+			amount = min(amount, remaining - (selected.size() - i - 1) * RESOURCE_REWARD_MIN_PER_EMOJI)
+		rewards[emoji] = amount
+		remaining -= amount
+
+	return rewards
+
+
+static func _get_faction_dynamic_data(faction_name: String, fallback_signature: Array) -> Dictionary:
+	if faction_name == "":
+		return {
+			"sig": fallback_signature.duplicate(),
+			"hamiltonian": {},
+			"self_energies": {},
+			"lindblad_outgoing": {}
+		}
+
+	if _faction_dynamic_cache.has(faction_name):
+		return _faction_dynamic_cache[faction_name].duplicate(true)
+
+	var registry = _get_faction_registry()
+	if registry:
+		var faction_obj = registry.get_by_name(faction_name)
+		if faction_obj:
+			var data = {
+				"sig": faction_obj.signature.duplicate(),
+				"hamiltonian": faction_obj.hamiltonian.duplicate(true),
+				"self_energies": faction_obj.self_energies.duplicate(true),
+				"lindblad_outgoing": faction_obj.lindblad_outgoing.duplicate(true)
+			}
+			_faction_dynamic_cache[faction_name] = data.duplicate(true)
+			return data
+
+	var fallback = _get_faction_by_name(faction_name)
+	var fallback_data = {
+		"sig": fallback.get("sig", fallback_signature).duplicate(),
+		"hamiltonian": fallback.get("hamiltonian", {}).duplicate(true),
+		"self_energies": fallback.get("self_energies", {}).duplicate(true),
+		"lindblad_outgoing": fallback.get("lindblad_outgoing", {}).duplicate(true)
+	}
+	_faction_dynamic_cache[faction_name] = fallback_data.duplicate(true)
+	return fallback_data
+
+
+static func _get_faction_registry():
+	if _faction_registry_cache == null:
+		_faction_registry_cache = FactionRegistry.new()
+	return _faction_registry_cache
+
+
+static func _compute_hamiltonian_reward_profile(faction_data: Dictionary) -> Dictionary:
+	var signature = faction_data.get("sig", [])
+	if signature.is_empty():
+		return {"weights": {}, "dominant_eigenvalue": 0.0}
+
+	var index_by_emoji: Dictionary = {}
+	for i in range(signature.size()):
+		index_by_emoji[signature[i]] = i
+
+	var n = signature.size()
+	var matrix: Array = []
+	for i in range(n):
+		var row: Array = []
+		row.resize(n)
+		for j in range(n):
+			row[j] = 0.0
+		matrix.append(row)
+
+	var hamiltonian = faction_data.get("hamiltonian", {})
+	for source in hamiltonian.keys():
+		if not index_by_emoji.has(source):
+			continue
+		var src_i = int(index_by_emoji[source])
+		var edges = hamiltonian[source]
+		if not (edges is Dictionary):
+			continue
+		for target in edges.keys():
+			if not index_by_emoji.has(target):
+				continue
+			var tgt_i = int(index_by_emoji[target])
+			if src_i == tgt_i:
+				continue
+			matrix[src_i][tgt_i] += _hamiltonian_magnitude(edges[target])
+
+	var self_energies = faction_data.get("self_energies", {})
+	var lindblad_outgoing = faction_data.get("lindblad_outgoing", {})
+	var production_bias: Dictionary = {}
+	for emoji in signature:
+		var out_strength = 0.0
+		var outgoing_map = lindblad_outgoing.get(emoji, {})
+		if outgoing_map is Dictionary:
+			for target in outgoing_map.keys():
+				out_strength += abs(float(outgoing_map[target]))
+		production_bias[emoji] = 1.0 + min(out_strength * 2.5, 1.25)
+
+	var vector: Array = []
+	for _i in range(n):
+		vector.append(1.0 / float(n))
+
+	for _iter in range(12):
+		var next_vec: Array = []
+		var total = 0.0
+		for i in range(n):
+			var accum = 0.0
+			for j in range(n):
+				accum += float(matrix[i][j]) * float(vector[j])
+			var emoji = signature[i]
+			var self_energy = max(0.0, float(self_energies.get(emoji, 0.0)))
+			accum += self_energy * 0.3 * float(vector[i])
+			accum *= float(production_bias.get(emoji, 1.0))
+			next_vec.append(accum)
+			total += accum
+		if total <= 0.00001:
+			next_vec.clear()
+			for _k in range(n):
+				next_vec.append(1.0 / float(n))
+		else:
+			for i in range(n):
+				next_vec[i] = float(next_vec[i]) / total
+		vector = next_vec
+
+	var eigen_num = 0.0
+	var eigen_den = 0.0
+	for i in range(n):
+		var row_dot = 0.0
+		for j in range(n):
+			row_dot += float(matrix[i][j]) * float(vector[j])
+		eigen_num += float(vector[i]) * row_dot
+		eigen_den += float(vector[i]) * float(vector[i])
+	var dominant_eigenvalue = eigen_num / max(eigen_den, 0.00001)
+
+	var weights: Dictionary = {}
+	var weight_total = 0.0
+	for i in range(n):
+		var emoji = signature[i]
+		var base = max(0.0001, float(vector[i]))
+		var self_term = max(0.0, float(self_energies.get(emoji, 0.0))) * 0.15
+		var prod_term = (float(production_bias.get(emoji, 1.0)) - 1.0) * 0.5
+		var weight = base + self_term + prod_term
+		weights[emoji] = max(0.0001, weight)
+		weight_total += float(weights[emoji])
+
+	if weight_total > 0.0:
+		for emoji in weights.keys():
+			weights[emoji] = float(weights[emoji]) / weight_total
+
+	return {
+		"weights": weights,
+		"dominant_eigenvalue": dominant_eigenvalue
+	}
+
+
+static func _compute_total_resource_budget(quest: Dictionary, dominant_eigenvalue: float) -> int:
+	var quantity = max(0.0, float(quest.get("quantity", 0.0)))
+	var multiplier = clamp(float(quest.get("reward_multiplier", 1.0)), 1.0, 6.0)
+	var quest_type = int(quest.get("type", 0))
+
+	var base = max(10.0, quantity * 0.85 + 8.0)
+	var eigen_boost = clamp(1.0 + dominant_eigenvalue * 0.6, 1.0, 2.5)
+	var type_scale = 1.0 if quest_type == 0 else 0.75
+
+	var raw_total = base * multiplier * eigen_boost * RESOURCE_REWARD_BASE_RATIO * type_scale
+	return int(clamp(round(raw_total), RESOURCE_REWARD_MIN_TOTAL, RESOURCE_REWARD_MAX_TOTAL))
+
+
+static func _pick_reward_emojis(weights: Dictionary, count: int, deterministic: bool) -> Array:
+	var chosen: Array = []
+	if weights.is_empty() or count <= 0:
+		return chosen
+
+	if deterministic:
+		var ordered = []
+		for emoji in weights.keys():
+			ordered.append({"emoji": emoji, "weight": float(weights[emoji])})
+		ordered.sort_custom(func(a, b): return float(a["weight"]) > float(b["weight"]))
+		for i in range(min(count, ordered.size())):
+			chosen.append(ordered[i]["emoji"])
+		return chosen
+
+	var remaining = weights.duplicate()
+	while chosen.size() < count and not remaining.is_empty():
+		var total = 0.0
+		for emoji in remaining.keys():
+			total += max(0.0, float(remaining[emoji]))
+		if total <= 0.0:
+			break
+		var roll = randf() * total
+		var cumulative = 0.0
+		for emoji in remaining.keys():
+			cumulative += max(0.0, float(remaining[emoji]))
+			if roll <= cumulative:
+				chosen.append(emoji)
+				remaining.erase(emoji)
+				break
+
+	return chosen
+
+
+static func _sanitize_resource_rewards(raw_rewards: Dictionary) -> Dictionary:
+	var clean: Dictionary = {}
+	for emoji in raw_rewards.keys():
+		var amount = int(raw_rewards.get(emoji, 0))
+		if amount > 0:
+			clean[emoji] = amount
+	return clean
+
+
+static func _hamiltonian_magnitude(value) -> float:
+	if value is float or value is int:
+		return abs(float(value))
+	if value is Vector2:
+		return sqrt(value.x * value.x + value.y * value.y)
+	if value is Array and value.size() >= 2:
+		var re = float(value[0])
+		var im = float(value[1])
+		return sqrt(re * re + im * im)
+	return 0.0
 
 
 static func select_vocabulary_reward(faction: Dictionary, bath, player_vocab: Array) -> String:
@@ -174,6 +460,11 @@ static func format_reward_text(reward: QuestReward) -> String:
 	"""
 	var lines = []
 
+	# Primary payout: faction resources
+	if not reward.resource_rewards.is_empty():
+		for emoji in reward.resource_rewards.keys():
+			lines.append("🎁 +%d %s" % [int(reward.resource_rewards[emoji]), emoji])
+
 	# Vocabulary pairs (primary reward)
 	if reward.learned_pairs.size() > 0:
 		for pair in reward.learned_pairs:
@@ -201,7 +492,13 @@ static func preview_possible_rewards(quest: Dictionary, player_vocab: Array) -> 
 	"""
 	var lines = []
 
-	# NO UNIVERSAL MONEY - removed 💰 preview
+	# Resource payouts (primary)
+	var resource_rewards = quest.get("reward_resources", {})
+	if not (resource_rewards is Dictionary) or resource_rewards.is_empty():
+		resource_rewards = estimate_resource_rewards(quest, _get_faction_by_name(quest.get("faction", "")))
+	if resource_rewards is Dictionary and not resource_rewards.is_empty():
+		for emoji in resource_rewards.keys():
+			lines.append("🎁 +%d %s" % [int(resource_rewards[emoji]), emoji])
 
 	# Show PRE-ROLLED vocabulary pair
 	var north = quest.get("reward_vocab_north", "")

@@ -75,26 +75,18 @@ func _initialize_bath() -> void:
 
 	print("  📊 RegisterMap configured (3 qubits, 8 basis states)")
 
-	# Get Icons from IconRegistry
-	var icon_registry = get_node_or_null("/root/IconRegistry")
-	if not icon_registry:
-		push_error("🌋 IconRegistry not available!")
-		return
-
 	# Get or create Icons for volcanic emojis
 	var volcanic_emojis = ["🔥", "🪨", "💎", "⛏", "🌫", "✨"]
 	var icons = {}
 
 	for emoji in volcanic_emojis:
-		var icon = icon_registry.get_icon(emoji)
-		if not icon:
-			# Create basic volcanic icon if not found
-			icon = _create_volcanic_emoji_icon(emoji)
-			icon_registry.register_icon(icon)
-		icons[emoji] = icon
+		var icon = _get_or_clone_icon(emoji)
+		if icon:
+			icons[emoji] = icon
+	self.icons = icons
 
 	# Configure volcanic-specific dynamics
-	_configure_volcanic_dynamics(icons, icon_registry)
+	_configure_volcanic_dynamics(icons, null)
 
 	# Build operators using cached method
 	build_operators_cached("VolcanicWorldsBiome", icons)
@@ -183,6 +175,14 @@ func _configure_volcanic_dynamics(icons: Dictionary, _icon_registry) -> void:
 		icons["🔥"].decay_rate = COOLING_RATE
 		icons["🔥"].decay_target = "🪨"
 
+	# Tectonic reheating (rock → lava, closes thermal cycle)
+	if icons.has("🪨") and icons.has("🔥"):
+		icons["🪨"].lindblad_outgoing["🔥"] = 0.01
+
+	# Sparks recondense to steam (closes phase cycle)
+	if icons.has("✨") and icons.has("🌫"):
+		icons["✨"].lindblad_outgoing["🌫"] = 0.015
+
 	# Crystals slowly degrade
 	if icons.has("💎"):
 		icons["💎"].decay_rate = 0.005
@@ -204,23 +204,24 @@ func rebuild_quantum_operators() -> void:
 
 	print("  🔧 VolcanicWorlds: Rebuilding quantum operators...")
 
-	var icon_registry = get_node_or_null("/root/IconRegistry")
-	if not icon_registry:
-		return
-
 	var volcanic_emojis = ["🔥", "🪨", "💎", "⛏", "🌫", "✨"]
 	var icons = {}
 
 	for emoji in volcanic_emojis:
-		var icon = icon_registry.get_icon(emoji)
+		var icon = _get_or_clone_icon(emoji)
 		if icon:
 			icons[emoji] = icon
+	self.icons = icons
 
-	_configure_volcanic_dynamics(icons, icon_registry)
+	_configure_volcanic_dynamics(icons, null)
 
 	build_operators_cached("VolcanicWorldsBiome", icons)
 
 	print("  ✅ VolcanicWorlds: Rebuilt operators")
+
+
+func _create_local_icon(emoji: String) -> Icon:
+	return _create_volcanic_emoji_icon(emoji)
 
 
 func _update_quantum_substrate(dt: float) -> void:

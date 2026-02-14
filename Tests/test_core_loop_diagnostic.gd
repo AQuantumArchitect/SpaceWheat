@@ -191,7 +191,7 @@ func _run_diagnostic():
 	print("  Action result: %s" % str(result_captured))
 
 	if plot_after.is_planted:
-		print("  has_been_measured: %s" % plot_after.has_been_measured)
+		print("  has_been_measured: %s" % plot_after.is_measured)
 		print("  measured_outcome: %s" % plot_after.measured_outcome)
 
 	print("\n" + SEPARATOR)

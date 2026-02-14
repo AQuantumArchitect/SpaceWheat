@@ -110,7 +110,7 @@ func test_single_plot_cycle():
 	var outcome = farm_view.farm.biome.measure_qubit(pos)
 	plot.measure(outcome)
 	print("    ✓ Measured | Outcome: %s | has_been_measured: %s" % [
-		outcome, plot.has_been_measured
+		outcome, plot.is_measured
 	])
 
 	# Harvest
@@ -154,7 +154,7 @@ func test_multi_plot_cycle():
 		var pos = positions[i]
 		var outcome = farm_view.farm.biome.measure_qubit(pos)
 		plots[i].measure(outcome)
-		if plots[i].has_been_measured:
+		if plots[i].is_measured:
 			measured += 1
 
 	print("    ✓ Measured %d/%d plots" % [measured, positions.size()])

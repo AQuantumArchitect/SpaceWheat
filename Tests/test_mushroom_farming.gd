@@ -52,7 +52,7 @@ func _run_tests():
 		print("✅ Planted mushroom at %s" % pos)
 		var plot = farm.grid.get_plot(pos)
 		if plot and plot.is_planted:
-			print("   Plot state: planted=%s, measured=%s" % [plot.is_planted, plot.has_been_measured])
+			print("   Plot state: planted=%s, measured=%s" % [plot.is_planted, plot.is_measured])
 			if plot.quantum_state:
 				print("   Quantum state exists: energy=%.3f" % plot.quantum_state.energy)
 		else:

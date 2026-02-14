@@ -28,6 +28,18 @@ const OVERLAY_MIN_WIDTH = 500           # Minimum width in pixels
 const OVERLAY_MIN_HEIGHT = 400          # Minimum height in pixels
 const OVERLAY_MAX_WIDTH = 800           # Maximum width in pixels
 const OVERLAY_MAX_HEIGHT = 600          # Maximum height in pixels
+const OVERLAY_SMALL_WIDTH_PERCENT = 0.42
+const OVERLAY_SMALL_HEIGHT_PERCENT = 0.56
+const OVERLAY_SMALL_MIN_WIDTH = 360
+const OVERLAY_SMALL_MIN_HEIGHT = 280
+const OVERLAY_SMALL_MAX_WIDTH = 620
+const OVERLAY_SMALL_MAX_HEIGHT = 460
+const OVERLAY_LARGE_WIDTH_PERCENT = 0.72
+const OVERLAY_LARGE_HEIGHT_PERCENT = 0.82
+const OVERLAY_LARGE_MIN_WIDTH = 620
+const OVERLAY_LARGE_MIN_HEIGHT = 460
+const OVERLAY_LARGE_MAX_WIDTH = 940
+const OVERLAY_LARGE_MAX_HEIGHT = 760
 
 # Action bar constants (consolidated from ActionBarManager)
 const ACTION_ROW_HEIGHT_PERCENT = 0.13  # 13% of viewport height
@@ -36,6 +48,11 @@ const ACTION_ROW_MAX_PERCENT = 0.40     # Max 40% of viewport for both rows comb
 
 # Component constants
 const TAB_BAR_MIN_HEIGHT = 40           # Minimum tab bar height
+const RESOURCE_BAR_BASE_HEIGHT = 50.0
+const TOP_STRIP_GAP_BASE = 4.0
+const TOP_STRIP_SIDE_INSET_BASE = 200.0
+const QUANTUM_INDICATOR_WIDTH_BASE = 200.0
+const QUANTUM_INDICATOR_HEIGHT_BASE = 40.0
 
 # Current viewport dimensions (updated on resize)
 var viewport_size: Vector2
@@ -222,6 +239,23 @@ func get_scaled_size(base_size: Vector2) -> Vector2:
 	return base_size * scale_factor
 
 
+func h(base_px_540: float) -> float:
+	"""Normalize a height token from 540px design space to current viewport."""
+	return viewport_size.y * (base_px_540 / BASE_RESOLUTION.y)
+
+
+func w(base_px_960: float) -> float:
+	"""Normalize a width token from 960px design space to current viewport."""
+	return viewport_size.x * (base_px_960 / BASE_RESOLUTION.x)
+
+
+func inset(base_px: float) -> float:
+	"""Scale inset/margin tokens using the smaller axis for consistent density."""
+	var by_width = w(base_px)
+	var by_height = h(base_px)
+	return min(by_width, by_height)
+
+
 func get_scaled_font_size(base_size: int) -> int:
 	"""Scale font size with cap at 1.5× to maintain readability
 
@@ -346,15 +380,34 @@ func get_debug_info() -> Dictionary:
 ## Consolidated from scattered hardcoded values across UI components
 
 func get_overlay_size() -> Vector2:
-	"""Calculate responsive overlay size based on viewport.
+	"""Default overlay size (medium). Kept for backwards compatibility."""
+	return get_modal_size("medium")
 
-	Returns a size that is:
-	- 55% of viewport width, clamped to 500-800px
-	- 70% of viewport height, clamped to 400-600px
+
+func get_modal_size(mode: String = "medium") -> Vector2:
+	"""Get modal size by semantic mode.
+
+	Modes:
+	- small: compact system menu
+	- medium: standard info overlay
+	- large: content-heavy overlay
 	"""
-	var w = clampf(viewport_size.x * OVERLAY_WIDTH_PERCENT, OVERLAY_MIN_WIDTH, OVERLAY_MAX_WIDTH)
-	var h = clampf(viewport_size.y * OVERLAY_HEIGHT_PERCENT, OVERLAY_MIN_HEIGHT, OVERLAY_MAX_HEIGHT)
-	return Vector2(w, h)
+	match mode:
+		"small":
+			return Vector2(
+				clampf(viewport_size.x * OVERLAY_SMALL_WIDTH_PERCENT, OVERLAY_SMALL_MIN_WIDTH, OVERLAY_SMALL_MAX_WIDTH),
+				clampf(viewport_size.y * OVERLAY_SMALL_HEIGHT_PERCENT, OVERLAY_SMALL_MIN_HEIGHT, OVERLAY_SMALL_MAX_HEIGHT)
+			)
+		"large":
+			return Vector2(
+				clampf(viewport_size.x * OVERLAY_LARGE_WIDTH_PERCENT, OVERLAY_LARGE_MIN_WIDTH, OVERLAY_LARGE_MAX_WIDTH),
+				clampf(viewport_size.y * OVERLAY_LARGE_HEIGHT_PERCENT, OVERLAY_LARGE_MIN_HEIGHT, OVERLAY_LARGE_MAX_HEIGHT)
+			)
+		_:
+			return Vector2(
+				clampf(viewport_size.x * OVERLAY_WIDTH_PERCENT, OVERLAY_MIN_WIDTH, OVERLAY_MAX_WIDTH),
+				clampf(viewport_size.y * OVERLAY_HEIGHT_PERCENT, OVERLAY_MIN_HEIGHT, OVERLAY_MAX_HEIGHT)
+			)
 
 
 func center_overlay(overlay: Control, size: Vector2 = Vector2.ZERO) -> void:
@@ -397,6 +450,31 @@ func get_action_row_height() -> float:
 		h = viewport_size.y * ACTION_ROW_MAX_PERCENT / 2
 
 	return h
+
+
+func get_resource_bar_height() -> float:
+	"""Height of top resource strip in the normalized 540px design space."""
+	return h(RESOURCE_BAR_BASE_HEIGHT)
+
+
+func get_top_strip_gap() -> float:
+	"""Vertical gap between top resource strip and overlayed top controls."""
+	return h(TOP_STRIP_GAP_BASE)
+
+
+func get_biome_tab_height() -> float:
+	"""Height of biome tab row."""
+	return max(TAB_BAR_MIN_HEIGHT, h(40.0))
+
+
+func get_top_strip_side_inset() -> float:
+	"""Left/right safe inset for top strip controls."""
+	return w(TOP_STRIP_SIDE_INSET_BASE)
+
+
+func get_quantum_indicator_size() -> Vector2:
+	"""Preferred size for the quantum mode indicator."""
+	return Vector2(w(QUANTUM_INDICATOR_WIDTH_BASE), h(QUANTUM_INDICATOR_HEIGHT_BASE))
 
 
 ## Utility Methods (DRY consolidation)

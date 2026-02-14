@@ -143,7 +143,7 @@ When game starts, you should see:
    BottomBar: Tool Selection
 ✨ Visualization systems created and anchored
 🔗 Connecting signals...
-⏳ Farm signals: Waiting for farm injection via MemoryManager
+⏳ Farm signals: Waiting for farm injection via GameStateManager
 ⌨️  FarmInputHandler created (Tool Mode System)
 🐛 DEBUG MODE: Adding visual borders to all UI elements
 ✅ FarmUIController ready!

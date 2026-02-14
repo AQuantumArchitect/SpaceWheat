@@ -18,13 +18,24 @@ signal coupling_updated(emoji_a: String, emoji_b: String, strength: float)
 var quantum_computer = null
 var resource_registry = null  # BiomeResourceRegistry
 var _icon_registry = null  # IconRegistry autoload
+var _icon_overrides: Dictionary = {}
 
 
-func set_dependencies(qc, res_registry, icon_reg) -> void:
+func set_dependencies(qc, res_registry, icon_reg, icon_overrides: Dictionary = {}) -> void:
 	"""Set all required dependencies"""
 	quantum_computer = qc
 	resource_registry = res_registry
 	_icon_registry = icon_reg
+	_icon_overrides = icon_overrides if icon_overrides else {}
+
+
+func _ensure_icon_registry():
+	if _icon_registry and is_instance_valid(_icon_registry):
+		return _icon_registry
+	var tree = Engine.get_main_loop()
+	if tree and tree is SceneTree:
+		_icon_registry = tree.root.get_node_or_null("/root/IconRegistry")
+	return _icon_registry
 
 
 func get_biome_type() -> String:
@@ -81,7 +92,8 @@ func expand_quantum_system(north_emoji: String, south_emoji: String) -> Dictiona
 		}
 
 	# 4. Get IconRegistry for coupling terms
-	if not _icon_registry:
+	_ensure_icon_registry()
+	if not _icon_registry and _icon_overrides.is_empty():
 		push_warning("expand_quantum_system: IconRegistry not available - using default couplings")
 
 	# 5. Record old dimension
@@ -98,9 +110,12 @@ func expand_quantum_system(north_emoji: String, south_emoji: String) -> Dictiona
 
 	# 8. Gather ALL icons for this biome (existing + new)
 	var all_icons = {}
-	if _icon_registry:
-		# Get icons for all emojis in the quantum system
-		for emoji in quantum_computer.register_map.coordinates.keys():
+	# Get icons for all emojis in the quantum system (overrides > registry)
+	for emoji in quantum_computer.register_map.coordinates.keys():
+		if _icon_overrides.has(emoji):
+			all_icons[emoji] = _icon_overrides[emoji]
+			continue
+		if _icon_registry:
 			var icon = _icon_registry.get_icon(emoji)
 			if icon:
 				all_icons[emoji] = icon
@@ -199,7 +214,7 @@ func build_operators_cached(biome_name: String, icons: Dictionary) -> void:
 		return
 
 	# Generate cache key from Icon configs
-	var cache_key = CacheKey.for_biome(biome_name, _icon_registry)
+	var cache_key = CacheKey.for_biome(biome_name, icons)
 
 	# Safe VerboseConfig access
 	var verbose = null

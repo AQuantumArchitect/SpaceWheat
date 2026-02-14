@@ -74,7 +74,7 @@ func _ready():
 	# Step 5: Measure plot (collapse quantum state)
 	print("\n📍 Step 5: Measure plot (collapse quantum state)")
 	var measured_theta = farm.biome.quantum_states[Vector2i(0, 0)].theta
-	plot.has_been_measured = true
+	plot.is_measured = true
 	plot.theta_frozen = true
 	print("✓ Measured plot - theta frozen at %.3f" % measured_theta)
 

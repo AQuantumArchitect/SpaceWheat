@@ -26,6 +26,7 @@ var resource_panel = null  # From scene
 var quantum_mode_indicator = null  # Created dynamically
 var quantum_visualization = null  # Optional - only if needed later
 var current_tool: int = 1
+var layout_manager: Node = null
 
 # DEBUG: Layout visibility
 var debug_layout_visible: bool = false
@@ -51,6 +52,9 @@ func _ready() -> void:
 	# Quantum mode status indicator removed - no longer needed in Phase 2 UI
 
 	print("   ✅ All child nodes referenced")
+
+	if layout_manager:
+		inject_layout_manager(layout_manager)
 
 	# CRITICAL: Ensure FarmUI fills its parent (FarmUIContainer)
 	# This continues the delegation cascade: FarmView → PlayerShell → FarmUIContainer → FarmUI
@@ -118,6 +122,15 @@ func setup_farm(farm_ref: Node) -> void:
 
 	print("✅ FarmUI farm setup complete")
 	farm_setup_complete.emit()  # Signal PlayerShell that input_handler is ready
+
+
+func inject_layout_manager(manager: Node) -> void:
+	"""Inject shared UILayoutManager for normalized sizing."""
+	layout_manager = manager
+	if resource_panel and resource_panel.has_method("set_layout_manager"):
+		resource_panel.set_layout_manager(layout_manager)
+	if plot_grid_display and plot_grid_display.has_method("inject_layout_manager"):
+		plot_grid_display.inject_layout_manager(layout_manager)
 
 
 func _input(event: InputEvent) -> void:

@@ -54,7 +54,7 @@ func _init():
 	overlay_tier = 3000  # Z_TIER_MODAL
 	panel_title = "BIOME INSPECTOR"
 	panel_title_size = 24
-	panel_size = Vector2(700, 500)
+	panel_size_mode = PanelSizeMode.LARGE
 	panel_border_color = Color(0.4, 0.7, 0.8, 0.8)  # Cyan border
 	navigation_mode = NavigationMode.CALLBACK  # Custom navigation
 	action_labels = {
@@ -344,8 +344,8 @@ func _on_deactivated() -> void:
 func _on_action_q() -> void:
 	"""Q = Select current icon for details."""
 	var biome = _get_selected_biome()
-	if biome and biome.icon_registry:
-		var icons = biome.icon_registry.get_all_icons()
+	if biome:
+		var icons = _get_biome_icons(biome)
 		if selected_icon_index >= 0 and selected_icon_index < icons.size():
 			var icon = icons[selected_icon_index]
 			action_performed.emit("select_icon", {"icon": icon, "biome": biome.biome_name})
@@ -410,10 +410,20 @@ func _navigate_down() -> void:
 		_update_selection_highlight()
 	elif current_mode == DisplayMode.SINGLE_BIOME:
 		var biome = _get_selected_biome()
-		if biome and biome.icon_registry:
-			var max_idx = biome.icon_registry.get_all_icons().size() - 1
+		if biome:
+			var max_idx = _get_biome_icons(biome).size() - 1
 			selected_icon_index = mini(max_idx, selected_icon_index + 1)
 		_update_selection_highlight()
+
+
+func _get_biome_icons(biome) -> Array:
+	if biome == null:
+		return []
+	if biome.has_method("get_effective_icons"):
+		return biome.get_effective_icons().values()
+	if "icons" in biome and biome.icons:
+		return biome.icons.values()
+	return []
 
 
 func _navigate_left() -> void:

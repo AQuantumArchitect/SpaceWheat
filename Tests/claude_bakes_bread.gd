@@ -239,7 +239,7 @@ func _debug_plot_state(pos: Vector2i):
 	var biome = farm.grid.get_biome_for_plot(pos)
 	var biome_name = biome.get_biome_type() if biome else "unknown"
 
-	print("     🔍 Plot %s (%s): planted=%s, measured=%s" % [pos, biome_name, plot.is_planted, plot.has_been_measured])
+	print("     🔍 Plot %s (%s): planted=%s, measured=%s" % [pos, biome_name, plot.is_planted, plot.is_measured])
 
 	if plot.quantum_state:
 		print("        Quantum: radius=%.3f, theta=%.2f" % [plot.quantum_state.radius, plot.quantum_state.theta])

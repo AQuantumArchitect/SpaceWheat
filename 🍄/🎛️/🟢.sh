@@ -15,6 +15,10 @@ export XDG_DATA_HOME="$XDG_ROOT"
 export XDG_CONFIG_HOME="$XDG_ROOT"
 export APPLICATION_NAME
 export GODOT_USER_DIR
+export DISABLE_VERBOSE_FILE_LOGGING=1
+export RIG_DISABLE_LOOKAHEAD=1
+export RIG_DISABLE_MI=1
+export RIG_DISABLE_FORCE=1
 
 echo "Starting live rig listener..."
 echo "Queue:  user://rig/queue.jsonl"

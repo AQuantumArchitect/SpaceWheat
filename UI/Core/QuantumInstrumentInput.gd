@@ -3,6 +3,9 @@ extends Node
 
 ## QuantumInstrumentInput - Musical instrument spindle for quantum navigation
 ##
+## UI projection layer for QuantumInstrumentState (headless core).
+## Handles keyboard input and updates PlotGridDisplay visual elements.
+##
 ## A unified interface where plot selection, biome navigation, and quantum
 ## operations fuse into a single system. Creates a fractal address to game
 ## state through hierarchical navigation.
@@ -23,6 +26,7 @@ extends Node
 ##   = = Increase matrix granularity (coarser substeps, faster)
 
 # Preloads
+const QuantumInstrumentState = preload("res://Core/Input/QuantumInstrumentState.gd")
 const ToolConfig = preload("res://Core/GameState/ToolConfig.gd")
 const ProbeActions = preload("res://Core/Actions/ProbeActions.gd")
 const GateActionHandler = preload("res://UI/Handlers/GateActionHandler.gd")
@@ -49,19 +53,21 @@ const BIOME_ACTIONS = ["biome_0", "biome_1", "biome_2", "biome_3", "biome_4", "b
 const HOMEROW_ACTIONS = ["plot_0", "plot_1", "plot_2", "plot_3", "plot_4", "plot_5", "plot_6"]
 const SUBSPACE_ACTIONS = ["subspace_0", "subspace_1", "subspace_2", "subspace_3"]
 
-# Core state
+# Headless state (owns the input logic)
+var _state: QuantumInstrumentState
+
+# UI references (projection targets)
 var farm  # Farm instance
 var plot_grid_display  # PlotGridDisplay reference for visual selection
-var current_selection: Dictionary = {"plot_idx": -1, "biome": "", "subspace_idx": -1}
-var last_selected_plot_position: Vector2i = Vector2i(-1, -1)  # Most recently selected plot for neighbor bonus
 
-# Multi-select state (NEW - for batch operations with Shift modifier)
-var checked_plots: Array[Vector2i] = []  # Set of checked grid positions (persists across biome switches)
-
-# Submenu state
-var _current_submenu: Dictionary = {}  # Current submenu data
-var _in_submenu: bool = false  # Are we in a submenu?
-var _submenu_page: int = 0  # Current page for paginated submenus
+# Legacy state (kept for backward compat during Phase 4 - to be removed)
+# NOTE: All reads/writes now go through _state
+var current_selection: Dictionary = {"plot_idx": -1, "biome": "", "subspace_idx": -1}  # UNUSED
+var last_selected_plot_position: Vector2i = Vector2i(-1, -1)  # UNUSED
+var checked_plots: Array[Vector2i] = []  # UNUSED
+var _current_submenu: Dictionary = {}  # Kept in sync with _state for signal emission
+var _in_submenu: bool = false  # Kept in sync with _state for signal emission
+var _submenu_page: int = 0  # Kept in sync with _state for signal emission
 
 # Signals
 signal action_performed(action: String, result: Dictionary)
@@ -86,6 +92,9 @@ const BUFFER_INVALIDATING_ACTIONS: Array[String] = [
 
 
 func _ready() -> void:
+	# Initialize headless state
+	_state = QuantumInstrumentState.new()
+
 	add_to_group("quantum_instrument_input")
 	set_process_unhandled_key_input(true)
 
@@ -133,18 +142,18 @@ func inject_plot_grid_display(pgd_ref) -> void:
 
 func get_checked_plots() -> Array[Vector2i]:
 	"""Get current checked plot positions (for save/load)."""
-	return checked_plots.duplicate()
+	return _state.checked_plots.duplicate()
 
 
 func set_checked_plots(positions: Array) -> void:
 	"""Set checked plot positions (for save/load restoration)."""
-	checked_plots.clear()
+	_state.checked_plots.clear()
 	for pos in positions:
 		if pos is Vector2i:
-			checked_plots.append(pos)
+			_state.checked_plots.append(pos)
 			# Emit signal to update UI
 			plot_checked.emit(pos, true)
-	_verbose.debug("input", "✅", "Restored %d checked plots from save" % checked_plots.size())
+	_verbose.debug("input", "✅", "Restored %d checked plots from save" % _state.checked_plots.size())
 
 
 ## ============================================================================
@@ -197,7 +206,7 @@ func _unhandled_key_input(event: InputEvent) -> void:
 	# Action keys
 	match key:
 		"Q", "E", "R":
-			if _in_submenu:
+			if _state.is_in_submenu():
 				_handle_submenu_action(key)
 			else:
 				if event.is_shift_pressed():
@@ -206,7 +215,7 @@ func _unhandled_key_input(event: InputEvent) -> void:
 					_perform_action(key)
 			get_viewport().set_input_as_handled()
 		"F":
-			if _in_submenu:
+			if _state.is_in_submenu():
 				_cycle_submenu_page()
 			else:
 				_cycle_mode()
@@ -275,6 +284,24 @@ func _cycle_mode() -> void:
 
 
 ## ============================================================================
+## CONTEXT BUILDING (for headless state)
+## ============================================================================
+
+func _build_context_dict() -> Dictionary:
+	"""Build context dictionary for headless state operations."""
+	var biome = _get_current_biome()
+	var position = _state.last_selected_position
+
+	return {
+		"farm": farm,
+		"biome": biome,
+		"position": position,
+		"economy": farm.economy if farm else null,
+		"selection": _state._state.checked_plots  # Use headless state
+	}
+
+
+## ============================================================================
 ## SUBMENU HANDLING
 ## ============================================================================
 
@@ -289,18 +316,24 @@ func _open_submenu_for_action(action_info: Dictionary) -> void:
 		_verbose.warn("input", "📋", "Action has submenu field but name is empty")
 		return
 
-	# For vocab_injection, generate dynamic submenu
+	# Enter submenu using headless state
+	var context = _build_context_dict()
+	var submenu_data = _state.enter_submenu(submenu_name, context)
+
+	# Update legacy state for backward compat
+	_current_submenu = submenu_data
+	_in_submenu = true
+	_submenu_page = 0
+
+	# Emit signals and log
 	if submenu_name == "vocab_injection":
-		_current_submenu = _generate_vocab_injection_submenu()
-		_in_submenu = true
-		_submenu_page = 0
 		_verbose.info("input", "📋", "Opened vocab injection submenu")
-		var submenu_actions = _current_submenu.get("actions", {})
+		var submenu_actions = submenu_data.get("actions", {})
 		submenu_changed.emit(submenu_name, submenu_actions)
 
 		# Debug: Print submenu contents
-		if not _current_submenu.is_empty():
-			var actions = _current_submenu.get("actions", {})
+		if not submenu_data.is_empty():
+			var actions = submenu_data.get("actions", {})
 			_verbose.info("input", "📋", "Submenu has %d actions (Q/E/R)" % actions.size())
 			for key in ["Q", "E", "R"]:
 				if actions.has(key):
@@ -311,19 +344,15 @@ func _open_submenu_for_action(action_info: Dictionary) -> void:
 		else:
 			_verbose.warn("input", "📋", "Submenu is empty!")
 
-	# For gate_selection, generate dynamic submenu with selection context
 	elif submenu_name == "gate_selection":
-		_current_submenu = _generate_gate_selection_submenu()
-		_in_submenu = true
-		_submenu_page = 0
-		var selection_count = checked_plots.size()
+		var selection_count = _state._state.checked_plots.size()
 		_verbose.info("input", "⚛️", "Opened gate selection submenu (%d qubits selected)" % selection_count)
-		var submenu_actions = _current_submenu.get("actions", {})
+		var submenu_actions = submenu_data.get("actions", {})
 		submenu_changed.emit(submenu_name, submenu_actions)
 
 		# Debug: Print gate options
-		if not _current_submenu.is_empty():
-			var actions = _current_submenu.get("actions", {})
+		if not submenu_data.is_empty():
+			var actions = submenu_data.get("actions", {})
 			for key in ["Q", "E", "R"]:
 				if actions.has(key):
 					var action = actions[key]
@@ -348,7 +377,7 @@ func _generate_vocab_injection_submenu() -> Dictionary:
 
 
 func _generate_gate_selection_submenu() -> Dictionary:
-	"""Generate the gate selection submenu dynamically based on checked_plots."""
+	"""Generate the gate selection submenu dynamically based on _state.checked_plots."""
 	if not farm:
 		_verbose.warn("input", "⚛️", "Farm not available")
 		return {}
@@ -358,9 +387,9 @@ func _generate_gate_selection_submenu() -> Dictionary:
 		_verbose.warn("input", "⚛️", "No current biome")
 		return {}
 
-	# Pass checked_plots as selection (preserves order)
+	# Pass _state.checked_plots as selection (preserves order)
 	var selection: Array = []
-	for pos in checked_plots:
+	for pos in _state.checked_plots:
 		selection.append(pos)
 
 	return GateSelectionSubmenu.generate_submenu(biome, farm, selection, _submenu_page)
@@ -368,31 +397,24 @@ func _generate_gate_selection_submenu() -> Dictionary:
 
 func _cycle_submenu_page() -> void:
 	"""Cycle to next page in paginated submenu (F key)."""
-	if _current_submenu.is_empty():
+	if not _state.is_in_submenu():
 		return
 
-	var max_pages = _current_submenu.get("max_pages", 1)
+	var max_pages = _state.current_submenu_data.get("max_pages", 1)
 	if max_pages <= 1:
 		_verbose.debug("input", "📋", "Only 1 page in submenu")
 		return
 
-	_submenu_page = (_submenu_page + 1) % max_pages
-	var submenu_name = _current_submenu.get("name", "")
+	# Cycle page using headless state
+	var context = _build_context_dict()
+	var result = _state.cycle_submenu_page(context)
 
-	# Regenerate based on submenu type
-	if submenu_name == "vocab_injection":
-		_current_submenu = _generate_vocab_injection_submenu()
-	elif submenu_name == "gate_selection":
-		_current_submenu = _generate_gate_selection_submenu()
-	else:
-		_verbose.warn("input", "📋", "Unknown submenu type for pagination: %s" % submenu_name)
-		return
+	# Update legacy state
+	_current_submenu = result.submenu_data
+	_submenu_page = result.page
 
-	var current_page = _current_submenu.get("page", 0)
-	var total_pages = _current_submenu.get("max_pages", 1)
-
-	_verbose.info("input", "📋", "Submenu page %d/%d" % [current_page + 1, total_pages])
-	submenu_changed.emit(submenu_name, _current_submenu.get("actions", {}))
+	_verbose.info("input", "📋", "Submenu page %d/%d" % [result.page + 1, result.max_pages])
+	submenu_changed.emit(result.submenu_name, result.submenu_data.get("actions", {}))
 
 
 func _handle_submenu_action(action_key: String) -> void:
@@ -440,7 +462,8 @@ func _handle_submenu_action(action_key: String) -> void:
 		_verbose.info("input", "⚛️", "Building %s gate (requires %d qubits)" % [label, qubits_required])
 		_execute_build_gate(gate_type)
 
-	# Exit submenu
+	# Exit submenu using headless state
+	_state.exit_submenu()
 	_in_submenu = false
 	_current_submenu = {}
 	submenu_changed.emit("", {})
@@ -515,9 +538,9 @@ func _execute_build_gate(gate_type: String) -> void:
 	Args:
 		gate_type: Type of gate to build (bell, cnot, cz, swap, ghz, cluster)
 	"""
-	# Use checked_plots as selection (order preserved)
+	# Use _state.checked_plots as selection (order preserved)
 	var positions: Array[Vector2i] = []
-	for pos in checked_plots:
+	for pos in _state.checked_plots:
 		positions.append(pos)
 
 	if positions.size() < 2:
@@ -572,12 +595,12 @@ func _execute_build_gate(gate_type: String) -> void:
 
 func apply_chain_gate(positions) -> void:
 	"""Apply gate from chain swipe gesture.
-	Populates checked_plots, then executes gate build.
+	Populates _state.checked_plots, then executes gate build.
 	Default: bell (2 bubbles) or cluster (3+ bubbles).
 	"""
 	clear_all_checks()
 	for pos in positions:
-		checked_plots.append(pos)
+		_state.checked_plots.append(pos)
 		plot_checked.emit(pos, true)
 
 	var gate_type = "bell" if positions.size() == 2 else "cluster"
@@ -610,7 +633,7 @@ func _select_biome(biome_idx: int, key: String) -> void:
 	_active_biome_mgr.set_active_biome(new_biome)
 
 	# Update current selection to reflect new biome
-	current_selection.biome = new_biome
+	_state.current_biome = new_biome
 
 	# Record in chain tracker
 	if _chain_tracker:
@@ -667,7 +690,7 @@ func _select_plot(plot_idx: int, key: String) -> void:
 	# CRITICAL: Update PlotGridDisplay visual selection
 	if plot_grid_display and farm and grid_pos.x >= 0:
 		plot_grid_display.set_selected_plot(grid_pos)
-		last_selected_plot_position = grid_pos  # Track for neighbor bonus
+		_state.last_selected_position = grid_pos  # Track for neighbor bonus
 		_verbose.debug("input", "~", "Visual selection: %s" % grid_pos)
 
 	# Emit selection changed signal
@@ -692,16 +715,16 @@ func toggle_check(grid_pos: Vector2i) -> void:
 	if grid_pos.x < 0 or grid_pos.y < 0:
 		return  # Invalid position
 
-	var was_checked = grid_pos in checked_plots
+	var was_checked = grid_pos in _state.checked_plots
 
 	if was_checked:
 		# Uncheck: remove from list
-		checked_plots.erase(grid_pos)
+		_state.checked_plots.erase(grid_pos)
 		_verbose.debug("input", "☐", "Unchecked plot at %s" % grid_pos)
 	else:
 		# Check: add to list
-		checked_plots.append(grid_pos)
-		_verbose.debug("input", "☑", "Checked plot at %s (total: %d)" % [grid_pos, checked_plots.size()])
+		_state.checked_plots.append(grid_pos)
+		_verbose.debug("input", "☑", "Checked plot at %s (total: %d)" % [grid_pos, _state.checked_plots.size()])
 
 	# Emit signal so PlotGridDisplay can update visual checkbox
 	plot_checked.emit(grid_pos, not was_checked)
@@ -709,9 +732,9 @@ func toggle_check(grid_pos: Vector2i) -> void:
 
 func clear_all_checks() -> void:
 	"""Clear all checkmarks (useful for batch operation completion)."""
-	for pos in checked_plots.duplicate():  # Duplicate to avoid modification during iteration
+	for pos in _state.checked_plots.duplicate():  # Duplicate to avoid modification during iteration
 		plot_checked.emit(pos, false)
-	checked_plots.clear()
+	_state.checked_plots.clear()
 	_verbose.debug("input", "☐", "Cleared all checkmarks")
 
 
@@ -736,7 +759,7 @@ func _clear_checks_and_cycle_biome() -> void:
 
 	# Reset current selection state
 	current_selection = {"plot_idx": -1, "biome": "", "subspace_idx": -1}
-	last_selected_plot_position = Vector2i(-1, -1)
+	_state.last_selected_position = Vector2i(-1, -1)
 
 	# Reset quantum simulation (if farm has reset method)
 	if farm and farm.has_method("reset_quantum_state"):
@@ -767,7 +790,7 @@ func _select_subspace(subspace_idx: int, key: String) -> void:
 	_verbose.debug("input", "~", "Subspace selection reserved for future (idx: %d)" % subspace_idx)
 
 	# Update current selection to track subspace
-	current_selection.subspace_idx = subspace_idx
+	_state.current_subspace_idx = subspace_idx
 
 	# TODO: Implement subspace navigation when needed
 
@@ -831,7 +854,7 @@ func _perform_shift_key_action(action_key: String) -> void:
 	var log_label = action_info.get("shift_label", action_info.get("label", action_name))
 
 	# Use checked plots instead of entire homerow (ORDER PRESERVED from selection)
-	var positions = checked_plots.duplicate()
+	var positions = _state.checked_plots.duplicate()
 	if positions.is_empty():
 		_verbose.debug("input", "⚠️", "No plots checked - Shift+action requires checked plots")
 		return
@@ -1282,7 +1305,7 @@ func _action_rotate(direction: int) -> Dictionary:
 	"""Apply rotation to selected plot."""
 	_verbose.debug("input", "R", "Rotate: selection=%s dir=%d" % [current_selection, direction])
 
-	if current_selection.plot_idx < 0:
+	if _state.current_plot_idx < 0:
 		return {"success": false, "error": "no_selection", "message": "No plot selected"}
 
 	var axis = ToolConfig.get_group_mode_name(1)
@@ -1313,7 +1336,7 @@ func _action_hadamard() -> Dictionary:
 	"""Apply Hadamard gate to selected plot."""
 	_verbose.debug("input", "H", "Hadamard: selection=%s" % current_selection)
 
-	if current_selection.plot_idx < 0:
+	if _state.current_plot_idx < 0:
 		return {"success": false, "error": "no_selection", "message": "No plot selected"}
 
 	var positions = _get_selected_positions()
@@ -1331,7 +1354,7 @@ func _action_hadamard() -> Dictionary:
 
 func _action_drain() -> Dictionary:
 	"""Drain: Dissipate excess energy to classical resources."""
-	if current_selection.plot_idx < 0:
+	if _state.current_plot_idx < 0:
 		return {"success": false, "error": "no_selection", "message": "No plot selected"}
 
 	var positions = _get_selected_positions()
@@ -1345,7 +1368,7 @@ func _action_drain() -> Dictionary:
 
 func _action_transfer() -> Dictionary:
 	"""Transfer: Move population between qubits."""
-	if current_selection.plot_idx < 0:
+	if _state.current_plot_idx < 0:
 		return {"success": false, "error": "no_selection", "message": "No plot selected"}
 
 	var positions = _get_selected_positions()
@@ -1354,7 +1377,7 @@ func _action_transfer() -> Dictionary:
 
 func _action_pump() -> Dictionary:
 	"""Pump: Drive energy into quantum state."""
-	if current_selection.plot_idx < 0:
+	if _state.current_plot_idx < 0:
 		return {"success": false, "error": "no_selection", "message": "No plot selected"}
 
 	var positions = _get_selected_positions()
@@ -1381,7 +1404,7 @@ func _action_explore() -> Dictionary:
 	if not farm or not farm.terminal_pool:
 		return {"success": false, "error": "no_farm", "message": "Farm not ready"}
 
-	if current_selection.plot_idx < 0:
+	if _state.current_plot_idx < 0:
 		return {"success": false, "error": "no_selection", "message": "No plot selected"}
 
 	var biome = _get_current_biome()
@@ -1520,7 +1543,7 @@ func _action_clear_all() -> Dictionary:
 
 func _action_build_gate() -> Dictionary:
 	"""Build gate (bell/cluster/cnot based on selection count)."""
-	if current_selection.plot_idx < 0:
+	if _state.current_plot_idx < 0:
 		return {"success": false, "error": "no_selection", "message": "No plot selected"}
 
 	var positions = _get_selected_positions()
@@ -1539,7 +1562,7 @@ func _action_build_gate() -> Dictionary:
 
 func _action_inspect() -> Dictionary:
 	"""Inspect entanglement at selection."""
-	if current_selection.plot_idx < 0:
+	if _state.current_plot_idx < 0:
 		return {"success": false, "error": "no_selection", "message": "No plot selected"}
 
 	var positions = _get_selected_positions()
@@ -1548,7 +1571,7 @@ func _action_inspect() -> Dictionary:
 
 func _action_remove_gates() -> Dictionary:
 	"""Remove gate infrastructure."""
-	if current_selection.plot_idx < 0:
+	if _state.current_plot_idx < 0:
 		return {"success": false, "error": "no_selection", "message": "No plot selected"}
 
 	var positions = _get_selected_positions()
@@ -1561,7 +1584,7 @@ func _action_remove_gates() -> Dictionary:
 
 func _action_inject_vocabulary() -> Dictionary:
 	"""Inject vocabulary into biome (save-like operation)."""
-	if current_selection.plot_idx < 0:
+	if _state.current_plot_idx < 0:
 		return {"success": false, "error": "no_selection", "message": "No plot selected"}
 
 	var biome = _get_current_biome()
@@ -1605,7 +1628,7 @@ func _action_inject_vocabulary() -> Dictionary:
 			farm.discover_pair(pair.get("north", ""), pair.get("south", ""))
 		
 		_verbose.debug("input", "+", "Injected vocab %s/%s into %s" % [
-			pair.get("north", ""), pair.get("south", ""), current_selection.biome
+			pair.get("north", ""), pair.get("south", ""), _state.current_biome
 		])
 		return result
 
@@ -1648,7 +1671,7 @@ func _action_explore_biome() -> Dictionary:
 
 func _action_remove_vocabulary() -> Dictionary:
 	"""Remove vocabulary from biome - shrink quantum system."""
-	if current_selection.plot_idx < 0:
+	if _state.current_plot_idx < 0:
 		return {"success": false, "error": "no_selection", "message": "No plot selected"}
 
 	var biome = _get_current_biome()
@@ -1701,7 +1724,7 @@ func _action_remove_vocabulary() -> Dictionary:
 		_verbose.info("input", "-", "Removed vocab %s/%s from %s" % [
 			pair_to_remove.get("north", "?"),
 			pair_to_remove.get("south", "?"),
-			current_selection.biome
+			_state.current_biome
 		])
 
 	return result
@@ -1939,7 +1962,7 @@ func _get_current_biome():
 	if not farm or not farm.grid:
 		return null
 
-	var biome_name = current_selection.get("biome", "")
+	var biome_name = _state.current_biome if _state.current_biome != "" else ""
 	if biome_name == "":
 		biome_name = _active_biome_mgr.get_active_biome() if _active_biome_mgr else "BioticFlux"
 
@@ -1948,8 +1971,8 @@ func _get_current_biome():
 
 func _get_grid_position() -> Vector2i:
 	"""Convert current selection to grid position."""
-	var plot_idx = current_selection.get("plot_idx", 0)
-	var biome_name = current_selection.get("biome", "")
+	var plot_idx = _state.current_plot_idx if _state.current_plot_idx >= 0 else 0
+	var biome_name = _state.current_biome if _state.current_biome != "" else ""
 
 	# Map biome name to row (y coordinate)
 	var biome_row = farm.get_biome_row(biome_name) if farm and farm.has_method("get_biome_row") else 0
@@ -1975,7 +1998,7 @@ func _get_active_biome_register_count() -> int:
 func _get_selected_positions() -> Array[Vector2i]:
 	"""Get array of selected positions (currently just single selection)."""
 	var positions: Array[Vector2i] = []
-	if current_selection.plot_idx >= 0:
+	if _state.current_plot_idx >= 0:
 		positions.append(_get_grid_position())
 	return positions
 
@@ -1989,8 +2012,8 @@ func _resolve_terminal_for_harvest(grid_pos: Vector2i) -> RefCounted:
 		return terminal
 
 	# Fallback: try the last selected plot (useful when selection resets after MEASURE)
-	if last_selected_plot_position != Vector2i(-1, -1) and last_selected_plot_position != grid_pos:
-		var fallback = farm.terminal_pool.get_terminal_at_grid_pos(last_selected_plot_position)
+	if _state.last_selected_position != Vector2i(-1, -1) and _state.last_selected_position != grid_pos:
+		var fallback = farm.terminal_pool.get_terminal_at_grid_pos(_state.last_selected_position)
 		if fallback and fallback.is_measured:
 			return fallback
 
@@ -2015,7 +2038,7 @@ func _get_homerow_positions() -> Array[Vector2i]:
 func _get_current_biome_row() -> int:
 	if not farm:
 		return 0
-	var biome_name = current_selection.get("biome", "")
+	var biome_name = _state.current_biome if _state.current_biome != "" else ""
 	if biome_name == "":
 		biome_name = _active_biome_mgr.get_active_biome() if _active_biome_mgr else "BioticFlux"
 	if biome_name == "":
@@ -2044,7 +2067,7 @@ func _restore_selection(previous_selection: Dictionary) -> void:
 	else:
 		current_selection = {"plot_idx": -1, "biome": "", "subspace_idx": -1}
 
-	if plot_grid_display and farm and current_selection.plot_idx >= 0:
+	if plot_grid_display and farm and _state.current_plot_idx >= 0:
 		var grid_pos = _get_grid_position()
 		if grid_pos.x >= 0:
 			plot_grid_display.set_selected_plot(grid_pos)

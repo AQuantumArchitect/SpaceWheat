@@ -82,7 +82,7 @@ func test_plot_measurement():
 	# Measure
 	var outcome = plot.measure()
 	assert(outcome != "", "Measurement should return an emoji")
-	assert(plot.has_been_measured, "Plot should be marked as measured")
+	assert(plot.is_measured, "Plot should be marked as measured")
 	print("  ✓ Measured outcome: %s" % outcome)
 
 	# Harvest

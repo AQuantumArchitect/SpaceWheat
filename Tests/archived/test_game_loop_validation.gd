@@ -51,7 +51,7 @@ func _initialize():
 	_log("\n📐 TEST 3: Measure plot")
 	var outcome = measure_plot(Vector2i(0, 0))
 	_log("  Measured outcome: %s" % outcome)
-	_log("  Measurement state: %s" % plot_0_0.has_been_measured)
+	_log("  Measurement state: %s" % plot_0_0.is_measured)
 
 	if outcome.is_empty():
 		_error("Measurement returned empty")

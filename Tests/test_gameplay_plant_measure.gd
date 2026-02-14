@@ -32,7 +32,7 @@ func _init():
 		print("  Plot type: ", plot.plot_type)
 		print("  North emoji: ", plot.north_emoji)
 		print("  South emoji: ", plot.south_emoji)
-		print("  Has been measured: ", plot.has_been_measured)
+		print("  Has been measured: ", plot.is_measured)
 	else:
 		print("  ❌ Planting failed!")
 		quit(1)
@@ -63,7 +63,7 @@ func _init():
 	print("  Measurement outcome: ", outcome)
 
 	var plot = farm.get_plot(plot_pos)
-	print("  Plot.has_been_measured: ", plot.has_been_measured)
+	print("  Plot.is_measured: ", plot.is_measured)
 	print("  Plot.measured_outcome: ", plot.measured_outcome)
 
 	# Check post-measurement state

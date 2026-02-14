@@ -280,7 +280,7 @@ func _count_measured() -> int:
 	for y in range(farm_view.farm.grid_height):
 		for x in range(farm_view.farm.grid_width):
 			var plot = farm_view.farm.grid.get_plot(Vector2i(x, y))
-			if plot and plot.has_been_measured:
+			if plot and plot.is_measured:
 				count += 1
 	return count
 

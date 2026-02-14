@@ -229,9 +229,9 @@ func _test_measure_cascade():
 	assert(measure_result != "", "Measurement should return a result")
 
 	# Verify all plots have been measured
-	assert(grid.get_plot(Vector2i(0, 0)).has_been_measured, "Plot (0,0) should be measured")
-	assert(grid.get_plot(Vector2i(1, 0)).has_been_measured, "Plot (1,0) should be measured")
-	assert(grid.get_plot(Vector2i(2, 0)).has_been_measured, "Plot (2,0) should be measured")
+	assert(grid.get_plot(Vector2i(0, 0)).is_measured, "Plot (0,0) should be measured")
+	assert(grid.get_plot(Vector2i(1, 0)).is_measured, "Plot (1,0) should be measured")
+	assert(grid.get_plot(Vector2i(2, 0)).is_measured, "Plot (2,0) should be measured")
 
 	print("  ✅ Measurement cascaded to entire entangled network\n")
 	test_results["measure_cascade"] = true
@@ -299,9 +299,9 @@ func _test_workflow_complex():
 
 	print("\n  Step 3: Measure middle plot (cascades to all)")
 	var measure_result = grid.measure_plot(Vector2i(1, 0))
-	assert(plot_0.has_been_measured, "Plot 0 measured via cascade")
-	assert(plot_1.has_been_measured, "Plot 1 measured")
-	assert(plot_2.has_been_measured, "Plot 2 measured via cascade")
+	assert(plot_0.is_measured, "Plot 0 measured via cascade")
+	assert(plot_1.is_measured, "Plot 1 measured")
+	assert(plot_2.is_measured, "Plot 2 measured via cascade")
 	print("    ✅ All plots measured (cascade complete)")
 
 	print("\n  Step 4: Harvest all plots")

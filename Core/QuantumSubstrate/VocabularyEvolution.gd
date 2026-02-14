@@ -359,8 +359,7 @@ func deserialize(data: Dictionary) -> void:
 
 	# Restore discovered vocabulary
 	if data.has("discovered_vocabulary"):
-		if OS.get_environment("VERBOSE_LOGGING") == "1" or OS.get_environment("VERBOSE_VOCABULARY") == "1":
-					discovered_vocabulary = data["discovered_vocabulary"].duplicate(true) as Array[Dictionary]
+		discovered_vocabulary = data["discovered_vocabulary"].duplicate(true) as Array[Dictionary]
 		print("✨ Restored %d discovered concepts" % discovered_vocabulary.size())
 
 	# Restore parameters
@@ -389,7 +388,8 @@ func deserialize(data: Dictionary) -> void:
 			)
 			qb.phi = qb_data.get("phi", 0.0)
 			qb.radius = qb_data.get("radius", 0.3)
-			qb.energy = qb_data.get("energy", 0.3)
+			if "energy" in qb:
+				qb.energy = qb_data.get("energy", 0.3)
 			qb.berry_phase = qb_data.get("berry_phase", 0.0)
 			qb.entanglement_graph = qb_data.get("entanglement_graph", {}).duplicate()
 			# berry_phase enabled by default (no longer a method)

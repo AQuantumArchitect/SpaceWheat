@@ -148,11 +148,11 @@ func _run_game_cycle(cycle: int):
 	var harvested_this_cycle = 0
 	for p in theta_before.keys():
 		var plt2 = grid.get_plot(p)
-		if plt2 and plt2.is_planted and not plt2.has_been_measured:
+		if plt2 and plt2.is_planted and not plt2.is_measured:
 			var q = biome.quantum_states[p]
 
 			# Measure (collapse state)
-			plt2.has_been_measured = true
+			plt2.is_measured = true
 			plt2.theta_frozen = true
 
 			# Check harvest conditions

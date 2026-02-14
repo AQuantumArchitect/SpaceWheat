@@ -32,7 +32,7 @@ func _ready():
 
 	var plot = farm.grid.get_plot(Vector2i(0, 0))
 	print("   Plot planted: %s" % plot.is_planted)
-	print("   Plot has_been_measured: %s" % plot.has_been_measured)
+	print("   Plot has_been_measured: %s" % plot.is_measured)
 	if plot.quantum_state:
 		print("   Quantum state: %s ↔ %s" % [
 			plot.quantum_state.north_emoji,
@@ -52,7 +52,7 @@ func _ready():
 	print("   Measure result: %s" % measure_result)
 
 	plot = farm.grid.get_plot(Vector2i(0, 0))
-	print("   Plot has_been_measured after: %s" % plot.has_been_measured)
+	print("   Plot has_been_measured after: %s" % plot.is_measured)
 
 	await get_tree().process_frame
 

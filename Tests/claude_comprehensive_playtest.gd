@@ -489,7 +489,7 @@ func capture_game_state() -> Dictionary:
 					"position": pos,
 					"type": plot.plot_type,
 					"is_planted": plot.is_planted,
-					"has_been_measured": plot.has_been_measured
+					"has_been_measured": plot.is_measured
 				})
 
 	# Goals
@@ -521,8 +521,8 @@ func compare_states(pre: Dictionary, post: Dictionary) -> Array:
 
 		if p1.is_planted != p2.is_planted:
 			diffs.append("Plot %s planted: %s → %s" % [p1.position, p1.is_planted, p2.is_planted])
-		if p1.has_been_measured != p2.has_been_measured:
-			diffs.append("Plot %s measured: %s → %s" % [p1.position, p1.has_been_measured, p2.has_been_measured])
+		if p1.is_measured != p2.is_measured:
+			diffs.append("Plot %s measured: %s → %s" % [p1.position, p1.is_measured, p2.is_measured])
 
 	# Goals
 	if pre.goal_index != post.goal_index:

@@ -94,7 +94,7 @@ func test_bubble_measure():
 
 	await get_tree().create_timer(0.2).timeout
 
-	if plot.has_been_measured:
+	if plot.is_measured:
 		print("  ⚠️ Already measured, skipping")
 		return
 
@@ -103,7 +103,7 @@ func test_bubble_measure():
 
 	await get_tree().create_timer(0.2).timeout
 
-	if plot.has_been_measured:
+	if plot.is_measured:
 		print("  ✅ PASS: Bubble click measured crop")
 	else:
 		print("  ❌ FAIL: Bubble click did NOT measure")
@@ -116,7 +116,7 @@ func test_bubble_harvest():
 	var test_pos = Vector2i(0, 0)
 	var plot_before = farm_view.farm_grid.get_plot(test_pos)
 
-	if not plot_before.is_mature or not plot_before.has_been_measured:
+	if not plot_before.is_mature or not plot_before.is_measured:
 		print("  ⚠️ Not ready to harvest, skipping")
 		return
 

@@ -238,7 +238,7 @@ func _test_capture_state_contains_measured_outcome():
 	var test_pos = Vector2i(0, 0)
 	var plot = farm.grid.get_plot(test_pos)
 
-	if plot and plot.is_planted and not plot.has_been_measured:
+	if plot and plot.is_planted and not plot.is_measured:
 		input_handler.current_selection = test_pos
 		input_handler.current_tool = 1  # PROBE
 		input_handler._execute_tool_action("E")  # MEASURE

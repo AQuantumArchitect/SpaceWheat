@@ -104,7 +104,7 @@ func _run_cycle(cycle: int):
 	print("\n📍 PHASE 3: MEASUREMENT & HARVEST")
 	print(print_sep())
 
-	if plot.is_planted and not plot.has_been_measured:
+	if plot.is_planted and not plot.is_measured:
 		plot.measure()
 		print("✓ Measured plot (collapsed quantum state)")
 
@@ -150,7 +150,7 @@ func _simulate_time(seconds: float):
 
 
 func can_harvest_plot(plot) -> bool:
-	return plot.has_been_measured
+	return plot.is_measured
 
 
 func analyze_results():

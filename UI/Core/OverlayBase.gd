@@ -51,6 +51,8 @@ var action_labels: Dictionary = {
 var panel_title: String = ""
 var panel_title_size: int = 24
 var panel_size: Vector2 = Vector2(600, 450)
+enum PanelSizeMode { SMALL, MEDIUM, LARGE, CUSTOM }
+var panel_size_mode: PanelSizeMode = PanelSizeMode.MEDIUM
 var panel_border_color: Color = Color(0.3, 0.4, 0.5, 0.8)
 
 # Dimmer configuration (off by default - enable in subclass if needed)
@@ -88,6 +90,7 @@ var _main_vbox: VBoxContainer
 var _title_label: Label
 var _scroll_container: ScrollContainer
 var _content_container: VBoxContainer
+var _resolved_panel_size: Vector2 = Vector2.ZERO
 
 # =============================================================================
 # STATE
@@ -159,7 +162,8 @@ func _build_panel() -> void:
 
 	# Panel inside center container - will be auto-centered
 	_panel = PanelContainer.new()
-	_panel.custom_minimum_size = panel_size
+	_resolved_panel_size = _resolve_panel_size()
+	_panel.custom_minimum_size = _resolved_panel_size
 	_panel.add_theme_stylebox_override("panel", UIStyleFactory.create_panel_style(
 		UIStyleFactory.COLOR_PANEL_BG,
 		panel_border_color
@@ -178,7 +182,7 @@ func _build_panel() -> void:
 
 	# Content area
 	if use_scroll_container:
-		var scroll_size = Vector2(panel_size.x - 40, panel_size.y - 80)
+		var scroll_size = Vector2(_resolved_panel_size.x - 40, _resolved_panel_size.y - 80)
 		_scroll_container = ScrollContainer.new()
 		_scroll_container.custom_minimum_size = scroll_size
 		_scroll_container.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
@@ -431,7 +435,44 @@ func set_action_label(key: String, label: String) -> void:
 
 func set_layout_manager(manager: Node) -> void:
 	"""Set UILayoutManager reference for responsive sizing."""
+	if layout_manager and layout_manager.has_signal("layout_changed"):
+		if layout_manager.layout_changed.is_connected(_on_layout_changed):
+			layout_manager.layout_changed.disconnect(_on_layout_changed)
 	layout_manager = manager
+	if layout_manager and layout_manager.has_signal("layout_changed"):
+		if not layout_manager.layout_changed.is_connected(_on_layout_changed):
+			layout_manager.layout_changed.connect(_on_layout_changed)
+	_apply_panel_size()
+
+
+func _on_layout_changed(_new_layout: Dictionary) -> void:
+	_apply_panel_size()
+
+
+func _resolve_panel_size() -> Vector2:
+	"""Resolve panel size from layout manager + panel_size_mode."""
+	if panel_size_mode == PanelSizeMode.CUSTOM:
+		return panel_size
+	if not layout_manager or not layout_manager.has_method("get_modal_size"):
+		return panel_size
+	match panel_size_mode:
+		PanelSizeMode.SMALL:
+			return layout_manager.get_modal_size("small")
+		PanelSizeMode.LARGE:
+			return layout_manager.get_modal_size("large")
+		_:
+			return layout_manager.get_modal_size("medium")
+
+
+func _apply_panel_size() -> void:
+	if not _panel:
+		return
+	_resolved_panel_size = _resolve_panel_size()
+	if _resolved_panel_size == Vector2.ZERO:
+		return
+	_panel.custom_minimum_size = _resolved_panel_size
+	if _scroll_container:
+		_scroll_container.custom_minimum_size = Vector2(_resolved_panel_size.x - 40, _resolved_panel_size.y - 80)
 
 
 # =============================================================================

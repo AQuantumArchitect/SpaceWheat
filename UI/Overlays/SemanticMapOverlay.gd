@@ -57,7 +57,7 @@ func _init():
 	overlay_icon = ""
 	overlay_tier = 2000  # Z_TIER_INFO
 	panel_title = ""  # We use custom title bar with mode indicator
-	panel_size = Vector2(650, 500)
+	panel_size_mode = PanelSizeMode.LARGE
 	panel_border_color = Color(0.4, 0.3, 0.6, 0.8)  # Purple border
 	navigation_mode = NavigationMode.GRID
 	content_spacing = 12

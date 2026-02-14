@@ -6,14 +6,40 @@
     "music_path": "res://Assets/Audio/Music/BroadcastTower.mp3",
     "discovered": false,
     "plot_layout": [
-      {"x": 0.35, "y": 0.4},
-      {"x": 0.5, "y": 0.3},
-      {"x": 0.65, "y": 0.4},
-      {"x": 0.5, "y": 0.6}
+      {
+        "x": 0.35,
+        "y": 0.4
+      },
+      {
+        "x": 0.5,
+        "y": 0.3
+      },
+      {
+        "x": 0.65,
+        "y": 0.4
+      },
+      {
+        "x": 0.5,
+        "y": 0.6
+      }
     ],
-    "emojis": ["📡", "📶", "🔊", "🗣", "🎵", "🧩"],
-    "native_factions": ["Symphony Smiths"],
-    "tags": ["signal", "communication", "transmission", "decay"],
+    "emojis": [
+      "📡",
+      "📶",
+      "🔊",
+      "🗣",
+      "🎵",
+      "🧩"
+    ],
+    "native_factions": [
+      "Symphony Smiths"
+    ],
+    "tags": [
+      "signal",
+      "communication",
+      "transmission",
+      "decay"
+    ],
     "icon_components": {
       "📡": {
         "self_energy": 0.3,
@@ -102,12 +128,15 @@
     },
     "cross_biome_flows": {
       "outgoing": {
-        "EchoingChasm": ["🔊"],
-        "MagneticAnomaly": ["📡"]
+        "EchoingChasm": [
+          "🔊"
+        ],
+        "MagneticAnomaly": [
+          "📡"
+        ]
       }
     }
   },
-
   {
     "name": "SatelliteGraveyard",
     "description": "Orbital debris field where dead satellites tumble in eternal silence among dying stars. Recorded data corrupts slowly in the radiation bath. Nothing is recovered here—only preserved in degraded form, waiting for the void to claim it.",
@@ -115,14 +144,36 @@
     "music_path": "res://Assets/Audio/Music/SatelliteGraveyard.mp3",
     "discovered": false,
     "plot_layout": [
-      {"x": 0.4, "y": 0.4},
-      {"x": 0.6, "y": 0.4},
-      {"x": 0.4, "y": 0.6},
-      {"x": 0.6, "y": 0.6}
+      {
+        "x": 0.4,
+        "y": 0.4
+      },
+      {
+        "x": 0.6,
+        "y": 0.4
+      },
+      {
+        "x": 0.4,
+        "y": 0.6
+      },
+      {
+        "x": 0.6,
+        "y": 0.6
+      }
     ],
-    "emojis": ["🛰", "⭐", "📼", "🧩"],
+    "emojis": [
+      "🛰",
+      "⭐",
+      "📼",
+      "🧩"
+    ],
     "native_factions": [],
-    "tags": ["orbital", "debris", "decay", "cosmic"],
+    "tags": [
+      "orbital",
+      "debris",
+      "decay",
+      "cosmic"
+    ],
     "icon_components": {
       "🛰": {
         "self_energy": 0.2,
@@ -177,14 +228,17 @@
     },
     "cross_biome_flows": {
       "outgoing": {
-        "HorizonFracture": ["⭐"]
+        "HorizonFracture": [
+          "⭐"
+        ]
       },
       "incoming": {
-        "OrbitalStrike": ["🛰"]
+        "OrbitalStrike": [
+          "🛰"
+        ]
       }
     }
   },
-
   {
     "name": "Clinic",
     "description": "Sterile light hums above examination tables. Treatments expire on shelves. Diagnosis leads inexorably to prohibition or intervention. The genetics persist long after the patient is gone—the only true record of what was attempted here.",
@@ -192,14 +246,40 @@
     "music_path": "res://Assets/Audio/Music/Clinic.mp3",
     "discovered": false,
     "plot_layout": [
-      {"x": 0.35, "y": 0.35},
-      {"x": 0.65, "y": 0.35},
-      {"x": 0.35, "y": 0.65},
-      {"x": 0.65, "y": 0.65}
+      {
+        "x": 0.35,
+        "y": 0.35
+      },
+      {
+        "x": 0.65,
+        "y": 0.35
+      },
+      {
+        "x": 0.35,
+        "y": 0.65
+      },
+      {
+        "x": 0.65,
+        "y": 0.65
+      }
     ],
-    "emojis": ["💉", "💊", "🩺", "🚫", "🧪", "🧬"],
-    "native_factions": ["Chop Docs"],
-    "tags": ["medical", "pharmaceutical", "sterile", "diagnosis"],
+    "emojis": [
+      "💉",
+      "💊",
+      "🩺",
+      "🚫",
+      "🧪",
+      "🧬"
+    ],
+    "native_factions": [
+      "Chop Docs"
+    ],
+    "tags": [
+      "medical",
+      "pharmaceutical",
+      "sterile",
+      "diagnosis"
+    ],
     "icon_components": {
       "💉": {
         "self_energy": 0.15,
@@ -287,11 +367,12 @@
     },
     "cross_biome_flows": {
       "incoming": {
-        "FungalNetworks": ["🧫"]
+        "FungalNetworks": [
+          "🧫"
+        ]
       }
     }
   },
-
   {
     "name": "Workshop",
     "description": "The honest entropy of labor. Hammers ring in steady rhythm. Tools wear down with use, are repaired, wear down again. Everything here serves a purpose until it doesn't, then joins the cycle of salvage and reuse.",
@@ -299,14 +380,40 @@
     "music_path": "res://Assets/Audio/Music/Workshop.mp3",
     "discovered": false,
     "plot_layout": [
-      {"x": 0.3, "y": 0.45},
-      {"x": 0.5, "y": 0.35},
-      {"x": 0.7, "y": 0.45},
-      {"x": 0.5, "y": 0.6}
+      {
+        "x": 0.3,
+        "y": 0.45
+      },
+      {
+        "x": 0.5,
+        "y": 0.35
+      },
+      {
+        "x": 0.7,
+        "y": 0.45
+      },
+      {
+        "x": 0.5,
+        "y": 0.6
+      }
     ],
-    "emojis": ["🔧", "🔨", "🪛", "🧰", "🔌", "♻️"],
-    "native_factions": ["Forgewright Union"],
-    "tags": ["labor", "tools", "industry", "repair"],
+    "emojis": [
+      "🔧",
+      "🔨",
+      "🪛",
+      "🧰",
+      "🔌",
+      "♻️"
+    ],
+    "native_factions": [
+      "Forgewright Union"
+    ],
+    "tags": [
+      "labor",
+      "tools",
+      "industry",
+      "repair"
+    ],
     "icon_components": {
       "🔧": {
         "self_energy": 0.2,
@@ -397,12 +504,15 @@
     },
     "cross_biome_flows": {
       "outgoing": {
-        "ScrapYard": ["♻️"],
-        "PowerStation": ["🔌"]
+        "ScrapYard": [
+          "♻️"
+        ],
+        "PowerStation": [
+          "🔌"
+        ]
       }
     }
   },
-
   {
     "name": "ScrapYard",
     "description": "The terminal basin. Everything ends here eventually—machinery, materials, workers. The 🗑 grows ever larger. But from decay comes recycling, and from recycling, raw material flows back into the world. Even endings feed beginnings.",
@@ -410,14 +520,38 @@
     "music_path": "res://Assets/Audio/Music/ScrapYard.mp3",
     "discovered": false,
     "plot_layout": [
-      {"x": 0.35, "y": 0.35},
-      {"x": 0.65, "y": 0.35},
-      {"x": 0.5, "y": 0.5},
-      {"x": 0.5, "y": 0.7}
+      {
+        "x": 0.35,
+        "y": 0.35
+      },
+      {
+        "x": 0.65,
+        "y": 0.35
+      },
+      {
+        "x": 0.5,
+        "y": 0.5
+      },
+      {
+        "x": 0.5,
+        "y": 0.7
+      }
     ],
-    "emojis": ["♻️", "🗑", "🧤", "🏭", "🚧", "🧱"],
+    "emojis": [
+      "♻️",
+      "🗑",
+      "🧤",
+      "🏭",
+      "🚧",
+      "🧱"
+    ],
     "native_factions": [],
-    "tags": ["terminal", "waste", "recycling", "labor"],
+    "tags": [
+      "terminal",
+      "waste",
+      "recycling",
+      "labor"
+    ],
     "icon_components": {
       "♻️": {
         "self_energy": 0.1,
@@ -502,15 +636,21 @@
     },
     "cross_biome_flows": {
       "incoming": {
-        "Workshop": ["♻️"],
-        "ConstructionSite": ["🚧", "🧱"]
+        "Workshop": [
+          "♻️"
+        ],
+        "ConstructionSite": [
+          "🚧",
+          "🧱"
+        ]
       },
       "outgoing": {
-        "BioticFlux": ["♻️"]
+        "BioticFlux": [
+          "♻️"
+        ]
       }
     }
   },
-
   {
     "name": "MarketDistrict",
     "description": "Hub of commerce where goods become money and money becomes obligation. Bulls and bears pace the trading floors while businessmen cut deals in shadowed alcoves. Everything has a price tag. Everything flows toward or away from wealth.",
@@ -518,16 +658,52 @@
     "music_path": "res://Assets/Audio/Music/MarketDistrict.mp3",
     "discovered": false,
     "plot_layout": [
-      {"x": 0.3, "y": 0.35},
-      {"x": 0.5, "y": 0.3},
-      {"x": 0.7, "y": 0.35},
-      {"x": 0.3, "y": 0.6},
-      {"x": 0.5, "y": 0.65},
-      {"x": 0.7, "y": 0.6}
+      {
+        "x": 0.3,
+        "y": 0.35
+      },
+      {
+        "x": 0.5,
+        "y": 0.3
+      },
+      {
+        "x": 0.7,
+        "y": 0.35
+      },
+      {
+        "x": 0.3,
+        "y": 0.6
+      },
+      {
+        "x": 0.5,
+        "y": 0.65
+      },
+      {
+        "x": 0.7,
+        "y": 0.6
+      }
     ],
-    "emojis": ["💰", "💳", "📦", "🏷️", "💱", "🕴️", "🐂", "🐻"],
-    "native_factions": ["Debt Wardens", "Bone Merchants", "Umbra Exchange"],
-    "tags": ["commerce", "hub", "trade", "finance"],
+    "emojis": [
+      "💰",
+      "💳",
+      "📦",
+      "🏷️",
+      "💱",
+      "🕴️",
+      "🐂",
+      "🐻"
+    ],
+    "native_factions": [
+      "Debt Wardens",
+      "Bone Merchants",
+      "Umbra Exchange"
+    ],
+    "tags": [
+      "commerce",
+      "hub",
+      "trade",
+      "finance"
+    ],
     "icon_components": {
       "💰": {
         "self_energy": 0.3,
@@ -664,15 +840,23 @@
     },
     "cross_biome_flows": {
       "incoming": {
-        "TradingFloor": ["💱", "🐂", "🐻"],
-        "CyberDebtMegacity": ["💰"]
+        "TradingFloor": [
+          "💱",
+          "🐂",
+          "🐻"
+        ],
+        "CyberDebtMegacity": [
+          "💰"
+        ]
       },
       "outgoing": {
-        "CyberDebtMegacity": ["💸", "⛓"]
+        "CyberDebtMegacity": [
+          "💸",
+          "⛓"
+        ]
       }
     }
   },
-
   {
     "name": "TradingFloor",
     "description": "Pure speculation distilled. Bulls charge, bears retreat, charts rise and crash. Yesterday's analysis is worthless today. The floor is a fever dream of numbers that mean everything and nothing.",
@@ -680,14 +864,36 @@
     "music_path": "res://Assets/Audio/Music/TradingFloor.mp3",
     "discovered": false,
     "plot_layout": [
-      {"x": 0.4, "y": 0.4},
-      {"x": 0.6, "y": 0.4},
-      {"x": 0.4, "y": 0.6},
-      {"x": 0.6, "y": 0.6}
+      {
+        "x": 0.4,
+        "y": 0.4
+      },
+      {
+        "x": 0.6,
+        "y": 0.4
+      },
+      {
+        "x": 0.4,
+        "y": 0.6
+      },
+      {
+        "x": 0.6,
+        "y": 0.6
+      }
     ],
-    "emojis": ["🐂", "🐻", "📊", "💱"],
+    "emojis": [
+      "🐂",
+      "🐻",
+      "📊",
+      "💱"
+    ],
     "native_factions": [],
-    "tags": ["finance", "speculation", "volatile", "markets"],
+    "tags": [
+      "finance",
+      "speculation",
+      "volatile",
+      "markets"
+    ],
     "icon_components": {
       "🐂": {
         "self_energy": 0.3,
@@ -752,11 +958,14 @@
     },
     "cross_biome_flows": {
       "outgoing": {
-        "MarketDistrict": ["💱", "🐂", "🐻"]
+        "MarketDistrict": [
+          "💱",
+          "🐂",
+          "🐻"
+        ]
       }
     }
   },
-
   {
     "name": "WeaversLoft",
     "description": "Threads fray under patient fingers. Garments take shape, wear out, return to thread. Needles pierce and bind. Knots hold—until they don't. The loft smells of lanolin and old cloth, and nothing here is ever truly finished.",
@@ -764,14 +973,38 @@
     "music_path": "res://Assets/Audio/Music/WeaversLoft.mp3",
     "discovered": false,
     "plot_layout": [
-      {"x": 0.35, "y": 0.4},
-      {"x": 0.5, "y": 0.35},
-      {"x": 0.65, "y": 0.4},
-      {"x": 0.5, "y": 0.6}
+      {
+        "x": 0.35,
+        "y": 0.4
+      },
+      {
+        "x": 0.5,
+        "y": 0.35
+      },
+      {
+        "x": 0.65,
+        "y": 0.4
+      },
+      {
+        "x": 0.5,
+        "y": 0.6
+      }
     ],
-    "emojis": ["🧵", "🧶", "👘", "🧷", "🪢", "🪡"],
+    "emojis": [
+      "🧵",
+      "🧶",
+      "👘",
+      "🧷",
+      "🪢",
+      "🪡"
+    ],
     "native_factions": [],
-    "tags": ["textile", "craft", "binding", "labor"],
+    "tags": [
+      "textile",
+      "craft",
+      "binding",
+      "labor"
+    ],
     "icon_components": {
       "🧵": {
         "self_energy": 0.15,
@@ -850,11 +1083,13 @@
     },
     "cross_biome_flows": {
       "outgoing": {
-        "BindingCircle": ["🪢", "🧵"]
+        "BindingCircle": [
+          "🪢",
+          "🧵"
+        ]
       }
     }
   },
-
   {
     "name": "BindingCircle",
     "description": "A small sacred space where oaths are knotted into permanence. Prayer beads count the bindings. Candles witness the promises. What is tied here does not easily come undone—but nothing lasts forever, not even vows.",
@@ -862,14 +1097,38 @@
     "music_path": "res://Assets/Audio/Music/BindingCircle.mp3",
     "discovered": false,
     "plot_layout": [
-      {"x": 0.4, "y": 0.4},
-      {"x": 0.6, "y": 0.4},
-      {"x": 0.4, "y": 0.6},
-      {"x": 0.6, "y": 0.6}
+      {
+        "x": 0.4,
+        "y": 0.4
+      },
+      {
+        "x": 0.6,
+        "y": 0.4
+      },
+      {
+        "x": 0.4,
+        "y": 0.6
+      },
+      {
+        "x": 0.6,
+        "y": 0.6
+      }
     ],
-    "emojis": ["🪢", "📿", "🕯", "🧵"],
-    "native_factions": ["Knot-Shriners"],
-    "tags": ["occult", "binding", "oath", "ritual"],
+    "emojis": [
+      "🪢",
+      "📿",
+      "🕯",
+      "🧵"
+    ],
+    "native_factions": [
+      "Knot-Shriners"
+    ],
+    "tags": [
+      "occult",
+      "binding",
+      "oath",
+      "ritual"
+    ],
     "icon_components": {
       "🪢": {
         "self_energy": 0.35,
@@ -932,11 +1191,13 @@
     },
     "cross_biome_flows": {
       "incoming": {
-        "WeaversLoft": ["🪢", "🧵"]
+        "WeaversLoft": [
+          "🪢",
+          "🧵"
+        ]
       }
     }
   },
-
   {
     "name": "MeditationGarden",
     "description": "Lantern light flickers over still water. Breathing slows. The attempt to hold coherence against the constant pull of dissolution. Enlightenment is an attractor state—difficult to reach, stable once achieved, but the lights always fade eventually.",
@@ -944,14 +1205,38 @@
     "music_path": "res://Assets/Audio/Music/MeditationGarden.mp3",
     "discovered": false,
     "plot_layout": [
-      {"x": 0.4, "y": 0.4},
-      {"x": 0.6, "y": 0.4},
-      {"x": 0.4, "y": 0.6},
-      {"x": 0.6, "y": 0.6}
+      {
+        "x": 0.4,
+        "y": 0.4
+      },
+      {
+        "x": 0.6,
+        "y": 0.4
+      },
+      {
+        "x": 0.4,
+        "y": 0.6
+      },
+      {
+        "x": 0.6,
+        "y": 0.6
+      }
     ],
-    "emojis": ["🧘", "📿", "🏮", "🕯"],
-    "native_factions": ["Keepers of Silence"],
-    "tags": ["spiritual", "meditation", "peace", "attractor"],
+    "emojis": [
+      "🧘",
+      "📿",
+      "🏮",
+      "🕯"
+    ],
+    "native_factions": [
+      "Keepers of Silence"
+    ],
+    "tags": [
+      "spiritual",
+      "meditation",
+      "peace",
+      "attractor"
+    ],
     "icon_components": {
       "🧘": {
         "self_energy": -0.1,
@@ -1010,11 +1295,12 @@
     },
     "cross_biome_flows": {
       "outgoing": {
-        "OccultSanctum": ["🏮"]
+        "OccultSanctum": [
+          "🏮"
+        ]
       }
     }
   },
-
   {
     "name": "OccultSanctum",
     "description": "Warding magic hums in the shadows. The evil eye watches from every corner, deflecting what should not enter. Candles and lanterns mark the protective boundaries. The ashes of guardian spirits rest in urns along the walls.",
@@ -1022,14 +1308,39 @@
     "music_path": "res://Assets/Audio/Music/OccultSanctum.mp3",
     "discovered": false,
     "plot_layout": [
-      {"x": 0.4, "y": 0.4},
-      {"x": 0.6, "y": 0.4},
-      {"x": 0.4, "y": 0.6},
-      {"x": 0.6, "y": 0.6}
+      {
+        "x": 0.4,
+        "y": 0.4
+      },
+      {
+        "x": 0.6,
+        "y": 0.4
+      },
+      {
+        "x": 0.4,
+        "y": 0.6
+      },
+      {
+        "x": 0.6,
+        "y": 0.6
+      }
     ],
-    "emojis": ["🧿", "🏮", "🕯", "⚱"],
-    "native_factions": ["Lantern Cant", "Memory Weavers"],
-    "tags": ["occult", "warding", "protection", "ritual"],
+    "emojis": [
+      "🧿",
+      "🏮",
+      "🕯",
+      "⚱"
+    ],
+    "native_factions": [
+      "Lantern Cant",
+      "Memory Weavers"
+    ],
+    "tags": [
+      "occult",
+      "warding",
+      "protection",
+      "ritual"
+    ],
     "icon_components": {
       "🧿": {
         "self_energy": 0.35,
@@ -1087,12 +1398,15 @@
     },
     "cross_biome_flows": {
       "incoming": {
-        "MeditationGarden": ["🏮"],
-        "ShrineOfAshes": ["⚱"]
+        "MeditationGarden": [
+          "🏮"
+        ],
+        "ShrineOfAshes": [
+          "⚱"
+        ]
       }
     }
   },
-
   {
     "name": "ShrineOfAshes",
     "description": "Where the cremated rest. Final rites are performed by candlelight, prayers strung on beads that outlast the prayers themselves. The dead flow in; only memory flows out. A quiet terminus for those who burned.",
@@ -1100,14 +1414,38 @@
     "music_path": "res://Assets/Audio/Music/ShrineOfAshes.mp3",
     "discovered": false,
     "plot_layout": [
-      {"x": 0.4, "y": 0.4},
-      {"x": 0.6, "y": 0.4},
-      {"x": 0.4, "y": 0.6},
-      {"x": 0.6, "y": 0.6}
+      {
+        "x": 0.4,
+        "y": 0.4
+      },
+      {
+        "x": 0.6,
+        "y": 0.4
+      },
+      {
+        "x": 0.4,
+        "y": 0.6
+      },
+      {
+        "x": 0.6,
+        "y": 0.6
+      }
     ],
-    "emojis": ["⚱", "🕯", "📿", "💀"],
-    "native_factions": ["Brotherhood of Ash"],
-    "tags": ["death", "cremation", "memorial", "terminus"],
+    "emojis": [
+      "⚱",
+      "🕯",
+      "📿",
+      "💀"
+    ],
+    "native_factions": [
+      "Brotherhood of Ash"
+    ],
+    "tags": [
+      "death",
+      "cremation",
+      "memorial",
+      "terminus"
+    ],
     "icon_components": {
       "⚱": {
         "self_energy": 0.35,
@@ -1156,15 +1494,20 @@
     },
     "cross_biome_flows": {
       "incoming": {
-        "Battlefield": ["💀"],
-        "BioticFlux": ["💀"]
+        "Battlefield": [
+          "💀"
+        ],
+        "BioticFlux": [
+          "💀"
+        ]
       },
       "outgoing": {
-        "OccultSanctum": ["⚱"]
+        "OccultSanctum": [
+          "⚱"
+        ]
       }
     }
   },
-
   {
     "name": "PastoralCommons",
     "description": "Flocks graze on common land. Bees drift between wildflowers. Porridge simmers over low fires while gentle hands shape the future. A peaceful place—but peace is fragile, and predators are always circling.",
@@ -1172,14 +1515,38 @@
     "music_path": "res://Assets/Audio/Music/PastoralCommons.mp3",
     "discovered": false,
     "plot_layout": [
-      {"x": 0.3, "y": 0.4},
-      {"x": 0.5, "y": 0.35},
-      {"x": 0.7, "y": 0.4},
-      {"x": 0.5, "y": 0.6}
+      {
+        "x": 0.3,
+        "y": 0.4
+      },
+      {
+        "x": 0.5,
+        "y": 0.35
+      },
+      {
+        "x": 0.7,
+        "y": 0.4
+      },
+      {
+        "x": 0.5,
+        "y": 0.6
+      }
     ],
-    "emojis": ["🐑", "🐝", "🥣", "🫙", "🤲", "🌿"],
+    "emojis": [
+      "🐑",
+      "🐝",
+      "🥣",
+      "🫙",
+      "🤲",
+      "🌿"
+    ],
     "native_factions": [],
-    "tags": ["pastoral", "peaceful", "agricultural", "vulnerable"],
+    "tags": [
+      "pastoral",
+      "peaceful",
+      "agricultural",
+      "vulnerable"
+    ],
     "icon_components": {
       "🐑": {
         "self_energy": 0.15,
@@ -1265,15 +1632,21 @@
     },
     "cross_biome_flows": {
       "incoming": {
-        "FreshwaterSpring": ["💧"]
+        "FreshwaterSpring": [
+          "💧"
+        ]
       },
       "outgoing": {
-        "Apiary": ["🐝", "🫙"],
-        "WeaversLoft": ["🧵"]
+        "Apiary": [
+          "🐝",
+          "🫙"
+        ],
+        "WeaversLoft": [
+          "🧵"
+        ]
       }
     }
   },
-
   {
     "name": "Apiary",
     "description": "Hives hum with focused industry. Honey accumulates in jars, beginning its slow transformation. The bees know their work; the keepers know theirs. A small, sweet place where fermentation begins.",
@@ -1281,14 +1654,38 @@
     "music_path": "res://Assets/Audio/Music/Apiary.mp3",
     "discovered": false,
     "plot_layout": [
-      {"x": 0.4, "y": 0.4},
-      {"x": 0.6, "y": 0.4},
-      {"x": 0.4, "y": 0.6},
-      {"x": 0.6, "y": 0.6}
+      {
+        "x": 0.4,
+        "y": 0.4
+      },
+      {
+        "x": 0.6,
+        "y": 0.4
+      },
+      {
+        "x": 0.4,
+        "y": 0.6
+      },
+      {
+        "x": 0.6,
+        "y": 0.6
+      }
     ],
-    "emojis": ["🐝", "🫙", "🌿", "🌾"],
-    "native_factions": ["Yeast Prophets"],
-    "tags": ["agricultural", "honey", "fermentation", "focused"],
+    "emojis": [
+      "🐝",
+      "🫙",
+      "🌿",
+      "🌾"
+    ],
+    "native_factions": [
+      "Yeast Prophets"
+    ],
+    "tags": [
+      "agricultural",
+      "honey",
+      "fermentation",
+      "focused"
+    ],
     "icon_components": {
       "🐝": {
         "self_energy": 0.25,
@@ -1353,14 +1750,19 @@
     },
     "cross_biome_flows": {
       "incoming": {
-        "PastoralCommons": ["🐝", "🫙"]
+        "PastoralCommons": [
+          "🐝",
+          "🫙"
+        ]
       },
       "outgoing": {
-        "Village": ["🫙", "🌾"]
+        "Village": [
+          "🫙",
+          "🌾"
+        ]
       }
     }
   },
-
   {
     "name": "Harbor",
     "description": "Salt air and creaking rope. Vessels rest at anchor while rust accumulates on hooks and chains. Ice melts in bilgewater. The harbor is a pause between voyages—a place where things wait, and waiting has its own entropy.",
@@ -1368,14 +1770,38 @@
     "music_path": "res://Assets/Audio/Music/Harbor.mp3",
     "discovered": false,
     "plot_layout": [
-      {"x": 0.3, "y": 0.4},
-      {"x": 0.5, "y": 0.35},
-      {"x": 0.7, "y": 0.4},
-      {"x": 0.5, "y": 0.6}
+      {
+        "x": 0.3,
+        "y": 0.4
+      },
+      {
+        "x": 0.5,
+        "y": 0.35
+      },
+      {
+        "x": 0.7,
+        "y": 0.4
+      },
+      {
+        "x": 0.5,
+        "y": 0.6
+      }
     ],
-    "emojis": ["⚓", "🪝", "🛶", "🪣", "💧", "🧊"],
+    "emojis": [
+      "⚓",
+      "🪝",
+      "🛶",
+      "🪣",
+      "💧",
+      "🧊"
+    ],
     "native_factions": [],
-    "tags": ["maritime", "coastal", "waiting", "rust"],
+    "tags": [
+      "maritime",
+      "coastal",
+      "waiting",
+      "rust"
+    ],
     "icon_components": {
       "⚓": {
         "self_energy": 0.35,
@@ -1453,14 +1879,18 @@
     },
     "cross_biome_flows": {
       "incoming": {
-        "FreshwaterSpring": ["💧", "🧊"]
+        "FreshwaterSpring": [
+          "💧",
+          "🧊"
+        ]
       },
       "outgoing": {
-        "TidalPools": ["💧"]
+        "TidalPools": [
+          "💧"
+        ]
       }
     }
   },
-
   {
     "name": "FreshwaterSpring",
     "description": "Source water wells up from deep stone. Ice melts at the margins. Bubbles rise and pop in an instant. This is where water begins its journey through the world—fundamental, flowing, feeding everything downstream.",
@@ -1468,14 +1898,38 @@
     "music_path": "res://Assets/Audio/Music/FreshwaterSpring.mp3",
     "discovered": false,
     "plot_layout": [
-      {"x": 0.4, "y": 0.4},
-      {"x": 0.6, "y": 0.4},
-      {"x": 0.4, "y": 0.6},
-      {"x": 0.6, "y": 0.6}
+      {
+        "x": 0.4,
+        "y": 0.4
+      },
+      {
+        "x": 0.6,
+        "y": 0.4
+      },
+      {
+        "x": 0.4,
+        "y": 0.6
+      },
+      {
+        "x": 0.6,
+        "y": 0.6
+      }
     ],
-    "emojis": ["💧", "🧊", "🫧", "🌊"],
-    "native_factions": ["Irrigation Jury"],
-    "tags": ["water", "source", "fundamental", "flow"],
+    "emojis": [
+      "💧",
+      "🧊",
+      "🫧",
+      "🌊"
+    ],
+    "native_factions": [
+      "Irrigation Jury"
+    ],
+    "tags": [
+      "water",
+      "source",
+      "fundamental",
+      "flow"
+    ],
     "icon_components": {
       "💧": {
         "self_energy": 0.2,
@@ -1533,14 +1987,23 @@
     },
     "cross_biome_flows": {
       "outgoing": {
-        "Harbor": ["💧", "🧊"],
-        "TidalPools": ["💧", "🌊"],
-        "PastoralCommons": ["💧"],
-        "Village": ["💧"]
+        "Harbor": [
+          "💧",
+          "🧊"
+        ],
+        "TidalPools": [
+          "💧",
+          "🌊"
+        ],
+        "PastoralCommons": [
+          "💧"
+        ],
+        "Village": [
+          "💧"
+        ]
       }
     }
   },
-
   {
     "name": "Battlefield",
     "description": "Steel meets steel in thunder and blood. Shields splinter. Explosions tear the air. The dead pile up, awaiting the ash-brothers who will give them proper ending. This is where violence concentrates, fast and hot and hungry.",
@@ -1548,14 +2011,41 @@
     "music_path": "res://Assets/Audio/Music/Battlefield.mp3",
     "discovered": false,
     "plot_layout": [
-      {"x": 0.3, "y": 0.4},
-      {"x": 0.5, "y": 0.3},
-      {"x": 0.7, "y": 0.4},
-      {"x": 0.5, "y": 0.6}
+      {
+        "x": 0.3,
+        "y": 0.4
+      },
+      {
+        "x": 0.5,
+        "y": 0.3
+      },
+      {
+        "x": 0.7,
+        "y": 0.4
+      },
+      {
+        "x": 0.5,
+        "y": 0.6
+      }
     ],
-    "emojis": ["⚔", "🛡", "💥", "🩸", "💀", "⚱"],
-    "native_factions": ["Brotherhood of Ash", "Iron Shepherds"],
-    "tags": ["warfare", "violence", "death", "fast"],
+    "emojis": [
+      "⚔",
+      "🛡",
+      "💥",
+      "🩸",
+      "💀",
+      "⚱"
+    ],
+    "native_factions": [
+      "Brotherhood of Ash",
+      "Iron Shepherds"
+    ],
+    "tags": [
+      "warfare",
+      "violence",
+      "death",
+      "fast"
+    ],
     "icon_components": {
       "⚔": {
         "self_energy": 0.25,
@@ -1639,14 +2129,18 @@
     },
     "cross_biome_flows": {
       "outgoing": {
-        "ShrineOfAshes": ["💀", "⚱"]
+        "ShrineOfAshes": [
+          "💀",
+          "⚱"
+        ]
       },
       "incoming": {
-        "DemolitionSite": ["💥"]
+        "DemolitionSite": [
+          "💥"
+        ]
       }
     }
   },
-
   {
     "name": "RevolutionSquare",
     "description": "Fists raised against the sky. Flags snap in the wind. Manifestos are shouted to crowds who may or may not be listening. Movements coalesce here, burn bright, and fragment. The bureaucrats watch from distant windows.",
@@ -1654,14 +2148,36 @@
     "music_path": "res://Assets/Audio/Music/RevolutionSquare.mp3",
     "discovered": false,
     "plot_layout": [
-      {"x": 0.4, "y": 0.4},
-      {"x": 0.6, "y": 0.4},
-      {"x": 0.4, "y": 0.6},
-      {"x": 0.6, "y": 0.6}
+      {
+        "x": 0.4,
+        "y": 0.4
+      },
+      {
+        "x": 0.6,
+        "y": 0.4
+      },
+      {
+        "x": 0.4,
+        "y": 0.6
+      },
+      {
+        "x": 0.6,
+        "y": 0.6
+      }
     ],
-    "emojis": ["✊", "🚩", "📜", "🗣"],
+    "emojis": [
+      "✊",
+      "🚩",
+      "📜",
+      "🗣"
+    ],
     "native_factions": [],
-    "tags": ["political", "revolution", "movement", "volatile"],
+    "tags": [
+      "political",
+      "revolution",
+      "movement",
+      "volatile"
+    ],
     "icon_components": {
       "✊": {
         "self_energy": 0.3,
@@ -1722,14 +2238,17 @@
     },
     "cross_biome_flows": {
       "incoming": {
-        "BureaucraticAbyss": ["⛓"]
+        "BureaucraticAbyss": [
+          "⛓"
+        ]
       },
       "outgoing": {
-        "BroadcastTower": ["🗣"]
+        "BroadcastTower": [
+          "🗣"
+        ]
       }
     }
   },
-
   {
     "name": "OrbitalStrike",
     "description": "Space warfare at its most brutal. Warships hunt cargo vessels among the stars. Explosions bloom in vacuum silence. What the 🛸 destroy, the 🚀 cannot deliver. The distant stars bear witness to commerce interrupted by fire.",
@@ -1737,14 +2256,38 @@
     "music_path": "res://Assets/Audio/Music/OrbitalStrike.mp3",
     "discovered": false,
     "plot_layout": [
-      {"x": 0.4, "y": 0.4},
-      {"x": 0.6, "y": 0.4},
-      {"x": 0.4, "y": 0.6},
-      {"x": 0.6, "y": 0.6}
+      {
+        "x": 0.4,
+        "y": 0.4
+      },
+      {
+        "x": 0.6,
+        "y": 0.4
+      },
+      {
+        "x": 0.4,
+        "y": 0.6
+      },
+      {
+        "x": 0.6,
+        "y": 0.6
+      }
     ],
-    "emojis": ["🛸", "💥", "🚀", "⭐"],
-    "native_factions": ["Iron Shepherds"],
-    "tags": ["space", "warfare", "destruction", "orbital"],
+    "emojis": [
+      "🛸",
+      "💥",
+      "🚀",
+      "⭐"
+    ],
+    "native_factions": [
+      "Iron Shepherds"
+    ],
+    "tags": [
+      "space",
+      "warfare",
+      "destruction",
+      "orbital"
+    ],
     "icon_components": {
       "🛸": {
         "self_energy": 0.35,
@@ -1817,12 +2360,15 @@
     },
     "cross_biome_flows": {
       "outgoing": {
-        "SatelliteGraveyard": ["🛰"],
-        "CyberDebtMegacity": ["🚀"]
+        "SatelliteGraveyard": [
+          "🛰"
+        ],
+        "CyberDebtMegacity": [
+          "🚀"
+        ]
       }
     }
   },
-
   {
     "name": "Archives",
     "description": "Records accumulate in endless stacks. Filing systems slowly fail. Precedent decays into ambiguity. The scales of justice gather dust. Here, knowledge persists imperfectly—better than memory, worse than truth.",
@@ -1830,14 +2376,40 @@
     "music_path": "res://Assets/Audio/Music/Archives.mp3",
     "discovered": false,
     "plot_layout": [
-      {"x": 0.3, "y": 0.4},
-      {"x": 0.5, "y": 0.35},
-      {"x": 0.7, "y": 0.4},
-      {"x": 0.5, "y": 0.6}
+      {
+        "x": 0.3,
+        "y": 0.4
+      },
+      {
+        "x": 0.5,
+        "y": 0.35
+      },
+      {
+        "x": 0.7,
+        "y": 0.4
+      },
+      {
+        "x": 0.5,
+        "y": 0.6
+      }
     ],
-    "emojis": ["📒", "📋", "📘", "📐", "🧮", "⚖"],
-    "native_factions": ["Chronicle Keepers"],
-    "tags": ["records", "knowledge", "bureaucratic", "persistence"],
+    "emojis": [
+      "📒",
+      "📋",
+      "📘",
+      "📐",
+      "🧮",
+      "⚖"
+    ],
+    "native_factions": [
+      "Chronicle Keepers"
+    ],
+    "tags": [
+      "records",
+      "knowledge",
+      "bureaucratic",
+      "persistence"
+    ],
     "icon_components": {
       "📒": {
         "self_energy": 0.2,
@@ -1919,14 +2491,17 @@
     },
     "cross_biome_flows": {
       "incoming": {
-        "BureaucraticAbyss": ["📜"]
+        "BureaucraticAbyss": [
+          "📜"
+        ]
       },
       "outgoing": {
-        "EnforcementPost": ["📒"]
+        "EnforcementPost": [
+          "📒"
+        ]
       }
     }
   },
-
   {
     "name": "AbandonedQuarter",
     "description": "What remains when power withdraws. Crumbling monuments to forgotten purposes. Empty urns that once held meaning. Stone slowly claims what was built upon it. Time moves differently here—geological, patient, absolute.",
@@ -1934,14 +2509,36 @@
     "music_path": "res://Assets/Audio/Music/AbandonedQuarter.mp3",
     "discovered": false,
     "plot_layout": [
-      {"x": 0.4, "y": 0.4},
-      {"x": 0.6, "y": 0.4},
-      {"x": 0.4, "y": 0.6},
-      {"x": 0.6, "y": 0.6}
+      {
+        "x": 0.4,
+        "y": 0.4
+      },
+      {
+        "x": 0.6,
+        "y": 0.4
+      },
+      {
+        "x": 0.4,
+        "y": 0.6
+      },
+      {
+        "x": 0.6,
+        "y": 0.6
+      }
     ],
-    "emojis": ["🏚️", "🏛", "🏺", "🪨"],
+    "emojis": [
+      "🏚️",
+      "🏛",
+      "🏺",
+      "🪨"
+    ],
     "native_factions": [],
-    "tags": ["ruins", "decay", "slow", "geological"],
+    "tags": [
+      "ruins",
+      "decay",
+      "slow",
+      "geological"
+    ],
     "icon_components": {
       "🏚️": {
         "self_energy": 0.15,
@@ -1999,15 +2596,20 @@
     },
     "cross_biome_flows": {
       "incoming": {
-        "ForgottenCastle": ["🏰"],
-        "GildedRot": ["⚜"]
+        "ForgottenCastle": [
+          "🏰"
+        ],
+        "GildedRot": [
+          "⚜"
+        ]
       },
       "outgoing": {
-        "VolcanicWorlds": ["🪨"]
+        "VolcanicWorlds": [
+          "🪨"
+        ]
       }
     }
   },
-
   {
     "name": "ForgottenCastle",
     "description": "The party ended centuries ago. Edicts yellow on the walls. Eagles circle the towers, waiting for scraps that no longer come. Roses have wilted into memory. What was once the seat of power is now a monument to its absence.",
@@ -2015,14 +2617,36 @@
     "music_path": "res://Assets/Audio/Music/ForgottenCastle.mp3",
     "discovered": false,
     "plot_layout": [
-      {"x": 0.4, "y": 0.4},
-      {"x": 0.6, "y": 0.4},
-      {"x": 0.4, "y": 0.6},
-      {"x": 0.6, "y": 0.6}
+      {
+        "x": 0.4,
+        "y": 0.4
+      },
+      {
+        "x": 0.6,
+        "y": 0.4
+      },
+      {
+        "x": 0.4,
+        "y": 0.6
+      },
+      {
+        "x": 0.6,
+        "y": 0.6
+      }
     ],
-    "emojis": ["🏰", "📜", "🦅", "🥀"],
+    "emojis": [
+      "🏰",
+      "📜",
+      "🦅",
+      "🥀"
+    ],
     "native_factions": [],
-    "tags": ["ruins", "aristocracy", "faded", "slow"],
+    "tags": [
+      "ruins",
+      "aristocracy",
+      "faded",
+      "slow"
+    ],
     "icon_components": {
       "🏰": {
         "self_energy": 0.4,
@@ -2078,14 +2702,18 @@
     },
     "cross_biome_flows": {
       "incoming": {
-        "GildedRot": ["🏰", "🌹"]
+        "GildedRot": [
+          "🏰",
+          "🌹"
+        ]
       },
       "outgoing": {
-        "AbandonedQuarter": ["🏰"]
+        "AbandonedQuarter": [
+          "🏰"
+        ]
       }
     }
   },
-
   {
     "name": "DemolitionSite",
     "description": "Controlled destruction. Dynamite cracks. Flames consume. Bricks scatter. What took years to build comes down in moments. A necessary violence that clears the way for what comes next.",
@@ -2093,14 +2721,36 @@
     "music_path": "res://Assets/Audio/Music/DemolitionSite.mp3",
     "discovered": false,
     "plot_layout": [
-      {"x": 0.4, "y": 0.4},
-      {"x": 0.6, "y": 0.4},
-      {"x": 0.4, "y": 0.6},
-      {"x": 0.6, "y": 0.6}
+      {
+        "x": 0.4,
+        "y": 0.4
+      },
+      {
+        "x": 0.6,
+        "y": 0.4
+      },
+      {
+        "x": 0.4,
+        "y": 0.6
+      },
+      {
+        "x": 0.6,
+        "y": 0.6
+      }
     ],
-    "emojis": ["🧨", "💥", "🧱", "🔥"],
+    "emojis": [
+      "🧨",
+      "💥",
+      "🧱",
+      "🔥"
+    ],
     "native_factions": [],
-    "tags": ["destruction", "fast", "violent", "clearing"],
+    "tags": [
+      "destruction",
+      "fast",
+      "violent",
+      "clearing"
+    ],
     "icon_components": {
       "🧨": {
         "self_energy": 0.3,
@@ -2164,12 +2814,15 @@
     },
     "cross_biome_flows": {
       "outgoing": {
-        "Battlefield": ["💥"],
-        "ScrapYard": ["🧱"]
+        "Battlefield": [
+          "💥"
+        ],
+        "ScrapYard": [
+          "🧱"
+        ]
       }
     }
   },
-
   {
     "name": "Woodlot",
     "description": "Timber country. Axes ring against trunks. Trees become lumber become firewood become ash. The forest gives and the forest takes, and the cycle turns with every swing of the blade.",
@@ -2177,14 +2830,36 @@
     "music_path": "res://Assets/Audio/Music/Woodlot.mp3",
     "discovered": false,
     "plot_layout": [
-      {"x": 0.4, "y": 0.4},
-      {"x": 0.6, "y": 0.4},
-      {"x": 0.4, "y": 0.6},
-      {"x": 0.6, "y": 0.6}
+      {
+        "x": 0.4,
+        "y": 0.4
+      },
+      {
+        "x": 0.6,
+        "y": 0.4
+      },
+      {
+        "x": 0.4,
+        "y": 0.6
+      },
+      {
+        "x": 0.6,
+        "y": 0.6
+      }
     ],
-    "emojis": ["🪵", "🌲", "🪓", "🔥"],
+    "emojis": [
+      "🪵",
+      "🌲",
+      "🪓",
+      "🔥"
+    ],
     "native_factions": [],
-    "tags": ["timber", "resource", "harvest", "cycle"],
+    "tags": [
+      "timber",
+      "resource",
+      "harvest",
+      "cycle"
+    ],
     "icon_components": {
       "🪵": {
         "self_energy": 0.2,
@@ -2243,15 +2918,20 @@
     },
     "cross_biome_flows": {
       "incoming": {
-        "StarterForest": ["🌲"]
+        "StarterForest": [
+          "🌲"
+        ]
       },
       "outgoing": {
-        "Village": ["🪵"],
-        "Workshop": ["🪵"]
+        "Village": [
+          "🪵"
+        ],
+        "Workshop": [
+          "🪵"
+        ]
       }
     }
   },
-
   {
     "name": "MirrorChamber",
     "description": "A space of reflection—literal and otherwise. Candlelight flickers across silvered glass. Shadows gather in corners. The self observes the self observing. Identity becomes uncertain here, and what looks back may not be what looks in.",
@@ -2259,14 +2939,38 @@
     "music_path": "res://Assets/Audio/Music/MirrorChamber.mp3",
     "discovered": false,
     "plot_layout": [
-      {"x": 0.4, "y": 0.4},
-      {"x": 0.6, "y": 0.4},
-      {"x": 0.4, "y": 0.6},
-      {"x": 0.6, "y": 0.6}
+      {
+        "x": 0.4,
+        "y": 0.4
+      },
+      {
+        "x": 0.6,
+        "y": 0.4
+      },
+      {
+        "x": 0.4,
+        "y": 0.6
+      },
+      {
+        "x": 0.6,
+        "y": 0.6
+      }
     ],
-    "emojis": ["🪞", "👤", "🕯", "🌑"],
-    "native_factions": ["Memory Weavers"],
-    "tags": ["liminal", "identity", "reflection", "measurement"],
+    "emojis": [
+      "🪞",
+      "👤",
+      "🕯",
+      "🌑"
+    ],
+    "native_factions": [
+      "Memory Weavers"
+    ],
+    "tags": [
+      "liminal",
+      "identity",
+      "reflection",
+      "measurement"
+    ],
     "icon_components": {
       "🪞": {
         "self_energy": 0.25,
@@ -2324,11 +3028,13 @@
     },
     "cross_biome_flows": {
       "outgoing": {
-        "EchoingChasm": ["👤", "🫥"]
+        "EchoingChasm": [
+          "👤",
+          "🫥"
+        ]
       }
     }
   },
-
   {
     "name": "TrappersCamp",
     "description": "Where hunters wait. Snares are set in careful patterns. Hooks bait the unwary. Rabbits wander in; bones remain. A patient, predatory place where capture is the craft and remains are the record.",
@@ -2336,14 +3042,38 @@
     "music_path": "res://Assets/Audio/Music/TrappersCamp.mp3",
     "discovered": false,
     "plot_layout": [
-      {"x": 0.4, "y": 0.4},
-      {"x": 0.6, "y": 0.4},
-      {"x": 0.4, "y": 0.6},
-      {"x": 0.6, "y": 0.6}
+      {
+        "x": 0.4,
+        "y": 0.4
+      },
+      {
+        "x": 0.6,
+        "y": 0.4
+      },
+      {
+        "x": 0.4,
+        "y": 0.6
+      },
+      {
+        "x": 0.6,
+        "y": 0.6
+      }
     ],
-    "emojis": ["🪤", "🪝", "🐇", "🦴"],
-    "native_factions": ["Bone Merchants"],
-    "tags": ["predation", "hunting", "patience", "death"],
+    "emojis": [
+      "🪤",
+      "🪝",
+      "🐇",
+      "🦴"
+    ],
+    "native_factions": [
+      "Bone Merchants"
+    ],
+    "tags": [
+      "predation",
+      "hunting",
+      "patience",
+      "death"
+    ],
     "icon_components": {
       "🪤": {
         "self_energy": 0.2,
@@ -2409,14 +3139,17 @@
     },
     "cross_biome_flows": {
       "incoming": {
-        "StarterForest": ["🐇"]
+        "StarterForest": [
+          "🐇"
+        ]
       },
       "outgoing": {
-        "MarketDistrict": ["🦴"]
+        "MarketDistrict": [
+          "🦴"
+        ]
       }
     }
   },
-
   {
     "name": "EnforcementPost",
     "description": "Law's presence, however temporary. Patrol cars wait. Keys jingle on belts that may unlock or bind. Chains rattle in holding cells. Clipboards track the processed. Authority asserts itself here—until the shift ends.",
@@ -2424,14 +3157,38 @@
     "music_path": "res://Assets/Audio/Music/EnforcementPost.mp3",
     "discovered": false,
     "plot_layout": [
-      {"x": 0.4, "y": 0.4},
-      {"x": 0.6, "y": 0.4},
-      {"x": 0.4, "y": 0.6},
-      {"x": 0.6, "y": 0.6}
+      {
+        "x": 0.4,
+        "y": 0.4
+      },
+      {
+        "x": 0.6,
+        "y": 0.4
+      },
+      {
+        "x": 0.4,
+        "y": 0.6
+      },
+      {
+        "x": 0.6,
+        "y": 0.6
+      }
     ],
-    "emojis": ["🚔", "🔓", "⛓", "📋"],
-    "native_factions": ["Debt Wardens"],
-    "tags": ["enforcement", "law", "authority", "processing"],
+    "emojis": [
+      "🚔",
+      "🔓",
+      "⛓",
+      "📋"
+    ],
+    "native_factions": [
+      "Debt Wardens"
+    ],
+    "tags": [
+      "enforcement",
+      "law",
+      "authority",
+      "processing"
+    ],
     "icon_components": {
       "🚔": {
         "self_energy": 0.25,
@@ -2492,16 +3249,23 @@
     },
     "cross_biome_flows": {
       "incoming": {
-        "Archives": ["📒"],
-        "CyberDebtMegacity": ["⛓"]
+        "Archives": [
+          "📒"
+        ],
+        "CyberDebtMegacity": [
+          "⛓"
+        ]
       },
       "outgoing": {
-        "RevolutionSquare": ["⛓"],
-        "BureaucraticAbyss": ["📋"]
+        "RevolutionSquare": [
+          "⛓"
+        ],
+        "BureaucraticAbyss": [
+          "📋"
+        ]
       }
     }
   },
-
   {
     "name": "PowerStation",
     "description": "The grid's heart. Electricity hums through transformers. Batteries charge and discharge. Gears turn generators. Connections fail and are repaired in endless cycles. The Kilowatt Collective keeps the lights on—usually.",
@@ -2509,14 +3273,38 @@
     "music_path": "res://Assets/Audio/Music/PowerStation.mp3",
     "discovered": false,
     "plot_layout": [
-      {"x": 0.4, "y": 0.4},
-      {"x": 0.6, "y": 0.4},
-      {"x": 0.4, "y": 0.6},
-      {"x": 0.6, "y": 0.6}
+      {
+        "x": 0.4,
+        "y": 0.4
+      },
+      {
+        "x": 0.6,
+        "y": 0.4
+      },
+      {
+        "x": 0.4,
+        "y": 0.6
+      },
+      {
+        "x": 0.6,
+        "y": 0.6
+      }
     ],
-    "emojis": ["🔌", "⚡", "🔋", "⚙"],
-    "native_factions": ["Kilowatt Collective"],
-    "tags": ["infrastructure", "power", "grid", "energy"],
+    "emojis": [
+      "🔌",
+      "⚡",
+      "🔋",
+      "⚙"
+    ],
+    "native_factions": [
+      "Kilowatt Collective"
+    ],
+    "tags": [
+      "infrastructure",
+      "power",
+      "grid",
+      "energy"
+    ],
     "icon_components": {
       "🔌": {
         "self_energy": 0.15,
@@ -2579,15 +3367,21 @@
     },
     "cross_biome_flows": {
       "incoming": {
-        "Workshop": ["🔌"],
-        "StellarForges": ["⚡"]
+        "Workshop": [
+          "🔌"
+        ],
+        "StellarForges": [
+          "⚡"
+        ]
       },
       "outgoing": {
-        "StellarForges": ["⚡", "🔋"]
+        "StellarForges": [
+          "⚡",
+          "🔋"
+        ]
       }
     }
   },
-
   {
     "name": "MagneticAnomaly",
     "description": "Something wrong with the local physics. Compasses spin. Instruments give impossible readings. Vortices form in electromagnetic fields. Signals bend around the anomaly's heart. A small, strange place where the rules are merely suggestions.",
@@ -2595,14 +3389,36 @@
     "music_path": "res://Assets/Audio/Music/MagneticAnomaly.mp3",
     "discovered": false,
     "plot_layout": [
-      {"x": 0.4, "y": 0.4},
-      {"x": 0.6, "y": 0.4},
-      {"x": 0.4, "y": 0.6},
-      {"x": 0.6, "y": 0.6}
+      {
+        "x": 0.4,
+        "y": 0.4
+      },
+      {
+        "x": 0.6,
+        "y": 0.4
+      },
+      {
+        "x": 0.4,
+        "y": 0.6
+      },
+      {
+        "x": 0.6,
+        "y": 0.6
+      }
     ],
-    "emojis": ["🧲", "⚡", "🌀", "📡"],
+    "emojis": [
+      "🧲",
+      "⚡",
+      "🌀",
+      "📡"
+    ],
     "native_factions": [],
-    "tags": ["anomaly", "physics", "strange", "electromagnetic"],
+    "tags": [
+      "anomaly",
+      "physics",
+      "strange",
+      "electromagnetic"
+    ],
     "icon_components": {
       "🧲": {
         "self_energy": 0.35,
@@ -2661,15 +3477,20 @@
     },
     "cross_biome_flows": {
       "incoming": {
-        "BroadcastTower": ["📡"]
+        "BroadcastTower": [
+          "📡"
+        ]
       },
       "outgoing": {
-        "StellarForges": ["🌀"],
-        "BroadcastTower": ["📡"]
+        "StellarForges": [
+          "🌀"
+        ],
+        "BroadcastTower": [
+          "📡"
+        ]
       }
     }
   },
-
   {
     "name": "AntimatterFoundry",
     "description": "Where annihilation is harvested. Void-stuff and starlight collide in magnetic containment. The energy released is beyond measure—and so is the danger. When containment fails, the void claims its due. This is where the Black Horizon's physics are put to work.",
@@ -2677,14 +3498,40 @@
     "music_path": "res://Assets/Audio/Music/AntimatterFoundry.mp3",
     "discovered": false,
     "plot_layout": [
-      {"x": 0.3, "y": 0.4},
-      {"x": 0.5, "y": 0.3},
-      {"x": 0.7, "y": 0.4},
-      {"x": 0.5, "y": 0.6}
+      {
+        "x": 0.3,
+        "y": 0.4
+      },
+      {
+        "x": 0.5,
+        "y": 0.3
+      },
+      {
+        "x": 0.7,
+        "y": 0.4
+      },
+      {
+        "x": 0.5,
+        "y": 0.6
+      }
     ],
-    "emojis": ["⚫", "✨", "💥", "🌀", "🕳", "⚡"],
-    "native_factions": ["Black Horizon"],
-    "tags": ["physics", "annihilation", "dangerous", "energy"],
+    "emojis": [
+      "⚫",
+      "✨",
+      "💥",
+      "🌀",
+      "🕳",
+      "⚡"
+    ],
+    "native_factions": [
+      "Black Horizon"
+    ],
+    "tags": [
+      "physics",
+      "annihilation",
+      "dangerous",
+      "energy"
+    ],
     "icon_components": {
       "⚫": {
         "self_energy": 0.4,
@@ -2798,12 +3645,325 @@
     },
     "cross_biome_flows": {
       "incoming": {
-        "HorizonFracture": ["⚫", "🕳"]
+        "HorizonFracture": [
+          "⚫",
+          "🕳"
+        ]
       },
       "outgoing": {
-        "PowerStation": ["⚡"],
-        "HorizonFracture": ["🕳"]
+        "PowerStation": [
+          "⚡"
+        ],
+        "HorizonFracture": [
+          "🕳"
+        ]
       }
+    }
+  },
+  {
+    "name": "ColdLab",
+    "description": "A controlled micro-biome for low-entropy measurement loops. Useful for consistent probe regression runs.",
+    "image_path": "res://Assets/Biomes/ColdLab.png",
+    "music_path": "res://Assets/Audio/Music/ColdLab.mp3",
+    "discovered": false,
+    "plot_layout": [
+      {
+        "x": 0.42,
+        "y": 0.42
+      },
+      {
+        "x": 0.58,
+        "y": 0.42
+      },
+      {
+        "x": 0.42,
+        "y": 0.58
+      },
+      {
+        "x": 0.58,
+        "y": 0.58
+      }
+    ],
+    "emojis": [
+      "❄️",
+      "⚙",
+      "🔭",
+      "📡"
+    ],
+    "native_factions": [],
+    "tags": [
+      "starter",
+      "small",
+      "measurement",
+      "engineering"
+    ],
+    "icon_components": {
+      "❄️": {
+        "self_energy": 0.36,
+        "lindblad_outgoing": {
+          "⚙": 0.04,
+          "🔭": 0.03
+        }
+      },
+      "⚙": {
+        "self_energy": 0.32,
+        "lindblad_incoming": {
+          "❄️": 0.03
+        },
+        "lindblad_outgoing": {
+          "🔭": 0.05,
+          "📡": 0.03
+        }
+      },
+      "🔭": {
+        "self_energy": 0.3,
+        "lindblad_incoming": {
+          "⚙": 0.04
+        },
+        "lindblad_outgoing": {
+          "📡": 0.05
+        }
+      },
+      "📡": {
+        "self_energy": 0.26,
+        "lindblad_incoming": {
+          "🔭": 0.05,
+          "⚙": 0.02
+        }
+      }
+    },
+    "cross_biome_flows": {
+      "incoming": {},
+      "outgoing": {}
+    }
+  },
+  {
+    "name": "VillagePocket",
+    "description": "A tiny market loop tuned for starter economy tests and delivery quest throughput.",
+    "image_path": "res://Assets/Biomes/VillagePocket.png",
+    "music_path": "res://Assets/Audio/Music/VillagePocket.mp3",
+    "discovered": false,
+    "plot_layout": [
+      {
+        "x": 0.34,
+        "y": 0.44
+      },
+      {
+        "x": 0.5,
+        "y": 0.36
+      },
+      {
+        "x": 0.66,
+        "y": 0.44
+      },
+      {
+        "x": 0.5,
+        "y": 0.62
+      }
+    ],
+    "emojis": [
+      "💰",
+      "🧺",
+      "🍞",
+      "👥"
+    ],
+    "native_factions": [],
+    "tags": [
+      "starter",
+      "small",
+      "economy",
+      "quests"
+    ],
+    "icon_components": {
+      "💰": {
+        "self_energy": 0.35,
+        "lindblad_outgoing": {
+          "🧺": 0.05,
+          "👥": 0.02
+        }
+      },
+      "🧺": {
+        "self_energy": 0.29,
+        "lindblad_incoming": {
+          "💰": 0.04
+        },
+        "lindblad_outgoing": {
+          "🍞": 0.05
+        }
+      },
+      "🍞": {
+        "self_energy": 0.3,
+        "lindblad_incoming": {
+          "🧺": 0.05
+        },
+        "lindblad_outgoing": {
+          "👥": 0.03
+        }
+      },
+      "👥": {
+        "self_energy": 0.27,
+        "lindblad_incoming": {
+          "🍞": 0.03,
+          "💰": 0.02
+        }
+      }
+    },
+    "cross_biome_flows": {
+      "incoming": {},
+      "outgoing": {}
+    }
+  },
+  {
+    "name": "StellarSeed",
+    "description": "A minimal cosmic test patch that links signal-space to luminous symbols under mild decoherence.",
+    "image_path": "res://Assets/Biomes/StellarSeed.png",
+    "music_path": "res://Assets/Audio/Music/StellarSeed.mp3",
+    "discovered": false,
+    "plot_layout": [
+      {
+        "x": 0.4,
+        "y": 0.38
+      },
+      {
+        "x": 0.6,
+        "y": 0.38
+      },
+      {
+        "x": 0.4,
+        "y": 0.6
+      },
+      {
+        "x": 0.6,
+        "y": 0.6
+      }
+    ],
+    "emojis": [
+      "🌠",
+      "🛰",
+      "📡",
+      "✨"
+    ],
+    "native_factions": [],
+    "tags": [
+      "starter",
+      "small",
+      "cosmic",
+      "exploration"
+    ],
+    "icon_components": {
+      "🌠": {
+        "self_energy": 0.34,
+        "lindblad_outgoing": {
+          "🛰": 0.05,
+          "✨": 0.03
+        }
+      },
+      "🛰": {
+        "self_energy": 0.3,
+        "lindblad_incoming": {
+          "🌠": 0.04
+        },
+        "lindblad_outgoing": {
+          "📡": 0.05
+        }
+      },
+      "📡": {
+        "self_energy": 0.28,
+        "lindblad_incoming": {
+          "🛰": 0.05
+        },
+        "lindblad_outgoing": {
+          "✨": 0.04
+        }
+      },
+      "✨": {
+        "self_energy": 0.3,
+        "lindblad_incoming": {
+          "📡": 0.04,
+          "🌠": 0.02
+        }
+      }
+    },
+    "cross_biome_flows": {
+      "incoming": {},
+      "outgoing": {}
+    }
+  },
+  {
+    "name": "AshPatch",
+    "description": "A compact high-dissipation patch for stress testing unstable routes and low-resource recovery.",
+    "image_path": "res://Assets/Biomes/AshPatch.png",
+    "music_path": "res://Assets/Audio/Music/AshPatch.mp3",
+    "discovered": false,
+    "plot_layout": [
+      {
+        "x": 0.38,
+        "y": 0.44
+      },
+      {
+        "x": 0.62,
+        "y": 0.44
+      },
+      {
+        "x": 0.38,
+        "y": 0.6
+      },
+      {
+        "x": 0.62,
+        "y": 0.6
+      }
+    ],
+    "emojis": [
+      "🔥",
+      "⚫",
+      "⚜",
+      "🩸"
+    ],
+    "native_factions": [],
+    "tags": [
+      "starter",
+      "small",
+      "stress",
+      "dissipation"
+    ],
+    "icon_components": {
+      "🔥": {
+        "self_energy": 0.38,
+        "lindblad_outgoing": {
+          "⚫": 0.05,
+          "🩸": 0.03
+        }
+      },
+      "⚫": {
+        "self_energy": 0.34,
+        "lindblad_incoming": {
+          "🔥": 0.04
+        },
+        "lindblad_outgoing": {
+          "⚜": 0.04,
+          "🩸": 0.03
+        }
+      },
+      "⚜": {
+        "self_energy": 0.3,
+        "lindblad_incoming": {
+          "⚫": 0.04
+        },
+        "lindblad_outgoing": {
+          "🔥": 0.03
+        }
+      },
+      "🩸": {
+        "self_energy": 0.28,
+        "lindblad_incoming": {
+          "🔥": 0.03,
+          "⚫": 0.03
+        }
+      }
+    },
+    "cross_biome_flows": {
+      "incoming": {},
+      "outgoing": {}
     }
   }
 ]

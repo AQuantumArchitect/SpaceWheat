@@ -128,7 +128,7 @@ func _observe_state():
 			if plot:
 				if not plot.is_planted:
 					empty_count += 1
-				elif not plot.has_been_measured:
+				elif not plot.is_measured:
 					planted_unmeasured += 1
 					# Track which biome this planted plot is in
 					var biome_name = farm.grid.plot_biome_assignments.get(pos, "Unknown")
@@ -264,13 +264,13 @@ func _action_measure():
 
 	# Check if plot is now measured (outcome might be empty string which is falsy!)
 	plot = farm.grid.get_plot(pos)
-	if plot and plot.has_been_measured:
+	if plot and plot.is_measured:
 		my_planted_plots.erase(pos)
 		my_measured_plots.append(pos)
 		print("   ✅ Measured! Outcome: '%s'" % outcome)
 	else:
 		print("   ❌ Failed to measure!")
-		print("   ℹ️  Plot state: planted=%s, measured=%s" % [plot.is_planted if plot else "?", plot.has_been_measured if plot else "?"])
+		print("   ℹ️  Plot state: planted=%s, measured=%s" % [plot.is_planted if plot else "?", plot.is_measured if plot else "?"])
 
 func _action_harvest():
 	"""I decide to harvest a plot"""
@@ -335,14 +335,14 @@ func _find_empty_plot() -> Vector2i:
 func _find_unmeasured_plot() -> Vector2i:
 	for pos in my_planted_plots:
 		var plot = farm.grid.get_plot(pos)
-		if plot and plot.is_planted and not plot.has_been_measured:
+		if plot and plot.is_planted and not plot.is_measured:
 			return pos
 	return Vector2i(-1, -1)
 
 func _find_measured_plot() -> Vector2i:
 	for pos in my_measured_plots:
 		var plot = farm.grid.get_plot(pos)
-		if plot and plot.is_planted and plot.has_been_measured:
+		if plot and plot.is_planted and plot.is_measured:
 			return pos
 	return Vector2i(-1, -1)
 
@@ -378,7 +378,7 @@ func _find_adjacent_unmeasured_pair() -> Array[Vector2i]:
 				var plot2 = farm.grid.get_plot(pos2)
 
 				# Both must be planted and unmeasured
-				if plot1 and plot2 and not plot1.has_been_measured and not plot2.has_been_measured:
+				if plot1 and plot2 and not plot1.is_measured and not plot2.is_measured:
 					result.append(pos1)
 					result.append(pos2)
 					return result

@@ -345,7 +345,7 @@ func _test_complete_keyboard_workflow():
 	signal_spy["plot_measured"].clear()
 	await _simulate_key_press(KEY_E)
 	assert(signal_spy["plot_measured"].size() >= 1)
-	assert(farm.get_plot(Vector2i(3, 0)).has_been_measured == true)
+	assert(farm.get_plot(Vector2i(3, 0)).is_measured == true)
 	print("   ✓ Step 5: Measured plot via KEY_E")
 
 	# Step 6: Harvest plot via keyboard (R)

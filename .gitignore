@@ -81,3 +81,4 @@ llm_inbox/player_logs/
 # - .md files
 # - .sh files
 # - .py files (except __pycache__)
+build_web/

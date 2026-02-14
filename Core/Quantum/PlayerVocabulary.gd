@@ -23,17 +23,23 @@ func learn_vocab_pair(north: String, south: String) -> void:
 		if pair.get("north", "") == north and pair.get("south", "") == south:
 			return  # Already known
 
-	# Allocate qubit in vocab QC (initializes to ground state automatically)
-	var qubit_idx = vocab_qc.allocate_qubit(north, south)
-	if qubit_idx >= 0:
-		# Track in learned list
-		learned_pairs.append({
-			"north": north,
-			"south": south,
-			"timestamp": Time.get_ticks_msec()
-		})
+	var north_known = vocab_qc.has(north)
+	var south_known = vocab_qc.has(south)
 
-		vocab_learned.emit(north, south)
+	# Allocate qubit in vocab QC only if both emojis are new.
+	if not north_known and not south_known:
+		var qubit_idx = vocab_qc.allocate_qubit(north, south)
+		if qubit_idx < 0:
+			return
+
+	# Track in learned list regardless (south may repeat).
+	learned_pairs.append({
+		"north": north,
+		"south": south,
+		"timestamp": Time.get_ticks_msec()
+	})
+
+	vocab_learned.emit(north, south)
 
 func forget_vocab_pair(north: String, south: String) -> void:
 	"""Remove vocab pair from learned list (keeps QC state for now)."""
@@ -69,16 +75,19 @@ func get_vocab_emojis() -> Array[String]:
 
 ## Persistence
 func serialize() -> Dictionary:
+	var density := {}
+	if vocab_qc and vocab_qc.has_method("serialize"):
+		density = vocab_qc.serialize()
 	return {
 		"learned_pairs": learned_pairs.duplicate(true),
-		"density_matrix": vocab_qc.serialize() if vocab_qc else {}
+		"density_matrix": density
 	}
 
 func deserialize(data: Dictionary) -> void:
 	if data.has("learned_pairs"):
 		learned_pairs = data["learned_pairs"].duplicate(true)
 
-	if data.has("density_matrix") and vocab_qc:
+	if data.has("density_matrix") and vocab_qc and vocab_qc.has_method("deserialize"):
 		vocab_qc.deserialize(data["density_matrix"])
 
 func reset() -> void:

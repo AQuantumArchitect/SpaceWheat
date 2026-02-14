@@ -66,7 +66,7 @@ func test_game_flow():
 	)
 
 	if plot_0:
-		print("  📊 Plot state: is_planted=%s, has_been_measured=%s" % [plot_0.is_planted, plot_0.has_been_measured])
+		print("  📊 Plot state: is_planted=%s, has_been_measured=%s" % [plot_0.is_planted, plot_0.is_measured])
 
 	# Step 2: Measure the plot
 	print("\n→ STEP 2: Measure Plot at (0,0)")
@@ -76,11 +76,11 @@ func test_game_flow():
 
 	test_assertion(
 		"Plot measured (state collapsed)",
-		plot_0 and plot_0.has_been_measured
+		plot_0 and plot_0.is_measured
 	)
 
 	if plot_0:
-		print("  📊 Plot state: has_been_measured=%s" % plot_0.has_been_measured)
+		print("  📊 Plot state: has_been_measured=%s" % plot_0.is_measured)
 
 	# Step 3: Harvest the plot
 	print("\n→ STEP 3: Harvest Plot at (0,0)")
@@ -128,7 +128,7 @@ func test_game_flow():
 
 	test_assertion(
 		"All plots measured",
-		(plot_1 and plot_1.has_been_measured) and (plot_2 and plot_2.has_been_measured)
+		(plot_1 and plot_1.is_measured) and (plot_2 and plot_2.is_measured)
 	)
 
 	# Step 7: Harvest all

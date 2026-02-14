@@ -219,7 +219,7 @@ func _debug_plot_state(pos: Vector2i):
 		var emojis = plot.get_plot_emojis()
 		plant_type = "%s↔%s" % [emojis.north, emojis.south]
 
-	print("     🔍 Plot %s (%s): planted=%s, measured=%s" % [pos, plant_type, plot.is_planted, plot.has_been_measured])
+	print("     🔍 Plot %s (%s): planted=%s, measured=%s" % [pos, plant_type, plot.is_planted, plot.is_measured])
 
 	if plot.quantum_state:
 		print("        Quantum: radius=%.3f, theta=%.2f, phi=%.2f" % [

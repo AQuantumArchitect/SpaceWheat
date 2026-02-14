@@ -37,7 +37,7 @@ func _process(_delta):
 				var outcome = farm.measure_plot(Vector2i(0, 0))
 				print("   Measure outcome: %s" % outcome)
 				var plot = farm.grid.get_plot(Vector2i(0, 0))
-				print("   Measured: %s" % plot.has_been_measured)
+				print("   Measured: %s" % plot.is_measured)
 				state = "harvest"
 
 		"harvest":

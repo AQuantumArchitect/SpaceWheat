@@ -211,7 +211,7 @@ func _debug_plot_state(pos: Vector2i):
 		print("     ⚠️  Plot %s does not exist!" % pos)
 		return
 
-	print("     🔍 Plot %s: planted=%s, measured=%s" % [pos, plot.is_planted, plot.has_been_measured])
+	print("     🔍 Plot %s: planted=%s, measured=%s" % [pos, plot.is_planted, plot.is_measured])
 
 	if plot.quantum_state:
 		print("        Quantum: radius=%.3f, theta=%.2f, phi=%.2f" % [
@@ -272,7 +272,7 @@ func _test_bell_correlation(pos_a: Vector2i, pos_b: Vector2i):
 		print("      ⚠️  Can't test correlation - plots missing")
 		return
 
-	if not plot_a.has_been_measured or not plot_b.has_been_measured:
+	if not plot_a.is_measured or not plot_b.is_measured:
 		print("      ⚠️  Can't test correlation - not both measured")
 		return
 

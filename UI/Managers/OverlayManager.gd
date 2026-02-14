@@ -258,6 +258,8 @@ func create_overlays(parent: Control) -> void:
 
 	# Create Escape Menu
 	escape_menu = EscapeMenu.new()
+	if layout_manager and escape_menu.has_method("set_layout_manager"):
+		escape_menu.set_layout_manager(layout_manager)
 	escape_menu.z_index = 4000  # System tier - below SaveLoadMenu
 	escape_menu.hide_menu()
 	parent.add_child(escape_menu)
@@ -279,6 +281,8 @@ func create_overlays(parent: Control) -> void:
 	# Create Save/Load Menu
 	_verbose.debug("save", "💾", "Creating Save/Load menu...")
 	save_load_menu = SaveLoadMenu.new()
+	if layout_manager and save_load_menu.has_method("set_layout_manager"):
+		save_load_menu.set_layout_manager(layout_manager)
 	_verbose.debug("save", "💾", "Save/Load menu instantiated, setting properties...")
 	save_load_menu.z_index = 4095  # HIGHEST - above ESC menu (4000), max is 4096
 	save_load_menu.hide_menu()
@@ -1051,7 +1055,10 @@ func _on_save_pressed() -> void:
 	_verbose.debug("save", "→", "save_load_menu exists: %s" % (save_load_menu != null))
 	if save_load_menu:
 		_verbose.debug("save", "→", "Calling show_menu(SAVE)...")
-		save_load_menu.show_menu(SaveLoadMenu.Mode.SAVE)
+		if save_load_menu.has_method("open_menu"):
+			save_load_menu.open_menu(SaveLoadMenu.Mode.SAVE)
+		else:
+			save_load_menu.show_menu()
 		_verbose.debug("save", "→", "save_load_menu.visible = %s" % save_load_menu.visible)
 		_verbose.info("save", "💾", "Save menu opened")
 	else:
@@ -1064,7 +1071,10 @@ func _on_load_pressed() -> void:
 	_verbose.debug("save", "→", "save_load_menu exists: %s" % (save_load_menu != null))
 	if save_load_menu:
 		_verbose.debug("save", "→", "Calling show_menu(LOAD)...")
-		save_load_menu.show_menu(SaveLoadMenu.Mode.LOAD)
+		if save_load_menu.has_method("open_menu"):
+			save_load_menu.open_menu(SaveLoadMenu.Mode.LOAD)
+		else:
+			save_load_menu.show_menu()
 		_verbose.debug("save", "→", "save_load_menu.visible = %s" % save_load_menu.visible)
 		_verbose.info("save", "📂", "Load menu opened")
 	else:
@@ -1387,8 +1397,47 @@ func open_v2_overlay(name: String) -> bool:
 		overlay.activate()
 
 	_verbose.info("ui", "📖", "Opened v2 overlay: %s" % name)
+	_log_overlay_open_next_frame(name, overlay)
 	v2_overlay_changed.emit(name, true)
 	return true
+
+
+func _log_overlay_open_next_frame(name: String, overlay: Control) -> void:
+	"""Deferred one-frame diagnostics for overlay open visibility/layering issues."""
+	if not is_inside_tree():
+		return
+	var tree := get_tree()
+	if tree == null:
+		return
+	tree.create_timer(0.0).timeout.connect(func():
+		var top_name = "none"
+		var stack_size = 0
+		if overlay_stack:
+			stack_size = overlay_stack.size()
+			var top = overlay_stack.get_top()
+			if top:
+				top_name = top.name
+
+		var panel_exists = false
+		if overlay and overlay.has_method("get_panel"):
+			panel_exists = overlay.get_panel() != null
+
+		var msg = "overlay='%s' visible=%s in_tree=%s z=%d size=%.1fx%.1f pos=(%.1f,%.1f) panel=%s stack_top=%s stack_size=%d" % [
+			name,
+			overlay.visible if overlay else false,
+			overlay.is_inside_tree() if overlay else false,
+			overlay.z_index if overlay else -1,
+			overlay.size.x if overlay else 0.0,
+			overlay.size.y if overlay else 0.0,
+			overlay.global_position.x if overlay else 0.0,
+			overlay.global_position.y if overlay else 0.0,
+			panel_exists,
+			top_name,
+			stack_size
+		]
+		_verbose.info("ui", "🔎", "QuestOverlayFrame+1 %s" % msg)
+		_verbose.info("test", "🧪", "QuestOverlayFrame+1 %s" % msg)
+	, CONNECT_ONE_SHOT)
 
 
 func close_v2_overlay() -> void:

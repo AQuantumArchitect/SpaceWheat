@@ -102,7 +102,7 @@ func _decide_action():
 		var mature_pos = _find_mature_plot()
 		var plot = farm.grid.get_plot(mature_pos)
 
-		if plot.has_been_measured:
+		if plot.is_measured:
 			# Harvest
 			var result = farm.harvest_plot(mature_pos)
 			if result.get("success"):

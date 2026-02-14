@@ -68,12 +68,6 @@ func _initialize_bath() -> void:
 
 	print("  📊 RegisterMap configured (5 qubits, 32 basis states)")
 
-	# Get Icons from IconRegistry
-	var icon_registry = get_node_or_null("/root/IconRegistry")
-	if not icon_registry:
-		push_error("🏘️ IconRegistry not available!")
-		return
-
 	# Get or create Icons for village emojis
 	var village_emojis: Array = []
 	var icons = {}
@@ -84,15 +78,13 @@ func _initialize_bath() -> void:
 				village_emojis.append(emoji)
 
 	for emoji in village_emojis:
-		var icon = icon_registry.get_icon(emoji)
-		if not icon:
-			# Create basic village icon if not found
-			icon = _create_village_emoji_icon(emoji)
-			icon_registry.register_icon(icon)
-		icons[emoji] = icon
+		var icon = _get_or_clone_icon(emoji)
+		if icon:
+			icons[emoji] = icon
+	self.icons = icons
 
 	# Configure village-specific dynamics
-	_configure_village_dynamics(icons, icon_registry)
+	_configure_village_dynamics(icons, null)
 
 	# Build operators using cached method
 	build_operators_cached("VillageBiome", icons)
@@ -157,6 +149,30 @@ func _configure_village_dynamics(icons: Dictionary, icon_registry) -> void:
 	if icons.has("💰") and icons.has("🍞"):
 		icons["💰"].lindblad_incoming["🍞"] = 0.01
 
+	# Wind driver (trade winds, 45-second cycle)
+	if icons.has("💨"):
+		icons["💨"].drivers["wind"] = {
+			"type": "oscillator",
+			"period": 45.0,
+			"amplitude": 0.3,
+		}
+
+	# Market driver (commerce cycle, 60-second rhythm)
+	if icons.has("💰"):
+		icons["💰"].drivers["market"] = {
+			"type": "oscillator",
+			"period": 60.0,
+			"amplitude": 0.25,
+		}
+
+	# Bread feeds labor (closes the production cycle)
+	if icons.has("🍞") and icons.has("👥"):
+		icons["🍞"].lindblad_outgoing["👥"] = 0.015
+
+	# Commerce cycle: baskets return to money (closes trade loop)
+	if icons.has("🧺") and icons.has("💰"):
+		icons["🧺"].lindblad_outgoing["💰"] = 0.01
+
 
 func _update_quantum_substrate(dt: float) -> void:
 	"""Evolve quantum substrate under Lindblad dynamics."""
@@ -183,8 +199,7 @@ func get_paired_emoji(emoji: String) -> String:
 
 func _rebuild_quantum_operators_impl() -> void:
 	"""Rebuild operators when IconRegistry changes."""
-	var icon_registry = get_node_or_null("/root/IconRegistry")
-	if not icon_registry or not quantum_computer:
+	if not quantum_computer:
 		return
 
 	var axes = _get_active_village_axes()
@@ -194,10 +209,15 @@ func _rebuild_quantum_operators_impl() -> void:
 		for emoji in [axis["north"], axis["south"]]:
 			if emoji == "":
 				continue
-			var icon = icon_registry.get_icon(emoji)
+			var icon = _get_or_clone_icon(emoji)
 			if icon:
 				icons[emoji] = icon
+	self.icons = icons
 
 	if icons.size() > 0:
-		_configure_village_dynamics(icons, icon_registry)
+		_configure_village_dynamics(icons, null)
 		build_operators_cached("VillageBiome", icons)
+
+
+func _create_local_icon(emoji: String) -> Icon:
+	return _create_village_emoji_icon(emoji)

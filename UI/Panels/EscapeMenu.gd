@@ -23,9 +23,8 @@ enum ButtonIndex {
 	SAVE = 1,
 	LOAD = 2,
 	QUANTUM = 3,
-	RELOAD = 4,
-	RESTART = 5,
-	QUIT = 6
+	RESTART = 4,
+	QUIT = 5
 }
 
 # Volume control
@@ -41,7 +40,7 @@ func _init():
 	overlay_tier = 4000  # Z_TIER_SYSTEM
 	panel_title = "PAUSED"
 	panel_title_size = 28
-	panel_size = Vector2(360, 420)
+	panel_size_mode = PanelSizeMode.SMALL
 	panel_border_color = Color(0.5, 0.5, 0.3, 0.8)  # Gold border
 	navigation_mode = NavigationMode.LINEAR
 	use_scroll_container = false
@@ -59,8 +58,7 @@ func _build_content(container: Control) -> void:
 	# Volume control
 	_add_volume_control()
 
-	add_menu_button("Reload Last Save [D]", Color(0.7, 0.4, 0.2))
-	add_menu_button("Restart [R/⇧R]", Color(0.6, 0.5, 0.2))  # Shift+R = dev restart
+	add_menu_button("Restart [R/⇧R]", Color(0.6, 0.5, 0.2))  # R = reload last save, Shift+R = dev restart
 	add_menu_button("Quit [Q]", Color(0.6, 0.3, 0.3))
 
 
@@ -105,8 +103,6 @@ func _on_button_activated(index: int) -> void:
 			_on_load_pressed()
 		ButtonIndex.QUANTUM:
 			_on_quantum_settings_pressed()
-		ButtonIndex.RELOAD:
-			_on_reload_last_save_pressed()
 		ButtonIndex.RESTART:
 			_on_restart_pressed()
 		ButtonIndex.QUIT:
@@ -133,9 +129,6 @@ func _on_unhandled_key(keycode: int, event: InputEvent) -> bool:
 			return true
 		KEY_L:
 			_on_load_pressed()
-			return true
-		KEY_D:
-			_on_reload_last_save_pressed()
 			return true
 		KEY_X:
 			_on_quantum_settings_pressed()
@@ -198,11 +191,6 @@ func _on_save_pressed():
 func _on_load_pressed():
 	print("[INFO][UI] Load pressed")
 	load_pressed.emit()
-
-
-func _on_reload_last_save_pressed():
-	print("[INFO][UI] Reload last save pressed")
-	reload_last_save_pressed.emit()
 
 
 func _on_quantum_settings_pressed():

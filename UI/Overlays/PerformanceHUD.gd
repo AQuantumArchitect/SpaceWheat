@@ -136,23 +136,11 @@ func _update_display() -> void:
 	])
 
 	# If graph is available, also show graph-specific data
-	if not graph_ref or not "_perf_samples" in graph_ref:
+	if not graph_ref or not graph_ref.has_method("get_perf_averages"):
 		_show_engine_metrics_only(fps, time_process, time_physics, node_count)
 		return
 
-	var samples = graph_ref._perf_samples
-
-	# Calculate averages
-	var avg = {}
-	for key in samples:
-		var sample_array = samples[key]
-		if sample_array.size() > 0:
-			var total = 0.0
-			for s in sample_array:
-				total += s
-			avg[key] = total / sample_array.size() / 1000.0  # Convert to ms
-		else:
-			avg[key] = 0.0
+	var avg: Dictionary = graph_ref.get_perf_averages()
 
 	# Get Godot engine performance metrics
 	var process_time = Performance.get_monitor(Performance.TIME_PROCESS) * 1000.0

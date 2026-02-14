@@ -58,7 +58,7 @@ func run_test():
 		var outcome = farm.biome.measure_qubit(pos)
 		var plot = farm.grid.get_plot(pos)
 		plot.measure(outcome)
-		if plot.has_been_measured:
+		if plot.is_measured:
 			measured += 1
 
 	print("✓ Measured %d/%d qubits" % [measured, positions.size()])
@@ -204,7 +204,7 @@ func _count_measured() -> int:
 	for y in range(farm.grid_height):
 		for x in range(farm.grid_width):
 			var plot = farm.grid.get_plot(Vector2i(x, y))
-			if plot and plot.has_been_measured:
+			if plot and plot.is_measured:
 				count += 1
 	return count
 
@@ -237,7 +237,7 @@ func create_game_state() -> Resource:
 					"position": pos,
 					"type": plot.plot_type if plot.has_meta("plot_type") else 0,
 					"is_planted": plot.is_planted,
-					"has_been_measured": plot.has_been_measured,
+					"has_been_measured": plot.is_measured,
 					"theta_frozen": plot.theta_frozen,
 					"entangled_with": []
 				})
@@ -267,7 +267,7 @@ func apply_game_state(state: Resource):
 
 		if plot:
 			plot.is_planted = plot_data.get("is_planted", false)
-			plot.has_been_measured = plot_data.get("has_been_measured", false)
+			plot.is_measured = plot_data.get("has_been_measured", false)
 			plot.theta_frozen = plot_data.get("theta_frozen", false)
 
 			# Regenerate quantum state if planted

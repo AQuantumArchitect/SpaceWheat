@@ -97,6 +97,15 @@ public:
     int get_pacing_delay_ms() const;
 
     // ========================================================================
+    // RUNTIME FLAGS (headless optimizations)
+    // ========================================================================
+
+    void set_enable_mi(bool enabled);
+    void set_enable_force(bool enabled);
+    bool is_mi_enabled() const;
+    bool is_force_enabled() const;
+
+    // ========================================================================
     // BATCHED EVOLUTION (single call for ALL biomes, ALL steps)
     // ========================================================================
 
@@ -228,6 +237,10 @@ private:
 
     // Pacing: sleep between steps to spread CPU load (0 = disabled)
     int m_pacing_delay_ms = 1;  // Default: 1ms sleep between steps (gentle)
+
+    // Runtime toggles
+    bool m_enable_mi = true;
+    bool m_enable_force = true;
 
     // Phase-shadow LNN (one per biome, nullptr if disabled)
     std::vector<std::unique_ptr<LiquidNeuralNet>> m_lnns;

@@ -71,7 +71,7 @@ func _initialize():
 			print("\n📊 Plot state after harvest:")
 			print("   quantum_state: %s" % ("null ✅" if plot.quantum_state == null else "EXISTS ❌"))
 			print("   is_planted: %s" % ("false ✅" if not plot.is_planted else "true ❌"))
-			print("   has_been_measured: %s" % ("false ✅" if not plot.has_been_measured else "true ❌"))
+			print("   has_been_measured: %s" % ("false ✅" if not plot.is_measured else "true ❌"))
 
 	# SUMMARY
 	print("\n" + "=".repeat(80))
@@ -92,7 +92,7 @@ func _initialize():
 	if plot:
 		var state_cleared = plot.quantum_state == null
 		var not_planted = not plot.is_planted
-		var not_measured = not plot.has_been_measured
+		var not_measured = not plot.is_measured
 		test2_pass = state_cleared and not_planted and not_measured
 		print("   quantum_state cleared: %s" % ("✅" if state_cleared else "❌"))
 		print("   is_planted=false: %s" % ("✅" if not_planted else "❌"))

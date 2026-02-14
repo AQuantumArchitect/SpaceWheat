@@ -67,7 +67,7 @@ func run_test():
 		var plot = farm.grid.get_plot(pos)
 		if not (outcome is String and outcome.length() > 0):
 			print("⚠ Measurement outcome unclear")
-		plot.has_been_measured = true
+		plot.is_measured = true
 
 	print("✓ Measured 3 qubits")
 
@@ -165,7 +165,7 @@ func run_test():
 	var remaining_plot = farm.grid.get_plot(remaining_pos)
 	if remaining_plot and remaining_plot.is_planted:
 		var outcome = farm.biome.measure_qubit(remaining_pos)
-		remaining_plot.has_been_measured = true
+		remaining_plot.is_measured = true
 		print("✓ Measured remaining qubit")
 
 		remaining_plot.harvest()
@@ -199,7 +199,7 @@ func apply_state_to_farm(state):
 
 		if plot:
 			plot.is_planted = plot_data.get("is_planted", false)
-			plot.has_been_measured = plot_data.get("has_been_measured", false)
+			plot.is_measured = plot_data.get("has_been_measured", false)
 			plot.theta_frozen = plot_data.get("theta_frozen", false)
 
 			# Regenerate quantum state if planted
@@ -230,7 +230,7 @@ func capture_state_from_farm(state) -> Resource:
 					"position": pos,
 					"type": 0,
 					"is_planted": plot.is_planted,
-					"has_been_measured": plot.has_been_measured,
+					"has_been_measured": plot.is_measured,
 					"theta_frozen": plot.theta_frozen,
 					"entangled_with": []
 				})

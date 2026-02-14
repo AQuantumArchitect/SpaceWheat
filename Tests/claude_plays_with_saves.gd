@@ -183,7 +183,7 @@ func _observe_state():
 			if plot:
 				if not plot.is_planted:
 					empty += 1
-				elif not plot.has_been_measured:
+				elif not plot.is_measured:
 					planted += 1
 				else:
 					measured += 1

@@ -209,13 +209,13 @@ static func _get_icon(icon_registry, emoji: String):
 	if icon_registry == null:
 		return null
 
-	# IconRegistry singleton
-	if icon_registry.has_method("get_icon"):
-		return icon_registry.get_icon(emoji)
-
-	# Dictionary
+	# Dictionary source (biome-local effective icons)
 	if icon_registry is Dictionary:
 		return icon_registry.get(emoji, null)
+
+	# IconRegistry singleton
+	if icon_registry is Object and icon_registry.has_method("get_icon"):
+		return icon_registry.get_icon(emoji)
 
 	return null
 

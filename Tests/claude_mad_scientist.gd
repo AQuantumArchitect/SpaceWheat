@@ -132,7 +132,7 @@ func experiment_2_maximum_entanglement():
 	for x in range(1, 6):
 		var plot = farm.grid.get_plot(Vector2i(x, 1))
 		if plot:
-			print("  Plot (%d,1): measured=%s" % [x, plot.has_been_measured])
+			print("  Plot (%d,1): measured=%s" % [x, plot.is_measured])
 
 	log_result("Maximum entanglement: %d gates created, cascade observed" % entangle_count)
 

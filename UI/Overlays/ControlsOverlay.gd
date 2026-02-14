@@ -48,7 +48,7 @@ func _init():
 	overlay_icon = ""
 	overlay_tier = 2000  # Z_TIER_INFO
 	panel_title = "Keyboard Controls"
-	panel_size = Vector2(650, 500)
+	panel_size_mode = PanelSizeMode.LARGE
 	panel_border_color = Color(0.5, 0.5, 0.3, 0.8)  # Gold/tan border
 	navigation_mode = NavigationMode.NONE  # We handle our own Q/E navigation
 	action_labels = {

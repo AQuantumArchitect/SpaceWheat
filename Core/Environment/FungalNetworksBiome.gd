@@ -78,26 +78,18 @@ func _initialize_bath() -> void:
 
 	print("  📊 RegisterMap configured (4 qubits, 16 basis states)")
 
-	# Get Icons from IconRegistry
-	var icon_registry = get_node_or_null("/root/IconRegistry")
-	if not icon_registry:
-		push_error("🍄 IconRegistry not available!")
-		return
-
 	# Get or create Icons for fungal emojis
 	var fungal_emojis = ["🦗", "🐜", "🍄", "🦠", "🧫", "🍂", "🌙", "☀"]
 	var icons = {}
 
 	for emoji in fungal_emojis:
-		var icon = icon_registry.get_icon(emoji)
-		if not icon:
-			# Create basic fungal icon if not found
-			icon = _create_fungal_emoji_icon(emoji)
-			icon_registry.register_icon(icon)
-		icons[emoji] = icon
+		var icon = _get_or_clone_icon(emoji)
+		if icon:
+			icons[emoji] = icon
+	self.icons = icons
 
 	# Configure fungal-specific dynamics
-	_configure_fungal_dynamics(icons, icon_registry)
+	_configure_fungal_dynamics(icons, null)
 
 	# Build operators using cached method
 	build_operators_cached("FungalNetworksBiome", icons)
@@ -184,6 +176,11 @@ func _configure_fungal_dynamics(icons: Dictionary, _icon_registry) -> void:
 	if icons.has("🦗") and icons.has("🍂"):
 		icons["🦗"].lindblad_outgoing["🍂"] = 0.04
 
+	# Spores decompose back to detritus (closes the fungal cycle)
+	# Loop: 🍂 → 🍄 → 🦠 → 🍂
+	if icons.has("🦠") and icons.has("🍂"):
+		icons["🦠"].lindblad_outgoing["🍂"] = 0.02
+
 	# Gated: Night feeding frenzy (nutrients → locusts at night)
 	if icons.has("🧫"):
 		icons["🧫"].gated_lindblad["🦗"] = [{
@@ -227,23 +224,24 @@ func rebuild_quantum_operators() -> void:
 
 	print("  🔧 FungalNetworks: Rebuilding quantum operators...")
 
-	var icon_registry = get_node_or_null("/root/IconRegistry")
-	if not icon_registry:
-		return
-
 	var fungal_emojis = ["🦗", "🐜", "🍄", "🦠", "🧫", "🍂", "🌙", "☀"]
 	var icons = {}
 
 	for emoji in fungal_emojis:
-		var icon = icon_registry.get_icon(emoji)
+		var icon = _get_or_clone_icon(emoji)
 		if icon:
 			icons[emoji] = icon
+	self.icons = icons
 
-	_configure_fungal_dynamics(icons, icon_registry)
+	_configure_fungal_dynamics(icons, null)
 
 	build_operators_cached("FungalNetworksBiome", icons)
 
 	print("  ✅ FungalNetworks: Rebuilt operators")
+
+
+func _create_local_icon(emoji: String) -> Icon:
+	return _create_fungal_emoji_icon(emoji)
 
 
 func _update_quantum_substrate(dt: float) -> void:

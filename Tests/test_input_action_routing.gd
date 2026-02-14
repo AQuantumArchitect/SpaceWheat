@@ -185,7 +185,7 @@ func _test_single_plot_quantum_actions():
 	input_handler._execute_tool_action("E")
 
 	assert(signal_spy["plot_measured"].size() >= 1)
-	assert(farm.get_plot(Vector2i(3, 0)).has_been_measured == true)
+	assert(farm.get_plot(Vector2i(3, 0)).is_measured == true)
 	print("   ✅ Measure plot (E) works")
 
 	signal_spy["plot_harvested"].clear()

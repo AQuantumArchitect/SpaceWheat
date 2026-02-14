@@ -405,7 +405,7 @@ func _find_adjacent_unmeasured_pair() -> Array[Vector2i]:
 				var plot2 = farm.grid.get_plot(pos2)
 
 				if plot1 and plot2 and plot1.is_planted and plot2.is_planted:
-					if not plot1.has_been_measured and not plot2.has_been_measured:
+					if not plot1.is_measured and not plot2.is_measured:
 						result.append(pos1)
 						result.append(pos2)
 						return result

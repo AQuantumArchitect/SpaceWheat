@@ -117,7 +117,7 @@ func harvest_plot(position: Vector2i) -> bool:
 		_log("⚠ Plot not planted at %s" % position)
 		return false
 
-	if not plot.has_been_measured:
+	if not plot.is_measured:
 		measure_plot(position)
 
 	var harvest_result = plot.harvest()
@@ -197,7 +197,7 @@ func _get_measured_positions() -> Array[Vector2i]:
 		for x in range(farm.grid_width):
 			var pos = Vector2i(x, y)
 			var plot = grid.get_plot(pos)
-			if plot and plot.has_been_measured:
+			if plot and plot.is_measured:
 				positions.append(pos)
 	return positions
 

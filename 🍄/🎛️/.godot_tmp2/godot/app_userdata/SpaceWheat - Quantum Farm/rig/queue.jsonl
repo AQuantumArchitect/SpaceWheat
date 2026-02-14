@@ -1,0 +1,16 @@
+{"turn":1,"action":"resource_snapshot"}
+{"turn":2,"action":"open_overlay","name":"quests"}
+{"turn":3,"action":"offer_quests"}
+{"turn":4,"action":"active_quests"}
+{"turn":5,"action":"grid_snapshot"}
+{"turn":6,"action":"offer_quests"}
+{"turn":7,"action":"accept_offer","offer_index":0}
+{"turn":8,"action":"active_quests"}
+{"turn":9,"action":"complete_quest","quest_id":5}
+{"turn":10,"action":"known_vocab_pairs"}
+{"turn":11,"action":"add_resource","emoji":"🌱","amount":10}
+{"turn":12,"action":"add_resource","emoji":"💀","amount":100}
+{"turn":13,"action":"inject_vocab","biome":"Village","pair_index":1}
+{"turn":14,"action":"add_resource","emoji":"❄️","amount":5}
+{"turn":15,"action":"probe_cycle","biome":"Village"}
+{"turn":99,"action":"stop"}

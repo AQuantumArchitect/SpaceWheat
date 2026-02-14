@@ -9,6 +9,11 @@ const BiomeBackgroundClass = preload("res://Core/Visualization/BiomeBackground.g
 const PerformanceHUDClass = preload("res://UI/Overlays/PerformanceHUD.gd")
 # BootManager is an autoload singleton - no need to preload
 
+const BACKGROUND_LAYER := -1
+const SHELL_Z_INDEX := 10
+const QUANTUM_VIZ_Z_INDEX := 40
+const PERFORMANCE_HUD_Z_INDEX := 2000
+
 var shell = null  # PlayerShell (from scene)
 var farm: Node = null
 var quantum_viz: QuantumForceGraph = null
@@ -56,19 +61,7 @@ func _ready():
 		_verbose.info("ui", "🎯", "Headless mode detected - skipping UI/visualization")
 		return
 
-	# ═══════════════════════════════════════════════════════════════════════
-	# BIOME BACKGROUND - Full-screen biome art (behind everything)
-	# ═══════════════════════════════════════════════════════════════════════
-	_verbose.debug("ui", "🖼️", "Creating biome background layer...")
-	var bg_layer = CanvasLayer.new()
-	bg_layer.layer = -1  # Behind layer 0 (all other UI)
-	bg_layer.name = "BiomeBackgroundLayer"
-	add_child(bg_layer)
-
-	biome_background = BiomeBackgroundClass.new()
-	biome_background.name = "BiomeBackground"
-	bg_layer.add_child(biome_background)
-	_verbose.info("ui", "✅", "Biome background created (CanvasLayer -1)")
+	_create_biome_background_layer()
 
 	# Load PlayerShell scene
 	_verbose.debug("ui", "🎪", "Loading player shell scene...")
@@ -76,26 +69,14 @@ func _ready():
 	if shell_scene:
 		shell = shell_scene.instantiate()
 		add_child(shell)
+		shell.z_index = SHELL_Z_INDEX
 		_verbose.info("ui", "✅", "Player shell loaded and added to tree")
 	else:
 		_verbose.warn("ui", "❌", "PlayerShell.tscn not found!")
 		return
 
-	# Create quantum visualization (direct QuantumForceGraph - no middleware)
-	_verbose.debug("ui", "🛁", "Creating quantum force graph visualization...")
-	quantum_viz = QuantumForceGraph.new()
-
-	# Add directly to scene tree - no CanvasLayer needed
-	# Set z_index so bubbles render in front of plots but behind overlays
-	add_child(quantum_viz)
-	quantum_viz.z_index = 0  # In front of plots (-10), behind overlays (1000+)
-
-	# Create performance HUD overlay
-	_verbose.debug("ui", "🔬", "Creating performance profiling HUD...")
-	performance_hud = PerformanceHUDClass.new()
-	add_child(performance_hud)
-	performance_hud.z_index = 2000  # Above all UI
-	_verbose.info("ui", "✅", "Performance HUD created")
+	_create_quantum_visualization()
+	_create_performance_hud()
 
 	# ═══════════════════════════════════════════════════════════════════════
 	# PRE-BOOT: Signal connections needed before game starts
@@ -103,10 +84,7 @@ func _ready():
 
 	# CRITICAL: Connect visualization signals BEFORE boot emits game_ready
 	# Direct connection - farm → QuantumForceGraph (no controller middleman)
-	if quantum_viz:
-		quantum_viz.connect_to_farm(farm)
-	else:
-		push_error("FarmView: quantum_viz is NULL - cannot connect to farm!")
+	_connect_quantum_viz_to_farm()
 
 	# ═══════════════════════════════════════════════════════════════════════
 	# BOOT UI - Visualization + UI setup after core is ready
@@ -119,6 +97,59 @@ func _ready():
 	# POST-BOOT: Additional signal connections and final setup
 	# ═══════════════════════════════════════════════════════════════════════
 
+	_connect_visualization_ui_signals()
+
+	# Input is handled by PlayerShell._input() → modal stack → QuantumInstrumentInput
+	# No need for InputController anymore!
+	_verbose.info("ui", "✅", "Input routing handled by PlayerShell modal stack")
+
+	_verbose.info("ui", "✅", "FarmView ready - game started!")
+
+
+func _create_biome_background_layer() -> void:
+	"""Create full-screen biome background behind gameplay/UI."""
+	_verbose.debug("ui", "🖼️", "Creating biome background layer...")
+	var bg_layer := CanvasLayer.new()
+	bg_layer.layer = BACKGROUND_LAYER  # Behind layer 0 (all other UI)
+	bg_layer.name = "BiomeBackgroundLayer"
+	add_child(bg_layer)
+
+	biome_background = BiomeBackgroundClass.new()
+	biome_background.name = "BiomeBackground"
+	bg_layer.add_child(biome_background)
+	_verbose.info("ui", "✅", "Biome background created (CanvasLayer -1)")
+
+
+func _create_quantum_visualization() -> void:
+	"""Create the primary quantum visualization layer."""
+	_verbose.debug("ui", "🛁", "Creating quantum force graph visualization...")
+	quantum_viz = QuantumForceGraph.new()
+	add_child(quantum_viz)
+	# Keep visualization in viewport space and stable above gameplay plots.
+	quantum_viz.top_level = true
+	quantum_viz.position = Vector2.ZERO
+	quantum_viz.z_index = QUANTUM_VIZ_Z_INDEX
+
+
+func _create_performance_hud() -> void:
+	"""Create high-z performance profiling overlay."""
+	_verbose.debug("ui", "🔬", "Creating performance profiling HUD...")
+	performance_hud = PerformanceHUDClass.new()
+	add_child(performance_hud)
+	performance_hud.z_index = PERFORMANCE_HUD_Z_INDEX  # Above all UI
+	_verbose.info("ui", "✅", "Performance HUD created")
+
+
+func _connect_quantum_viz_to_farm() -> void:
+	"""Connect visualization to farm signals before UI boot completes."""
+	if quantum_viz:
+		quantum_viz.connect_to_farm(farm)
+		return
+	push_error("FarmView: quantum_viz is NULL - cannot connect to farm!")
+
+
+func _connect_visualization_ui_signals() -> void:
+	"""Connect plot selection + gesture signals to visualization."""
 	# Connect PlotGridDisplay → visualization (PlotGridDisplay created during boot_ui)
 	if quantum_viz and shell:
 		var plot_grid_display = shell.get_node_or_null("QuantumInstrument/PlotGridDisplay")
@@ -133,23 +164,14 @@ func _ready():
 
 	# Connect touch gesture signals from QuantumForceGraph (direct access - no .graph)
 	if quantum_viz:
-		var swipe_result = quantum_viz.node_swiped_to.connect(_on_quantum_nodes_swiped)
-		if swipe_result != OK:
-			_verbose.warn("ui", "⚠️", "Failed to connect node_swiped_to signal")
-		else:
-			_verbose.info("ui", "✅", "Touch: Swipe-to-entangle connected")
-
 		var click_result = quantum_viz.node_clicked.connect(_on_quantum_node_clicked)
 		if click_result != OK:
 			_verbose.warn("ui", "⚠️", "Failed to connect node_clicked signal")
 		else:
 			_verbose.info("ui", "✅", "Touch: Tap-to-measure connected")
 
-	# Input is handled by PlayerShell._input() → modal stack → QuantumInstrumentInput
-	# No need for InputController anymore!
-	_verbose.info("ui", "✅", "Input routing handled by PlayerShell modal stack")
-
-	_verbose.info("ui", "✅", "FarmView ready - game started!")
+		quantum_viz.chain_swiped.connect(_on_chain_swiped)
+		_verbose.info("ui", "✅", "Touch: Chain-swipe-to-gate connected")
 
 
 func _on_quit_requested() -> void:
@@ -230,27 +252,22 @@ func _on_quantum_node_clicked(grid_pos: Vector2i, button_index: int) -> void:
 			_verbose.warn("ui", "⚠️", "Pop failed: %s" % result.get("message", "unknown"))
 
 
-func _on_quantum_nodes_swiped(from_grid_pos: Vector2i, to_grid_pos: Vector2i) -> void:
-	"""Handle swipe gesture between quantum bubbles - SWIPE TO ENTANGLE
-
-	Triggered when user drags from one bubble to another (≥50px, ≤1.0s).
-	Creates quantum entanglement between the two plots.
-	"""
-	_verbose.debug("ui", "✨", "BUBBLE SWIPE HANDLER CALLED! %s → %s" % [from_grid_pos, to_grid_pos])
-
-	if not farm or not farm.grid:
-		_verbose.warn("ui", "⚠️", "No farm available")
+func _on_chain_swiped(positions: Array) -> void:
+	"""Handle chain swipe across bubbles → gate building via QII."""
+	if positions.size() < 2 or not farm:
 		return
 
-	# Create entanglement using default Bell state (phi_plus)
-	# TODO: Add Bell state selection dialog for advanced control
-	var bell_state = "phi_plus"
-	var success = farm.grid.create_entanglement(from_grid_pos, to_grid_pos, bell_state)
+	_verbose.debug("ui", "⛓️", "Chain swipe: %d bubbles %s" % [positions.size(), positions])
 
-	if success:
-		_verbose.info("ui", "✅", "Entanglement created: %s ↔ %s (Φ+)" % [from_grid_pos, to_grid_pos])
+	# Route through QuantumInstrumentInput for tool-aware gate building
+	var qi = shell.current_farm_ui.input_handler if shell and shell.current_farm_ui else null
+	if qi:
+		qi.apply_chain_gate(positions)
 	else:
-		_verbose.warn("ui", "❌", "Failed to create entanglement")
+		_verbose.debug("ui", "⛓️", "No QII available, using fallback entanglement")
+		# Fallback: Bell pairs between consecutive bubbles
+		for i in range(positions.size() - 1):
+			farm.grid.create_entanglement(positions[i], positions[i + 1], "phi_plus")
 
 
 func get_farm() -> Node:

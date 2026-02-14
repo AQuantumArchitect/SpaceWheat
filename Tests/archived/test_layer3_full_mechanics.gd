@@ -308,7 +308,7 @@ func test_harvest_cycle():
 
 	# Step 1: Plant (skip - causes DualEmojiQubit.new() issues)
 	print("  Step 1: Verify unplanted plot state...")
-	if not plot.is_planted and not plot.has_been_measured:
+	if not plot.is_planted and not plot.is_measured:
 		print("    ✅ Plot starts empty")
 		test_passed += 1
 	else:
@@ -345,7 +345,7 @@ func test_harvest_cycle():
 
 	# Step 5: Test plot reset functionality
 	plot.reset()
-	if not plot.is_planted and not plot.has_been_measured and not plot.theta_frozen:
+	if not plot.is_planted and not plot.is_measured and not plot.theta_frozen:
 		print("    ✅ Plot reset to initial state")
 		test_passed += 1
 	else:

@@ -142,8 +142,8 @@ func _init():
 	print("    🍄 = %.4f" % saved_mushroom)
 	print("    θ_A = %.4f rad" % saved_theta_a)
 	print("    θ_B = %.4f rad" % saved_theta_b)
-	print("    Plot A measured: %s" % plot_a.has_been_measured)
-	print("    Plot B measured: %s" % plot_b.has_been_measured)
+	print("    Plot A measured: %s" % plot_a.is_measured)
+	print("    Plot B measured: %s" % plot_b.is_measured)
 
 	# PHASE 3: CLEAR STATE
 	print("\n" + "=" + "=".repeat(69))
@@ -280,15 +280,15 @@ func _init():
 	print("-" + "-".repeat(69))
 
 	print("\n  Measurement state:")
-	print("    Plot A measured: %s (expected: true)" % loaded_plot_a.has_been_measured)
-	print("    Plot B measured: %s (expected: false)" % loaded_plot_b.has_been_measured)
+	print("    Plot A measured: %s (expected: true)" % loaded_plot_a.is_measured)
+	print("    Plot B measured: %s (expected: false)" % loaded_plot_b.is_measured)
 
-	if not loaded_plot_a.has_been_measured:
+	if not loaded_plot_a.is_measured:
 		print("  ❌ Plot A should be marked as measured!")
 		quit(1)
 		return
 
-	if loaded_plot_b.has_been_measured:
+	if loaded_plot_b.is_measured:
 		print("  ❌ Plot B should NOT be marked as measured!")
 		quit(1)
 		return

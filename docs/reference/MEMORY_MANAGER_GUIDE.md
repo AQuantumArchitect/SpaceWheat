@@ -1,8 +1,12 @@
-# MemoryManager - Clean Architecture Guide
+# Save/Load System Guide (GameStateManager + SaveStore)
 
 ## Overview
 
-`MemoryManager.gd` is the official save/load system for SpaceWheat's clean architecture. It handles game state serialization with **zero UI dependencies**.
+**Official system:** `GameStateManager.gd` + `SaveStore.gd`.
+
+`MemoryManager.gd` is **legacy** (kept for tests and documentation history). The live game and UI now use `GameStateManager` as the orchestrator, with `SaveStore` as the shared persistence layer.
+
+If you are wiring game features, use **GameStateManager**.
 
 ## Architecture Pattern
 
@@ -10,14 +14,20 @@
 ┌────────────────────────────────────────────────┐
 │ UI LAYER (Optional Observer)                   │
 │ - SaveLoadMenu, FarmView                       │
-│ - Listens to MemoryManager signals             │
+│ - Listens to GameStateManager signals          │
 └────────────────────────────────────────────────┘
               ↓ (emit/listen)
 ┌────────────────────────────────────────────────┐
-│ MEMORY MANAGER (Persistence Layer)            │
-│ - Pure save/load of GameState objects         │
-│ - No FarmView or UI dependencies              │
-│ - Emits signals for UI to observe             │
+│ GAMESTATE MANAGER (Orchestration Layer)        │
+│ - Owns Farm lifecycle                          │
+│ - Captures/applies GameState via serializer    │
+│ - Uses SaveStore for disk IO                   │
+└────────────────────────────────────────────────┘
+              ↓ (save/load)
+┌────────────────────────────────────────────────┐
+│ SAVESTORE (Persistence Layer)                  │
+│ - Pure disk IO for GameState resources         │
+│ - No Farm or UI dependencies                   │
 └────────────────────────────────────────────────┘
               ↓ (apply/capture)
 ┌────────────────────────────────────────────────┐
@@ -28,7 +38,19 @@
 └────────────────────────────────────────────────┘
 ```
 
-## Key Features
+## Official API (GameStateManager)
+
+```gdscript
+var gsm = get_node("/root/GameStateManager")
+
+# Save
+gsm.save_game(0)
+
+# Load and apply
+gsm.load_and_apply(0)
+```
+
+## Legacy (MemoryManager)
 
 ### Single Responsibility
 - **Saves GameState to disk** (slots 0-2)

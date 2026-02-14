@@ -902,8 +902,7 @@ func draw_bubble(pos: Vector2, base_radius: float, anim_scale: float, anim_alpha
 		Color(0.1, 0.1, 0.15, 0.85 * anim_alpha))
 
 	# === LAYER 4: Main bubble ===
-	var lighten_amount = 0.1 if is_celestial else 0.15
-	var main_color = _lighten(base_color, lighten_amount)
+	var main_color = base_color
 	main_color.a = 0.75 * anim_alpha
 	add_circle_layer("circle_100", pos, effective_radius, main_color)
 
@@ -913,8 +912,8 @@ func draw_bubble(pos: Vector2, base_radius: float, anim_scale: float, anim_alpha
 
 	# === LAYER 5: Glossy highlight ===
 	var highlight_offset = Vector2(-effective_radius * 0.25, -effective_radius * 0.25)
-	var highlight_color = _lighten(base_color, 0.6)
-	highlight_color.a = 0.8 * anim_alpha
+	var highlight_color = Color.WHITE
+	highlight_color.a = 0.4 * anim_alpha
 	var highlight_size = 0.4 if is_celestial else 0.5
 	add_circle_layer("circle_050", pos + highlight_offset,
 		effective_radius * highlight_size, highlight_color)
@@ -1058,7 +1057,7 @@ func _get_complementary_color(base: Color) -> Color:
 
 
 func _lighten(color: Color, amount: float) -> Color:
-	"""Lighten a color by blending toward white."""
+	"""Lighten a color by blending toward white (alpha controls layer opacity)."""
 	return Color(
 		minf(1.0, color.r + (1.0 - color.r) * amount),
 		minf(1.0, color.g + (1.0 - color.g) * amount),

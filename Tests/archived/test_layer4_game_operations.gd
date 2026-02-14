@@ -79,7 +79,7 @@ func test_plot_creation():
 		print("  ❌ WheatPlot creation failed")
 		test_failed += 1
 
-	if not plot.is_planted and not plot.has_been_measured:
+	if not plot.is_planted and not plot.is_measured:
 		print("  ✅ New plot starts in empty state")
 		test_passed += 1
 	else:
@@ -150,7 +150,7 @@ func test_measure_operation():
 	plot.plot_type = WheatPlot.PlotType.WHEAT
 
 	# Can't measure unplanted plot
-	if not plot.has_been_measured:
+	if not plot.is_measured:
 		print("  ✅ Unplanted plot: has_been_measured = false")
 		test_passed += 1
 	else:
@@ -167,7 +167,7 @@ func test_measure_operation():
 		test_failed += 1
 
 	# Unplanted plots can't be measured - measure() returns early
-	if not plot.has_been_measured:
+	if not plot.is_measured:
 		print("  ✅ Unplanted plot measure doesn't set flag (correct)")
 		test_passed += 1
 	else:
@@ -193,7 +193,7 @@ func test_state_machine():
 	# State 2: Planted (plant the plot)
 	plot.plant()
 	var state2 = "planted"
-	if plot.is_planted and plot.quantum_state != null and not plot.has_been_measured:
+	if plot.is_planted and plot.quantum_state != null and not plot.is_measured:
 		state2 = "✅ PLANTED"
 		test_passed += 1
 	else:
@@ -204,7 +204,7 @@ func test_state_machine():
 	# State 3: Measured (measure the plot)
 	plot.measure()
 	var state3 = "measured"
-	if plot.is_planted and plot.has_been_measured:
+	if plot.is_planted and plot.is_measured:
 		state3 = "✅ MEASURED"
 		test_passed += 1
 	else:
@@ -215,7 +215,7 @@ func test_state_machine():
 	# State 4: Can reset for next cycle
 	plot.reset()
 	var state4 = "reset"
-	if not plot.is_planted and not plot.has_been_measured:
+	if not plot.is_planted and not plot.is_measured:
 		state4 = "✅ RESET"
 		test_passed += 1
 	else:

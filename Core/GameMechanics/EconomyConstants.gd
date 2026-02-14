@@ -17,9 +17,7 @@ const QUANTUM_TO_CREDITS: float = 10.0
 ## Reality Midwife token emoji (display + economy tracking)
 const MIDWIFE_EMOJI: String = "🍼"
 
-## DEPRECATED: Harvest-all cost is now dynamic (1 if >2 tokens, half if <=2)
-## Kept for backward compatibility with UI preview
-const MIDWIFE_ACTION_COST: int = 1
+# Removed: MIDWIFE_ACTION_COST (never used)
 
 ## Drain factor: fraction of probability removed during MEASURE
 const DRAIN_FACTOR: float = 0.5
@@ -76,12 +74,7 @@ const GATE_COSTS: Dictionary = {
 const VOCAB_INJECTION_SOUTH_COST: int = 100
 const VOCAB_INJECTION_SPROUT_COST: Dictionary = {"🌱": 10}
 
-## ===========================================
-## BUILD MODE COSTS (Legacy)
-## ===========================================
-
-## DEPRECATED: Use VOCAB_INJECTION_SOUTH_COST + VOCAB_INJECTION_SPROUT_COST instead
-const VOCAB_INJECTION_BASE_COST: int = 150
+# Removed: VOCAB_INJECTION_BASE_COST (never used)
 
 ## Hard cap on biome qubits (enforced by actions, not by the quantum computer)
 const MAX_BIOME_QUBITS: int = 12

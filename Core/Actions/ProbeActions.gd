@@ -459,8 +459,8 @@ static func _prepare_pop_result(terminal, terminal_pool, economy = null, farm = 
 	# Apply vocabulary bonus to purity: 4× if known vocab
 	var effective_purity = purity * 4.0 if is_known_vocab else purity
 
-	# POP formula: prob × 10 × (1 + purity×4_if_vocab) × neighbors
-	var credits = recorded_prob * 10.0 * (1.0 + effective_purity) * neighbor_count
+	# POP formula: prob × 8 × (1 + purity×4_if_vocab) × neighbors
+	var credits = recorded_prob * 8.0 * (1.0 + effective_purity) * neighbor_count
 
 	if economy:
 		var resource_amount = int(credits)

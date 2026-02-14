@@ -142,10 +142,10 @@ func test_play_tool_1_probe():
 
 	# Test E = MEASURE
 	if is_planted:
-		var measured_before = plot_after.has_been_measured
+		var measured_before = plot_after.is_measured
 		input_handler.execute_action("E")  # MEASURE
 		await frames(5)
-		var measured_after = farm.grid.get_plot(test_pos).has_been_measured
+		var measured_after = farm.grid.get_plot(test_pos).is_measured
 		if measured_after or measured_before:
 			pass_test("probe_measure_E", "Measure action executed")
 		else:
