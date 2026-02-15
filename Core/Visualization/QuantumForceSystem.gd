@@ -114,7 +114,7 @@ var _coupling_cache: Dictionary = {}   # (node_a_id, node_b_id) → coupling_str
 var _mi_cache: Dictionary = {}         # (node_a_id, node_b_id) → mutual_info
 var _prev_population: Dictionary = {}  # node_id → previous north_opacity (for dP/dt)
 var _cache_timer: float = 0.0
-const CACHE_INTERVAL = 0.1             # Refresh caches at 10Hz
+const CACHE_INTERVAL = PhysicsConfig.PHRAME_DT  # Refresh caches at phrame rate
 
 # Debug output (set to true to see diagnostics every 2 seconds)
 var _debug_enabled: bool = true

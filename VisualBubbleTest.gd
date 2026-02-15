@@ -730,6 +730,8 @@ func _print_cpp_profiling_report():
 	var physics_fps = metrics.get("physics_fps", 10.0)
 
 	print("\n🎯 TARGET: 16.67ms (60 FPS)  |  ACTUAL: %.2fms (%.1f FPS)" % [frame_time_ms, vfps])
+	var interp_ok = "✅" if physics_fps > 0.5 else "❌"
+	print("⚛️ PHRAMES: %.1f Hz (target: %d Hz)  |  Interpolation: %s" % [physics_fps, PhysicsConfig.PHRAME_HZ, interp_ok])
 
 	# Get real tracked data from QuantumForceGraph if available
 	var perf = {}
@@ -812,7 +814,7 @@ func _print_cpp_profiling_report():
 	var coast_target = metrics.get("coast_target", 10)
 
 	var bar_width = 30
-	var max_coverage_ms = 2400.0  # 24 steps × 100ms = 2.4s max buffer
+	var max_coverage_ms = 4400.0  # ~26 steps × PHRAME_DT ≈ 4.3s max buffer
 	var fill = int(clampf(coverage_ms / max_coverage_ms, 0.0, 1.0) * bar_width)
 	var threshold_pos = int(clampf(threshold_ms / max_coverage_ms, 0.0, 1.0) * bar_width)
 	var bar = ""

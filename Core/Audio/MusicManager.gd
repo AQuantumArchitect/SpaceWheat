@@ -133,7 +133,7 @@ var _health_check_timer: float = 0.0  # 10Hz health check
 ## This keeps music synced with biome evolution - if biome is paused, music position is frozen.
 var preserve_track_positions: bool = true  # Resume tracks with evolution-synced advancement
 var _track_positions: Dictionary = {}  # track_key -> {position: float, evolution_count: int, biome_name: String}
-const EVOLUTION_DT: float = 0.1  # Seconds per evolution step (matches BiomeEvolutionBatcher.LOOKAHEAD_DT)
+const EVOLUTION_DT: float = PhysicsConfig.PHRAME_DT  # Seconds per evolution step (matches BiomeEvolutionBatcher.LOOKAHEAD_DT)
 
 ## Register-based playback control (Layer 3 - music tied to evolution)
 ## When true: Music only plays when active biome has explored bubbles (terminals bound)

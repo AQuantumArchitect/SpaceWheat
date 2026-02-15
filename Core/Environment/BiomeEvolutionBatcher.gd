@@ -51,14 +51,14 @@ func _resolve_flag(rig_key: String, global_key: String, rig_enabled: bool) -> bo
 
 # Configuration
 const BIOMES_PER_FRAME = 2  # Evolve 2 biomes per frame (Stage 1 fallback)
-const EVOLUTION_INTERVAL = 0.1  # 10Hz effective rate
+const EVOLUTION_INTERVAL = PhysicsConfig.PHRAME_DT  # Phrame rate (see PhysicsConfig)
 const ENABLE_EVOLUTION = true  # Enable quantum evolution (GDScript fallback path)
 
 # Lookahead configuration (Stage 2)
 const ENABLE_LOOKAHEAD = true  # Enable native lookahead if available, else fallback to Stage 1
-const LOOKAHEAD_STEPS = 13  # 13 phrames = 1.3s lookahead (Fib[6])
-const LOOKAHEAD_DT = 0.1  # Time per phrame (matches EVOLUTION_INTERVAL = 10Hz)
-const MAX_SUBSTEP_DT = 0.02  # Numerical stability limit
+const LOOKAHEAD_STEPS = 13  # 13 phrames × PHRAME_DT = ~2.2s lookahead (Fib[6])
+const LOOKAHEAD_DT = PhysicsConfig.PHRAME_DT  # Time per phrame (see PhysicsConfig)
+const MAX_SUBSTEP_DT = PhysicsConfig.MAX_SUBSTEP_DT  # Numerical stability limit
 const MIN_BUFFER_STEPS = 3
 const TARGET_BUFFER_STEPS = LOOKAHEAD_STEPS
 const MAX_BUFFER_STEPS = LOOKAHEAD_STEPS * 2
@@ -173,7 +173,7 @@ var _last_physics_frame: int = -1
 var _last_packet_completion_time: int = 0  # msec timestamp
 
 # Emergency rescue: Time-based starvation detection (Tier 1 - Tactical)
-const EMERGENCY_RESCUE_STEPS = 5           # Small packet: 5 frames (500ms @ 10Hz)
+const EMERGENCY_RESCUE_STEPS = 5           # Small packet: 5 phrames
 const EMERGENCY_SAFETY_MARGIN = 1.5        # Trigger when buffer_time < batch_time × 1.5
 const EMERGENCY_CRITICAL_DEPTH = 2          # Only rescue when biome is critically low (<= 2 phrames)
 const EMERGENCY_COOLDOWN_MS = 600           # Prevent rescue-loop lock-in (global packet cooldown)
@@ -774,7 +774,7 @@ func _get_coupling_payload_from_viz_cache(biome) -> Dictionary:
 var _first_tick_logged: bool = false
 
 func physics_process(delta: float):
-	"""Called at fixed 20Hz by physics loop (from Farm._physics_process()).
+	"""Called at PhysicsConfig.PHYSICS_TICKS_HZ by physics loop (from Farm._physics_process()).
 
 	Routes to lookahead mode (Stage 2) or rotation mode (Stage 1).
 	"""
@@ -795,7 +795,7 @@ func physics_process(delta: float):
 			print("[BiomeEvolutionBatcher] STAGE 2 ACTIVE: %d-phrame lookahead (%.1fs buffer, refill every %.1fs)" % [
 				LOOKAHEAD_STEPS, LOOKAHEAD_STEPS * LOOKAHEAD_DT, (LOOKAHEAD_DT * LOOKAHEAD_STEPS) * 0.8
 			])
-			print("  → Visual interpolation ENABLED: smooth 60fps ticks between 10Hz phrames")
+			print("  → Visual interpolation ENABLED: smooth 60fps ticks between %dHz phrames" % PhysicsConfig.PHRAME_HZ)
 		else:
 			print("[BiomeEvolutionBatcher] WARNING: Stage 1 fallback active (no native lookahead)")
 			print("  → This is SLOWER. Check if MultiBiomeLookaheadEngine loaded correctly.")
@@ -818,10 +818,10 @@ func _physics_process_lookahead(delta: float):
 
 	Terminology:
 	- tick = visual frame (60 FPS from _process)
-	- phrame = physics/evolution frame (10 Hz, this function runs at 20Hz physics but consumes at 10Hz)
+	- phrame = physics/evolution frame (PhysicsConfig.PHRAME_HZ)
 	- packet = C++ batch result containing N phrames
 
-	Key fix: Refill check runs at 10Hz phrame rate (consumption), not 20Hz (physics rate).
+	Key: Refill check runs at phrame rate (consumption).
 	"""
 	var t0 = Time.get_ticks_usec()
 
@@ -844,8 +844,8 @@ func _physics_process_lookahead(delta: float):
 	var t1 = Time.get_ticks_usec()
 	_phys_timing_time_track_us += (t1 - t0)
 
-	# === 10Hz CONSUMPTION AND REFILL CYCLE (phrames) ===
-	# Advance buffer cursors at 10Hz phrame rate (physics/evolution frames)
+	# === CONSUMPTION AND REFILL CYCLE (phrames) ===
+	# Advance buffer cursors at phrame rate (physics/evolution frames)
 	evolution_accumulator += delta
 
 	var t2 = Time.get_ticks_usec()
@@ -882,7 +882,7 @@ func _physics_process_lookahead(delta: float):
 
 	var t3 = Time.get_ticks_usec()
 
-	# === PACKET PROCESSING (per physics frame at 20Hz) ===
+	# === PACKET PROCESSING (per physics frame) ===
 	# Process ONE global packet (non-threaded, C++ is serialized via mutex anyway)
 	if lookahead_enabled and (not lookahead_batch_queue.is_empty() or _batch_thread != null):
 		process_one_lookahead_packet()
@@ -2619,7 +2619,7 @@ func get_stats() -> Dictionary:
 # =============================================================================
 # VISUAL INTERPOLATION LAYER
 # =============================================================================
-# Phrames update at 10Hz, visual ticks render at 60fps.
+# Phrames update at PhysicsConfig.PHRAME_HZ, visual ticks render at 60fps.
 # These methods provide smooth interpolation between phrames.
 
 func get_interpolation_factor() -> float:
@@ -2640,7 +2640,7 @@ func get_interpolated_snapshot(biome_name: String, register_id: int) -> Dictiona
 	"""Get interpolated visualization snapshot for smooth 60fps tick rendering.
 
 	Interpolates between current phrame and next phrame based on
-	time elapsed since last phrame consumption (10Hz).
+	time elapsed since last phrame consumption.
 
 	Returns: {p0, p1, r_xy, phi, purity, t} where t is the interpolation factor
 	"""
@@ -2719,7 +2719,7 @@ func _lerp_angle(a: float, b: float, t: float) -> float:
 
 
 func _track_physics_fps() -> void:
-	"""Track phrame rate (10Hz evolution consumption, separate from visual 60 FPS ticks)."""
+	"""Track phrame rate (evolution consumption, separate from visual 60 FPS ticks)."""
 	_physics_frame_count += 1
 	_evolution_tick_count += 1
 
@@ -2846,7 +2846,7 @@ func _queue_adaptive_packet(biome_rhos: Array, active_flags_arr: Array, packet_s
 	"""Queue a SINGLE C++ packet with adaptive size (Fibonacci-based).
 
 	Terminology:
-	- phrame = physics/evolution frame (10 Hz)
+	- phrame = physics/evolution frame (PhysicsConfig.PHRAME_HZ)
 	- packet = C++ batch result containing N phrames
 
 	RECOVERY: packet_size from Fibonacci sequence (1,1,2,3,5,8... phrames)
@@ -2905,7 +2905,7 @@ func process_one_lookahead_packet() -> void:
 
 	Terminology:
 	- tick = visual frame (60 FPS)
-	- phrame = physics/evolution frame (10 Hz)
+	- phrame = physics/evolution frame (PhysicsConfig.PHRAME_HZ)
 	- packet = C++ batch result containing N phrames
 
 	Uses Thread object for simpler async pattern with is_alive() checking.
@@ -3070,7 +3070,7 @@ func _on_packet_completed(result: Dictionary) -> void:
 
 		# REMOVED: Global escalation logic (System 3)
 		# Escalation is now handled per-biome in _update_biome_buffer_state()
-		# Called at 10Hz during consumption (line 778)
+		# Called at phrame rate during consumption
 		# Each biome independently escalates at depth < 2×batch_size
 
 		# Log completion
@@ -3092,7 +3092,7 @@ func _merge_accumulated_packets() -> void:
 	to biome buffers even after biomes are unregistered from batcher.
 
 	Terminology:
-	- phrame = physics/evolution frame (10 Hz)
+	- phrame = physics/evolution frame (PhysicsConfig.PHRAME_HZ)
 	- packet = C++ batch result containing N phrames
 
 	Performance: Yields to renderer every 5 biomes to prevent frame stuttering.

@@ -94,7 +94,7 @@ var _qc_missing_warned: bool = false
 
 # Performance: Control quantum evolution frequency
 var quantum_evolution_accumulator: float = 0.0
-var quantum_evolution_timestep: float = 0.1  # Physics update rate: 10 Hz
+var quantum_evolution_timestep: float = PhysicsConfig.PHRAME_DT  # Physics update rate
 var quantum_evolution_enabled: bool = true
 
 # Liquid Neural Net: Learns to modulate phases in the phasic shadow
