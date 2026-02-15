@@ -23,6 +23,9 @@ var _pending_buffers: Dictionary = {}
 var _pending_num_nodes: int = 0
 var _pending_callback: Callable = Callable()
 
+# Frame-delayed sync: submit one frame, sync the NEXT (gives GPU time to work)
+var _last_result: Dictionary = {}  # Double-buffer: cache last result for reuse
+
 # Persistent buffers
 var _position_buffer: RID = RID()
 var _velocity_buffer: RID = RID()
@@ -132,19 +135,22 @@ static func _load_shader_source(path: String) -> String:
 	return content
 
 func _init_gpu() -> void:
-	rd = RenderingServer.create_local_rendering_device()
-	if not rd:
-		return
-
-	if _shader_compiled and _shared_shader != RID() and _shared_pipeline != RID():
+	# Reuse shared RenderingDevice from pre_compile_shader() if available
+	if _shared_rd and _shader_compiled and _shared_shader != RID() and _shared_pipeline != RID():
+		rd = _shared_rd
 		force_shader = _shared_shader
 		force_pipeline = _shared_pipeline
 		gpu_available = true
 		return
 
-	# Fallback: compile on-demand
+	# No pre-compiled shader - create our own device and compile
+	rd = RenderingServer.create_local_rendering_device()
+	if not rd:
+		return
+
 	var result = pre_compile_shader()
 	if result.get("success", false):
+		rd = _shared_rd  # pre_compile_shader created _shared_rd, use it
 		force_shader = _shared_shader
 		force_pipeline = _shared_pipeline
 		gpu_available = true
@@ -247,17 +253,18 @@ func submit_multi_biome_forces(biome_data: Array[BiomeForceData], config: Dictio
 	return true
 
 func poll_results() -> Dictionary:
-	"""Poll for computation results (non-blocking).
+	"""Sync GPU and read results. Blocks on rd.sync() but this should be
+	fast if called one frame after submit (compute had time to run).
 
-	Returns empty dict if still computing or no results.
-	Returns {positions, velocities, angular_velocities} when ready.
+	Returns empty dict if not computing.
+	Returns {positions, velocities, angular_velocities} when complete.
 	"""
 	if _compute_state != ComputeState.COMPUTING:
 		return {}
 
 	# Sync and read results
 	var start_time = Time.get_ticks_usec()
-	rd.sync()  # Wait for GPU (could be made truly async with fences)
+	rd.sync()  # Blocks until compute completes (fast if compute already finished)
 
 	# Read output buffers
 	var pos_bytes = rd.buffer_get_data(_out_position_buffer)
@@ -267,12 +274,18 @@ func poll_results() -> Dictionary:
 	_compute_state = ComputeState.IDLE
 	last_readback_time_ms = (Time.get_ticks_usec() - start_time) / 1000.0
 
-	return {
+	var result = {
 		"positions": _unpack_vector2_from_bytes(pos_bytes, _pending_num_nodes),
 		"velocities": _unpack_vector2_from_bytes(vel_bytes, _pending_num_nodes),
 		"angular_velocities": _unpack_float32_from_bytes(ang_bytes, _pending_num_nodes),
 		"num_nodes": _pending_num_nodes,
 	}
+	_last_result = result
+	return result
+
+func get_last_result() -> Dictionary:
+	"""Get last completed result (for double-buffering when current compute is in-flight)."""
+	return _last_result
 
 func compute_forces_sync(biome_data: Array[BiomeForceData], config: Dictionary = {}) -> Dictionary:
 	"""Synchronous compute (for compatibility/testing)."""
@@ -488,7 +501,7 @@ func _unpack_float32_from_bytes(bytes: PackedByteArray, count: int) -> PackedFlo
 func cleanup():
 	"""Free all GPU resources."""
 	_free_buffers()
-	if rd:
+	if rd and rd != _shared_rd:
 		rd.free()
-		rd = null
+	rd = null
 	gpu_available = false

@@ -124,11 +124,9 @@ func _select_backend() -> void:
 		selected_backend = _try_native_cpu()
 		return
 
-	# Software renderer - skip GPU
+	# Software renderer - still try GPU (llvmpipe supports Vulkan compute)
 	if is_software_renderer:
-		print("[ComputeSelector] Software renderer detected - skipping GPU compute")
-		selected_backend = _try_native_cpu()
-		return
+		print("[ComputeSelector] Software renderer detected - will still try GPU compute")
 
 	# Try GPU compute for platforms that support it
 	match current_platform:
@@ -171,20 +169,17 @@ func _should_use_gpu() -> bool:
 			print("[ComputeSelector] Benchmark recommends CPU")
 			return false
 
-	# Check if RenderingDevice is available
-	var rd = RenderingServer.create_local_rendering_device()
-	if not rd:
+	# Use cached device name from _detect_platform() instead of creating another RenderingDevice
+	if gpu_device_name.is_empty():
 		print("[ComputeSelector] RenderingDevice unavailable - skipping GPU")
 		return false
 
-	var device_name = rd.get_device_name()
-	rd.free()
-
-	# Reject known software renderers
-	if device_name.to_lower().contains("llvmpipe") or \
-	   device_name.to_lower().contains("swiftshader"):
-		print("[ComputeSelector] Software Vulkan detected (%s) - skipping GPU" % device_name)
-		return false
+	# Software renderers (llvmpipe, swiftshader) still support Vulkan compute
+	# Let them through - the shader compile will validate if it actually works
+	if gpu_device_name.to_lower().contains("llvmpipe") or \
+	   gpu_device_name.to_lower().contains("swiftshader"):
+		print("[ComputeSelector] Software Vulkan detected (%s) - allowing GPU compute" % gpu_device_name)
+		return true
 
 	# Hardware GPU detected, but no benchmark - assume it's faster
 	print("[ComputeSelector] Hardware GPU detected (no benchmark) - assuming faster")

@@ -111,16 +111,17 @@ static func pre_compile_shader() -> Dictionary:
 
 func _init_gpu() -> void:
 	"""Try to initialize GPU compute (uses pre-compiled shader if available)."""
-	# Create local rendering device for compute
-	rd = RenderingServer.create_local_rendering_device()
-	if not rd:
-		return
-
-	# If shader was pre-compiled, use the shared version
-	if _shader_compiled and _shared_shader != RID() and _shared_pipeline != RID():
+	# Reuse shared RenderingDevice from pre_compile_shader() if available
+	if _shared_rd and _shader_compiled and _shared_shader != RID() and _shared_pipeline != RID():
+		rd = _shared_rd
 		force_shader = _shared_shader
 		force_pipeline = _shared_pipeline
 		gpu_available = true
+		return
+
+	# No pre-compiled shader - create our own device and compile
+	rd = RenderingServer.create_local_rendering_device()
+	if not rd:
 		return
 
 	# Fallback: compile on-demand (shouldn't happen if boot did pre-compilation)
@@ -578,5 +579,6 @@ func cleanup():
 			rd.free_rid(out_position_buffer)
 		if out_velocity_buffer != RID():
 			rd.free_rid(out_velocity_buffer)
-		rd.free()
+		if rd != _shared_rd:
+			rd.free()
 		rd = null

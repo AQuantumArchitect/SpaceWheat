@@ -263,10 +263,21 @@ func _update_gpu(delta: float, nodes: Array, biomes: Dictionary, layout_calculat
 
 
 func _update_gpu_v2(delta: float, nodes: Array, biomes: Dictionary, layout_calculator) -> void:
-	"""GPU V2: Async multi-biome dispatch with angular momentum."""
+	"""GPU V2: Async multi-biome dispatch with angular momentum.
+
+	Two-phase flow:
+	  Phase 1: Sync previous compute (poll_results blocks but should be fast
+	           since compute has been running since last frame's submit).
+	  Phase 2: Build new data and submit (non-blocking).
+
+	The key optimization is that submit() returns immediately and compute
+	runs in the background during the rest of this frame + rendering.
+	By next frame, sync should be near-instant.
+	"""
 	if nodes.is_empty():
 		return
 
+	# Phase 1: Collect previous frame's results
 	if _gpu_calculator_v2.is_computing():
 		var result = _gpu_calculator_v2.poll_results()
 		if not result.is_empty():
@@ -341,9 +352,9 @@ func _update_gpu_v2(delta: float, nodes: Array, biomes: Dictionary, layout_calcu
 
 	if not _gpu_calculator_v2.submit_multi_biome_forces(biome_data_array, config):
 		# If submit failed (busy), use sync fallback
-		var result = _gpu_calculator_v2.compute_forces_sync(biome_data_array, config)
-		if not result.is_empty():
-			_apply_gpu_v2_results(result, nodes)
+		var sync_result = _gpu_calculator_v2.compute_forces_sync(biome_data_array, config)
+		if not sync_result.is_empty():
+			_apply_gpu_v2_results(sync_result, nodes)
 
 
 # Node mapping for async result application
