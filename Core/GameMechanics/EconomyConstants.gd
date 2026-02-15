@@ -23,6 +23,10 @@ const MIDWIFE_EMOJI: String = "🍼"
 ## Drain factor: fraction of probability removed during MEASURE
 const DRAIN_FACTOR: float = 0.5
 
+## Vocabulary purity multipliers (unknown vocab now penalized)
+const KNOWN_VOCAB_PURITY_MULTIPLIER: float = 4.0
+const UNKNOWN_VOCAB_PURITY_MULTIPLIER: float = 0.5
+
 ## ===========================================
 ## ACTION COSTS (Classical Resources as Sink)
 ## ===========================================
@@ -264,4 +268,3 @@ static func commit_gate(gate_name: String, economy) -> bool:
 	else:
 		cost = get_gate_cost(gate_name)
 	return commit_cost(cost, economy, gate_name)
-

@@ -243,8 +243,12 @@ func _stage_visualization(farm: Node, quantum_viz: Node) -> void:
 
 		_verbose.info("boot", "✓", "Quantum viz ready")
 
-	# Pre-compile GPU shaders before creating force graph
-	if biomes.size() > 0:
+	# Pre-compile GPU shaders before creating force graph (requires Vulkan RenderingDevice)
+	var _rd_check = RenderingServer.create_local_rendering_device()
+	var _has_rd = _rd_check != null
+	if _rd_check:
+		_rd_check.free()
+	if biomes.size() > 0 and _has_rd:
 		_verbose.info("boot", "🔧", "Pre-compiling GPU compute shaders...")
 		var GPUForceCalculatorClass = load("res://Core/Visualization/GPUForceCalculator.gd")
 		var compile_result = GPUForceCalculatorClass.pre_compile_shader()
@@ -255,6 +259,8 @@ func _stage_visualization(farm: Node, quantum_viz: Node) -> void:
 			])
 		else:
 			_verbose.warn("boot", "⚠️", "Shader compilation failed: %s" % compile_result.message)
+	elif biomes.size() > 0:
+		_verbose.info("boot", "ℹ️", "OpenGL mode — force physics via C++ (no GPU compute shaders)")
 
 	if biomes.size() > 0:
 		_verbose.info("boot", "🎨", "Building emoji atlas...")
@@ -301,20 +307,8 @@ func _stage_visualization(farm: Node, quantum_viz: Node) -> void:
 		else:
 			_verbose.warn("boot", "⚠️", "Bubble atlas build failed - using C++ fallback")
 
-	# Boot explore: trigger a real EXPLORE action at position "j" (x=0) in first biome
-	# This creates a real terminal binding, emits terminal_bound, and creates a real bubble
-	if biomes.size() > 0 and farm.terminal_pool:
-		var boot_biome_name = "StarterForest" if biomes.has("StarterForest") else biomes.keys()[0]
-		var boot_biome = biomes[boot_biome_name]
-		var result = ProbeActions.action_explore(farm.terminal_pool, boot_biome, farm.economy)
-		if result.get("success"):
-			var biome_row = farm.get_biome_row(boot_biome_name)
-			var grid_pos = Vector2i(0, biome_row)  # "j" = x=0 in the biome's row
-			farm.emit_action_signal("explore", result, grid_pos)
-			_verbose.info("boot", "🌱", "Boot explore: %s at %s (register %d)" % [
-				boot_biome_name, grid_pos, result.get("register_id", -1)])
-		else:
-			_verbose.warn("boot", "⚠️", "Boot explore failed: %s" % result.get("message", "unknown"))
+	# Initial explored terminals are now sourced from save/scenario state
+	# (GameStateSerializer plot restore), not hardcoded boot-time auto-explore.
 
 	visualization_ready.emit()
 
@@ -689,5 +683,3 @@ func _collect_all_emojis(biomes: Dictionary) -> Array:
 					unique_emojis[axis.south] = true
 
 	return unique_emojis.keys()
-
-

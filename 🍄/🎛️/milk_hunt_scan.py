@@ -93,6 +93,7 @@ def _scan_pipe(root: Path) -> int:
         "success_count": int(data.get("success_count", 0) or 0),
         "success_rate": float(data.get("success_rate", 0.0) or 0.0),
         "avg_turns_all": float(data.get("avg_turns_all", 0.0) or 0.0),
+        "avg_steps_all": float(data.get("avg_steps_all", 0.0) or 0.0),
     }
     print(json.dumps(header, ensure_ascii=False))
 
@@ -105,6 +106,7 @@ def _scan_pipe(root: Path) -> int:
             "found_milk_pair": bool(run.get("found_milk_pair", False)),
             "known_pairs_count": int(run.get("known_pairs_count", 0) or 0),
             "milk_pair_index": run.get("milk_pair_index", None),
+            "steps": int(run.get("steps", run.get("turns_executed", 0) or 0) or 0),
             "turns_executed": int(run.get("turns_executed", 0) or 0),
             "log_path": run.get("log_path", ""),
         }

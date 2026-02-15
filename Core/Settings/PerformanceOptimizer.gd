@@ -37,13 +37,20 @@ static func optimize_for_platform() -> void:
 
 	# Apply settings
 	if is_software_render:
-		# Software rendering: disable VSYNC for lower perceived latency
+		# Software rendering: disable VSYNC, cap FPS to avoid 100% CPU spin
 		DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED)
-		print("[PerformanceOptimizer] VSYNC: OFF (software rendering)")
+		Engine.max_fps = 30
+		print("[PerformanceOptimizer] VSYNC: OFF (software rendering), FPS cap: 30")
 	else:
-		# Real GPU: keep VSYNC for power efficiency and smooth 60 FPS
-		DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_ENABLED)
-		print("[PerformanceOptimizer] VSYNC: ON (hardware GPU)")
+		# Real GPU: VSYNC if supported, otherwise cap at 60 FPS
+		# OpenGL via Mesa d3d12 doesn't support runtime VSYNC changes
+		var is_opengl = not RenderingServer.get_rendering_device()
+		if is_opengl:
+			Engine.max_fps = 60
+			print("[PerformanceOptimizer] OpenGL mode — FPS cap: 60 (VSYNC not available)")
+		else:
+			DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_ENABLED)
+			print("[PerformanceOptimizer] VSYNC: ON (hardware GPU)")
 
 
 static func get_performance_profile() -> Dictionary:

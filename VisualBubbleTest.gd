@@ -5,6 +5,7 @@ extends Node2D
 ## Decoupled from main game's BootManager refactoring.
 ## Loads biomes from biomes_merged.json via TestBootManager.
 
+const _PC = preload("res://Core/Config/PhysicsConfig.gd")
 const TestBootManager = preload("res://Tests/TestBootManager.gd")
 const QuantumForceGraph = preload("res://Core/Visualization/QuantumForceGraph.gd")
 const SimStatsOverlay = preload("res://UI/Overlays/SimStatsOverlay.gd")
@@ -731,7 +732,7 @@ func _print_cpp_profiling_report():
 
 	print("\n🎯 TARGET: 16.67ms (60 FPS)  |  ACTUAL: %.2fms (%.1f FPS)" % [frame_time_ms, vfps])
 	var interp_ok = "✅" if physics_fps > 0.5 else "❌"
-	print("⚛️ PHRAMES: %.1f Hz (target: %d Hz)  |  Interpolation: %s" % [physics_fps, PhysicsConfig.PHRAME_HZ, interp_ok])
+	print("⚛️ PHRAMES: %.1f Hz (target: %d Hz)  |  Interpolation: %s" % [physics_fps, _PC.PHRAME_HZ, interp_ok])
 
 	# Get real tracked data from QuantumForceGraph if available
 	var perf = {}

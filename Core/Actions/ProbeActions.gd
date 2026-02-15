@@ -450,17 +450,20 @@ static func _prepare_pop_result(terminal, terminal_pool, economy = null, farm = 
 		var neighbors = farm.grid.get_neighbors(terminal.grid_position)
 		neighbor_count = neighbors.size()
 
-	# Check if emoji is in known vocabulary (for 4× purity bonus)
+	# Check if emoji is in known vocabulary (known gets a big multiplier, unknown is penalized)
 	var is_known_vocab = false
 	if farm and farm.has_method("get_known_emojis"):
 		var known_emojis = farm.get_known_emojis()
 		is_known_vocab = resource in known_emojis
 
-	# Apply vocabulary bonus to purity: 4× if known vocab
-	var effective_purity = purity * 4.0 if is_known_vocab else purity
+	# Apply vocabulary multiplier (known vs unknown)
+	var vocab_multiplier = EconomyConstants.UNKNOWN_VOCAB_PURITY_MULTIPLIER
+	if is_known_vocab:
+		vocab_multiplier = EconomyConstants.KNOWN_VOCAB_PURITY_MULTIPLIER
+	var effective_purity = purity * vocab_multiplier
 
-	# POP formula: prob × 8 × (1 + purity×4_if_vocab) × neighbors
-	var credits = recorded_prob * 8.0 * (1.0 + effective_purity) * neighbor_count
+	# POP formula: prob × (1 + purity×4_if_vocab) × neighbors (quantum mass = credits)
+	var credits = recorded_prob * 1.0 * (1.0 + effective_purity) * neighbor_count
 
 	if economy:
 		var resource_amount = int(credits)
@@ -561,14 +564,17 @@ static func action_harvest_all(terminal_pool, economy = null, biome = null) -> D
 		# Note: Can't get neighbors here since terminal might not have grid_position set
 		# Using default 4 neighbors
 
-		# Check if outcome emoji is in known vocabulary (for 4× purity bonus)
+		# Check if outcome emoji is known (known gets multiplier, unknown receives penalty)
 		var is_known_vocab = outcome in known_emojis
 
-		# Apply vocabulary bonus to purity: 4× if known vocab
-		var effective_purity = purity * 4.0 if is_known_vocab else purity
+		# Apply vocabulary multiplier
+		var vocab_multiplier = EconomyConstants.UNKNOWN_VOCAB_PURITY_MULTIPLIER
+		if is_known_vocab:
+			vocab_multiplier = EconomyConstants.KNOWN_VOCAB_PURITY_MULTIPLIER
+		var effective_purity = purity * vocab_multiplier
 
-		# POP formula: prob × 10 × (1 + purity×4_if_vocab) × neighbors
-		var pop_credits = int(probability * 10.0 * (1.0 + effective_purity) * neighbor_count)
+		# POP formula: prob × (1 + purity×4_if_vocab) × neighbors (quantum mass = credits)
+		var pop_credits = int(probability * 1.0 * (1.0 + effective_purity) * neighbor_count)
 
 		if pop_credits > 0 and outcome != "":
 			if not resource_totals.has(outcome):

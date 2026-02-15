@@ -1,6 +1,8 @@
 class_name BiomeBase
 extends Node
 
+const _PC = preload("res://Core/Config/PhysicsConfig.gd")
+
 # Access autoloads safely (avoids compile-time errors)
 @onready var _icon_registry = get_node("/root/IconRegistry")
 @onready var _verbose = get_node("/root/VerboseConfig")
@@ -94,7 +96,7 @@ var _qc_missing_warned: bool = false
 
 # Performance: Control quantum evolution frequency
 var quantum_evolution_accumulator: float = 0.0
-var quantum_evolution_timestep: float = PhysicsConfig.PHRAME_DT  # Physics update rate
+var quantum_evolution_timestep: float = _PC.PHRAME_DT  # Physics update rate
 var quantum_evolution_enabled: bool = true
 
 # Liquid Neural Net: Learns to modulate phases in the phasic shadow

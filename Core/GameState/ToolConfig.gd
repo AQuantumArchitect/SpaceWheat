@@ -482,4 +482,12 @@ static func get_tool_count() -> int:
 	return 4
 
 
-# Removed: SUBMENUS, get_submenu(), get_dynamic_submenu() - dead code (never used)
+# Removed: SUBMENUS constant - submenus now handled by UI components
+# Note: get_submenu() kept as stub for ActionValidator backward compatibility
+
+static func get_submenu(submenu_name: String) -> Dictionary:
+	"""Stub function for ActionValidator compatibility.
+	Submenus are now handled by GateSelectionSubmenu and VocabSelectionSubmenu.
+	Returns empty dict - validator should use cached_submenu parameter instead.
+	"""
+	return {}

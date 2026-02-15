@@ -37,6 +37,7 @@ window/size/viewport_width=960
 window/size/viewport_height=540
 window/size/initial_position_type=2
 window/stretch/mode="canvas_items"
+window/vsync/vsync_mode=0
 
 [gdextension]
 
@@ -255,4 +256,5 @@ common/physics_ticks_per_second=6
 
 [rendering]
 
-renderer/rendering_method="mobile"
+renderer/rendering_method="gl_compatibility"
+renderer/rendering_method.mobile="gl_compatibility"

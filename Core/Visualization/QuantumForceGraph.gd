@@ -561,8 +561,10 @@ func connect_to_farm(farm: Node) -> void:
 
 
 func _on_terminal_bound(position: Vector2i, terminal_id: String, emoji_pair: Dictionary) -> void:
-	"""Handle terminal bound event - create bubble when EXPLORE binds a terminal.
-	Also removes the test bubble on first EXPLORE (transient boot validation)."""
+	"""Handle terminal bound event - create bubble when a terminal is bound.
+
+	Bindings can come from live EXPLORE actions or from save/scenario restore.
+	"""
 	var north_emoji = emoji_pair.get("north", "?")
 	var south_emoji = emoji_pair.get("south", "?")
 

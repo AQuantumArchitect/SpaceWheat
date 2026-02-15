@@ -30,7 +30,7 @@ static func _log(level: String, category: String, emoji: String, message: String
 			"error": logger.error(category, emoji, message)
 
 
-static func apply_theming(params: FactionStateMatcher.QuestParameters, bath) -> Dictionary:
+static func apply_theming(params: FactionStateMatcher.QuestParameters, bath, economy = null) -> Dictionary:
 	"""Map abstract parameters to SpaceWheat quest
 
 	Chooses quest type based on complexity and generates appropriate quest
@@ -44,7 +44,7 @@ static func apply_theming(params: FactionStateMatcher.QuestParameters, bath) -> 
 
 	match quest_type:
 		QuestTypes.Type.DELIVERY:
-			quest = _generate_delivery_quest(params, bath)
+			quest = _generate_delivery_quest(params, bath, economy)
 		QuestTypes.Type.SHAPE_ACHIEVE:
 			quest = _generate_shape_achieve_quest(params)
 		QuestTypes.Type.SHAPE_MAINTAIN:
@@ -54,7 +54,7 @@ static func apply_theming(params: FactionStateMatcher.QuestParameters, bath) -> 
 		QuestTypes.Type.ENTANGLEMENT:
 			quest = _generate_entanglement_quest(params)
 		_:
-			quest = _generate_delivery_quest(params, bath)  # Fallback
+			quest = _generate_delivery_quest(params, bath, economy)  # Fallback
 
 	# Add quest type
 	quest["type"] = quest_type
@@ -92,7 +92,7 @@ static func _select_quest_type(params: FactionStateMatcher.QuestParameters) -> i
 		return QuestTypes.Type.DELIVERY if randf() < 0.8 else QuestTypes.Type.SHAPE_ACHIEVE
 
 
-static func _generate_delivery_quest(params: FactionStateMatcher.QuestParameters, bath) -> Dictionary:
+static func _generate_delivery_quest(params: FactionStateMatcher.QuestParameters, bath, economy = null) -> Dictionary:
 	"""Generate traditional delivery quest (current system)"""
 
 	# intensity → quantity in CREDITS (fallback when IconMap missing)
@@ -101,9 +101,9 @@ static func _generate_delivery_quest(params: FactionStateMatcher.QuestParameters
 
 	# Sample resource from ALLOWED emojis only (vocabulary constraint!)
 	var allowed_emojis = params.available_emojis if params.available_emojis.size() > 0 else []
-	var resource = _sample_from_allowed_emojis(bath, allowed_emojis, params)
+	var resource = _sample_from_allowed_emojis(bath, allowed_emojis, params, economy)
 
-	# If IconMap is available, map cumulative probability → credits (x10)
+	# If IconMap is available, map quantum mass → credits (1:1 direct mapping)
 	var icon_map = _get_icon_map_payload(bath)
 	if icon_map and icon_map.has("by_emoji") and resource != "":
 		var weight = icon_map["by_emoji"].get(resource, 0.0)
@@ -249,7 +249,7 @@ static func _fallback_emoji(index: int) -> String:
 	return fallbacks[index % fallbacks.size()]
 
 
-static func _sample_from_allowed_emojis(bath, allowed_emojis: Array, params) -> String:
+static func _sample_from_allowed_emojis(bath, allowed_emojis: Array, params, economy = null) -> String:
 	"""Sample emoji from bath's probability distribution, constrained to allowed vocabulary
 
 	Strategy:
@@ -264,6 +264,33 @@ static func _sample_from_allowed_emojis(bath, allowed_emojis: Array, params) -> 
 	if allowed_emojis.is_empty():
 		_log("warn", "quest", "⚠️", "Empty allowed_emojis - fallback to 🌾")
 		return "🌾"  # Ultimate fallback
+
+	# Economy-weighted demand: sample proportional to player's resource quantities
+	if economy != null and economy.has_method("get_resource"):
+		var econ_emojis: Array = []
+		var econ_weights: Array = []
+		var econ_total = 0.0
+
+		for emoji in allowed_emojis:
+			var amount = economy.get_resource(emoji)
+			if amount > 0:
+				var weight = 1.0 + log(1.0 + amount) / 3.0
+				econ_emojis.append(emoji)
+				econ_weights.append(weight)
+				econ_total += weight
+
+		if not econ_emojis.is_empty() and econ_total > 0.0:
+			var roll = randf() * econ_total
+			var cumulative = 0.0
+			for i in range(econ_weights.size()):
+				cumulative += econ_weights[i]
+				if roll <= cumulative:
+					var chosen = econ_emojis[i]
+					_log("debug", "quest", "💰", "Sampled %s from economy (w=%.3f, roll=%.3f)" % [
+						chosen, econ_weights[i], roll
+					])
+					return chosen
+			return econ_emojis[0]
 
 	var icon_map = _get_icon_map_payload(bath)
 	if icon_map and icon_map.has("by_emoji"):
@@ -403,7 +430,8 @@ static func generate_quest(
 	faction: Dictionary,
 	bath,
 	player_vocab: Array = [],
-	bias_emojis: Array = []
+	bias_emojis: Array = [],
+	economy = null
 ) -> Dictionary:
 	"""Full pipeline: faction x bath -> themed quest
 
@@ -481,7 +509,7 @@ static func generate_quest(
 	params.available_emojis = available_emojis
 
 	# 8. Apply SpaceWheat theming (quest resources MUST come from available_emojis)
-	var quest = apply_theming(params, bath)
+	var quest = apply_theming(params, bath, economy)
 
 	# 9. Add faction metadata
 	quest["faction"] = faction.get("name", "Unknown")
@@ -517,7 +545,7 @@ static func generate_quest(
 	quest["reward_vocab_south"] = vocab_pair.get("south", "")
 	quest["reward_vocab_probability"] = vocab_pair.get("probability", 0.0)
 	quest["reward_vocab_weight"] = vocab_pair.get("weight", 0.0)
-	quest["reward_resources"] = QuestRewards.plan_resource_rewards(quest, faction)
+	quest["reward_resources"] = QuestRewards.plan_resource_rewards(quest, faction, icon_map if icon_map else {})
 
 	_log("debug", "quest", "📖", "Pre-rolled vocab pair: %s/%s (%.0f%%)" % [
 		vocab_pair.get("north", "?"),

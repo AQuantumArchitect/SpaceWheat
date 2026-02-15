@@ -12,6 +12,7 @@ archive/
 
 # Test files (development only)
 Tests/
+!Tests/rig_listener.gd
 
 # Editor-specific files
 .vscode/

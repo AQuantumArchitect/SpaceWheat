@@ -7,18 +7,23 @@ const QuantumForceGraph = preload("res://Core/Visualization/QuantumForceGraph.gd
 const ProbeActions = preload("res://Core/Actions/ProbeActions.gd")
 const BiomeBackgroundClass = preload("res://Core/Visualization/BiomeBackground.gd")
 const PerformanceHUDClass = preload("res://UI/Overlays/PerformanceHUD.gd")
+const MilkHunterBridgeClass = preload("res://Core/Instrumentation/MilkHunterBridge.gd")
+const MilkHunterHUDClass = preload("res://UI/Overlays/MilkHunterHUD.gd")
 # BootManager is an autoload singleton - no need to preload
 
 const BACKGROUND_LAYER := -1
 const SHELL_Z_INDEX := 10
 const QUANTUM_VIZ_Z_INDEX := 40
 const PERFORMANCE_HUD_Z_INDEX := 2000
+const MILK_HUNTER_HUD_Z_INDEX := 1500
 
 var shell = null  # PlayerShell (from scene)
 var farm: Node = null
 var quantum_viz: QuantumForceGraph = null
 var biome_background: Control = null  # BiomeBackground for full-screen biome art
 var performance_hud: Control = null  # Performance profiling overlay
+var milk_hunter_bridge: Node = null  # MilkHunterBridge (phrame-paced IPC)
+var milk_hunter_hud: Control = null  # MilkHunterHUD overlay
 
 # Helpers to access autoloads safely (avoids compile-time errors in tests)
 @onready var _verbose = get_node("/root/VerboseConfig")
@@ -93,6 +98,10 @@ func _ready():
 	await _boot_mgr.boot_ui(farm, shell, quantum_viz)
 	_verbose.info("farm", "✅", "UI Boot Sequence complete")
 
+	# Optional: phrame-paced milk hunter bridge for visual automation runs
+	if OS.get_environment("RIG_PHRAME_BRIDGE") == "1":
+		_create_milk_hunter_bridge()
+
 	# ═══════════════════════════════════════════════════════════════════════
 	# POST-BOOT: Additional signal connections and final setup
 	# ═══════════════════════════════════════════════════════════════════════
@@ -138,6 +147,22 @@ func _create_performance_hud() -> void:
 	add_child(performance_hud)
 	performance_hud.z_index = PERFORMANCE_HUD_Z_INDEX  # Above all UI
 	_verbose.info("ui", "✅", "Performance HUD created")
+
+
+func _create_milk_hunter_bridge() -> void:
+	"""Create phrame-paced milk hunter bridge + HUD overlay."""
+	_verbose.info("ui", "🌉", "Creating MilkHunterBridge (RIG_PHRAME_BRIDGE=1)...")
+	milk_hunter_bridge = MilkHunterBridgeClass.new()
+	milk_hunter_bridge.name = "MilkHunterBridge"
+	add_child(milk_hunter_bridge)
+	milk_hunter_bridge.setup(farm, shell.farm_instrument)
+
+	milk_hunter_hud = MilkHunterHUDClass.new()
+	milk_hunter_hud.name = "MilkHunterHUD"
+	add_child(milk_hunter_hud)
+	milk_hunter_hud.z_index = MILK_HUNTER_HUD_Z_INDEX
+	milk_hunter_hud.connect_to_bridge(milk_hunter_bridge)
+	_verbose.info("ui", "✅", "MilkHunterBridge + HUD ready")
 
 
 func _connect_quantum_viz_to_farm() -> void:

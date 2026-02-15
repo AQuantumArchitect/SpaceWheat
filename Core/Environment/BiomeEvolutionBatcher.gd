@@ -49,16 +49,18 @@ func _resolve_flag(rig_key: String, global_key: String, rig_enabled: bool) -> bo
 	return rig_enabled and _env_flag(rig_key, false)
 
 
+const _PC = preload("res://Core/Config/PhysicsConfig.gd")
+
 # Configuration
 const BIOMES_PER_FRAME = 2  # Evolve 2 biomes per frame (Stage 1 fallback)
-const EVOLUTION_INTERVAL = PhysicsConfig.PHRAME_DT  # Phrame rate (see PhysicsConfig)
+const EVOLUTION_INTERVAL = _PC.PHRAME_DT  # Phrame rate (see PhysicsConfig)
 const ENABLE_EVOLUTION = true  # Enable quantum evolution (GDScript fallback path)
 
 # Lookahead configuration (Stage 2)
 const ENABLE_LOOKAHEAD = true  # Enable native lookahead if available, else fallback to Stage 1
 const LOOKAHEAD_STEPS = 13  # 13 phrames × PHRAME_DT = ~2.2s lookahead (Fib[6])
-const LOOKAHEAD_DT = PhysicsConfig.PHRAME_DT  # Time per phrame (see PhysicsConfig)
-const MAX_SUBSTEP_DT = PhysicsConfig.MAX_SUBSTEP_DT  # Numerical stability limit
+const LOOKAHEAD_DT = _PC.PHRAME_DT  # Time per phrame (see PhysicsConfig)
+const MAX_SUBSTEP_DT = _PC.MAX_SUBSTEP_DT  # Numerical stability limit
 const MIN_BUFFER_STEPS = 3
 const TARGET_BUFFER_STEPS = LOOKAHEAD_STEPS
 const MAX_BUFFER_STEPS = LOOKAHEAD_STEPS * 2
@@ -795,7 +797,7 @@ func physics_process(delta: float):
 			print("[BiomeEvolutionBatcher] STAGE 2 ACTIVE: %d-phrame lookahead (%.1fs buffer, refill every %.1fs)" % [
 				LOOKAHEAD_STEPS, LOOKAHEAD_STEPS * LOOKAHEAD_DT, (LOOKAHEAD_DT * LOOKAHEAD_STEPS) * 0.8
 			])
-			print("  → Visual interpolation ENABLED: smooth 60fps ticks between %dHz phrames" % PhysicsConfig.PHRAME_HZ)
+			print("  → Visual interpolation ENABLED: smooth 60fps ticks between %dHz phrames" % _PC.PHRAME_HZ)
 		else:
 			print("[BiomeEvolutionBatcher] WARNING: Stage 1 fallback active (no native lookahead)")
 			print("  → This is SLOWER. Check if MultiBiomeLookaheadEngine loaded correctly.")

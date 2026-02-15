@@ -108,26 +108,61 @@ static func generate_reward(quest: Dictionary, bath, player_vocab: Array) -> Que
 	return reward
 
 
-static func plan_resource_rewards(quest: Dictionary, faction: Dictionary = {}) -> Dictionary:
-	"""Pre-roll resource rewards at quest creation time for deterministic UI/claim."""
-	return _build_resource_reward_plan(quest, faction, false)
+static func plan_resource_rewards(quest: Dictionary, faction: Dictionary = {}, icon_map: Dictionary = {}) -> Dictionary:
+	"""Pre-roll resource rewards at quest creation time for deterministic UI/claim.
+
+	CRITICAL: Ensures south pole emoji resources are granted (needed for vocab injection).
+	Vocab injection costs 4 [south_emoji] + 10 🌱, so we must grant ≥4 of south emoji.
+	"""
+	var rewards = _build_resource_reward_plan(quest, faction, false, icon_map)
+
+	# CRITICAL FIX: Always grant south pole resources for vocab injection
+	var south = quest.get("reward_vocab_south", "")
+	if south != "":
+		# Ensure at least 4 south resources (needed for injection - scaled for 1:1 quantum mass economy)
+		if not rewards.has(south):
+			rewards[south] = 4
+		else:
+			rewards[south] = max(int(rewards[south]), 4)
+
+	# Also grant some north pole resources (bonus)
+	var north = quest.get("reward_vocab_north", "")
+	if north != "" and north != south:
+		# Ensure at least 10 north resources (bonus to help complete the pair - scaled for 1:1 economy)
+		if not rewards.has(north):
+			rewards[north] = 10
+		else:
+			rewards[north] = max(int(rewards[north]), 10)
+
+	return rewards
 
 
-static func estimate_resource_rewards(quest: Dictionary, faction: Dictionary = {}) -> Dictionary:
+static func estimate_resource_rewards(quest: Dictionary, faction: Dictionary = {}, icon_map: Dictionary = {}) -> Dictionary:
 	"""Deterministic estimate for preview paths when quest has no pre-rolled bundle."""
-	return _build_resource_reward_plan(quest, faction, true)
+	return _build_resource_reward_plan(quest, faction, true, icon_map)
 
 
-static func _build_resource_reward_plan(quest: Dictionary, faction: Dictionary, deterministic: bool) -> Dictionary:
+static func _build_resource_reward_plan(quest: Dictionary, faction: Dictionary, deterministic: bool, icon_map: Dictionary = {}) -> Dictionary:
 	var faction_name = quest.get("faction", faction.get("name", ""))
 	var signature = quest.get("faction_signature", faction.get("sig", faction.get("signature", [])))
 	var faction_dynamic = _get_faction_dynamic_data(faction_name, signature)
-	var profile = _compute_hamiltonian_reward_profile(faction_dynamic)
+
+	var profile: Dictionary
+	var total_budget: int
+
+	# IconMap-projected rewards (north pole from quantum state)
+	if not icon_map.is_empty() and icon_map.has("by_emoji"):
+		profile = _compute_iconmap_reward_profile(faction_dynamic, icon_map)
+		var iconmap_total = float(icon_map.get("total", 0.0))
+		total_budget = int(clamp(round(iconmap_total), RESOURCE_REWARD_MIN_TOTAL, RESOURCE_REWARD_MAX_TOTAL))
+	else:
+		# Fallback: Hamiltonian eigenvalue rewards (old behavior)
+		profile = _compute_hamiltonian_reward_profile(faction_dynamic)
+		total_budget = _compute_total_resource_budget(quest, profile.get("dominant_eigenvalue", 0.0))
 
 	if profile.get("weights", {}).is_empty():
 		return {}
 
-	var total_budget = _compute_total_resource_budget(quest, profile.get("dominant_eigenvalue", 0.0))
 	if total_budget <= 0:
 		return {}
 
@@ -309,6 +344,34 @@ static func _compute_hamiltonian_reward_profile(faction_data: Dictionary) -> Dic
 		"weights": weights,
 		"dominant_eigenvalue": dominant_eigenvalue
 	}
+
+
+static func _compute_iconmap_reward_profile(faction_data: Dictionary, icon_map: Dictionary) -> Dictionary:
+	"""Project IconMap weights onto faction signature for reward distribution."""
+	var signature = faction_data.get("sig", [])
+	if signature.is_empty():
+		return {"weights": {}}
+
+	var by_emoji: Dictionary = icon_map.get("by_emoji", {})
+	if by_emoji.is_empty():
+		return {"weights": {}}
+
+	var weights: Dictionary = {}
+	var total = 0.0
+
+	for emoji in signature:
+		if by_emoji.has(emoji):
+			var w = max(0.0, float(by_emoji[emoji]))
+			if w > 0.0:
+				weights[emoji] = w
+				total += w
+
+	# Normalize weights
+	if total > 0.0:
+		for emoji in weights.keys():
+			weights[emoji] = float(weights[emoji]) / total
+
+	return {"weights": weights}
 
 
 static func _compute_total_resource_budget(quest: Dictionary, dominant_eigenvalue: float) -> int:

@@ -44,8 +44,12 @@ class RigClient:
     def clear_rig_files(self) -> None:
         self.queue_file.parent.mkdir(parents=True, exist_ok=True)
         for p in (self.queue_file, self.results_file):
-            if p.exists():
-                p.unlink()
+            try:
+                p.unlink(missing_ok=True)
+            except TypeError:
+                # Python < 3.8 compatibility fallback.
+                if p.exists():
+                    p.unlink()
 
     @staticmethod
     def find_listener_pids() -> List[int]:
@@ -73,12 +77,20 @@ class RigClient:
             except ProcessLookupError:
                 pass
 
-    def start_listener(self, *, load_slot: Optional[int] = None, scenario_id: str = "default") -> subprocess.Popen:
+    def start_listener(
+        self,
+        *,
+        load_slot: Optional[int] = None,
+        scenario_id: str = "default",
+        allow_resource_injection: Optional[bool] = None,
+    ) -> subprocess.Popen:
         env = os.environ.copy()
         env["XDG_ROOT"] = str(self.xdg_root)
         if load_slot is not None:
             env["RIG_LOAD_SLOT"] = str(load_slot)
         env["RIG_SCENARIO"] = scenario_id
+        if allow_resource_injection is not None:
+            env["RIG_ALLOW_RESOURCE_INJECTION"] = "1" if allow_resource_injection else "0"
         return subprocess.Popen(
             [str(self.start_script)],
             cwd=str(self.project_root),

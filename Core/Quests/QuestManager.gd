@@ -305,7 +305,7 @@ func offer_quest_emergent(faction: Dictionary, biome) -> Dictionary:
 	var bias_emojis = _get_simulated_vocab_emojis(biome)
 
 	# Generate via abstract machinery + theming (with vocabulary constraint!)
-	var quest = QuestTheming.generate_quest(faction, biome, player_vocab, bias_emojis)
+	var quest = QuestTheming.generate_quest(faction, biome, player_vocab, bias_emojis, self.economy)
 
 	# Check for vocabulary mismatch error
 	if quest.is_empty() or quest.has("error"):
@@ -346,7 +346,7 @@ func offer_all_faction_quests(biome) -> Array:
 
 	for faction in FactionDatabase.ALL_FACTIONS:
 		# Use full generate_quest pipeline (handles vocabulary filtering!)
-		var quest = QuestTheming.generate_quest(faction, biome, player_vocab, bias_emojis)
+		var quest = QuestTheming.generate_quest(faction, biome, player_vocab, bias_emojis, self.economy)
 
 		# Skip factions with no vocabulary overlap
 		if quest.is_empty() or quest.has("error"):
@@ -511,6 +511,16 @@ func complete_quest(quest_id: int) -> bool:
 	# Generate rewards (vocabulary only)
 	var player_vocab = _get_player_vocab_emojis()
 	var reward = QuestRewards.generate_reward(quest, null, player_vocab)
+
+	# DEBUG: Log vocab reward data to diagnose vocab granting issues
+	print("🔍 Quest %d vocab reward: north=%s south=%s pairs=%d resources=%s" % [
+		quest_id,
+		quest.get("reward_vocab_north", "MISSING"),
+		quest.get("reward_vocab_south", "MISSING"),
+		reward.learned_pairs.size(),
+		str(reward.resource_rewards.keys())
+	])
+
 	var faction_name = quest.get("faction", "Unknown")
 	var granted_resources = _grant_resource_rewards(reward, faction_name)
 	_grant_vocabulary_rewards(reward, faction_name)
