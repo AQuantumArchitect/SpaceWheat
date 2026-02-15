@@ -8,20 +8,26 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="${PROJECT_ROOT:-$(cd "${SCRIPT_DIR}/../.." && pwd)}"
 cd "${PROJECT_ROOT}"
 
-MAX_LOOPS="${MAX_LOOPS:-35}"
-SCENARIO_ID="${SCENARIO_ID:-default}"
-LOAD_SLOT="${LOAD_SLOT:-}"
-LOAD_ALIAS="${LOAD_ALIAS:-}"
-PREP_STARTER_SAVE="${PREP_STARTER_SAVE:-0}"
-STARTER_SAVE_SLOT="${STARTER_SAVE_SLOT:-2}"
-PROFILE="${PROFILE:-balanced_survival}"
-MILK_RUNNER="${MILK_RUNNER:-${PROJECT_ROOT}/🍄/🎛️/🥛🏃.sh}"
-TURN_DELAY_S="${TURN_DELAY_S:-}"
-PROBE_DELAY_S="${PROBE_DELAY_S:-}"
-PROBE_EACH_LOOP="${PROBE_EACH_LOOP:-}"
-STRICT_BIOME_ECONOMY="${STRICT_BIOME_ECONOMY:-1}"
-LISTENER_READY_TIMEOUT_S="${LISTENER_READY_TIMEOUT_S:-180}"
-LOG_ROOT="${LOG_ROOT:-${PROJECT_ROOT}/logs/milk_visual}"
+CONFIG_FILE="${CONFIG_FILE:-${PROJECT_ROOT}/🍄/🎛️/config/milk_hunt_visual.conf}"
+if [[ -f "${CONFIG_FILE}" ]]; then
+  # shellcheck disable=SC1090
+  source "${CONFIG_FILE}"
+fi
+
+MAX_LOOPS="${MAX_LOOPS:-${MAX_LOOPS_DEFAULT:-35}}"
+SCENARIO_ID="${SCENARIO_ID:-${SCENARIO_ID_DEFAULT:-default}}"
+LOAD_SLOT="${LOAD_SLOT:-${LOAD_SLOT_DEFAULT:-}}"
+LOAD_ALIAS="${LOAD_ALIAS:-${LOAD_ALIAS_DEFAULT:-}}"
+PREP_STARTER_SAVE="${PREP_STARTER_SAVE:-${PREP_STARTER_SAVE_DEFAULT:-0}}"
+STARTER_SAVE_SLOT="${STARTER_SAVE_SLOT:-${STARTER_SAVE_SLOT_DEFAULT:-2}}"
+PROFILE="${PROFILE:-${PROFILE_DEFAULT:-balanced_survival}}"
+MILK_RUNNER="${MILK_RUNNER:-${MILK_RUNNER_DEFAULT:-${PROJECT_ROOT}/🍄/🎛️/dev/milk_hunt_runner_graphics_waits.py}}"
+TURN_DELAY_S="${TURN_DELAY_S:-${TURN_DELAY_S_DEFAULT:-}}"
+PROBE_DELAY_S="${PROBE_DELAY_S:-${PROBE_DELAY_S_DEFAULT:-}}"
+PROBE_EACH_LOOP="${PROBE_EACH_LOOP:-${PROBE_EACH_LOOP_DEFAULT:-}}"
+STRICT_BIOME_ECONOMY="${STRICT_BIOME_ECONOMY:-${STRICT_BIOME_ECONOMY_DEFAULT:-1}}"
+LISTENER_READY_TIMEOUT_S="${LISTENER_READY_TIMEOUT_S:-${LISTENER_READY_TIMEOUT_S_DEFAULT:-180}}"
+LOG_ROOT="${LOG_ROOT:-${LOG_ROOT_DEFAULT:-${PROJECT_ROOT}/logs/milk_visual}}"
 STAMP="$(date +%Y%m%d_%H%M%S)"
 RUN_LOG="${LOG_ROOT}/milk_visual_run_${STAMP}.log"
 LISTENER_LOG="${LOG_ROOT}/milk_visual_listener_${STAMP}.log"
@@ -54,10 +60,14 @@ for pid in $(pgrep -f "Tests/rig_listener.gd" || true); do
   kill "${pid}" || true
 done
 
-echo "[run] Launching visual rig listener (windowed)..." | tee -a "${RUN_LOG}"
+echo "[run] Launching visual rig listener (windowed, D3D12 GPU)..." | tee -a "${RUN_LOG}"
 (
   cd "${PROJECT_ROOT}"
-  godot --path . --script Tests/rig_listener.gd
+  # Force D3D12 GPU (Intel HD 620) instead of llvmpipe (CPU)
+  export GALLIUM_DRIVER=d3d12
+  export MESA_D3D12_DEFAULT_ADAPTER_NAME=AUTO
+  export MESA_LOADER_DRIVER_OVERRIDE=zink
+  godot --path . --rendering-method gl_compatibility --script Tests/rig_listener.gd
 ) >"${LISTENER_LOG}" 2>&1 &
 LISTENER_PID=$!
 
