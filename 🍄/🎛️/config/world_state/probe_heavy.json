@@ -1,0 +1,28 @@
+{
+    "name": "probe_heavy",
+    "description": "High probe-cycle fuel for fast biome output sampling.",
+    "scenario_id": "default",
+    "resource_mode": "set",
+    "resources": {
+        "👥": 180,
+        "🌾": 180,
+        "🍞": 320,
+        "❄️": 320,
+        "🌱": 80,
+        "⚙": 80,
+        "🔥": 80
+    },
+    "unlocked_biomes": [
+        "StarterForest",
+        "Village"
+    ],
+    "active_biome": "Village",
+    "known_pairs": [
+        {
+            "north": "🌾",
+            "south": "👥"
+        }
+    ],
+    "strict_biome_economy": true,
+    "economy_overrides": {}
+}

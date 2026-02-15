@@ -1,0 +1,28 @@
+{
+    "name": "balanced_survival",
+    "description": "Stable probing and quest throughput with broad starter economy.",
+    "scenario_id": "default",
+    "resource_mode": "set",
+    "resources": {
+        "👥": 300,
+        "🌾": 300,
+        "🍞": 160,
+        "❄️": 160,
+        "🌱": 120,
+        "⚙": 120,
+        "🔥": 120
+    },
+    "unlocked_biomes": [
+        "StarterForest",
+        "Village"
+    ],
+    "active_biome": "Village",
+    "known_pairs": [
+        {
+            "north": "🌾",
+            "south": "👥"
+        }
+    ],
+    "strict_biome_economy": true,
+    "economy_overrides": {}
+}

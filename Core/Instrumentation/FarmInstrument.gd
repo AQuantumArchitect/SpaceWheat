@@ -17,6 +17,11 @@ var player_shell: Node = null
 var overlay_manager = null
 var quest_manager = null
 var action_bar_manager = null
+var _probe_status_panel: PanelContainer = null
+var _probe_status_label: Label = null
+var _probe_status_hide_at_ms: int = 0
+
+const PROBE_STATUS_DURATION_MS: int = 900
 
 
 func setup(farm_ref: Node, shell_ref: Node) -> void:
@@ -39,6 +44,14 @@ func setup(farm_ref: Node, shell_ref: Node) -> void:
 			farm_ref.name if farm_ref else "null",
 			shell_ref.name if shell_ref else "null"
 		])
+
+	_ensure_probe_status_ui()
+	set_process(true)
+
+
+func _process(_delta: float) -> void:
+	if _probe_status_panel and _probe_status_panel.visible and Time.get_ticks_msec() >= _probe_status_hide_at_ms:
+		_probe_status_panel.visible = false
 
 
 func open_quest_board() -> bool:
@@ -121,6 +134,14 @@ func set_resource(emoji: String, credits_amount: int, reason: String = "rig_set"
 		return false
 	farm.economy.set_resource(emoji, credits_amount, reason)
 	return true
+
+
+func get_recent_resource_mutations(limit: int = 40) -> Array:
+	if not farm or not ("economy" in farm) or not farm.economy:
+		return []
+	if not farm.economy.has_method("get_recent_resource_mutations"):
+		return []
+	return farm.economy.get_recent_resource_mutations(limit)
 
 
 func get_active_quests() -> Array:
@@ -215,6 +236,134 @@ func offer_all_quests_for_current_biome() -> void:
 		quest_manager.offer_all_faction_quests(current_biome)
 
 
+## ============================================================================
+## QUANTUM GATE & LINDBLAD OPERATIONS
+## ============================================================================
+
+const GateActionHandler = preload("res://UI/Handlers/GateActionHandler.gd")
+const LindbladHandler = preload("res://UI/Handlers/LindbladHandler.gd")
+
+## Map of rig gate names to GateActionHandler static callables.
+const _GATE_DISPATCH: Dictionary = {
+	"pauli_x": Callable(GateActionHandler, "apply_pauli_x"),
+	"pauli_y": Callable(GateActionHandler, "apply_pauli_y"),
+	"pauli_z": Callable(GateActionHandler, "apply_pauli_z"),
+	"hadamard": Callable(GateActionHandler, "apply_hadamard"),
+	"s_gate": Callable(GateActionHandler, "apply_s_gate"),
+	"t_gate": Callable(GateActionHandler, "apply_t_gate"),
+	"sdg": Callable(GateActionHandler, "apply_sdg_gate"),
+	"tdg": Callable(GateActionHandler, "apply_tdg_gate"),
+	"rx": Callable(GateActionHandler, "apply_rx_gate"),
+	"ry": Callable(GateActionHandler, "apply_ry_gate"),
+	"rz": Callable(GateActionHandler, "apply_rz_gate"),
+	"cnot": Callable(GateActionHandler, "apply_cnot"),
+	"cz": Callable(GateActionHandler, "apply_cz"),
+	"swap": Callable(GateActionHandler, "apply_swap"),
+	"bell": Callable(GateActionHandler, "create_bell_pair"),
+	"ghz": Callable(GateActionHandler, "create_ghz_state"),
+	"cluster": Callable(GateActionHandler, "cluster"),
+}
+
+
+func gate_inject(gate_name: String, positions: Array[Vector2i]) -> Dictionary:
+	"""Apply a quantum gate via GateActionHandler.
+
+	gate_name: one of pauli_x, pauli_y, pauli_z, hadamard, s_gate, t_gate,
+	           sdg, tdg, rx, ry, rz, cnot, cz, swap, bell, ghz, cluster
+	positions: grid positions (Vector2i) to target
+	"""
+	if not farm:
+		return {"ok": false, "error": "no_farm"}
+	if not _GATE_DISPATCH.has(gate_name):
+		return {"ok": false, "error": "unknown_gate", "gate": gate_name, "available": _GATE_DISPATCH.keys()}
+	var gate_callable = _GATE_DISPATCH[gate_name] as Callable
+	if gate_callable == null or not gate_callable.is_valid():
+		return {"ok": false, "error": "invalid_gate_dispatch", "gate": gate_name}
+	var result = gate_callable.call(farm, positions)
+	result["gate"] = gate_name
+	return result
+
+
+func lindblad_pump(positions: Array[Vector2i]) -> Dictionary:
+	"""Apply Lindblad drive (pump) to increase population at positions."""
+	if not farm:
+		return {"ok": false, "error": "no_farm"}
+	return LindbladHandler.lindblad_drive(farm, positions)
+
+
+func lindblad_drain(positions: Array[Vector2i]) -> Dictionary:
+	"""Apply Lindblad decay (drain) to decrease population at positions."""
+	if not farm:
+		return {"ok": false, "error": "no_farm"}
+	return LindbladHandler.lindblad_decay(farm, positions)
+
+
+func configure_economy(overrides: Dictionary) -> Dictionary:
+	"""Apply economy overrides from a world state config.
+
+	Delegates to farm.economy.apply_economy_overrides().
+	Returns the result from FarmEconomy.
+	"""
+	if not farm or not ("economy" in farm) or not farm.economy:
+		return {"ok": false, "error": "no_economy"}
+	if not farm.economy.has_method("apply_economy_overrides"):
+		return {"ok": false, "error": "method_not_available"}
+	var applied = farm.economy.apply_economy_overrides(overrides)
+	return {"ok": true, "applied": applied}
+
+
 func log_action(action: String, details: Dictionary = {}) -> void:
 	if _verbose:
 		_verbose.info("instrument", "✍️", "%s %s" % [action, str(details)])
+
+
+func show_probe_cycle_status(biome_name: String, probe: Dictionary) -> void:
+	"""Show brief on-screen status for rig-driven probe_cycle."""
+	if not _probe_status_label or not _probe_status_panel:
+		return
+
+	var success = bool(probe.get("success", false))
+	var stage = str(probe.get("stage", ""))
+	var status_prefix = "🔁 Probe"
+	var biome = biome_name if biome_name != "" else "?"
+	var status_text = "%s %s" % [status_prefix, biome]
+
+	if success:
+		status_text += "  Q✓ E✓ R✓"
+	else:
+		if stage == "":
+			stage = "unknown"
+		status_text += "  ✖ %s" % stage
+
+	_probe_status_label.text = status_text
+	_probe_status_panel.visible = true
+	_probe_status_hide_at_ms = Time.get_ticks_msec() + PROBE_STATUS_DURATION_MS
+
+
+func _ensure_probe_status_ui() -> void:
+	if _probe_status_panel or not player_shell:
+		return
+
+	var host: Node = player_shell
+	if player_shell.has_node("OverlayLayer"):
+		host = player_shell.get_node("OverlayLayer")
+
+	var panel := PanelContainer.new()
+	panel.name = "RigProbeStatus"
+	panel.visible = false
+	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	panel.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	panel.position = Vector2(16, 52)
+	panel.custom_minimum_size = Vector2(260, 30)
+
+	var label := Label.new()
+	label.name = "Text"
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	label.autowrap_mode = TextServer.AUTOWRAP_OFF
+	label.text = ""
+	panel.add_child(label)
+
+	host.add_child(panel)
+	_probe_status_panel = panel
+	_probe_status_label = label

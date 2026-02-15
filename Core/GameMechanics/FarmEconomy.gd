@@ -11,27 +11,22 @@ const EconomyConstants = preload("res://Core/GameMechanics/EconomyConstants.gd")
 @onready var _verbose = get_node_or_null("/root/VerboseConfig")
 
 signal resource_changed(emoji: String, new_amount: int)
+signal resource_mutated(emoji: String, delta: float, reason: String, new_amount: float)
 signal purchase_failed(reason: String)
-signal flour_processed(wheat_amount: int, flour_produced: int)
-signal flour_sold(flour_amount: int, credits_received: int)
 
-const RESOURCE_IDS = {
-	"🌾": "wheat",
-	"💨": "flour",
-	"🔥": "fire",
-	"💧": "water",
-	"🍞": "bread",
-	"❄️": "cold",
-	"🏜️": "dry",
-}
+## Canonical emoji registry: see config/emoji_registry.json
 
 var emoji_credits: Dictionary = {}
 var total_wheat_harvested: int = 0
 var imperium_icon = null
+var resource_mutation_log: Array = []
+var _economy_overrides: Dictionary = {}
+
+const MAX_RESOURCE_MUTATION_LOG: int = 400
 
 
 func _ready():
-	if _verbose: _verbose.info("economy", "⚛️", "Emoji-Credits Economy ready (1 quantum = %d credits)" % EconomyConstants.QUANTUM_TO_CREDITS)
+	if _verbose: _verbose.info("economy", "⚛️", "Emoji-Credits Economy ready (quantum mass = credits, 1:1 mapping)")
 
 
 func _print_resources():
@@ -60,6 +55,7 @@ func add_resource(emoji: String, credits_amount, reason: String = "") -> void:
 
 	emoji_credits[emoji] += final_amount
 	_emit_resource_change(emoji)
+	_record_resource_mutation(emoji, float(final_amount), reason)
 
 	var quantum_units = final_amount / EconomyConstants.QUANTUM_TO_CREDITS
 	if reason != "":
@@ -119,6 +115,7 @@ func remove_resource(emoji: String, credits_amount, reason: String = "") -> bool
 
 	emoji_credits[emoji] -= credits_amount
 	_emit_resource_change(emoji)
+	_record_resource_mutation(emoji, -float(credits_amount), reason)
 
 	var quantum_units = credits_amount / EconomyConstants.QUANTUM_TO_CREDITS
 	if reason != "":
@@ -130,8 +127,10 @@ func set_resource(emoji: String, credits_amount, reason: String = "") -> void:
 	"""Set emoji-credits directly (bypasses gain gate). Supports float amounts."""
 	if not emoji_credits.has(emoji):
 		emoji_credits[emoji] = 0
+	var before = float(emoji_credits[emoji])
 	emoji_credits[emoji] = max(0, credits_amount)
 	_emit_resource_change(emoji)
+	_record_resource_mutation(emoji, float(emoji_credits[emoji]) - before, reason if reason != "" else "set_resource")
 	if reason != "":
 		if _verbose: _verbose.info("economy", "=", "%.2f %s-credits from %s" % [credits_amount, emoji, reason])
 
@@ -177,6 +176,7 @@ func spend_cost(cost: Dictionary, reason: String = "") -> bool:
 	for emoji in cost.keys():
 		emoji_credits[emoji] -= cost[emoji]
 		_emit_resource_change(emoji)
+		_record_resource_mutation(emoji, -float(cost[emoji]), reason if reason != "" else "spend_cost")
 
 	if reason != "":
 		if _verbose: _verbose.info("economy", "💸", "Spent %s on %s" % [_format_cost(cost), reason])
@@ -186,7 +186,7 @@ func spend_cost(cost: Dictionary, reason: String = "") -> bool:
 func receive_harvest(emoji: String, quantum_energy: float, reason: String = "harvest") -> int:
 	"""Convert quantum energy from harvest to emoji-credits
 
-	1 quantum energy = 10 credits
+	1 quantum energy = 1 credit (direct mass mapping)
 	Returns: number of credits added
 	"""
 	var credits_amount = int(quantum_energy * EconomyConstants.QUANTUM_TO_CREDITS)
@@ -198,6 +198,27 @@ func _emit_resource_change(emoji: String) -> void:
 	"""Emit universal resource_changed signal"""
 	var amount = emoji_credits.get(emoji, 0)
 	resource_changed.emit(emoji, amount)
+
+
+func _record_resource_mutation(emoji: String, delta: float, reason: String) -> void:
+	var new_amount = float(emoji_credits.get(emoji, 0))
+	resource_mutated.emit(emoji, delta, reason, new_amount)
+	var row = {
+		"time_ms": Time.get_ticks_msec(),
+		"emoji": emoji,
+		"delta": delta,
+		"reason": reason,
+		"new_amount": new_amount,
+	}
+	resource_mutation_log.append(row)
+	if resource_mutation_log.size() > MAX_RESOURCE_MUTATION_LOG:
+		resource_mutation_log.pop_front()
+
+
+func get_recent_resource_mutations(limit: int = 40) -> Array:
+	var n = clampi(limit, 1, MAX_RESOURCE_MUTATION_LOG)
+	var start = max(0, resource_mutation_log.size() - n)
+	return resource_mutation_log.slice(start)
 
 
 func _get_missing_resources(cost: Dictionary) -> String:
@@ -218,73 +239,47 @@ func _format_cost(cost: Dictionary) -> String:
 
 
 ## ============================================================================
-## PRODUCTION CHAIN: Wheat → Flour → Money
+## ECONOMY OVERRIDES (from world state configs)
 ## ============================================================================
 
-func process_wheat_to_flour(wheat_amount: int) -> Dictionary:
-	"""Convert wheat to flour using Mill economics
+func apply_economy_overrides(config: Dictionary) -> Dictionary:
+	"""Store economy overrides from a world state config.
 
-	Mill efficiency: 10 wheat → 8 flour + 40 💰-credits (5 per flour as labor value)
-	Amount is in quantum units (will be converted to credits internally)
+	config may contain keys: action_costs, gate_costs, quest_rewards, production.
+	Returns a summary of what was applied.
 	"""
-	var wheat_credits = wheat_amount * EconomyConstants.QUANTUM_TO_CREDITS
-
-	if not can_afford_resource("🌾", wheat_credits):
-		purchase_failed.emit("Not enough wheat to mill! Need %d, have %d" % [wheat_amount, get_resource_units("🌾")])
-		return {"success": false, "flour_produced": 0, "credits_earned": 0, "wheat_used": 0}
-
-	# Remove wheat
-	remove_resource("🌾", wheat_credits, "mill_input")
-
-	# Mill economics: efficiency ratio (10 wheat → 8 flour)
-	var flour_gained = int(wheat_amount * EconomyConstants.MILL_EFFICIENCY)
-	var credit_bonus = flour_gained * 5  # 5 💰-units per flour produced
-
-	# Add flour and 💰 from mill processing
-	add_resource("💨", flour_gained * EconomyConstants.QUANTUM_TO_CREDITS, "mill_output")
-	add_resource("💰", credit_bonus * EconomyConstants.QUANTUM_TO_CREDITS, "mill_processing")
-
-	flour_processed.emit(wheat_amount, flour_gained)
-
-	if _verbose: _verbose.info("economy", "🏭", "Milled %d wheat → %d flour + %d 💰" % [wheat_amount, flour_gained, credit_bonus])
-
-	return {
-		"success": true,
-		"flour_produced": flour_gained,
-		"credits_earned": credit_bonus,
-		"wheat_used": wheat_amount
-	}
+	_economy_overrides = config.duplicate(true)
+	var applied: Dictionary = {}
+	for key in ["action_costs", "gate_costs", "quest_rewards", "production"]:
+		if _economy_overrides.has(key) and _economy_overrides[key] is Dictionary:
+			applied[key] = _economy_overrides[key].size()
+	if _verbose:
+		_verbose.info("economy", "⚙", "Economy overrides applied: %s" % str(applied))
+	return applied
 
 
+func get_economy_overrides() -> Dictionary:
+	return _economy_overrides
 
-func process_flour_to_bread(flour_amount: int) -> Dictionary:
-	"""Convert flour to bread using Kitchen
 
-	Kitchen efficiency: 5 flour → 3 bread (60% yield)
-	Amount is in quantum units (will be converted to credits internally)
-	"""
-	var flour_credits = flour_amount * EconomyConstants.QUANTUM_TO_CREDITS
+func get_overridden_action_cost(action: String, context: Dictionary = {}) -> Dictionary:
+	"""Get action cost, checking overrides first, then EconomyConstants."""
+	var overrides = _economy_overrides.get("action_costs", {})
+	if overrides is Dictionary and overrides.has(action):
+		var cost = overrides[action]
+		if cost is Dictionary:
+			return cost
+	return EconomyConstants.get_action_cost(action, context)
 
-	if not can_afford_resource("💨", flour_credits):
-		purchase_failed.emit("Not enough flour to bake! Need %d, have %d" % [flour_amount, get_resource_units("💨")])
-		return {"success": false, "bread_produced": 0, "flour_used": 0}
 
-	# Remove flour
-	remove_resource("💨", flour_credits, "kitchen_input")
-
-	# Kitchen efficiency (5 flour → 3 bread)
-	var bread_gained = int(flour_amount * EconomyConstants.KITCHEN_EFFICIENCY)
-
-	# Add bread (using 🍞 emoji)
-	add_resource("🍞", bread_gained * EconomyConstants.QUANTUM_TO_CREDITS, "kitchen_output")
-
-	if _verbose: _verbose.info("economy", "🍳", "Baked %d flour → %d bread" % [flour_amount, bread_gained])
-
-	return {
-		"success": true,
-		"bread_produced": bread_gained,
-		"flour_used": flour_amount
-	}
+func get_overridden_gate_cost(gate_name: String) -> Dictionary:
+	"""Get gate cost, checking overrides first, then EconomyConstants."""
+	var overrides = _economy_overrides.get("gate_costs", {})
+	if overrides is Dictionary and overrides.has(gate_name):
+		var cost = overrides[gate_name]
+		if cost is Dictionary:
+			return cost
+	return EconomyConstants.get_gate_cost(gate_name)
 
 
 ## ============================================================================

@@ -1,0 +1,37 @@
+{
+    "name": "volcanic_bridge",
+    "description": "Bridge profile for VolcanicWorlds and high-energy faction exposure.",
+    "scenario_id": "default",
+    "resource_mode": "set",
+    "resources": {
+        "👥": 240,
+        "🌾": 240,
+        "🍞": 140,
+        "❄️": 180,
+        "🌱": 220,
+        "⚙": 140,
+        "🔥": 220
+    },
+    "unlocked_biomes": [
+        "StarterForest",
+        "Village",
+        "VolcanicWorlds"
+    ],
+    "active_biome": "VolcanicWorlds",
+    "known_pairs": [
+        {
+            "north": "🌾",
+            "south": "👥"
+        },
+        {
+            "north": "🔥",
+            "south": "👥"
+        },
+        {
+            "north": "✨",
+            "south": "🔥"
+        }
+    ],
+    "strict_biome_economy": false,
+    "economy_overrides": {}
+}

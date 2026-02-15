@@ -1,0 +1,28 @@
+{
+    "name": "scarcity_stress",
+    "description": "Tight economy stress test for route robustness.",
+    "scenario_id": "default",
+    "resource_mode": "set",
+    "resources": {
+        "👥": 120,
+        "🌾": 120,
+        "🍞": 80,
+        "❄️": 80,
+        "🌱": 40,
+        "⚙": 40,
+        "🔥": 40
+    },
+    "unlocked_biomes": [
+        "StarterForest",
+        "Village"
+    ],
+    "active_biome": "Village",
+    "known_pairs": [
+        {
+            "north": "🌾",
+            "south": "👥"
+        }
+    ],
+    "strict_biome_economy": true,
+    "economy_overrides": {}
+}

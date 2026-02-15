@@ -28,6 +28,8 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--load-slot", type=int, default=None, help="Boot each trial from this save slot")
     parser.add_argument("--load-alias", type=str, default=None, help="Load each trial from emoji alias save filename/path")
     parser.add_argument("--profile", type=str, default=None, help="Profile name for starter seeding")
+    parser.add_argument("--world-state", type=str, default=None, help="World state JSON path (alternative to --profile)")
+    parser.add_argument("--strategy", type=str, default=None, help="Strategy JSON path passed to runner")
     parser.add_argument("--seed-slot", type=int, default=2, help="Save slot to write profile seed into")
     parser.add_argument("--seed-from-slot", type=int, default=None, help="Optional slot to load before profile seeding")
     parser.add_argument("--scenario-id", type=str, default=None, help="Scenario id used for profile seeding")
@@ -70,10 +72,11 @@ def _run_trial(
     max_loops: int,
     load_slot: int | None,
     load_alias: str | None,
-    strict_biome_economy: bool,
+    strict_biome_economy: Optional[bool],
     reuse_listener: bool,
     turn_start: int,
     no_stop: bool,
+    strategy_path: str | None = None,
 ) -> Dict[str, Any]:
     run_name = f"run_{run_idx:03d}"
     run_dir = batch_dir / run_name
@@ -91,12 +94,16 @@ def _run_trial(
         "--turn-start",
         str(turn_start),
     ]
+    if strategy_path is not None:
+        cmd.extend(["--strategy", strategy_path])
     if load_slot is not None:
         cmd.extend(["--load-slot", str(load_slot)])
     if load_alias is not None:
         cmd.extend(["--load-alias", str(load_alias)])
-    if strict_biome_economy:
+    if strict_biome_economy is True:
         cmd.append("--strict-biome-economy")
+    elif strict_biome_economy is False:
+        cmd.append("--no-strict-biome-economy")
     if reuse_listener:
         cmd.append("--reuse-listener")
         cmd.append("--no-clear-rig")
@@ -124,6 +131,7 @@ def _seed_profile(
     seed_from_slot: Optional[int],
     scenario_id: Optional[str],
     resource_mode: Optional[str],
+    world_state_path: Optional[str] = None,
 ) -> Dict[str, Any]:
     log_path = batch_dir / "seed_stdout.log"
     cmd = [
@@ -131,9 +139,11 @@ def _seed_profile(
         str(SEEDER),
         "--slot",
         str(seed_slot),
-        "--profile",
-        profile_name,
     ]
+    if world_state_path:
+        cmd.extend(["--world-state", world_state_path])
+    else:
+        cmd.extend(["--profile", profile_name])
     if seed_from_slot is not None:
         cmd.extend(["--load-slot", str(seed_from_slot)])
     if scenario_id:
@@ -155,20 +165,23 @@ def main() -> int:
     load_slot = args.load_slot
     load_alias = args.load_alias
     seed_result: Optional[Dict[str, Any]] = None
-    if args.profile:
-        try:
-            profile = get_profile(args.profile)
-        except ValueError as exc:
-            print(f"[batch] {exc}", flush=True)
-            return 2
+    seed_source = args.world_state or args.profile
+    if seed_source:
+        if args.profile and not args.world_state:
+            try:
+                profile = get_profile(args.profile)
+            except ValueError as exc:
+                print(f"[batch] {exc}", flush=True)
+                return 2
         seed_slot = load_slot if load_slot is not None else args.seed_slot
         seed_result = _seed_profile(
             batch_dir=batch_dir,
-            profile_name=args.profile,
+            profile_name=args.profile or "",
             seed_slot=seed_slot,
             seed_from_slot=args.seed_from_slot,
             scenario_id=args.scenario_id,
             resource_mode=args.resource_mode,
+            world_state_path=args.world_state,
         )
         if not seed_result["ok"]:
             print("[batch] profile seeding failed", flush=True)
@@ -176,11 +189,11 @@ def main() -> int:
             return 3
         load_slot = seed_slot
         load_alias = None
-        print(f"[batch] profile '{args.profile}' seeded into slot {seed_slot}", flush=True)
+        print(f"[batch] '{seed_source}' seeded into slot {seed_slot}", flush=True)
 
     strict_biome_economy = args.strict_biome_economy
-    if strict_biome_economy is None:
-        strict_biome_economy = bool(profile.get("strict_biome_economy", False)) if profile else False
+    if strict_biome_economy is None and profile and "strict_biome_economy" in profile:
+        strict_biome_economy = bool(profile.get("strict_biome_economy"))
 
     run_summaries: List[Dict[str, Any]] = []
     turn_cursor = 1
@@ -197,19 +210,47 @@ def main() -> int:
             reuse_listener=reuse,
             turn_start=turn_cursor,
             no_stop=no_stop,
+            strategy_path=args.strategy,
         )
         run_summaries.append(summary)
         found = bool(summary.get("found_milk_pair", False))
-        turns = summary.get("turns_executed", 0)
-        print(f"[batch] {summary.get('run_name')} found_milk={found} turns={turns}", flush=True)
-        try:
-            turn_cursor += int(turns) + 5
-        except (TypeError, ValueError):
-            turn_cursor += 5
+        steps = int(summary.get("steps", summary.get("turns_executed", 0) or 0) or 0)
+        print(f"[batch] {summary.get('run_name')} found_milk={found} steps={steps}", flush=True)
+        turn_cursor += steps + 5
 
     successes = [s for s in run_summaries if s.get("found_milk_pair") is True]
-    turns_all = [int(s.get("turns_executed", 0) or 0) for s in run_summaries]
-    turns_success = [int(s.get("turns_executed", 0) or 0) for s in successes]
+    steps_all = [
+        int(s.get("steps", s.get("turns_executed", 0) or 0) or 0)
+        for s in run_summaries
+    ]
+    steps_success = [
+        int(s.get("steps", s.get("turns_executed", 0) or 0) or 0)
+        for s in successes
+    ]
+    loops_all = [int(s.get("loops_completed", 0) or 0) for s in run_summaries]
+    loops_success = [int(s.get("loops_completed", 0) or 0) for s in successes]
+    steps_per_loop_all = [
+        (float(steps) / float(loops))
+        for steps, loops in zip(steps_all, loops_all)
+        if loops > 0
+    ]
+    steps_per_loop_success = [
+        (float(steps) / float(loops))
+        for steps, loops in zip(steps_success, loops_success)
+        if loops > 0
+    ]
+    vocab_milestone_counts = [len(s.get("vocab_milestones", []) or []) for s in run_summaries]
+    vocab_first_milestone_steps = [
+        int(((s.get("vocab_milestones", []) or [])[0]).get("step", 0) or 0)
+        for s in run_summaries
+        if isinstance(s.get("vocab_milestones", []), list) and len(s.get("vocab_milestones", [])) > 0
+    ]
+    vocab_milk_milestone_steps = [
+        int(ms.get("step", 0) or 0)
+        for s in run_summaries
+        for ms in (s.get("vocab_milestones", []) or [])
+        if isinstance(ms, dict) and bool(ms.get("contains_milk_pair", False))
+    ]
     milk_pair_steps = [int(s.get("milk_pair_index", 0) or 0) for s in successes if s.get("milk_pair_index") is not None]
     discovered_per_run = [len(s.get("biome_discovery_order", []) or []) for s in run_summaries]
     probe_events_per_run = [len(s.get("biome_probe_events", []) or []) for s in run_summaries]
@@ -229,22 +270,40 @@ def main() -> int:
             if isinstance(first, str) and first:
                 first_discovery_counts[first] = first_discovery_counts.get(first, 0) + 1
 
+    effective_strict_biome_economy = strict_biome_economy
+    if effective_strict_biome_economy is None and run_summaries:
+        effective_strict_biome_economy = bool(run_summaries[0].get("strict_biome_economy", False))
+
     aggregate = {
         "runs": args.runs,
         "max_loops": args.max_loops,
         "load_slot": load_slot,
         "load_alias": load_alias,
-        "strict_biome_economy": strict_biome_economy,
-        "profile": profile["name"] if profile else None,
+        "strict_biome_economy": effective_strict_biome_economy,
+        "profile": profile["name"] if profile else args.profile,
         "profile_description": profile.get("description", "") if profile else "",
+        "world_state": args.world_state,
+        "strategy": args.strategy,
         "seed_result": seed_result,
         "success_count": len(successes),
         "failure_count": args.runs - len(successes),
         "success_rate": (len(successes) / args.runs) if args.runs else 0.0,
-        "avg_turns_all": _avg(turns_all),
-        "avg_turns_success_only": _avg(turns_success),
-        "min_turns_success_only": min(turns_success) if turns_success else None,
-        "max_turns_success_only": max(turns_success) if turns_success else None,
+        "avg_turns_all": _avg(steps_all),
+        "avg_turns_success_only": _avg(steps_success),
+        "min_turns_success_only": min(steps_success) if steps_success else None,
+        "max_turns_success_only": max(steps_success) if steps_success else None,
+        "avg_steps_all": _avg(steps_all),
+        "avg_steps_success_only": _avg(steps_success),
+        "min_steps_success_only": min(steps_success) if steps_success else None,
+        "max_steps_success_only": max(steps_success) if steps_success else None,
+        "avg_loops_completed_all": _avg(loops_all),
+        "avg_loops_completed_success_only": _avg(loops_success),
+        "avg_steps_per_loop_all": _avg(steps_per_loop_all),
+        "avg_steps_per_loop_success_only": _avg(steps_per_loop_success),
+        "avg_vocab_milestones_per_run": _avg(vocab_milestone_counts),
+        "max_vocab_milestones_per_run": max(vocab_milestone_counts) if vocab_milestone_counts else None,
+        "avg_first_vocab_milestone_step": _avg(vocab_first_milestone_steps),
+        "avg_milk_vocab_milestone_step": _avg(vocab_milk_milestone_steps),
         "avg_vocab_steps_to_milk": _avg(milk_pair_steps),
         "min_vocab_steps_to_milk": min(milk_pair_steps) if milk_pair_steps else None,
         "max_vocab_steps_to_milk": max(milk_pair_steps) if milk_pair_steps else None,

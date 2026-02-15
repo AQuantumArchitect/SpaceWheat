@@ -1,0 +1,201 @@
+{
+  "_comment": "Canonical emoji registry. All resource emojis, their names, categories, and roles.",
+  "_usage": "Referenced by Python config loaders and documented for GDScript EconomyConstants/SemanticCoupling.",
+  "resources": {
+    "👥": {
+      "name": "labor",
+      "category": "labor",
+      "role": "civic",
+      "starter": true
+    },
+    "🌾": {
+      "name": "wheat",
+      "category": "agriculture",
+      "role": "civic",
+      "starter": true
+    },
+    "⚡": {
+      "name": "energy",
+      "category": "cosmic",
+      "role": "quantum_ops",
+      "starter": true
+    },
+    "🍞": {
+      "name": "bread",
+      "category": "economic",
+      "role": "probe_fuel",
+      "starter": true
+    },
+    "❄️": {
+      "name": "cold",
+      "category": "elemental",
+      "role": "measure_fuel",
+      "starter": true
+    },
+    "🌱": {
+      "name": "sprout",
+      "category": "agriculture",
+      "role": "injection_fuel",
+      "starter": true
+    },
+    "⚙": {
+      "name": "gear",
+      "category": "labor",
+      "role": "utility",
+      "starter": true
+    },
+    "🔥": {
+      "name": "fire",
+      "category": "elemental",
+      "role": "gate_fuel",
+      "starter": true
+    },
+    "🦅": {
+      "name": "eagle",
+      "category": "biological",
+      "role": "expansion",
+      "starter": true
+    },
+    "🍼": {
+      "name": "midwife",
+      "category": "economic",
+      "role": "harvest_token",
+      "starter": true
+    },
+    "🍄": {
+      "name": "mushroom",
+      "category": "biological",
+      "role": "gate_fuel",
+      "starter": false
+    },
+    "🍂": {
+      "name": "detritus",
+      "category": "agriculture",
+      "role": "gate_fuel",
+      "starter": false
+    },
+    "🍅": {
+      "name": "tomato",
+      "category": "economic",
+      "role": "trade",
+      "starter": false
+    },
+    "🌌": {
+      "name": "galaxy",
+      "category": "cosmic",
+      "role": "rare",
+      "starter": false
+    },
+    "💨": {
+      "name": "wind",
+      "category": "elemental",
+      "role": "trade",
+      "starter": false
+    },
+    "💧": {
+      "name": "water",
+      "category": "elemental",
+      "role": "trade",
+      "starter": false
+    },
+    "🏜️": {
+      "name": "desert",
+      "category": "elemental",
+      "role": "trade",
+      "starter": false
+    },
+    "🌿": {
+      "name": "herb",
+      "category": "agriculture",
+      "role": "gate_fuel",
+      "starter": false
+    },
+    "🐇": {
+      "name": "rabbit",
+      "category": "biological",
+      "role": "quest_reroll",
+      "starter": false
+    },
+    "👑": {
+      "name": "crown",
+      "category": "political",
+      "role": "authority",
+      "starter": false
+    },
+    "💰": {
+      "name": "gold",
+      "category": "economic",
+      "role": "currency",
+      "starter": false
+    },
+    "☀": {
+      "name": "sun",
+      "category": "cosmic",
+      "role": "gate_fuel",
+      "starter": false
+    },
+    "🌙": {
+      "name": "moon",
+      "category": "cosmic",
+      "role": "gate_fuel",
+      "starter": false
+    },
+    "🐺": {
+      "name": "wolf",
+      "category": "biological",
+      "role": "gate_fuel",
+      "starter": false
+    },
+    "🦌": {
+      "name": "deer",
+      "category": "biological",
+      "role": "gate_fuel",
+      "starter": false
+    },
+    "🐂": {
+      "name": "bull",
+      "category": "biological",
+      "role": "trade",
+      "starter": false
+    },
+    "🐻": {
+      "name": "bear",
+      "category": "biological",
+      "role": "trade",
+      "starter": false
+    },
+    "💳": {
+      "name": "credit",
+      "category": "economic",
+      "role": "currency",
+      "starter": false
+    },
+    "🌲": {
+      "name": "tree",
+      "category": "agriculture",
+      "role": "quest_lock",
+      "starter": false
+    },
+    "🦠": {
+      "name": "microbe",
+      "category": "biological",
+      "role": "trade",
+      "starter": false
+    },
+    "✨": {
+      "name": "sparkle",
+      "category": "cosmic",
+      "role": "trade",
+      "starter": false
+    }
+  },
+  "categories": [
+    "agriculture",
+    "labor",
+    "cosmic",
+    "economic",
+    "elemental",
+    "biological",
+    "political"
+  ]
+}

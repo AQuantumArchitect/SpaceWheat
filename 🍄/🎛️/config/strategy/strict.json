@@ -1,0 +1,59 @@
+{
+    "name": "strict",
+    "description": "Conservative strategy for strict biome economy runs.",
+    "strict_biome_economy": true,
+    "strategic_targets": {
+        "👥": 220,
+        "🌾": 220,
+        "🍞": 260,
+        "❄️": 120,
+        "🌱": 120
+    },
+    "resource_floors": {
+        "🍞": 120,
+        "❄️": 60,
+        "👥": 80
+    },
+    "scoring": {
+        "afford_delta": 120,
+        "deficit_progress": 0.8,
+        "vocab_injection_need": 1.2,
+        "net_growth_strict": 0.18,
+        "net_growth_normal": 0.08,
+        "reward_sum": 0.04,
+        "vocab_discovery": 25,
+        "completion_penalty": -30
+    },
+    "distance_scores": {
+        "milk": 1000,
+        "d1": 260,
+        "d2": 180,
+        "d3": 80
+    },
+    "faction_sig_scores": {
+        "d1": 140,
+        "d2": 90,
+        "d3": 35
+    },
+    "eagle": {
+        "emoji": "🦅",
+        "target_stock": 80,
+        "probe_burst": 2,
+        "check_every": 8,
+        "max_expansions": 3,
+        "min_for_expansion": 40
+    },
+    "initial_injection": {
+        "enabled": false,
+        "amount": 500,
+        "resources": [
+            "👥",
+            "🌾",
+            "🍞",
+            "❄️",
+            "🌱",
+            "⚙",
+            "🔥"
+        ]
+    }
+}

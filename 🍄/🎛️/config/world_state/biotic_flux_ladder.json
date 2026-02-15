@@ -1,0 +1,33 @@
+{
+    "name": "biotic_flux_ladder",
+    "description": "BioticFlux-forward profile for ecosystem-driven quest chains.",
+    "scenario_id": "default",
+    "resource_mode": "set",
+    "resources": {
+        "👥": 260,
+        "🌾": 340,
+        "🍞": 180,
+        "❄️": 160,
+        "🌱": 140,
+        "⚙": 100,
+        "🔥": 100
+    },
+    "unlocked_biomes": [
+        "StarterForest",
+        "Village",
+        "BioticFlux"
+    ],
+    "active_biome": "BioticFlux",
+    "known_pairs": [
+        {
+            "north": "🌾",
+            "south": "👥"
+        },
+        {
+            "north": "🍄",
+            "south": "🌾"
+        }
+    ],
+    "strict_biome_economy": true,
+    "economy_overrides": {}
+}

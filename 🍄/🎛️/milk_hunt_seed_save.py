@@ -5,6 +5,7 @@ import sys
 from typing import Any, Dict, List, Optional
 
 from milk_hunt_profiles import get_profile, list_profiles
+from milk_hunt_world_state import load_world_state
 from rig_client import RigClient
 
 
@@ -64,6 +65,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Create a starter save slot for milk-hunt testing")
     parser.add_argument("--slot", type=int, required=True, help="Save slot index (0-2)")
     parser.add_argument("--profile", type=str, default=None, help="Starter profile name")
+    parser.add_argument("--world-state", type=str, default=None, help="World state JSON path (alternative to --profile)")
     parser.add_argument("--list-profiles", action="store_true", help="List available profiles and exit")
     parser.add_argument("--load-slot", type=int, default=None, help="Optional existing slot to load before seeding")
     parser.add_argument("--scenario-id", type=str, default=None, help="Scenario id when not loading a slot")
@@ -124,8 +126,17 @@ def main() -> int:
         safe_print(json.dumps(rows, ensure_ascii=False, indent=2))
         return 0
 
+    world_state: Optional[Dict[str, Any]] = None
+    if args.world_state:
+        world_state = load_world_state(args.world_state)
+        if not world_state:
+            safe_print(f"seed-save: failed to load world state from '{args.world_state}'")
+            return 2
+
     profile: Optional[Dict[str, Any]] = None
-    if args.profile:
+    if world_state:
+        profile = world_state
+    elif args.profile:
         try:
             profile = get_profile(args.profile)
         except ValueError as exc:
@@ -210,6 +221,19 @@ def main() -> int:
             for emoji, amount in resource_map.items():
                 history.append(run_turn(turn, "set_resource", emoji=emoji, amount=amount))
                 turn += 1
+
+        economy_overrides = {}
+        if world_state:
+            economy_overrides = world_state.get("economy_overrides", {})
+            if not isinstance(economy_overrides, dict):
+                economy_overrides = {}
+        economy_configure_result = None
+        if economy_overrides and any(economy_overrides.get(k) for k in economy_overrides):
+            econ_row = run_turn(turn, "configure_economy", overrides=economy_overrides)
+            history.append(econ_row)
+            turn += 1
+            economy_configure_result = econ_row
+
         history.append(run_turn(turn, "save_game", slot=args.slot))
         turn += 1
         history.append(run_turn(turn, "save_info", slot=args.slot))
@@ -219,12 +243,15 @@ def main() -> int:
             "load_slot": args.load_slot,
             "scenario_id": scenario_id,
             "profile": args.profile,
+            "world_state": args.world_state,
             "resource_mode": resource_mode,
             "starter_resources": resource_map,
             "known_pairs": known_pairs,
             "unlocked_biomes": unlocked_biomes,
             "unexplored_biomes": unexplored_biomes,
             "active_biome": active_biome,
+            "economy_overrides": economy_overrides if economy_overrides else None,
+            "economy_configure_result": economy_configure_result,
             "save_result": history[-2] if len(history) >= 2 else {},
             "save_info": history[-1] if history else {},
         }

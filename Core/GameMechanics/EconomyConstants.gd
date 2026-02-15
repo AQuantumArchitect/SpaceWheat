@@ -11,8 +11,9 @@ extends RefCounted
 ## QUANTUM ↔ CLASSICAL CONVERSION
 ## ===========================================
 
-## Base conversion rate: 1 quantum probability unit = X emoji-credits
-const QUANTUM_TO_CREDITS: float = 10.0
+## Base conversion rate: 1 quantum mass = 1 classical credit (direct mapping)
+## IconMap mass (accumulated probability over ~13 steps) maps directly to credits
+const QUANTUM_TO_CREDITS: float = 1.0
 
 ## Reality Midwife token emoji (display + economy tracking)
 const MIDWIFE_EMOJI: String = "🍼"
@@ -21,13 +22,6 @@ const MIDWIFE_EMOJI: String = "🍼"
 
 ## Drain factor: fraction of probability removed during MEASURE
 const DRAIN_FACTOR: float = 0.5
-
-## ===========================================
-## PRODUCTION EFFICIENCY
-## ===========================================
-
-const MILL_EFFICIENCY: float = 0.8    # 10 wheat → 8 flour + 40 💰
-const KITCHEN_EFFICIENCY: float = 0.6 # 5 flour → 3 bread
 
 ## ===========================================
 ## ACTION COSTS (Classical Resources as Sink)
@@ -42,8 +36,10 @@ const ACTION_COSTS: Dictionary = {
 	"harvest_all": {"🍼": 1},   # End of turn harvest (costs 1 Reality Midwife token)
 	"quest_reroll": {"🐇": 1},   # Reroll quest slot
 	"quest_lock": {"🌲": 1},     # Lock quest slot
-	"explore_biome": {"🦅": 20},# Scout new biome
-	"remove_vocabulary": {"🐺": 20} # Remove vocabulary: penalize with wolf cost
+	"explore_biome": {"🦅": 4}, # Scout new biome (reduced for 1:1 quantum mass economy)
+	"remove_vocabulary": {"🐺": 20}, # Remove vocabulary: penalize with wolf cost
+	"lindblad_pump": {"⚡": 8},  # Lindblad pump operator (reduced for 1:1 economy)
+	"lindblad_drain": {"⚡": 8}  # Lindblad drain operator (reduced for 1:1 economy)
 	# vocab_injection is dynamic - use get_action_cost()
 }
 
@@ -70,25 +66,18 @@ const GATE_COSTS: Dictionary = {
 	"swap": {"🐺": 1},           # Wolf - swap qubits
 }
 
-## Vocab injection dynamic costs
-const VOCAB_INJECTION_SOUTH_COST: int = 100
+## Vocab injection dynamic costs (LOWERED to 4 for 1:1 quantum mass economy)
+const VOCAB_INJECTION_SOUTH_COST: int = 4
 const VOCAB_INJECTION_SPROUT_COST: Dictionary = {"🌱": 10}
 
-# Removed: VOCAB_INJECTION_BASE_COST (never used)
+## Lindblad injection costs (pump/drain operators)
+const LINDBLAD_INJECTION_BASE_COST: int = 8  # Base cost for Lindblad operations (reduced for 1:1 economy)
+const LINDBLAD_INJECTION_RESOURCE_COST: Dictionary = {"⚡": 1}  # Energy emoji for quantum operations
+
+# Removed: old VOCAB_INJECTION_BASE_COST (never used)
 
 ## Hard cap on biome qubits (enforced by actions, not by the quantum computer)
 const MAX_BIOME_QUBITS: int = 12
-
-## Planting costs (emoji → cost in 💰-credits)
-const PLANTING_COSTS: Dictionary = {
-	"🌾": 10,   # wheat - basic
-	"🌻": 15,   # sunflower
-	"🍄": 20,   # mushroom
-	"🔥": 50,   # fire - dangerous
-	"⚡": 50,   # energy - volatile
-}
-
-const DEFAULT_PLANTING_COST: int = 25
 
 ## ===========================================
 ## PLANT TYPE → EMOJI PAIR MAPPING
@@ -105,8 +94,6 @@ const PLANT_TYPE_EMOJIS: Dictionary = {
 	"wolf": {"north": "🐺", "south": "🐇"},
 	"fire": {"north": "🔥", "south": "❄️"},
 	"water": {"north": "💧", "south": "🏜️"},
-	"flour": {"north": "💨", "south": "🌾"},
-	"bread": {"north": "🍞", "south": "💨"},
 	"bull": {"north": "🐂", "south": "🐻"},
 	"bear": {"north": "🐻", "south": "🐂"},
 	"money": {"north": "💰", "south": "💳"},
@@ -124,23 +111,10 @@ static func quantum_to_credits(probability: float) -> int:
 	return int(probability * QUANTUM_TO_CREDITS)
 
 
-static func get_planting_cost(emoji: String) -> int:
-	"""Get cost in 💰-credits to plant a specific emoji"""
-	return PLANTING_COSTS.get(emoji, DEFAULT_PLANTING_COST)
-
-
-static func get_plant_type_emojis(plant_type: String) -> Dictionary:
-	"""Get emoji pair for a plant type.
-
-	Returns {"north": emoji, "south": emoji} or empty dict if not found.
-	"""
-	return PLANT_TYPE_EMOJIS.get(plant_type, {})
-
-
 static func get_vocab_injection_cost(south_emoji: String) -> Dictionary:
 	"""Get cost dictionary for vocabulary injection.
 
-	Cost = 100 of south-pole emoji + 10 sprouts (🌱)
+	Cost = 4 of south-pole emoji + 10 sprouts (🌱) - scaled for 1:1 quantum mass economy
 	Returns dictionary of {emoji: amount} for costs.
 
 	Args:
@@ -151,6 +125,18 @@ static func get_vocab_injection_cost(south_emoji: String) -> Dictionary:
 
 	var cost = VOCAB_INJECTION_SPROUT_COST.duplicate()
 	cost[south_emoji] = VOCAB_INJECTION_SOUTH_COST
+	return cost
+
+
+static func get_lindblad_injection_cost() -> Dictionary:
+	"""Get cost dictionary for Lindblad operator injection (pump/drain).
+
+	Cost = 8 ⚡ (energy) - scaled for 1:1 quantum mass economy
+	Returns dictionary of {emoji: amount} for costs.
+	"""
+	var cost = LINDBLAD_INJECTION_RESOURCE_COST.duplicate()
+	for emoji in cost.keys():
+		cost[emoji] = LINDBLAD_INJECTION_BASE_COST
 	return cost
 
 
@@ -215,7 +201,7 @@ static func get_action_cost(action: String, context: Dictionary = {}) -> Diction
 	"""Get cost dictionary for an action.
 
 	Args:
-		action: Action name (explore, measure, reap, explore_biome, vocab_injection)
+		action: Action name (explore, measure, reap, explore_biome, vocab_injection, lindblad_pump, lindblad_drain)
 		context: Optional context for dynamic costs (e.g., {south_emoji: "🌾"})
 
 	Returns:
@@ -223,6 +209,8 @@ static func get_action_cost(action: String, context: Dictionary = {}) -> Diction
 	"""
 	if action == "vocab_injection":
 		return get_vocab_injection_cost(context.get("south_emoji", ""))
+	if action == "lindblad_pump" or action == "lindblad_drain":
+		return get_lindblad_injection_cost()
 	return ACTION_COSTS.get(action, {})
 
 
@@ -240,24 +228,40 @@ static func get_gate_cost(gate_name: String) -> Dictionary:
 
 static func preflight_action(action: String, economy, context: Dictionary = {}) -> Dictionary:
 	"""Check affordability for an action without spending."""
-	var cost = get_action_cost(action, context)
+	var cost: Dictionary
+	if economy and economy.has_method("get_overridden_action_cost"):
+		cost = economy.get_overridden_action_cost(action, context)
+	else:
+		cost = get_action_cost(action, context)
 	return preflight_cost(cost, economy)
 
 
 static func preflight_gate(gate_name: String, economy) -> Dictionary:
 	"""Check affordability for a quantum gate without spending."""
-	var cost = get_gate_cost(gate_name)
+	var cost: Dictionary
+	if economy and economy.has_method("get_overridden_gate_cost"):
+		cost = economy.get_overridden_gate_cost(gate_name)
+	else:
+		cost = get_gate_cost(gate_name)
 	return preflight_cost(cost, economy)
 
 
 static func commit_action(action: String, economy, context: Dictionary = {}) -> bool:
 	"""Spend cost for an action after success."""
-	var cost = get_action_cost(action, context)
+	var cost: Dictionary
+	if economy and economy.has_method("get_overridden_action_cost"):
+		cost = economy.get_overridden_action_cost(action, context)
+	else:
+		cost = get_action_cost(action, context)
 	return commit_cost(cost, economy, action)
 
 
 static func commit_gate(gate_name: String, economy) -> bool:
 	"""Spend cost for a quantum gate after success."""
-	var cost = get_gate_cost(gate_name)
+	var cost: Dictionary
+	if economy and economy.has_method("get_overridden_gate_cost"):
+		cost = economy.get_overridden_gate_cost(gate_name)
+	else:
+		cost = get_gate_cost(gate_name)
 	return commit_cost(cost, economy, gate_name)
 

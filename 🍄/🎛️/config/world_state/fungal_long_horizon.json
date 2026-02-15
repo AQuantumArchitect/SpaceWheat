@@ -1,0 +1,37 @@
+{
+    "name": "fungal_long_horizon",
+    "description": "Fungal network exploration with microbial resource pressure.",
+    "scenario_id": "default",
+    "resource_mode": "set",
+    "resources": {
+        "👥": 200,
+        "🌾": 260,
+        "🍞": 140,
+        "❄️": 140,
+        "🌱": 180,
+        "⚙": 110,
+        "🔥": 110
+    },
+    "unlocked_biomes": [
+        "StarterForest",
+        "Village",
+        "FungalNetworks"
+    ],
+    "active_biome": "FungalNetworks",
+    "known_pairs": [
+        {
+            "north": "🌾",
+            "south": "👥"
+        },
+        {
+            "north": "🍄",
+            "south": "🌾"
+        },
+        {
+            "north": "🦠",
+            "south": "🍄"
+        }
+    ],
+    "strict_biome_economy": true,
+    "economy_overrides": {}
+}

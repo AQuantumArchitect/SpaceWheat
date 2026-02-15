@@ -1,0 +1,7 @@
+{
+  "max_loops": 140,
+  "scenario_id": "default",
+  "strict_biome_economy": true,
+  "load_slot": null,
+  "load_alias": null
+}

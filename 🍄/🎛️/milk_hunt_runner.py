@@ -2,12 +2,15 @@
 import argparse
 import json
 import os
+import subprocess
 import sys
 from collections import deque
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
 
 from milk_hunt_paths import project_root
+from milk_hunt_runtime_config import get_cfg_bool, get_cfg_int, get_cfg_str, load_json_config
+from milk_hunt_strategy import Strategy, load_strategy
 from rig_client import RigClient
 
 
@@ -15,13 +18,6 @@ MILK = "\U0001F37C"
 PROJECT_ROOT = project_root()
 _RIG = RigClient(root_from_file=Path(__file__))
 FACTIONS_PATH = PROJECT_ROOT / "Core" / "Factions" / "data" / "factions_merged.json"
-STRATEGIC_RESOURCE_TARGETS: Dict[str, float] = {
-    "👥": 220.0,
-    "🌾": 220.0,
-    "🍞": 260.0,
-    "❄️": 120.0,
-    "🌱": 120.0,
-}
 
 
 def _safe_print(msg: str) -> None:
@@ -44,8 +40,16 @@ def _kill_existing_listeners() -> None:
     RigClient.kill_existing_listeners()
 
 
-def _start_listener(load_slot: Optional[int] = None, scenario_id: str = "default") -> Any:
-    return _RIG.start_listener(load_slot=load_slot, scenario_id=scenario_id)
+def _start_listener(
+    load_slot: Optional[int] = None,
+    scenario_id: str = "default",
+    allow_resource_injection: Optional[bool] = None,
+) -> Any:
+    return _RIG.start_listener(
+        load_slot=load_slot,
+        scenario_id=scenario_id,
+        allow_resource_injection=allow_resource_injection,
+    )
 
 
 def _wait_for_ready(proc: Any, timeout_s: float = 60.0) -> List[str]:
@@ -131,16 +135,12 @@ def _load_faction_data() -> Tuple[Dict[str, Set[str]], Dict[str, int]]:
     return by_name, distances
 
 
-def _target_distance_score(emoji: str, distances: Dict[str, int]) -> int:
+def _target_distance_score(emoji: str, distances: Dict[str, int], strategy: Strategy) -> int:
     if emoji == MILK:
-        return 1000
+        return strategy.distance_score(0)
     d = distances.get(emoji)
-    if d == 1:
-        return 260
-    if d == 2:
-        return 180
-    if d == 3:
-        return 80
+    if d is not None and 1 <= d <= 3:
+        return strategy.distance_score(d)
     return 0
 
 
@@ -200,6 +200,7 @@ def _quest_reward_score(
     offers: List[Dict[str, Any]],
     current_resources: Dict[str, float],
     strict_biome_economy: bool,
+    strategy: Strategy,
 ) -> int:
     rewards = _offer_reward_resources(offer)
     if not rewards:
@@ -211,28 +212,28 @@ def _quest_reward_score(
     # Reward plans that increase immediately affordable delivery options.
     afford_before = _count_affordable_delivery_offers(offers, current_resources)
     afford_after = _count_affordable_delivery_offers(offers, after)
-    score += float(afford_after - afford_before) * 120.0
+    score += float(afford_after - afford_before) * strategy.afford_delta
 
     # Push inventory toward hunt-critical resource levels.
-    for emoji, target in STRATEGIC_RESOURCE_TARGETS.items():
+    for emoji, target in strategy.strategic_targets.items():
         before_deficit = max(0.0, target - current_resources.get(emoji, 0.0))
         after_deficit = max(0.0, target - after.get(emoji, 0.0))
         progress = before_deficit - after_deficit
         if progress > 0:
-            score += progress * 0.8
+            score += progress * strategy.deficit_progress
 
     # Injecting newly learned vocab needs 100 of the south-pole resource.
     south = str(offer.get("reward_vocab_south", "") or "")
     if south:
         before_need = max(0.0, 100.0 - current_resources.get(south, 0.0))
         after_need = max(0.0, 100.0 - after.get(south, 0.0))
-        score += (before_need - after_need) * 1.2
+        score += (before_need - after_need) * strategy.vocab_injection_need
 
     # Modest value for net growth.
     all_keys = set(current_resources.keys()) | set(after.keys())
     net_delta = sum(after.get(k, 0.0) - current_resources.get(k, 0.0) for k in all_keys)
-    score += net_delta * (0.18 if strict_biome_economy else 0.08)
-    score += sum(rewards.values()) * 0.04
+    score += net_delta * (strategy.net_growth_strict if strict_biome_economy else strategy.net_growth_normal)
+    score += sum(rewards.values()) * strategy.reward_sum
 
     return int(round(score))
 
@@ -244,6 +245,7 @@ def _best_offer_index(
     distances: Dict[str, int],
     current_resources: Dict[str, float],
     strict_biome_economy: bool,
+    strategy: Strategy,
     candidate_indices: Optional[List[int]] = None,
 ) -> int:
     indices = candidate_indices if candidate_indices else list(range(len(offers)))
@@ -258,24 +260,20 @@ def _best_offer_index(
         faction = str(offer.get("faction", "") or "")
         score = 0
         if n and n not in known_symbols:
-            score += 25
+            score += strategy.vocab_discovery
         if s and s not in known_symbols:
-            score += 25
-        score += _target_distance_score(n, distances)
-        score += _target_distance_score(s, distances)
-        score += _quest_reward_score(offer, offers, current_resources, strict_biome_economy)
+            score += strategy.vocab_discovery
+        score += _target_distance_score(n, distances, strategy)
+        score += _target_distance_score(s, distances, strategy)
+        score += _quest_reward_score(offer, offers, current_resources, strict_biome_economy, strategy)
         sig = faction_sigs.get(faction, set())
         if sig:
             best_sig_dist = min((distances.get(e, 9999) for e in sig), default=9999)
-            if best_sig_dist == 1:
-                score += 140
-            elif best_sig_dist == 2:
-                score += 90
-            elif best_sig_dist == 3:
-                score += 35
+            if 1 <= best_sig_dist <= 3:
+                score += strategy.faction_sig_score(best_sig_dist)
         completion_action = str(offer.get("completion_action", "") or "")
         if completion_action not in {"complete_quest", "complete_or_claim"}:
-            score -= 30
+            score += strategy.completion_penalty
         if score > best_score:
             best_score = score
             best_idx = i
@@ -322,18 +320,112 @@ def _eligible_delivery_offer_indices(
     return eligible
 
 
+def _parse_resource_floor_overrides(values: List[str]) -> Dict[str, float]:
+    out: Dict[str, float] = {}
+    for raw in values:
+        if ":" not in raw:
+            continue
+        emoji, amount_raw = raw.split(":", 1)
+        emoji = emoji.strip()
+        if not emoji:
+            continue
+        try:
+            amount = float(amount_raw.strip())
+        except ValueError:
+            continue
+        out[emoji] = max(0.0, amount)
+    return out
+
+
+def _enforce_primary_resource_floors(
+    turn: int,
+    history: List[Dict[str, Any]],
+    current_resources: Dict[str, float],
+    floors: Dict[str, float],
+) -> tuple[int, Dict[str, float], List[Dict[str, Any]]]:
+    events: List[Dict[str, Any]] = []
+    changed = False
+    for emoji, floor in floors.items():
+        have = float(current_resources.get(emoji, 0.0))
+        if have >= floor:
+            continue
+        need = int(max(1.0, floor - have))
+        add_row = _run_turn(turn, "add_resource", emoji=emoji, amount=need)
+        history.append(add_row)
+        turn += 1
+        changed = True
+        events.append({"emoji": emoji, "before": have, "floor": floor, "added": need, "ok": bool(add_row.get("added", False))})
+    if changed:
+        snap_row = _run_turn(turn, "resource_snapshot")
+        history.append(snap_row)
+        turn += 1
+        current_resources = _extract_resource_map(snap_row)
+    return turn, current_resources, events
+
+
+def _extract_probe_pop_resource(probe_row: Dict[str, Any]) -> str:
+    if not isinstance(probe_row, dict):
+        return ""
+    probe = probe_row.get("probe", {})
+    if not isinstance(probe, dict):
+        return ""
+    pop = probe.get("pop", {})
+    if not isinstance(pop, dict):
+        return ""
+    resource = pop.get("resource", "")
+    return str(resource) if isinstance(resource, str) else ""
+
+
+def _select_focus_biome(
+    biomes: List[str],
+    biome_explore_counts: Dict[str, int],
+    biome_resource_hits: Dict[str, Dict[str, int]],
+    target_emoji: str,
+) -> Optional[str]:
+    if not biomes:
+        return None
+    ranked = sorted(
+        biomes,
+        key=lambda b: (
+            -(biome_resource_hits.get(b, {}).get(target_emoji, 0)),
+            biome_explore_counts.get(b, 0),
+            b,
+        ),
+    )
+    return ranked[0] if ranked else None
+
+
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Single-run milk hunt rig player")
+    parser.add_argument(
+        "--config",
+        type=Path,
+        default=Path(__file__).resolve().parent / "config" / "milk_hunt_runner.json",
+        help="Runner config JSON path",
+    )
+    parser.add_argument(
+        "--strategy",
+        type=Path,
+        default=None,
+        help="Strategy JSON path (overrides hardcoded scoring/targeting constants)",
+    )
     parser.add_argument("--max-loops", type=int, default=None, help="Maximum offer cycles")
     parser.add_argument("--summary-path", type=Path, default=None, help="Optional JSON summary output path")
     parser.add_argument("--json-only", action="store_true", help="Print only the summary JSON")
     parser.add_argument("--load-slot", type=int, default=None, help="Boot the rig from a save slot")
     parser.add_argument("--load-alias", type=str, default=None, help="Load from emoji alias save filename/path")
-    parser.add_argument("--scenario-id", type=str, default="default", help="Scenario id when not loading a slot")
+    parser.add_argument("--scenario-id", type=str, default=None, help="Scenario id when not loading a slot")
     parser.add_argument(
         "--strict-biome-economy",
+        dest="strict_biome_economy",
         action="store_true",
         help="Disable all rig-side resource injection; rely only on in-biome resources",
+    )
+    parser.add_argument(
+        "--no-strict-biome-economy",
+        dest="strict_biome_economy",
+        action="store_false",
+        help="Force-enable rig-side resource injection",
     )
     parser.add_argument("--save-slot-at-end", type=int, default=None, help="Save the run state to this slot before exit")
     parser.add_argument(
@@ -344,17 +436,149 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--turn-start", type=int, default=1, help="Turn id to start at")
     parser.add_argument("--no-stop", action="store_true", help="Skip sending stop on exit")
     parser.add_argument("--no-clear-rig", action="store_true", help="Skip clearing rig queue/results files")
+    parser.add_argument(
+        "--allow-rig-resource-injection",
+        dest="allow_rig_resource_injection",
+        action="store_true",
+        help="Allow rig add/set resource actions (default on)",
+    )
+    parser.add_argument(
+        "--no-allow-rig-resource-injection",
+        dest="allow_rig_resource_injection",
+        action="store_false",
+        help="Disallow rig add/set resource actions (strict economy mode)",
+    )
+    parser.add_argument(
+        "--fail-on-boot-script-errors",
+        action="store_true",
+        help="Fail run if boot logs include SCRIPT ERROR / compile failures",
+    )
+    parser.add_argument(
+        "--open-quests-overlay",
+        action="store_true",
+        help="Open quests overlay at run start (disabled by default to keep world visible)",
+    )
+    parser.add_argument("--eagle-focus", action="store_true", help="Prioritize cultivating eagle stock via probe cycles")
+    parser.add_argument("--eagle-emoji", type=str, default=None, help="Resource emoji used for expansion gating")
+    parser.add_argument(
+        "--eagle-target-stock",
+        type=float,
+        default=None,
+        help="When eagle-focus is enabled, run extra probe cycles until this stock is reached",
+    )
+    parser.add_argument(
+        "--eagle-probe-burst",
+        type=int,
+        default=None,
+        help="Extra probe_cycle actions per loop while eagle stock is below target",
+    )
+    parser.add_argument("--expand-biomes", action="store_true", help="Attempt biome expansion during milk runs")
+    parser.add_argument(
+        "--expand-check-every",
+        type=int,
+        default=None,
+        help="Check biome expansion every N loops",
+    )
+    parser.add_argument(
+        "--max-biome-expansions",
+        type=int,
+        default=None,
+        help="Maximum number of explore_biome attempts per run",
+    )
+    parser.add_argument(
+        "--min-eagles-for-expansion",
+        type=float,
+        default=None,
+        help="Minimum eagle stock before explore_biome is attempted",
+    )
+    parser.add_argument(
+        "--enforce-primary-resource-floors",
+        dest="enforce_primary_resource_floors",
+        action="store_true",
+        help="Keep bread/cold/labor above floor thresholds to avoid starvation traps",
+    )
+    parser.add_argument(
+        "--no-enforce-primary-resource-floors",
+        dest="enforce_primary_resource_floors",
+        action="store_false",
+        help="Disable automatic primary-resource floor enforcement",
+    )
+    parser.add_argument(
+        "--resource-floor",
+        action="append",
+        default=[],
+        help="Override floor as EMOJI:AMOUNT (repeatable), e.g. --resource-floor 🍞:140",
+    )
+    parser.add_argument(
+        "--victory-lap",
+        dest="victory_lap",
+        action="store_true",
+        help="After learning 🍼 vocab, run full-farm explore→measure→harvest victory lap",
+    )
+    parser.add_argument(
+        "--no-victory-lap",
+        dest="victory_lap",
+        action="store_false",
+        help="Skip post-milk victory lap",
+    )
+    parser.set_defaults(enforce_primary_resource_floors=True, allow_rig_resource_injection=True)
+    parser.set_defaults(victory_lap=True)
+    parser.set_defaults(strict_biome_economy=True)
     return parser
 
 
 def main() -> int:
     args = _build_parser().parse_args()
+    cfg = load_json_config(args.config)
+    strategy = load_strategy(args.strategy)
     load_slot = args.load_slot
     load_alias = args.load_alias
+    scenario_id = args.scenario_id
+    strict_biome_economy = args.strict_biome_economy
+    max_loops = args.max_loops
+
+    if max_loops is None:
+        max_loops = get_cfg_int(cfg, "max_loops")
+    if max_loops is None and os.environ.get("MILK_HUNT_MAX_LOOPS", "") != "":
+        max_loops = int(os.environ["MILK_HUNT_MAX_LOOPS"])
+    if max_loops is None:
+        max_loops = 140
+
+    if load_slot is None:
+        load_slot = get_cfg_int(cfg, "load_slot")
     if load_slot is None and os.environ.get("MILK_HUNT_LOAD_SLOT", "") != "":
         load_slot = int(os.environ["MILK_HUNT_LOAD_SLOT"])
+
+    if not load_alias:
+        load_alias = get_cfg_str(cfg, "load_alias")
     if not load_alias and os.environ.get("MILK_HUNT_LOAD_ALIAS", "") != "":
         load_alias = os.environ["MILK_HUNT_LOAD_ALIAS"]
+
+    if scenario_id is None:
+        scenario_id = get_cfg_str(cfg, "scenario_id")
+    if not scenario_id:
+        scenario_id = "default"
+
+    if strict_biome_economy is None:
+        val = strategy.strict_biome_economy
+        if val is not None:
+            strict_biome_economy = val
+        else:
+            strict_biome_economy = get_cfg_bool(cfg, "strict_biome_economy")
+    if strict_biome_economy is None:
+        strict_biome_economy = True
+
+    # Eagle / expansion defaults: CLI > strategy > hardcoded
+    eagle_emoji = args.eagle_emoji if args.eagle_emoji is not None else strategy.eagle_emoji
+    eagle_target_stock = args.eagle_target_stock if args.eagle_target_stock is not None else strategy.eagle_target_stock
+    eagle_probe_burst = args.eagle_probe_burst if args.eagle_probe_burst is not None else strategy.eagle_probe_burst
+    expand_check_every = args.expand_check_every if args.expand_check_every is not None else strategy.eagle_check_every
+    max_biome_expansions = args.max_biome_expansions if args.max_biome_expansions is not None else strategy.eagle_max_expansions
+    min_eagles_for_expansion = args.min_eagles_for_expansion if args.min_eagles_for_expansion is not None else strategy.eagle_min_for_expansion
+
+    primary_resource_floors = dict(strategy.resource_floors)
+    primary_resource_floors.update(_parse_resource_floor_overrides(args.resource_floor))
+
     if load_alias:
         load_slot = None
     proc: Optional[subprocess.Popen] = None
@@ -364,7 +588,11 @@ def main() -> int:
         _kill_existing_listeners()
         if not args.no_clear_rig:
             _clear_rig_files()
-        proc = _start_listener(load_slot=load_slot, scenario_id=args.scenario_id)
+        proc = _start_listener(
+            load_slot=load_slot,
+            scenario_id=scenario_id,
+            allow_resource_injection=args.allow_rig_resource_injection,
+        )
         boot_lines = _wait_for_ready(proc, timeout_s=70.0)
         if proc.poll() is not None:
             _safe_print("milk-hunt: listener exited during boot")
@@ -382,7 +610,11 @@ def main() -> int:
             _safe_print("milk-hunt: reuse requested but no listener found; starting a new one")
             if not args.no_clear_rig:
                 _clear_rig_files()
-            proc = _start_listener(load_slot=load_slot, scenario_id=args.scenario_id)
+            proc = _start_listener(
+                load_slot=load_slot,
+                scenario_id=scenario_id,
+                allow_resource_injection=args.allow_rig_resource_injection,
+            )
             boot_lines = _wait_for_ready(proc, timeout_s=70.0)
             if proc.poll() is not None:
                 _safe_print("milk-hunt: listener exited during boot")
@@ -402,6 +634,12 @@ def main() -> int:
     turn = max(1, int(args.turn_start))
     history: List[Dict[str, Any]] = []
     error_lines = [ln for ln in boot_lines if "ERROR:" in ln or "SCRIPT ERROR:" in ln]
+    if args.fail_on_boot_script_errors and error_lines:
+        _safe_print("milk-hunt: failing due to boot script errors")
+        for line in error_lines[-20:]:
+            _safe_print(line)
+        RigClient.terminate_listener(proc, timeout_s=5.0)
+        return 4
     faction_sigs, milk_distances = _load_faction_data()
 
     try:
@@ -411,16 +649,18 @@ def main() -> int:
         elif args.reuse_listener and load_slot is not None:
             history.append(_run_turn(turn, "load_game", slot=load_slot))
             turn += 1
-        history.append(_run_turn(turn, "open_overlay", name="quests"))
-        turn += 1
+        if args.open_quests_overlay:
+            history.append(_run_turn(turn, "open_overlay", name="quests"))
+            turn += 1
         snap = _run_turn(turn, "resource_snapshot")
         history.append(snap)
         turn += 1
 
         resources = snap.get("resources", {}).get("resources", {})
-        if isinstance(resources, dict) and not args.strict_biome_economy:
-            for emoji in ["👥", "🌾", "🍞", "❄️", "🌱", "⚙", "🔥"]:
-                history.append(_run_turn(turn, "add_resource", emoji=emoji, amount=500))
+        if isinstance(resources, dict) and not strict_biome_economy and strategy.initial_injection_enabled:
+            inj_amount = strategy.initial_injection_amount
+            for emoji in strategy.initial_injection_resources:
+                history.append(_run_turn(turn, "add_resource", emoji=emoji, amount=inj_amount))
                 turn += 1
 
         history.append(_run_turn(turn, "grid_snapshot"))
@@ -432,17 +672,104 @@ def main() -> int:
         turn += 1
         print("RESOURCE_SNAPSHOT", json.dumps(resources.get("resources", {}), ensure_ascii=False))
 
-        max_loops = args.max_loops if args.max_loops is not None else int(os.environ.get("MILK_HUNT_MAX_LOOPS", "140"))
         found_milk = False
         found_offer = False
         last_milk_offer: Optional[Dict[str, Any]] = None
+        victory_lap_result: Dict[str, Any] = {}
+        victory_lap_executed = False
         prev_pairs_count = len(_extract_pairs(history))
         discovered_biomes: List[str] = []
         biome_explore_counts: Dict[str, int] = {}
+        biome_resource_hits: Dict[str, Dict[str, int]] = {}
         biome_probe_events: List[Dict[str, Any]] = []
+        vocab_milestones: List[Dict[str, Any]] = []
+        biome_expansion_events: List[Dict[str, Any]] = []
+        primary_resource_floor_events: List[Dict[str, Any]] = []
+        expansions_attempted = 0
+        expansions_succeeded = 0
+        loops_completed = 0
         current_resources: Dict[str, float] = _extract_resource_map(snap)
 
-        for _ in range(max_loops):
+        if args.enforce_primary_resource_floors:
+            turn, current_resources, floor_events = _enforce_primary_resource_floors(
+                turn,
+                history,
+                current_resources,
+                primary_resource_floors,
+            )
+            if floor_events:
+                primary_resource_floor_events.append({"loop": 0, "events": floor_events})
+
+        for loop_idx in range(max_loops):
+            loops_completed = loop_idx + 1
+            if args.enforce_primary_resource_floors:
+                turn, current_resources, floor_events = _enforce_primary_resource_floors(
+                    turn,
+                    history,
+                    current_resources,
+                    primary_resource_floors,
+                )
+                if floor_events:
+                    primary_resource_floor_events.append({"loop": loop_idx + 1, "events": floor_events})
+
+            if args.expand_biomes and expansions_attempted < max(0, int(max_biome_expansions)):
+                if loop_idx % max(1, int(expand_check_every)) == 0:
+                    eagle_stock = float(current_resources.get(eagle_emoji, 0.0))
+                    if eagle_stock >= float(min_eagles_for_expansion):
+                        expand_row = _run_turn(turn, "explore_biome")
+                        history.append(expand_row)
+                        turn += 1
+                        expansions_attempted += 1
+                        expand_result = expand_row.get("explore_biome", {}) if isinstance(expand_row, dict) else {}
+                        success = bool(isinstance(expand_result, dict) and expand_result.get("success", False))
+                        if success:
+                            expansions_succeeded += 1
+                            grid_after_expand = _run_turn(turn, "grid_snapshot")
+                            history.append(grid_after_expand)
+                            turn += 1
+                        biome_expansion_events.append(
+                            {
+                                "loop": loop_idx + 1,
+                                "attempt": expansions_attempted,
+                                "success": success,
+                                "eagle_stock": eagle_stock,
+                                "result": expand_result if isinstance(expand_result, dict) else {},
+                            }
+                        )
+
+            if args.eagle_focus and float(current_resources.get(eagle_emoji, 0.0)) < float(eagle_target_stock):
+                burst_count = max(1, int(eagle_probe_burst))
+                for _focus_idx in range(burst_count):
+                    focus_grid = _run_turn(turn, "grid_snapshot")
+                    history.append(focus_grid)
+                    turn += 1
+                    focus_biomes = _extract_biomes(history)
+                    focus_biome = _select_focus_biome(
+                        focus_biomes,
+                        biome_explore_counts,
+                        biome_resource_hits,
+                        eagle_emoji,
+                    )
+                    if not focus_biome:
+                        break
+                    if focus_biome not in discovered_biomes:
+                        discovered_biomes.append(focus_biome)
+                    biome_explore_counts[focus_biome] = biome_explore_counts.get(focus_biome, 0) + 1
+                    focus_probe_row = _run_turn(turn, "probe_cycle", biome=focus_biome)
+                    history.append(focus_probe_row)
+                    turn += 1
+                    harvested = _extract_probe_pop_resource(focus_probe_row)
+                    if harvested:
+                        biome_resource_hits.setdefault(focus_biome, {})
+                        hits = biome_resource_hits[focus_biome]
+                        hits[harvested] = hits.get(harvested, 0) + 1
+                    focus_snapshot = _run_turn(turn, "resource_snapshot")
+                    history.append(focus_snapshot)
+                    turn += 1
+                    current_resources = _extract_resource_map(focus_snapshot)
+                    if float(current_resources.get(eagle_emoji, 0.0)) >= float(eagle_target_stock):
+                        break
+
             loop_snapshot = _run_turn(turn, "resource_snapshot")
             history.append(loop_snapshot)
             turn += 1
@@ -453,7 +780,7 @@ def main() -> int:
             offers = offer_row.get("offers", [])
             if not isinstance(offers, list) or not offers:
                 continue
-            eligible_delivery = _eligible_delivery_offer_indices(offers, args.strict_biome_economy, current_resources)
+            eligible_delivery = _eligible_delivery_offer_indices(offers, strict_biome_economy, current_resources)
             if not eligible_delivery:
                 continue
 
@@ -488,7 +815,8 @@ def main() -> int:
                         faction_sigs,
                         milk_distances,
                         current_resources,
-                        args.strict_biome_economy,
+                        strict_biome_economy,
+                        strategy,
                         eligible_delivery,
                     )
                     accept = _run_turn(turn, "accept_offer", offer_index=selected_idx)
@@ -501,7 +829,8 @@ def main() -> int:
                     faction_sigs,
                     milk_distances,
                     current_resources,
-                    args.strict_biome_economy,
+                    strict_biome_economy,
+                    strategy,
                     eligible_delivery,
                 )
                 accept = _run_turn(turn, "accept_offer", offer_index=selected_idx)
@@ -525,7 +854,7 @@ def main() -> int:
                             continue
                         res = str(q.get("resource", "") or "")
                         qty = int(float(q.get("quantity", 0) or 0))
-                        if res and qty > 0 and not args.strict_biome_economy:
+                        if res and qty > 0 and not strict_biome_economy:
                             history.append(_run_turn(turn, "add_resource", emoji=res, amount=max(qty + 50, 100)))
                             turn += 1
                 completion_action = str(selected_offer.get("completion_action", "") or "")
@@ -543,6 +872,25 @@ def main() -> int:
                 pairs = pairs_row.get("pairs", [])
                 pair_count = len(pairs) if isinstance(pairs, list) else prev_pairs_count
                 if pair_count > prev_pairs_count:
+                    new_pairs: List[Dict[str, str]] = []
+                    if isinstance(pairs, list):
+                        for pair in pairs[prev_pairs_count:pair_count]:
+                            if not isinstance(pair, dict):
+                                continue
+                            north = str(pair.get("north", "") or "")
+                            south = str(pair.get("south", "") or "")
+                            if north or south:
+                                new_pairs.append({"north": north, "south": south})
+                    vocab_milestones.append(
+                        {
+                            "loop": loop_idx + 1,
+                            "step": len(history),
+                            "pair_count": pair_count,
+                            "pair_gain": pair_count - prev_pairs_count,
+                            "new_pairs": new_pairs,
+                            "contains_milk_pair": _contains_milk_pair(new_pairs),
+                        }
+                    )
                     for _vocab_step in range(prev_pairs_count, pair_count):
                         grid_row = _run_turn(turn, "grid_snapshot")
                         history.append(grid_row)
@@ -570,6 +918,11 @@ def main() -> int:
                         probe_row = _run_turn(turn, "probe_cycle", biome=next_biome)
                         history.append(probe_row)
                         turn += 1
+                        harvested = _extract_probe_pop_resource(probe_row)
+                        if harvested:
+                            biome_resource_hits.setdefault(next_biome, {})
+                            hits = biome_resource_hits[next_biome]
+                            hits[harvested] = hits.get(harvested, 0) + 1
                         probe = probe_row.get("probe", {}) if isinstance(probe_row, dict) else {}
                         probe_ok = bool(isinstance(probe, dict) and probe.get("success", False))
                         biome_probe_events.append(
@@ -585,22 +938,59 @@ def main() -> int:
                     found_milk = True
                     break
 
+        if found_milk and args.victory_lap:
+            victory_row = _run_turn(turn, "victory_lap")
+            history.append(victory_row)
+            turn += 1
+            victory_lap_executed = True
+            if isinstance(victory_row, dict):
+                raw_victory = victory_row.get("victory_lap", {})
+                if isinstance(raw_victory, dict):
+                    victory_lap_result = raw_victory
+            post_victory_snapshot = _run_turn(turn, "resource_snapshot")
+            history.append(post_victory_snapshot)
+            turn += 1
+            current_resources = _extract_resource_map(post_victory_snapshot)
+
         final_pairs = _extract_pairs(history)
+        steps = len(history)
         summary = {
             "found_milk_pair": found_milk,
             "found_milk_offer": found_offer,
             "milk_offer": last_milk_offer,
             "known_pairs_count": len(final_pairs),
             "known_pairs": final_pairs,
-            "turns_executed": len(history),
+            "steps": steps,
+            "turns_executed": steps,
+            "loops_completed": loops_completed,
             "errors_seen_during_boot": error_lines,
             "max_loops": max_loops,
-            "strict_biome_economy": args.strict_biome_economy,
+            "strict_biome_economy": strict_biome_economy,
             "load_slot": load_slot,
             "load_alias": load_alias,
+            "scenario_id": scenario_id,
             "biome_discovery_order": discovered_biomes,
             "biome_explore_counts": biome_explore_counts,
+            "biome_resource_hits": biome_resource_hits,
             "biome_probe_events": biome_probe_events,
+            "vocab_milestones": vocab_milestones,
+            "strategy_name": strategy.name,
+            "strategy_path": strategy.path,
+            "eagle_focus": args.eagle_focus,
+            "eagle_emoji": eagle_emoji,
+            "eagle_target_stock": eagle_target_stock,
+            "eagle_stock_final": current_resources.get(eagle_emoji, 0.0),
+            "expand_biomes": args.expand_biomes,
+            "max_biome_expansions": max_biome_expansions,
+            "expansions_attempted": expansions_attempted,
+            "expansions_succeeded": expansions_succeeded,
+            "biome_expansion_events": biome_expansion_events,
+            "enforce_primary_resource_floors": args.enforce_primary_resource_floors,
+            "primary_resource_floors": primary_resource_floors,
+            "primary_resource_floor_events": primary_resource_floor_events,
+            "victory_lap_enabled": args.victory_lap,
+            "victory_lap_executed": victory_lap_executed,
+            "victory_lap_result": victory_lap_result,
         }
         if args.save_slot_at_end is not None:
             save_row = _run_turn(turn, "save_game", slot=args.save_slot_at_end)

@@ -1,0 +1,8 @@
+{
+  "max_loops": 140,
+  "strict_biome_economy": true,
+  "turn_delay_s": 0.0,
+  "probe_delay_s": 0.0,
+  "probe_each_loop": true,
+  "grid_refresh_every": 5
+}

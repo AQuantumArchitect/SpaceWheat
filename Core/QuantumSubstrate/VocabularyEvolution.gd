@@ -15,16 +15,9 @@ extends Node
 const DualEmojiQubit = preload("res://Core/QuantumSubstrate/DualEmojiQubit.gd")
 const SemanticCoupling = preload("res://Core/QuantumSubstrate/SemanticCoupling.gd")
 
-# Emoji database organized by semantic categories
-const EMOJI_CATEGORIES = {
-	"agriculture": ["🌾", "🌱", "🌿", "🍂", "🌳", "🌻", "🪴"],
-	"labor": ["👥", "⚔️", "🏰", "👁️", "🛠️", "⚙️"],
-	"cosmic": ["🌌", "🌀", "✨", "🕳️", "🌟", "☄️"],
-	"economic": ["💰", "🍅", "🌾", "💎", "📈", "🏦"],
-	"political": ["🏰", "⚔️", "⚖️", "👑", "🗡️"],
-	"biological": ["🧬", "🦠", "🌿", "🍄", "🐛"],
-	"emotional": ["😭", "☀️", "💔", "❤️‍🔥", "🌙", "😴"],
-}
+# Emoji database organized by semantic categories — derived from SemanticCoupling.
+# Use _get_emoji_categories() to access (lazy-initialized from canonical source).
+var _emoji_categories_cache: Dictionary = {}
 
 # Fiber bundle regions (map Bloch sphere position to emoji categories)
 const FIBER_REGIONS = {
@@ -54,6 +47,13 @@ var total_cannibalized: int = 0
 var time_elapsed: float = 0.0
 
 
+func _get_emoji_categories() -> Dictionary:
+	"""Return category→[emojis] dict, derived from SemanticCoupling (cached)."""
+	if _emoji_categories_cache.is_empty():
+		_emoji_categories_cache = SemanticCoupling.invert_categories()
+	return _emoji_categories_cache
+
+
 func _ready():
 	# Seed with initial vocabulary
 	_seed_initial_vocabulary()
@@ -70,7 +70,8 @@ func _seed_initial_vocabulary():
 
 	# Add a few random seeds from different categories
 	for i in range(4):
-		var cat = EMOJI_CATEGORIES.keys()[randi() % EMOJI_CATEGORIES.keys().size()]
+		var cats = _get_emoji_categories()
+		var cat = cats.keys()[randi() % cats.keys().size()]
 		var qb = _create_random_qubit_from_category(cat)
 		evolving_qubits.append(qb)
 		total_spawned += 1
@@ -155,7 +156,7 @@ func _get_fiber_region(theta: float, phi: float) -> String:
 
 func _create_random_qubit_from_category(category: String) -> DualEmojiQubit:
 	"""Create a random dual-emoji qubit from a semantic category"""
-	var emojis = EMOJI_CATEGORIES.get(category, ["🌾"])
+	var emojis = _get_emoji_categories().get(category, ["🌾"])
 
 	# Pick two different emojis from category
 	var north = emojis[randi() % emojis.size()]

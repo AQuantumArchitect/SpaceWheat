@@ -1,0 +1,29 @@
+{
+    "name": "injection_biased",
+    "description": "Supports repeated vocab injections as pairs unlock.",
+    "scenario_id": "default",
+    "resource_mode": "set",
+    "resources": {
+        "👥": 220,
+        "🌾": 220,
+        "🍞": 140,
+        "❄️": 140,
+        "🌱": 260,
+        "⚙": 90,
+        "🔥": 90
+    },
+    "unlocked_biomes": [
+        "StarterForest",
+        "Village",
+        "BioticFlux"
+    ],
+    "active_biome": "Village",
+    "known_pairs": [
+        {
+            "north": "🌾",
+            "south": "👥"
+        }
+    ],
+    "strict_biome_economy": false,
+    "economy_overrides": {}
+}

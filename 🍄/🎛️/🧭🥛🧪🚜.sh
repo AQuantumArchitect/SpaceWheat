@@ -2,33 +2,41 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-RUNS="${RUNS:-5}"
-MAX_LOOPS="${MAX_LOOPS:-220}"
-OUT_DIR="${OUT_DIR:-/tmp/milk_hunt_batches}"
-PREP_STARTER_SAVE="${PREP_STARTER_SAVE:-0}"
-STARTER_SAVE_SLOT="${STARTER_SAVE_SLOT:-}"
-STARTER_RESOURCES="${STARTER_RESOURCES:-👥:250,🌾:250,🍞:120,❄️:120,🌱:120,⚙:120,🔥:120}"
-PROFILE="${PROFILE:-}"
-RESOURCE_MODE="${RESOURCE_MODE:-}"
-SEED_FROM_SLOT="${SEED_FROM_SLOT:-}"
-LOAD_ALIAS="${LOAD_ALIAS:-}"
-STRICT_BIOME_ECONOMY="${STRICT_BIOME_ECONOMY:-0}"
-REUSE_LISTENER="${REUSE_LISTENER:-0}"
+CONFIG_FILE="${CONFIG_FILE:-${SCRIPT_DIR}/config/milk_hunt_batch.conf}"
+if [[ -f "${CONFIG_FILE}" ]]; then
+  # shellcheck disable=SC1090
+  source "${CONFIG_FILE}"
+fi
+
+RUNS="${RUNS:-${RUNS_DEFAULT:-5}}"
+MAX_LOOPS="${MAX_LOOPS:-${MAX_LOOPS_DEFAULT:-220}}"
+OUT_DIR="${OUT_DIR:-${OUT_DIR_DEFAULT:-/tmp/milk_hunt_batches}}"
+PREP_STARTER_SAVE="${PREP_STARTER_SAVE:-${PREP_STARTER_SAVE_DEFAULT:-0}}"
+STARTER_SAVE_SLOT="${STARTER_SAVE_SLOT:-${STARTER_SAVE_SLOT_DEFAULT:-}}"
+PROFILE="${PROFILE:-${PROFILE_DEFAULT:-}}"
+WORLD_STATE="${WORLD_STATE:-${WORLD_STATE_DEFAULT:-}}"
+STRATEGY="${STRATEGY:-${STRATEGY_DEFAULT:-}}"
+RESOURCE_MODE="${RESOURCE_MODE:-${RESOURCE_MODE_DEFAULT:-}}"
+SEED_FROM_SLOT="${SEED_FROM_SLOT:-${SEED_FROM_SLOT_DEFAULT:-}}"
+LOAD_ALIAS="${LOAD_ALIAS:-${LOAD_ALIAS_DEFAULT:-}}"
+STRICT_BIOME_ECONOMY="${STRICT_BIOME_ECONOMY:-${STRICT_BIOME_ECONOMY_DEFAULT:-0}}"
+REUSE_LISTENER="${REUSE_LISTENER:-${REUSE_LISTENER_DEFAULT:-0}}"
 STAMP="$(date +%Y%m%d_%H%M%S)"
 LOG_FILE="${LOG_FILE:-${OUT_DIR}/batch_launch_${STAMP}.log}"
 mkdir -p "$(dirname "${LOG_FILE}")"
 
 echo "[run] starting milk_hunt_batch.py runs=${RUNS} max_loops=${MAX_LOOPS}"
 if [[ "${PREP_STARTER_SAVE}" == "1" ]] && [[ -n "${STARTER_SAVE_SLOT}" ]]; then
-  echo "[run] preparing starter save slot=${STARTER_SAVE_SLOT} profile=${PROFILE:-<none>} resources=${STARTER_RESOURCES}"
+  if [[ -z "${PROFILE}" ]] && [[ -z "${WORLD_STATE}" ]]; then
+    echo "[error] PREP_STARTER_SAVE=1 requires PROFILE or WORLD_STATE." >&2
+    exit 2
+  fi
+  echo "[run] preparing starter save slot=${STARTER_SAVE_SLOT} profile=${PROFILE:-${WORLD_STATE}}"
   starter_args=(--slot "${STARTER_SAVE_SLOT}")
-  if [[ -n "${PROFILE}" ]]; then
+  if [[ -n "${WORLD_STATE}" ]]; then
+    starter_args+=(--world-state "${WORLD_STATE}")
+  elif [[ -n "${PROFILE}" ]]; then
     starter_args+=(--profile "${PROFILE}")
-  else
-    IFS=',' read -r -a _starter_parts <<< "${STARTER_RESOURCES}"
-    for part in "${_starter_parts[@]}"; do
-      starter_args+=(--resource "${part}")
-    done
   fi
   if [[ -n "${RESOURCE_MODE}" ]]; then
     starter_args+=(--resource-mode "${RESOURCE_MODE}")
@@ -50,8 +58,13 @@ if [[ -n "${LOAD_ALIAS}" ]]; then
 elif [[ -n "${STARTER_SAVE_SLOT}" ]]; then
   batch_args+=(--load-slot "${STARTER_SAVE_SLOT}")
 fi
-if [[ -n "${PROFILE}" ]]; then
+if [[ -n "${WORLD_STATE}" ]]; then
+  batch_args+=(--world-state "${WORLD_STATE}" --seed-slot "${STARTER_SAVE_SLOT:-2}")
+elif [[ -n "${PROFILE}" ]]; then
   batch_args+=(--profile "${PROFILE}" --seed-slot "${STARTER_SAVE_SLOT:-2}")
+fi
+if [[ -n "${STRATEGY}" ]]; then
+  batch_args+=(--strategy "${STRATEGY}")
 fi
 if [[ -n "${SEED_FROM_SLOT}" ]]; then
   batch_args+=(--seed-from-slot "${SEED_FROM_SLOT}")

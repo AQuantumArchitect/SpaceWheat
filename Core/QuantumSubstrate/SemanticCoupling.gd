@@ -10,39 +10,58 @@ extends RefCounted
 
 const DualEmojiQubit = preload("res://Core/QuantumSubstrate/DualEmojiQubit.gd")
 
-# Emoji semantic categories (simplified taxonomy)
+# Emoji semantic categories — canonical emoji→category mapping.
+# VocabularyEvolution derives its category→[emojis] from this via invert_categories().
 const EMOJI_CATEGORIES = {
 	# Natural/Agricultural
-	"🌾": "agriculture",
-	"🌱": "agriculture",
-	"🌿": "agriculture",
-	"🍂": "agriculture",
-	"🌳": "agriculture",
+	"🌾": "agriculture", "🌱": "agriculture", "🌿": "agriculture",
+	"🍂": "agriculture", "🌳": "agriculture", "🌻": "agriculture",
+	"🪴": "agriculture", "🌲": "agriculture",
 
 	# Human/Labor
-	"👥": "labor",
-	"👁️": "labor",
-	"🛠️": "labor",
-	"⚙️": "labor",
+	"👥": "labor", "👁️": "labor", "🛠️": "labor",
+	"⚙": "labor", "⚙️": "labor",
 
 	# Cosmic/Abstract
-	"🌌": "cosmic",
-	"🌀": "cosmic",
-	"✨": "cosmic",
-	"🕳️": "cosmic",
+	"🌌": "cosmic", "🌀": "cosmic", "✨": "cosmic",
+	"🕳️": "cosmic", "🌟": "cosmic", "☄️": "cosmic",
+	"☀": "cosmic", "🌙": "cosmic",
 
 	# Economic/Resource
-	"💰": "economic",
-	"🍅": "economic",
-	"💎": "economic",
-	"📈": "economic",
+	"💰": "economic", "🍅": "economic", "💎": "economic",
+	"📈": "economic", "🏦": "economic", "💳": "economic",
+	"🍞": "economic", "🍼": "economic",
 
-	# Political/Authority (unique emojis only)
-	"🏰": "political",
-	"⚔️": "political",
-	"⚖️": "political",
-	"👑": "political",
+	# Elemental
+	"🔥": "elemental", "❄️": "elemental", "💧": "elemental",
+	"💨": "elemental", "🏜️": "elemental", "⚡": "elemental",
+
+	# Biological
+	"🍄": "biological", "🐇": "biological", "🐺": "biological",
+	"🦌": "biological", "🦅": "biological", "🐂": "biological",
+	"🐻": "biological", "🧬": "biological", "🦠": "biological",
+	"🐛": "biological",
+
+	# Political/Authority
+	"🏰": "political", "⚔️": "political", "⚖️": "political",
+	"👑": "political", "🗡️": "political",
+
+	# Emotional
+	"😭": "emotional", "☀️": "emotional", "💔": "emotional",
+	"❤️‍🔥": "emotional", "😴": "emotional",
 }
+
+
+static func invert_categories() -> Dictionary:
+	"""Return category→[emojis] dict derived from EMOJI_CATEGORIES."""
+	var inverted: Dictionary = {}
+	for emoji in EMOJI_CATEGORIES:
+		var cat = EMOJI_CATEGORIES[emoji]
+		if not inverted.has(cat):
+			inverted[cat] = []
+		if emoji not in inverted[cat]:
+			inverted[cat].append(emoji)
+	return inverted
 
 
 static func calculate_emoji_similarity(emoji_a: String, emoji_b: String) -> float:

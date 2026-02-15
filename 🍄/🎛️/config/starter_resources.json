@@ -1,0 +1,59 @@
+{
+  "_comment": "SINGLE SOURCE OF TRUTH for all starter resources",
+  "_usage": "Run 🎛️/create_starter_template.sh to generate user://saves/new_game_easy.tres from these values",
+  "_dry_principle": "Edit resources here, regenerate template, all systems update automatically",
+
+  "resources": {
+    "👥": 220,
+    "🌾": 80,
+    "⚡": 128,
+    "🍞": 60,
+    "❄️": 60,
+    "🌱": 50,
+    "⚙": 40,
+    "🔥": 30,
+    "🦅": 20,
+    "🍼": 2,
+    "🍄": 0,
+    "🍂": 0,
+    "🍅": 0,
+    "🌌": 0,
+    "💨": 0,
+    "💧": 0,
+    "🏜️": 0,
+    "🌿": 0,
+    "🐇": 0,
+    "👑": 0,
+    "💰": 0
+  },
+
+  "known_pairs": [
+    {"north": "🌾", "south": "👥"}
+  ],
+
+  "unlocked_biomes": ["StarterForest", "Village"],
+  "active_biome": "Village",
+
+  "economy_notes": {
+    "👥_220": "55 vocab injections where 👥 is south pole (4 each) - scaled for 1:1 quantum mass economy",
+    "🌱_50": "5 vocab injections (10 sprouts each)",
+    "⚡_128": "16 Lindblad operations (8 energy each) - scaled for 1:1 economy",
+    "❄️_60": "60 measure operations",
+    "🍞_60": "60 explore operations",
+    "🔥_30": "30 Hadamard gates for quantum ops",
+    "🦅_20": "5 biome unlocks (4 eagles per biome) - scaled for 1:1 economy",
+    "🍼_2": "2 harvest-all operations (Reality Midwife tokens)"
+  },
+
+  "vocab_injection_cost_formula": "4 [south_emoji] + 10 🌱 (1:1 quantum mass economy)",
+  "lindblad_injection_cost_formula": "8 ⚡ (1:1 quantum mass economy)",
+  "action_costs": {
+    "explore": "1 🍞",
+    "measure": "1 ❄️",
+    "reap": "1 👥",
+    "harvest_all": "1 🍼",
+    "explore_biome": "4 🦅",
+    "lindblad_pump": "8 ⚡",
+    "lindblad_drain": "8 ⚡"
+  }
+}
