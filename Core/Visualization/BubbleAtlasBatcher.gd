@@ -145,17 +145,6 @@ func set_graphics_quality(quality: GraphicsQuality) -> void:
 			print("[BubbleAtlasBatcher] Graphics: HIGH (all layers)")
 
 
-func configure_for_software_rendering(enabled: bool = true) -> void:
-	"""Auto-configure quality for software rendering (llvmpipe).
-
-	DEPRECATED: Use set_graphics_quality() instead.
-	This sets MEDIUM quality for software renderers, LOW for hardware.
-	"""
-	if enabled:
-		set_graphics_quality(GraphicsQuality.MEDIUM)
-	else:
-		set_graphics_quality(GraphicsQuality.HIGH)
-
 # Arc configuration
 const ARC_SEGMENTS: int = 24  # Segments for full circle arc
 

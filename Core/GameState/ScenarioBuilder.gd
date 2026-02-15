@@ -13,7 +13,6 @@ static func create_scenario(
 	state.scenario_id = scenario_id
 	state.all_emoji_credits = starting_resources.duplicate()
 	state.game_time = 0.0
-	state.time_elapsed = 0.0
 	return state
 
 static func create_with_preplanted(

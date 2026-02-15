@@ -3,7 +3,7 @@ extends RefCounted
 
 ## FactionRegistry: Data-driven faction management
 ##
-## Replaces AllFactions.gd with JSON-backed faction loading.
+## JSON-backed faction loading with indexed lookups.
 ## Provides O(1) lookup by emoji, name, and tag via pre-built indexes.
 ##
 ## Usage:
@@ -97,7 +97,7 @@ func _build_indexes() -> void:
 
 
 ## ========================================
-## Query API (replaces AllFactions static methods)
+## Query API
 ## ========================================
 
 ## Get all factions

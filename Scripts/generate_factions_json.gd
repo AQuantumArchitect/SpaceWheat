@@ -4,12 +4,13 @@ extends SceneTree
 ## Run this script to generate factions.json from existing GDScript faction definitions
 ## Usage: godot --headless --script Core/Factions/generate_factions_json.gd
 
-const AllFactions = preload("res://Core/Factions/AllFactions.gd")
+const FactionRegistry = preload("res://Core/Factions/FactionRegistry.gd")
 
 func _init():
 	print("Generating factions.json from GDScript definitions...")
 
-	var all_factions = AllFactions.get_all()
+	var registry = FactionRegistry.new()
+	var all_factions = registry.get_all()
 	print("Found %d factions" % all_factions.size())
 
 	# Convert all factions to dictionaries

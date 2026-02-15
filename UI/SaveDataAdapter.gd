@@ -24,7 +24,7 @@ class DisplayData:
 	var playtime: float
 
 	func _init(gstate: GameState):
-		biome_data = gstate.biome_state.duplicate(true)
+		biome_data = gstate.biome_states.duplicate(true)
 		grid_data = gstate.plots.duplicate(true)
 		grid_width = gstate.grid_width
 		grid_height = gstate.grid_height

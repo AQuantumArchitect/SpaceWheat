@@ -259,27 +259,8 @@ func _stage_visualization(farm: Node, quantum_viz: Node) -> void:
 	if biomes.size() > 0:
 		_verbose.info("boot", "🎨", "Building emoji atlas...")
 
-		# Collect emojis from biomes JSON (all biomes, not just loaded ones)
-		var biome_emojis = _collect_emojis_from_biomes_json()
-		_verbose.info("boot", "🎨", "  Found %d emojis in biomes" % biome_emojis.size())
-
-		# Collect emojis from factions JSON (all factions)
-		var faction_emojis = _collect_emojis_from_factions_json()
-		_verbose.info("boot", "🎨", "  Found %d emojis in factions" % faction_emojis.size())
-
-		# Merge both sources (union) + runtime emojis from loaded biomes
-		var emoji_set: Dictionary = {}
-		for emoji in biome_emojis:
-			emoji_set[emoji] = true
-		for emoji in faction_emojis:
-			emoji_set[emoji] = true
-
-		# Also include runtime emojis from loaded biomes (catches any dynamic additions)
-		var runtime_emojis = _collect_all_emojis(biomes)
-		for emoji in runtime_emojis:
-			emoji_set[emoji] = true
-
-		var all_emojis = emoji_set.keys()
+		# Collect all emojis (biomes JSON + factions JSON + runtime from loaded biomes)
+		var all_emojis = _collect_all_emojis(biomes)
 		_verbose.info("boot", "🎨", "  Total unique: %d emojis" % all_emojis.size())
 
 		# Build atlas with graceful fallback (skip in headless mode)
@@ -710,23 +691,3 @@ func _collect_all_emojis(biomes: Dictionary) -> Array:
 	return unique_emojis.keys()
 
 
-## Helper: Collect emojis from biomes JSON file (DEPRECATED - use EmojiRegistry)
-func _collect_emojis_from_biomes_json() -> Array:
-	"""DEPRECATED: Use EmojiRegistry instead.
-
-	Kept for backwards compatibility only.
-	"""
-	const EmojiRegistry = preload("res://Core/Biomes/EmojiRegistry.gd")
-	var registry = EmojiRegistry.new()
-	return registry.get_biome_emojis()
-
-
-## Helper: Collect emojis from factions JSON file (DEPRECATED - use EmojiRegistry)
-func _collect_emojis_from_factions_json() -> Array:
-	"""DEPRECATED: Use EmojiRegistry instead.
-
-	Kept for backwards compatibility only.
-	"""
-	const EmojiRegistry = preload("res://Core/Biomes/EmojiRegistry.gd")
-	var registry = EmojiRegistry.new()
-	return registry.get_faction_emojis()

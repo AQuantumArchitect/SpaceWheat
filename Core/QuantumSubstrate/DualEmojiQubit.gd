@@ -6,8 +6,6 @@ const Complex = preload("res://Core/QuantumSubstrate/Complex.gd")
 
 ## DualEmojiQubit - Stateless Projection Lens
 ##
-## DEPRECATED: Model B component-based queries. Prefer direct QuantumComputer.get_*() for Model C.
-##
 ## This is a read-only view providing measurement basis labels and computed properties.
 ## All quantum state lives in the parent biome's QuantumComputer.
 ##

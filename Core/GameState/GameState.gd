@@ -142,14 +142,6 @@ func get_pair_for_emoji(emoji: String) -> Variant:
 @export var active_contracts: Array[Dictionary] = []
 # Each contract: {title, description, reward, requirements, faction}
 
-## LEGACY - Single Biome (DEPRECATED in Phase 2)
-## Kept for backward compatibility with old saves
-@export var time_elapsed: float = 0.0  # DEPRECATED: Use biome_states["BioticFlux"]["time_elapsed"]
-@export var sun_theta: float = 0.0  # DEPRECATED: Use biome_states["BioticFlux"]["sun_qubit"]["theta"]
-@export var sun_phi: float = 0.0    # DEPRECATED: Use biome_states["BioticFlux"]["sun_qubit"]["phi"]
-# Removed: wheat_icon_theta, mushroom_icon_theta - dead code (0 uses)
-@export var biome_state: Dictionary = {}  # DEPRECATED: Use biome_states
-
 ## Phase 2: Multi-Biome Architecture
 ## Each biome has its own quantum state, independent evolution
 @export var biome_states: Dictionary = {}

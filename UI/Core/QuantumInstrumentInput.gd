@@ -60,11 +60,9 @@ var _state: QuantumInstrumentState
 var farm  # Farm instance
 var plot_grid_display  # PlotGridDisplay reference for visual selection
 
-# Legacy state (kept for backward compat during Phase 4 - to be removed)
-# NOTE: All reads/writes now go through _state
-var current_selection: Dictionary = {"plot_idx": -1, "biome": "", "subspace_idx": -1}  # UNUSED
-var last_selected_plot_position: Vector2i = Vector2i(-1, -1)  # UNUSED
-var checked_plots: Array[Vector2i] = []  # UNUSED
+# Selection state (current plot/biome/subspace selection)
+var current_selection: Dictionary = {"plot_idx": -1, "biome": "", "subspace_idx": -1}
+
 var _current_submenu: Dictionary = {}  # Kept in sync with _state for signal emission
 var _in_submenu: bool = false  # Kept in sync with _state for signal emission
 var _submenu_page: int = 0  # Kept in sync with _state for signal emission

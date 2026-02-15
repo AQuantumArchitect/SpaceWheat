@@ -177,15 +177,6 @@ func capture_state_from_farm(farm: Node, current_state: GameState, scenario_id: 
 		for pos_key in farm.grid.plot_biome_assignments.keys():
 			state.plot_biome_assignments[pos_key] = farm.grid.plot_biome_assignments[pos_key]
 
-	# Legacy single-biome fields
-	if state.biome_states.has("BioticFlux"):
-		var bf = state.biome_states["BioticFlux"]
-		state.time_elapsed = bf.get("time_elapsed", 0.0)
-		if bf.has("sun_qubit"):
-			state.sun_theta = bf["sun_qubit"].get("theta", 0.0)
-			state.sun_phi = bf["sun_qubit"].get("phi", 0.0)
-		state.biome_state = bf
-
 	# Vocabulary Evolution State
 	if _vocabulary_evolution and _vocabulary_evolution.has_method("serialize"):
 		state.vocabulary_state = _vocabulary_evolution.serialize()
@@ -345,10 +336,6 @@ func apply_state_to_farm(state: GameState, farm: Node) -> void:
 			if bs.has("register_infrastructure"):
 				has_register_infra = true
 				break
-	elif state.biome_state:
-		if farm.biotic_flux_biome:
-			_restore_single_biome_state(farm.biotic_flux_biome, state.biome_state, "BioticFlux")
-
 	if not has_register_infra:
 		_migrate_plot_infra_to_register(farm, state)
 

@@ -239,39 +239,6 @@ func _decompose_basis(basis: int, num_qubits: int) -> Array[int]:
 ## MEASUREMENT (Tool 2 Backend)
 ## ============================================================================
 
-func measure_register(_comp, reg_id: int) -> String:
-	"""
-	Projective measurement of one register in a component.
-
-	DEPRECATED: Model B measurement. Use measure_axis() or project_qubit() for Model C.
-
-	Samples outcome from Born probabilities, collapses state by projection.
-	Returns: "north" or "south" (outcome)
-
-	Physics: Measures in the computational basis {|0⟩, |1⟩}.
-	For plot with (north_emoji, south_emoji) basis, maps naturally.
-	"""
-	push_warning("DEPRECATED: measure_register() uses Model B. Use measure_axis() or project_qubit() for Model C.")
-	if density_matrix == null:
-		push_error("Measurement attempted without density_matrix")
-		return "north"
-
-	var p0 = get_marginal(reg_id, 0)
-	var p1 = get_marginal(reg_id, 1)
-	var p_total = p0 + p1
-
-	if p_total < 1e-14:
-		push_error("Measurement probabilities sum to zero!")
-		return "north"
-
-	var rand = randf()
-	var outcome_idx = 0 if (rand < p0 / p_total) else 1
-	var outcome = "south" if outcome_idx == 1 else "north"
-
-	_project_component_state(null, reg_id, outcome_idx)
-
-	return outcome
-
 func inspect_register_distribution(_comp, reg_id: int) -> Dictionary:
 	"""
 	Non-destructive peek at measurement probabilities.

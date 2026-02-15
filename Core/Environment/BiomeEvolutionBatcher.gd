@@ -131,11 +131,10 @@ const FIB_SEQUENCE: Array[int] = [1, 1, 2, 3, 5, 8, 13, 21]  # Fibonacci packet 
 const RECOVERY_THRESHOLD: int = 5   # Phrames - below this = RECOVERY mode
 const BATCH_TIME_SMOOTHING: float = 0.3  # EMA smoothing
 
-# Adaptive buffer state (diagnostics only - packet sizing uses per-biome state)
-# Kept for backward compatibility with diagnostic tools
+# Adaptive buffer state (global view - drives refill logic and diagnostics)
 var _buffer_state: BufferState = BufferState.RECOVERY
-var _fib_index: int = 4             # UNUSED - diagnostics only
-var _emergency_refill: bool = false # UNUSED - per-biome version used instead
+var _fib_index: int = 4             # Used by COAST_TARGET getter
+var _emergency_refill: bool = false # Used in diagnostics dict
 
 # Computed constants (parametric, based on current Fibonacci index)
 var COAST_TARGET: int:
@@ -986,15 +985,6 @@ func _get_minimum_buffer_depth() -> int:
 			min_depth = state.depth
 
 	return min_depth if min_depth < 999999 else 0
-
-
-func _get_buffer_depth() -> int:
-	"""DEPRECATED: Use _get_minimum_buffer_depth() instead.
-
-	Kept for backward compatibility, calls new implementation.
-	Fixes Issue #2: Now checks ALL biomes, not just first.
-	"""
-	return _get_minimum_buffer_depth()
 
 
 func _create_frozen_buffer(rho_packed: PackedFloat64Array, steps: int) -> Array:
@@ -2788,7 +2778,7 @@ func get_batching_diagnostics() -> Dictionary:
 func get_performance_metrics() -> Dictionary:
 	"""Get C++ task timing metrics for profiling."""
 	# Calculate buffer depth
-	var buffer_depth = _get_buffer_depth()
+	var buffer_depth = _get_minimum_buffer_depth()
 	var buffer_coverage_ms = buffer_depth * LOOKAHEAD_DT * 1000.0  # ms of coverage
 
 	# Get current adaptive batch size
@@ -3072,11 +3062,11 @@ func _on_packet_completed(result: Dictionary) -> void:
 	# Check if all packets for this refill are done
 	# With adaptive batching, total_packets is always 1 (single variable-size packet per refill)
 	if lookahead_batch_queue.is_empty() and _batches_in_flight.size() == total_packets:
-		var depth_before = _get_buffer_depth()
+		var depth_before = _get_minimum_buffer_depth()
 		_merge_accumulated_packets()
 		_batches_in_flight.clear()
 		lookahead_refills += 1
-		var depth_after = _get_buffer_depth()
+		var depth_after = _get_minimum_buffer_depth()
 
 		# REMOVED: Global escalation logic (System 3)
 		# Escalation is now handled per-biome in _update_biome_buffer_state()

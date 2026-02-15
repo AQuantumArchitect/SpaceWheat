@@ -27,7 +27,6 @@ var active_overlay_node: Control = null  # Current overlay for context-aware QER
 # References for checking action availability
 var plot_grid_display = null  # Injected reference to PlotGridDisplay
 var farm = null  # Injected reference to Farm
-var input_handler = null  # DEPRECATED: Use quantum_input instead
 var quantum_input = null  # Injected reference to QuantumInstrumentInput
 
 # Styling - colors applied via modulate on the TextureRect (matches ToolSelectionRow)
@@ -295,20 +294,17 @@ func update_action_availability() -> void:
 		update_button_highlights({"Q": false, "E": false, "R": false})
 		return
 
-	# Check for quantum_input or fall back to input_handler
-	var handler = quantum_input if quantum_input else input_handler
-
-	if handler and handler.has_method("can_execute_action"):
+	if quantum_input and quantum_input.has_method("can_execute_action"):
 		# Use validation API if available
 		var availability = {
-			"Q": handler.can_execute_action("Q"),
-			"E": handler.can_execute_action("E"),
-			"R": handler.can_execute_action("R"),
+			"Q": quantum_input.can_execute_action("Q"),
+			"E": quantum_input.can_execute_action("E"),
+			"R": quantum_input.can_execute_action("R"),
 		}
 		update_button_highlights(availability)
-	elif handler and handler.has_method("get_current_selection"):
+	elif quantum_input and quantum_input.has_method("get_current_selection"):
 		# QuantumInstrumentInput: Check if there's a valid selection
-		var selection = handler.get_current_selection()
+		var selection = quantum_input.get_current_selection()
 		var has_selection = selection.get("plot_idx", -1) >= 0
 		update_button_highlights({"Q": has_selection, "E": has_selection, "R": has_selection})
 	else:
@@ -725,9 +721,8 @@ func _resolve_selected_north_emoji() -> String:
 	var pos: Vector2i = Vector2i(-1, -1)
 	if selected.is_empty():
 		# Fallback to QuantumInstrumentInput selection if UI selection isn't set
-		var handler = quantum_input if quantum_input else input_handler
-		if handler and handler.has_method("get_current_selection") and farm and farm.has_method("get_biome_row"):
-			var selection = handler.get_current_selection()
+		if quantum_input and quantum_input.has_method("get_current_selection") and farm and farm.has_method("get_biome_row"):
+			var selection = quantum_input.get_current_selection()
 			var plot_idx = selection.get("plot_idx", -1)
 			var biome_name = selection.get("biome", "")
 			if plot_idx >= 0:

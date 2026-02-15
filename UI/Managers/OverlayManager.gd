@@ -34,8 +34,6 @@ var quest_panel: QuestPanel
 var faction_quest_offers_panel: FactionQuestOffersPanel  # Legacy browse-all panel
 var quest_board: QuestBoard  # New modal 4-slot quest board (primary interface)
 var vocabulary_overlay: Control
-# DEPRECATED: network_overlay - tomato conspiracy system removed
-var network_overlay = null  # Explicitly null - feature removed
 var network_info_panel: NetworkInfoPanel
 var escape_menu: EscapeMenu
 var save_load_menu
@@ -241,21 +239,6 @@ func create_overlays(parent: Control) -> void:
 	_verbose.info("ui", "📖", "Vocabulary overlay created (press V to toggle)")
 	_setup_visibility_processing(vocabulary_overlay)
 
-	# Network overlay - DISABLED (being redesigned)
-	# Will be implemented differently in future update
-	# if conspiracy_network:
-	# 	network_overlay = ConspiracyNetworkOverlay.new()
-	# 	network_overlay.visible = false
-	# 	network_overlay.z_index = 1000
-	# 	parent.add_child(network_overlay)
-	# 	print("📊 Quantum space network overlay created (press N to toggle)")
-	#
-	# 	network_info_panel = NetworkInfoPanel.new()
-	# 	network_info_panel.visible = false
-	# 	network_info_panel.z_index = 1001
-	# 	parent.add_child(network_info_panel)
-	# 	print("📊 Network info panel created")
-
 	# Create Escape Menu
 	escape_menu = EscapeMenu.new()
 	if layout_manager and escape_menu.has_method("set_layout_manager"):
@@ -355,8 +338,6 @@ func toggle_overlay(name: String) -> void:
 			toggle_quest_board()
 		"vocabulary":
 			toggle_vocabulary_overlay()
-		"network":
-			toggle_network_overlay()
 		"escape_menu":
 			toggle_escape_menu()
 		"biomes":
@@ -412,17 +393,6 @@ func show_overlay(name: String) -> void:
 				_verbose.info("ui", "✅", "vocabulary_overlay shown")
 			else:
 				_verbose.warn("ui", "❌", "vocabulary_overlay is null!")
-		"network":
-			if network_overlay:
-				_verbose.debug("ui", "→", "Setting network_overlay.visible = true")
-				network_overlay.visible = true
-				if network_info_panel:
-					network_info_panel.visible = true
-				overlay_states["network"] = true
-				overlay_toggled.emit("network", true)
-				_verbose.info("ui", "✅", "network_overlay shown")
-			else:
-				_verbose.warn("ui", "❌", "network_overlay is null (disabled)")
 		"escape_menu":
 			if escape_menu:
 				_verbose.debug("ui", "→", "Calling escape_menu.show_menu()")
@@ -477,17 +447,6 @@ func hide_overlay(name: String) -> void:
 				_verbose.info("ui", "✅", "vocabulary_overlay hidden")
 			else:
 				_verbose.warn("ui", "❌", "vocabulary_overlay is null!")
-		"network":
-			if network_overlay:
-				_verbose.debug("ui", "→", "Hiding network panels")
-				network_overlay.visible = false
-				if network_info_panel:
-					network_info_panel.visible = false
-				overlay_states["network"] = false
-				overlay_toggled.emit("network", false)
-				_verbose.info("ui", "✅", "network_overlay hidden")
-			else:
-				_verbose.warn("ui", "❌", "network_overlay is null (disabled)")
 		"escape_menu":
 			if escape_menu:
 				_verbose.debug("ui", "→", "Calling escape_menu.hide_menu()")
@@ -524,17 +483,6 @@ func update_positions() -> void:
 	# Quest panel - top-left corner with scaled margin
 	if quest_panel:
 		quest_panel.position = layout_manager.anchor_to_corner("top_left", Vector2(10, 10))
-
-	# Network info panel - below top bar with scaled margin
-	if network_info_panel:
-		var scaled_margin = 15 * layout_manager.scale_factor
-		var panel_y = layout_manager.top_bar_height + scaled_margin
-		network_info_panel.position = Vector2(10 * layout_manager.scale_factor, panel_y)
-
-	# Conspiracy network overlay - centered on play area
-	if network_overlay:
-		network_overlay.center = layout_manager.get_play_area_center()
-		network_overlay.bounds_radius = layout_manager.play_area_rect.size.length() * 0.35
 
 	# Vocabulary overlay - position set during creation, can be overridden here if needed
 	# (currently left at creation position for UX consistency)
@@ -637,21 +585,6 @@ func toggle_vocabulary_overlay() -> void:
 			show_overlay("vocabulary")
 	else:
 		_verbose.warn("ui", "❌", "vocabulary_overlay is null!")
-
-
-func toggle_network_overlay() -> void:
-	"""Toggle network overlay and info panel visibility"""
-	_verbose.debug("ui", "🔄", "toggle_network_overlay() called")
-	if network_overlay:
-		_verbose.debug("ui", "→", "network_overlay exists, visible = %s" % network_overlay.visible)
-		if network_overlay.visible:
-			_verbose.debug("ui", "→", "Overlay is visible, calling hide_overlay()")
-			hide_overlay("network")
-		else:
-			_verbose.debug("ui", "→", "Overlay is hidden, calling show_overlay()")
-			show_overlay("network")
-	else:
-		_verbose.warn("ui", "❌", "network_overlay is null (disabled)")
 
 
 func toggle_escape_menu() -> void:

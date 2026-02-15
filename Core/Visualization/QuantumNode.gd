@@ -521,13 +521,6 @@ func _test_log(level: String, emoji: String, message: String) -> void:
 		verbose.trace("test", emoji, message)
 
 
-func get_berry_phase_glow() -> float:
-	"""DEPRECATED: Berry phase now affects pulse rate, not glow.
-	Kept for backward compatibility.
-	"""
-	return 0.0  # No longer contributes to glow
-
-
 func get_pulse_rate() -> float:
 	"""Get pulse/oscillation speed based on BERRY PHASE only.
 
