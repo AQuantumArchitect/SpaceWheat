@@ -20,8 +20,8 @@ signal action_executed(turn_id: int, action: String, result: Dictionary)
 signal bridge_idle()
 signal bridge_stopped()
 
-var _queue_path: String = "user://rig/queue.jsonl"
-var _result_path: String = "user://rig/results.jsonl"
+var _queue_path: String = ""  # Resolved from XDG_ROOT in setup()
+var _result_path: String = ""  # Resolved from XDG_ROOT in setup()
 var _queue_file_byte_offset: int = 0
 var _active: bool = true
 var _idle_emitted: bool = false
@@ -31,8 +31,7 @@ var _farm_instrument: Node = null  # FarmInstrument
 var _last_offers: Array = []
 var _actions_executed: int = 0
 var _start_time_ms: int = 0
-var _physics_ticks: int = 0
-var _debug_logged_physics: bool = false
+var _auto_quit: bool = false  # If true, quit game on stop action
 
 var _verbose = null
 
@@ -47,25 +46,33 @@ func setup(farm_ref: Node, farm_instrument_ref: Node) -> void:
 	_farm = farm_ref
 	_farm_instrument = farm_instrument_ref
 	_start_time_ms = Time.get_ticks_msec()
+
+	# Match milk hunter's XDG path (/tmp/sw_godot_milk_hunt by default)
+	var xdg_root = OS.get_environment("XDG_ROOT")
+	if xdg_root == "":
+		xdg_root = "/tmp/sw_godot_milk_hunt"
+	var app_name = OS.get_environment("APPLICATION_NAME")
+	if app_name == "":
+		app_name = "SpaceWheat - Quantum Farm"
+	var rig_dir = xdg_root.path_join("godot").path_join("app_userdata").path_join(app_name).path_join("rig")
+	_queue_path = rig_dir.path_join("queue.jsonl")
+	_result_path = rig_dir.path_join("results.jsonl")
+
+	# Check if game should auto-quit when milk hunt completes
+	_auto_quit = OS.get_environment("RIG_AUTO_QUIT") == "1"
+
 	_ensure_rig_dir()
-	set_physics_process(true)  # CRITICAL: Enable _physics_process to run each physics tick
-	var global_queue = ProjectSettings.globalize_path(_queue_path)
-	print("[MilkHunterBridge] Setup complete:")
-	print("  Queue: %s" % global_queue)
-	print("  Physics processing: ENABLED (6Hz)")
-	print("  Farm instrument: %s" % ("OK" if _farm_instrument else "NULL"))
-	_v_info("Phrame bridge active (queue: %s)" % global_queue)
-	_v_info("Bridge ready - will process 1 action per physics tick (6Hz)")
+	set_physics_process(true)
+	print("[MilkHunterBridge] Phrame bridge active:")
+	print("  XDG_ROOT: %s" % xdg_root)
+	print("  Queue: %s" % _queue_path)
+	print("  Auto-quit: %s" % ("enabled" if _auto_quit else "disabled (handoff mode)"))
+	print("  Result: %s" % _result_path)
 
 
 func _physics_process(_delta: float) -> void:
 	if not _active:
 		return
-	_physics_ticks += 1
-	# Log first physics tick to verify it's working
-	if not _debug_logged_physics:
-		_debug_logged_physics = true
-		print("[MilkHunterBridge] _physics_process() is running! (tick #%d)" % _physics_ticks)
 	var line = _read_next_line()
 	if line == "":
 		if not _idle_emitted:
@@ -77,13 +84,11 @@ func _physics_process(_delta: float) -> void:
 	if data == null:
 		# Partial write — don't advance offset, retry next tick
 		return
-	print("[MilkHunterBridge] Processing action (tick #%d): %s" % [_physics_ticks, data.get("action", "unknown")])
 	_execute_action(data)
 
 
 func _read_next_line() -> String:
-	var global_path = ProjectSettings.globalize_path(_queue_path)
-	var file = FileAccess.open(global_path, FileAccess.READ)
+	var file = FileAccess.open(_queue_path, FileAccess.READ)
 	if not file:
 		return ""
 	var file_len = file.get_length()
@@ -92,9 +97,7 @@ func _read_next_line() -> String:
 	file.seek(_queue_file_byte_offset)
 	var line = file.get_line()
 	if line.strip_edges() == "":
-		# Possibly at EOF or blank line — don't advance
 		return ""
-	# Advance past the line + newline character
 	_queue_file_byte_offset = file.get_position()
 	return line
 
@@ -158,6 +161,27 @@ func _execute_action(cmd: Dictionary) -> void:
 			else:
 				result["configured"] = _farm_instrument.configure_economy(overrides)
 
+		"balance_snapshot":
+			result["balance"] = _farm_instrument.get_balance_snapshot()
+
+		"balance_patch":
+			var patch = cmd.get("patch", {})
+			if not (patch is Dictionary) or patch.is_empty():
+				result = {"ok": false, "turn": turn_id, "action": action, "error": "empty_patch"}
+			else:
+				result["balance"] = _farm_instrument.patch_balance(patch, "rig_balance_patch")
+
+		"balance_reset":
+			result["balance"] = _farm_instrument.reset_balance_to_default()
+
+		"balance_export":
+			var export_path = str(cmd.get("path", "user://saves/balance_profile_last.json"))
+			result["balance"] = _farm_instrument.export_balance_profile(export_path)
+
+		"balance_load":
+			var load_path = str(cmd.get("path", ""))
+			result["balance"] = _farm_instrument.load_balance_profile(load_path)
+
 		"gate_inject":
 			var gate_name = str(cmd.get("gate", ""))
 			var biome_name = str(cmd.get("biome", ""))
@@ -212,7 +236,16 @@ func _execute_action(cmd: Dictionary) -> void:
 			_actions_executed += 1
 			action_executed.emit(turn_id, action, result)
 			bridge_stopped.emit()
-			_v_info("Bridge stopped by Python runner (turn %d)" % turn_id)
+
+			if _auto_quit:
+				_v_info("Bridge stopped (turn %d) - auto-quitting in 1 second" % turn_id)
+				print("[MilkHunterBridge] Milk hunt complete. Shutting down game...")
+				# Brief delay to ensure result is written to disk
+				await get_tree().create_timer(1.0).timeout
+				get_tree().quit()
+			else:
+				_v_info("Bridge stopped (turn %d) - handoff to user" % turn_id)
+				print("[MilkHunterBridge] Milk hunt complete. Game ready for user control.")
 			return
 
 		_:
@@ -412,10 +445,9 @@ func _configure_seed_state(cmd: Dictionary) -> Dictionary:
 
 func _write_result(payload: Dictionary) -> void:
 	var line = JSON.stringify(payload)
-	var result_file_path = ProjectSettings.globalize_path(_result_path)
-	var file = FileAccess.open(result_file_path, FileAccess.READ_WRITE)
+	var file = FileAccess.open(_result_path, FileAccess.READ_WRITE)
 	if not file:
-		file = FileAccess.open(result_file_path, FileAccess.WRITE)
+		file = FileAccess.open(_result_path, FileAccess.WRITE)
 	if not file:
 		return
 	file.seek_end()
@@ -424,7 +456,7 @@ func _write_result(payload: Dictionary) -> void:
 
 
 func _ensure_rig_dir() -> void:
-	var rig_dir = ProjectSettings.globalize_path("user://rig")
+	var rig_dir = _queue_path.get_base_dir()
 	DirAccess.make_dir_recursive_absolute(rig_dir)
 
 
