@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="64" height="64" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+  <!-- Not Equal (≠) symbol -->
+  <g>
+    <!-- Top horizontal line -->
+    <line x1="12" y1="24" x2="52" y2="24"
+          stroke="#31A8FF"
+          stroke-width="4"
+          stroke-linecap="round"/>
+
+    <!-- Bottom horizontal line -->
+    <line x1="12" y1="40" x2="52" y2="40"
+          stroke="#31A8FF"
+          stroke-width="4"
+          stroke-linecap="round"/>
+
+    <!-- Diagonal slash -->
+    <line x1="38" y1="12" x2="26" y2="52"
+          stroke="#FF5555"
+          stroke-width="4"
+          stroke-linecap="round"/>
+  </g>
+</svg>

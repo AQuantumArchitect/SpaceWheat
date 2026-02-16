@@ -4,7 +4,7 @@ class_name EmojiDisplay
 
 ## EmojiDisplay: Unified emoji/glyph display component
 ##
-## Automatically uses SVG glyph if available via VisualAssetRegistry,
+## Automatically uses SVG glyph if available via TieredEmojiRegistry,
 ## falls back to emoji text if no glyph exists.
 ##
 ## Usage:
@@ -13,9 +13,10 @@ class_name EmojiDisplay
 ##   display.font_size = 36
 ##   add_child(display)
 ##
-## The component handles the fallback logic internally:
-##   - If VisualAssetRegistry has SVG for "🌾" → shows SVG texture
-##   - If no SVG available → shows emoji text "🌾"
+## The component handles the 3-tier fallback logic internally:
+##   Priority 1: Hand-crafted SVG (Assets/UI/*)
+##   Priority 2: Twemoji SVG (Assets/emoji_svg/*)
+##   Priority 3: Text fallback (system font)
 ##
 ## This keeps emoji strings as source of truth while enabling
 ## gradual migration to custom glyphs.
@@ -41,6 +42,12 @@ var label: Label
 
 # Track initialization state
 var _ready_called: bool = false
+
+# Tiered emoji registry (lazy initialization)
+var _tiered_emoji_registry: TieredEmojiRegistry = null
+
+# Warning flag (to avoid spam)
+var _has_warned_fallback: Dictionary = {}  # emoji → bool
 
 
 func _ready():
@@ -86,19 +93,16 @@ func _update_display():
 		label.visible = false
 		return
 
-	# Try to load SVG glyph from registry (safe access to autoload)
+	# Initialize tiered emoji registry if needed
+	if not _tiered_emoji_registry:
+		_tiered_emoji_registry = TieredEmojiRegistry.new()
+
+	# Try to load SVG glyph from tiered registry (Priority 1 & 2)
 	var texture: Texture2D = null
-	var registry = get_node_or_null("/root/VisualAssetRegistry")
-	if registry and registry.has_method("get_texture"):
-		texture = registry.get_texture(emoji)
-	elif not registry:
-		# Registry not ready yet - defer update until next frame
-		if is_inside_tree():
-			call_deferred("_update_display")
-		return
+	texture = _tiered_emoji_registry.get_texture(emoji)
 
 	if texture:
-		# Use SVG glyph (primary path)
+		# Use SVG glyph (Priority 1: Hand-crafted or Priority 2: Twemoji)
 		texture_rect.texture = texture
 		texture_rect.modulate = modulate_color
 		texture_rect.visible = true
@@ -106,7 +110,7 @@ func _update_display():
 
 		label.visible = false
 	else:
-		# Fallback to emoji text (secondary path)
+		# Priority 3: Text fallback
 		label.text = emoji
 		label.add_theme_font_size_override("font_size", font_size)
 		label.add_theme_color_override("font_color", modulate_color)
@@ -114,6 +118,11 @@ func _update_display():
 		label.set_anchors_preset(Control.PRESET_FULL_RECT)
 
 		texture_rect.visible = false
+
+		# Warn once per emoji
+		if not _has_warned_fallback.get(emoji, false):
+			push_warning("[EmojiDisplay] ⚠️ Using text fallback for '%s'" % emoji)
+			_has_warned_fallback[emoji] = true
 
 
 func set_opacity(opacity: float) -> void:

@@ -46,7 +46,7 @@ func _init():
 	_load_bundled_manifest()
 
 
-## Generate cache key from emoji list + font size
+## Generate cache key from emoji list + font size + SVG sources
 ## Uses MD5 hash for deterministic, collision-resistant keys
 func generate_cache_key(emoji_list: Array, font_size: int) -> String:
 	"""Generate MD5 hash as cache key.
@@ -55,12 +55,28 @@ func generate_cache_key(emoji_list: Array, font_size: int) -> String:
 	- Emoji list changes (additions, removals, reordering)
 	- Font size changes
 	- Atlas configuration changes
+	- Twemoji SVG index changes (NEW)
+	- Hand-crafted SVG mappings change (NEW)
 
 	This ensures automatic invalidation when source data changes.
 	"""
 	# Sort emojis for deterministic ordering
 	var sorted_emojis = emoji_list.duplicate()
 	sorted_emojis.sort()
+
+	# Include twemoji index modification time if available
+	var twemoji_hash = ""
+	var twemoji_index_path = "res://Assets/emoji_svg/emoji_index.json"
+	if FileAccess.file_exists(twemoji_index_path):
+		var file = FileAccess.open(twemoji_index_path, FileAccess.READ)
+		if file:
+			# Hash the file contents for cache invalidation
+			twemoji_hash = file.get_as_text().md5_text().substr(0, 8)
+			file.close()
+
+	# Include TieredEmojiRegistry custom mappings count (changes when we add custom SVGs)
+	var registry = TieredEmojiRegistry.new()
+	var custom_mappings_count = registry._custom_mappings.size()
 
 	var config_data = {
 		"version": ATLAS_VERSION,
@@ -70,7 +86,9 @@ func generate_cache_key(emoji_list: Array, font_size: int) -> String:
 			"CELL_SIZE": ATLAS_CELL_SIZE,
 			"PADDING": ATLAS_PADDING,
 			"MAX_SIZE": MAX_ATLAS_SIZE
-		}
+		},
+		"twemoji_hash": twemoji_hash,
+		"custom_mappings_count": custom_mappings_count
 	}
 
 	var json_str = JSON.stringify(config_data)

@@ -65,8 +65,11 @@ var _fallback_count: int = 0
 var _atlas_hit_count: int = 0
 var _missing_emojis_this_frame: Dictionary = {}  # Track emojis missing from atlas this frame (for batched warning)
 
-# Fallback for visual asset registry textures
+# Fallback for visual asset registry textures (DEPRECATED - use _tiered_emoji_registry)
 var _visual_asset_registry = null
+
+# NEW: Three-tier emoji registry (hand-crafted → twemoji → text)
+var _tiered_emoji_registry: TieredEmojiRegistry = null
 
 # Cache for persistent atlas storage
 var _atlas_cache = null
@@ -74,9 +77,15 @@ var _atlas_cache = null
 # Verbose config (for gating per-frame logs)
 var _verbose_config = null
 
+# Track text fallback warnings for batch reporting
+var _fallback_warnings: Dictionary = {}  # emoji → count
+
 
 func _init():
-	# Try to get visual asset registry for SVG fallback
+	# Initialize tiered emoji registry
+	_tiered_emoji_registry = TieredEmojiRegistry.new()
+
+	# Keep legacy registry for backward compatibility (deprecated)
 	var tree = Engine.get_main_loop()
 	if tree and tree is SceneTree:
 		_visual_asset_registry = tree.root.get_node_or_null("/root/VisualAssetRegistry")
@@ -199,14 +208,28 @@ func _render_emoji_to_image(emoji: String, font: Font, font_size: int) -> Image:
 
 	Creates a temporary viewport, renders the emoji text, captures the result.
 	This is called at startup time, not per-frame.
-	"""
-	# Check if we already have an SVG texture for this emoji
-	if _visual_asset_registry and _visual_asset_registry.has_texture(emoji):
-		var tex = _visual_asset_registry.get_texture(emoji)
-		if tex:
-			return tex.get_image()
 
-	# Create SubViewport for rendering
+	Uses 3-tier priority system:
+	  1. Hand-crafted SVGs (highest quality)
+	  2. Twemoji SVGs (downloaded)
+	  3. Text rendering fallback (system font) with warnings
+	"""
+	# Priority 1 & 2: Try tiered emoji registry (custom + twemoji)
+	if _tiered_emoji_registry:
+		var tex = _tiered_emoji_registry.get_texture(emoji)
+		if tex:
+			var img = tex.get_image()
+			if img:
+				return img
+			else:
+				push_warning("[EmojiAtlasBatcher] Texture for '%s' has no image data" % emoji)
+
+	# Track text fallback usage
+	if not _fallback_warnings.has(emoji):
+		_fallback_warnings[emoji] = 0
+	_fallback_warnings[emoji] += 1
+
+	# Priority 3: Text fallback - Create SubViewport for rendering
 	var viewport = SubViewport.new()
 	viewport.size = Vector2i(ATLAS_CELL_SIZE, ATLAS_CELL_SIZE)
 	viewport.transparent_bg = true
@@ -384,7 +407,24 @@ func build_atlas_async(emoji_list: Array, parent_node: Node, font_size: int = 48
 		_atlas_width, _atlas_height, _emoji_uvs.size(), elapsed
 	])
 
-	# Early warning: Check VisualAssetRegistry for missing SVG files
+	# NEW: Report text fallback usage
+	if _fallback_warnings.size() > 0:
+		print("")
+		print("⚠️ EMOJI TEXT FALLBACK REPORT:")
+		var sorted_emojis = _fallback_warnings.keys()
+		sorted_emojis.sort()
+		for emoji in sorted_emojis:
+			var count = _fallback_warnings[emoji]
+			print("  '%s' rendered as text (%d time%s)" % [emoji, count, "s" if count > 1 else ""])
+		print("  Consider adding these to Assets/emoji_svg/ or Assets/UI/")
+		print("")
+
+	# NEW: Print tiered registry statistics
+	if _tiered_emoji_registry:
+		_tiered_emoji_registry.print_statistics()
+		print("")
+
+	# Early warning: Check VisualAssetRegistry for missing SVG files (DEPRECATED)
 	if _visual_asset_registry:
 		var missing_svg_files: Array = []
 		# Get all registered emojis from the registry
