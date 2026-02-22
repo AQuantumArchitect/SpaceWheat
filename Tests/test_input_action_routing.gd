@@ -1,29 +1,13 @@
 #!/usr/bin/env -S godot --headless -s
-## Phase 4: Input Action Routing Test Suite
-## Tests FarmInputHandler → Farm → Game State pipeline
+## QuantumInstrument Action Routing Test Suite
+## Tests the unified game mechanics API (QuantumInstrument) in headless mode.
+##
+## After the refactor, all action routing goes through QuantumInstrument.
+## FarmInputHandler no longer exists; QII is a thin keyboard adapter.
 
 extends SceneTree
 
-const Farm = preload("res://Core/Farm.gd")
-const FarmEconomy = preload("res://Core/GameMechanics/FarmEconomy.gd")
-const FarmInputHandler = preload("res://UI/FarmInputHandler.gd")
-
-# Test infrastructure
-var farm: Farm
-var input_handler: FarmInputHandler
-var economy: FarmEconomy
-var mock_plot_display: MockPlotGridDisplay
-
-# Signal spy system
-var signal_spy: Dictionary = {
-	"tool_changed": [],
-	"plot_selected": [],
-	"action_performed": [],
-	"plot_planted": [],
-	"plot_measured": [],
-	"plot_harvested": [],
-	"state_changed": []
-}
+const QuantumInstrument = preload("res://Core/Instrumentation/QuantumInstrument.gd")
 
 # Test results
 var tests_passed: int = 0
@@ -37,248 +21,263 @@ func _sep(char: String, count: int) -> String:
 
 func _initialize():
 	print("\n" + _sep("=", 80))
-	print("⌨️  PHASE 4: KEYBOARD INPUT ACTION ROUTING TEST SUITE")
+	print("⌨️  QUANTUM INSTRUMENT ACTION ROUTING TEST SUITE")
 	print(_sep("=", 80) + "\n")
 
-	_setup()
-
 	print("🧪 RUNNING TESTS\n")
-	_test_tool_selection_routing()
-	_test_single_plot_plant_actions()
-	_test_single_plot_quantum_actions()
-	_test_batch_operations()
-	_test_action_validation()
-	_test_signal_propagation()
+	_test_initial_state()
+	_test_selection_routing()
+	_test_plot_checking()
+	_test_tool_group_switching()
+	_test_gate_dispatch_table()
+	_test_state_snapshot_restore()
+	_test_signal_emission()
 
 	_report_results()
 
 	quit(0 if tests_failed == 0 else 1)
 
 
-func _setup():
-	"""Initialize test infrastructure"""
-	print("🔧 Setting up test infrastructure...\n")
-
-	# Create farm
-	farm = Farm.new()
-	farm._ready()
-	print("   ✓ Farm created")
-
-	# Get economy
-	economy = farm.economy
-	economy.add_credits(1000)
-	economy.add_labor(100)
-	print("   ✓ Economy configured")
-
-	# Create mock plot display
-	mock_plot_display = MockPlotGridDisplay.new()
-	print("   ✓ Mock plot display created")
-
-	# Create input handler
-	input_handler = FarmInputHandler.new()
-	input_handler._ready()
-	print("   ✓ FarmInputHandler created")
-
-	# Inject dependencies
-	input_handler.farm = farm
-	input_handler.plot_grid_display = mock_plot_display
-	print("   ✓ Dependencies injected")
-
-	# Connect spies
-	_connect_spies()
-	print("   ✓ Signal spies connected\n")
-
-
-func _connect_spies():
-	"""Connect spy listeners to signals"""
-	input_handler.tool_changed.connect(
-		func(tool, info): signal_spy["tool_changed"].append([tool, info])
-	)
-	input_handler.action_performed.connect(
-		func(action, success, message): signal_spy["action_performed"].append([action, success, message])
-	)
-	farm.plot_planted.connect(
-		func(pos, plant_type): signal_spy["plot_planted"].append([pos, plant_type])
-	)
-	farm.plot_measured.connect(
-		func(pos, outcome): signal_spy["plot_measured"].append([pos, outcome])
-	)
-	farm.plot_harvested.connect(
-		func(pos, yield_data): signal_spy["plot_harvested"].append([pos, yield_data])
-	)
-	farm.state_changed.connect(
-		func(state_data): signal_spy["state_changed"].append(state_data)
-	)
-
-
-func _test_tool_selection_routing():
-	"""TEST 1: Tool selection works correctly"""
-	print("📍 TEST 1: Tool Selection Routing")
+func _test_initial_state():
+	"""TEST 1: QuantumInstrument boots with expected default state"""
+	print("📍 TEST 1: Initial State")
 	print(_sep("─", 80))
 
-	signal_spy["tool_changed"].clear()
+	var instrument = QuantumInstrument.new()
 
-	input_handler._select_tool(1)
-	assert(signal_spy["tool_changed"].size() == 1)
-	assert(input_handler.current_tool == 1)
-	print("   ✅ Tool 1 selected")
-
-	input_handler._select_tool(2)
-	assert(signal_spy["tool_changed"].size() == 2)
-	assert(input_handler.current_tool == 2)
-	print("   ✅ Tool 2 selected")
-
-	var tool_1_actions = FarmInputHandler.TOOL_ACTIONS[1]
-	assert(tool_1_actions["Q"]["action"] == "plant_wheat")
-	print("   ✅ Tool actions mapped correctly")
+	_assert(instrument.current_biome == "", "current_biome should be empty")
+	_assert(instrument.current_plot_idx == -1, "current_plot_idx should be -1")
+	_assert(instrument.current_tool_group == 3, "current_tool_group should default to 3")
+	_assert(not instrument.is_in_submenu(), "should not be in submenu initially")
+	_assert(instrument.checked_plots.size() == 0, "checked_plots should be empty")
 
 	tests_passed += 1
 	print("✅ TEST 1 PASSED\n")
 
 
-func _test_single_plot_plant_actions():
-	"""TEST 2: Plant actions work correctly"""
-	print("📍 TEST 2: Single-Plot Plant Actions")
+func _test_selection_routing():
+	"""TEST 2: Plot and biome selection routes through instrument state"""
+	print("📍 TEST 2: Selection Routing")
 	print(_sep("─", 80))
 
-	input_handler._select_tool(1)
+	var instrument = QuantumInstrument.new()
 
-	signal_spy["action_performed"].clear()
-	signal_spy["plot_planted"].clear()
-	mock_plot_display.select_plots([Vector2i(0, 0)])
-	input_handler._execute_tool_action("Q")
+	# Select a plot
+	var result = instrument.select_plot(2, "BioticFlux", Vector2i(1, 1))
+	_assert(result.selection_changed, "selection should have changed")
+	_assert(result.new_idx == 2, "new_idx should be 2")
+	_assert(instrument.current_plot_idx == 2, "current_plot_idx should be 2")
+	_assert(instrument.current_biome == "BioticFlux", "current_biome should be BioticFlux")
+	print("   ✅ Plot selection updates state correctly")
 
-	assert(signal_spy["action_performed"].size() == 1)
-	assert(farm.get_plot(Vector2i(0, 0)).is_planted == true)
-	print("   ✅ Plant wheat (Q) works")
+	# Select same plot (no change)
+	var result2 = instrument.select_plot(2, "BioticFlux", Vector2i(1, 1))
+	_assert(not result2.selection_changed, "selection should not change for same plot")
+	print("   ✅ Duplicate selection returns selection_changed=false")
 
-	signal_spy["plot_planted"].clear()
-	mock_plot_display.select_plots([Vector2i(1, 0)])
-	input_handler._execute_tool_action("E")
-
-	assert(farm.get_plot(Vector2i(1, 0)).is_planted == true)
-	print("   ✅ Plant mushroom (E) works")
-
-	signal_spy["plot_planted"].clear()
-	mock_plot_display.select_plots([Vector2i(2, 0)])
-	input_handler._execute_tool_action("R")
-
-	assert(farm.get_plot(Vector2i(2, 0)).is_planted == true)
-	print("   ✅ Plant tomato (R) works")
+	# Switch biome
+	var result3 = instrument.select_plot(0, "StarterForest", Vector2i(0, 0))
+	_assert(result3.selection_changed, "biome switch should trigger selection_changed")
+	_assert(instrument.current_biome == "StarterForest", "biome should update")
+	print("   ✅ Biome switch updates state")
 
 	tests_passed += 1
 	print("✅ TEST 2 PASSED\n")
 
 
-func _test_single_plot_quantum_actions():
-	"""TEST 3: Quantum operations work correctly"""
-	print("📍 TEST 3: Single-Plot Quantum Actions")
+func _test_plot_checking():
+	"""TEST 3: Multi-select checkbox toggling"""
+	print("📍 TEST 3: Plot Checking (Multi-Select)")
 	print(_sep("─", 80))
 
-	farm.build(Vector2i(3, 0), "wheat")
-	farm.build(Vector2i(4, 0), "wheat")
+	var instrument = QuantumInstrument.new()
 
-	input_handler._select_tool(2)
+	# Check first plot
+	var r1 = instrument.toggle_plot_check(Vector2i(0, 0))
+	_assert(r1.is_checked, "plot (0,0) should be checked")
+	_assert(r1.checked_count == 1, "checked_count should be 1")
+	print("   ✅ First check works")
 
-	signal_spy["plot_measured"].clear()
-	mock_plot_display.select_plots([Vector2i(3, 0)])
-	input_handler._execute_tool_action("E")
+	# Check second plot
+	var r2 = instrument.toggle_plot_check(Vector2i(1, 1))
+	_assert(r2.is_checked, "plot (1,1) should be checked")
+	_assert(r2.checked_count == 2, "checked_count should be 2")
+	print("   ✅ Second check adds to count")
 
-	assert(signal_spy["plot_measured"].size() >= 1)
-	assert(farm.get_plot(Vector2i(3, 0)).is_measured == true)
-	print("   ✅ Measure plot (E) works")
+	# Uncheck first
+	var r3 = instrument.toggle_plot_check(Vector2i(0, 0))
+	_assert(not r3.is_checked, "plot (0,0) should be unchecked")
+	_assert(r3.checked_count == 1, "checked_count should decrease to 1")
+	print("   ✅ Toggle uncheck works")
 
-	signal_spy["plot_harvested"].clear()
-	mock_plot_display.select_plots([Vector2i(3, 0)])
-	var initial_wheat = economy.wheat_inventory
-	input_handler._execute_tool_action("R")
+	# Clear all
+	instrument.clear_checked_plots()
+	_assert(instrument.checked_plots.size() == 0, "all plots should be cleared")
+	print("   ✅ clear_checked_plots() clears all")
 
-	assert(signal_spy["plot_harvested"].size() >= 1)
-	assert(economy.wheat_inventory >= initial_wheat)
-	print("   ✅ Harvest plot (R) works")
+	# set_checked_plots round-trip
+	var positions: Array[Vector2i] = [Vector2i(2, 0), Vector2i(3, 0), Vector2i(4, 0)]
+	instrument.set_checked_plots(positions)
+	var retrieved = instrument.get_checked_plots()
+	_assert(retrieved.size() == 3, "set/get round-trip should preserve 3 plots")
+	print("   ✅ set/get checked_plots round-trip works")
 
 	tests_passed += 1
 	print("✅ TEST 3 PASSED\n")
 
 
-func _test_batch_operations():
-	"""TEST 4: Batch operations work correctly"""
-	print("📍 TEST 4: Batch Operations")
+func _test_tool_group_switching():
+	"""TEST 4: Tool group switching"""
+	print("📍 TEST 4: Tool Group Switching")
 	print(_sep("─", 80))
 
-	input_handler._select_tool(1)
-	signal_spy["plot_planted"].clear()
+	var instrument = QuantumInstrument.new()
 
-	mock_plot_display.select_plots([Vector2i(5, 0)])
-	input_handler._execute_tool_action("Q")
+	_assert(instrument.current_tool_group == 3, "default tool group should be 3")
 
-	assert(signal_spy["plot_planted"].size() >= 1)
-	assert(farm.get_plot(Vector2i(5, 0)).is_planted == true)
-	print("   ✅ Batch plant works")
+	var r1 = instrument.set_tool_group(1)
+	_assert(r1.changed, "switching to group 1 should mark changed=true")
+	_assert(r1.group == 1, "result.group should be 1")
+	_assert(instrument.current_tool_group == 1, "current_tool_group should update")
+	print("   ✅ Switch to group 1")
 
-	input_handler._select_tool(2)
-	signal_spy["plot_measured"].clear()
-	input_handler._execute_tool_action("E")
+	# Same group → no change
+	var r2 = instrument.set_tool_group(1)
+	_assert(not r2.changed, "setting same group should return changed=false")
+	print("   ✅ Same group returns changed=false")
 
-	assert(signal_spy["plot_measured"].size() >= 1)
-	print("   ✅ Batch measure works")
+	instrument.set_tool_group(4)
+	_assert(instrument.current_tool_group == 4, "can switch to group 4")
+	print("   ✅ Switch to group 4")
 
 	tests_passed += 1
 	print("✅ TEST 4 PASSED\n")
 
 
-func _test_action_validation():
-	"""TEST 5: Failed actions handled gracefully"""
-	print("📍 TEST 5: Action Validation")
+func _test_gate_dispatch_table():
+	"""TEST 5: Gate dispatch table contains all expected gates"""
+	print("📍 TEST 5: Gate Dispatch Table")
 	print(_sep("─", 80))
 
-	var current_credits = economy.credits
-	economy.remove_credits(current_credits, "test")
+	var instrument = QuantumInstrument.new()
 
-	input_handler._select_tool(1)
-	signal_spy["action_performed"].clear()
-	mock_plot_display.select_plots([Vector2i(5, 0)])
-	input_handler._execute_tool_action("Q")
+	var expected_gates = [
+		"pauli_x", "pauli_y", "pauli_z",
+		"hadamard", "s_gate", "t_gate", "sdg", "tdg",
+		"rx", "ry", "rz",
+		"cnot", "cz", "swap",
+		"bell", "ghz", "cluster"
+	]
 
-	assert(signal_spy["action_performed"].size() >= 1)
-	var last_action = signal_spy["action_performed"][-1]
-	assert(last_action[1] == false)
-	print("   ✅ Failed action correctly reported")
+	# Check the dispatch table directly (const accessible on instance)
+	var missing_gates: Array = []
+	for gate in expected_gates:
+		if not instrument._GATE_DISPATCH.has(gate):
+			missing_gates.append(gate)
+
+	_assert(missing_gates.is_empty(), "All %d gates should be in _GATE_DISPATCH (missing: %s)" % [
+		expected_gates.size(), str(missing_gates)
+	])
+	print("   ✅ All %d gates in dispatch table" % expected_gates.size())
+
+	# gate_inject without farm returns structured no_farm error (not a crash)
+	var result = instrument.gate_inject("hadamard", [])
+	_assert(result.get("error") == "no_farm", "gate_inject without farm should return error=no_farm")
+	print("   ✅ gate_inject without farm returns structured error (not crash)")
+
+	# Unknown gate is absent from dispatch table
+	_assert(not instrument._GATE_DISPATCH.has("not_a_real_gate"), "unknown gate should not be in dispatch table")
+	print("   ✅ Unknown gate correctly absent from dispatch table")
 
 	tests_passed += 1
 	print("✅ TEST 5 PASSED\n")
 
 
-func _test_signal_propagation():
-	"""TEST 6: Signals propagate correctly"""
-	print("📍 TEST 6: Signal Propagation Chain")
+func _test_state_snapshot_restore():
+	"""TEST 6: State snapshot and restore round-trip"""
+	print("📍 TEST 6: State Snapshot/Restore")
 	print(_sep("─", 80))
 
-	economy.add_credits(100)
-	input_handler._select_tool(1)
-	mock_plot_display.select_plots([Vector2i(6, 0)])
+	var instrument = QuantumInstrument.new()
 
-	for key in signal_spy.keys():
-		signal_spy[key].clear()
+	# Set up state
+	instrument.select_plot(3, "TestBiome", Vector2i(2, 2))
+	instrument.toggle_plot_check(Vector2i(0, 0))
+	instrument.toggle_plot_check(Vector2i(1, 1))
+	instrument.set_tool_group(2)
 
-	input_handler._execute_tool_action("Q")
+	var snapshot = instrument.get_state_snapshot()
+	_assert(snapshot.current_plot_idx == 3, "snapshot.current_plot_idx should be 3")
+	_assert(snapshot.current_biome == "TestBiome", "snapshot.current_biome should be TestBiome")
+	_assert(snapshot.checked_plots.size() == 2, "snapshot.checked_plots should have 2 items")
+	_assert(snapshot.current_tool_group == 2, "snapshot.current_tool_group should be 2")
+	print("   ✅ Snapshot captures full state")
 
-	assert(signal_spy["action_performed"].size() == 1, "action_performed signal should fire")
-	var action_data = signal_spy["action_performed"][0]
-	assert(action_data[0] == "plant_wheat", "Action should be plant_wheat")
-	# Action might succeed or fail depending on game state, just verify signal fired
-	print("   ✅ Signal chain propagates correctly (action: %s, success: %s)" % [action_data[0], action_data[1]])
+	# Restore to fresh instrument
+	var instrument2 = QuantumInstrument.new()
+	instrument2.restore_state(snapshot)
+
+	_assert(instrument2.current_plot_idx == 3, "restored plot_idx should be 3")
+	_assert(instrument2.current_biome == "TestBiome", "restored biome should be TestBiome")
+	_assert(instrument2.checked_plots.size() == 2, "restored checked_plots should have 2 items")
+	_assert(instrument2.current_tool_group == 2, "restored tool_group should be 2")
+	print("   ✅ Restore round-trip preserves all state")
 
 	tests_passed += 1
 	print("✅ TEST 6 PASSED\n")
 
 
+func _test_signal_emission():
+	"""TEST 7: action_performed and selection_changed signals fire"""
+	print("📍 TEST 7: Signal Emission")
+	print(_sep("─", 80))
+
+	var instrument = QuantumInstrument.new()
+
+	var selection_signals: Array = []
+	var check_signals: Array = []
+	instrument.selection_changed.connect(func(idx, biome): selection_signals.append([idx, biome]))
+	instrument.plot_check_changed.connect(func(pos, checked): check_signals.append([pos, checked]))
+
+	# selection_changed fires when plot changes
+	instrument.select_plot(1, "BioticFlux", Vector2i(0, 0))
+	_assert(selection_signals.size() == 1, "selection_changed should fire on plot change")
+	_assert(selection_signals[0][0] == 1, "signal should carry plot_idx=1")
+	print("   ✅ selection_changed fires on plot selection")
+
+	# No signal if selecting same plot
+	instrument.select_plot(1, "BioticFlux", Vector2i(0, 0))
+	_assert(selection_signals.size() == 1, "no duplicate signal on same selection")
+	print("   ✅ No duplicate signal for unchanged selection")
+
+	# plot_check_changed fires on toggle
+	instrument.toggle_plot_check(Vector2i(2, 0))
+	_assert(check_signals.size() == 1, "plot_check_changed should fire on check")
+	_assert(check_signals[0][1] == true, "signal should carry is_checked=true")
+	print("   ✅ plot_check_changed fires on plot check")
+
+	instrument.toggle_plot_check(Vector2i(2, 0))
+	_assert(check_signals.size() == 2, "plot_check_changed fires on uncheck too")
+	_assert(check_signals[1][1] == false, "uncheck signal carries is_checked=false")
+	print("   ✅ plot_check_changed fires on plot uncheck")
+
+	tests_passed += 1
+	print("✅ TEST 7 PASSED\n")
+
+
+func _assert(condition: bool, msg: String):
+	if not condition:
+		print("   ❌ ASSERT FAILED: %s" % msg)
+		tests_failed += 1
+		_report_results()
+		quit(1)
+
+
 func _report_results():
-	"""Print test results"""
 	var separator = _sep("=", 80)
 
 	print("\n" + separator)
-	print("📊 PHASE 4 TEST RESULTS")
+	print("📊 QUANTUM INSTRUMENT ACTION ROUTING RESULTS")
 	print(separator)
 
 	print("\n✅ Passed: %d" % tests_passed)
@@ -287,32 +286,7 @@ func _report_results():
 
 	print("\n" + separator)
 	if tests_failed == 0:
-		print("✅ ALL TESTS PASSED - Input routing layer is working!")
+		print("✅ ALL TESTS PASSED - QuantumInstrument routing layer works!")
 	else:
 		print("❌ SOME TESTS FAILED")
 	print(separator + "\n")
-
-
-# Mock class for testing
-class MockPlotGridDisplay extends Node:
-	var selected_plots: Array[Vector2i] = []
-	var previous_selection: Array[Vector2i] = []
-
-	func get_selected_plots() -> Array[Vector2i]:
-		return selected_plots
-
-	func toggle_plot_selection(pos: Vector2i):
-		if pos in selected_plots:
-			selected_plots.erase(pos)
-		else:
-			selected_plots.append(pos)
-
-	func clear_all_selection():
-		previous_selection = selected_plots.duplicate()
-		selected_plots.clear()
-
-	func restore_previous_selection():
-		selected_plots = previous_selection.duplicate()
-
-	func select_plots(positions: Array[Vector2i]):
-		selected_plots = positions.duplicate()

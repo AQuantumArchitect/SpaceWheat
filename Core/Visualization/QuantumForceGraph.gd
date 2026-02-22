@@ -765,12 +765,8 @@ func _create_bubble_for_terminal(biome_name: String, grid_pos: Vector2i, north_e
 	# Start spawn animation
 	bubble.start_spawn_animation(time_accumulator)
 
-	# Set initial visibility based on plot selection state
-	var is_selected = selected_plot_positions.has(grid_pos)
-	if plot_grid_display_ref and selected_plot_positions.size() > 0:
-		bubble.visible = is_selected
-	else:
-		bubble.visible = true
+	# Terminal bubbles (explored plots) are always visible
+	bubble.visible = true
 
 
 func _on_plot_selection_changed(position: Vector2i, is_selected: bool) -> void:
@@ -782,7 +778,7 @@ func _on_plot_selection_changed(position: Vector2i, is_selected: bool) -> void:
 
 	if quantum_nodes_by_grid_pos.has(position):
 		var bubble = quantum_nodes_by_grid_pos[position]
-		if bubble:
+		if bubble and not bubble.has_farm_tether:
 			bubble.visible = is_selected
 			queue_redraw()
 

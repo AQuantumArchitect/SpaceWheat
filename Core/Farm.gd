@@ -42,6 +42,7 @@ var village_biome = null
 var _loaded_biome_count: int = 0  # Track how many biomes loaded successfully
 var vocabulary_evolution: VocabularyEvolution  # Vocabulary evolution system
 var known_pairs: Array = []  # Player vocabulary pairs (canonical, farm-owned)
+var reap_count: int = 0  # Number of global seasonal reaps completed
 var ui_state: FarmUIState  # UI State abstraction layer
 var grid_config: GridConfig = null  # Single source of truth for grid layout
 var terminal_pool: TerminalPoolClass = null  # v2 Architecture: Terminal pool for EXPLORE/MEASURE/POP
@@ -227,9 +228,19 @@ func emit_action_signal(action: String, result: Dictionary, grid_pos: Vector2i =
 			terminal_measured.emit(grid_pos, terminal_id,
 				result.get("outcome", ""), result.get("probability", 0.0))
 
-		"pop", "reap":
+		"pop":
 			terminal_released.emit(grid_pos, result.get("terminal_id", ""),
 				int(result.get("credits", 0)))
+
+		"reap":
+			var harvest_results = result.get("harvest_results", [])
+			if harvest_results is Array and not harvest_results.is_empty():
+				for harvest in harvest_results:
+					var h_pos = harvest.get("grid_position", Vector2i(-1, -1))
+					var tid = harvest.get("terminal_id", "")
+					var h_credits = int(harvest.get("total_credits", harvest.get("credits", 0)))
+					if h_pos != Vector2i(-1, -1) and tid != "":
+						terminal_released.emit(h_pos, tid, h_credits)
 
 		"harvest_all", "clear_all":
 			# Handle array of harvest/clear results
@@ -436,6 +447,14 @@ func _ensure_vocabulary_initialized() -> void:
 func get_known_pairs() -> Array:
 	"""Return player-known vocab pairs (canonical)."""
 	return known_pairs.duplicate(true)
+
+
+func get_reap_count() -> int:
+	return max(0, reap_count)
+
+
+func set_reap_count(value: int) -> void:
+	reap_count = max(0, value)
 
 
 func get_known_emojis() -> Array:

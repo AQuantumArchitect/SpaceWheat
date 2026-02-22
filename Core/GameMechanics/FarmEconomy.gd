@@ -7,6 +7,7 @@ extends Node
 ## Example: 50 wheat = 500 🌾-credits
 
 const EconomyConstants = preload("res://Core/GameMechanics/EconomyConstants.gd")
+const QuestRewards = preload("res://Core/Quests/QuestRewards.gd")
 
 @onready var _verbose = get_node_or_null("/root/VerboseConfig")
 
@@ -21,6 +22,7 @@ var total_wheat_harvested: int = 0
 var imperium_icon = null
 var resource_mutation_log: Array = []
 var _economy_overrides: Dictionary = {}
+var _balance_profile_id: String = "default"
 
 const MAX_RESOURCE_MUTATION_LOG: int = 400
 
@@ -249,12 +251,19 @@ func apply_economy_overrides(config: Dictionary) -> Dictionary:
 	Returns a summary of what was applied.
 	"""
 	_economy_overrides = config.duplicate(true)
+	_balance_profile_id = str(_economy_overrides.get("profile_id", "default"))
 	var applied: Dictionary = {}
 	for key in ["action_costs", "gate_costs", "quest_rewards", "production"]:
 		if _economy_overrides.has(key) and _economy_overrides[key] is Dictionary:
 			applied[key] = _economy_overrides[key].size()
+
+	var quest_tuning = _economy_overrides.get("quest_rewards", {})
+	if quest_tuning is Dictionary:
+		QuestRewards.set_reward_tuning_overrides(quest_tuning)
+	else:
+		QuestRewards.reset_reward_tuning()
 	if _verbose:
-		_verbose.info("economy", "⚙", "Economy overrides applied: %s" % str(applied))
+		_verbose.info("economy", "⚙", "Economy overrides applied: %s (profile=%s)" % [str(applied), _balance_profile_id])
 	return applied
 
 
@@ -262,14 +271,24 @@ func get_economy_overrides() -> Dictionary:
 	return _economy_overrides
 
 
+func get_balance_profile_id() -> String:
+	return _balance_profile_id
+
+
 func get_overridden_action_cost(action: String, context: Dictionary = {}) -> Dictionary:
 	"""Get action cost, checking overrides first, then EconomyConstants."""
+	var normalized_action = EconomyConstants.normalize_action_id(action)
 	var overrides = _economy_overrides.get("action_costs", {})
+	if overrides is Dictionary and overrides.has(normalized_action):
+		var cost = overrides[normalized_action]
+		if cost is Dictionary:
+			return cost
+	# Legacy fallback for old world-state keys.
 	if overrides is Dictionary and overrides.has(action):
 		var cost = overrides[action]
 		if cost is Dictionary:
 			return cost
-	return EconomyConstants.get_action_cost(action, context)
+	return EconomyConstants.get_action_cost(normalized_action, context)
 
 
 func get_overridden_gate_cost(gate_name: String) -> Dictionary:

@@ -37,6 +37,14 @@ func _env_flag(key: String, default_value: bool = false) -> bool:
 		return default_value
 	return _env_truthy(raw)
 
+func _env_float(key: String, default_value: float) -> float:
+	var raw = OS.get_environment(key)
+	if raw == "":
+		return default_value
+	if not raw.is_valid_float():
+		return default_value
+	return raw.to_float()
+
 func _rig_flags_enabled(headless: bool) -> bool:
 	# Only honor rig flags in headless, unless explicitly overridden.
 	if _env_flag("SW_DISABLE_HEADLESS_GUARD", false):
@@ -195,6 +203,18 @@ var _physics_frame_count: int = 0
 var _physics_fps_start_time: int = 0
 var physics_frames_per_second: float = 0.0
 
+# Runtime pacing and stall watchdog
+var _max_phrame_hz_cap: float = 10.0
+var _min_phrame_interval_ms: float = 100.0
+var _last_phrame_wall_ms: int = 0
+var _throttled_phrame_skips: int = 0
+var _packet_started_at_ms: int = 0
+var _packet_completed_at_ms: int = 0
+var _watchdog_last_log_ms: int = 0
+var _watchdog_stall_warnings: int = 0
+const WATCHDOG_LOG_INTERVAL_MS: int = 2000
+const WATCHDOG_STALL_MS: int = 12000
+
 # Diagnostics
 var _visual_frames_since_refill: int = 0
 var _last_cursor_log_time: int = 0
@@ -252,6 +272,11 @@ func initialize(biome_array: Array, p_terminal_pool = null):
 	_disable_mi_env = _resolve_flag("RIG_DISABLE_MI", "SW_DISABLE_MI", rig_enabled)
 	_disable_force_env = _resolve_flag("RIG_DISABLE_FORCE_GRAPH", "SW_DISABLE_FORCE", rig_enabled) \
 		or _resolve_flag("RIG_DISABLE_FORCE", "SW_DISABLE_FORCE", rig_enabled)
+	_max_phrame_hz_cap = max(0.0, _env_float("SW_MAX_PHRAME_HZ", 10.0))
+	if _max_phrame_hz_cap > 0.0:
+		_min_phrame_interval_ms = 1000.0 / _max_phrame_hz_cap
+	else:
+		_min_phrame_interval_ms = 0.0
 
 	# Filter valid biomes (not null, has quantum computer)
 	biomes = biome_array.filter(func(b):
@@ -849,38 +874,45 @@ func _physics_process_lookahead(delta: float):
 	# === CONSUMPTION AND REFILL CYCLE (phrames) ===
 	# Advance buffer cursors at phrame rate (physics/evolution frames)
 	evolution_accumulator += delta
+	var tick_now_ms = Time.get_ticks_msec()
 
 	var t2 = Time.get_ticks_usec()
 
 	if evolution_accumulator >= EVOLUTION_INTERVAL:
-		evolution_accumulator -= EVOLUTION_INTERVAL  # Subtract, don't reset (preserves fractional delta)
+		if _can_consume_phrame(tick_now_ms):
+			evolution_accumulator -= EVOLUTION_INTERVAL  # Subtract, don't reset (preserves fractional delta)
+			_last_phrame_wall_ms = tick_now_ms
 
-		_track_physics_fps()
+			_track_physics_fps()
 
-		# CONSUME: Advance all buffer cursors (1 phrame per biome)
-		_advance_all_buffers()
+			# CONSUME: Advance all buffer cursors (1 phrame per biome)
+			_advance_all_buffers()
 
-		# Update buffer state based on consumption (GLOBAL - for compatibility)
-		# DISABLED: Using per-biome and simple 2x threshold escalation instead
-		# _update_buffer_state()
+			# Update buffer state based on consumption (GLOBAL - for compatibility)
+			# DISABLED: Using per-biome and simple 2x threshold escalation instead
+			# _update_buffer_state()
 
-		# Update PER-BIOME buffer states (self-balancing Fibonacci)
-		for biome in biomes:
-			if _is_valid_biome(biome):
-				var biome_name = _get_biome_name(biome)
-				_update_biome_buffer_state(biome_name)
+			# Update PER-BIOME buffer states (self-balancing Fibonacci)
+			for biome in biomes:
+				if _is_valid_biome(biome):
+					var biome_name = _get_biome_name(biome)
+					_update_biome_buffer_state(biome_name)
 
-		var t2b = Time.get_ticks_usec()
-		_phys_timing_consume_us += (t2b - t2)
+			var t2b = Time.get_ticks_usec()
+			_phys_timing_consume_us += (t2b - t2)
 
-		# REFILL CHECK: Hybrid global packet with per-biome active_flags
-		# ONE packet evolves only biomes that need refill
-		# Per-biome buffer tracking + single C++ call = best of both worlds
-		if lookahead_enabled and lookahead_batch_queue.is_empty() and not _batch_thread:
-			_trigger_hybrid_refill()
+			# REFILL CHECK: Hybrid global packet with per-biome active_flags
+			# ONE packet evolves only biomes that need refill
+			# Per-biome buffer tracking + single C++ call = best of both worlds
+			if lookahead_enabled and lookahead_batch_queue.is_empty() and not _batch_thread:
+				_trigger_hybrid_refill()
 
-		var t2c = Time.get_ticks_usec()
-		_phys_timing_refill_us += (t2c - t2b)
+			var t2c = Time.get_ticks_usec()
+			_phys_timing_refill_us += (t2c - t2b)
+		else:
+			# Keep accumulator bounded while throttled to avoid huge catch-up bursts.
+			evolution_accumulator = min(evolution_accumulator, EVOLUTION_INTERVAL * 2.0)
+			_throttled_phrame_skips += 1
 
 	var t3 = Time.get_ticks_usec()
 
@@ -888,6 +920,7 @@ func _physics_process_lookahead(delta: float):
 	# Process ONE global packet (non-threaded, C++ is serialized via mutex anyway)
 	if lookahead_enabled and (not lookahead_batch_queue.is_empty() or _batch_thread != null):
 		process_one_lookahead_packet()
+	_run_batcher_watchdog(tick_now_ms)
 
 	var t4 = Time.get_ticks_usec()
 	_phys_timing_packet_us += (t4 - t3)
@@ -2317,6 +2350,101 @@ func get_global_icon_map() -> Dictionary:
 	}
 
 
+func run_additional_cycles(cycles: int, biome_names: Array = []) -> Dictionary:
+	"""Run additional evolution cycles immediately.
+
+	Used by global REAP to fast-forward season evolution without waiting for
+	real-time physics ticks.
+
+	IMPORTANT: In lookahead mode this consumes precomputed buffered phrames only.
+	We intentionally avoid direct C++ evolve calls from synchronous gameplay
+	actions to prevent races with the async packet pipeline.
+	"""
+	var target_cycles = maxi(cycles, 0)
+	if target_cycles <= 0:
+		return {"success": true, "cycles": 0, "evolved_steps": 0}
+
+	var requested: Dictionary = {}
+	for biome_name in biome_names:
+		var key = str(biome_name)
+		if key != "":
+			requested[key] = true
+
+	var target_biomes: Array = []
+	for biome in biomes:
+		if not _is_valid_biome(biome):
+			continue
+		var biome_name = _get_biome_name(biome)
+		if not requested.is_empty() and not requested.has(biome_name):
+			continue
+		if not biome.quantum_evolution_enabled or biome.evolution_paused:
+			continue
+		target_biomes.append(biome)
+
+	if target_biomes.is_empty():
+		return {
+			"success": false,
+			"error": "no_target_biomes",
+			"message": "No eligible biomes for additional evolution cycles.",
+			"cycles": target_cycles,
+			"evolved_steps": 0
+		}
+
+	var evolved_steps = 0
+	var consumed_buffer_steps = 0
+	var direct_evolve_steps = 0
+	var skipped_due_empty_buffer = 0
+
+	for _i in range(target_cycles):
+		for biome in target_biomes:
+			var biome_name = _get_biome_name(biome)
+			if lookahead_enabled:
+				if _get_biome_depth(biome_name) > 0:
+					_apply_buffered_step(biome)
+					consumed_buffer_steps += 1
+					evolved_steps += 1
+				else:
+					skipped_due_empty_buffer += 1
+			else:
+				_run_direct_biome_cycle(biome, LOOKAHEAD_DT)
+				direct_evolve_steps += 1
+				evolved_steps += 1
+
+	return {
+		"success": true,
+		"cycles": target_cycles,
+		"biomes": target_biomes.size(),
+		"evolved_steps": evolved_steps,
+		"consumed_buffer_steps": consumed_buffer_steps,
+		"direct_evolve_steps": direct_evolve_steps,
+		"lookahead_enabled": lookahead_enabled,
+		"skipped_due_empty_buffer": skipped_due_empty_buffer
+	}
+
+
+func _run_direct_biome_cycle(biome, dt: float) -> void:
+	if not _is_valid_biome(biome):
+		return
+
+	if biome.time_tracker:
+		biome.time_tracker.update(dt)
+
+	var max_dt = biome.max_evolution_dt if "max_evolution_dt" in biome else MAX_SUBSTEP_DT
+	biome.quantum_computer.evolve(dt, max_dt, null)
+
+	if biome.viz_cache:
+		var packet = biome.quantum_computer.export_bloch_packet() if biome.quantum_computer.has_method("export_bloch_packet") else PackedFloat64Array()
+		var num_qubits = biome.quantum_computer.register_map.num_qubits if biome.quantum_computer.register_map else 0
+		if packet.size() > 0 and num_qubits > 0:
+			biome.viz_cache.update_from_bloch_packet(packet, num_qubits)
+		if biome.quantum_computer.has_method("get_purity"):
+			biome.viz_cache.update_purity(biome.quantum_computer.get_purity())
+
+	_post_evolution_update(biome)
+	var biome_name = _get_biome_name(biome)
+	biome_evolution_counts[biome_name] = biome_evolution_counts.get(biome_name, 0) + 1
+
+
 func _evolve_batch(dt: float):
 	"""Evolve a batch of biomes (Stage 1: sequential fallback).
 
@@ -2738,6 +2866,48 @@ func _track_physics_fps() -> void:
 		_physics_fps_start_time = now
 
 
+func _can_consume_phrame(now_ms: int) -> bool:
+	"""Optional wall-clock pacing guard to cap runaway phrame consumption."""
+	if _min_phrame_interval_ms <= 0.0:
+		return true
+	if _last_phrame_wall_ms <= 0:
+		return true
+	return float(now_ms - _last_phrame_wall_ms) >= _min_phrame_interval_ms
+
+
+func _run_batcher_watchdog(now_ms: int) -> void:
+	"""Emit low-rate health metrics and detect likely packet stalls."""
+	if _watchdog_last_log_ms <= 0:
+		_watchdog_last_log_ms = now_ms
+		return
+	if now_ms - _watchdog_last_log_ms < WATCHDOG_LOG_INTERVAL_MS:
+		return
+
+	var queued_packets = lookahead_batch_queue.size()
+	var packet_alive = (_batch_thread != null and _batch_thread.is_alive())
+	var min_depth = _get_minimum_buffer_depth()
+	var stalled = packet_alive and _packet_started_at_ms > 0 and (now_ms - _packet_started_at_ms) >= WATCHDOG_STALL_MS
+	if stalled and min_depth <= 1:
+		_watchdog_stall_warnings += 1
+		_log("warn", "batcher", "stall", "Packet stall suspect: running=%dms queue=%d depth=%d last_complete=%dms ago" % [
+			now_ms - _packet_started_at_ms,
+			queued_packets,
+			min_depth,
+			now_ms - _packet_completed_at_ms if _packet_completed_at_ms > 0 else -1
+		])
+	else:
+		_log("debug", "batcher", "perf", "pfps=%.2f queue=%d thread=%s depth=%d throttled=%d avg_batch=%.1fms" % [
+			physics_frames_per_second,
+			queued_packets,
+			"alive" if packet_alive else "idle",
+			min_depth,
+			_throttled_phrame_skips,
+			_avg_batch_time_ms
+		])
+	_throttled_phrame_skips = 0
+	_watchdog_last_log_ms = now_ms
+
+
 func track_visual_frame() -> void:
 	"""Call this from render loop to count visual frames between refills."""
 	_visual_frames_since_refill += 1
@@ -2824,6 +2994,11 @@ func get_performance_metrics() -> Dictionary:
 		"biomes_active": biomes.size() - total_biomes_paused,
 		"threads_running": total_threads_running,
 		"packets_pending": total_packets_pending,
+		"watchdog_stall_warnings": _watchdog_stall_warnings,
+		"phrame_cap_hz": _max_phrame_hz_cap,
+		"min_phrame_interval_ms": _min_phrame_interval_ms,
+		"packet_started_ms_ago": Time.get_ticks_msec() - _packet_started_at_ms if _packet_started_at_ms > 0 else -1,
+		"packet_completed_ms_ago": Time.get_ticks_msec() - _packet_completed_at_ms if _packet_completed_at_ms > 0 else -1,
 		# Legacy Queue State (DEPRECATED)
 		"batches_pending": lookahead_batch_queue.size(),
 		"batches_in_flight": 1 if (_batch_thread != null and _batch_thread.is_alive()) else 0,
@@ -2985,6 +3160,7 @@ func process_one_lookahead_packet() -> void:
 
 	# Start packet computation in background thread (NON-BLOCKING!)
 	_batch_thread = Thread.new()
+	_packet_started_at_ms = Time.get_ticks_msec()
 	_batch_thread.start(_run_packet_in_thread.bind(_current_batch_request))
 
 
@@ -3068,6 +3244,7 @@ func _on_packet_completed(result: Dictionary) -> void:
 		_merge_accumulated_packets()
 		_batches_in_flight.clear()
 		lookahead_refills += 1
+		_packet_completed_at_ms = Time.get_ticks_msec()
 		var depth_after = _get_minimum_buffer_depth()
 
 		# REMOVED: Global escalation logic (System 3)

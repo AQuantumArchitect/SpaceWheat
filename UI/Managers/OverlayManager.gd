@@ -28,6 +28,7 @@ const InspectorOverlay = preload("res://UI/Overlays/InspectorOverlay.gd")
 const ControlsOverlay = preload("res://UI/Overlays/ControlsOverlay.gd")
 const SemanticMapOverlay = preload("res://UI/Overlays/SemanticMapOverlay.gd")
 const SimStatsOverlay = preload("res://UI/Overlays/SimStatsOverlay.gd")
+const BalanceWorkbenchOverlay = preload("res://UI/Overlays/BalanceWorkbenchOverlay.gd")
 
 # Overlay instances
 var quest_panel: QuestPanel
@@ -50,6 +51,7 @@ var inspector_overlay = null  # Density matrix inspector
 var controls_overlay = null  # Keyboard controls reference
 var semantic_map_overlay = null  # Semantic octant visualization
 var sim_stats_overlay = null
+var balance_workbench_overlay = null
 
 # Reference to unified overlay stack (set by PlayerShell)
 var overlay_stack = null  # OverlayStackManager
@@ -1202,6 +1204,15 @@ func _create_v2_overlays(parent: Control) -> void:
 	register_v2_overlay("semantic_map", semantic_map_overlay)
 	_setup_visibility_processing(semantic_map_overlay)
 
+	# Create Balance Workbench Overlay (shared balance tuning projection)
+	balance_workbench_overlay = BalanceWorkbenchOverlay.new()
+	balance_workbench_overlay.z_index = 2000
+	if layout_manager:
+		balance_workbench_overlay.set_layout_manager(layout_manager)
+	parent.add_child(balance_workbench_overlay)
+	register_v2_overlay("balance_workbench", balance_workbench_overlay)
+	_setup_visibility_processing(balance_workbench_overlay)
+
 	# Register existing overlays with v2 interface
 	# QuestBoard already has v2 interface methods
 	if quest_board:
@@ -1321,6 +1332,10 @@ func open_v2_overlay(name: String) -> bool:
 	if name == "biome_detail":
 		if overlay.has_method("show_all_biomes") and farm_ref:
 			overlay.farm = farm_ref
+
+	if name == "balance_workbench":
+		if overlay.has_method("set_farm"):
+			overlay.set_farm(farm_ref)
 
 	# Use OverlayStackManager for unified management
 	if overlay_stack:

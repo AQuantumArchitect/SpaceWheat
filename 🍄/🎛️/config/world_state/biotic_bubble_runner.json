@@ -1,0 +1,28 @@
+{
+  "name": "biotic_bubble_runner",
+  "description": "Chaotic popper seeded with planetary energy and mushrooms.",
+  "scenario_id": "default",
+  "strict_biome_economy": true,
+  "resources": {
+    "🍞": 32,
+    "❄️": 16,
+    "👥": 8,
+    "🌀": 4,
+    "🍄": 2,
+    "🪐": 1
+  },
+  "known_pairs": [
+    {
+      "north": "🌀",
+      "south": "🪐"
+    },
+    {
+      "north": "🍞",
+      "south": "🍄"
+    }
+  ],
+  "unlocked_biomes": [
+    "StarterForest",
+    "Village"
+  ]
+}

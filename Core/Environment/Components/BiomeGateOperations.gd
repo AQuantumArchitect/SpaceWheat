@@ -195,7 +195,7 @@ func create_cluster_state(positions: Array[Vector2i]) -> bool:
 	Returns:
 		true if cluster successfully created
 	"""
-	if not quantum_computer or positions.size() < 2:
+	if not quantum_computer or not register_manager or positions.size() < 2:
 		return false
 
 	_verbose_log("debug", "quantum", "🌐", "Creating cluster state with %d plots" % positions.size())
@@ -238,7 +238,7 @@ func batch_entangle(positions: Array[Vector2i]) -> bool:
 	Returns:
 		true if at least one entanglement succeeded
 	"""
-	if not quantum_computer or positions.size() < 2:
+	if not quantum_computer or not register_manager or positions.size() < 2:
 		return false
 
 	_verbose_log("debug", "quantum", "🔗", "Batch entangling %d plots" % positions.size())
@@ -278,7 +278,7 @@ func set_measurement_trigger(trigger_pos: Vector2i, target_positions: Array[Vect
 	Returns:
 		true if trigger successfully set up
 	"""
-	if not quantum_computer:
+	if not quantum_computer or not register_manager:
 		return false
 
 	var trigger_reg = register_manager.get_register_id_for_plot(trigger_pos)
@@ -323,7 +323,7 @@ func remove_entanglement(pos_a: Vector2i, pos_b: Vector2i) -> bool:
 	Returns:
 		true if decoupling successful
 	"""
-	if not quantum_computer:
+	if not quantum_computer or not register_manager:
 		return false
 
 	var reg_a = register_manager.get_register_id_for_plot(pos_a)

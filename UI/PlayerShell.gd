@@ -111,6 +111,9 @@ func _handle_shell_action(event: InputEvent) -> bool:
 			return true
 
 	# Shell menu keys (Z, X)
+	if keycode == KEY_B and event.shift_pressed:
+		_toggle_shell_menu("balance_workbench")
+		return true
 	if keycode == KEY_Z:
 		_toggle_shell_menu("controls")
 		return true
@@ -140,6 +143,9 @@ func _handle_shell_action(event: InputEvent) -> bool:
 
 func _any_menu_open() -> bool:
 	"""Check if any menu (shell or farm) is currently open."""
+	if overlay_stack and not overlay_stack.is_empty():
+		return true
+
 	# Check escape menu (via stack or visibility)
 	if overlay_manager and overlay_manager.escape_menu:
 		if overlay_stack and overlay_stack.has_overlay(overlay_manager.escape_menu):
@@ -193,6 +199,16 @@ func _toggle_shell_menu(menu_name: String) -> void:
 	Shell menus close all other menus when opening.
 	"""
 	match menu_name:
+		"balance_workbench":
+			if overlay_manager and overlay_manager.v2_overlays.has("balance_workbench"):
+				var wb = overlay_manager.v2_overlays["balance_workbench"]
+				if wb.visible:
+					wb.deactivate()
+					return
+			_close_all_menus()
+			if overlay_manager:
+				overlay_manager.open_v2_overlay("balance_workbench")
+
 		"controls":
 			# Check if controls is already open
 			if overlay_manager and overlay_manager.v2_overlays.has("controls"):

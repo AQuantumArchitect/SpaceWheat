@@ -100,6 +100,8 @@ def _build_parser() -> argparse.ArgumentParser:
         default=[],
         help="Known vocabulary pair in NORTH:SOUTH format (repeatable)",
     )
+    parser.add_argument("--reuse-listener", action="store_true",
+        help="Reuse an existing listener (phrame bridge or headless) instead of starting a new one")
     return parser
 
 
@@ -183,16 +185,27 @@ def main() -> int:
 
     resource_mode = _select_resource_mode(args.resource_mode, profile)
 
-    safe_print("seed-save: resetting rig cache and starting listener")
-    rig.kill_existing_listeners()
-    rig.clear_rig_files()
-    proc = rig.start_listener(load_slot=args.load_slot, scenario_id=scenario_id)
-    boot_lines = rig.wait_for_ready(proc, timeout_s=70.0)
-    if proc.poll() is not None or not any("Rig ready. Waiting for turns in:" in ln for ln in boot_lines):
-        safe_print("seed-save: listener failed to reach ready state")
-        for line in boot_lines[-20:]:
-            safe_print(line)
-        return 1
+    if args.reuse_listener and RigClient.find_listener_pids():
+        safe_print("seed-save: phrame bridge detected — visual mode")
+        if RigClient._bridge_sentinel_path().exists():
+            safe_print("seed-save: bridge active, sending seed actions directly")
+        rig.clear_rig_files()  # sentinel-safe — only clears queue + results
+        proc = None
+    else:
+        safe_print("seed-save: resetting rig cache and starting listener")
+        rig.kill_existing_listeners()
+        rig.clear_rig_files()
+        proc = rig.start_listener(load_slot=args.load_slot, scenario_id=scenario_id)
+        boot_lines = rig.wait_for_ready(proc, timeout_s=70.0)
+        ready = any(
+            ("Rig ready. Waiting for turns in:" in ln) or ("ready via bridge sentinel" in ln)
+            for ln in boot_lines
+        )
+        if proc.poll() is not None or not ready:
+            safe_print("seed-save: listener failed to reach ready state")
+            for line in boot_lines[-20:]:
+                safe_print(line)
+            return 1
 
     turn = 1
     history: List[dict] = []
@@ -260,11 +273,12 @@ def main() -> int:
         saved = bool(summary["save_result"].get("saved", False))
         return 0 if saved else 3
     finally:
-        try:
-            run_turn(turn, "stop")
-        except Exception:
-            pass
-        RigClient.terminate_listener(proc, timeout_s=5.0)
+        if proc is not None:
+            try:
+                run_turn(turn, "stop")
+            except Exception:
+                pass
+            RigClient.terminate_listener(proc, timeout_s=5.0)
 
 
 if __name__ == "__main__":

@@ -177,6 +177,10 @@ const ICONMAP_HYSTERESIS: float = 0.03  # New track must be 3% better to switch
 ## Verbose logging (set via environment variable MUSIC_VERBOSE=1)
 var _verbose: bool = false
 
+func _log_info(message: String) -> void:
+	if _verbose:
+		print("[MusicManager] %s" % message)
+
 
 func _ready() -> void:
 	_verbose = OS.get_environment("MUSIC_VERBOSE") == "1"
@@ -328,19 +332,19 @@ func _deferred_connect_farm() -> void:
 
 	var farm = get_node_or_null("/root/Farm")
 	if not farm:
-		print("[MusicManager] Farm not found - Layer 3 signals not connected")
+		_log_info("Farm not found - Layer 3 signals not connected")
 		return
 
 	# Connect to terminal state changes
 	if farm.has_signal("terminal_bound"):
 		farm.terminal_bound.connect(_on_terminal_bound)
-		print("[MusicManager] Connected to Farm.terminal_bound")
+		_log_info("Connected to Farm.terminal_bound")
 	if farm.has_signal("terminal_released"):
 		farm.terminal_released.connect(_on_terminal_released)
-		print("[MusicManager] Connected to Farm.terminal_released")
+		_log_info("Connected to Farm.terminal_released")
 	if farm.has_signal("terminal_measured"):
 		farm.terminal_measured.connect(_on_terminal_measured)
-		print("[MusicManager] Connected to Farm.terminal_measured")
+		_log_info("Connected to Farm.terminal_measured")
 
 
 func _on_terminal_bound(grid_pos: Vector2i, terminal_id: String, _emoji_pair: Dictionary) -> void:
@@ -355,7 +359,7 @@ func _on_terminal_bound(grid_pos: Vector2i, terminal_id: String, _emoji_pair: Di
 
 	# Music not playing - try IconMap evaluation first, fall back to biome track
 	if _iconmap_sample_count >= 3:
-		print("[MusicManager] Terminal bound - triggering IconMap evaluation")
+		_log_info("Terminal bound - triggering IconMap evaluation")
 		_evaluate_iconmap_decision()
 		if _active_player.playing:
 			return
@@ -370,7 +374,7 @@ func _on_terminal_bound(grid_pos: Vector2i, terminal_id: String, _emoji_pair: Di
 		elif ActiveBiomeManager:
 			biome_name = ActiveBiomeManager.get_active_biome()
 		if not biome_name.is_empty():
-			print("[MusicManager] Terminal bound in %s - starting music (fallback)" % biome_name)
+			_log_info("Terminal bound in %s - starting music (fallback)" % biome_name)
 			_layer3_stopped = false
 			play_biome_track(biome_name)
 			return
@@ -379,7 +383,7 @@ func _on_terminal_bound(grid_pos: Vector2i, terminal_id: String, _emoji_pair: Di
 	if ActiveBiomeManager:
 		var active_biome = ActiveBiomeManager.get_active_biome()
 		if not active_biome.is_empty():
-			print("[MusicManager] Terminal bound - starting music for active biome %s" % active_biome)
+			_log_info("Terminal bound - starting music for active biome %s" % active_biome)
 			_layer3_stopped = false
 			play_biome_track(active_biome)
 
@@ -867,29 +871,29 @@ func play_biome_track(biome_name: String) -> void:
 	if _verbose:
 		print("[MusicManager] play_biome_track(%s)" % biome_name)
 	if _disabled:
-		print("[MusicManager] DISABLED - skipping")
+		_log_info("DISABLED - skipping")
 		return
 
 	# Layer 1: Direct biome→track mapping
 	if BIOME_TRACKS.has(biome_name):
 		var track_key = BIOME_TRACKS[biome_name]
-		print("[MusicManager] Layer 1: %s → %s" % [biome_name, track_key])
+		_log_info("Layer 1: %s -> %s" % [biome_name, track_key])
 		crossfade_to(track_key)
 		return
 
 	# Layer 4 (only if enabled): Parametric selection based on biome vector
 	if iconmap_mode_enabled:
-		print("[MusicManager] Layer 4: No mapping for %s, trying parametric..." % biome_name)
+		_log_info("Layer 4: No mapping for %s, trying parametric..." % biome_name)
 		_ensure_cache_loaded()
 		if _biome_vectors.has(biome_name):
 			var best_track := _select_track_for_biome_vector(biome_name)
 			if not best_track.is_empty():
-				print("[MusicManager] Layer 4 selected: %s" % best_track)
+				_log_info("Layer 4 selected: %s" % best_track)
 				crossfade_to(best_track)
 				return
 
 	# Fallback - no mapping found
-	print("[MusicManager] Fallback: %s has no track mapping, using %s" % [biome_name, FALLBACK_TRACK])
+	_log_info("Fallback: %s has no track mapping, using %s" % [biome_name, FALLBACK_TRACK])
 	crossfade_to(FALLBACK_TRACK)
 
 
@@ -1016,28 +1020,28 @@ func crossfade_to(track_key: String) -> void:
 		print("[MusicManager] crossfade_to(%s)" % track_key)
 	_layer3_stopped = false  # Clear intentional stop flag
 	if _disabled:
-		print("[MusicManager] DISABLED - skipping crossfade")
+		_log_info("DISABLED - skipping crossfade")
 		return
 
 	if track_key == _current_track:
-		print("[MusicManager] Already playing %s - skipping" % track_key)
+		_log_info("Already playing %s - skipping" % track_key)
 		return
 
 	# Prevent rapid successive crossfades (minimum 0.5s between crossfades)
 	var now = Time.get_ticks_msec() / 1000.0
 	if now - _last_crossfade_time < 0.5:
-		print("[MusicManager] Rate limited - skipping crossfade")
+		_log_info("Rate limited - skipping crossfade")
 		return
 	_last_crossfade_time = now
 
 	if not TRACKS.has(track_key):
 		push_warning("MusicManager: Unknown track '%s'" % track_key)
-		print("[MusicManager] ERROR: Unknown track '%s'" % track_key)
+		_log_info("ERROR: Unknown track '%s'" % track_key)
 		return
 
 	var stream = _get_or_load_stream(track_key)
 	if not stream:
-		print("[MusicManager] ERROR: Failed to load stream for '%s'" % track_key)
+		_log_info("ERROR: Failed to load stream for '%s'" % track_key)
 		return
 
 	if _verbose:
@@ -1061,7 +1065,7 @@ func crossfade_to(track_key: String) -> void:
 				"evolution_count": evolution_count,
 				"biome_name": biome_name
 			}
-			print("[MusicManager] Ghost timer: saving %s at %.1fs (evo=%d)" % [previous_track, current_pos, evolution_count])
+			_log_info("Ghost timer: saving %s at %.1fs (evo=%d)" % [previous_track, current_pos, evolution_count])
 
 	# Cancel any existing crossfade
 	if _crossfade_tween and _crossfade_tween.is_valid():
@@ -1098,7 +1102,7 @@ func crossfade_to(track_key: String) -> void:
 			virtual_pos = fmod(virtual_pos, track_length)
 
 		_active_player.seek(virtual_pos)
-		print("[MusicManager] Ghost timer: %s advanced %d evo steps (%.1fs) → now at %.1fs" % [
+		_log_info("Ghost timer: %s advanced %d evo steps (%.1fs) -> now at %.1fs" % [
 			track_key, evo_steps, elapsed_time, virtual_pos])
 
 	# Crossfade tween

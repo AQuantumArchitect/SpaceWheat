@@ -89,6 +89,14 @@ func capture_state_from_farm(farm: Node, current_state: GameState, scenario_id: 
 	state.all_emoji_credits = economy.emoji_credits.duplicate()
 	state.tributes_paid = economy.total_tributes_paid if "total_tributes_paid" in economy else 0
 	state.tributes_failed = economy.total_tributes_failed if "total_tributes_failed" in economy else 0
+	if economy.has_method("get_balance_profile_id"):
+		state.balance_profile_id = economy.get_balance_profile_id()
+	if economy.has_method("get_economy_overrides"):
+		state.balance_overrides = economy.get_economy_overrides().duplicate(true)
+	if farm.has_method("get_reap_count"):
+		state.reap_count = int(farm.get_reap_count())
+	elif "reap_count" in farm:
+		state.reap_count = int(farm.reap_count)
 	_log("debug", "save", "💰", "Captured %d emoji types in economy" % state.all_emoji_credits.size())
 
 	# Player Vocabulary (farm-owned canonical)
@@ -237,6 +245,17 @@ func apply_state_to_farm(state: GameState, farm: Node) -> void:
 
 	for emoji in economy.emoji_credits.keys():
 		economy._emit_resource_change(emoji)
+
+	if economy.has_method("apply_economy_overrides"):
+		var balance_payload = state.balance_overrides.duplicate(true)
+		if state.balance_profile_id != "" and not balance_payload.has("profile_id"):
+			balance_payload["profile_id"] = state.balance_profile_id
+		economy.apply_economy_overrides(balance_payload)
+
+	if farm.has_method("set_reap_count"):
+		farm.set_reap_count(int(state.reap_count))
+	elif "reap_count" in farm:
+		farm.reap_count = int(state.reap_count)
 
 	if farm.grid and farm.grid.biomes:
 		var biome_count = 0

@@ -17,6 +17,7 @@ var player_shell: Node = null
 var overlay_manager = null
 var quest_manager = null
 var action_bar_manager = null
+var instrument = null  # QuantumInstrument (injected by BootManager)
 var _probe_status_panel: PanelContainer = null
 var _probe_status_label: Label = null
 var _probe_status_hide_at_ms: int = 0
@@ -47,6 +48,10 @@ func setup(farm_ref: Node, shell_ref: Node) -> void:
 
 	_ensure_probe_status_ui()
 	set_process(true)
+
+
+func inject_instrument(inst) -> void:
+	instrument = inst
 
 
 func _process(_delta: float) -> void:
@@ -114,6 +119,20 @@ func get_grid_snapshot() -> Dictionary:
 	if snapshot.has("grid_width") and snapshot.has("grid_height"):
 		snapshot["plot_count"] = int(snapshot["grid_width"]) * int(snapshot["grid_height"])
 	return snapshot
+
+
+func get_batcher_metrics() -> Dictionary:
+	"""Return batcher health/performance metrics for rig monitoring."""
+	if not farm:
+		return {}
+	if not ("biome_evolution_batcher" in farm):
+		return {}
+	var batcher = farm.biome_evolution_batcher
+	if not batcher:
+		return {}
+	if batcher.has_method("get_performance_metrics"):
+		return batcher.get_performance_metrics()
+	return {}
 
 
 func add_resource(emoji: String, credits_amount: int, reason: String = "rig_seed") -> bool:
@@ -242,6 +261,7 @@ func offer_all_quests_for_current_biome() -> void:
 
 const GateActionHandler = preload("res://UI/Handlers/GateActionHandler.gd")
 const LindbladHandler = preload("res://UI/Handlers/LindbladHandler.gd")
+const BalanceService = preload("res://Core/GameMechanics/BalanceService.gd")
 
 ## Map of rig gate names to GateActionHandler static callables.
 const _GATE_DISPATCH: Dictionary = {
@@ -266,12 +286,10 @@ const _GATE_DISPATCH: Dictionary = {
 
 
 func gate_inject(gate_name: String, positions: Array[Vector2i]) -> Dictionary:
-	"""Apply a quantum gate via GateActionHandler.
-
-	gate_name: one of pauli_x, pauli_y, pauli_z, hadamard, s_gate, t_gate,
-	           sdg, tdg, rx, ry, rz, cnot, cz, swap, bell, ghz, cluster
-	positions: grid positions (Vector2i) to target
-	"""
+	"""Apply a quantum gate. Delegates to QuantumInstrument if available."""
+	if instrument:
+		return instrument.gate_inject(gate_name, positions)
+	# Fallback to direct dispatch
 	if not farm:
 		return {"ok": false, "error": "no_farm"}
 	if not _GATE_DISPATCH.has(gate_name):
@@ -285,14 +303,18 @@ func gate_inject(gate_name: String, positions: Array[Vector2i]) -> Dictionary:
 
 
 func lindblad_pump(positions: Array[Vector2i]) -> Dictionary:
-	"""Apply Lindblad drive (pump) to increase population at positions."""
+	"""Apply Lindblad drive (pump). Delegates to QuantumInstrument if available."""
+	if instrument:
+		return instrument.lindblad_pump(positions)
 	if not farm:
 		return {"ok": false, "error": "no_farm"}
 	return LindbladHandler.lindblad_drive(farm, positions)
 
 
 func lindblad_drain(positions: Array[Vector2i]) -> Dictionary:
-	"""Apply Lindblad decay (drain) to decrease population at positions."""
+	"""Apply Lindblad decay (drain). Delegates to QuantumInstrument if available."""
+	if instrument:
+		return instrument.lindblad_drain(positions)
 	if not farm:
 		return {"ok": false, "error": "no_farm"}
 	return LindbladHandler.lindblad_decay(farm, positions)
@@ -304,12 +326,62 @@ func configure_economy(overrides: Dictionary) -> Dictionary:
 	Delegates to farm.economy.apply_economy_overrides().
 	Returns the result from FarmEconomy.
 	"""
-	if not farm or not ("economy" in farm) or not farm.economy:
-		return {"ok": false, "error": "no_economy"}
-	if not farm.economy.has_method("apply_economy_overrides"):
-		return {"ok": false, "error": "method_not_available"}
-	var applied = farm.economy.apply_economy_overrides(overrides)
-	return {"ok": true, "applied": applied}
+	if not farm:
+		return {"ok": false, "error": "no_farm"}
+	return BalanceService.apply_patch(farm, overrides, "farm_instrument.configure_economy")
+
+
+func get_balance_snapshot() -> Dictionary:
+	if not farm:
+		return {"ok": false, "error": "no_farm"}
+	var snapshot = BalanceService.get_snapshot(farm)
+	snapshot["ok"] = true
+	return snapshot
+
+
+func patch_balance(patch: Dictionary, source: String = "farm_instrument.patch_balance") -> Dictionary:
+	if not farm:
+		return {"ok": false, "error": "no_farm"}
+	return BalanceService.apply_patch(farm, patch, source)
+
+
+func reset_balance_to_default() -> Dictionary:
+	if not farm:
+		return {"ok": false, "error": "no_farm"}
+	return BalanceService.reset_to_default(farm)
+
+
+func export_balance_profile(path: String = "user://saves/balance_profile_last.json") -> Dictionary:
+	if not farm:
+		return {"ok": false, "error": "no_farm"}
+	var snapshot = BalanceService.get_snapshot(farm)
+	var file = FileAccess.open(path, FileAccess.WRITE)
+	if not file:
+		return {"ok": false, "error": "file_open_failed", "path": path}
+	file.store_string(JSON.stringify(snapshot, "\t"))
+	return {"ok": true, "path": path}
+
+
+func load_balance_profile(path: String) -> Dictionary:
+	if not farm:
+		return {"ok": false, "error": "no_farm"}
+	if path == "":
+		return {"ok": false, "error": "empty_path"}
+	if not FileAccess.file_exists(path):
+		return {"ok": false, "error": "missing_file", "path": path}
+	var file = FileAccess.open(path, FileAccess.READ)
+	if not file:
+		return {"ok": false, "error": "file_open_failed", "path": path}
+	var parsed = JSON.parse_string(file.get_as_text())
+	if not (parsed is Dictionary):
+		return {"ok": false, "error": "invalid_json", "path": path}
+	var patch = {
+		"profile_id": parsed.get("profile_id", "default"),
+		"action_costs": parsed.get("action_costs", {}),
+		"gate_costs": parsed.get("gate_costs", {}),
+		"quest_rewards": parsed.get("quest_rewards", {})
+	}
+	return BalanceService.apply_patch(farm, patch, "farm_instrument.load_balance_profile")
 
 
 func log_action(action: String, details: Dictionary = {}) -> void:

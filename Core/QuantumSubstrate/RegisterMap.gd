@@ -35,6 +35,7 @@ var axes: Dictionary = {}
 
 ## Number of qubits registered
 var num_qubits: int = 0
+var _verbose: bool = OS.get_environment("REGISTERMAP_VERBOSE") == "1"
 
 
 func register_axis(qubit_index: int, north_emoji: String, south_emoji: String) -> void:
@@ -70,7 +71,8 @@ func register_axis(qubit_index: int, north_emoji: String, south_emoji: String) -
 
 	num_qubits = max(num_qubits, qubit_index + 1)
 
-	print("📊 Qubit %d: |0⟩=%s |1⟩=%s" % [qubit_index, north_emoji, south_emoji])
+	if _verbose:
+		print("Qubit %d: |0>=%s |1>=%s" % [qubit_index, north_emoji, south_emoji])
 
 
 func has(emoji: String) -> bool:

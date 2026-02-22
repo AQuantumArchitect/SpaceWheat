@@ -317,7 +317,7 @@ static func inject_vocabulary(farm, positions: Array[Vector2i], vocab_pair: Dict
 		return {"success": false, "error": "invalid_pair"}
 
 	# Preflight cost
-	var cost_gate = EconomyConstants.preflight_action("vocab_injection", farm.economy, {"south_emoji": south})
+	var cost_gate = EconomyConstants.preflight_action("inject_vocabulary", farm.economy, {"south_emoji": south})
 	var cost = cost_gate.get("cost", {})
 	if not cost_gate.get("ok", true):
 		var current: Dictionary = {}
@@ -335,7 +335,7 @@ static func inject_vocabulary(farm, positions: Array[Vector2i], vocab_pair: Dict
 	var result = biome.expand_quantum_system(north, south)
 
 	if result.get("success", false):
-		if not EconomyConstants.commit_cost(cost, farm.economy, "vocab_injection"):
+		if not EconomyConstants.commit_cost(cost, farm.economy, "inject_vocabulary"):
 			return {
 				"success": false,
 				"error": "cost_commit_failed",

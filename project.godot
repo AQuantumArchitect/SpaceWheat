@@ -251,7 +251,6 @@ toggle_help={
 
 [physics]
 
-; Physics tick rate — see Core/Config/PhysicsConfig.gd for all timing constants
 common/physics_ticks_per_second=6
 
 [rendering]

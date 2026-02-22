@@ -15,6 +15,17 @@ const RESOURCE_REWARD_MIN_TOTAL: int = 8
 const RESOURCE_REWARD_MAX_TOTAL: int = 240
 const RESOURCE_REWARD_MIN_PER_EMOJI: int = 4
 const RESOURCE_REWARD_BASE_RATIO: float = 0.4
+const QUEST_REWARD_TUNING_DEFAULTS: Dictionary = {
+	"resource_reward_min_total": RESOURCE_REWARD_MIN_TOTAL,
+	"resource_reward_max_total": RESOURCE_REWARD_MAX_TOTAL,
+	"resource_reward_min_per_emoji": RESOURCE_REWARD_MIN_PER_EMOJI,
+	"resource_reward_base_ratio": RESOURCE_REWARD_BASE_RATIO
+	,
+	"biome_novelty_multiplier": 1.15,
+	"vocab_novelty_multiplier": 1.35
+}
+
+static var _quest_reward_tuning_overrides: Dictionary = {}
 
 ## Icon Modification: How quest rewards can modify icon physics
 class IconModification:
@@ -71,18 +82,20 @@ static func generate_reward(quest: Dictionary, bath, player_vocab: Array) -> Que
 	reward.money_amount = 0  # No universal currency
 	reward.bonus_multiplier = quest.get("reward_multiplier", 1.0)
 
-	# Primary payout: faction-shaped resource rewards
-	var faction_name = quest.get("faction", "")
-	var faction_dict = _get_faction_by_name(faction_name)
-	var pre_rolled_resources = quest.get("reward_resources", {})
-	if pre_rolled_resources is Dictionary and not pre_rolled_resources.is_empty():
-		reward.resource_rewards = _sanitize_resource_rewards(pre_rolled_resources)
-	else:
-		reward.resource_rewards = _build_resource_reward_plan(quest, faction_dict, false)
-
-	# Use PRE-ROLLED vocabulary pair from quest creation
+	# Use PRE-ROLLED vocabulary pair from quest creation.
+	# Quests give EITHER vocab OR resources — not both.
 	var north = quest.get("reward_vocab_north", "")
 	var south = quest.get("reward_vocab_south", "")
+	var faction_name = quest.get("faction", "")
+	var faction_dict = _get_faction_by_name(faction_name)
+
+	# Primary payout: faction-shaped resource rewards (only for non-vocab quests)
+	if north == "":
+		var pre_rolled_resources = quest.get("reward_resources", {})
+		if pre_rolled_resources is Dictionary and not pre_rolled_resources.is_empty():
+			reward.resource_rewards = _sanitize_resource_rewards(pre_rolled_resources)
+		else:
+			reward.resource_rewards = _build_resource_reward_plan(quest, faction_dict, false)
 
 	if north != "":
 		reward.learned_vocabulary.append(north)
@@ -111,35 +124,52 @@ static func generate_reward(quest: Dictionary, bath, player_vocab: Array) -> Que
 static func plan_resource_rewards(quest: Dictionary, faction: Dictionary = {}, icon_map: Dictionary = {}) -> Dictionary:
 	"""Pre-roll resource rewards at quest creation time for deterministic UI/claim.
 
-	CRITICAL: Ensures south pole emoji resources are granted (needed for vocab injection).
-	Vocab injection costs 4 [south_emoji] + 10 🌱, so we must grant ≥4 of south emoji.
+	Vocab-teaching quests give no resource rewards — vocab OR resources, not both.
 	"""
-	var rewards = _build_resource_reward_plan(quest, faction, false, icon_map)
-
-	# CRITICAL FIX: Always grant south pole resources for vocab injection
-	var south = quest.get("reward_vocab_south", "")
-	if south != "":
-		# Ensure at least 4 south resources (needed for injection - scaled for 1:1 quantum mass economy)
-		if not rewards.has(south):
-			rewards[south] = 4
-		else:
-			rewards[south] = max(int(rewards[south]), 4)
-
-	# Also grant some north pole resources (bonus)
-	var north = quest.get("reward_vocab_north", "")
-	if north != "" and north != south:
-		# Ensure at least 10 north resources (bonus to help complete the pair - scaled for 1:1 economy)
-		if not rewards.has(north):
-			rewards[north] = 10
-		else:
-			rewards[north] = max(int(rewards[north]), 10)
-
-	return rewards
+	# Vocab-teaching quests give no resource rewards
+	if quest.get("reward_vocab_north", "") != "":
+		return {}
+	return _build_resource_reward_plan(quest, faction, false, icon_map)
 
 
 static func estimate_resource_rewards(quest: Dictionary, faction: Dictionary = {}, icon_map: Dictionary = {}) -> Dictionary:
 	"""Deterministic estimate for preview paths when quest has no pre-rolled bundle."""
+	if quest.get("reward_vocab_north", "") != "":
+		return {}
 	return _build_resource_reward_plan(quest, faction, true, icon_map)
+
+
+static func compute_market_projection(quest: Dictionary, icon_map: Dictionary = {}, tuning: Dictionary = {}) -> Dictionary:
+	"""Compute read-only market projection for quest pricing from icon-map availability."""
+	if quest.is_empty():
+		return {}
+	if int(quest.get("type", -1)) != 0:
+		return {}
+	var resource = str(quest.get("resource", ""))
+	var base_cost = float(quest.get("quantity", 0))
+	if resource == "" or base_cost <= 0.0:
+		return {}
+
+	var by_emoji: Dictionary = icon_map.get("by_emoji", {}) if icon_map is Dictionary else {}
+	var total = max(0.0, float(icon_map.get("total", 0.0))) if icon_map is Dictionary else 0.0
+	var availability = max(0.0, float(by_emoji.get(resource, 0.0))) if by_emoji is Dictionary else 0.0
+	var normalized_availability = availability / max(1.0, total)
+	var scarcity = 1.0 / max(0.05, normalized_availability)
+	var beta = float(tuning.get("beta", 0.35))
+	var min_k = float(tuning.get("min_k", 0.75))
+	var max_k = float(tuning.get("max_k", 2.25))
+	var multiplier = clamp(1.0 + (beta * log(1.0 + scarcity)), min_k, max_k)
+	var effective_cost = max(1, int(round(base_cost * multiplier)))
+
+	return {
+		"resource": resource,
+		"base_cost": int(base_cost),
+		"effective_cost": effective_cost,
+		"multiplier": multiplier,
+		"availability": availability,
+		"normalized_availability": normalized_availability,
+		"scarcity": scarcity
+	}
 
 
 static func _build_resource_reward_plan(quest: Dictionary, faction: Dictionary, deterministic: bool, icon_map: Dictionary = {}) -> Dictionary:
@@ -154,7 +184,7 @@ static func _build_resource_reward_plan(quest: Dictionary, faction: Dictionary, 
 	if not icon_map.is_empty() and icon_map.has("by_emoji"):
 		profile = _compute_iconmap_reward_profile(faction_dynamic, icon_map)
 		var iconmap_total = float(icon_map.get("total", 0.0))
-		total_budget = int(clamp(round(iconmap_total), RESOURCE_REWARD_MIN_TOTAL, RESOURCE_REWARD_MAX_TOTAL))
+		total_budget = int(clamp(round(iconmap_total), _reward_min_total(), _reward_max_total()))
 	else:
 		# Fallback: Hamiltonian eigenvalue rewards (old behavior)
 		profile = _compute_hamiltonian_reward_profile(faction_dynamic)
@@ -189,16 +219,34 @@ static func _build_resource_reward_plan(quest: Dictionary, faction: Dictionary, 
 	var remaining = total_budget
 	for i in range(selected.size()):
 		var emoji = selected[i]
-		var amount = RESOURCE_REWARD_MIN_PER_EMOJI
+		var amount = _reward_min_per_emoji()
 		if i == selected.size() - 1:
-			amount = max(RESOURCE_REWARD_MIN_PER_EMOJI, remaining)
+			amount = max(_reward_min_per_emoji(), remaining)
 		else:
 			var ratio = float(weights.get(emoji, 0.0)) / selected_weight_total
-			amount = max(RESOURCE_REWARD_MIN_PER_EMOJI, int(round(total_budget * ratio)))
-			amount = min(amount, remaining - (selected.size() - i - 1) * RESOURCE_REWARD_MIN_PER_EMOJI)
+			amount = max(_reward_min_per_emoji(), int(round(total_budget * ratio)))
+			amount = min(amount, remaining - (selected.size() - i - 1) * _reward_min_per_emoji())
 		rewards[emoji] = amount
 		remaining -= amount
 
+	return _apply_reward_tuning(rewards, quest)
+
+
+static func _apply_reward_tuning(rewards: Dictionary, quest: Dictionary) -> Dictionary:
+	if rewards.is_empty():
+		return rewards
+	var tuning = get_reward_tuning()
+	var multiplier = 1.0
+	if bool(quest.get("biome_new", false)):
+		multiplier *= float(tuning.get("biome_novelty_multiplier", 1.0))
+	if bool(quest.get("contains_new_vocab", false)):
+		multiplier *= float(tuning.get("vocab_novelty_multiplier", 1.0))
+	if multiplier == 1.0:
+		return rewards
+	for emoji in rewards.keys():
+		var base = float(rewards[emoji])
+		var scaled = max(1.0, round(base * multiplier))
+		rewards[emoji] = int(scaled)
 	return rewards
 
 
@@ -383,8 +431,48 @@ static func _compute_total_resource_budget(quest: Dictionary, dominant_eigenvalu
 	var eigen_boost = clamp(1.0 + dominant_eigenvalue * 0.6, 1.0, 2.5)
 	var type_scale = 1.0 if quest_type == 0 else 0.75
 
-	var raw_total = base * multiplier * eigen_boost * RESOURCE_REWARD_BASE_RATIO * type_scale
-	return int(clamp(round(raw_total), RESOURCE_REWARD_MIN_TOTAL, RESOURCE_REWARD_MAX_TOTAL))
+	var raw_total = base * multiplier * eigen_boost * _reward_base_ratio() * type_scale
+	return int(clamp(round(raw_total), _reward_min_total(), _reward_max_total()))
+
+
+static func set_reward_tuning_overrides(overrides: Dictionary) -> void:
+	_quest_reward_tuning_overrides = {}
+	if not (overrides is Dictionary):
+		return
+	for key in QUEST_REWARD_TUNING_DEFAULTS.keys():
+		if overrides.has(key):
+			_quest_reward_tuning_overrides[key] = overrides[key]
+
+
+static func get_reward_tuning() -> Dictionary:
+	var out = QUEST_REWARD_TUNING_DEFAULTS.duplicate(true)
+	for key in _quest_reward_tuning_overrides.keys():
+		out[key] = _quest_reward_tuning_overrides[key]
+	return out
+
+
+static func reset_reward_tuning() -> void:
+	_quest_reward_tuning_overrides = {}
+
+
+static func _reward_min_total() -> int:
+	var raw = get_reward_tuning().get("resource_reward_min_total", RESOURCE_REWARD_MIN_TOTAL)
+	return max(1, int(raw))
+
+
+static func _reward_max_total() -> int:
+	var raw = get_reward_tuning().get("resource_reward_max_total", RESOURCE_REWARD_MAX_TOTAL)
+	return max(_reward_min_total(), int(raw))
+
+
+static func _reward_min_per_emoji() -> int:
+	var raw = get_reward_tuning().get("resource_reward_min_per_emoji", RESOURCE_REWARD_MIN_PER_EMOJI)
+	return max(1, int(raw))
+
+
+static func _reward_base_ratio() -> float:
+	var raw = get_reward_tuning().get("resource_reward_base_ratio", RESOURCE_REWARD_BASE_RATIO)
+	return max(0.05, float(raw))
 
 
 static func _pick_reward_emojis(weights: Dictionary, count: int, deterministic: bool) -> Array:
