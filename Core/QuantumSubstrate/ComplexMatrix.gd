@@ -11,6 +11,10 @@ static var _class_ref = null
 ## Native backend detection - checked once, cached
 static var _native_available: bool = false
 static var _native_checked: bool = false
+static var _zero_trace_warn_count: int = 0
+static var _zero_trace_warn_last_ms: int = 0
+const _ZERO_TRACE_WARN_LIMIT: int = 5
+const _ZERO_TRACE_WARN_INTERVAL_MS: int = 5000
 
 static func _check_native() -> void:
 	if _native_checked:
@@ -788,7 +792,14 @@ func renormalize_trace() -> void:
 	var tr_val = tr.abs()
 
 	if tr_val < 1e-14:
-		push_warning("Cannot renormalize: trace is essentially zero")
+		var now_ms = Time.get_ticks_msec()
+		var should_warn = _zero_trace_warn_count < _ZERO_TRACE_WARN_LIMIT
+		if not should_warn and (now_ms - _zero_trace_warn_last_ms) >= _ZERO_TRACE_WARN_INTERVAL_MS:
+			should_warn = true
+		if should_warn:
+			_zero_trace_warn_count += 1
+			_zero_trace_warn_last_ms = now_ms
+			push_warning("Cannot renormalize: trace is essentially zero")
 		return
 
 	# Scale all elements by 1/trace

@@ -1,5 +1,6 @@
 class_name EconomyConstants
 extends RefCounted
+const ActionIds = preload("res://Core/GameMechanics/ActionIds.gd")
 
 ## ===========================================
 ## UNIFIED ECONOMIC CONSTANTS
@@ -18,14 +19,8 @@ const QUANTUM_TO_CREDITS: float = 1.0
 ## Reality Midwife token emoji (display + economy tracking)
 const MIDWIFE_EMOJI: String = "🍼"
 
-# Removed: MIDWIFE_ACTION_COST (never used)
-
-## Drain factor: fraction of probability removed during MEASURE
-const DRAIN_FACTOR: float = 0.5
-
-## Vocabulary purity multipliers (unknown vocab now penalized)
-const KNOWN_VOCAB_PURITY_MULTIPLIER: float = 4.0
-const UNKNOWN_VOCAB_PURITY_MULTIPLIER: float = 0.5
+# Reap season cost progression (Fibonacci)
+const REAP_COST_SEQUENCE: Array[int] = [1, 1, 2, 3, 5, 8, 13, 21]
 
 ## ===========================================
 ## ACTION COSTS (Classical Resources as Sink)
@@ -36,14 +31,15 @@ const UNKNOWN_VOCAB_PURITY_MULTIPLIER: float = 0.5
 const ACTION_COSTS: Dictionary = {
 	"explore": {"🍞": 1},       # Send probe
 	"measure": {"❄️": 1},       # Measure (3E) - cold/ice
-	"reap": {"👥": 1},          # Claim harvest (labor)
-	"harvest_all": {"🍼": 1},   # End of turn harvest (costs 1 Reality Midwife token)
+	"pop": {"👥": 1},           # Targeted terminal extraction
+	"reap": {MIDWIFE_EMOJI: 1}, # Seasonal reap (actual cost resolved by sequence)
+	"harvest_all": {MIDWIFE_EMOJI: 1},   # Legacy alias for reap
 	"quest_reroll": {"🐇": 1},   # Reroll quest slot
 	"quest_lock": {"🌲": 1},     # Lock quest slot
 	"explore_biome": {"🦅": 4}, # Scout new biome (reduced for 1:1 quantum mass economy)
 	"remove_vocabulary": {"🐺": 20}, # Remove vocabulary: penalize with wolf cost
-	"lindblad_pump": {"⚡": 8},  # Lindblad pump operator (reduced for 1:1 economy)
-	"lindblad_drain": {"⚡": 8}  # Lindblad drain operator (reduced for 1:1 economy)
+	"lindblad_pump": {"🌱": 8},  # Axis-aware dynamic cost adds north emoji
+	"lindblad_drain": {"⚙": 2}  # Axis-aware dynamic cost adds south emoji
 	# vocab_injection is dynamic - use get_action_cost()
 }
 
@@ -73,10 +69,13 @@ const GATE_COSTS: Dictionary = {
 ## Vocab injection dynamic costs (LOWERED to 4 for 1:1 quantum mass economy)
 const VOCAB_INJECTION_SOUTH_COST: int = 4
 const VOCAB_INJECTION_SPROUT_COST: Dictionary = {"🌱": 10}
+const VOCAB_INJECTION_BASE_COST: int = VOCAB_INJECTION_SOUTH_COST  # Deprecated compatibility alias
 
-## Lindblad injection costs (pump/drain operators)
-const LINDBLAD_INJECTION_BASE_COST: int = 8  # Base cost for Lindblad operations (reduced for 1:1 economy)
-const LINDBLAD_INJECTION_RESOURCE_COST: Dictionary = {"⚡": 1}  # Energy emoji for quantum operations
+## Lindblad axis-aware costs
+const LINDBLAD_PUMP_SPROUT_COST: int = 8
+const LINDBLAD_PUMP_NORTH_COST: int = 32
+const LINDBLAD_DRAIN_GEAR_COST: int = 2
+const LINDBLAD_DRAIN_SOUTH_COST: int = 8
 
 # Removed: old VOCAB_INJECTION_BASE_COST (never used)
 
@@ -132,15 +131,25 @@ static func get_vocab_injection_cost(south_emoji: String) -> Dictionary:
 	return cost
 
 
-static func get_lindblad_injection_cost() -> Dictionary:
-	"""Get cost dictionary for Lindblad operator injection (pump/drain).
+static func get_lindblad_injection_cost(action: String = ActionIds.LINDBLAD_PUMP, context: Dictionary = {}) -> Dictionary:
+	"""Get axis-aware Lindblad costs.
 
-	Cost = 8 ⚡ (energy) - scaled for 1:1 quantum mass economy
-	Returns dictionary of {emoji: amount} for costs.
+	Pump: 8 🌱 + 32 north-pole emoji
+	Drain: 2 ⚙ + 8 south-pole emoji
 	"""
-	var cost = LINDBLAD_INJECTION_RESOURCE_COST.duplicate()
-	for emoji in cost.keys():
-		cost[emoji] = LINDBLAD_INJECTION_BASE_COST
+	var normalized_action = normalize_action_id(action)
+	var cost: Dictionary = {}
+	if normalized_action == ActionIds.LINDBLAD_DRAIN:
+		cost["⚙"] = LINDBLAD_DRAIN_GEAR_COST
+		var south_emoji = str(context.get("south_emoji", ""))
+		if south_emoji != "":
+			cost[south_emoji] = LINDBLAD_DRAIN_SOUTH_COST
+		return cost
+
+	cost["🌱"] = LINDBLAD_PUMP_SPROUT_COST
+	var north_emoji = str(context.get("north_emoji", ""))
+	if north_emoji != "":
+		cost[north_emoji] = LINDBLAD_PUMP_NORTH_COST
 	return cost
 
 
@@ -211,11 +220,16 @@ static func get_action_cost(action: String, context: Dictionary = {}) -> Diction
 	Returns:
 		Dictionary of {emoji: amount} costs
 	"""
-	if action == "vocab_injection":
+	var normalized_action = normalize_action_id(action)
+	if normalized_action == ActionIds.INJECT_VOCAB:
 		return get_vocab_injection_cost(context.get("south_emoji", ""))
-	if action == "lindblad_pump" or action == "lindblad_drain":
-		return get_lindblad_injection_cost()
-	return ACTION_COSTS.get(action, {})
+	if normalized_action == ActionIds.LINDBLAD_PUMP or normalized_action == ActionIds.LINDBLAD_DRAIN:
+		return get_lindblad_injection_cost(normalized_action, context)
+	if ACTION_COSTS.has(normalized_action):
+		return ACTION_COSTS[normalized_action]
+	if GATE_COSTS.has(normalized_action):
+		return GATE_COSTS[normalized_action]
+	return {}
 
 
 static func get_gate_cost(gate_name: String) -> Dictionary:
@@ -232,11 +246,12 @@ static func get_gate_cost(gate_name: String) -> Dictionary:
 
 static func preflight_action(action: String, economy, context: Dictionary = {}) -> Dictionary:
 	"""Check affordability for an action without spending."""
+	var normalized_action = normalize_action_id(action)
 	var cost: Dictionary
 	if economy and economy.has_method("get_overridden_action_cost"):
-		cost = economy.get_overridden_action_cost(action, context)
+		cost = economy.get_overridden_action_cost(normalized_action, context)
 	else:
-		cost = get_action_cost(action, context)
+		cost = get_action_cost(normalized_action, context)
 	return preflight_cost(cost, economy)
 
 
@@ -252,12 +267,13 @@ static func preflight_gate(gate_name: String, economy) -> Dictionary:
 
 static func commit_action(action: String, economy, context: Dictionary = {}) -> bool:
 	"""Spend cost for an action after success."""
+	var normalized_action = normalize_action_id(action)
 	var cost: Dictionary
 	if economy and economy.has_method("get_overridden_action_cost"):
-		cost = economy.get_overridden_action_cost(action, context)
+		cost = economy.get_overridden_action_cost(normalized_action, context)
 	else:
-		cost = get_action_cost(action, context)
-	return commit_cost(cost, economy, action)
+		cost = get_action_cost(normalized_action, context)
+	return commit_cost(cost, economy, normalized_action)
 
 
 static func commit_gate(gate_name: String, economy) -> bool:
@@ -268,3 +284,7 @@ static func commit_gate(gate_name: String, economy) -> bool:
 	else:
 		cost = get_gate_cost(gate_name)
 	return commit_cost(cost, economy, gate_name)
+
+
+static func normalize_action_id(action: String) -> String:
+	return ActionIds.normalize_action(action)

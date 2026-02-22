@@ -18,8 +18,11 @@ var adjacent_qubits: Array = []
 func _init():
 	super._init()
 	plot_type_name = "energy_tap"
-	is_planted = true  # Always "active"
 	target_emoji = "💧"  # Water by default
+
+
+func is_active() -> bool:
+	return true  # EnergyTap is always active
 
 
 ## Quantum-to-Classical Conversion

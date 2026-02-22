@@ -18,6 +18,7 @@ extends RefCounted
 
 const WeightedRandom = preload("res://Core/Utilities/WeightedRandom.gd")
 const EconomyConstants = preload("res://Core/GameMechanics/EconomyConstants.gd")
+const BalanceService = preload("res://Core/GameMechanics/BalanceService.gd")
 
 
 ## ============================================================================
@@ -144,7 +145,7 @@ static func action_explore(terminal_pool, biome, economy = null) -> Dictionary:
 
 
 ## ============================================================================
-## MEASURE ACTION - Sample from ensemble and drain probability
+## MEASURE ACTION - Sample + projective collapse (no drain)
 ## ============================================================================
 
 static func action_measure(terminal, biome, economy = null) -> Dictionary:
@@ -254,29 +255,20 @@ static func action_measure(terminal, biome, economy = null) -> Dictionary:
 	# 4. Record the probability - this is the "claim" that POP will convert
 	var recorded_probability = outcome_prob
 
-	# 5. Check entanglement before drain
+	# 5. Check entanglement before projection
 	var was_entangled = _check_entanglement(register_id, biome)
-	var entangled_drains: Array = []
+	var projection_success = _project_register(biome, register_id, is_north)
 
-	# 6. DRAIN: Reduce probability in ρ (ensemble depletion)
-	var drain_success = _drain_register(register_id, is_north, biome)
-
-	# 7. Handle entangled registers (drain them too)
-	if was_entangled and biome and biome.has_method("get_entangled_registers"):
-		var entangled = biome.get_entangled_registers(register_id)
-		for ent_reg_id in entangled:
-			# Drain entangled partner with correlated outcome
-			_drain_register(ent_reg_id, is_north, biome)  # Same direction for correlation
-			entangled_drains.append(ent_reg_id)
-
-	# 8. Mark terminal as measured with RECORDED probability
+	# 6. Mark terminal as measured with RECORDED probability and collapsed purity.
+	measured_purity = 1.0
+	snapshot["purity"] = measured_purity
 	terminal.mark_measured(outcome, recorded_probability, measured_purity, snapshot)
 
-	# 9. FREE THE REGISTER - allow another terminal to bind to it
+	# 7. FREE THE REGISTER - allow another terminal to bind to it
 	# Terminal keeps its measurement snapshot for REAP to harvest
 	terminal.release_register()
 
-	# 10. Commit cost after successful measurement
+	# 8. Commit cost after successful measurement
 	var measure_cost = measure_cost_gate.get("cost", {})
 	if not EconomyConstants.commit_cost(measure_cost, economy, "measure"):
 		# NOTE: We don't roll back the measurement since it already happened
@@ -293,9 +285,10 @@ static func action_measure(terminal, biome, economy = null) -> Dictionary:
 		"probability": recorded_probability,  # Primary key (consistent with action_explore)
 		"recorded_probability": recorded_probability,  # Alias for backward compatibility
 		"was_entangled": was_entangled,
-		"was_drained": drain_success,
-		"drain_factor": EconomyConstants.DRAIN_FACTOR,
-		"entangled_drains": entangled_drains,
+		"was_drained": false, # Backward compatibility field
+		"drain_factor": 0.0, # Backward compatibility field
+		"was_projected": projection_success,
+		"projective_collapse": true,
 		"register_id": register_id
 	}
 
@@ -309,30 +302,13 @@ static func _check_entanglement(register_id: int, biome) -> bool:
 	return false
 
 
-static func _drain_register(register_id: int, is_north: bool, biome) -> bool:
-	if not biome:
+static func _project_register(biome, register_id: int, is_north: bool) -> bool:
+	if not biome or not biome.quantum_computer:
 		return false
-
-	# Try biome's drain method first (preferred)
-	if biome.has_method("drain_register_probability"):
-		biome.drain_register_probability(register_id, is_north, EconomyConstants.DRAIN_FACTOR)
-		return true
-
-	# Fallback: try to access density matrix directly
-	if biome.has_method("get_density_matrix"):
-		var dm = biome.get_density_matrix()
-		if dm and dm.has_method("drain_diagonal"):
-			dm.drain_diagonal(register_id, EconomyConstants.DRAIN_FACTOR)
-			return true
-
-	# Last resort: log warning
-	_log("warn", "quantum", "⚠️", "ProbeActions: drain_register called but biome doesn't support drain")
+	var qc = biome.quantum_computer
+	if qc.has_method("project_qubit"):
+		return qc.project_qubit(register_id, 0 if is_north else 1)
 	return false
-
-
-static func _collapse_density_matrix(register_id: int, is_north: bool, biome) -> void:
-	# For ensemble model, drain instead of collapse
-	_drain_register(register_id, is_north, biome)
 
 
 ## ============================================================================
@@ -356,26 +332,49 @@ static func action_pop(terminal, terminal_pool, economy = null, farm = null) -> 
 	return harvest_result
 
 
-static func action_reap(terminal, terminal_pool, economy = null, farm = null) -> Dictionary:
-	# Preflight: ensure terminal can be harvested before charging
-	var preflight = _prepare_pop_result(terminal, terminal_pool, null, farm)
-	if not preflight.get("success", false):
-		return preflight
+static func action_reap(arg0, arg1 = null, arg2 = null, arg3 = null) -> Dictionary:
+	# New path: action_reap(farm, economy)
+	if _looks_like_farm(arg0):
+		var farm = arg0
+		var economy = arg1 if arg1 != null else (farm.economy if ("economy" in farm) else null)
+		return _action_reap_global(farm, economy)
 
-	# Preflight cost (after preflight)
-	var reap_cost_gate = EconomyConstants.preflight_action("reap", economy)
+	# Legacy compatibility path: action_reap(terminal, terminal_pool, economy, farm)
+	return _action_reap_terminal(arg0, arg1, arg2, arg3)
+
+
+static func _action_reap_terminal(terminal, terminal_pool, economy = null, farm = null) -> Dictionary:
+	var result = action_pop(terminal, terminal_pool, economy, farm)
+	if result.get("success", false):
+		result["legacy_reap_alias"] = true
+	return result
+
+
+static func _action_reap_global(farm, economy = null) -> Dictionary:
+	if not farm or not economy:
+		return {
+			"success": false,
+			"error": "no_farm",
+			"message": "Farm not ready."
+		}
+
+	var active_biomes = _get_active_biomes_for_reap(farm)
+	if active_biomes.is_empty():
+		return {
+			"success": false,
+			"error": "no_active_biomes",
+			"message": "Reap requires at least one active biome with bound terminals."
+		}
+
+	var reap_count_before = _get_reap_count(farm)
+	var reap_cost = BalanceService.get_reap_cost(farm, reap_count_before)
+	var reap_cost_gate = EconomyConstants.preflight_cost(reap_cost, economy)
 	if not reap_cost_gate.get("ok", true):
 		return {
 			"success": false,
 			"error": "insufficient_resources",
-			"message": "Need 👥 labor to reap harvest."
+			"message": "Need %s to reap." % _format_cost(reap_cost)
 		}
-
-	var harvest_result = _prepare_pop_result(terminal, terminal_pool, economy, farm)
-	if not harvest_result.get("success", false):
-		return harvest_result
-
-	var reap_cost = reap_cost_gate.get("cost", {})
 	if not EconomyConstants.commit_cost(reap_cost, economy, "reap"):
 		return {
 			"success": false,
@@ -383,16 +382,90 @@ static func action_reap(terminal, terminal_pool, economy = null, farm = null) ->
 			"message": "Reap failed: unable to spend cost."
 		}
 
-	# Capture biome name before unbinding (String, not object)
-	var biome_name = harvest_result.get("biome_name", "")
-	if biome_name == "":
-		biome_name = terminal.measured_biome_name if terminal.measured_biome_name != "" else terminal.bound_biome_name
+	var reap_cycles = int(BalanceService.get_tuning_value(farm, "reap_evolution_cycles", 13))
+	reap_cycles = maxi(reap_cycles, 0)
+	var active_biome_names: Array = []
+	for biome in active_biomes:
+		var biome_name = biome.get_biome_type() if biome and biome.has_method("get_biome_type") else ""
+		if biome_name != "":
+			active_biome_names.append(biome_name)
 
-	# Unbind terminal after reaping (returns it to pool)
-	terminal_pool.unbind_terminal(terminal)
-	_log("info", "farm", "📤", "Terminal reaped in %s" % [biome_name if biome_name else "biome"])
+	var fast_forward_result = {"success": true, "cycles": reap_cycles, "evolved_steps": 0}
+	var batcher = farm.biome_evolution_batcher if ("biome_evolution_batcher" in farm) else null
+	if reap_cycles > 0:
+		if batcher and batcher.has_method("run_additional_cycles"):
+			fast_forward_result = batcher.run_additional_cycles(reap_cycles, active_biome_names)
+		else:
+			fast_forward_result = _manual_fast_forward_biomes(active_biomes, reap_cycles)
 
-	return harvest_result
+	var flux_to_credits = float(BalanceService.get_tuning_value(farm, "flux_to_credits", 1.0))
+	var reap_base_yield = float(BalanceService.get_tuning_value(farm, "reap_base_yield", 50.0))
+	var known_emojis: Array = farm.get_known_emojis() if farm.has_method("get_known_emojis") else []
+
+	var flux_totals: Dictionary = {}
+	var icon_totals: Dictionary = {}
+	var total_flux_credits = 0
+	var total_icon_credits = 0
+
+	for biome in active_biomes:
+		if not biome or not biome.quantum_computer:
+			continue
+		var qc = biome.quantum_computer
+
+		# Phase 2: convert accumulated sink flux to credits.
+		var fluxes: Dictionary = {}
+		if qc.has_method("get_all_sink_fluxes"):
+			fluxes = qc.get_all_sink_fluxes()
+		for emoji in fluxes.keys():
+			var raw_flux = float(fluxes.get(emoji, 0.0))
+			var credits = int(raw_flux * flux_to_credits)
+			if credits <= 0:
+				continue
+			economy.add_resource(emoji, credits, "reap_flux")
+			flux_totals[emoji] = flux_totals.get(emoji, 0) + credits
+			total_flux_credits += credits
+		if qc.has_method("reset_sink_flux"):
+			qc.reset_sink_flux()
+
+		# Phase 3: broad IconMap-style harvest from live biome mass distribution.
+		var mass_map = _resolve_mass_map_for_biome(biome)
+		var by_emoji: Dictionary = mass_map.get("by_emoji", {})
+		var total_mass = float(mass_map.get("total", 0.0))
+		if total_mass <= 0.0:
+			continue
+		for emoji in by_emoji.keys():
+			var mass = float(by_emoji.get(emoji, 0.0))
+			if mass <= 0.0:
+				continue
+			var mass_fraction = mass / total_mass
+			var purity = _resolve_emoji_purity(biome, emoji)
+			var purity_bonus = (1.0 + purity) if emoji in known_emojis else purity
+			var credits = int(mass_fraction * reap_base_yield * purity_bonus)
+			if credits <= 0:
+				continue
+			economy.add_resource(emoji, credits, "reap_iconmap")
+			icon_totals[emoji] = icon_totals.get(emoji, 0) + credits
+			total_icon_credits += credits
+
+	var reap_count_after = reap_count_before + 1
+	_set_reap_count(farm, reap_count_after)
+
+	return {
+		"success": true,
+		"global": true,
+		"active_biomes": active_biome_names,
+		"reap_count_before": reap_count_before,
+		"reap_count_after": reap_count_after,
+		"reap_cost": reap_cost,
+		"evolution_cycles": reap_cycles,
+		"fast_forward": fast_forward_result,
+		"flux_totals": flux_totals,
+		"icon_totals": icon_totals,
+		"total_flux_credits": total_flux_credits,
+		"total_icon_credits": total_icon_credits,
+		"total_credits": total_flux_credits + total_icon_credits,
+		"harvest_results": []
+	}
 
 
 static func _prepare_pop_result(terminal, terminal_pool, economy = null, farm = null) -> Dictionary:
@@ -440,15 +513,7 @@ static func _prepare_pop_result(terminal, terminal_pool, economy = null, farm = 
 	var terminal_id = terminal.terminal_id
 	var register_id = terminal.measured_register_id
 	var biome_name = terminal.measured_biome_name
-	var purity = terminal.measured_purity
-
-	if purity < 0.0:
-		purity = 0.0
-
-	var neighbor_count = 4
-	if farm and farm.grid and terminal.grid_position != Vector2i(-1, -1):
-		var neighbors = farm.grid.get_neighbors(terminal.grid_position)
-		neighbor_count = neighbors.size()
+	var purity = _resolve_terminal_purity(terminal, farm)
 
 	# Check if emoji is in known vocabulary (known gets a big multiplier, unknown is penalized)
 	var is_known_vocab = false
@@ -456,24 +521,36 @@ static func _prepare_pop_result(terminal, terminal_pool, economy = null, farm = 
 		var known_emojis = farm.get_known_emojis()
 		is_known_vocab = resource in known_emojis
 
-	# Apply vocabulary multiplier (known vs unknown)
-	var vocab_multiplier = EconomyConstants.UNKNOWN_VOCAB_PURITY_MULTIPLIER
-	if is_known_vocab:
-		vocab_multiplier = EconomyConstants.KNOWN_VOCAB_PURITY_MULTIPLIER
-	var effective_purity = purity * vocab_multiplier
+	var biome = _resolve_biome_from_terminal(farm, terminal)
+	var mass_map = _resolve_mass_map_for_biome(biome)
+	var by_emoji: Dictionary = mass_map.get("by_emoji", {})
+	var total_mass = float(mass_map.get("total", 0.0))
+	var mass_fraction = 0.0
+	if total_mass > 0.0:
+		mass_fraction = float(by_emoji.get(resource, 0.0)) / total_mass
+	else:
+		mass_fraction = maxf(recorded_prob, 0.0)
 
-	# POP formula: prob × (1 + purity×4_if_vocab) × neighbors (quantum mass = credits)
-	var credits = recorded_prob * 1.0 * (1.0 + effective_purity) * neighbor_count
+	var pop_base_yield_scale = float(BalanceService.get_tuning_value(farm, "pop_base_yield_scale", 100.0))
+	var purity_bonus = (1.0 + purity) if is_known_vocab else purity
+	var credits = mass_fraction * pop_base_yield_scale * purity_bonus
+	var resource_amount = maxi(int(credits), 1)
 
 	if economy:
-		var resource_amount = int(credits)
-		if resource_amount < 1:
-			resource_amount = 1
+		var pop_cost_gate = EconomyConstants.preflight_action("pop", economy)
+		if not pop_cost_gate.get("ok", true):
+			return {
+				"success": false,
+				"error": "insufficient_resources",
+				"message": "Need 👥 to pop."
+			}
+		if not EconomyConstants.commit_cost(pop_cost_gate.get("cost", {}), economy, "pop"):
+			return {
+				"success": false,
+				"error": "cost_commit_failed",
+				"message": "Pop failed: unable to spend cost."
+			}
 		economy.add_resource(resource, resource_amount, "pop")
-
-	var resource_amount = int(credits)
-	if resource_amount < 1:
-		resource_amount = 1
 
 	return {
 		"success": true,
@@ -481,7 +558,8 @@ static func _prepare_pop_result(terminal, terminal_pool, economy = null, farm = 
 		"amount": resource_amount,
 		"recorded_probability": recorded_prob,
 		"purity": purity,
-		"neighbor_count": neighbor_count,
+		"mass_fraction": mass_fraction,
+		"purity_bonus": purity_bonus,
 		"credits": credits,
 		"terminal_id": terminal_id,
 		"register_id": register_id,
@@ -494,153 +572,18 @@ static func _prepare_pop_result(terminal, terminal_pool, economy = null, farm = 
 ## ============================================================================
 
 static func action_harvest_all(terminal_pool, economy = null, biome = null) -> Dictionary:
-	# 0. Null check for terminal_pool
-	if not terminal_pool:
-		return {
-			"success": false,
-			"error": "no_pool",
-			"message": "Plot pool not initialized."
-		}
-
-	# 1. Get midwife token count BEFORE deduction (determines multiplier)
-	var token_emoji = EconomyConstants.MIDWIFE_EMOJI
-	var midwife_token_count = 0
-	if economy and economy.has_method("get_resource"):
-		midwife_token_count = economy.get_resource(token_emoji)
-
-	# Multiplier = token count (snapshot before cost)
-	var midwife_multiplier: float = float(midwife_token_count)
-
-	# 2. Preflight fixed cost (1 token)
-	var token_cost: float = 0.0
-	var harvest_cost_gate = EconomyConstants.preflight_action("harvest_all", economy)
-	if not harvest_cost_gate.get("ok", true):
-		return {
-			"success": false,
-			"error": "insufficient_resources",
-			"message": "Need 🍼 Reality Midwife token to harvest."
-		}
-	var cost_dict = harvest_cost_gate.get("cost", {})
-	token_cost = cost_dict.get(token_emoji, 0.0)
-
-	# 3. Save density matrix state snapshot
-	var state_snapshot = _save_density_matrices(biome)
-
-	# 4. Harvest density matrix directly (no measurement collapse)
-	# Get resources from BOTH north and south emojis weighted by probability
-	var harvest_results: Array = []
-	var total_credits: float = 0.0
-	var terminals_to_harvest: Array = []
-	var resource_totals: Dictionary = {}  # Track harvested resources by emoji
-
-	# Collect all measured terminals first (to avoid modifying while iterating)
-	# Note: After MEASURE, terminals are no longer bound (register released)
-	# but they still have their measurement data (is_measured=true)
-	if terminal_pool.has_method("get_all_terminals"):
-		for terminal in terminal_pool.get_all_terminals():
-			if terminal and terminal.is_measured:
-				terminals_to_harvest.append(terminal)
-
-	# Get known vocabulary for vocab bonus check
-	var known_emojis: Array = []
-	if biome and biome.has_method("get_known_emojis"):
-		known_emojis = biome.get_known_emojis()
-	elif biome and "grid" in biome and biome.grid and "farm" in biome.grid:
-		var farm_ref = biome.grid.farm
-		if farm_ref and farm_ref.has_method("get_known_emojis"):
-			known_emojis = farm_ref.get_known_emojis()
-
-	# Harvest each terminal using POP formula
-	for terminal in terminals_to_harvest:
-		# Use saved measurement probability (from when terminal was measured)
-		var probability = terminal.measured_probability if terminal.measured_probability > 0 else 0.5
-		var outcome = terminal.measured_outcome
-
-		# Get purity from terminal measurement
-		var purity = terminal.measured_purity if terminal.measured_purity >= 0 else 0.0
-
-		# Get neighbor count
-		var neighbor_count = 4
-		# Note: Can't get neighbors here since terminal might not have grid_position set
-		# Using default 4 neighbors
-
-		# Check if outcome emoji is known (known gets multiplier, unknown receives penalty)
-		var is_known_vocab = outcome in known_emojis
-
-		# Apply vocabulary multiplier
-		var vocab_multiplier = EconomyConstants.UNKNOWN_VOCAB_PURITY_MULTIPLIER
-		if is_known_vocab:
-			vocab_multiplier = EconomyConstants.KNOWN_VOCAB_PURITY_MULTIPLIER
-		var effective_purity = purity * vocab_multiplier
-
-		# POP formula: prob × (1 + purity×4_if_vocab) × neighbors (quantum mass = credits)
-		var pop_credits = int(probability * 1.0 * (1.0 + effective_purity) * neighbor_count)
-
-		if pop_credits > 0 and outcome != "":
-			if not resource_totals.has(outcome):
-				resource_totals[outcome] = 0
-			resource_totals[outcome] += pop_credits
-			total_credits += pop_credits
-
-		# Store grid position before unbinding (needed for signal emission)
-		var grid_pos = terminal.grid_position
-
-		# Unbind terminal after harvesting
-		terminal_pool.unbind_terminal(terminal)
-
-		harvest_results.append({
-			"terminal_id": terminal.terminal_id,
-			"grid_position": grid_pos,
-			"north_emoji": terminal.north_emoji,
-			"north_prob": probability if outcome == terminal.north_emoji else 1.0 - probability,
-			"north_credits": pop_credits if outcome == terminal.north_emoji else 0,
-			"south_emoji": terminal.south_emoji,
-			"south_prob": probability if outcome == terminal.south_emoji else 1.0 - probability,
-			"south_credits": pop_credits if outcome == terminal.south_emoji else 0,
-			"total_credits": pop_credits
-		})
-
-	# 5. Apply multiplier to harvested resources (resources = base × multiplier)
-	var bonus_applied: Dictionary = {}
-	if midwife_multiplier > 0 and economy and economy.has_method("add_resource"):
-		for emoji in resource_totals:
-			var base_amount = resource_totals[emoji]
-			var total_amount = int(base_amount * midwife_multiplier)
-			economy.add_resource(emoji, total_amount, "density_harvest")
-
-			# Track bonus for logging (bonus = total - base)
-			var bonus_amount = total_amount - base_amount
-			if bonus_amount > 0:
-				bonus_applied[emoji] = bonus_amount
-
-		if bonus_applied.size() > 0:
-			_log("info", "economy", "🍼", "Midwife %.1fx multiplier applied (cost: %.1f tokens)" % [midwife_multiplier, token_cost])
-			for emoji in bonus_applied:
-				var total_resources = int(resource_totals[emoji] * midwife_multiplier)
-				_log("info", "economy", "   ", "%s: +%d bonus (total: %d)" % [emoji, bonus_applied[emoji], total_resources])
-	elif midwife_multiplier == 0 and economy:
-		_log("warn", "economy", "⚠️", "No Reality Midwife tokens - harvest yields 0 resources")
-
-	# Commit midwife cost after successful harvest
-	var harvest_cost = harvest_cost_gate.get("cost", {})
-	if economy and not EconomyConstants.commit_cost(harvest_cost, economy, "harvest_all"):
-		return {
-			"success": false,
-			"error": "cost_commit_failed",
-			"message": "Harvest failed: unable to spend cost."
-		}
-
+	# Legacy alias retained for older tests and rig payloads.
+	var farm = null
+	if biome and ("grid" in biome) and biome.grid and ("farm" in biome.grid):
+		farm = biome.grid.farm
+	if farm:
+		var result = _action_reap_global(farm, economy)
+		result["legacy_harvest_all_alias"] = true
+		return result
 	return {
-		"success": true,
-		"state_saved": state_snapshot != null,
-		"terminals_harvested": harvest_results.size(),
-		"total_credits": total_credits,
-		"midwife_multiplier": midwife_multiplier,
-		"token_cost": token_cost,
-		"bonus_applied": bonus_applied,
-		"resource_totals": resource_totals,
-		"harvest_results": harvest_results,
-		"state_snapshot": state_snapshot
+		"success": false,
+		"error": "no_farm_context",
+		"message": "harvest_all is deprecated; call reap with farm context."
 	}
 
 
@@ -672,6 +615,161 @@ static func action_clear_all(terminal_pool) -> Dictionary:
 		"success": true,
 		"terminals_cleared": cleared_count
 	}
+
+
+static func _looks_like_farm(value) -> bool:
+	if value == null:
+		return false
+	return ("grid" in value) and ("terminal_pool" in value)
+
+
+static func _resolve_biome_from_terminal(farm, terminal):
+	if not farm or not terminal:
+		return null
+	if not ("grid" in farm) or not farm.grid or not farm.grid.biomes:
+		return null
+	var biome_name = terminal.measured_biome_name if terminal.measured_biome_name != "" else terminal.bound_biome_name
+	return farm.grid.biomes.get(biome_name, null)
+
+
+static func _resolve_terminal_purity(terminal, farm = null) -> float:
+	if not terminal:
+		return 0.0
+	var purity = float(terminal.measured_purity)
+	var biome = _resolve_biome_from_terminal(farm, terminal)
+	if biome and biome.viz_cache and terminal.measured_register_id >= 0:
+		var snap = biome.viz_cache.get_snapshot(terminal.measured_register_id)
+		if snap.has("purity"):
+			purity = float(snap.get("purity", purity))
+	return clampf(purity, 0.0, 1.0)
+
+
+static func _resolve_mass_map_for_biome(biome) -> Dictionary:
+	if not biome:
+		return {"by_emoji": {}, "total": 0.0, "source": "none"}
+
+	if biome.has_method("get_icon_map"):
+		var icon_map = biome.get_icon_map()
+		var by_emoji = icon_map.get("by_emoji", {})
+		var total = float(icon_map.get("total", 0.0))
+		if by_emoji is Dictionary and total > 0.0:
+			return {"by_emoji": by_emoji, "total": total, "source": "icon_map"}
+
+	if biome.quantum_computer and biome.quantum_computer.has_method("get_all_populations"):
+		var populations = biome.quantum_computer.get_all_populations()
+		var by_emoji_qc: Dictionary = {}
+		var total_qc = 0.0
+		for emoji in populations.keys():
+			var mass = float(populations[emoji])
+			if mass <= 0.0:
+				continue
+			by_emoji_qc[emoji] = mass
+			total_qc += mass
+		if total_qc > 0.0:
+			return {"by_emoji": by_emoji_qc, "total": total_qc, "source": "qc_populations"}
+
+	return {"by_emoji": {}, "total": 0.0, "source": "none"}
+
+
+static func _resolve_emoji_purity(biome, emoji: String) -> float:
+	if not biome:
+		return 0.0
+	if biome.viz_cache and biome.viz_cache.has_metadata():
+		var q = biome.viz_cache.get_qubit(emoji)
+		if q >= 0:
+			var snap = biome.viz_cache.get_snapshot(q)
+			if snap.has("purity"):
+				return clampf(float(snap.get("purity", 0.0)), 0.0, 1.0)
+	if biome.has_method("get_purity"):
+		return clampf(float(biome.get_purity()), 0.0, 1.0)
+	return 0.0
+
+
+static func _get_active_biomes_for_reap(farm) -> Array:
+	var out: Array = []
+	if not farm or not ("grid" in farm) or not farm.grid or not farm.grid.biomes:
+		return out
+	var terminal_pool = farm.terminal_pool if ("terminal_pool" in farm) else null
+
+	for biome_name in farm.grid.biomes.keys():
+		var biome = farm.grid.biomes[biome_name]
+		if not biome or not biome.quantum_computer:
+			continue
+		if "quantum_evolution_enabled" in biome and not biome.quantum_evolution_enabled:
+			continue
+		if "evolution_paused" in biome and biome.evolution_paused:
+			continue
+		if terminal_pool:
+			var has_terminal_context = false
+			var biome_name_str = str(biome_name)
+			if terminal_pool.has_method("get_terminals_in_biome"):
+				var terminals = terminal_pool.get_terminals_in_biome(biome_name_str)
+				has_terminal_context = not terminals.is_empty()
+			if not has_terminal_context and terminal_pool.has_method("get_measured_terminals"):
+				for terminal in terminal_pool.get_measured_terminals():
+					if not terminal:
+						continue
+					var measured_biome_name = str(terminal.measured_biome_name if "measured_biome_name" in terminal else "")
+					var bound_biome_name = str(terminal.bound_biome_name if "bound_biome_name" in terminal else "")
+					if measured_biome_name == biome_name_str or bound_biome_name == biome_name_str:
+						has_terminal_context = true
+						break
+			if not has_terminal_context:
+				continue
+		out.append(biome)
+	return out
+
+
+static func _manual_fast_forward_biomes(active_biomes: Array, cycles: int) -> Dictionary:
+	if cycles <= 0:
+		return {"success": true, "cycles": 0, "evolved_steps": 0}
+	var evolved_steps = 0
+	var dt = 0.17
+	for _i in range(cycles):
+		for biome in active_biomes:
+			if not biome or not biome.quantum_computer:
+				continue
+			var max_dt = biome.max_evolution_dt if "max_evolution_dt" in biome else dt
+			biome.quantum_computer.evolve(dt, max_dt, null)
+			evolved_steps += 1
+			if biome.viz_cache:
+				var packet = biome.quantum_computer.export_bloch_packet() if biome.quantum_computer.has_method("export_bloch_packet") else PackedFloat64Array()
+				var num_qubits = biome.quantum_computer.register_map.num_qubits if biome.quantum_computer.register_map else 0
+				if packet.size() > 0 and num_qubits > 0:
+					biome.viz_cache.update_from_bloch_packet(packet, num_qubits)
+				if biome.quantum_computer.has_method("get_purity"):
+					biome.viz_cache.update_purity(biome.quantum_computer.get_purity())
+	return {"success": true, "cycles": cycles, "evolved_steps": evolved_steps}
+
+
+static func _get_reap_count(farm) -> int:
+	if not farm:
+		return 0
+	if farm.has_method("get_reap_count"):
+		return int(farm.get_reap_count())
+	if "reap_count" in farm:
+		return int(farm.reap_count)
+	return 0
+
+
+static func _set_reap_count(farm, value: int) -> void:
+	if not farm:
+		return
+	if farm.has_method("set_reap_count"):
+		farm.set_reap_count(value)
+	elif "reap_count" in farm:
+		farm.reap_count = value
+
+
+static func _format_cost(cost: Dictionary) -> String:
+	if cost.is_empty():
+		return "resources"
+	var keys = cost.keys()
+	keys.sort()
+	var parts: Array[String] = []
+	for emoji in keys:
+		parts.append("%s×%d" % [str(emoji), int(cost[emoji])])
+	return " ".join(parts)
 
 
 static func _save_density_matrices(biome) -> Dictionary:
