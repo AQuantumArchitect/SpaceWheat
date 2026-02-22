@@ -1,51 +1,80 @@
 #!/usr/bin/env godot-script
-## Simple test to verify FarmView loads without errors
-extends Node
+## Simple test to verify FarmView and QuantumInstrument load without errors.
+## After the QuantumInstrument refactor, FarmInputHandler is gone.
+## Keyboard adapter is now QuantumInstrumentInput; game mechanics API is QuantumInstrument.
+extends SceneTree
 
-func _ready():
-	print("\n" + "="*70)
-	print("🧪 Testing FarmView Loading...")
-	print("="*70)
+func _initialize():
+	print("\n" + "=".repeat(70))
+	print("Testing FarmView Loading...")
+	print("=".repeat(70))
 
 	# Try loading FarmView
-	print("\n1️⃣  Attempting to load FarmView.gd...")
+	print("\n1. Attempting to load FarmView.gd...")
 	var FarmView = preload("res://UI/FarmView.gd")
 	if FarmView:
-		print("   ✅ FarmView class loaded successfully")
+		print("   PASS: FarmView class loaded successfully")
 	else:
-		print("   ❌ FarmView class failed to load")
-		get_tree().quit(1)
+		print("   FAIL: FarmView class failed to load")
+		quit(1)
 		return
 
-	# Try loading all the components
-	print("\n2️⃣  Attempting to load keyboard components...")
+	# Try loading core UI components
+	print("\n2. Attempting to load keyboard components...")
 	var ToolSelectionRow = preload("res://UI/Panels/ToolSelectionRow.gd")
 	var ActionPreviewRow = preload("res://UI/Panels/ActionPreviewRow.gd")
-	var KeyboardHintButton = preload("res://UI/Panels/KeyboardHintButton.gd")
 	var OverlayManager = preload("res://UI/Managers/OverlayManager.gd")
 
-	if ToolSelectionRow and ActionPreviewRow and KeyboardHintButton and OverlayManager:
-		print("   ✅ All keyboard components loaded successfully")
+	if ToolSelectionRow and ActionPreviewRow and OverlayManager:
+		print("   PASS: All keyboard components loaded successfully")
 	else:
-		print("   ❌ Some components failed to load")
-		get_tree().quit(1)
+		print("   FAIL: Some components failed to load")
+		quit(1)
 		return
 
-	# Try loading all dependencies
-	print("\n3️⃣  Attempting to load FarmView dependencies...")
+	# Try loading core game mechanics layer (QuantumInstrument refactor)
+	print("\n3. Attempting to load FarmView dependencies...")
 	var Farm = preload("res://Core/Farm.gd")
-	var FarmInputHandler = preload("res://UI/FarmInputHandler.gd")
-	var UILayoutManager = preload("res://UI/Managers/UILayoutManager.gd")
+	var QuantumInstrumentInput = preload("res://UI/Core/QuantumInstrumentInput.gd")
+	var QuantumInstrument = preload("res://Core/Instrumentation/QuantumInstrument.gd")
 
-	if Farm and FarmInputHandler and UILayoutManager:
-		print("   ✅ All FarmView dependencies loaded successfully")
-	else:
-		print("   ❌ Some dependencies failed to load")
-		get_tree().quit(1)
+	if not Farm:
+		print("   FAIL: Core/Farm.gd failed to load")
+		quit(1)
 		return
+	print("   PASS: Farm loaded")
 
-	print("\n" + "="*70)
-	print("✅ SUCCESS: All components loaded without parse errors!")
-	print("="*70 + "\n")
+	if not QuantumInstrumentInput:
+		print("   FAIL: UI/Core/QuantumInstrumentInput.gd failed to load")
+		quit(1)
+		return
+	print("   PASS: QuantumInstrumentInput (keyboard adapter) loaded")
 
-	get_tree().quit(0)
+	if not QuantumInstrument:
+		print("   FAIL: Core/Instrumentation/QuantumInstrument.gd failed to load")
+		quit(1)
+		return
+	print("   PASS: QuantumInstrument (game mechanics API) loaded")
+
+	# Verify QuantumInstrument can be instantiated (extends RefCounted)
+	print("\n4. Verifying QuantumInstrument instantiation...")
+	var instrument = QuantumInstrument.new()
+	if not instrument:
+		print("   FAIL: QuantumInstrument.new() returned null")
+		quit(1)
+		return
+	if not instrument.has_method("action_explore"):
+		print("   FAIL: QuantumInstrument missing action_explore() method")
+		quit(1)
+		return
+	if not instrument.has_method("probe_cycle"):
+		print("   FAIL: QuantumInstrument missing probe_cycle() method")
+		quit(1)
+		return
+	print("   PASS: QuantumInstrument instantiated with correct API")
+
+	print("\n" + "=".repeat(70))
+	print("SUCCESS: All components loaded without parse errors!")
+	print("=".repeat(70))
+
+	quit(0)
