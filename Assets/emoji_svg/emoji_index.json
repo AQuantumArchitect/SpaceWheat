@@ -1,6 +1,6 @@
 {
   "source": "twemoji",
-  "total": 384,
+  "total": 390,
   "emojis": {
     "⌛": "231b.svg",
     "⏰": "23f0.svg",
@@ -385,6 +385,12 @@
     "🫖": "1fad6.svg",
     "🫙": "1fad9.svg",
     "🫥": "1fae5.svg",
-    "🫧": "1fae7.svg"
+    "🫧": "1fae7.svg",
+    "♻": "267b-fe0f.svg",
+    "⚗": "2697-fe0f.svg",
+    "🏜": "1f3dc-fe0f.svg",
+    "🏷": "1f3f7-fe0f.svg",
+    "🕴": "1f574-fe0f.svg",
+    "🕵": "1f575-fe0f.svg"
   }
 }

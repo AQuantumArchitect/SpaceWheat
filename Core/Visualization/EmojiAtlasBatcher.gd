@@ -327,9 +327,19 @@ func build_atlas_async(emoji_list: Array, parent_node: Node, font_size: int = 48
 		var cell_x = col * cell_total + ATLAS_PADDING / 2
 		var cell_y = row * cell_total + ATLAS_PADDING / 2
 
-		# Check for SVG texture first
+		# Check for SVG texture first: tiered registry (hand-crafted + twemoji) takes priority
 		var emoji_image: Image = null
-		if _visual_asset_registry and _visual_asset_registry.has_texture(emoji):
+		if _tiered_emoji_registry:
+			var tex = _tiered_emoji_registry.get_texture(emoji)
+			if tex:
+				emoji_image = tex.get_image()
+				if emoji_image:
+					emoji_image = emoji_image.duplicate()
+					emoji_image.resize(ATLAS_CELL_SIZE, ATLAS_CELL_SIZE)
+					svg_count += 1
+
+		# Legacy fallback: VisualAssetRegistry (deprecated, 26 emojis)
+		if not emoji_image and _visual_asset_registry and _visual_asset_registry.has_texture(emoji):
 			var tex = _visual_asset_registry.get_texture(emoji)
 			if tex:
 				emoji_image = tex.get_image()

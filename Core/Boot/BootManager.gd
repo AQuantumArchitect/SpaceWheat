@@ -222,6 +222,11 @@ func _stage_visualization(farm: Node, quantum_viz: Node) -> void:
 		var terminal_pool = farm.terminal_pool if "terminal_pool" in farm else null
 		quantum_viz.setup(biomes, farm_grid, terminal_pool)
 
+		# Wire farm signals → QuantumForceGraph so new explores create bubbles
+		# (setup() only creates initial nodes; connect_to_farm() handles live bindings)
+		if quantum_viz.has_method("connect_to_farm"):
+			quantum_viz.connect_to_farm(farm)
+
 		# Recalculate positions and re-register with nested force optimizer
 		# This ensures bubbles have correct positions before physics starts
 		if quantum_viz.quantum_nodes.size() > 0:

@@ -23,7 +23,8 @@ const BUNDLED_CACHE_DIR = "res://BundledCache/emoji_atlas/"
 const BUNDLED_MANIFEST_FILE = "res://BundledCache/emoji_atlas/manifest.json"
 
 # Atlas version - increment when atlas format changes
-const ATLAS_VERSION = 1
+# v2: build_atlas_async now uses TieredEmojiRegistry (SVG-first) instead of text fallback
+const ATLAS_VERSION = 2
 
 # Atlas configuration (must match EmojiAtlasBatcher)
 const ATLAS_CELL_SIZE = 64

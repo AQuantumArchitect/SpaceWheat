@@ -539,18 +539,18 @@ func connect_to_farm(farm: Node) -> void:
 		_verbose.debug("viz", "🔗", "QuantumForceGraph connecting to farm signals")
 	farm_ref = farm
 
-	# Connect to terminal lifecycle signals
-	if farm.has_signal("terminal_bound"):
+	# Connect to terminal lifecycle signals (guard against double-connect)
+	if farm.has_signal("terminal_bound") and not farm.terminal_bound.is_connected(_on_terminal_bound):
 		farm.terminal_bound.connect(_on_terminal_bound)
 		if _verbose:
 			_verbose.debug("viz", "✓", "Connected to farm.terminal_bound signal")
-	if farm.has_signal("terminal_measured"):
+	if farm.has_signal("terminal_measured") and not farm.terminal_measured.is_connected(_on_terminal_measured):
 		farm.terminal_measured.connect(_on_terminal_measured)
-	if farm.has_signal("terminal_released"):
+	if farm.has_signal("terminal_released") and not farm.terminal_released.is_connected(_on_terminal_released):
 		farm.terminal_released.connect(_on_terminal_released)
-	if farm.has_signal("biome_removed"):
+	if farm.has_signal("biome_removed") and not farm.biome_removed.is_connected(_on_biome_removed):
 		farm.biome_removed.connect(_on_biome_removed)
-	if farm.has_signal("biome_loaded"):
+	if farm.has_signal("biome_loaded") and not farm.biome_loaded.is_connected(_on_biome_loaded):
 		farm.biome_loaded.connect(_on_biome_loaded)
 
 	# Store references for node creation
@@ -1313,10 +1313,12 @@ func _get_scaled_force_delta(delta: float) -> float:
 	"""Scale force graph delta based on quantum evolution granularity.
 
 	Slower quantum evolution (larger dt) → slower force graph movement.
-	This keeps the visual interest level consistent regardless of granularity.
+	Uses minimum dt across all loaded biomes (fastest biome drives the animation).
+	4th-root scaling keeps slow biomes more visually alive than sqrt did.
 
-	Reference: At dt=0.02s (default fast biome), use full delta.
-	           At dt=10000s (max granularity), scale down by ~500x for slower movement.
+	Reference: dt=0.02s → scale=1.0 (full speed)
+	           dt=1.0s  → scale=0.376 (2.7× slower, was 7× with sqrt)
+	           dt=100s  → scale=0.133 (clamped to MIN_SCALE=0.1)
 
 	Args:
 		delta: Raw frame delta from _process()
@@ -1325,20 +1327,22 @@ func _get_scaled_force_delta(delta: float) -> float:
 		Scaled delta for force graph physics
 	"""
 	const REFERENCE_DT = 0.02  # Baseline evolution dt (default for fast biomes)
-	const MIN_SCALE = 0.002     # Minimum scale factor (at max granularity, still show some movement)
+	const MIN_SCALE = 0.1      # Was 0.002 — raised so slow biomes stay animated
 
-	# Get current evolution dt from first available biome
-	var current_dt = REFERENCE_DT
+	# Use minimum dt across all biomes so the fastest biome drives animation rate
+	var min_dt = REFERENCE_DT
+	var found_any = false
 	for biome_name in biomes:
 		var biome = biomes[biome_name]
 		if biome and "max_evolution_dt" in biome:
-			current_dt = biome.max_evolution_dt
-			break
+			if not found_any or biome.max_evolution_dt < min_dt:
+				min_dt = biome.max_evolution_dt
+				found_any = true
 
-	# Scale inversely with evolution dt: larger dt → slower force graph
-	# Use sqrt to soften the scaling (linear would be too extreme at high dt values)
-	var scale = sqrt(REFERENCE_DT / current_dt)
-	scale = max(scale, MIN_SCALE)  # Clamp to minimum
+	# 4th-root scaling: softer than sqrt, keeps slow biomes more animated
+	# pow(x, 0.25) = sqrt(sqrt(x))
+	var scale = pow(REFERENCE_DT / min_dt, 0.25)
+	scale = max(scale, MIN_SCALE)
 
 	return delta * scale
 
