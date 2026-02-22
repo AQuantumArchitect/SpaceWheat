@@ -406,6 +406,13 @@ func _stage_ui(farm: Node, shell: Node, quantum_viz: Node) -> void:
 		shell.connect_to_quantum_input()
 		_verbose.info("boot", "✓", "QuantumInstrumentInput connected to action bars")
 
+	# Create QuantumInstrument (unified game mechanics API)
+	var QuantumInstrumentClass = load("res://Core/Instrumentation/QuantumInstrument.gd")
+	var instrument = QuantumInstrumentClass.new()
+	instrument.setup(farm)
+	input_handler.inject_instrument(instrument)
+	_verbose.info("boot", "🎛️", "QuantumInstrument ready (unified game mechanics API)")
+
 	# Create FarmInstrument to expose UI/quest/vocabulary helpers
 	const FarmInstrumentClass = preload("res://Core/Instrumentation/FarmInstrument.gd")
 	var farm_instrument = FarmInstrumentClass.new()
@@ -413,6 +420,7 @@ func _stage_ui(farm: Node, shell: Node, quantum_viz: Node) -> void:
 	shell.add_child(farm_instrument)
 	shell.farm_instrument = farm_instrument
 	farm_instrument.setup(farm, shell)
+	farm_instrument.inject_instrument(instrument)
 	_verbose.info("boot", "🎛️", "FarmInstrument ready (classical ↔ quest interface)")
 
 	_verbose.info("boot", "✓", "QuantumInstrumentInput created (Musical Spindle)")

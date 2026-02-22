@@ -63,6 +63,11 @@ extends Resource
 @export var icon_map_snapshot_source: String = ""  # "batcher_global" | "derived_from_pairs"
 @export var icon_map_snapshot_time: int = 0
 
+## Balance profile state (shared between headless and UI)
+@export var balance_profile_id: String = "default"
+@export var balance_overrides: Dictionary = {}
+@export var reap_count: int = 0
+
 ## Unlocked Biomes - Start with StarterForest and Village, unlock more through exploration
 @export var unlocked_biomes: Array[String] = ["StarterForest", "Village"]
 

@@ -257,6 +257,8 @@ static func _write_emoji_sidecar(
 		"save_timestamp": int(state.save_timestamp),
 		"known_pairs": state.known_pairs.duplicate(true),
 		"known_emojis": state.get_known_emojis(),
+		"balance_profile_id": state.balance_profile_id,
+		"balance_overrides": state.balance_overrides,
 		"icon_map_snapshot": sidecar_icon_map,
 		"icon_map_snapshot_source": sidecar_icon_source,
 		"icon_map_snapshot_time": sidecar_icon_time

@@ -160,18 +160,18 @@ const TOOL_GROUPS = {
 		"pauses_sim": true,
 		"actions": {
 			# PROBE MODE: Main quantum observation loop
-			"probe": {
-				"Q": {"action": "explore", "label": "Explore", "emoji": "?",
-					  "icon": "res://Assets/UI/Science/Explore.svg",
-					  "hint": "Bind terminal (dig DOWN)"},
-				"E": {"action": "measure", "label": "Measure", "emoji": "!",
-					  "icon": "res://Assets/UI/Science/Measure.svg",
-					  "hint": "Collapse state (observe)"},
-				"R": {"action": "reap", "label": "Reap", "emoji": "^",
-					  "icon": "res://Assets/UI/Science/Pop-Harvest.svg",
-					  "hint": "Harvest & unbind terminal",
-					  "shift_action": "harvest_all", "shift_label": "Harvest All"}
-			},
+				"probe": {
+					"Q": {"action": "explore", "label": "Explore", "emoji": "?",
+						  "icon": "res://Assets/UI/Science/Explore.svg",
+						  "hint": "Bind terminal (dig DOWN)"},
+					"E": {"action": "measure", "label": "Measure", "emoji": "!",
+						  "icon": "res://Assets/UI/Science/Measure.svg",
+						  "hint": "Collapse state (observe)"},
+					"R": {"action": "pop", "label": "Pop", "emoji": "^",
+						  "icon": "res://Assets/UI/Science/Pop-Harvest.svg",
+						  "hint": "Harvest measured terminal",
+						  "shift_action": "reap", "shift_label": "Reap"}
+				},
 			# GATE MODE: Entanglement infrastructure
 			"gate": {
 				"Q": {"action": "build_gate", "label": "Gate", "emoji": ")(",
