@@ -194,23 +194,25 @@ static func _can_execute_explore(farm, current_selection: Vector2i) -> bool:
 	EXPLORE binds an unbound terminal to a register in the current biome.
 	Available when: unbound terminals exist AND biome has unbound registers.
 	"""
-	if not farm or not farm.terminal_pool:
+	var terminal_pool = farm.get("terminal_pool") if farm else null
+	if not terminal_pool:
 		return false
 
 	# Need unbound terminals
-	if farm.terminal_pool.get_unbound_count() == 0:
+	if terminal_pool.get_unbound_count() == 0:
 		return false
 
 	# Get biome from current selection
-	if not farm.grid:
+	var grid = farm.get("grid") if farm else null
+	if not grid:
 		return false
 
-	var biome = farm.grid.get_biome_for_plot(current_selection)
+	var biome = grid.get_biome_for_plot(current_selection)
 	if not biome:
 		return false
 
 	# Must have unbound registers
-	var available_registers = biome.get_available_registers_v2(farm.terminal_pool) if biome.has_method("get_available_registers_v2") else []
+	var available_registers = biome.get_available_registers_v2(terminal_pool) if biome.has_method("get_available_registers_v2") else []
 	var has_unbound = not available_registers.is_empty()
 
 	# Debug: Log availability
@@ -229,7 +231,8 @@ static func _can_execute_measure(farm, selected_plots: Array[Vector2i]) -> bool:
 	MEASURE collapses an active terminal (bound but not measured).
 	Available when: active terminal exists at any selected position.
 	"""
-	if not farm or not farm.terminal_pool:
+	var terminal_pool = farm.get("terminal_pool") if farm else null
+	if not terminal_pool:
 		return false
 
 	if selected_plots.is_empty():
@@ -237,7 +240,7 @@ static func _can_execute_measure(farm, selected_plots: Array[Vector2i]) -> bool:
 
 	# Check any selected plot has an active terminal
 	for pos in selected_plots:
-		var terminal = farm.terminal_pool.get_terminal_at_grid_pos(pos)
+		var terminal = terminal_pool.get_terminal_at_grid_pos(pos)
 		if terminal and terminal.can_measure():
 			return true
 
@@ -250,7 +253,8 @@ static func _can_execute_pop(farm, selected_plots: Array[Vector2i]) -> bool:
 	POP harvests a measured terminal and unbinds it.
 	Available when: measured terminal exists at any selected position.
 	"""
-	if not farm or not farm.terminal_pool:
+	var terminal_pool = farm.get("terminal_pool") if farm else null
+	if not terminal_pool:
 		return false
 
 	if selected_plots.is_empty():
@@ -258,7 +262,7 @@ static func _can_execute_pop(farm, selected_plots: Array[Vector2i]) -> bool:
 
 	# Check any selected plot has a measured terminal
 	for pos in selected_plots:
-		var terminal = farm.terminal_pool.get_terminal_at_grid_pos(pos)
+		var terminal = terminal_pool.get_terminal_at_grid_pos(pos)
 		if terminal and terminal.can_pop():
 			return true
 
@@ -313,26 +317,29 @@ static func _can_execute_submenu_action(
 
 static func has_active_terminal_at(farm, pos: Vector2i) -> bool:
 	"""Check if there's an active (bound but not measured) terminal at position."""
-	if not farm or not farm.terminal_pool:
+	var terminal_pool = farm.get("terminal_pool") if farm else null
+	if not terminal_pool:
 		return false
-	var terminal = farm.terminal_pool.get_terminal_at_grid_pos(pos)
+	var terminal = terminal_pool.get_terminal_at_grid_pos(pos)
 	return terminal != null and terminal.can_measure()
 
 
 static func has_measured_terminal_at(farm, pos: Vector2i) -> bool:
 	"""Check if there's a measured terminal at position."""
-	if not farm or not farm.terminal_pool:
+	var terminal_pool = farm.get("terminal_pool") if farm else null
+	if not terminal_pool:
 		return false
-	var terminal = farm.terminal_pool.get_terminal_at_grid_pos(pos)
+	var terminal = terminal_pool.get_terminal_at_grid_pos(pos)
 	return terminal != null and terminal.can_pop()
 
 
 static func _can_execute_inject_vocabulary(farm, current_selection: Vector2i) -> bool:
 	"""Check if there is at least one vocab pair not yet in the biome."""
-	if not farm or not farm.grid:
+	var grid = farm.get("grid") if farm else null
+	if not grid:
 		return false
 
-	var biome = farm.grid.get_biome_for_plot(current_selection)
+	var biome = grid.get_biome_for_plot(current_selection)
 	if not biome:
 		return false
 	if not biome.viz_cache or not biome.viz_cache.has_metadata():
@@ -382,7 +389,8 @@ static func _collect_injectable_pairs(farm_ref, biome = null) -> Array:
 
 static func _can_execute_icon_assign(farm, selected_plots: Array[Vector2i], action: String) -> bool:
 	"""Check if icon assignment can succeed for this emoji."""
-	if not farm or not farm.grid or selected_plots.is_empty():
+	var grid = farm.get("grid") if farm else null
+	if not grid or selected_plots.is_empty():
 		return false
 
 	var emoji = action.replace("icon_assign_", "")
@@ -401,7 +409,7 @@ static func _can_execute_icon_assign(farm, selected_plots: Array[Vector2i], acti
 	if north == "" or south == "":
 		return false
 
-	var biome = farm.grid.get_biome_for_plot(selected_plots[0])
+	var biome = grid.get_biome_for_plot(selected_plots[0])
 	if not biome:
 		return false
 	if not biome.viz_cache or not biome.viz_cache.has_metadata():
@@ -417,10 +425,11 @@ static func _can_execute_icon_assign(farm, selected_plots: Array[Vector2i], acti
 	return true
 static func _can_execute_remove_vocabulary(farm, current_selection: Vector2i) -> bool:
 	"""Check if there is at least 2 qubits (minimum to remove one) and player can afford it."""
-	if not farm or not farm.grid or not farm.economy:
+	var grid = farm.get("grid") if farm else null
+	if not grid or not farm.get("economy"):
 		return false
-		
-	var biome = farm.grid.get_biome_for_plot(current_selection)
+
+	var biome = grid.get_biome_for_plot(current_selection)
 	if not biome:
 		return false
 	if not biome.viz_cache or not biome.viz_cache.has_metadata():

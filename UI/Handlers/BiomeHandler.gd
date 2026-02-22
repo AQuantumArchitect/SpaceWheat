@@ -114,10 +114,14 @@ static func clear_biome_assignment(farm, positions: Array[Vector2i]) -> Dictiona
 			# Unbind terminal
 			var plot = farm.grid.get_plot(pos)
 			if plot:
-				if plot.bound_terminal and farm.terminal_pool:
-					farm.terminal_pool.unbind_terminal(plot.bound_terminal)
-				plot.bound_terminal = null
-				plot._cached_biome = null
+				if farm.terminal_pool:
+					var terminal = farm.terminal_pool.get_terminal_at_grid_pos(pos)
+					if terminal:
+						farm.terminal_pool.unbind_terminal(terminal)
+				if "bound_terminal" in plot:
+					plot.bound_terminal = null
+				if "_cached_biome" in plot:
+					plot._cached_biome = null
 
 			cleared_count += 1
 			results.append({

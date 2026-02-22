@@ -207,14 +207,15 @@ static func icon_clear(farm, positions: Array[Vector2i]) -> Dictionary:
 
 		# Get default icons from biome and set on terminal
 		var biome = farm.grid.get_biome_for_plot(pos)
-		if plot.bound_terminal:
+		var terminal = farm.terminal_pool.get_terminal_at_grid_pos(pos) if farm.terminal_pool else null
+		if terminal:
 			if biome and biome.producible_emojis.size() >= 2:
 				var new_pair = {"north": biome.producible_emojis[0], "south": biome.producible_emojis[1]}
-				if plot.bound_terminal.has_method("set_emoji_pair"):
-					plot.bound_terminal.set_emoji_pair(new_pair)
+				if terminal.has_method("set_emoji_pair"):
+					terminal.set_emoji_pair(new_pair)
 				else:
-					plot.bound_terminal.north_emoji = new_pair["north"]
-					plot.bound_terminal.south_emoji = new_pair["south"]
+					terminal.north_emoji = new_pair["north"]
+					terminal.south_emoji = new_pair["south"]
 
 		clear_count += 1
 		results.append({

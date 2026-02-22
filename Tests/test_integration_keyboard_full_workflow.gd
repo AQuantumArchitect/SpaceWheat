@@ -1,5 +1,5 @@
 #!/usr/bin/env -S godot --headless -s
-## Integration Test - QuantumInstrument Full Probe Workflow
+## Integration Test - QuantumInstrument Full Probe Workflow (Headless)
 ##
 ## Validates that QuantumInstrument drives a complete probe cycle end-to-end:
 ##   - explore (bind terminal)
@@ -13,9 +13,11 @@
 
 extends SceneTree
 
+const QuantumInstrument = preload("res://Core/Instrumentation/QuantumInstrument.gd")
+
 # Test infrastructure
 var farm = null
-var instrument = null  # QuantumInstrument (via QII._instrument)
+var instrument = null  # QuantumInstrument (created directly, no QII needed in headless)
 var test_results := []
 var scene_loaded := false
 var tests_started := false
@@ -41,7 +43,7 @@ func _process(_delta):
 
 	if scene_loaded and not tests_started:
 		var boot = root.get_node_or_null("/root/BootManager")
-		if boot and boot.is_game_ready:
+		if boot and boot.is_ready:
 			tests_started = true
 			_run_all_tests()
 
@@ -72,37 +74,33 @@ func _run_all_tests():
 	print(_sep("═", 80) + "\n")
 
 	# Grab farm
-	var farm_view = root.get_node_or_null("FarmView")
-	if farm_view and "farm" in farm_view:
-		farm = farm_view.farm
+	farm = _find_node(root, "Farm")
 
 	if not farm:
 		_fail("Could not find Farm")
 		_finish()
 		return
 
-	# Grab QuantumInstrument from QII
-	var player_shell = _find_node(root, "PlayerShell")
-	if player_shell:
-		for child in player_shell.get_children():
-			if child.get_script() and child.get_script().resource_path.ends_with("QuantumInstrumentInput.gd"):
-				if "_instrument" in child:
-					instrument = child._instrument
-				break
+	# Create QuantumInstrument directly (headless: no PlayerShell/QII exists)
+	instrument = QuantumInstrument.new()
+	instrument.setup(farm)
 
 	if not instrument:
-		_fail("Could not find QuantumInstrument (QII not found or _instrument not injected)")
+		_fail("Could not instantiate QuantumInstrument")
 		_finish()
 		return
 
 	print("✅ Farm found: %s" % farm.name)
-	print("✅ QuantumInstrument found: %s" % instrument.get_class())
+	print("✅ QuantumInstrument created (farm=%s)" % farm.name)
 
 	# Disable evolution for speed
-	for biome_node in [farm.biotic_flux_biome, farm.forest_biome]:
-		if biome_node:
-			biome_node.quantum_evolution_enabled = false
-			biome_node.set_process(false)
+	if farm.get("grid") and farm.grid.biomes:
+		for biome_name in farm.grid.biomes:
+			var biome_node = farm.grid.biomes[biome_name]
+			if biome_node and biome_node.has_method("set_process"):
+				biome_node.set_process(false)
+			if biome_node and "quantum_evolution_enabled" in biome_node:
+				biome_node.quantum_evolution_enabled = false
 
 	# Connect signal spies to farm
 	if farm.has_signal("plot_measured"):
