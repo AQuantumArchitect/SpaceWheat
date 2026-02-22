@@ -155,7 +155,8 @@ func _create_milk_hunter_bridge() -> void:
 	milk_hunter_bridge = MilkHunterBridgeClass.new()
 	milk_hunter_bridge.name = "MilkHunterBridge"
 	add_child(milk_hunter_bridge)
-	milk_hunter_bridge.setup(farm, shell.farm_instrument)
+	var bridge_instrument = shell.farm_instrument.instrument if shell.farm_instrument else null
+	milk_hunter_bridge.setup(farm, shell.farm_instrument, bridge_instrument)
 
 	milk_hunter_hud = MilkHunterHUDClass.new()
 	milk_hunter_hud.name = "MilkHunterHUD"

@@ -8,7 +8,6 @@ extends HBoxContainer
 
 const FarmEconomy = preload("res://Core/GameMechanics/FarmEconomy.gd")
 const EconomyConstants = preload("res://Core/GameMechanics/EconomyConstants.gd")
-const EmojiDisplay = preload("res://UI/Core/EmojiDisplay.gd")
 
 # Layout manager reference (for dynamic scaling)
 var layout_manager: Node  # Will be UILayoutManager instance

@@ -83,7 +83,7 @@ var _fallback_warnings: Dictionary = {}  # emoji → count
 
 func _init():
 	# Initialize tiered emoji registry
-	_tiered_emoji_registry = TieredEmojiRegistry.new()
+	_tiered_emoji_registry = TieredEmojiRegistry.shared()
 
 	# Keep legacy registry for backward compatibility (deprecated)
 	var tree = Engine.get_main_loop()

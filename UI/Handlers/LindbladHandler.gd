@@ -11,32 +11,75 @@ extends RefCounted
 const PULSE_RATE = 1.0
 const PULSE_DT = 0.5
 const PERSISTENT_RATE = 0.5
-const PLACEMENT_COST_CREDITS = 10
-const GEAR_COST_EMOJI = "⚙"
-const GEAR_COST_CREDITS = 1
+const PUMP_RESOURCE_EMOJI = "🌱"
+const DRAIN_GEAR_EMOJI = "⚙"
+const EconomyConstants = preload("res://Core/GameMechanics/EconomyConstants.gd")
 
 
-static func _get_lindblad_cost(emoji: String) -> Dictionary:
-	return {
-		emoji: PLACEMENT_COST_CREDITS,
-		GEAR_COST_EMOJI: GEAR_COST_CREDITS
-	}
+static func get_preview_cost(action_name: String, axis_pair: Dictionary = {}) -> Dictionary:
+	var normalized = EconomyConstants.normalize_action_id(action_name)
+	return EconomyConstants.get_lindblad_injection_cost(normalized, {
+		"north_emoji": str(axis_pair.get("north", "")),
+		"south_emoji": str(axis_pair.get("south", ""))
+	})
 
 
-static func _preflight_lindblad_cost(farm, emoji: String, insufficient: Dictionary) -> Dictionary:
+static func _get_lindblad_cost(action_name: String, north_emoji: String, south_emoji: String) -> Dictionary:
+	var normalized = EconomyConstants.normalize_action_id(action_name)
+	return EconomyConstants.get_lindblad_injection_cost(normalized, {
+		"north_emoji": north_emoji,
+		"south_emoji": south_emoji
+	})
+
+
+static func _preflight_lindblad_cost(
+	farm,
+	action_name: String,
+	north_emoji: String,
+	south_emoji: String,
+	insufficient: Dictionary
+) -> Dictionary:
 	if not farm or not farm.economy:
 		return {}
 
-	var cost = _get_lindblad_cost(emoji)
+	var cost = _get_lindblad_cost(action_name, north_emoji, south_emoji)
 	var gate = EconomyConstants.preflight_cost(cost, farm.economy)
 	if not gate.get("ok", true):
-		insufficient[emoji] = insufficient.get(emoji, 0) + 1
-		if not farm.economy.can_afford_resource(GEAR_COST_EMOJI, GEAR_COST_CREDITS):
-			insufficient[GEAR_COST_EMOJI] = insufficient.get(GEAR_COST_EMOJI, 0) + 1
+		for emoji in cost.keys():
+			var amount = float(cost[emoji])
+			if farm.economy.has_method("can_afford_resource") and not farm.economy.can_afford_resource(emoji, amount):
+				insufficient[emoji] = insufficient.get(emoji, 0) + 1
 		return {}
 
 	return cost
-const EconomyConstants = preload("res://Core/GameMechanics/EconomyConstants.gd")
+
+
+static func _resolve_axis_pair(farm, pos: Vector2i) -> Dictionary:
+	var north = ""
+	var south = ""
+
+	if farm and farm.terminal_pool:
+		var terminal = farm.terminal_pool.get_terminal_at_grid_pos(pos)
+		if terminal and terminal.has_method("get_emoji_pair"):
+			var pair = terminal.get_emoji_pair()
+			north = str(pair.get("north", ""))
+			south = str(pair.get("south", ""))
+
+	if north == "" and farm and farm.grid:
+		var plot = farm.grid.get_plot(pos)
+		if plot and plot.is_active():
+			north = str(plot.north_emoji if plot.north_emoji else "")
+
+	if north != "" and south == "":
+		var biome = farm.grid.get_biome_for_plot(pos) if farm and farm.grid else null
+		if biome and biome.viz_cache and biome.viz_cache.has_metadata():
+			var q = biome.viz_cache.get_qubit(north)
+			if q >= 0:
+				var axis = biome.viz_cache.get_axis(q)
+				if axis is Dictionary:
+					south = str(axis.get("south", ""))
+
+	return {"north": north, "south": south}
 
 
 static func _resolve_qubit_index(biome, emoji: String) -> int:
@@ -203,8 +246,10 @@ static func enable_persistent_drive(farm, positions: Array[Vector2i],
 		if not biome or not biome.quantum_computer:
 			continue
 
-		var emoji = _resolve_north_emoji(farm, pos)
-		if _resolve_qubit_index(biome, emoji) < 0:
+		var pair = _resolve_axis_pair(farm, pos)
+		var north_emoji = str(pair.get("north", ""))
+		var south_emoji = str(pair.get("south", ""))
+		if _resolve_qubit_index(biome, north_emoji) < 0:
 			continue
 
 		var plot = farm.grid.get_plot(pos)
@@ -213,11 +258,17 @@ static func enable_persistent_drive(farm, positions: Array[Vector2i],
 			continue
 
 		var known_emojis: Array = farm.get_known_emojis() if farm.has_method("get_known_emojis") else []
-		if emoji not in known_emojis:
-			insufficient[emoji] = insufficient.get(emoji, 0) + 1
+		if north_emoji not in known_emojis:
+			insufficient[north_emoji] = insufficient.get(north_emoji, 0) + 1
 			continue
 
-		var cost = _preflight_lindblad_cost(farm, emoji, insufficient)
+		var cost = _preflight_lindblad_cost(
+			farm,
+			EconomyConstants.normalize_action_id("lindblad_pump"),
+			north_emoji,
+			south_emoji,
+			insufficient
+		)
 		if cost.is_empty():
 			continue
 
@@ -231,7 +282,7 @@ static func enable_persistent_drive(farm, positions: Array[Vector2i],
 
 		charged_count += 1
 		success_count += 1
-		driven_emojis[emoji] = driven_emojis.get(emoji, 0) + 1
+		driven_emojis[north_emoji] = driven_emojis.get(north_emoji, 0) + 1
 
 	return {
 		"success": success_count > 0,
@@ -244,8 +295,7 @@ static func enable_persistent_drive(farm, positions: Array[Vector2i],
 		"charged_count": charged_count,
 		"already_active": already_active,
 		"insufficient": insufficient,
-		"placement_cost": PLACEMENT_COST_CREDITS,
-		"placement_cost_gear": GEAR_COST_CREDITS
+		"cost_model": "pump=8🌱+32N"
 	}
 
 
@@ -278,20 +328,28 @@ static func enable_persistent_decay(farm, positions: Array[Vector2i],
 		if not biome or not biome.quantum_computer:
 			continue
 
-		var emoji = _resolve_north_emoji(farm, pos)
-		if _resolve_qubit_index(biome, emoji) < 0:
+		var pair = _resolve_axis_pair(farm, pos)
+		var north_emoji = str(pair.get("north", ""))
+		var south_emoji = str(pair.get("south", ""))
+		if _resolve_qubit_index(biome, north_emoji) < 0:
 			continue
 
 		var plot = farm.grid.get_plot(pos)
 		var known_emojis: Array = farm.get_known_emojis() if farm.has_method("get_known_emojis") else []
-		if emoji not in known_emojis:
-			insufficient[emoji] = insufficient.get(emoji, 0) + 1
+		if north_emoji not in known_emojis:
+			insufficient[north_emoji] = insufficient.get(north_emoji, 0) + 1
 			continue
 		if plot and plot.lindblad_drain_active:
 			already_active += 1
 			continue
 
-		var cost = _preflight_lindblad_cost(farm, emoji, insufficient)
+		var cost = _preflight_lindblad_cost(
+			farm,
+			EconomyConstants.normalize_action_id("lindblad_drain"),
+			north_emoji,
+			south_emoji,
+			insufficient
+		)
 		if cost.is_empty():
 			continue
 
@@ -305,7 +363,7 @@ static func enable_persistent_decay(farm, positions: Array[Vector2i],
 
 		charged_count += 1
 		success_count += 1
-		decayed_emojis[emoji] = decayed_emojis.get(emoji, 0) + 1
+		decayed_emojis[north_emoji] = decayed_emojis.get(north_emoji, 0) + 1
 
 	return {
 		"success": success_count > 0,
@@ -318,8 +376,7 @@ static func enable_persistent_decay(farm, positions: Array[Vector2i],
 		"charged_count": charged_count,
 		"already_active": already_active,
 		"insufficient": insufficient,
-		"placement_cost": PLACEMENT_COST_CREDITS,
-		"placement_cost_gear": GEAR_COST_CREDITS
+		"cost_model": "drain=2⚙+8S"
 	}
 
 

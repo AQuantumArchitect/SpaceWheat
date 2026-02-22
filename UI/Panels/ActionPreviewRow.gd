@@ -11,7 +11,6 @@ const ToolConfig = preload("res://Core/GameState/ToolConfig.gd")
 const ProbeActions = preload("res://Core/Actions/ProbeActions.gd")
 const EconomyConstants = preload("res://Core/GameMechanics/EconomyConstants.gd")
 const LindbladHandler = preload("res://UI/Handlers/LindbladHandler.gd")
-const EmojiDisplay = preload("res://UI/Core/EmojiDisplay.gd")
 const TOOL_ACTIONS = ToolConfig.TOOL_ACTIONS
 
 # Button texture path (matches ToolSelectionRow)
@@ -537,10 +536,10 @@ func _update_action_costs() -> void:
 		var action_info = _get_action_info(action_key)
 		var action_name = action_info.get("action", "")
 
-		# Handle combined reap/harvest_all display
-		if action_name == "reap" and action_info.get("shift_action", "") == "harvest_all":
-			var normal_cost = EconomyConstants.get_action_cost("reap")
-			var shift_cost = EconomyConstants.get_action_cost("harvest_all")
+		# Handle combined display for POP + Shift REAP.
+		if action_name == "pop" and action_info.get("shift_action", "") == "reap":
+			var normal_cost = EconomyConstants.get_action_cost("pop")
+			var shift_cost = EconomyConstants.get_action_cost("reap")
 			var has_cost = _set_combined_cost_display(btn_data, normal_cost, shift_cost)
 			_adjust_label_for_cost(btn_data, has_cost, 170)
 			continue
@@ -588,13 +587,11 @@ func _get_cost_for_action_name(action_name: String, action_info: Dictionary = {}
 			var context = {"south_emoji": pair.get("south", "")}
 			return EconomyConstants.get_action_cost(action_name, context)
 		"drain", "pump":
-			var emoji = _resolve_selected_north_emoji()
-			if emoji == "":
+			var pair = _resolve_selected_axis_pair()
+			if pair.is_empty():
 				return {}
-			return {
-				emoji: LindbladHandler.PLACEMENT_COST_CREDITS,
-				LindbladHandler.GEAR_COST_EMOJI: LindbladHandler.GEAR_COST_CREDITS
-			}
+			var normalized = "lindblad_drain" if action_name == "drain" else "lindblad_pump"
+			return LindbladHandler.get_preview_cost(normalized, pair)
 		_:
 			# Use unified cost system for all standard actions
 			# (explore, measure, reap, harvest_all, explore_biome, etc.)
@@ -607,9 +604,9 @@ func _format_cost(cost: Dictionary) -> String:
 	var parts: Array = []
 	var keys = cost.keys()
 	keys.sort()
-	if keys.has(LindbladHandler.GEAR_COST_EMOJI):
-		keys.erase(LindbladHandler.GEAR_COST_EMOJI)
-		keys.append(LindbladHandler.GEAR_COST_EMOJI)
+	if keys.has(LindbladHandler.DRAIN_GEAR_EMOJI):
+		keys.erase(LindbladHandler.DRAIN_GEAR_EMOJI)
+		keys.append(LindbladHandler.DRAIN_GEAR_EMOJI)
 	for emoji in keys:
 		var amount = cost[emoji]
 		if amount == 0:
@@ -678,9 +675,9 @@ func _set_combined_cost_display(btn_data: Dictionary, normal_cost: Dictionary, s
 func _build_cost_entries(container: HBoxContainer, cost: Dictionary) -> void:
 	var keys = cost.keys()
 	keys.sort()
-	if keys.has(LindbladHandler.GEAR_COST_EMOJI):
-		keys.erase(LindbladHandler.GEAR_COST_EMOJI)
-		keys.append(LindbladHandler.GEAR_COST_EMOJI)
+	if keys.has(LindbladHandler.DRAIN_GEAR_EMOJI):
+		keys.erase(LindbladHandler.DRAIN_GEAR_EMOJI)
+		keys.append(LindbladHandler.DRAIN_GEAR_EMOJI)
 
 	for emoji in keys:
 		var amount = cost[emoji]
@@ -712,9 +709,11 @@ func _build_cost_entries(container: HBoxContainer, cost: Dictionary) -> void:
 		container.add_child(entry)
 
 
-func _resolve_selected_north_emoji() -> String:
+func _resolve_selected_axis_pair() -> Dictionary:
+	var north = ""
+	var south = ""
 	if not farm:
-		return ""
+		return {}
 	var selected: Array = []
 	if plot_grid_display and plot_grid_display.has_method("get_selected_plots"):
 		selected = plot_grid_display.get_selected_plots()
@@ -731,20 +730,30 @@ func _resolve_selected_north_emoji() -> String:
 	else:
 		pos = selected[0]
 	if pos.x < 0:
-		return ""
+		return {}
 
 	if farm.terminal_pool:
 		var terminal = farm.terminal_pool.get_terminal_at_grid_pos(pos)
 		if terminal and terminal.is_bound and terminal.has_method("get_emoji_pair"):
 			var pair = terminal.get_emoji_pair()
-			var north = pair.get("north", "")
+			north = str(pair.get("north", ""))
+			south = str(pair.get("south", ""))
 			if north != "":
-				return north
+				return {"north": north, "south": south}
 
 	var plot = farm.grid.get_plot(pos) if farm and farm.grid else null
 	if plot and plot.is_active():
-		return plot.north_emoji if plot.north_emoji else ""
-	return ""
+		north = str(plot.north_emoji if plot.north_emoji else "")
+		if north != "":
+			var biome = farm.grid.get_biome_for_plot(pos)
+			if biome and biome.viz_cache and biome.viz_cache.has_metadata():
+				var q = biome.viz_cache.get_qubit(north)
+				if q >= 0:
+					var axis = biome.viz_cache.get_axis(q)
+					if axis is Dictionary:
+						south = str(axis.get("south", ""))
+			return {"north": north, "south": south}
+	return {}
 
 
 func _on_action_button_input(event: InputEvent, action_key: String) -> void:

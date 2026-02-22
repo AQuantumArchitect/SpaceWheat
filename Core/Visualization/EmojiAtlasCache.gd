@@ -75,7 +75,7 @@ func generate_cache_key(emoji_list: Array, font_size: int) -> String:
 			file.close()
 
 	# Include TieredEmojiRegistry custom mappings count (changes when we add custom SVGs)
-	var registry = TieredEmojiRegistry.new()
+	var registry = TieredEmojiRegistry.shared()
 	var custom_mappings_count = registry._custom_mappings.size()
 
 	var config_data = {

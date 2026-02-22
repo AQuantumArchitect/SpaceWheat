@@ -241,6 +241,7 @@ func _create_overlays_section() -> Control:
 		["C", "Quest Board", "View and manage quests"],
 		["V", "Vocabulary", "Semantic vocabulary"],
 		["B", "Biome Inspector", "Detailed biome info"],
+		["Shift+B", "Balance Workbench", "Tune action costs and quest reward scalars"],
 		["Z", "Keyboard Help", "This overlay"],
 		["X", "Logger Config", "Debug logging"],
 		["ESC", "Pause Menu", "Save, Load, Quit"]

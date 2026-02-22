@@ -6,6 +6,15 @@ extends RefCounted
 ## Priority 1: Hand-crafted SVGs (custom quality, ~29 emojis)
 ## Priority 2: Twemoji SVGs (downloaded, ~490 emojis)
 ## Priority 3: Text fallback (system font) with warnings
+##
+## Use TieredEmojiRegistry.shared() to get the singleton instance.
+
+static var _shared_instance: TieredEmojiRegistry = null
+
+static func shared() -> TieredEmojiRegistry:
+	if not _shared_instance:
+		_shared_instance = TieredEmojiRegistry.new()
+	return _shared_instance
 
 enum EmojiSource {
 	HAND_CRAFTED,    # Priority 1: Custom SVGs from Assets/UI/
@@ -84,7 +93,9 @@ func _load_custom_mappings():
 	_register_custom("≈", "res://Assets/UI/Math/AlmostEqual.svg")
 	_register_custom("≠", "res://Assets/UI/Math/NotEqual.svg")
 
-	print("TieredEmojiRegistry: Loaded %d hand-crafted mappings" % _custom_mappings.size())
+	# Quiet log — only visible in Godot output panel, not game console
+	if OS.is_debug_build():
+		print_verbose("TieredEmojiRegistry: Loaded %d hand-crafted mappings" % _custom_mappings.size())
 
 
 ## PRIORITY 2: Twemoji SVG Index
@@ -117,7 +128,8 @@ func _load_twemoji_index():
 	var emojis_data = data.get("emojis", {})
 	_twemoji_index = emojis_data
 
-	print("TieredEmojiRegistry: Loaded %d twemoji mappings" % _twemoji_index.size())
+	if OS.is_debug_build():
+		print_verbose("TieredEmojiRegistry: Loaded %d twemoji mappings" % _twemoji_index.size())
 
 
 ## MAIN API: Get texture with 3-tier fallback

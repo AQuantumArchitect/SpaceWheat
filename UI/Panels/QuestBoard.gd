@@ -9,6 +9,7 @@ extends "res://UI/Core/OverlayBase.gd"
 ## Uses custom 2x2 grid layout instead of scroll container.
 
 const VocabularyPairing = preload("res://Core/Quests/VocabularyPairing.gd")
+const EconomyConstants = preload("res://Core/GameMechanics/EconomyConstants.gd")
 
 # Logging
 @onready var _verbose = get_node("/root/VerboseConfig")
@@ -884,7 +885,7 @@ func _count_unlocked_offers_all_pages() -> int:
 func _toggle_lock(slot) -> void:
 	"""Toggle lock on offered quest slot (costs 🌲 to lock, free to unlock)"""
 	var was_locked = slot.is_locked
-	var cost = {"🌲": 1}
+	var cost = EconomyConstants.get_action_cost("quest_lock")
 
 	# Only check cost when locking (unlock is free)
 	if not was_locked:
@@ -1113,7 +1114,7 @@ func _reroll_quest(slot) -> void:
 	if not quest_manager or not current_biome or not quest_manager.economy:
 		return
 
-	var cost = {"🐇": 1}
+	var cost = EconomyConstants.get_action_cost("quest_reroll")
 
 	# Check affordability first
 	if not _check_can_afford(cost):
@@ -1478,13 +1479,14 @@ func get_action_info(key: String) -> Dictionary:
 			# NEUTRAL = Lock/Unlock only (balance, toggle)
 			match slot.state:
 				SlotState.OFFERED:
+					var lock_cost = EconomyConstants.get_action_cost("quest_lock")
 					return {
 						"action": "quest_lock",
 						"label": "Unlock" if slot.is_locked else "Lock",
 						"emoji": "🔓" if slot.is_locked else "🔒",
-						"cost": {} if slot.is_locked else {"🌲": 1},
+						"cost": {} if slot.is_locked else lock_cost,
 						"cost_display": "" if slot.is_locked else "🌲",
-						"can_afford": slot.is_locked or _check_can_afford({"🌲": 1})
+						"can_afford": slot.is_locked or _check_can_afford(lock_cost)
 					}
 				_:
 					# E disabled for ACTIVE/READY
@@ -1495,13 +1497,14 @@ func get_action_info(key: String) -> Dictionary:
 				SlotState.OFFERED:
 					if slot.is_locked:
 						return {}
+					var reroll_cost = EconomyConstants.get_action_cost("quest_reroll")
 					return {
 						"action": "quest_refresh",
 						"label": "Refresh",
 						"emoji": "🔄",
-						"cost": {"🐇": 1},
+						"cost": reroll_cost,
 						"cost_display": "🐇",
-						"can_afford": _check_can_afford({"🐇": 1})
+						"can_afford": _check_can_afford(reroll_cost)
 					}
 				SlotState.ACTIVE:
 					return {}
@@ -1865,7 +1868,15 @@ class QuestSlot extends PanelContainer:
 				action_type_label.text = "Deliver"
 				var resource = quest_data.get("resource", "?")
 				var quantity = quest_data.get("quantity", 1)
-				requirement_label.text = "%s x %d" % [resource, quantity]
+				var market_projection = quest_data.get("market_projection", {})
+				if market_projection is Dictionary and market_projection.has("effective_cost"):
+					var effective_cost = int(market_projection.get("effective_cost", quantity))
+					if effective_cost != int(quantity):
+						requirement_label.text = "%s x %d → %d" % [resource, quantity, effective_cost]
+					else:
+						requirement_label.text = "%s x %d" % [resource, quantity]
+				else:
+					requirement_label.text = "%s x %d" % [resource, quantity]
 			1:  # SHAPE_ACHIEVE
 				action_type_label.text = "Reach"
 				var obs = quest_data.get("observable", "purity")

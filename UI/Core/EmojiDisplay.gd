@@ -95,7 +95,7 @@ func _update_display():
 
 	# Initialize tiered emoji registry if needed
 	if not _tiered_emoji_registry:
-		_tiered_emoji_registry = TieredEmojiRegistry.new()
+		_tiered_emoji_registry = TieredEmojiRegistry.shared()
 
 	# Try to load SVG glyph from tiered registry (Priority 1 & 2)
 	var texture: Texture2D = null
