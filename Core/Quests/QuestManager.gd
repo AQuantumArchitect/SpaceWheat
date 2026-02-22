@@ -13,6 +13,7 @@ const QuestRewards = preload("res://Core/Quests/QuestRewards.gd")
 const EconomyConstants = preload("res://Core/GameMechanics/EconomyConstants.gd")
 const FactionStateMatcher = preload("res://Core/QuantumSubstrate/FactionStateMatcher.gd")
 const FactionDatabase = preload("res://Core/Quests/FactionDatabaseV2.gd")
+const QuestStateProjectionService = preload("res://Core/Quests/QuestStateProjectionService.gd")
 
 # Logging
 @onready var _verbose = get_node("/root/VerboseConfig")
@@ -47,6 +48,8 @@ var quest_timers: Dictionary = {}  # quest_id -> Timer
 var economy: Node = null
 var faction_manager: Node = null
 var current_biome: Node = null  # For tracking non-delivery quest progress
+var _biome_offer_counts: Dictionary = {}
+var _state_projection: QuestStateProjectionService = QuestStateProjectionService.new()
 
 # =============================================================================
 # CONFIGURATION
@@ -68,11 +71,20 @@ func _physics_process(delta: float) -> void:
 	"""Update quest progress for non-delivery quests"""
 	if current_biome == null:
 		return
+	if _state_projection:
+		_state_projection.observe_biome(current_biome, delta)
 
 	for quest in active_quests.values():
 		# Skip quests already ready to claim
 		if quest.get("status") == "ready":
 			continue
+		if _state_projection and quest.get("state_predicates", []) is Array:
+			var predicates = quest.get("state_predicates", [])
+			if _state_projection.evaluate_all(predicates):
+				var quest_id = int(quest.get("id", -1))
+				if quest_id >= 0:
+					mark_quest_ready(quest_id, "state_predicates")
+					continue
 
 		var quest_type = quest.get("type", QuestTypes.Type.DELIVERY)
 
@@ -189,9 +201,11 @@ func _grant_vocabulary_rewards(reward, faction_name: String) -> void:
 			vocabulary_pair_learned.emit(north, south, faction_name)
 			vocabulary_learned.emit(north, faction_name)
 			vocabulary_learned.emit(south, faction_name)
-			print("📖 %s taught you: %s/%s axis" % [faction_name, north, south])
+			if _verbose:
+				_verbose.info("quest", "📖", "%s taught you: %s/%s axis" % [faction_name, north, south])
 		else:
-			print("📖 %s tried to teach %s/%s but you already know it" % [faction_name, north, south])
+			if _verbose:
+				_verbose.debug("quest", "📖", "%s tried to teach %s/%s but you already know it" % [faction_name, north, south])
 
 	# Fallback for solo vocabulary rewards
 	if reward.learned_pairs.is_empty():
@@ -199,7 +213,8 @@ func _grant_vocabulary_rewards(reward, faction_name: String) -> void:
 			if gsm and gsm.has_method("discover_emoji"):
 				gsm.discover_emoji(emoji)
 			vocabulary_learned.emit(emoji, faction_name)
-			print("📖 %s taught you: %s" % [faction_name, emoji])
+			if _verbose:
+				_verbose.info("quest", "📖", "%s taught you: %s" % [faction_name, emoji])
 
 
 func _build_reward_payload(reward, granted_resources: Dictionary) -> Dictionary:
@@ -254,6 +269,8 @@ func offer_quest(faction: Dictionary, biome_name: String, resources: Array) -> D
 		return {}
 	if not _is_valid_offer(quest):
 		return {}
+
+	quest = _annotate_quest_context(quest, biome_name)
 
 	# Assign unique ID
 	quest["id"] = next_quest_id
@@ -313,6 +330,9 @@ func offer_quest_emergent(faction: Dictionary, biome) -> Dictionary:
 	if not _is_valid_offer(quest):
 		return {}
 
+	var biome_name = biome.biome_name if biome and biome.get("biome_name") else ""
+	quest = _annotate_quest_context(quest, biome_name)
+
 	# Assign ID and metadata
 	quest["id"] = next_quest_id
 	next_quest_id += 1
@@ -329,6 +349,29 @@ func offer_quest_emergent(faction: Dictionary, biome) -> Dictionary:
 
 	quest_offered.emit(quest)
 	return quest
+
+
+func _annotate_quest_context(quest: Dictionary, biome_name: String) -> Dictionary:
+	if not quest:
+		return quest
+	var biome_new = _track_biome_offer(biome_name)
+	quest["biome_new"] = biome_new
+	var known = _get_player_vocab_emojis()
+	var north = quest.get("reward_vocab_north", "")
+	var south = quest.get("reward_vocab_south", "")
+	quest["contains_new_vocab"] = not (north in known and south in known)
+	quest["biome_name"] = biome_name
+	_apply_market_projection(quest)
+	return quest
+
+
+func _track_biome_offer(biome_name: String) -> bool:
+	if biome_name == "":
+		return false
+	var count = int(_biome_offer_counts.get(biome_name, 0))
+	var is_new = count < 1
+	_biome_offer_counts[biome_name] = count + 1
+	return is_new
 
 
 func offer_all_faction_quests(biome) -> Array:
@@ -363,10 +406,23 @@ func offer_all_faction_quests(biome) -> Array:
 
 		# Generate display text
 		quest["body"] = QuestTheming.generate_display_text(quest)
+		quest = _annotate_quest_context(quest, quest["biome"])
 
 		quests.append(quest)
 
 	return quests  # Return all accessible quests for player to browse
+
+
+func record_quantum_action(action_name: String, payload: Dictionary = {}) -> void:
+	if not _state_projection:
+		return
+	_state_projection.record_action(action_name, payload)
+
+
+func get_state_projection_snapshot() -> Dictionary:
+	if not _state_projection:
+		return {}
+	return _state_projection.get_snapshot()
 
 
 func _is_valid_offer(quest: Dictionary) -> bool:
@@ -404,6 +460,27 @@ func get_biome_observables(biome) -> Dictionary:
 		"dynamics": obs.dynamics,
 		"description": FactionStateMatcher.describe_observables(obs),
 	}
+
+
+func _get_global_icon_map() -> Dictionary:
+	var gsm = _get_gsm()
+	if gsm and "active_farm" in gsm and gsm.active_farm and "biome_evolution_batcher" in gsm.active_farm:
+		var batcher = gsm.active_farm.biome_evolution_batcher
+		if batcher and batcher.has_method("get_global_icon_map"):
+			var icon_map = batcher.get_global_icon_map()
+			if icon_map is Dictionary:
+				return icon_map
+	return {}
+
+
+func _apply_market_projection(quest: Dictionary) -> void:
+	if quest.is_empty():
+		return
+	var icon_map = _get_global_icon_map()
+	var projection = QuestRewards.compute_market_projection(quest, icon_map)
+	if projection.is_empty():
+		return
+	quest["market_projection"] = projection
 
 # =============================================================================
 # QUEST ACCEPTANCE
@@ -480,46 +557,34 @@ func complete_quest(quest_id: int) -> bool:
 	Returns:
 		true if completed successfully
 	"""
-	print("🔍 complete_quest called with ID: %d" % quest_id)
-	print("🔍 active_quests keys: %s" % str(active_quests.keys()))
-
 	if not active_quests.has(quest_id):
 		push_error("Cannot complete quest %d: not active" % quest_id)
 		return false
 
 	var quest = active_quests[quest_id]
-	print("🔍 Quest found: %s, resource=%s, qty=%d" % [quest.get("faction", "?"), quest.get("resource", "?"), quest.get("quantity", 0)])
+	var required_emoji = str(quest.get("resource", ""))
+	var required_qty = int(quest.get("quantity", 0))
+	if required_emoji.is_empty() or required_qty <= 0:
+		push_warning("Cannot complete quest %d: invalid delivery target" % quest_id)
+		return false
 
-	# Check resources
-	if not check_quest_completion(quest_id):
+	if economy == null:
+		push_warning("QuestManager: economy not connected, cannot complete quest")
+		return false
+
+	# Fast resource check to avoid extra dictionary churn in tight rig loops.
+	if economy.get_resource(required_emoji) < required_qty:
 		push_warning("Cannot complete quest %d: insufficient resources" % quest_id)
 		return false
-	print("🔍 Resource check passed")
-
-	# Deduct resources (quantity is already in credits)
-	var required_emoji = quest["resource"]
-	var required_qty = quest["quantity"]
-
-	# Debug: show exact values being used
-	var player_has = economy.get_resource(required_emoji) if economy else -1
-	print("🔍 Deducting: emoji='%s' qty=%d, player_has=%d" % [required_emoji, required_qty, player_has])
 
 	if not economy.remove_resource(required_emoji, required_qty, "quest_completion"):
+		var player_has = economy.get_resource(required_emoji)
 		push_error("Failed to deduct resources for quest %d: need %d %s, have %d" % [quest_id, required_qty, required_emoji, player_has])
 		return false
 
 	# Generate rewards (vocabulary only)
 	var player_vocab = _get_player_vocab_emojis()
 	var reward = QuestRewards.generate_reward(quest, null, player_vocab)
-
-	# DEBUG: Log vocab reward data to diagnose vocab granting issues
-	print("🔍 Quest %d vocab reward: north=%s south=%s pairs=%d resources=%s" % [
-		quest_id,
-		quest.get("reward_vocab_north", "MISSING"),
-		quest.get("reward_vocab_south", "MISSING"),
-		reward.learned_pairs.size(),
-		str(reward.resource_rewards.keys())
-	])
 
 	var faction_name = quest.get("faction", "Unknown")
 	var granted_resources = _grant_resource_rewards(reward, faction_name)
