@@ -315,15 +315,6 @@ func _update_inner_graph(delta: float, inner: BiomeInnerGraph, mi: PackedFloat64
 		# Apply forces (Euler integration)
 		var vel = inner.local_velocities.get(node_id, Vector2.ZERO)
 		vel += force * delta
-
-		# Lone-bubble wander: sinusoidal drift so single bubbles don't go static.
-		# Injected as a velocity (not force*delta) so it's time-consistent regardless
-		# of how force_delta is scaled by _get_scaled_force_delta().
-		if num_bubbles == 1:
-			var t = Time.get_ticks_msec() * 0.001
-			var hash_phase = float(abs(inner.biome_name.hash()) % 1000) / 1000.0 * TAU
-			vel += Vector2(cos(t * 0.25 + hash_phase), sin(t * 0.25 + hash_phase)) * 6.0
-
 		vel *= DAMPING
 
 		# Safety: clamp velocity to prevent NaN explosion
