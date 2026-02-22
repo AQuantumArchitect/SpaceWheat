@@ -23,6 +23,7 @@ var _probe_status_label: Label = null
 var _probe_status_hide_at_ms: int = 0
 
 const PROBE_STATUS_DURATION_MS: int = 900
+const PhysicsConfig = preload("res://Core/Config/PhysicsConfig.gd")
 
 
 func setup(farm_ref: Node, shell_ref: Node) -> void:
@@ -308,7 +309,7 @@ func lindblad_pump(positions: Array[Vector2i]) -> Dictionary:
 		return instrument.lindblad_pump(positions)
 	if not farm:
 		return {"ok": false, "error": "no_farm"}
-	return LindbladHandler.lindblad_drive(farm, positions)
+	return LindbladHandler.enable_persistent_drive(farm, positions)
 
 
 func lindblad_drain(positions: Array[Vector2i]) -> Dictionary:
@@ -317,7 +318,16 @@ func lindblad_drain(positions: Array[Vector2i]) -> Dictionary:
 		return instrument.lindblad_drain(positions)
 	if not farm:
 		return {"ok": false, "error": "no_farm"}
-	return LindbladHandler.lindblad_decay(farm, positions)
+	return LindbladHandler.enable_persistent_decay(farm, positions)
+
+
+func time_skip(phrames: int, delta: float = -1.0) -> Dictionary:
+	"""Advance simulation phrames deterministically for headless runner usage."""
+	if instrument and instrument.has_method("time_skip"):
+		return instrument.time_skip(phrames, delta)
+	if not farm or not farm.has_method("time_skip_phrames"):
+		return {"ok": false, "error": "no_time_skip_support"}
+	return farm.time_skip_phrames(phrames, delta if delta > 0.0 else PhysicsConfig.PHRAME_DT)
 
 
 func configure_economy(overrides: Dictionary) -> Dictionary:

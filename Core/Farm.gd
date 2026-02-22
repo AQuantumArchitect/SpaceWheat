@@ -14,6 +14,7 @@ extends Node
 const GridConfig = preload("res://Core/GameState/GridConfig.gd")
 const PlotConfig = preload("res://Core/GameState/PlotConfig.gd")
 const KeyboardLayoutConfig = preload("res://Core/GameState/KeyboardLayoutConfig.gd")
+const PhysicsConfig = preload("res://Core/Config/PhysicsConfig.gd")
 
 const FarmGrid = preload("res://Core/GameMechanics/FarmGrid.gd")
 const FarmPlot = preload("res://Core/GameMechanics/FarmPlot.gd")
@@ -641,6 +642,38 @@ func _physics_process(delta: float) -> void:
 
 	# Lindblad pump/drain effects
 	_process_lindblad_effects(delta)
+
+
+func time_skip_phrames(phrames: int, delta: float = PhysicsConfig.PHRAME_DT) -> Dictionary:
+	"""Advance farm physics/evolution synchronously for deterministic headless rig control."""
+	var steps = max(0, int(phrames))
+	var dt = max(0.000001, float(delta))
+	if steps <= 0:
+		return {"ok": true, "phrames": 0, "delta": dt}
+
+	var evolved_steps = 0
+	var skipped_steps = 0
+	if biome_evolution_batcher and biome_evolution_batcher.has_method("run_additional_cycles"):
+		var batch_result = biome_evolution_batcher.run_additional_cycles(steps)
+		evolved_steps = int(batch_result.get("evolved_steps", 0))
+		skipped_steps = int(batch_result.get("skipped_due_empty_buffer", 0))
+	else:
+		for _i in range(steps):
+			if biome_evolution_batcher:
+				biome_evolution_batcher.physics_process(dt)
+				evolved_steps += 1
+
+	# Lindblad accumulation is farm-level and should track skipped phrames as well.
+	for _i in range(steps):
+		_process_lindblad_effects(dt)
+
+	return {
+		"ok": true,
+		"phrames": steps,
+		"delta": dt,
+		"evolved_steps": evolved_steps,
+		"skipped_steps": skipped_steps
+	}
 
 
 func _process_lindblad_effects(delta: float) -> void:

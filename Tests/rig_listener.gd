@@ -25,10 +25,12 @@ extends SceneTree
 ## - gate_inject: {gate: String, biome: String, positions: [[x,y],...]}
 ## - lindblad_pump: {biome: String, positions: [[x,y],...]}
 ## - lindblad_drain: {biome: String, positions: [[x,y],...]}
+## - time_skip: {phrames: int, delta?: float}
 ## - configure_economy: {overrides: {action_costs?, gate_costs?, quest_rewards?, production?}}
 ## - configure_seed_state: {known_pairs, unlocked_biomes, unexplored_biomes, active_biome}
 ## - probe_cycle: {biome: String}
-## - explore_biome
+## - discover_biome (preferred; biome unlock/expansion)
+## - explore_biome (deprecated alias for discover_biome)
 ## - victory_lap
 ## - victory_lap_partial: {selected_biomes?: [String], max_registers?: int, milk_spend?: int, phase_window?: int}
 ## - batcher_metrics
@@ -186,6 +188,7 @@ func _requires_farm_instrument(action: String) -> bool:
 		"gate_inject",
 		"lindblad_pump",
 		"lindblad_drain",
+		"time_skip",
 		"configure_economy",
 		"victory_lap",
 		"victory_lap_partial",
@@ -381,6 +384,60 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 			else:
 				result["drain_result"] = _farm_instrument.lindblad_drain(positions)
 
+		"time_skip":
+			var phrames = int(cmd.get("phrames", 0))
+			var delta = float(cmd.get("delta", -1.0))
+			var wait_for = cmd.get("wait_for_resource", {})
+			var max_phrames = int(cmd.get("max_phrames", phrames))
+			var poll_phrames = int(cmd.get("poll_phrames", phrames))
+			if poll_phrames <= 0:
+				poll_phrames = 1
+			if phrames <= 0:
+				phrames = poll_phrames
+			max_phrames = max(phrames, max_phrames)
+			if max_phrames <= 0:
+				result = {"ok": false, "turn": turn_id, "action": action, "error": "invalid_phrames"}
+			else:
+				var threshold = _parse_wait_threshold(wait_for)
+				if threshold.is_empty():
+					var skip_result = _perform_time_skip(phrames, delta)
+					if bool(skip_result.get("ok", false)):
+						skip_result["resources"] = _get_resource_map()
+						result["time_skip"] = skip_result
+					else:
+						result = {"ok": false, "turn": turn_id, "action": action, "error": str(skip_result.get("error", "time_skip_failed"))}
+				else:
+					var waited = 0
+					var polls = 0
+					var met = false
+					var final_resources: Dictionary = {}
+					while waited < max_phrames:
+						var chunk = min(poll_phrames, max_phrames - waited)
+						if chunk <= 0:
+							break
+						var chunk_result = _perform_time_skip(chunk, delta)
+						if not bool(chunk_result.get("ok", false)):
+							result = {"ok": false, "turn": turn_id, "action": action, "error": str(chunk_result.get("error", "time_skip_failed"))}
+							break
+						waited += chunk
+						polls += 1
+						final_resources = _get_resource_map()
+						if _resource_threshold_met(final_resources, threshold):
+							met = true
+							break
+					if result.get("ok", true):
+						result["time_skip"] = {
+							"ok": true,
+							"mode": "threshold",
+							"phrames": waited,
+							"max_phrames": max_phrames,
+							"poll_phrames": poll_phrames,
+							"polls": polls,
+							"met": met,
+							"threshold": threshold,
+							"resources": final_resources,
+						}
+
 		"configure_economy":
 			var overrides = cmd.get("overrides", {})
 			if not (overrides is Dictionary) or overrides.is_empty():
@@ -406,13 +463,16 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 				var probe_data_fallback = _probe_cycle(biome_name)
 				result["probe"] = probe_data_fallback if full_probe else _slim_probe_result(probe_data_fallback)
 
-		"explore_biome":
+		"discover_biome", "explore_biome":
 			if _instrument:
-				result["explore_biome"] = _instrument.action_explore_biome()
+				if _instrument.has_method("action_discover_biome"):
+					result["discover_biome"] = _instrument.action_discover_biome()
+				else:
+					result["discover_biome"] = _instrument.action_explore_biome()
 			elif not _farm or not _farm.has_method("explore_biome"):
-				result = {"ok": false, "turn": turn_id, "action": action, "error": "farm_explore_unavailable"}
+				result = {"ok": false, "turn": turn_id, "action": action, "error": "farm_discover_unavailable"}
 			else:
-				result["explore_biome"] = _farm.explore_biome()
+				result["discover_biome"] = _farm.explore_biome()
 
 		"victory_lap":
 			if _instrument:
@@ -1088,6 +1148,51 @@ func _sanitize_known_pairs(raw) -> Array:
 			seen[key] = true
 			out.append({"north": north, "south": south})
 	return out
+
+
+func _perform_time_skip(phrames: int, delta: float) -> Dictionary:
+	if _instrument and _instrument.has_method("time_skip"):
+		return _instrument.time_skip(phrames, delta)
+	if _farm_instrument and _farm_instrument.has_method("time_skip"):
+		return _farm_instrument.time_skip(phrames, delta)
+	if _farm and _farm.has_method("time_skip_phrames"):
+		var dt = delta if delta > 0.0 else 1.0 / 6.0
+		return _farm.time_skip_phrames(phrames, dt)
+	return {"ok": false, "error": "time_skip_unavailable"}
+
+
+func _parse_wait_threshold(raw) -> Dictionary:
+	var out: Dictionary = {}
+	if not (raw is Dictionary):
+		return out
+	for key in raw.keys():
+		var emoji = str(key)
+		if emoji == "":
+			continue
+		var amount = float(raw.get(key, 0.0))
+		if amount > 0.0:
+			out[emoji] = amount
+	return out
+
+
+func _get_resource_map() -> Dictionary:
+	if not _farm_instrument:
+		return {}
+	var snap = _farm_instrument.get_resource_snapshot()
+	if not (snap is Dictionary):
+		return {}
+	var resources = snap.get("resources", {})
+	return resources if resources is Dictionary else {}
+
+
+func _resource_threshold_met(resources: Dictionary, threshold: Dictionary) -> bool:
+	if threshold.is_empty():
+		return false
+	for emoji in threshold.keys():
+		var target = float(threshold.get(emoji, 0.0))
+		if float(resources.get(emoji, 0.0)) < target:
+			return false
+	return true
 
 
 func _parse_positions(raw_positions, biome_name: String) -> Array[Vector2i]:

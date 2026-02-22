@@ -4,14 +4,13 @@ import json
 import os
 import subprocess
 import sys
-import time
 from collections import deque
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
 
 from milk_hunt_paths import project_root
 from milk_hunt_quantum_policy import HunterStateAdapter, QuantumGraphPolicy
-from milk_hunt_runtime_config import get_cfg_bool, get_cfg_int, get_cfg_str, load_json_config
+from milk_hunt_runtime_config import get_cfg_bool, get_cfg_float, get_cfg_int, get_cfg_str, load_json_config
 from milk_hunt_strategy import Strategy, load_strategy
 from rig_client import RigClient
 
@@ -20,10 +19,6 @@ MILK = "\U0001F37C"
 PROJECT_ROOT = project_root()
 _RIG = RigClient(root_from_file=Path(__file__))
 FACTIONS_PATH = PROJECT_ROOT / "Core" / "Factions" / "data" / "factions_merged.json"
-_TURN_MIN_INTERVAL_S: float = 0.0
-_LAST_TURN_TS: float = 0.0
-
-
 class TurnTimeoutError(TimeoutError):
     def __init__(self, turn_id: int, action: str, timeout_s: float) -> None:
         super().__init__(f"turn={turn_id} action={action} timeout_waiting_for_result timeout_s={timeout_s:.1f}")
@@ -84,18 +79,6 @@ def _wait_for_turn(turn_id: int, timeout_s: float = 10.0) -> Optional[Dict[str, 
     return _RIG.wait_for_turn(turn_id, timeout_s=timeout_s)
 
 
-def _pace_turn_rate() -> None:
-    global _LAST_TURN_TS
-    if _TURN_MIN_INTERVAL_S <= 0.0:
-        return
-    now = time.monotonic()
-    if _LAST_TURN_TS > 0.0:
-        elapsed = now - _LAST_TURN_TS
-        if elapsed < _TURN_MIN_INTERVAL_S:
-            time.sleep(_TURN_MIN_INTERVAL_S - elapsed)
-    _LAST_TURN_TS = time.monotonic()
-
-
 def _run_turn(turn_id: int, action: str, **kwargs: Any) -> Dict[str, Any]:
     timeout_s = kwargs.pop("timeout_s", None)
     if timeout_s is None:
@@ -105,13 +88,14 @@ def _run_turn(turn_id: int, action: str, **kwargs: Any) -> Dict[str, Any]:
             timeout_s = 45.0
         elif action in {"offer_quests", "accept_offer", "known_vocab_pairs", "resource_snapshot"}:
             timeout_s = 20.0
-        elif action in {"probe_cycle", "explore_biome"}:
+        elif action in {"probe_cycle", "discover_biome", "explore_biome"}:
             timeout_s = 20.0
+        elif action in {"time_skip"}:
+            timeout_s = 45.0
         elif action == "victory_lap":
             timeout_s = 180.0
         else:
             timeout_s = 10.0
-    _pace_turn_rate()
     row = _RIG.run_turn(turn_id, action, timeout_s=float(timeout_s), progress_interval_s=5.0, **kwargs)
     if isinstance(row, dict) and row.get("error") == "timeout_waiting_for_result":
         raise TurnTimeoutError(turn_id=turn_id, action=action, timeout_s=float(timeout_s))
@@ -514,6 +498,13 @@ def _encode_positions_for_rig(raw_positions: Any, limit: int = 0, offset: int = 
         elif isinstance(entry, dict):
             x_val = entry.get("x")
             y_val = entry.get("y")
+        elif isinstance(entry, str):
+            txt = entry.strip()
+            txt = txt.replace("(", "").replace(")", "").replace("[", "").replace("]", "")
+            parts = [p.strip() for p in txt.split(",")]
+            if len(parts) >= 2:
+                x_val = parts[0]
+                y_val = parts[1]
         if x_val is None or y_val is None:
             continue
         try:
@@ -573,6 +564,21 @@ def _extract_probe_pop_resource(probe_row: Dict[str, Any]) -> str:
         return ""
     resource = pop.get("resource", "")
     return str(resource) if isinstance(resource, str) else ""
+
+
+def _resource_threshold_met(resources: Dict[str, float], threshold: Dict[str, float]) -> bool:
+    if not threshold:
+        return False
+    for emoji, target in threshold.items():
+        if float(resources.get(emoji, 0.0)) < float(target):
+            return False
+    return True
+
+
+def _seconds_to_phrames(seconds: float, phrame_hz: float = 6.0) -> int:
+    if seconds <= 0.0:
+        return 0
+    return max(1, int(round(float(seconds) * float(phrame_hz))))
 
 
 def _select_focus_biome(
@@ -658,7 +664,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "--target-turn-hz",
         type=float,
         default=0.0,
-        help="Optional turn pacing cap (0 disables pacing, 10 ~= 100ms between rig turns)",
+        help="Deprecated/no-op in phrame-driven mode (runner no longer uses wall-clock pacing)",
     )
     parser.add_argument(
         "--metrics-every",
@@ -749,13 +755,13 @@ def _build_parser() -> argparse.ArgumentParser:
         "--max-biome-expansions",
         type=int,
         default=None,
-        help="Maximum number of explore_biome attempts per run",
+        help="Maximum number of discover_biome (new biome unlock) attempts per run",
     )
     parser.add_argument(
         "--min-eagles-for-expansion",
         type=float,
         default=None,
-        help="Minimum eagle stock before explore_biome is attempted",
+        help="Minimum eagle stock before discover_biome is attempted",
     )
     parser.add_argument(
         "--enforce-primary-resource-floors",
@@ -829,6 +835,48 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Micro-slices per selected biome each drain loop (weak time-scale control)",
     )
+    parser.add_argument(
+        "--lindblad-wait-seconds",
+        type=float,
+        default=None,
+        help="Legacy wall-clock wait after drain branch (prefer --lindblad-wait-phrames)",
+    )
+    parser.add_argument(
+        "--lindblad-wait-phrames",
+        type=int,
+        default=None,
+        help="Deterministic phrames to time-skip after drain branch so passive channels accumulate",
+    )
+    parser.add_argument(
+        "--lindblad-wait-for-resource",
+        action="append",
+        default=[],
+        help="Wait target as EMOJI:AMOUNT (repeatable), e.g. --lindblad-wait-for-resource 🍞:140",
+    )
+    parser.add_argument(
+        "--lindblad-wait-max-seconds",
+        type=float,
+        default=None,
+        help="Legacy max wall-clock wait for threshold mode (converted to phrames when needed)",
+    )
+    parser.add_argument(
+        "--lindblad-wait-poll-seconds",
+        type=float,
+        default=None,
+        help="Legacy poll wall-clock interval for threshold mode (converted to phrames when needed)",
+    )
+    parser.add_argument(
+        "--lindblad-wait-max-phrames",
+        type=int,
+        default=None,
+        help="Maximum phrames to advance while waiting for threshold resources",
+    )
+    parser.add_argument(
+        "--lindblad-wait-poll-phrames",
+        type=int,
+        default=None,
+        help="Phrases per threshold-wait poll tick",
+    )
     parser.set_defaults(enforce_primary_resource_floors=True, allow_rig_resource_injection=True)
     parser.set_defaults(victory_lap=True)
     parser.set_defaults(strict_biome_economy=True)
@@ -838,7 +886,6 @@ def _build_parser() -> argparse.ArgumentParser:
 
 
 def main() -> int:
-    global _TURN_MIN_INTERVAL_S, _LAST_TURN_TS
     args = _build_parser().parse_args()
     cfg = load_json_config(args.config)
     strategy = load_strategy(args.strategy)
@@ -894,8 +941,7 @@ def main() -> int:
             strict_biome_economy = get_cfg_bool(cfg, "strict_biome_economy")
     if strict_biome_economy is None:
         strict_biome_economy = True
-    _TURN_MIN_INTERVAL_S = (1.0 / args.target_turn_hz) if args.target_turn_hz and args.target_turn_hz > 0 else 0.0
-    _LAST_TURN_TS = 0.0
+    # Runner pacing is phrame-driven in-game via `time_skip`; no wall-clock throttling.
     metrics_every = max(0, int(args.metrics_every))
     include_offer_reward_resources = bool(args.include_offer_reward_resources)
 
@@ -955,6 +1001,41 @@ def main() -> int:
         lindblad_drain_slices = int(os.environ["MILK_HUNT_LINDBLAD_DRAIN_SLICES"])
     if lindblad_drain_slices is None:
         lindblad_drain_slices = 1
+    lindblad_wait_phrames = args.lindblad_wait_phrames
+    if lindblad_wait_phrames is None:
+        lindblad_wait_phrames = get_cfg_int(cfg, "lindblad_wait_phrames")
+    if lindblad_wait_phrames is None and os.environ.get("MILK_HUNT_LINDBLAD_WAIT_PHRAMES", "") != "":
+        lindblad_wait_phrames = int(os.environ["MILK_HUNT_LINDBLAD_WAIT_PHRAMES"])
+    lindblad_wait_seconds = args.lindblad_wait_seconds
+    if lindblad_wait_seconds is None:
+        lindblad_wait_seconds = float(get_cfg_float(cfg, "lindblad_wait_seconds") or 0.0)
+    if lindblad_wait_phrames is None and lindblad_wait_seconds > 0.0:
+        lindblad_wait_phrames = _seconds_to_phrames(float(lindblad_wait_seconds))
+    if lindblad_wait_phrames is None:
+        lindblad_wait_phrames = 0
+    lindblad_wait_threshold = _parse_resource_floor_overrides(args.lindblad_wait_for_resource)
+    lindblad_wait_max_phrames = args.lindblad_wait_max_phrames
+    if lindblad_wait_max_phrames is None:
+        lindblad_wait_max_phrames = get_cfg_int(cfg, "lindblad_wait_max_phrames")
+    if lindblad_wait_max_phrames is None and os.environ.get("MILK_HUNT_LINDBLAD_WAIT_MAX_PHRAMES", "") != "":
+        lindblad_wait_max_phrames = int(os.environ["MILK_HUNT_LINDBLAD_WAIT_MAX_PHRAMES"])
+    lindblad_wait_max_seconds = args.lindblad_wait_max_seconds
+    if lindblad_wait_max_seconds is None:
+        lindblad_wait_max_seconds = float(get_cfg_float(cfg, "lindblad_wait_max_seconds") or 8.0)
+    if lindblad_wait_max_phrames is None:
+        lindblad_wait_max_phrames = _seconds_to_phrames(float(lindblad_wait_max_seconds))
+    lindblad_wait_poll_phrames = args.lindblad_wait_poll_phrames
+    if lindblad_wait_poll_phrames is None:
+        lindblad_wait_poll_phrames = get_cfg_int(cfg, "lindblad_wait_poll_phrames")
+    if lindblad_wait_poll_phrames is None and os.environ.get("MILK_HUNT_LINDBLAD_WAIT_POLL_PHRAMES", "") != "":
+        lindblad_wait_poll_phrames = int(os.environ["MILK_HUNT_LINDBLAD_WAIT_POLL_PHRAMES"])
+    lindblad_wait_poll_seconds = args.lindblad_wait_poll_seconds
+    if lindblad_wait_poll_seconds is None:
+        lindblad_wait_poll_seconds = float(get_cfg_float(cfg, "lindblad_wait_poll_seconds") or 0.5)
+    if lindblad_wait_poll_phrames is None:
+        lindblad_wait_poll_phrames = _seconds_to_phrames(float(lindblad_wait_poll_seconds))
+    lindblad_wait_max_phrames = max(0, int(lindblad_wait_max_phrames))
+    lindblad_wait_poll_phrames = max(1, int(lindblad_wait_poll_phrames))
 
     if load_alias:
         load_slot = None
@@ -1070,6 +1151,7 @@ def main() -> int:
 
         history.append(_run_turn(turn, "grid_snapshot"))
         turn += 1
+        initial_biomes = _extract_biomes(history)
         history.append(_run_turn(turn, "known_vocab_pairs"))
         turn += 1
         resources = _run_turn(turn, "resource_snapshot")
@@ -1083,6 +1165,10 @@ def main() -> int:
         victory_lap_result: Dict[str, Any] = {}
         victory_lap_executed = False
         prev_pairs_count = len(_extract_pairs(history))
+        # Track true biome discovery (newly unlocked biomes beyond initial access).
+        known_biomes: Set[str] = set(initial_biomes)
+        newly_discovered_biomes: List[str] = []
+        # Track probe/selection visitation separately (used by policy heuristics).
         discovered_biomes: List[str] = []
         biome_explore_counts: Dict[str, int] = {}
         biome_resource_hits: Dict[str, Dict[str, int]] = {}
@@ -1092,6 +1178,7 @@ def main() -> int:
         lindblad_biome_attempts: Dict[str, int] = {}
         lindblad_biomes_activated: Set[str] = set()
         lindblad_drain_events: List[Dict[str, Any]] = []
+        lindblad_wait_events: List[Dict[str, Any]] = []
         policy_trace_limit = max(0, int(args.policy_trace_limit))
 
         def _append_policy_decision(event: Dict[str, Any]) -> None:
@@ -1102,6 +1189,56 @@ def main() -> int:
                 return
             if len(policy_decisions) == policy_trace_limit:
                 policy_decisions.append({"kind": "trace_truncated", "limit": policy_trace_limit})
+
+        def _run_loop_tail_wait(loop_number: int, loop_wait_enabled: bool) -> None:
+            nonlocal turn, current_resources
+            if not loop_wait_enabled or not (lindblad_wait_phrames > 0 or lindblad_wait_threshold):
+                return
+            wait_payload: Dict[str, Any] = {}
+            wait_mode = "fixed_time_skip"
+            timeout_hint = int(max(1, lindblad_wait_phrames))
+            if lindblad_wait_threshold:
+                wait_mode = "threshold_time_skip"
+                wait_payload["wait_for_resource"] = lindblad_wait_threshold
+                wait_payload["max_phrames"] = int(max(1, lindblad_wait_max_phrames))
+                wait_payload["poll_phrames"] = int(max(1, lindblad_wait_poll_phrames))
+                wait_payload["phrames"] = int(max(1, lindblad_wait_poll_phrames))
+                timeout_hint = int(max(1, lindblad_wait_max_phrames))
+            else:
+                wait_payload["phrames"] = int(max(1, lindblad_wait_phrames))
+                timeout_hint = int(max(1, lindblad_wait_phrames))
+
+            wait_row = _run_turn(
+                turn,
+                "time_skip",
+                timeout_s=max(20.0, float(timeout_hint) / 3.0),
+                **wait_payload,
+            )
+            history.append(wait_row)
+            turn += 1
+            skip_payload = wait_row.get("time_skip", {}) if isinstance(wait_row, dict) else {}
+            if isinstance(skip_payload, dict):
+                resources_after_wait = skip_payload.get("resources", {})
+                if isinstance(resources_after_wait, dict):
+                    converted: Dict[str, float] = {}
+                    for k, v in resources_after_wait.items():
+                        if not isinstance(k, str):
+                            continue
+                        try:
+                            converted[k] = float(v)
+                        except (TypeError, ValueError):
+                            continue
+                    if converted:
+                        current_resources = converted
+            lindblad_wait_events.append(
+                {
+                    "loop": loop_number,
+                    "mode": wait_mode,
+                    "payload": wait_payload,
+                    "result": skip_payload if isinstance(skip_payload, dict) else {},
+                    "met": bool(isinstance(skip_payload, dict) and skip_payload.get("met", False)),
+                }
+            )
 
         biome_expansion_events: List[Dict[str, Any]] = []
         primary_resource_floor_events: List[Dict[str, Any]] = []
@@ -1123,6 +1260,7 @@ def main() -> int:
 
         for loop_idx in range(max_loops):
             loops_completed = loop_idx + 1
+            loop_should_wait = False
             if args.enforce_primary_resource_floors:
                 turn, current_resources, floor_events = _enforce_primary_resource_floors(
                     turn,
@@ -1137,17 +1275,24 @@ def main() -> int:
                 if loop_idx % max(1, int(expand_check_every)) == 0:
                     eagle_stock = float(current_resources.get(eagle_emoji, 0.0))
                     if eagle_stock >= float(min_eagles_for_expansion):
-                        expand_row = _run_turn(turn, "explore_biome")
+                        expand_row = _run_turn(turn, "discover_biome")
                         history.append(expand_row)
                         turn += 1
                         expansions_attempted += 1
-                        expand_result = expand_row.get("explore_biome", {}) if isinstance(expand_row, dict) else {}
+                        expand_result = {}
+                        if isinstance(expand_row, dict):
+                            expand_result = expand_row.get("discover_biome", expand_row.get("explore_biome", {}))
                         success = bool(isinstance(expand_result, dict) and expand_result.get("success", False))
                         if success:
                             expansions_succeeded += 1
                             grid_after_expand = _run_turn(turn, "grid_snapshot")
                             history.append(grid_after_expand)
                             turn += 1
+                            expanded_biomes = _extract_biomes(history)
+                            for biome_name in expanded_biomes:
+                                if biome_name not in known_biomes:
+                                    known_biomes.add(biome_name)
+                                    newly_discovered_biomes.append(biome_name)
                         biome_expansion_events.append(
                             {
                                 "loop": loop_idx + 1,
@@ -1315,6 +1460,7 @@ def main() -> int:
                     history.append(post_drain_snapshot)
                     turn += 1
                     current_resources = _extract_resource_map(post_drain_snapshot)
+                    loop_should_wait = True
 
             if quantum_policy is not None:
                 loop_state = HunterStateAdapter.build(
@@ -1414,9 +1560,11 @@ def main() -> int:
             turn += 1
             offers = offer_row.get("offers", [])
             if not isinstance(offers, list) or not offers:
+                _run_loop_tail_wait(loop_idx + 1, loop_should_wait)
                 continue
             eligible_delivery = _eligible_delivery_offer_indices(offers, strict_biome_economy, current_resources)
             if not eligible_delivery:
+                _run_loop_tail_wait(loop_idx + 1, loop_should_wait)
                 continue
 
             known_pairs = _extract_pairs(history)
@@ -1675,6 +1823,8 @@ def main() -> int:
                     found_milk = True
                     break
 
+            _run_loop_tail_wait(loop_idx + 1, loop_should_wait)
+
         if found_milk and args.victory_lap:
             victory_row = _run_turn(turn, "victory_lap")
             history.append(victory_row)
@@ -1713,8 +1863,10 @@ def main() -> int:
             "target_turn_hz": args.target_turn_hz,
             "metrics_every": metrics_every,
             "include_offer_reward_resources": include_offer_reward_resources,
-            "biome_discovery_order": discovered_biomes,
-            "biome_explore_counts": biome_explore_counts,
+            "biome_discovery_order": newly_discovered_biomes,
+            "biome_visit_order": discovered_biomes,
+            "initial_unlocked_biomes": initial_biomes,
+            "biome_projection_counts": biome_explore_counts,
             "biome_resource_hits": biome_resource_hits,
             "biome_probe_events": biome_probe_events,
             "batcher_metrics_samples": batcher_metrics_samples,
@@ -1742,10 +1894,18 @@ def main() -> int:
             "lindblad_drain_max_biomes_per_loop": lindblad_drain_max_biomes_per_loop,
             "lindblad_drain_max_plots": lindblad_drain_max_plots,
             "lindblad_drain_slices": lindblad_drain_slices,
+            "lindblad_wait_phrames": lindblad_wait_phrames,
+            "lindblad_wait_seconds": lindblad_wait_seconds,
+            "lindblad_wait_threshold": lindblad_wait_threshold,
+            "lindblad_wait_max_phrames": lindblad_wait_max_phrames,
+            "lindblad_wait_max_seconds": lindblad_wait_max_seconds,
+            "lindblad_wait_poll_phrames": lindblad_wait_poll_phrames,
+            "lindblad_wait_poll_seconds": lindblad_wait_poll_seconds,
             "lindblad_drain_configured_biomes": configured_lindblad_biomes,
             "lindblad_drain_biome_attempts": lindblad_biome_attempts,
             "lindblad_drain_biomes_activated": sorted(lindblad_biomes_activated),
             "lindblad_drain_events": lindblad_drain_events,
+            "lindblad_wait_events": lindblad_wait_events,
         }
         if args.save_slot_at_end is not None:
             save_row = _run_turn(turn, "save_game", slot=args.save_slot_at_end)
@@ -1793,6 +1953,13 @@ def main() -> int:
             "lindblad_drain_max_biomes_per_loop": lindblad_drain_max_biomes_per_loop,
             "lindblad_drain_max_plots": lindblad_drain_max_plots,
             "lindblad_drain_slices": lindblad_drain_slices,
+            "lindblad_wait_phrames": lindblad_wait_phrames,
+            "lindblad_wait_seconds": lindblad_wait_seconds,
+            "lindblad_wait_threshold": lindblad_wait_threshold,
+            "lindblad_wait_max_phrames": lindblad_wait_max_phrames,
+            "lindblad_wait_max_seconds": lindblad_wait_max_seconds,
+            "lindblad_wait_poll_phrames": lindblad_wait_poll_phrames,
+            "lindblad_wait_poll_seconds": lindblad_wait_poll_seconds,
             "lindblad_drain_configured_biomes": configured_lindblad_biomes,
             "run_error": "turn_timeout",
             "run_error_detail": str(exc),

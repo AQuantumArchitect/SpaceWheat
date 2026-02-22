@@ -16,6 +16,7 @@ const GateActionHandler = preload("res://UI/Handlers/GateActionHandler.gd")
 const LindbladHandler = preload("res://UI/Handlers/LindbladHandler.gd")
 const EconomyConstants = preload("res://Core/GameMechanics/EconomyConstants.gd")
 const BiomeHandler = preload("res://UI/Handlers/BiomeHandler.gd")
+const PhysicsConfig = preload("res://Core/Config/PhysicsConfig.gd")
 
 # ============================================================================
 # SIGNALS
@@ -598,6 +599,13 @@ func action_explore_biome() -> Dictionary:
 	return result
 
 
+func action_discover_biome() -> Dictionary:
+	# Terminology alias: biome unlock/discovery (eagle-gated), not terminal explore.
+	var result = action_explore_biome()
+	action_performed.emit("discover_biome", result)
+	return result
+
+
 func action_cycle_biome() -> Dictionary:
 	var active_biome_mgr = _get_autoload("ActiveBiomeManager")
 	if not active_biome_mgr:
@@ -634,7 +642,8 @@ func gate_inject(gate_name: String, positions: Array[Vector2i]) -> Dictionary:
 func lindblad_pump(positions: Array[Vector2i]) -> Dictionary:
 	if not farm:
 		return {"ok": false, "error": "no_farm"}
-	var result = LindbladHandler.lindblad_drive(farm, positions)
+	# Rig/API pump should install persistent channels (same semantics as player action_pump).
+	var result = LindbladHandler.enable_persistent_drive(farm, positions)
 	action_performed.emit("lindblad_pump", result)
 	_notify_quest_projection("lindblad_pump", result)
 	return result
@@ -643,9 +652,22 @@ func lindblad_pump(positions: Array[Vector2i]) -> Dictionary:
 func lindblad_drain(positions: Array[Vector2i]) -> Dictionary:
 	if not farm:
 		return {"ok": false, "error": "no_farm"}
-	var result = LindbladHandler.lindblad_decay(farm, positions)
+	# Rig/API drain should install persistent channels (same semantics as player action_drain).
+	var result = LindbladHandler.enable_persistent_decay(farm, positions)
 	action_performed.emit("lindblad_drain", result)
 	_notify_quest_projection("lindblad_drain", result)
+	return result
+
+
+func time_skip(phrames: int, delta: float = -1.0) -> Dictionary:
+	if not farm:
+		return {"ok": false, "error": "no_farm"}
+	if not farm.has_method("time_skip_phrames"):
+		return {"ok": false, "error": "farm_time_skip_unavailable"}
+	var dt = delta if delta > 0.0 else PhysicsConfig.PHRAME_DT
+	var result = farm.time_skip_phrames(phrames, dt)
+	action_performed.emit("time_skip", result)
+	_notify_quest_projection("time_skip", result)
 	return result
 
 

@@ -253,7 +253,7 @@ static func enable_persistent_drive(farm, positions: Array[Vector2i],
 			continue
 
 		var plot = farm.grid.get_plot(pos)
-		if plot and plot.lindblad_pump_active:
+		if plot and (plot.lindblad_pump_active or plot.lindblad_drain_active):
 			already_active += 1
 			continue
 
@@ -272,13 +272,14 @@ static func enable_persistent_drive(farm, positions: Array[Vector2i],
 		if cost.is_empty():
 			continue
 
+		if not EconomyConstants.commit_cost(cost, farm.economy, "lindblad_pump"):
+			continue
+
 		if plot:
+			# Activate only after cost commit: keeps per-plot channels idempotent.
 			plot.lindblad_pump_active = true
 			plot.lindblad_pump_rate = rate
 			activated_count += 1
-
-		if not EconomyConstants.commit_cost(cost, farm.economy, "lindblad_pump"):
-			continue
 
 		charged_count += 1
 		success_count += 1
@@ -339,7 +340,7 @@ static func enable_persistent_decay(farm, positions: Array[Vector2i],
 		if north_emoji not in known_emojis:
 			insufficient[north_emoji] = insufficient.get(north_emoji, 0) + 1
 			continue
-		if plot and plot.lindblad_drain_active:
+		if plot and (plot.lindblad_drain_active or plot.lindblad_pump_active):
 			already_active += 1
 			continue
 
@@ -353,13 +354,14 @@ static func enable_persistent_decay(farm, positions: Array[Vector2i],
 		if cost.is_empty():
 			continue
 
+		if not EconomyConstants.commit_cost(cost, farm.economy, "lindblad_drain"):
+			continue
+
 		if plot:
+			# Activate only after cost commit: one persistent drain channel per plot.
 			plot.lindblad_drain_active = true
 			plot.lindblad_drain_rate = rate
 			activated_count += 1
-
-		if not EconomyConstants.commit_cost(cost, farm.economy, "lindblad_drain"):
-			continue
 
 		charged_count += 1
 		success_count += 1
