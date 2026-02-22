@@ -30,6 +30,8 @@ extends SceneTree
 ## - probe_cycle: {biome: String}
 ## - explore_biome
 ## - victory_lap
+## - victory_lap_partial: {selected_biomes?: [String], max_registers?: int, milk_spend?: int, phase_window?: int}
+## - batcher_metrics
 ## - save_game: {slot: int}
 ## - load_game: {slot: int}
 ## - load_game_alias: {alias: String}
@@ -44,14 +46,17 @@ const ProbeActions = preload("res://Core/Actions/ProbeActions.gd")
 
 var _queue_path = "user://rig/queue.jsonl"
 var _result_path = "user://rig/results.jsonl"
+var _bridge_sentinel_path = "user://rig/bridge_ready"
 
-var _processed_lines: int = 0
+var _queue_offset: int = 0
 var _shell = null
 var _farm_instrument = null
+var _instrument = null  # QuantumInstrument
 var _farm = null
 var _loop_started: bool = false
 var _last_offers: Array = []
 var _is_headless: bool = true
+var _turn_log_enabled: bool = true
 
 
 func _init() -> void:
@@ -94,18 +99,40 @@ func _bootstrap() -> void:
 
 func _on_ready() -> void:
 	_ensure_rig_dir()
+	_apply_rig_logger_profile()
+	_write_bridge_ready_sentinel()
 	if _shell and "farm_instrument" in _shell:
 		_farm_instrument = _shell.farm_instrument
+		if _farm_instrument and "instrument" in _farm_instrument:
+			_instrument = _farm_instrument.instrument
+	var turn_log_env = OS.get_environment("RIG_VERBOSE_TURN_LOG").to_lower()
+	_turn_log_enabled = (not _is_headless) or (turn_log_env in ["1", "true", "yes", "on"])
 	print("🎛️ Rig ready. Waiting for turns in:", _queue_path)
 	if not _loop_started:
 		_loop_started = true
 		call_deferred("_run_loop")
 
 
+func _turn_log(level: String, turn_id: int, action: String, details: String = "") -> void:
+	if not _turn_log_enabled:
+		return
+	var tail = (" " + details) if details != "" else ""
+	print("[RIG][%s] turn=%d action=%s%s" % [level, turn_id, action, tail])
+
+
+func _ensure_runtime_unpaused_for_rig() -> bool:
+	if not paused:
+		return false
+	paused = false
+	print("[RIG][INFO] SceneTree was paused; unpausing for rig command processing")
+	return true
+
+
 func _run_loop() -> void:
 	while true:
 		_poll_queue()
-		await create_timer(0.1).timeout
+		# process_always=true prevents deadlock if UI/menu pauses the SceneTree.
+		await create_timer(0.1, true).timeout
 
 
 func _poll_queue() -> void:
@@ -114,16 +141,20 @@ func _poll_queue() -> void:
 	if not file:
 		return
 
-	var lines: Array = []
+	var queue_size = file.get_length()
+	if _queue_offset > queue_size:
+		print("[RIG][INFO] Queue rewind detected (bytes %d -> %d), resetting cursor" % [_queue_offset, queue_size])
+		_queue_offset = 0
+
+	file.seek(_queue_offset)
 	while not file.eof_reached():
-		var line = file.get_line()
-		if line.strip_edges() != "":
-			lines.append(line)
-	# Process any new lines
-	while _processed_lines < lines.size():
-		var raw = lines[_processed_lines]
-		_processed_lines += 1
+		var raw_line = file.get_line()
+		_queue_offset = file.get_position()
+		var raw = raw_line.strip_edges()
+		if raw == "":
+			continue
 		_handle_line(raw)
+	file.close()
 
 
 func _ensure_farm_instrument() -> bool:
@@ -157,6 +188,8 @@ func _requires_farm_instrument(action: String) -> bool:
 		"lindblad_drain",
 		"configure_economy",
 		"victory_lap",
+		"victory_lap_partial",
+		"batcher_metrics",
 	]
 
 
@@ -169,22 +202,45 @@ func _handle_line(raw: String) -> void:
 			"raw": raw
 		})
 		return
-	_execute_command(data)
+	if not (data is Dictionary):
+		_write_result({
+			"ok": false,
+			"error": "bad_payload_type",
+			"raw": raw
+		})
+		return
+
+	var cmd: Dictionary = data
+	var action = str(cmd.get("action", ""))
+	var turn_id = int(cmd.get("turn", -1))
+	_turn_log("BEGIN", turn_id, action)
+	_ensure_runtime_unpaused_for_rig()
+	var result = _execute_command(cmd)
+	result["turn"] = turn_id
+	result["action"] = action
+	_write_result(result)
+	var ok = bool(result.get("ok", false))
+	if ok:
+		_turn_log("END", turn_id, action, "ok=true dur=%sms" % [str(result.get("duration_ms", -1))])
+	else:
+		_turn_log("ERR", turn_id, action, "error=%s dur=%sms" % [str(result.get("error", "unknown")), str(result.get("duration_ms", -1))])
+	if bool(result.get("__stop__", false)):
+		quit()
 
 
-func _execute_command(cmd: Dictionary) -> void:
+func _execute_command(cmd: Dictionary) -> Dictionary:
 	var action = cmd.get("action", "")
 	var turn_id = cmd.get("turn", -1)
 	var started = Time.get_ticks_msec()
 
 	if _requires_farm_instrument(action) and not _ensure_farm_instrument():
-		_write_result({
+		return {
 			"ok": false,
 			"turn": turn_id,
 			"action": action,
-			"error": "no_farm_instrument"
-		})
-		return
+			"error": "no_farm_instrument",
+			"duration_ms": Time.get_ticks_msec() - started
+		}
 
 	var result: Dictionary = {"ok": true, "turn": turn_id, "action": action}
 
@@ -200,7 +256,9 @@ func _execute_command(cmd: Dictionary) -> void:
 		"offer_quests":
 			var offers = _farm_instrument.get_quest_offers_for_current_biome()
 			_last_offers = offers
-			result["offers"] = _slim_offers(offers)
+			var full = bool(cmd.get("full", false))
+			var include_reward_resources = bool(cmd.get("include_reward_resources", true))
+			result["offers"] = offers if full else _slim_offers(offers, include_reward_resources)
 
 		"accept_offer":
 			var idx = int(cmd.get("offer_index", -1))
@@ -259,27 +317,32 @@ func _execute_command(cmd: Dictionary) -> void:
 			result["positions"] = _farm_instrument.get_biome_positions(biome_name)
 
 		"active_quests":
-			result["quests"] = _farm_instrument.get_active_quests()
+			var full = bool(cmd.get("full", false))
+			var active = _farm_instrument.get_active_quests()
+			result["quests"] = active if full else _slim_active_quests(active)
 
 		"known_vocab_pairs":
 			result["pairs"] = _farm_instrument.get_known_vocab_pairs()
 
 		"inject_vocab":
 			var biome_name = str(cmd.get("biome", ""))
-			var pair_index = int(cmd.get("pair_index", -1))
-			var pairs = _farm_instrument.get_known_vocab_pairs()
-			if biome_name == "" or pair_index < 0 or pair_index >= pairs.size():
-				result = {"ok": false, "turn": turn_id, "action": action, "error": "invalid_inject_args"}
+			if _instrument and biome_name != "":
+				result["inject_result"] = _instrument.action_inject_vocabulary(biome_name)
 			else:
-				var positions_raw = _farm_instrument.get_biome_positions(biome_name)
-				if positions_raw.is_empty():
-					result = {"ok": false, "turn": turn_id, "action": action, "error": "no_biome_positions"}
+				var pair_index = int(cmd.get("pair_index", -1))
+				var pairs = _farm_instrument.get_known_vocab_pairs()
+				if biome_name == "" or pair_index < 0 or pair_index >= pairs.size():
+					result = {"ok": false, "turn": turn_id, "action": action, "error": "invalid_inject_args"}
 				else:
-					var pair = pairs[pair_index]
-					var positions: Array[Vector2i] = []
-					for pos in positions_raw:
-						positions.append(pos)
-					result["inject_result"] = BiomeHandler.inject_vocabulary(_farm, positions, pair)
+					var positions_raw = _farm_instrument.get_biome_positions(biome_name)
+					if positions_raw.is_empty():
+						result = {"ok": false, "turn": turn_id, "action": action, "error": "no_biome_positions"}
+					else:
+						var pair = pairs[pair_index]
+						var positions: Array[Vector2i] = []
+						for pos in positions_raw:
+							positions.append(pos)
+						result["inject_result"] = BiomeHandler.inject_vocabulary(_farm, positions, pair)
 
 		"gate_inject":
 			var gate_name = str(cmd.get("gate", ""))
@@ -291,6 +354,8 @@ func _execute_command(cmd: Dictionary) -> void:
 				var positions: Array[Vector2i] = _parse_positions(raw_positions, biome_name)
 				if positions.is_empty():
 					result = {"ok": false, "turn": turn_id, "action": action, "error": "no_valid_positions"}
+				elif _instrument:
+					result["gate_result"] = _instrument.gate_inject(gate_name, positions)
 				else:
 					result["gate_result"] = _farm_instrument.gate_inject(gate_name, positions)
 
@@ -300,6 +365,8 @@ func _execute_command(cmd: Dictionary) -> void:
 			var positions: Array[Vector2i] = _parse_positions(raw_positions, biome_name)
 			if positions.is_empty():
 				result = {"ok": false, "turn": turn_id, "action": action, "error": "no_valid_positions"}
+			elif _instrument:
+				result["pump_result"] = _instrument.lindblad_pump(positions)
 			else:
 				result["pump_result"] = _farm_instrument.lindblad_pump(positions)
 
@@ -309,6 +376,8 @@ func _execute_command(cmd: Dictionary) -> void:
 			var positions: Array[Vector2i] = _parse_positions(raw_positions, biome_name)
 			if positions.is_empty():
 				result = {"ok": false, "turn": turn_id, "action": action, "error": "no_valid_positions"}
+			elif _instrument:
+				result["drain_result"] = _instrument.lindblad_drain(positions)
 			else:
 				result["drain_result"] = _farm_instrument.lindblad_drain(positions)
 
@@ -320,20 +389,65 @@ func _execute_command(cmd: Dictionary) -> void:
 				result["configured"] = _farm_instrument.configure_economy(overrides)
 
 		"configure_seed_state":
-			result["seed_state"] = _configure_seed_state(cmd)
+			if _instrument:
+				result["seed_state"] = _instrument.configure_seed_state(cmd)
+			else:
+				result["seed_state"] = _configure_seed_state(cmd)
 
 		"probe_cycle":
 			var biome_name = str(cmd.get("biome", ""))
-			result["probe"] = _probe_cycle(biome_name)
+			var full_probe = bool(cmd.get("full", false))
+			if _instrument:
+				var probe_data = _instrument.probe_cycle(biome_name)
+				result["probe"] = probe_data if full_probe else _slim_probe_result(probe_data)
+				if _farm_instrument and _farm_instrument.has_method("show_probe_cycle_status"):
+					_farm_instrument.show_probe_cycle_status(biome_name, probe_data)
+			else:
+				var probe_data_fallback = _probe_cycle(biome_name)
+				result["probe"] = probe_data_fallback if full_probe else _slim_probe_result(probe_data_fallback)
 
 		"explore_biome":
-			if not _farm or not _farm.has_method("explore_biome"):
+			if _instrument:
+				result["explore_biome"] = _instrument.action_explore_biome()
+			elif not _farm or not _farm.has_method("explore_biome"):
 				result = {"ok": false, "turn": turn_id, "action": action, "error": "farm_explore_unavailable"}
 			else:
 				result["explore_biome"] = _farm.explore_biome()
 
 		"victory_lap":
-			result["victory_lap"] = _run_victory_lap()
+			if _instrument:
+				result["victory_lap"] = _instrument.victory_lap()
+			else:
+				result["victory_lap"] = _run_victory_lap()
+
+		"victory_lap_partial":
+			var selected_biomes_raw = cmd.get("selected_biomes", [])
+			var selected_biomes: Array[String] = []
+			if selected_biomes_raw is Array:
+				for biome_name in selected_biomes_raw:
+					var b = str(biome_name)
+					if b != "":
+						selected_biomes.append(b)
+			var max_registers = int(cmd.get("max_registers", 8))
+			var milk_spend = int(cmd.get("milk_spend", 0))
+			var phase_window = int(cmd.get("phase_window", 1))
+			if _instrument:
+				result["victory_lap_partial"] = _instrument.victory_lap_partial(
+					selected_biomes,
+					max_registers,
+					milk_spend,
+					phase_window
+				)
+			else:
+				result["victory_lap_partial"] = _run_victory_lap_partial(
+					selected_biomes,
+					max_registers,
+					milk_spend,
+					phase_window
+				)
+
+		"batcher_metrics":
+			result["metrics"] = _farm_instrument.get_batcher_metrics() if _farm_instrument else {}
 
 		"save_game":
 			var slot = int(cmd.get("slot", -1))
@@ -376,16 +490,13 @@ func _execute_command(cmd: Dictionary) -> void:
 
 		"stop":
 			result["stopped"] = true
-			result["duration_ms"] = Time.get_ticks_msec() - started
-			_write_result(result)
-			quit()
-			return
+			result["__stop__"] = true
 
 		_:
 			result = {"ok": false, "turn": turn_id, "action": action, "error": "unknown_action"}
 
 	result["duration_ms"] = Time.get_ticks_msec() - started
-	_write_result(result)
+	return result
 
 
 func _write_result(payload: Dictionary) -> void:
@@ -406,27 +517,171 @@ func _ensure_rig_dir() -> void:
 	DirAccess.make_dir_recursive_absolute(rig_dir)
 
 
-func _slim_offers(offers: Array) -> Array:
+func _write_bridge_ready_sentinel() -> void:
+	var path = ProjectSettings.globalize_path(_bridge_sentinel_path)
+	var file = FileAccess.open(path, FileAccess.WRITE)
+	if not file:
+		return
+	file.store_line(str(OS.get_process_id()))
+	file.close()
+
+
+func _clear_bridge_ready_sentinel() -> void:
+	var path = ProjectSettings.globalize_path(_bridge_sentinel_path)
+	if not FileAccess.file_exists(path):
+		return
+	var sentinel_pid = -1
+	var file = FileAccess.open(path, FileAccess.READ)
+	if file:
+		var raw = file.get_as_text().strip_edges()
+		file.close()
+		sentinel_pid = int(raw) if raw.is_valid_int() else -1
+	if sentinel_pid == -1 or sentinel_pid == OS.get_process_id():
+		DirAccess.remove_absolute(path)
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_PREDELETE:
+		_clear_bridge_ready_sentinel()
+
+
+func _apply_rig_logger_profile() -> void:
+	var verbose = get_root().get_node_or_null("VerboseConfig")
+	if not verbose:
+		return
+
+	var profile = OS.get_environment("RIG_LOG_PROFILE").to_lower()
+	if profile == "":
+		profile = "quiet"
+
+	match profile:
+		"quiet":
+			verbose.enable_console_output = false
+			verbose.enable_file_logging = false
+		"test", "trace":
+			_set_all_logger_levels(verbose, 4)
+		"debug":
+			_set_all_logger_levels(verbose, 3)
+		"normal":
+			pass
+
+	var overrides_raw = OS.get_environment("RIG_LOG_CATEGORY_LEVELS")
+	if overrides_raw == "":
+		return
+	for token in overrides_raw.split(","):
+		var trimmed = token.strip_edges()
+		if trimmed == "":
+			continue
+		var kv = trimmed.split(":")
+		if kv.size() != 2:
+			continue
+		var category = kv[0].strip_edges().to_lower()
+		var level_name = kv[1].strip_edges().to_lower()
+		var level = _parse_log_level(level_name)
+		if level >= 0 and verbose.has_method("set_category_level"):
+			verbose.set_category_level(category, level)
+
+
+func _set_all_logger_levels(verbose: Node, level: int) -> void:
+	if not verbose.has_method("get_all_categories") or not verbose.has_method("set_category_level"):
+		return
+	var categories = verbose.get_all_categories()
+	for category in categories:
+		verbose.set_category_level(str(category), level)
+
+
+func _parse_log_level(level_name: String) -> int:
+	match level_name:
+		"error":
+			return 0
+		"warn", "warning":
+			return 1
+		"info":
+			return 2
+		"debug":
+			return 3
+		"trace":
+			return 4
+		_:
+			return -1
+
+
+func _slim_offers(offers: Array, include_reward_resources: bool = true) -> Array:
 	var slim: Array = []
 	for offer in offers:
 		var quest_type = int(offer.get("type", -1))
 		var completion_action = "complete_quest" if quest_type == 0 else "complete_or_claim"
-		slim.append({
+		var row = {
 			"id": offer.get("id", -1),
 			"faction": offer.get("faction", ""),
 			"type": quest_type,
 			"resource": offer.get("resource", ""),
 			"quantity": offer.get("quantity", 0),
-			"body": offer.get("body", ""),
-			"time_limit": offer.get("time_limit", -1),
 			"reward_vocab_north": offer.get("reward_vocab_north", ""),
 			"reward_vocab_south": offer.get("reward_vocab_south", ""),
-			"reward_resources": offer.get("reward_resources", {}),
-			"biome": offer.get("biome", ""),
-			"status": offer.get("status", ""),
 			"completion_action": completion_action
+		}
+		if offer.has("market_projection"):
+			row["market_projection"] = offer.get("market_projection", {})
+		if include_reward_resources:
+			row["reward_resources"] = offer.get("reward_resources", {})
+		slim.append(row)
+	return slim
+
+
+func _slim_active_quests(quests: Array) -> Array:
+	var slim: Array = []
+	for quest in quests:
+		if not (quest is Dictionary):
+			continue
+		slim.append({
+			"id": quest.get("id", -1),
+			"faction": quest.get("faction", ""),
+			"type": int(quest.get("type", -1)),
+			"status": quest.get("status", ""),
+			"resource": quest.get("resource", ""),
+			"quantity": quest.get("quantity", 0),
+			"time_limit": quest.get("time_limit", -1),
+			"reward_vocab_north": quest.get("reward_vocab_north", ""),
+			"reward_vocab_south": quest.get("reward_vocab_south", ""),
+			"offered_at": int(quest.get("offered_at", 0)),
+			"accepted_at": int(quest.get("accepted_at", 0)),
 		})
 	return slim
+
+
+func _slim_probe_result(probe: Dictionary) -> Dictionary:
+	if not (probe is Dictionary):
+		return {"success": false, "error": "invalid_probe_payload"}
+	if not bool(probe.get("success", false)):
+		return {
+			"success": false,
+			"stage": str(probe.get("stage", "")),
+			"error": str(probe.get("error", "")),
+			"active_biome": str(probe.get("active_biome", ""))
+		}
+	var explore = probe.get("explore", {})
+	var measure = probe.get("measure", {})
+	var pop = probe.get("pop", {})
+	return {
+		"success": true,
+		"active_biome": str(probe.get("active_biome", "")),
+		"explore": {
+			"success": bool(explore.get("success", false)),
+			"register_id": int(explore.get("register_id", -1)),
+			"biome_name": str(explore.get("biome_name", ""))
+		},
+		"measure": {
+			"success": bool(measure.get("success", false)),
+			"outcome": str(measure.get("outcome", "")),
+			"probability": float(measure.get("probability", 0.0))
+		},
+		"pop": {
+			"success": bool(pop.get("success", false)),
+			"resource": str(pop.get("resource", "")),
+			"amount": int(pop.get("amount", 0))
+		}
+	}
 
 
 func _probe_cycle(biome_name: String) -> Dictionary:
@@ -563,6 +818,154 @@ func _run_victory_lap() -> Dictionary:
 		"harvest_total": harvest_total,
 		"harvest_failures": harvest_failures,
 		"milk_after": milk_amount
+	}
+
+
+func _run_victory_lap_partial(
+	selected_biomes: Array[String],
+	max_registers: int,
+	milk_spend: int,
+	phase_window: int
+) -> Dictionary:
+	if not _farm or not _farm.grid or not _farm.grid.biomes:
+		return {"success": false, "error": "no_farm_or_biomes"}
+	if not ("terminal_pool" in _farm) or not _farm.terminal_pool:
+		return {"success": false, "error": "no_terminal_pool"}
+
+	var target_registers = max(1, max_registers)
+	var target_phase_window = max(1, phase_window)
+	var target_milk_spend = max(0, milk_spend)
+	var biomes: Array[String] = []
+	var seen: Dictionary = {}
+	if selected_biomes.is_empty():
+		for biome_name in _farm.grid.biomes.keys():
+			if biome_name is String and str(biome_name) != "":
+				var b = str(biome_name)
+				if not seen.has(b):
+					biomes.append(b)
+					seen[b] = true
+	else:
+		for biome_name in selected_biomes:
+			if biome_name == "" or seen.has(biome_name):
+				continue
+			if not _farm.grid.biomes.has(biome_name):
+				continue
+			biomes.append(biome_name)
+			seen[biome_name] = true
+	biomes.sort()
+	if biomes.is_empty():
+		return {"success": false, "error": "no_target_biomes"}
+
+	var terminal_pool = _farm.terminal_pool
+	var explore_total = 0
+	var measure_total = 0
+	var harvest_total = 0
+	var explore_failures: Array = []
+	var measure_failures: Array = []
+	var harvest_failures: Array = []
+	var explored_terminals: Array = []
+
+	for biome_name in biomes:
+		if explore_total >= target_registers:
+			break
+		var biome = _farm.grid.biomes.get(biome_name, null)
+		if not biome:
+			continue
+		while explore_total < target_registers:
+			var explore = ProbeActions.action_explore(terminal_pool, biome, _farm.economy)
+			if not explore.get("success", false):
+				var reason = str(explore.get("error", "unknown"))
+				if reason != "no_registers":
+					explore_failures.append({"biome": biome_name, "error": reason, "details": explore})
+				break
+			explore_total += 1
+			var term = explore.get("terminal", null)
+			if term:
+				explored_terminals.append(term)
+			if terminal_pool.get_unbound_count() <= 0:
+				break
+
+	var measured_terminals: Array = []
+	for terminal in explored_terminals:
+		if not terminal or not terminal.is_bound:
+			continue
+		var t_biome_name = str(terminal.bound_biome_name)
+		var biome = _farm.grid.biomes.get(t_biome_name, null)
+		if not biome:
+			measure_failures.append({"terminal": terminal.terminal_id, "error": "unknown_biome", "biome": t_biome_name})
+			continue
+		var measure = ProbeActions.action_measure(terminal, biome, _farm.economy)
+		if measure.get("success", false):
+			measure_total += 1
+			measured_terminals.append(terminal)
+		else:
+			measure_failures.append({
+				"terminal": terminal.terminal_id,
+				"biome": t_biome_name,
+				"error": str(measure.get("error", "unknown")),
+				"details": measure
+			})
+
+	var milk_before = 0.0
+	if _farm and "economy" in _farm and _farm.economy and _farm.economy.has_method("get_resource"):
+		milk_before = float(_farm.economy.get_resource("🍼"))
+	var actual_milk_spend = 0.0
+	if target_milk_spend > 0 and _farm.economy and _farm.economy.has_method("remove_resource"):
+		var spend = min(float(target_milk_spend), milk_before)
+		if spend > 0.0 and _farm.economy.remove_resource("🍼", spend, "victory_lap_partial_spend"):
+			actual_milk_spend = spend
+
+	var register_factor = max(1.0, log(1.0 + float(max(0, measure_total))) / log(2.0))
+	var milk_factor = 1.0 + (0.20 * (log(1.0 + max(0.0, actual_milk_spend)) / log(2.0)))
+	var phase_factor = clamp(0.8 + (0.1 * float(target_phase_window - 1)), 0.8, 1.2)
+	var reward_multiplier = max(1.0, register_factor * milk_factor * phase_factor)
+	var bonus_total = 0.0
+	var bonus_by_emoji: Dictionary = {}
+
+	for terminal in measured_terminals:
+		if not terminal:
+			continue
+		var pop = ProbeActions.action_pop(terminal, terminal_pool, _farm.economy, _farm)
+		if pop.get("success", false):
+			harvest_total += 1
+			var resource = str(pop.get("resource", ""))
+			var amount = float(pop.get("amount", 0))
+			if resource != "" and amount > 0.0 and reward_multiplier > 1.0 and _farm.economy and _farm.economy.has_method("add_resource"):
+				var bonus = floor(max(0.0, amount * (reward_multiplier - 1.0)))
+				if bonus > 0.0:
+					_farm.economy.add_resource(resource, bonus, "victory_lap_partial_bonus")
+					bonus_total += bonus
+					bonus_by_emoji[resource] = float(bonus_by_emoji.get(resource, 0.0)) + bonus
+		else:
+			harvest_failures.append({
+				"terminal": terminal.terminal_id,
+				"error": str(pop.get("error", "unknown")),
+				"details": pop
+			})
+
+	var milk_after = milk_before
+	if _farm and "economy" in _farm and _farm.economy and _farm.economy.has_method("get_resource"):
+		milk_after = float(_farm.economy.get_resource("🍼"))
+
+	return {
+		"success": true,
+		"mode": "partial",
+		"biomes": biomes,
+		"max_registers": target_registers,
+		"phase_window": target_phase_window,
+		"milk_spend_requested": target_milk_spend,
+		"milk_spend_actual": actual_milk_spend,
+		"reward_multiplier": reward_multiplier,
+		"explore_total": explore_total,
+		"explore_failures": explore_failures,
+		"measure_total": measure_total,
+		"measure_failures": measure_failures,
+		"harvest_total": harvest_total,
+		"harvest_failures": harvest_failures,
+		"bonus_total": bonus_total,
+		"bonus_by_emoji": bonus_by_emoji,
+		"milk_before": milk_before,
+		"milk_after": milk_after
 	}
 
 

@@ -28,10 +28,12 @@ var _idle_emitted: bool = false
 
 var _farm: Node = null
 var _farm_instrument: Node = null  # FarmInstrument
+var _instrument = null  # QuantumInstrument
 var _last_offers: Array = []
 var _actions_executed: int = 0
 var _start_time_ms: int = 0
 var _auto_quit: bool = false  # If true, quit game on stop action
+var _sentinel_path: String = ""
 
 var _verbose = null
 
@@ -40,11 +42,12 @@ func _ready() -> void:
 	_verbose = get_node_or_null("/root/VerboseConfig")
 
 
-func setup(farm_ref: Node, farm_instrument_ref: Node) -> void:
+func setup(farm_ref: Node, farm_instrument_ref: Node, instrument_ref = null) -> void:
 	if not _verbose:
 		_verbose = get_node_or_null("/root/VerboseConfig")
 	_farm = farm_ref
 	_farm_instrument = farm_instrument_ref
+	_instrument = instrument_ref
 	_start_time_ms = Time.get_ticks_msec()
 
 	# Match milk hunter's XDG path (/tmp/sw_godot_milk_hunt by default)
@@ -62,12 +65,18 @@ func setup(farm_ref: Node, farm_instrument_ref: Node) -> void:
 	_auto_quit = OS.get_environment("RIG_AUTO_QUIT") == "1"
 
 	_ensure_rig_dir()
+	_sentinel_path = rig_dir.path_join("bridge_ready")
+	var sf = FileAccess.open(_sentinel_path, FileAccess.WRITE)
+	if sf:
+		sf.store_line(str(OS.get_process_id()))
+		sf.close()
 	set_physics_process(true)
 	print("[MilkHunterBridge] Phrame bridge active:")
 	print("  XDG_ROOT: %s" % xdg_root)
 	print("  Queue: %s" % _queue_path)
 	print("  Auto-quit: %s" % ("enabled" if _auto_quit else "disabled (handoff mode)"))
 	print("  Result: %s" % _result_path)
+	print("  Sentinel: %s" % _sentinel_path)
 
 
 func _physics_process(_delta: float) -> void:
@@ -92,7 +101,9 @@ func _read_next_line() -> String:
 	if not file:
 		return ""
 	var file_len = file.get_length()
-	if _queue_file_byte_offset >= file_len:
+	if _queue_file_byte_offset > file_len:
+		_queue_file_byte_offset = 0
+	if _queue_file_byte_offset == file_len:
 		return ""
 	file.seek(_queue_file_byte_offset)
 	var line = file.get_line()
@@ -192,41 +203,98 @@ func _execute_action(cmd: Dictionary) -> void:
 				var positions: Array[Vector2i] = _parse_positions(raw_positions, biome_name)
 				if positions.is_empty():
 					result = {"ok": false, "turn": turn_id, "action": action, "error": "no_valid_positions"}
+				elif _instrument:
+					result["gate_result"] = _instrument.gate_inject(gate_name, positions)
 				else:
 					result["gate_result"] = _farm_instrument.gate_inject(gate_name, positions)
 
 		"probe_cycle":
 			var biome_name = str(cmd.get("biome", ""))
-			result["probe"] = _probe_cycle(biome_name)
+			if _instrument:
+				result["probe"] = _instrument.probe_cycle(biome_name)
+				if _farm_instrument and _farm_instrument.has_method("show_probe_cycle_status"):
+					_farm_instrument.show_probe_cycle_status(biome_name, result["probe"])
+			else:
+				result["probe"] = _probe_cycle(biome_name)
 
 		"configure_seed_state":
-			result["seed_state"] = _configure_seed_state(cmd)
+			if _instrument:
+				result["seed_state"] = _instrument.configure_seed_state(cmd)
+			else:
+				result["seed_state"] = _configure_seed_state(cmd)
 
 		"explore_biome":
-			if not _farm or not _farm.has_method("explore_biome"):
+			if _instrument:
+				result["explore_biome"] = _instrument.action_explore_biome()
+			elif not _farm or not _farm.has_method("explore_biome"):
 				result = {"ok": false, "turn": turn_id, "action": action, "error": "farm_explore_unavailable"}
 			else:
 				result["explore_biome"] = _farm.explore_biome()
 
 		"victory_lap":
-			result["victory_lap"] = _run_victory_lap()
+			if _instrument:
+				result["victory_lap"] = _instrument.victory_lap()
+			else:
+				result["victory_lap"] = _run_victory_lap()
 
 		"inject_vocab":
 			var biome_name = str(cmd.get("biome", ""))
-			var pair_index = int(cmd.get("pair_index", -1))
-			var pairs = _farm_instrument.get_known_vocab_pairs()
-			if biome_name == "" or pair_index < 0 or pair_index >= pairs.size():
-				result = {"ok": false, "turn": turn_id, "action": action, "error": "invalid_inject_args"}
+			if _instrument and biome_name != "":
+				result["inject_result"] = _instrument.action_inject_vocabulary(biome_name)
 			else:
-				var positions_raw = _farm_instrument.get_biome_positions(biome_name)
-				if positions_raw.is_empty():
-					result = {"ok": false, "turn": turn_id, "action": action, "error": "no_biome_positions"}
+				var pair_index = int(cmd.get("pair_index", -1))
+				var pairs = _farm_instrument.get_known_vocab_pairs()
+				if biome_name == "" or pair_index < 0 or pair_index >= pairs.size():
+					result = {"ok": false, "turn": turn_id, "action": action, "error": "invalid_inject_args"}
 				else:
-					var pair = pairs[pair_index]
-					var positions: Array[Vector2i] = []
-					for pos in positions_raw:
-						positions.append(pos)
-					result["inject_result"] = BiomeHandler.inject_vocabulary(_farm, positions, pair)
+					var positions_raw = _farm_instrument.get_biome_positions(biome_name)
+					if positions_raw.is_empty():
+						result = {"ok": false, "turn": turn_id, "action": action, "error": "no_biome_positions"}
+					else:
+						var pair = pairs[pair_index]
+						var positions: Array[Vector2i] = []
+						for pos in positions_raw:
+							positions.append(pos)
+						result["inject_result"] = BiomeHandler.inject_vocabulary(_farm, positions, pair)
+
+		"save_game":
+			var slot = int(cmd.get("slot", -1))
+			var gsm = get_node_or_null("/root/GameStateManager")
+			if not gsm:
+				result = {"ok": false, "turn": turn_id, "action": action, "error": "no_game_state_manager"}
+			else:
+				result["slot"] = slot
+				result["saved"] = gsm.save_game(slot)
+				result["save_path"] = gsm.get_save_path(slot) if gsm.has_method("get_save_path") else ""
+
+		"load_game":
+			var slot = int(cmd.get("slot", -1))
+			var gsm = get_node_or_null("/root/GameStateManager")
+			if not gsm:
+				result = {"ok": false, "turn": turn_id, "action": action, "error": "no_game_state_manager"}
+			else:
+				result["slot"] = slot
+				result["loaded"] = gsm.load_and_apply(slot)
+
+		"load_game_alias":
+			var alias = str(cmd.get("alias", ""))
+			var gsm = get_node_or_null("/root/GameStateManager")
+			if not gsm:
+				result = {"ok": false, "turn": turn_id, "action": action, "error": "no_game_state_manager"}
+			elif alias == "":
+				result = {"ok": false, "turn": turn_id, "action": action, "error": "missing_alias"}
+			else:
+				result["alias"] = alias
+				result["loaded"] = gsm.load_and_apply_emoji_alias(alias)
+
+		"save_info":
+			var slot = int(cmd.get("slot", -1))
+			var gsm = get_node_or_null("/root/GameStateManager")
+			if not gsm:
+				result = {"ok": false, "turn": turn_id, "action": action, "error": "no_game_state_manager"}
+			else:
+				result["slot"] = slot
+				result["info"] = gsm.get_save_info(slot)
 
 		"stop":
 			_active = false
@@ -246,6 +314,7 @@ func _execute_action(cmd: Dictionary) -> void:
 			else:
 				_v_info("Bridge stopped (turn %d) - handoff to user" % turn_id)
 				print("[MilkHunterBridge] Milk hunt complete. Game ready for user control.")
+			_remove_sentinel()
 			return
 
 		_:
@@ -437,6 +506,16 @@ func _configure_seed_state(cmd: Dictionary) -> Dictionary:
 		out["active_biome"] = active_biome
 
 	return out
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_WM_CLOSE_REQUEST:
+		_remove_sentinel()
+
+
+func _remove_sentinel() -> void:
+	if _sentinel_path != "":
+		DirAccess.remove_absolute(_sentinel_path)
 
 
 # ==========================================================================

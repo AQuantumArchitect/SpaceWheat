@@ -1,0 +1,28 @@
+{
+  "name": "solar_gatekeeper",
+  "description": "Sun-forged laborer who flips polar gates.",
+  "scenario_id": "default",
+  "strict_biome_economy": true,
+  "resources": {
+    "🍞": 32,
+    "❄️": 16,
+    "👥": 8,
+    "☀": 4,
+    "🔥": 2,
+    "⚡": 1
+  },
+  "known_pairs": [
+    {
+      "north": "☀",
+      "south": "🔥"
+    },
+    {
+      "north": "⚡",
+      "south": "🌙"
+    }
+  ],
+  "unlocked_biomes": [
+    "StarterForest",
+    "Village"
+  ]
+}

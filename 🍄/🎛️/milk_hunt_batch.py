@@ -29,6 +29,13 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--load-alias", type=str, default=None, help="Load each trial from emoji alias save filename/path")
     parser.add_argument("--profile", type=str, default=None, help="Profile name for starter seeding")
     parser.add_argument("--world-state", type=str, default=None, help="World state JSON path (alternative to --profile)")
+    parser.add_argument("--hunter-profile", type=str, default=None, help="Policy profile passed to runner")
+    parser.add_argument(
+        "--hunter-policy",
+        choices=["auto", "classic", "quantum_graph"],
+        default=None,
+        help="Policy mode passed to runner",
+    )
     parser.add_argument("--strategy", type=str, default=None, help="Strategy JSON path passed to runner")
     parser.add_argument("--seed-slot", type=int, default=2, help="Save slot to write profile seed into")
     parser.add_argument("--seed-from-slot", type=int, default=None, help="Optional slot to load before profile seeding")
@@ -77,6 +84,8 @@ def _run_trial(
     turn_start: int,
     no_stop: bool,
     strategy_path: str | None = None,
+    hunter_profile: str | None = None,
+    hunter_policy: str | None = None,
 ) -> Dict[str, Any]:
     run_name = f"run_{run_idx:03d}"
     run_dir = batch_dir / run_name
@@ -96,6 +105,10 @@ def _run_trial(
     ]
     if strategy_path is not None:
         cmd.extend(["--strategy", strategy_path])
+    if hunter_profile is not None:
+        cmd.extend(["--hunter-profile", hunter_profile])
+    if hunter_policy is not None:
+        cmd.extend(["--hunter-policy", hunter_policy])
     if load_slot is not None:
         cmd.extend(["--load-slot", str(load_slot)])
     if load_alias is not None:
@@ -194,6 +207,8 @@ def main() -> int:
     strict_biome_economy = args.strict_biome_economy
     if strict_biome_economy is None and profile and "strict_biome_economy" in profile:
         strict_biome_economy = bool(profile.get("strict_biome_economy"))
+    hunter_profile = args.hunter_profile or args.profile
+    hunter_policy = args.hunter_policy
 
     run_summaries: List[Dict[str, Any]] = []
     turn_cursor = 1
@@ -211,6 +226,8 @@ def main() -> int:
             turn_start=turn_cursor,
             no_stop=no_stop,
             strategy_path=args.strategy,
+            hunter_profile=hunter_profile,
+            hunter_policy=hunter_policy,
         )
         run_summaries.append(summary)
         found = bool(summary.get("found_milk_pair", False))

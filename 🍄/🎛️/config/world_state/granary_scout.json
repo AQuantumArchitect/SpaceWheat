@@ -1,0 +1,28 @@
+{
+  "name": "granary_scout",
+  "description": "Bread-first survivor with controlled starter crop stocks.",
+  "scenario_id": "default",
+  "strict_biome_economy": false,
+  "resources": {
+    "🍞": 32,
+    "❄️": 16,
+    "👥": 8,
+    "🌾": 4,
+    "🌱": 2,
+    "⚙": 1
+  },
+  "known_pairs": [
+    {
+      "north": "🌾",
+      "south": "🌱"
+    },
+    {
+      "north": "🍞",
+      "south": "👥"
+    }
+  ],
+  "unlocked_biomes": [
+    "StarterForest",
+    "Village"
+  ]
+}

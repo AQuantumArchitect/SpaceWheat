@@ -4,11 +4,13 @@ import json
 import os
 import subprocess
 import sys
+import time
 from collections import deque
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
 
 from milk_hunt_paths import project_root
+from milk_hunt_quantum_policy import HunterStateAdapter, QuantumGraphPolicy
 from milk_hunt_runtime_config import get_cfg_bool, get_cfg_int, get_cfg_str, load_json_config
 from milk_hunt_strategy import Strategy, load_strategy
 from rig_client import RigClient
@@ -18,6 +20,16 @@ MILK = "\U0001F37C"
 PROJECT_ROOT = project_root()
 _RIG = RigClient(root_from_file=Path(__file__))
 FACTIONS_PATH = PROJECT_ROOT / "Core" / "Factions" / "data" / "factions_merged.json"
+_TURN_MIN_INTERVAL_S: float = 0.0
+_LAST_TURN_TS: float = 0.0
+
+
+class TurnTimeoutError(TimeoutError):
+    def __init__(self, turn_id: int, action: str, timeout_s: float) -> None:
+        super().__init__(f"turn={turn_id} action={action} timeout_waiting_for_result timeout_s={timeout_s:.1f}")
+        self.turn_id = int(turn_id)
+        self.action = str(action)
+        self.timeout_s = float(timeout_s)
 
 
 def _safe_print(msg: str) -> None:
@@ -44,11 +56,19 @@ def _start_listener(
     load_slot: Optional[int] = None,
     scenario_id: str = "default",
     allow_resource_injection: Optional[bool] = None,
+    listener_stdout: str = "file",
+    listener_log_path: Optional[Path] = None,
+    rig_log_profile: Optional[str] = None,
+    rig_log_category_levels: Optional[str] = None,
 ) -> Any:
     return _RIG.start_listener(
         load_slot=load_slot,
         scenario_id=scenario_id,
         allow_resource_injection=allow_resource_injection,
+        listener_stdout=listener_stdout,
+        listener_log_path=listener_log_path,
+        rig_log_profile=rig_log_profile,
+        rig_log_category_levels=rig_log_category_levels,
     )
 
 
@@ -64,8 +84,38 @@ def _wait_for_turn(turn_id: int, timeout_s: float = 10.0) -> Optional[Dict[str, 
     return _RIG.wait_for_turn(turn_id, timeout_s=timeout_s)
 
 
+def _pace_turn_rate() -> None:
+    global _LAST_TURN_TS
+    if _TURN_MIN_INTERVAL_S <= 0.0:
+        return
+    now = time.monotonic()
+    if _LAST_TURN_TS > 0.0:
+        elapsed = now - _LAST_TURN_TS
+        if elapsed < _TURN_MIN_INTERVAL_S:
+            time.sleep(_TURN_MIN_INTERVAL_S - elapsed)
+    _LAST_TURN_TS = time.monotonic()
+
+
 def _run_turn(turn_id: int, action: str, **kwargs: Any) -> Dict[str, Any]:
-    return _RIG.run_turn(turn_id, action, **kwargs)
+    timeout_s = kwargs.pop("timeout_s", None)
+    if timeout_s is None:
+        if action in {"complete_quest", "complete_or_claim", "claim_quest"}:
+            timeout_s = 120.0
+        elif action in {"active_quests"}:
+            timeout_s = 45.0
+        elif action in {"offer_quests", "accept_offer", "known_vocab_pairs", "resource_snapshot"}:
+            timeout_s = 20.0
+        elif action in {"probe_cycle", "explore_biome"}:
+            timeout_s = 20.0
+        elif action == "victory_lap":
+            timeout_s = 180.0
+        else:
+            timeout_s = 10.0
+    _pace_turn_rate()
+    row = _RIG.run_turn(turn_id, action, timeout_s=float(timeout_s), progress_interval_s=5.0, **kwargs)
+    if isinstance(row, dict) and row.get("error") == "timeout_waiting_for_result":
+        raise TurnTimeoutError(turn_id=turn_id, action=action, timeout_s=float(timeout_s))
+    return row
 
 
 def _extract_pairs(rows: List[Dict[str, Any]]) -> List[Dict[str, str]]:
@@ -98,6 +148,106 @@ def _extract_biomes(rows: List[Dict[str, Any]]) -> List[str]:
             continue
         biomes = [str(b) for b in val if isinstance(b, str) and b]
     return biomes
+
+
+def _tail_lines(path: Path, max_lines: int = 6) -> List[str]:
+    if not path.exists():
+        return []
+    try:
+        data = path.read_text(encoding="utf-8", errors="replace").splitlines()
+    except OSError:
+        return []
+    if max_lines <= 0:
+        return []
+    return data[-max_lines:]
+
+
+def _tail_json_rows(path: Path, max_rows: int = 6) -> List[Dict[str, Any]]:
+    rows: List[Dict[str, Any]] = []
+    for line in _tail_lines(path, max_lines=max_rows):
+        raw = line.strip()
+        if not raw:
+            continue
+        try:
+            payload = json.loads(raw)
+        except json.JSONDecodeError:
+            payload = {"raw": raw}
+        if isinstance(payload, dict):
+            rows.append(payload)
+    return rows
+
+
+def _compact_diag_row(row: Dict[str, Any]) -> Dict[str, Any]:
+    out: Dict[str, Any] = {}
+    for key in ("turn", "action", "ok", "duration_ms", "error"):
+        if key in row:
+            out[key] = row.get(key)
+    if "quest_id" in row:
+        out["quest_id"] = row.get("quest_id")
+    if "accepted" in row:
+        out["accepted"] = row.get("accepted")
+    if "completed" in row:
+        out["completed"] = row.get("completed")
+    if "completed_or_claimed" in row:
+        out["completed_or_claimed"] = row.get("completed_or_claimed")
+    if "claimed" in row:
+        out["claimed"] = row.get("claimed")
+    if "offers" in row and isinstance(row.get("offers"), list):
+        out["offers_count"] = len(row["offers"])
+    if "quests" in row and isinstance(row.get("quests"), list):
+        out["quests_count"] = len(row["quests"])
+    return out
+
+
+def _compact_batcher_metrics(metrics: Dict[str, Any]) -> Dict[str, Any]:
+    out: Dict[str, Any] = {}
+    for key in (
+        "physics_fps",
+        "phrame_cap_hz",
+        "buffer_depth",
+        "packets_pending",
+        "threads_running",
+        "watchdog_stall_warnings",
+        "avg_batch_time_ms",
+        "last_batch_time_ms",
+    ):
+        if key in metrics:
+            out[key] = metrics.get(key)
+    return out
+
+
+def _rig_timeout_diagnostics(turn_id: int, action: str) -> Dict[str, Any]:
+    queue_path = _RIG.queue_file
+    results_path = _RIG.results_file
+    queue_tail = _tail_json_rows(queue_path, max_rows=8)
+    results_tail = _tail_json_rows(results_path, max_rows=8)
+    queue_tail_compact = [_compact_diag_row(row) for row in queue_tail]
+    results_tail_compact = [_compact_diag_row(row) for row in results_tail]
+    queue_last = queue_tail_compact[-1] if queue_tail_compact else {}
+    results_last = results_tail_compact[-1] if results_tail_compact else {}
+    try:
+        queue_size = queue_path.stat().st_size if queue_path.exists() else 0
+    except OSError:
+        queue_size = -1
+    try:
+        results_size = results_path.stat().st_size if results_path.exists() else 0
+    except OSError:
+        results_size = -1
+
+    return {
+        "expected_turn": int(turn_id),
+        "expected_action": str(action),
+        "queue_path": str(queue_path),
+        "results_path": str(results_path),
+        "queue_size_bytes": queue_size,
+        "results_size_bytes": results_size,
+        "queue_tail_count": len(queue_tail),
+        "results_tail_count": len(results_tail),
+        "queue_last": queue_last,
+        "results_last": results_last,
+        "queue_tail": queue_tail_compact,
+        "results_tail": results_tail_compact,
+    }
 
 
 def _load_faction_data() -> Tuple[Dict[str, Set[str]], Dict[str, int]]:
@@ -337,6 +487,55 @@ def _parse_resource_floor_overrides(values: List[str]) -> Dict[str, float]:
     return out
 
 
+def _parse_biome_list(raw: Optional[str]) -> List[str]:
+    if not raw:
+        return []
+    out: List[str] = []
+    seen: Set[str] = set()
+    for token in str(raw).split(","):
+        name = token.strip()
+        if not name or name in seen:
+            continue
+        out.append(name)
+        seen.add(name)
+    return out
+
+
+def _encode_positions_for_rig(raw_positions: Any, limit: int = 0, offset: int = 0) -> List[List[int]]:
+    out: List[List[int]] = []
+    if not isinstance(raw_positions, list) or not raw_positions:
+        return out
+    normalized: List[List[int]] = []
+    for entry in raw_positions:
+        x_val: Any = None
+        y_val: Any = None
+        if isinstance(entry, (list, tuple)) and len(entry) >= 2:
+            x_val, y_val = entry[0], entry[1]
+        elif isinstance(entry, dict):
+            x_val = entry.get("x")
+            y_val = entry.get("y")
+        if x_val is None or y_val is None:
+            continue
+        try:
+            x = int(x_val)
+            y = int(y_val)
+        except (TypeError, ValueError):
+            continue
+        normalized.append([x, y])
+    if not normalized:
+        return out
+    if limit <= 0 or limit >= len(normalized):
+        return normalized
+    start = offset % len(normalized) if offset > 0 else 0
+    idx = start
+    while len(out) < limit:
+        out.append(normalized[idx])
+        idx = (idx + 1) % len(normalized)
+        if idx == start:
+            break
+    return out
+
+
 def _enforce_primary_resource_floors(
     turn: int,
     history: List[Dict[str, Any]],
@@ -416,6 +615,25 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--load-alias", type=str, default=None, help="Load from emoji alias save filename/path")
     parser.add_argument("--scenario-id", type=str, default=None, help="Scenario id when not loading a slot")
     parser.add_argument(
+        "--hunter-profile",
+        type=str,
+        default=None,
+        help="Profile identity for policy tuning (e.g. granary_scout)",
+    )
+    parser.add_argument(
+        "--hunter-policy",
+        type=str,
+        choices=["auto", "classic", "quantum_graph"],
+        default=None,
+        help="Offer/probe policy mode (default: auto => quantum_graph for granary_scout)",
+    )
+    parser.add_argument(
+        "--policy-trace-limit",
+        type=int,
+        default=300,
+        help="Maximum number of policy decision events to keep in summary",
+    )
+    parser.add_argument(
         "--strict-biome-economy",
         dest="strict_biome_economy",
         action="store_true",
@@ -436,6 +654,54 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--turn-start", type=int, default=1, help="Turn id to start at")
     parser.add_argument("--no-stop", action="store_true", help="Skip sending stop on exit")
     parser.add_argument("--no-clear-rig", action="store_true", help="Skip clearing rig queue/results files")
+    parser.add_argument(
+        "--target-turn-hz",
+        type=float,
+        default=0.0,
+        help="Optional turn pacing cap (0 disables pacing, 10 ~= 100ms between rig turns)",
+    )
+    parser.add_argument(
+        "--metrics-every",
+        type=int,
+        default=0,
+        help="Sample batcher metrics every N loops (0 disables periodic sampling)",
+    )
+    parser.add_argument(
+        "--include-offer-reward-resources",
+        dest="include_offer_reward_resources",
+        action="store_true",
+        help="Include reward_resources payload in offer_quests responses",
+    )
+    parser.add_argument(
+        "--no-include-offer-reward-resources",
+        dest="include_offer_reward_resources",
+        action="store_false",
+        help="Exclude reward_resources from offer_quests payload to reduce IO",
+    )
+    parser.add_argument(
+        "--rig-listener-stdout",
+        choices=["file", "pipe", "null"],
+        default="file",
+        help="Listener stdout mode: file (default), pipe, or null",
+    )
+    parser.add_argument(
+        "--rig-listener-log",
+        type=Path,
+        default=None,
+        help="Optional log file path when --rig-listener-stdout=file",
+    )
+    parser.add_argument(
+        "--rig-log-profile",
+        choices=["quiet", "normal", "debug", "trace", "test"],
+        default="quiet",
+        help="Rig listener VerboseConfig profile",
+    )
+    parser.add_argument(
+        "--rig-log-categories",
+        type=str,
+        default="",
+        help="Optional category overrides, e.g. quest:debug,boot:warn",
+    )
     parser.add_argument(
         "--allow-rig-resource-injection",
         dest="allow_rig_resource_injection",
@@ -521,19 +787,66 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_false",
         help="Skip post-milk victory lap",
     )
+    parser.add_argument(
+        "--lindblad-drain-focus",
+        dest="lindblad_drain_focus",
+        action="store_true",
+        help="Enable Lindblad-drain-first behavior before quest offer/accept loops",
+    )
+    parser.add_argument(
+        "--no-lindblad-drain-focus",
+        dest="lindblad_drain_focus",
+        action="store_false",
+        help="Disable Lindblad-drain-first behavior",
+    )
+    parser.add_argument(
+        "--lindblad-drain-every",
+        type=int,
+        default=None,
+        help="Run drain branch every N loops (default: 1 when enabled)",
+    )
+    parser.add_argument(
+        "--lindblad-drain-max-biomes-per-loop",
+        type=int,
+        default=None,
+        help="Maximum biomes to attempt for drain each drain loop",
+    )
+    parser.add_argument(
+        "--lindblad-drain-max-plots",
+        type=int,
+        default=None,
+        help="Maximum plot positions per drain action (0 means full biome selection)",
+    )
+    parser.add_argument(
+        "--lindblad-drain-biomes",
+        type=str,
+        default=None,
+        help="Comma-separated biome override order for drain branch",
+    )
+    parser.add_argument(
+        "--lindblad-drain-slices",
+        type=int,
+        default=None,
+        help="Micro-slices per selected biome each drain loop (weak time-scale control)",
+    )
     parser.set_defaults(enforce_primary_resource_floors=True, allow_rig_resource_injection=True)
     parser.set_defaults(victory_lap=True)
     parser.set_defaults(strict_biome_economy=True)
+    parser.set_defaults(include_offer_reward_resources=True)
+    parser.set_defaults(lindblad_drain_focus=None)
     return parser
 
 
 def main() -> int:
+    global _TURN_MIN_INTERVAL_S, _LAST_TURN_TS
     args = _build_parser().parse_args()
     cfg = load_json_config(args.config)
     strategy = load_strategy(args.strategy)
     load_slot = args.load_slot
     load_alias = args.load_alias
     scenario_id = args.scenario_id
+    hunter_profile = args.hunter_profile
+    hunter_policy_mode = args.hunter_policy
     strict_biome_economy = args.strict_biome_economy
     max_loops = args.max_loops
 
@@ -559,6 +872,20 @@ def main() -> int:
     if not scenario_id:
         scenario_id = "default"
 
+    if not hunter_profile:
+        hunter_profile = get_cfg_str(cfg, "hunter_profile")
+    if not hunter_profile and os.environ.get("MILK_HUNT_PROFILE", "") != "":
+        hunter_profile = os.environ["MILK_HUNT_PROFILE"]
+    if not hunter_profile:
+        hunter_profile = "default"
+
+    if hunter_policy_mode is None:
+        hunter_policy_mode = get_cfg_str(cfg, "hunter_policy")
+    if not hunter_policy_mode and os.environ.get("MILK_HUNT_POLICY", "") != "":
+        hunter_policy_mode = os.environ["MILK_HUNT_POLICY"]
+    if hunter_policy_mode not in {"auto", "classic", "quantum_graph"}:
+        hunter_policy_mode = "auto"
+
     if strict_biome_economy is None:
         val = strategy.strict_biome_economy
         if val is not None:
@@ -567,6 +894,10 @@ def main() -> int:
             strict_biome_economy = get_cfg_bool(cfg, "strict_biome_economy")
     if strict_biome_economy is None:
         strict_biome_economy = True
+    _TURN_MIN_INTERVAL_S = (1.0 / args.target_turn_hz) if args.target_turn_hz and args.target_turn_hz > 0 else 0.0
+    _LAST_TURN_TS = 0.0
+    metrics_every = max(0, int(args.metrics_every))
+    include_offer_reward_resources = bool(args.include_offer_reward_resources)
 
     # Eagle / expansion defaults: CLI > strategy > hardcoded
     eagle_emoji = args.eagle_emoji if args.eagle_emoji is not None else strategy.eagle_emoji
@@ -578,6 +909,52 @@ def main() -> int:
 
     primary_resource_floors = dict(strategy.resource_floors)
     primary_resource_floors.update(_parse_resource_floor_overrides(args.resource_floor))
+    lindblad_drain_focus = args.lindblad_drain_focus
+    if lindblad_drain_focus is None:
+        lindblad_drain_focus = get_cfg_bool(cfg, "lindblad_drain_focus")
+    if lindblad_drain_focus is None and os.environ.get("MILK_HUNT_LINDBLAD_DRAIN_FOCUS", "") != "":
+        lindblad_drain_focus = os.environ["MILK_HUNT_LINDBLAD_DRAIN_FOCUS"].strip().lower() in {
+            "1",
+            "true",
+            "yes",
+            "on",
+        }
+    if lindblad_drain_focus is None:
+        lindblad_drain_focus = False
+    lindblad_drain_every = args.lindblad_drain_every
+    if lindblad_drain_every is None:
+        lindblad_drain_every = get_cfg_int(cfg, "lindblad_drain_every")
+    if lindblad_drain_every is None and os.environ.get("MILK_HUNT_LINDBLAD_DRAIN_EVERY", "") != "":
+        lindblad_drain_every = int(os.environ["MILK_HUNT_LINDBLAD_DRAIN_EVERY"])
+    if lindblad_drain_every is None:
+        lindblad_drain_every = 1
+    lindblad_drain_max_biomes_per_loop = args.lindblad_drain_max_biomes_per_loop
+    if lindblad_drain_max_biomes_per_loop is None:
+        lindblad_drain_max_biomes_per_loop = get_cfg_int(cfg, "lindblad_drain_max_biomes_per_loop")
+    if lindblad_drain_max_biomes_per_loop is None and os.environ.get("MILK_HUNT_LINDBLAD_DRAIN_MAX_BIOMES", "") != "":
+        lindblad_drain_max_biomes_per_loop = int(os.environ["MILK_HUNT_LINDBLAD_DRAIN_MAX_BIOMES"])
+    if lindblad_drain_max_biomes_per_loop is None:
+        lindblad_drain_max_biomes_per_loop = 1
+    lindblad_drain_max_plots = args.lindblad_drain_max_plots
+    if lindblad_drain_max_plots is None:
+        lindblad_drain_max_plots = get_cfg_int(cfg, "lindblad_drain_max_plots")
+    if lindblad_drain_max_plots is None and os.environ.get("MILK_HUNT_LINDBLAD_DRAIN_MAX_PLOTS", "") != "":
+        lindblad_drain_max_plots = int(os.environ["MILK_HUNT_LINDBLAD_DRAIN_MAX_PLOTS"])
+    if lindblad_drain_max_plots is None:
+        lindblad_drain_max_plots = 2
+    lindblad_drain_biomes_raw = args.lindblad_drain_biomes
+    if lindblad_drain_biomes_raw is None:
+        lindblad_drain_biomes_raw = get_cfg_str(cfg, "lindblad_drain_biomes")
+    if lindblad_drain_biomes_raw is None and os.environ.get("MILK_HUNT_LINDBLAD_DRAIN_BIOMES", "") != "":
+        lindblad_drain_biomes_raw = os.environ["MILK_HUNT_LINDBLAD_DRAIN_BIOMES"]
+    configured_lindblad_biomes = _parse_biome_list(lindblad_drain_biomes_raw)
+    lindblad_drain_slices = args.lindblad_drain_slices
+    if lindblad_drain_slices is None:
+        lindblad_drain_slices = get_cfg_int(cfg, "lindblad_drain_slices")
+    if lindblad_drain_slices is None and os.environ.get("MILK_HUNT_LINDBLAD_DRAIN_SLICES", "") != "":
+        lindblad_drain_slices = int(os.environ["MILK_HUNT_LINDBLAD_DRAIN_SLICES"])
+    if lindblad_drain_slices is None:
+        lindblad_drain_slices = 1
 
     if load_alias:
         load_slot = None
@@ -592,6 +969,10 @@ def main() -> int:
             load_slot=load_slot,
             scenario_id=scenario_id,
             allow_resource_injection=args.allow_rig_resource_injection,
+            listener_stdout=args.rig_listener_stdout,
+            listener_log_path=args.rig_listener_log,
+            rig_log_profile=args.rig_log_profile,
+            rig_log_category_levels=args.rig_log_categories,
         )
         boot_lines = _wait_for_ready(proc, timeout_s=70.0)
         if proc.poll() is not None:
@@ -599,7 +980,10 @@ def main() -> int:
             for line in boot_lines[-20:]:
                 _safe_print(line)
             return 1
-        if not any("Rig ready. Waiting for turns in:" in ln for ln in boot_lines):
+        if not any(
+            ("Rig ready. Waiting for turns in:" in ln) or ("ready via bridge sentinel" in ln)
+            for ln in boot_lines
+        ):
             _safe_print("milk-hunt: listener did not reach ready state")
             for line in boot_lines[-20:]:
                 _safe_print(line)
@@ -614,6 +998,10 @@ def main() -> int:
                 load_slot=load_slot,
                 scenario_id=scenario_id,
                 allow_resource_injection=args.allow_rig_resource_injection,
+                listener_stdout=args.rig_listener_stdout,
+                listener_log_path=args.rig_listener_log,
+                rig_log_profile=args.rig_log_profile,
+                rig_log_category_levels=args.rig_log_categories,
             )
             boot_lines = _wait_for_ready(proc, timeout_s=70.0)
             if proc.poll() is not None:
@@ -621,13 +1009,20 @@ def main() -> int:
                 for line in boot_lines[-20:]:
                     _safe_print(line)
                 return 1
-            if not any("Rig ready. Waiting for turns in:" in ln for ln in boot_lines):
+            if not any(
+                ("Rig ready. Waiting for turns in:" in ln) or ("ready via bridge sentinel" in ln)
+                for ln in boot_lines
+            ):
                 _safe_print("milk-hunt: listener did not reach ready state")
                 for line in boot_lines[-20:]:
                     _safe_print(line)
                 proc.terminate()
                 return 1
         else:
+            if RigClient._bridge_sentinel_path().exists():
+                _safe_print("milk-hunt: phrame bridge detected — visual mode")
+            else:
+                _safe_print("milk-hunt: reusing existing headless listener")
             if not args.no_clear_rig:
                 _clear_rig_files()
 
@@ -641,6 +1036,16 @@ def main() -> int:
         RigClient.terminate_listener(proc, timeout_s=5.0)
         return 4
     faction_sigs, milk_distances = _load_faction_data()
+    use_quantum_graph_policy = hunter_policy_mode == "quantum_graph" or (
+        hunter_policy_mode == "auto" and hunter_profile == "granary_scout"
+    )
+    quantum_policy: Optional[QuantumGraphPolicy] = None
+    if use_quantum_graph_policy:
+        quantum_policy = QuantumGraphPolicy(
+            profile_name=hunter_profile,
+            strategy=strategy,
+            faction_signatures=faction_sigs,
+        )
 
     try:
         if load_alias is not None:
@@ -683,8 +1088,24 @@ def main() -> int:
         biome_resource_hits: Dict[str, Dict[str, int]] = {}
         biome_probe_events: List[Dict[str, Any]] = []
         vocab_milestones: List[Dict[str, Any]] = []
+        policy_decisions: List[Dict[str, Any]] = []
+        lindblad_biome_attempts: Dict[str, int] = {}
+        lindblad_biomes_activated: Set[str] = set()
+        lindblad_drain_events: List[Dict[str, Any]] = []
+        policy_trace_limit = max(0, int(args.policy_trace_limit))
+
+        def _append_policy_decision(event: Dict[str, Any]) -> None:
+            if policy_trace_limit <= 0:
+                return
+            if len(policy_decisions) < policy_trace_limit:
+                policy_decisions.append(event)
+                return
+            if len(policy_decisions) == policy_trace_limit:
+                policy_decisions.append({"kind": "trace_truncated", "limit": policy_trace_limit})
+
         biome_expansion_events: List[Dict[str, Any]] = []
         primary_resource_floor_events: List[Dict[str, Any]] = []
+        batcher_metrics_samples: List[Dict[str, Any]] = []
         expansions_attempted = 0
         expansions_succeeded = 0
         loops_completed = 0
@@ -770,11 +1191,225 @@ def main() -> int:
                     if float(current_resources.get(eagle_emoji, 0.0)) >= float(eagle_target_stock):
                         break
 
+            loop_biomes = _extract_biomes(history)
+            if lindblad_drain_focus and (loop_idx % max(1, int(lindblad_drain_every)) == 0):
+                candidate_biomes = configured_lindblad_biomes if configured_lindblad_biomes else list(loop_biomes)
+                if not candidate_biomes:
+                    grid_for_drain = _run_turn(turn, "grid_snapshot")
+                    history.append(grid_for_drain)
+                    turn += 1
+                    loop_biomes = _extract_biomes(history)
+                    candidate_biomes = configured_lindblad_biomes if configured_lindblad_biomes else list(loop_biomes)
+
+                unique_biomes: List[str] = []
+                seen_biomes: Set[str] = set()
+                for biome_name in candidate_biomes:
+                    if not biome_name or biome_name in seen_biomes:
+                        continue
+                    unique_biomes.append(biome_name)
+                    seen_biomes.add(biome_name)
+                selected_biomes: List[str] = []
+                lindblad_rankings: List[Dict[str, Any]] = []
+                if quantum_policy is not None:
+                    lind_state = HunterStateAdapter.build(
+                        loop_idx=loop_idx,
+                        max_loops=max_loops,
+                        known_pairs=_extract_pairs(history),
+                        resources=current_resources,
+                        offers=[],
+                        eligible_offer_indices=[],
+                        biomes=unique_biomes,
+                        discovered_biomes=discovered_biomes,
+                        biome_explore_counts=biome_explore_counts,
+                        biome_resource_hits=biome_resource_hits,
+                        strict_biome_economy=strict_biome_economy,
+                        resource_floors=primary_resource_floors,
+                    )
+                    selected_biomes, lindblad_rankings = quantum_policy.choose_lindblad_biomes(
+                        lind_state,
+                        unique_biomes,
+                        max_biomes=max(1, int(lindblad_drain_max_biomes_per_loop)),
+                    )
+                    _append_policy_decision(
+                        {
+                            "kind": "lindblad_drain",
+                            "loop": loop_idx + 1,
+                            "selected_biomes": selected_biomes,
+                            "rankings": lindblad_rankings,
+                            "slices": int(max(1, lindblad_drain_slices)),
+                        }
+                    )
+                else:
+                    ranked_biomes = sorted(
+                        unique_biomes,
+                        key=lambda b: (
+                            1 if b in lindblad_biomes_activated else 0,
+                            lindblad_biome_attempts.get(b, 0),
+                            b,
+                        ),
+                    )
+                    selected_biomes = ranked_biomes[: max(1, int(lindblad_drain_max_biomes_per_loop))]
+                did_drain = False
+                for biome_name in selected_biomes:
+                    raw_positions: Any = []
+                    if int(lindblad_drain_max_plots) > 0:
+                        positions_row = _run_turn(turn, "biome_positions", biome=biome_name)
+                        history.append(positions_row)
+                        turn += 1
+                        raw_positions = positions_row.get("positions", [])
+                    for slice_idx in range(max(1, int(lindblad_drain_slices))):
+                        payload: Dict[str, Any] = {"biome": biome_name}
+                        selected_positions: List[List[int]] = []
+                        if int(lindblad_drain_max_plots) > 0:
+                            offset = (loop_idx * max(1, int(lindblad_drain_slices)) + slice_idx) * max(
+                                1, int(lindblad_drain_max_plots)
+                            )
+                            selected_positions = _encode_positions_for_rig(
+                                raw_positions,
+                                limit=int(lindblad_drain_max_plots),
+                                offset=offset,
+                            )
+                            if selected_positions:
+                                payload["positions"] = selected_positions
+                        drain_row = _run_turn(turn, "lindblad_drain", **payload)
+                        history.append(drain_row)
+                        turn += 1
+                        did_drain = True
+                        lindblad_biome_attempts[biome_name] = lindblad_biome_attempts.get(biome_name, 0) + 1
+                        drain_payload = drain_row.get("drain_result", {})
+                        success = bool(isinstance(drain_payload, dict) and drain_payload.get("success", False))
+                        charged_count = 0
+                        persistent_enabled = 0
+                        already_active = 0
+                        if isinstance(drain_payload, dict):
+                            try:
+                                charged_count = int(drain_payload.get("charged_count", 0) or 0)
+                            except (TypeError, ValueError):
+                                charged_count = 0
+                            try:
+                                persistent_enabled = int(drain_payload.get("persistent_enabled", 0) or 0)
+                            except (TypeError, ValueError):
+                                persistent_enabled = 0
+                            try:
+                                already_active = int(drain_payload.get("already_active", 0) or 0)
+                            except (TypeError, ValueError):
+                                already_active = 0
+                        if success or charged_count > 0 or persistent_enabled > 0 or already_active > 0:
+                            lindblad_biomes_activated.add(biome_name)
+                        lindblad_drain_events.append(
+                            {
+                                "loop": loop_idx + 1,
+                                "slice": slice_idx + 1,
+                                "slices": int(max(1, lindblad_drain_slices)),
+                                "biome": biome_name,
+                                "positions_selected": selected_positions,
+                                "success": success,
+                                "charged_count": charged_count,
+                                "persistent_enabled": persistent_enabled,
+                                "already_active": already_active,
+                                "drain_result": drain_payload if isinstance(drain_payload, dict) else {},
+                            }
+                        )
+                if did_drain:
+                    post_drain_snapshot = _run_turn(turn, "resource_snapshot")
+                    history.append(post_drain_snapshot)
+                    turn += 1
+                    current_resources = _extract_resource_map(post_drain_snapshot)
+
+            if quantum_policy is not None:
+                loop_state = HunterStateAdapter.build(
+                    loop_idx=loop_idx,
+                    max_loops=max_loops,
+                    known_pairs=_extract_pairs(history),
+                    resources=current_resources,
+                    offers=[],
+                    eligible_offer_indices=[],
+                    biomes=loop_biomes,
+                    discovered_biomes=discovered_biomes,
+                    biome_explore_counts=biome_explore_counts,
+                    biome_resource_hits=biome_resource_hits,
+                    strict_biome_economy=strict_biome_economy,
+                    resource_floors=primary_resource_floors,
+                )
+                dynamic_probe_cycles = max(0, int(quantum_policy.extra_probe_cycles(loop_state)))
+                for loop_probe_idx in range(dynamic_probe_cycles):
+                    grid_row = _run_turn(turn, "grid_snapshot")
+                    history.append(grid_row)
+                    turn += 1
+                    biomes = _extract_biomes(history)
+                    probe_state = HunterStateAdapter.build(
+                        loop_idx=loop_idx,
+                        max_loops=max_loops,
+                        known_pairs=_extract_pairs(history),
+                        resources=current_resources,
+                        offers=[],
+                        eligible_offer_indices=[],
+                        biomes=biomes,
+                        discovered_biomes=discovered_biomes,
+                        biome_explore_counts=biome_explore_counts,
+                        biome_resource_hits=biome_resource_hits,
+                        strict_biome_economy=strict_biome_economy,
+                        resource_floors=primary_resource_floors,
+                    )
+                    next_biome, probe_rankings = quantum_policy.choose_probe_biome(probe_state)
+                    if not next_biome:
+                        break
+                    _append_policy_decision(
+                        {
+                            "kind": "loop_probe",
+                            "loop": loop_idx + 1,
+                            "cycle": loop_probe_idx + 1,
+                            "selected_biome": next_biome,
+                            "rankings": probe_rankings,
+                        }
+                    )
+                    if next_biome not in discovered_biomes:
+                        discovered_biomes.append(next_biome)
+                    biome_explore_counts[next_biome] = biome_explore_counts.get(next_biome, 0) + 1
+                    probe_row = _run_turn(turn, "probe_cycle", biome=next_biome)
+                    history.append(probe_row)
+                    turn += 1
+                    harvested = _extract_probe_pop_resource(probe_row)
+                    if harvested:
+                        biome_resource_hits.setdefault(next_biome, {})
+                        hits = biome_resource_hits[next_biome]
+                        hits[harvested] = hits.get(harvested, 0) + 1
+                    probe = probe_row.get("probe", {}) if isinstance(probe_row, dict) else {}
+                    probe_ok = bool(isinstance(probe, dict) and probe.get("success", False))
+                    biome_probe_events.append(
+                        {
+                            "vocab_count": len(_extract_pairs(history)),
+                            "biome": next_biome,
+                            "ok": probe_ok,
+                            "reason": "loop_policy",
+                            "probe": probe if isinstance(probe, dict) else {},
+                        }
+                    )
+                    probe_snapshot = _run_turn(turn, "resource_snapshot")
+                    history.append(probe_snapshot)
+                    turn += 1
+                    current_resources = _extract_resource_map(probe_snapshot)
+                    loop_biomes = biomes
+
             loop_snapshot = _run_turn(turn, "resource_snapshot")
             history.append(loop_snapshot)
             turn += 1
             current_resources = _extract_resource_map(loop_snapshot)
-            offer_row = _run_turn(turn, "offer_quests")
+            if metrics_every > 0 and ((loop_idx + 1) % metrics_every == 0):
+                metrics_row = _run_turn(turn, "batcher_metrics", timeout_s=20.0)
+                history.append(metrics_row)
+                turn += 1
+                metrics_payload = metrics_row.get("metrics", {})
+                if isinstance(metrics_payload, dict):
+                    batcher_metrics_samples.append({
+                        "loop": loop_idx + 1,
+                        "metrics": _compact_batcher_metrics(metrics_payload),
+                    })
+            offer_row = _run_turn(
+                turn,
+                "offer_quests",
+                include_reward_resources=include_offer_reward_resources,
+            )
             history.append(offer_row)
             turn += 1
             offers = offer_row.get("offers", [])
@@ -792,6 +1427,23 @@ def main() -> int:
                 if p.get("south"):
                     known_symbols.add(p["south"])
 
+            offer_state: Optional[Any] = None
+            if quantum_policy is not None:
+                offer_state = HunterStateAdapter.build(
+                    loop_idx=loop_idx,
+                    max_loops=max_loops,
+                    known_pairs=known_pairs,
+                    resources=current_resources,
+                    offers=offers,
+                    eligible_offer_indices=eligible_delivery,
+                    biomes=loop_biomes,
+                    discovered_biomes=discovered_biomes,
+                    biome_explore_counts=biome_explore_counts,
+                    biome_resource_hits=biome_resource_hits,
+                    strict_biome_economy=strict_biome_economy,
+                    resource_floors=primary_resource_floors,
+                )
+
             milk_index = None
             for i, offer in enumerate(offers):
                 n = str(offer.get("reward_vocab_north", "") or "")
@@ -805,9 +1457,53 @@ def main() -> int:
                 found_offer = True
                 if milk_index in eligible_delivery:
                     selected_idx = milk_index
+                    _append_policy_decision(
+                        {
+                            "kind": "offer",
+                            "loop": loop_idx + 1,
+                            "selected_offer_index": selected_idx,
+                            "reason": "direct_milk_offer",
+                        }
+                    )
                     accept = _run_turn(turn, "accept_offer", offer_index=selected_idx)
                     history.append(accept)
                     turn += 1
+                else:
+                    if quantum_policy is not None and offer_state is not None:
+                        selected_idx, offer_rankings = quantum_policy.choose_offer_index(offer_state)
+                        _append_policy_decision(
+                            {
+                                "kind": "offer",
+                                "loop": loop_idx + 1,
+                                "selected_offer_index": selected_idx,
+                                "rankings": offer_rankings,
+                            }
+                        )
+                    else:
+                        selected_idx = _best_offer_index(
+                            offers,
+                            known_symbols,
+                            faction_sigs,
+                            milk_distances,
+                            current_resources,
+                            strict_biome_economy,
+                            strategy,
+                            eligible_delivery,
+                        )
+                    accept = _run_turn(turn, "accept_offer", offer_index=selected_idx)
+                    history.append(accept)
+                    turn += 1
+            else:
+                if quantum_policy is not None and offer_state is not None:
+                    selected_idx, offer_rankings = quantum_policy.choose_offer_index(offer_state)
+                    _append_policy_decision(
+                        {
+                            "kind": "offer",
+                            "loop": loop_idx + 1,
+                            "selected_offer_index": selected_idx,
+                            "rankings": offer_rankings,
+                        }
+                    )
                 else:
                     selected_idx = _best_offer_index(
                         offers,
@@ -819,20 +1515,6 @@ def main() -> int:
                         strategy,
                         eligible_delivery,
                     )
-                    accept = _run_turn(turn, "accept_offer", offer_index=selected_idx)
-                    history.append(accept)
-                    turn += 1
-            else:
-                selected_idx = _best_offer_index(
-                    offers,
-                    known_symbols,
-                    faction_sigs,
-                    milk_distances,
-                    current_resources,
-                    strict_biome_economy,
-                    strategy,
-                    eligible_delivery,
-                )
                 accept = _run_turn(turn, "accept_offer", offer_index=selected_idx)
                 history.append(accept)
                 turn += 1
@@ -844,19 +1526,20 @@ def main() -> int:
                     maybe_offer = offers[selected_idx]
                     if isinstance(maybe_offer, dict):
                         selected_offer = maybe_offer
-                active_row = _run_turn(turn, "active_quests")
-                history.append(active_row)
-                turn += 1
-                quests = active_row.get("quests", [])
-                if isinstance(quests, list):
-                    for q in quests:
-                        if int(q.get("id", -1)) != quest_id:
-                            continue
-                        res = str(q.get("resource", "") or "")
-                        qty = int(float(q.get("quantity", 0) or 0))
-                        if res and qty > 0 and not strict_biome_economy:
-                            history.append(_run_turn(turn, "add_resource", emoji=res, amount=max(qty + 50, 100)))
-                            turn += 1
+                if not strict_biome_economy:
+                    active_row = _run_turn(turn, "active_quests")
+                    history.append(active_row)
+                    turn += 1
+                    quests = active_row.get("quests", [])
+                    if isinstance(quests, list):
+                        for q in quests:
+                            if int(q.get("id", -1)) != quest_id:
+                                continue
+                            res = str(q.get("resource", "") or "")
+                            qty = int(float(q.get("quantity", 0) or 0))
+                            if res and qty > 0:
+                                history.append(_run_turn(turn, "add_resource", emoji=res, amount=max(qty + 50, 100)))
+                                turn += 1
                 completion_action = str(selected_offer.get("completion_action", "") or "")
                 if completion_action not in {"complete_quest", "complete_or_claim"}:
                     completion_action = "complete_quest" if int(selected_offer.get("type", -1)) == 0 else "complete_or_claim"
@@ -891,7 +1574,28 @@ def main() -> int:
                             "contains_milk_pair": _contains_milk_pair(new_pairs),
                         }
                     )
-                    for _vocab_step in range(prev_pairs_count, pair_count):
+                    pair_gain = pair_count - prev_pairs_count
+                    vocab_probe_cycles = pair_gain
+                    if quantum_policy is not None:
+                        vocab_state = HunterStateAdapter.build(
+                            loop_idx=loop_idx,
+                            max_loops=max_loops,
+                            known_pairs=pairs if isinstance(pairs, list) else known_pairs,
+                            resources=current_resources,
+                            offers=[],
+                            eligible_offer_indices=[],
+                            biomes=_extract_biomes(history),
+                            discovered_biomes=discovered_biomes,
+                            biome_explore_counts=biome_explore_counts,
+                            biome_resource_hits=biome_resource_hits,
+                            strict_biome_economy=strict_biome_economy,
+                            resource_floors=primary_resource_floors,
+                        )
+                        vocab_probe_cycles = max(
+                            pair_gain,
+                            int(quantum_policy.probe_cycles_after_vocab_gain(vocab_state, pair_gain)),
+                        )
+                    for vocab_probe_idx in range(vocab_probe_cycles):
                         grid_row = _run_turn(turn, "grid_snapshot")
                         history.append(grid_row)
                         turn += 1
@@ -899,7 +1603,7 @@ def main() -> int:
                         if not biomes:
                             biome_probe_events.append(
                                 {
-                                    "vocab_count": _vocab_step + 1,
+                                    "vocab_count": pair_count,
                                     "biome": None,
                                     "ok": False,
                                     "error": "no_biomes_available",
@@ -907,9 +1611,37 @@ def main() -> int:
                             )
                             continue
 
-                        next_biome = next((b for b in biomes if b not in discovered_biomes), None)
-                        if next_biome is None:
-                            next_biome = min(biomes, key=lambda b: (biome_explore_counts.get(b, 0), b))
+                        next_biome: Optional[str] = None
+                        if quantum_policy is not None:
+                            probe_state = HunterStateAdapter.build(
+                                loop_idx=loop_idx,
+                                max_loops=max_loops,
+                                known_pairs=pairs if isinstance(pairs, list) else known_pairs,
+                                resources=current_resources,
+                                offers=[],
+                                eligible_offer_indices=[],
+                                biomes=biomes,
+                                discovered_biomes=discovered_biomes,
+                                biome_explore_counts=biome_explore_counts,
+                                biome_resource_hits=biome_resource_hits,
+                                strict_biome_economy=strict_biome_economy,
+                                resource_floors=primary_resource_floors,
+                            )
+                            next_biome, probe_rankings = quantum_policy.choose_probe_biome(probe_state)
+                            _append_policy_decision(
+                                {
+                                    "kind": "vocab_probe",
+                                    "loop": loop_idx + 1,
+                                    "cycle": vocab_probe_idx + 1,
+                                    "pair_gain": pair_gain,
+                                    "selected_biome": next_biome,
+                                    "rankings": probe_rankings,
+                                }
+                            )
+                        if not next_biome:
+                            next_biome = next((b for b in biomes if b not in discovered_biomes), None)
+                            if next_biome is None:
+                                next_biome = min(biomes, key=lambda b: (biome_explore_counts.get(b, 0), b))
 
                         if next_biome not in discovered_biomes:
                             discovered_biomes.append(next_biome)
@@ -927,12 +1659,17 @@ def main() -> int:
                         probe_ok = bool(isinstance(probe, dict) and probe.get("success", False))
                         biome_probe_events.append(
                             {
-                                "vocab_count": _vocab_step + 1,
+                                "vocab_count": pair_count,
                                 "biome": next_biome,
                                 "ok": probe_ok,
+                                "reason": "vocab_gain",
                                 "probe": probe if isinstance(probe, dict) else {},
                             }
                         )
+                        probe_snapshot = _run_turn(turn, "resource_snapshot")
+                        history.append(probe_snapshot)
+                        turn += 1
+                        current_resources = _extract_resource_map(probe_snapshot)
                     prev_pairs_count = pair_count
                 if isinstance(pairs, list) and _contains_milk_pair(pairs):
                     found_milk = True
@@ -969,10 +1706,19 @@ def main() -> int:
             "load_slot": load_slot,
             "load_alias": load_alias,
             "scenario_id": scenario_id,
+            "hunter_profile": hunter_profile,
+            "hunter_policy_mode": hunter_policy_mode,
+            "hunter_policy_active": quantum_policy is not None,
+            "policy_trace_limit": policy_trace_limit,
+            "target_turn_hz": args.target_turn_hz,
+            "metrics_every": metrics_every,
+            "include_offer_reward_resources": include_offer_reward_resources,
             "biome_discovery_order": discovered_biomes,
             "biome_explore_counts": biome_explore_counts,
             "biome_resource_hits": biome_resource_hits,
             "biome_probe_events": biome_probe_events,
+            "batcher_metrics_samples": batcher_metrics_samples,
+            "policy_decisions": policy_decisions,
             "vocab_milestones": vocab_milestones,
             "strategy_name": strategy.name,
             "strategy_path": strategy.path,
@@ -991,6 +1737,15 @@ def main() -> int:
             "victory_lap_enabled": args.victory_lap,
             "victory_lap_executed": victory_lap_executed,
             "victory_lap_result": victory_lap_result,
+            "lindblad_drain_focus": lindblad_drain_focus,
+            "lindblad_drain_every": lindblad_drain_every,
+            "lindblad_drain_max_biomes_per_loop": lindblad_drain_max_biomes_per_loop,
+            "lindblad_drain_max_plots": lindblad_drain_max_plots,
+            "lindblad_drain_slices": lindblad_drain_slices,
+            "lindblad_drain_configured_biomes": configured_lindblad_biomes,
+            "lindblad_drain_biome_attempts": lindblad_biome_attempts,
+            "lindblad_drain_biomes_activated": sorted(lindblad_biomes_activated),
+            "lindblad_drain_events": lindblad_drain_events,
         }
         if args.save_slot_at_end is not None:
             save_row = _run_turn(turn, "save_game", slot=args.save_slot_at_end)
@@ -1013,6 +1768,49 @@ def main() -> int:
             _safe_print("milk-hunt: summary")
             _safe_print(json.dumps(summary, ensure_ascii=False, indent=2))
         return 0 if found_milk else 2
+    except TurnTimeoutError as exc:
+        timeout_diag = _rig_timeout_diagnostics(exc.turn_id, exc.action)
+        timeout_summary = {
+            "found_milk_pair": False,
+            "found_milk_offer": False,
+            "known_pairs_count": len(_extract_pairs(history)),
+            "steps": len(history),
+            "turns_executed": len(history),
+            "loops_completed": locals().get("loops_completed", 0),
+            "max_loops": max_loops,
+            "strict_biome_economy": strict_biome_economy,
+            "load_slot": load_slot,
+            "load_alias": load_alias,
+            "scenario_id": scenario_id,
+            "hunter_profile": hunter_profile,
+            "hunter_policy_mode": hunter_policy_mode,
+            "hunter_policy_active": quantum_policy is not None,
+            "target_turn_hz": args.target_turn_hz,
+            "metrics_every": metrics_every,
+            "include_offer_reward_resources": include_offer_reward_resources,
+            "lindblad_drain_focus": lindblad_drain_focus,
+            "lindblad_drain_every": lindblad_drain_every,
+            "lindblad_drain_max_biomes_per_loop": lindblad_drain_max_biomes_per_loop,
+            "lindblad_drain_max_plots": lindblad_drain_max_plots,
+            "lindblad_drain_slices": lindblad_drain_slices,
+            "lindblad_drain_configured_biomes": configured_lindblad_biomes,
+            "run_error": "turn_timeout",
+            "run_error_detail": str(exc),
+            "timeout_turn": exc.turn_id,
+            "timeout_action": exc.action,
+            "timeout_seconds": exc.timeout_s,
+            "timeout_diagnostics": timeout_diag,
+            "batcher_metrics_samples": locals().get("batcher_metrics_samples", []),
+        }
+        if args.summary_path is not None:
+            args.summary_path.parent.mkdir(parents=True, exist_ok=True)
+            args.summary_path.write_text(json.dumps(timeout_summary, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        if args.json_only:
+            _safe_print(json.dumps(timeout_summary, ensure_ascii=False))
+        else:
+            _safe_print("milk-hunt: timeout summary")
+            _safe_print(json.dumps(timeout_summary, ensure_ascii=False, indent=2))
+        return 3
     finally:
         if not args.no_stop:
             try:

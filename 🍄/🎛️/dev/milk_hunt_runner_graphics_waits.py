@@ -495,7 +495,10 @@ def main() -> int:
             for line in boot_lines[-20:]:
                 _safe_print(line)
             return 1
-        if not any("Rig ready. Waiting for turns in:" in ln for ln in boot_lines):
+        if not any(
+            ("Rig ready. Waiting for turns in:" in ln) or ("ready via bridge sentinel" in ln)
+            for ln in boot_lines
+        ):
             _safe_print("milk-hunt: listener did not reach ready state")
             for line in boot_lines[-20:]:
                 _safe_print(line)
@@ -513,7 +516,10 @@ def main() -> int:
                 for line in boot_lines[-20:]:
                     _safe_print(line)
                 return 1
-            if not any("Rig ready. Waiting for turns in:" in ln for ln in boot_lines):
+            if not any(
+                ("Rig ready. Waiting for turns in:" in ln) or ("ready via bridge sentinel" in ln)
+                for ln in boot_lines
+            ):
                 _safe_print("milk-hunt: listener did not reach ready state")
                 for line in boot_lines[-20:]:
                     _safe_print(line)
