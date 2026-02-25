@@ -1,7 +1,14 @@
 {
   "max_loops": 140,
   "scenario_id": "default",
+  "console_profile": "quiet",
+  "wait_progress_seconds": 30.0,
+  "rig_listener_stdout": "null",
+  "rig_log_profile": "quiet",
+  "rig_log_categories": "",
   "strict_biome_economy": true,
   "load_slot": null,
-  "load_alias": null
+  "load_alias": null,
+  "profile_save": null,
+  "profile_save_index": null
 }

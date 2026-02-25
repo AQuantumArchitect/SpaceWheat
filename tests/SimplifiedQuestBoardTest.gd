@@ -29,7 +29,7 @@ func _test_pool_preservation():
 
 	# Read QuestBoard.gd and check that _on_vocabulary_learned
 	# does NOT call offer_all_faction_quests()
-	var quest_board_path = "res://UI/Panels/QuestBoard.gd"
+	var quest_board_path = "res://UI/Overlays/QuestBoard.gd"
 	var file = FileAccess.open(quest_board_path, FileAccess.READ)
 
 	if not file:
@@ -68,7 +68,7 @@ func _test_vocabulary_no_rebuild():
 	print("\nTEST 2: Fix Documentation Present")
 	print("--------------------------------------------------------------------------------" + "\n")
 
-	var quest_board_path = "res://UI/Panels/QuestBoard.gd"
+	var quest_board_path = "res://UI/Overlays/QuestBoard.gd"
 	var file = FileAccess.open(quest_board_path, FileAccess.READ)
 
 	if not file:

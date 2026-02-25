@@ -1,6 +1,8 @@
 class_name EmojiAtlasCache
 extends RefCounted
 
+const TieredEmojiRegistry = preload("res://Core/Visualization/TieredEmojiRegistry.gd")
+
 ## Emoji Atlas Cache - Persistent cache for pre-built emoji atlases
 ##
 ## Caches the atlas texture and UV mappings to disk using MD5 hash-based

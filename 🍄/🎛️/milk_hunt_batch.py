@@ -8,7 +8,11 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+import milk_hunt_args
+from milk_hunt_console import Console, resolve_console_profile
+from milk_hunt_io import write_json
 from milk_hunt_profiles import get_profile
+from profile_save_registry import get_profile_name_for_save, get_profile_save, resolve_profile_save_spec
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 RUNNER = SCRIPT_DIR / "milk_hunt_runner.py"
@@ -16,7 +20,7 @@ SEEDER = SCRIPT_DIR / "milk_hunt_seed_save.py"
 
 
 def _build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Batch runner for milk hunt trials")
+    parser = milk_hunt_args.make_base_parser("Batch runner for milk hunt trials")
     parser.add_argument("--runs", type=int, default=5, help="How many independent trials to run")
     parser.add_argument("--max-loops", type=int, default=220, help="Max offer cycles per trial")
     parser.add_argument(
@@ -25,45 +29,16 @@ def _build_parser() -> argparse.ArgumentParser:
         default=Path("/tmp/milk_hunt_batches"),
         help="Directory for logs and summaries",
     )
-    parser.add_argument("--load-slot", type=int, default=None, help="Boot each trial from this save slot")
-    parser.add_argument("--load-alias", type=str, default=None, help="Load each trial from emoji alias save filename/path")
     parser.add_argument("--profile", type=str, default=None, help="Profile name for starter seeding")
     parser.add_argument("--world-state", type=str, default=None, help="World state JSON path (alternative to --profile)")
-    parser.add_argument("--hunter-profile", type=str, default=None, help="Policy profile passed to runner")
-    parser.add_argument(
-        "--hunter-policy",
-        choices=["auto", "classic", "quantum_graph"],
-        default=None,
-        help="Policy mode passed to runner",
-    )
-    parser.add_argument("--strategy", type=str, default=None, help="Strategy JSON path passed to runner")
     parser.add_argument("--seed-slot", type=int, default=2, help="Save slot to write profile seed into")
     parser.add_argument("--seed-from-slot", type=int, default=None, help="Optional slot to load before profile seeding")
-    parser.add_argument("--scenario-id", type=str, default=None, help="Scenario id used for profile seeding")
     parser.add_argument(
         "--resource-mode",
         choices=["add", "set"],
         default=None,
         help="Resource application mode for profile seeding",
     )
-    parser.add_argument(
-        "--strict-biome-economy",
-        dest="strict_biome_economy",
-        action="store_true",
-        help="Disable all rig-side resource injection in each trial",
-    )
-    parser.add_argument(
-        "--no-strict-biome-economy",
-        dest="strict_biome_economy",
-        action="store_false",
-        help="Force-enable rig-side resource injection in each trial",
-    )
-    parser.add_argument(
-        "--reuse-listener",
-        action="store_true",
-        help="Reuse a single rig listener for all trials in this batch",
-    )
-    parser.set_defaults(strict_biome_economy=None)
     return parser
 
 
@@ -79,6 +54,8 @@ def _run_trial(
     max_loops: int,
     load_slot: int | None,
     load_alias: str | None,
+    profile_save: str | None,
+    profile_save_index: str | None,
     strict_biome_economy: Optional[bool],
     reuse_listener: bool,
     turn_start: int,
@@ -86,20 +63,19 @@ def _run_trial(
     strategy_path: str | None = None,
     hunter_profile: str | None = None,
     hunter_policy: str | None = None,
+    console_profile: str | None = None,
 ) -> Dict[str, Any]:
     run_name = f"run_{run_idx:03d}"
     run_dir = batch_dir / run_name
     run_dir.mkdir(parents=True, exist_ok=True)
     log_path = run_dir / "stdout.log"
-    summary_path = run_dir / "summary.json"
 
     cmd = [
         "python3",
         str(RUNNER),
         "--max-loops",
         str(max_loops),
-        "--summary-path",
-        str(summary_path),
+        "--json-only",
         "--turn-start",
         str(turn_start),
     ]
@@ -109,9 +85,15 @@ def _run_trial(
         cmd.extend(["--hunter-profile", hunter_profile])
     if hunter_policy is not None:
         cmd.extend(["--hunter-policy", hunter_policy])
+    if console_profile is not None:
+        cmd.extend(["--console-profile", console_profile])
     if load_slot is not None:
         cmd.extend(["--load-slot", str(load_slot)])
-    if load_alias is not None:
+    if profile_save is not None:
+        cmd.extend(["--profile-save", str(profile_save)])
+        if profile_save_index:
+            cmd.extend(["--profile-save-index", str(profile_save_index)])
+    elif load_alias is not None:
         cmd.extend(["--load-alias", str(load_alias)])
     if strict_biome_economy is True:
         cmd.append("--strict-biome-economy")
@@ -126,11 +108,12 @@ def _run_trial(
     log_path.write_text((proc.stdout or "") + (proc.stderr or ""), encoding="utf-8")
 
     summary: Dict[str, Any] = {}
-    if summary_path.exists():
+    if proc.stdout:
+        last_line = proc.stdout.rstrip().rsplit("\n", 1)[-1].strip()
         try:
-            summary = json.loads(summary_path.read_text(encoding="utf-8"))
+            summary = json.loads(last_line)
         except json.JSONDecodeError:
-            summary = {"parse_error": "invalid_summary_json"}
+            summary = {"parse_error": "invalid_json_in_stdout"}
     summary["exit_code"] = proc.returncode
     summary["run_name"] = run_name
     summary["log_path"] = str(log_path)
@@ -170,6 +153,7 @@ def _seed_profile(
 
 def main() -> int:
     args = _build_parser().parse_args()
+    console = Console(resolve_console_profile(args.console_profile))
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
     batch_dir = args.output_dir / f"batch_{ts}"
     batch_dir.mkdir(parents=True, exist_ok=True)
@@ -178,13 +162,33 @@ def main() -> int:
     load_slot = args.load_slot
     load_alias = args.load_alias
     seed_result: Optional[Dict[str, Any]] = None
+    resolved_profile_save: Optional[str] = None
+    if args.profile_save and (args.profile or args.world_state):
+        console.log("[batch] cannot combine --profile-save with --profile/--world-state", "error")
+        return 2
+
+    if args.profile_save:
+        resolved_profile_save = resolve_profile_save_spec(args.profile_save, args.profile_save_index)
+    elif args.profile and not args.world_state:
+        mapped = get_profile_save(args.profile, args.profile_save_index)
+        if mapped:
+            resolved_profile_save = mapped
+            console.log(
+                f"[batch] profile '{args.profile}' resolved to profile-save '{resolved_profile_save}'",
+                "detail",
+            )
+    if resolved_profile_save:
+        load_alias = resolved_profile_save
+        load_slot = None
+        console.log(f"[batch] using profile-save '{resolved_profile_save}'", "info")
+
     seed_source = args.world_state or args.profile
-    if seed_source:
+    if seed_source and not resolved_profile_save:
         if args.profile and not args.world_state:
             try:
                 profile = get_profile(args.profile)
             except ValueError as exc:
-                print(f"[batch] {exc}", flush=True)
+                console.log(f"[batch] {exc}", "error")
                 return 2
         seed_slot = load_slot if load_slot is not None else args.seed_slot
         seed_result = _seed_profile(
@@ -197,17 +201,26 @@ def main() -> int:
             world_state_path=args.world_state,
         )
         if not seed_result["ok"]:
-            print("[batch] profile seeding failed", flush=True)
-            print(json.dumps(seed_result, ensure_ascii=False, indent=2), flush=True)
+            console.log("[batch] profile seeding failed", "error")
+            console.log(json.dumps(seed_result, ensure_ascii=False, indent=2), "warn")
             return 3
         load_slot = seed_slot
         load_alias = None
-        print(f"[batch] '{seed_source}' seeded into slot {seed_slot}", flush=True)
+        console.log(f"[batch] '{seed_source}' seeded into slot {seed_slot}", "info")
 
     strict_biome_economy = args.strict_biome_economy
     if strict_biome_economy is None and profile and "strict_biome_economy" in profile:
         strict_biome_economy = bool(profile.get("strict_biome_economy"))
     hunter_profile = args.hunter_profile or args.profile
+    if hunter_profile is None and args.profile_save:
+        mapped = get_profile_save(args.profile_save, args.profile_save_index)
+        if mapped:
+            hunter_profile = args.profile_save
+        else:
+            lookup = resolved_profile_save if resolved_profile_save else args.profile_save
+            hunter_profile = get_profile_name_for_save(lookup, args.profile_save_index)
+    if hunter_profile is None and resolved_profile_save:
+        hunter_profile = get_profile_name_for_save(resolved_profile_save, args.profile_save_index)
     hunter_policy = args.hunter_policy
 
     run_summaries: List[Dict[str, Any]] = []
@@ -221,6 +234,8 @@ def main() -> int:
             args.max_loops,
             load_slot,
             load_alias,
+            resolved_profile_save,
+            args.profile_save_index,
             strict_biome_economy,
             reuse_listener=reuse,
             turn_start=turn_cursor,
@@ -228,11 +243,12 @@ def main() -> int:
             strategy_path=args.strategy,
             hunter_profile=hunter_profile,
             hunter_policy=hunter_policy,
+            console_profile=console.profile,
         )
         run_summaries.append(summary)
         found = bool(summary.get("found_milk_pair", False))
         steps = int(summary.get("steps", summary.get("turns_executed", 0) or 0) or 0)
-        print(f"[batch] {summary.get('run_name')} found_milk={found} steps={steps}", flush=True)
+        console.log(f"[batch] {summary.get('run_name')} found_milk={found} steps={steps}", "info")
         turn_cursor += steps + 5
 
     successes = [s for s in run_summaries if s.get("found_milk_pair") is True]
@@ -300,6 +316,9 @@ def main() -> int:
         "profile": profile["name"] if profile else args.profile,
         "profile_description": profile.get("description", "") if profile else "",
         "world_state": args.world_state,
+        "profile_save": resolved_profile_save,
+        "profile_save_index": args.profile_save_index,
+        "console_profile": console.profile,
         "strategy": args.strategy,
         "seed_result": seed_result,
         "success_count": len(successes),
@@ -333,9 +352,21 @@ def main() -> int:
     }
 
     agg_path = batch_dir / "batch_summary.json"
-    agg_path.write_text(json.dumps(aggregate, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    print("[batch] summary", flush=True)
-    print(json.dumps(aggregate, ensure_ascii=False, indent=2), flush=True)
+    write_json(agg_path, aggregate)
+    if console.allows("trace"):
+        console.log("[batch] summary", "info")
+        console.log(json.dumps(aggregate, ensure_ascii=False, indent=2), "detail")
+    else:
+        console.log(
+            "[batch] summary success=%d/%d avg_steps=%.1f -> %s"
+            % (
+                int(aggregate["success_count"]),
+                int(aggregate["runs"]),
+                float(aggregate["avg_steps_all"]),
+                str(agg_path),
+            ),
+            "info",
+        )
     return 0 if len(successes) > 0 else 2
 
 

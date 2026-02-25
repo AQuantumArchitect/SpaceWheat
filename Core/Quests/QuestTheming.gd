@@ -14,20 +14,13 @@ const FactionDatabase = preload("res://Core/Quests/FactionDatabaseV2.gd")
 const VocabularyPairing = preload("res://Core/Quests/VocabularyPairing.gd")
 const QuestRewards = preload("res://Core/Quests/QuestRewards.gd")
 const EconomyConstants = preload("res://Core/GameMechanics/EconomyConstants.gd")
+const VerboseHelper = preload("res://Core/Config/VerboseHelper.gd")
 
 # Light bias toward simulated vocab when selecting north pole.
 const NORTH_BIAS_WEIGHT: float = 1.3
 
-## Safe VerboseConfig accessor for RefCounted classes (no scene tree access)
 static func _log(level: String, category: String, emoji: String, message: String) -> void:
-	var tree = Engine.get_main_loop()
-	if tree and tree.root and tree.root.has_node("VerboseConfig"):
-		var logger = tree.root.get_node("VerboseConfig")
-		match level:
-			"debug": logger.debug(category, emoji, message)
-			"info": logger.info(category, emoji, message)
-			"warn": logger.warn(category, emoji, message)
-			"error": logger.error(category, emoji, message)
+	VerboseHelper.log(level, category, emoji, message)
 
 
 static func apply_theming(params: FactionStateMatcher.QuestParameters, bath, economy = null) -> Dictionary:
@@ -532,32 +525,111 @@ static func generate_quest(
 	quest["available_emojis"] = available_emojis
 	quest["vocabulary_overlap_pct"] = float(available_emojis.size()) / max(faction_vocab.all.size(), 1)
 
-	# 11. PRE-ROLL VOCABULARY REWARD PAIR
-	# Roll the vocab pair NOW (at quest creation) so player knows what they'll learn
-	var vocab_pair = _roll_vocabulary_reward_pair(signature, player_vocab, bias_emojis)
-	if vocab_pair.get("north", "") == "" or vocab_pair.get("south", "") == "":
-		return {
-			"error": "no_reward_pair",
-			"message": "No valid reward vocabulary pair available",
-			"faction": faction.get("name", "Unknown")
-		}
-	quest["reward_vocab_north"] = vocab_pair.get("north", "")
-	quest["reward_vocab_south"] = vocab_pair.get("south", "")
-	quest["reward_vocab_probability"] = vocab_pair.get("probability", 0.0)
-	quest["reward_vocab_weight"] = vocab_pair.get("weight", 0.0)
+	# 11. Resonance Gate for vocabulary rewards
+	# Vocabulary rewards are now state-dependent rather than guaranteed.
+	var resonance = _compute_vocab_resonance_probability(
+		faction,
+		obs,
+		icon_map if icon_map else {},
+		available_emojis,
+		player_vocab
+	)
+	var grant_vocab = randf() < resonance.get("p_vocab", 0.0)
+	quest["reward_vocab_resonance"] = resonance
+	quest["reward_vocab_granted"] = grant_vocab
+
+	if grant_vocab:
+		var vocab_pair = _roll_vocabulary_reward_pair(signature, player_vocab, bias_emojis)
+		if vocab_pair.get("north", "") == "" or vocab_pair.get("south", "") == "":
+			return {
+				"error": "no_reward_pair",
+				"message": "No valid reward vocabulary pair available",
+				"faction": faction.get("name", "Unknown")
+			}
+		quest["reward_vocab_north"] = vocab_pair.get("north", "")
+		quest["reward_vocab_south"] = vocab_pair.get("south", "")
+		quest["reward_vocab_probability"] = vocab_pair.get("probability", 0.0)
+		quest["reward_vocab_weight"] = vocab_pair.get("weight", 0.0)
+	else:
+		quest["reward_vocab_north"] = ""
+		quest["reward_vocab_south"] = ""
+		quest["reward_vocab_probability"] = 0.0
+		quest["reward_vocab_weight"] = 0.0
+
 	quest["reward_resources"] = QuestRewards.plan_resource_rewards(quest, faction, icon_map if icon_map else {})
 
-	_log("debug", "quest", "📖", "Pre-rolled vocab pair: %s/%s (%.0f%%)" % [
-		vocab_pair.get("north", "?"),
-		vocab_pair.get("south", "?"),
-		vocab_pair.get("probability", 0) * 100
-	])
+	if grant_vocab:
+		_log("debug", "quest", "📖", "Resonance gate opened (p=%.2f) -> vocab reward granted" % [
+			float(resonance.get("p_vocab", 0.0))
+		])
+	else:
+		_log("debug", "quest", "📖", "Resonance gate closed (p=%.2f) -> resource reward only" % [
+			float(resonance.get("p_vocab", 0.0))
+		])
 
 	# 11. Add debug info
 	quest["_preferences"] = FactionStateMatcher.describe_preferences(faction_bits)
 	quest["_observables"] = FactionStateMatcher.describe_observables(obs)
 
 	return quest
+
+
+static func _compute_vocab_resonance_probability(
+	faction: Dictionary,
+	obs,
+	icon_map: Dictionary,
+	available_emojis: Array,
+	player_vocab: Array
+) -> Dictionary:
+	"""Compute Resonance Gate probability for vocab rewards.
+
+	p_vocab rises when:
+	- Faction signature has strong mass in the current IconMap.
+	- Observable coherence/purity are high.
+	- Player has meaningful overlap with faction signature.
+	"""
+	var signature = faction.get("sig", faction.get("signature", []))
+	var by_emoji: Dictionary = icon_map.get("by_emoji", {}) if icon_map is Dictionary else {}
+	var total_mass = max(0.0001, float(icon_map.get("total", 0.0))) if icon_map is Dictionary else 1.0
+
+	var signature_mass = 0.0
+	for emoji in signature:
+		signature_mass += max(0.0, float(by_emoji.get(emoji, 0.0)))
+	var signature_ratio = signature_mass / total_mass
+
+	var overlap_ratio = 0.0
+	if signature.size() > 0:
+		overlap_ratio = float(available_emojis.size()) / float(signature.size())
+
+	var coherence = float(obs.coherence) if obs else 0.0
+	var purity = float(obs.purity) if obs else 0.0
+
+	var unknown_count = 0
+	for emoji in signature:
+		if emoji not in player_vocab:
+			unknown_count += 1
+	var unknown_ratio = float(unknown_count) / max(1.0, float(signature.size()))
+
+	# Logistic gate around a moderate threshold.
+	var x = (
+		(2.8 * signature_ratio)
+		+ (1.4 * coherence)
+		+ (0.9 * purity)
+		+ (1.2 * overlap_ratio)
+		+ (1.0 * unknown_ratio)
+		- 2.4
+	)
+	var logistic = 1.0 / (1.0 + exp(-x))
+	var p_vocab = clamp(0.08 + 0.74 * logistic, 0.05, 0.9)
+
+	return {
+		"p_vocab": p_vocab,
+		"signature_ratio": signature_ratio,
+		"overlap_ratio": overlap_ratio,
+		"coherence": coherence,
+		"purity": purity,
+		"unknown_ratio": unknown_ratio
+	}
 
 
 static func generate_display_text(quest: Dictionary) -> String:

@@ -78,9 +78,9 @@ func start_session(load_slot: int = -1, scenario_id: String = "default", reset_f
 	if load_slot >= 0:
 		state = load_game_state(load_slot)
 		if not state:
-			state = load_new_game_template()
+			state = _build_new_session_state(scenario_id)
 	else:
-		state = load_new_game_template()
+		state = _build_new_session_state(scenario_id)
 
 	current_state = state
 	current_scenario_id = state.scenario_id if state else scenario_id
@@ -100,6 +100,19 @@ func start_session(load_slot: int = -1, scenario_id: String = "default", reset_f
 
 	farm_ready.emit(active_farm, state)
 	return active_farm
+
+
+func _build_new_session_state(scenario_id: String) -> GameState:
+	"""Create a fresh session state honoring explicit scenario IDs."""
+	var requested = scenario_id.strip_edges()
+	if requested != "" and requested != "default":
+		var scenario_path = SaveStore.SCENARIO_DIR + requested + ".tres"
+		if ResourceLoader.exists(scenario_path):
+			var scenario_state = SaveStore.load_scenario(requested)
+			if scenario_state:
+				return scenario_state
+		_verbose.warn("save", "⚠", "Scenario '%s' not found, falling back to new game template" % requested)
+	return load_new_game_template()
 
 
 func _create_farm() -> Node:
@@ -318,6 +331,25 @@ func save_game(slot: int) -> bool:
 		return false
 
 
+func save_game_to_path(path: String) -> bool:
+	"""Save current game state to an explicit path (user://, res://, or absolute)."""
+	if not active_farm:
+		push_error("No active game to save!")
+		return false
+
+	if path.strip_edges() == "":
+		push_error("Invalid save path")
+		return false
+
+	var state = capture_state_from_game()
+	var result = SaveStore.save_state_to_path(state, path)
+	if result == OK:
+		_verbose.info("save", "💾", "Game saved to path: " + path)
+		return true
+	push_error("Failed to save game to path: " + path)
+	return false
+
+
 func get_save_path(slot: int) -> String:
 	"""Get file path for save slot"""
 	return SaveStore.get_save_path(slot)
@@ -386,9 +418,9 @@ func load_and_apply(slot: int) -> bool:
 		current_scenario_id = state.scenario_id
 		return true
 
-	apply_state_to_game(state)
 	current_state = state
 	current_scenario_id = state.scenario_id
+	apply_state_to_game(state)
 	# NOTE: Don't update last_saved_slot here - only update on actual save
 	# This ensures "Reload Last Save" reloads the last SAVED file, not last LOADED file
 	return true
@@ -407,9 +439,9 @@ func load_and_apply_emoji_alias(alias_filename: String) -> bool:
 		current_scenario_id = state.scenario_id
 		return true
 
-	apply_state_to_game(state)
 	current_state = state
 	current_scenario_id = state.scenario_id
+	apply_state_to_game(state)
 	return true
 
 
@@ -535,6 +567,11 @@ func get_vocabulary_evolution() -> VocabularyEvolution:
 		add_child(vocabulary_evolution)
 
 	return vocabulary_evolution
+
+
+func get_active_farm() -> Node:
+	"""Return the active Farm node. Canonical accessor for overlays and tools."""
+	return active_farm
 
 
 func get_icon_registry():

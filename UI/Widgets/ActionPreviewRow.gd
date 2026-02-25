@@ -11,6 +11,7 @@ const ToolConfig = preload("res://Core/GameState/ToolConfig.gd")
 const ProbeActions = preload("res://Core/Actions/ProbeActions.gd")
 const EconomyConstants = preload("res://Core/GameMechanics/EconomyConstants.gd")
 const LindbladHandler = preload("res://UI/Handlers/LindbladHandler.gd")
+const EmojiDisplay = preload("res://UI/Core/EmojiDisplay.gd")
 const TOOL_ACTIONS = ToolConfig.TOOL_ACTIONS
 
 # Button texture path (matches ToolSelectionRow)
@@ -411,6 +412,17 @@ func _update_probe_preview() -> void:
 		var terminal = measured_terminals[0]
 		var outcome = terminal.measured_outcome if terminal.measured_outcome else "?"
 		action_buttons["R"].label.text = "[R] ✂️ Pop (%s)" % outcome
+
+
+func get_snapshot() -> Dictionary:
+	"""Return structured snapshot of current action button state."""
+	var actions: Dictionary = {}
+	for key in ["Q", "E", "R"]:
+		if not action_buttons.has(key):
+			continue
+		var btn = action_buttons[key]
+		actions[key] = {"label": btn.label.text, "disabled": btn.disabled}
+	return {"current_tool": current_tool, "submenu": current_submenu, "actions": actions}
 
 
 func debug_layout() -> String:

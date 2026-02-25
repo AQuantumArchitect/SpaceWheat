@@ -279,7 +279,7 @@ func _ready():
 	# Create biome evolution batcher BEFORE loading biomes
 	# This allows BootManager.load_biome() to register each biome as it loads
 	biome_evolution_batcher = BiomeEvolutionBatcherClass.new()
-	biome_evolution_batcher.initialize([], terminal_pool)  # Initialize with empty array, biomes register individually
+	biome_evolution_batcher.initialize([], terminal_pool, self)  # Initialize with empty array, biomes register individually
 
 	# Create environmental simulations (six biomes for multi-biome support)
 	# UNIFIED LOADING: All biomes go through BootManager.load_biome() for consistency
@@ -377,8 +377,8 @@ func _ready():
 	if volcanic_worlds_biome:
 		set_meta("volcanic_worlds_biome", volcanic_worlds_biome)
 
-	# Configure plot-to-biome assignments from GridConfig (4 biomes, 1 row each)
-	# Each biome has its own row: Row 0=BioticFlux, 1=StellarForges, 2=FungalNetworks, 3=VolcanicWorlds
+	# Configure plot-to-biome assignments from GridConfig (biomes × plots)
+	# Row ordering matches BIOME_ORDER (StarterForest=0, Village=1, then unlocked biomes)
 	if biome_enabled and grid and grid.has_method("assign_plot_to_biome"):
 		for pos in grid_config.biome_assignments:
 			var biome_name = grid_config.biome_assignments[pos]
@@ -648,15 +648,29 @@ func time_skip_phrames(phrames: int, delta: float = PhysicsConfig.PHRAME_DT) -> 
 	"""Advance farm physics/evolution synchronously for deterministic headless rig control."""
 	var steps = max(0, int(phrames))
 	var dt = max(0.000001, float(delta))
+	var debug_time_skip = OS.get_environment("RIG_DEBUG_TIMESKIP").to_lower() in ["1", "true", "yes", "on"]
+	var skip_lindblad = OS.get_environment("RIG_TIME_SKIP_SKIP_LINDBLAD").to_lower() in ["1", "true", "yes", "on"]
 	if steps <= 0:
 		return {"ok": true, "phrames": 0, "delta": dt}
 
+	if debug_time_skip:
+		print("[TIME_SKIP] begin steps=%d dt=%.6f skip_lindblad=%s" % [steps, dt, str(skip_lindblad)])
+
 	var evolved_steps = 0
 	var skipped_steps = 0
-	if biome_evolution_batcher and biome_evolution_batcher.has_method("run_additional_cycles"):
+	var force_legacy = OS.get_environment("RIG_TIME_SKIP_LEGACY").to_lower() in ["1", "true", "yes", "on"]
+	if biome_evolution_batcher and biome_evolution_batcher.has_method("run_time_skip_cycles") and not force_legacy:
+		var direct_result = biome_evolution_batcher.run_time_skip_cycles(steps, dt)
+		evolved_steps = int(direct_result.get("evolved_steps", 0))
+		skipped_steps = int(direct_result.get("skipped_biomes", 0))
+		if debug_time_skip:
+			print("[TIME_SKIP] direct_result=%s" % str(direct_result))
+	elif biome_evolution_batcher and biome_evolution_batcher.has_method("run_additional_cycles"):
 		var batch_result = biome_evolution_batcher.run_additional_cycles(steps)
 		evolved_steps = int(batch_result.get("evolved_steps", 0))
 		skipped_steps = int(batch_result.get("skipped_due_empty_buffer", 0))
+		if debug_time_skip:
+			print("[TIME_SKIP] additional_cycles_result=%s" % str(batch_result))
 	else:
 		for _i in range(steps):
 			if biome_evolution_batcher:
@@ -664,8 +678,17 @@ func time_skip_phrames(phrames: int, delta: float = PhysicsConfig.PHRAME_DT) -> 
 				evolved_steps += 1
 
 	# Lindblad accumulation is farm-level and should track skipped phrames as well.
-	for _i in range(steps):
-		_process_lindblad_effects(dt)
+	if not skip_lindblad:
+		if debug_time_skip:
+			print("[TIME_SKIP] applying_lindblad_effects steps=%d" % steps)
+		for _i in range(steps):
+			_process_lindblad_effects(dt)
+	else:
+		if debug_time_skip:
+			print("[TIME_SKIP] lindblad_effects_skipped")
+
+	if debug_time_skip:
+		print("[TIME_SKIP] end evolved=%d skipped=%d" % [evolved_steps, skipped_steps])
 
 	return {
 		"ok": true,
@@ -712,16 +735,26 @@ func _process_lindblad_effects(delta: float) -> void:
 			var south = pair.get("south", "")
 			var axis_emoji = north if north != "" else south
 			if axis_emoji != "" and biome.quantum_computer.register_map.has(axis_emoji):
-				var before_pop = 0.0
-				if north != "" and biome.quantum_computer.register_map.has(north):
-					before_pop = biome.quantum_computer.get_population(north)
-				else:
-					before_pop = biome.quantum_computer.get_population(axis_emoji)
+				var sample_emoji = north if north != "" and biome.quantum_computer.register_map.has(north) else axis_emoji
+				var before_pop = biome.quantum_computer.get_population(sample_emoji)
+				var before_flux = 0.0
+				if biome.quantum_computer.has_method("get_sink_flux"):
+					before_flux = float(biome.quantum_computer.get_sink_flux(axis_emoji))
 
 				var qubit_idx = biome.quantum_computer.register_map.qubit(axis_emoji)
 				biome.quantum_computer.apply_decay(qubit_idx, plot.lindblad_drain_rate, delta)
 
-				var drained_probability = before_pop * plot.lindblad_drain_rate * delta
+				var drained_probability = 0.0
+				if biome.quantum_computer.has_method("get_sink_flux"):
+					var after_flux = float(biome.quantum_computer.get_sink_flux(axis_emoji))
+					drained_probability = max(0.0, after_flux - before_flux)
+					if drained_probability > 0.0 and biome.quantum_computer.has_method("consume_sink_flux"):
+						drained_probability = float(biome.quantum_computer.consume_sink_flux(axis_emoji, drained_probability))
+				if drained_probability <= 0.0:
+					var after_pop = biome.quantum_computer.get_population(sample_emoji)
+					drained_probability = max(0.0, before_pop - after_pop)
+				if drained_probability <= 0.0:
+					drained_probability = max(0.0, before_pop) * plot.lindblad_drain_rate * delta
 				_accumulate_lindblad_harvest(
 					plot,
 					axis_emoji,
@@ -743,10 +776,8 @@ func _accumulate_lindblad_harvest(plot, emoji: String, drained_probability: floa
 		return
 
 	plot.lindblad_drain_accumulator += credits
-	if _verbose:
-		_verbose.info("lindblad", "⏱", "accumulator %s=%.6f" % [emoji, plot.lindblad_drain_accumulator])
-	else:
-		print("⏱ Lindblad accumulator %s=%.6f" % [emoji, plot.lindblad_drain_accumulator])
+	if _verbose and Engine.get_process_frames() % 120 == 0:
+		_verbose.debug("lindblad", "⏱", "accumulator %s=%.6f" % [emoji, plot.lindblad_drain_accumulator])
 	var whole_credits = int(plot.lindblad_drain_accumulator)
 	if whole_credits <= 0:
 		return

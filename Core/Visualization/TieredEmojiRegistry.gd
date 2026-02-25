@@ -9,11 +9,11 @@ extends RefCounted
 ##
 ## Use TieredEmojiRegistry.shared() to get the singleton instance.
 
-static var _shared_instance: TieredEmojiRegistry = null
+static var _shared_instance = null
 
-static func shared() -> TieredEmojiRegistry:
+static func shared():
 	if not _shared_instance:
-		_shared_instance = TieredEmojiRegistry.new()
+		_shared_instance = new()
 	return _shared_instance
 
 enum EmojiSource {

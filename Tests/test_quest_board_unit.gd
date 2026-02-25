@@ -2,7 +2,7 @@ extends SceneTree
 
 ## Unit test for QuestBoard class
 
-const QuestBoard = preload("res://UI/Panels/QuestBoard.gd")
+const QuestBoard = preload("res://UI/Overlays/QuestBoard.gd")
 const Farm = preload("res://Core/Farm.gd")
 
 var farm: Farm

@@ -21,8 +21,8 @@ func _initialize():
 
 	# Try loading core UI components
 	print("\n2. Attempting to load keyboard components...")
-	var ToolSelectionRow = preload("res://UI/Panels/ToolSelectionRow.gd")
-	var ActionPreviewRow = preload("res://UI/Panels/ActionPreviewRow.gd")
+	var ToolSelectionRow = preload("res://UI/Widgets/ToolSelectionRow.gd")
+	var ActionPreviewRow = preload("res://UI/Widgets/ActionPreviewRow.gd")
 	var OverlayManager = preload("res://UI/Managers/OverlayManager.gd")
 
 	if ToolSelectionRow and ActionPreviewRow and OverlayManager:

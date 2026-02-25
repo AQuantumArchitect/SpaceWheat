@@ -73,6 +73,89 @@ static func increase_granularity(biomes: Array) -> Dictionary:
 	}
 
 
+## ============================================================================
+## OBSERVATION STRIDE CONTROLS
+## ============================================================================
+
+const MIN_STRIDE: int = 0    # locked (no advancement)
+const MAX_STRIDE: int = 256   # 256x fast forward
+
+static func increase_stride(biomes: Array) -> Dictionary:
+	"""Double observation stride (faster playback). 0→1 unlocks.
+
+	Returns: {current_stride: int, new_stride: int, biome_count: int}
+	"""
+	if biomes.is_empty():
+		return {"current_stride": 1, "new_stride": 1, "biome_count": 0}
+
+	var current_stride: int = 1
+	var first_biome = biomes[0]
+	if "observation_stride" in first_biome:
+		current_stride = first_biome.observation_stride
+
+	# 0→1 unlocks, otherwise double
+	var new_stride: int
+	if current_stride <= 0:
+		new_stride = 1
+	else:
+		new_stride = mini(current_stride * 2, MAX_STRIDE)
+
+	var biome_count = 0
+	for biome in biomes:
+		if "observation_stride" in biome:
+			biome.observation_stride = new_stride
+			biome_count += 1
+
+	return {
+		"current_stride": current_stride,
+		"new_stride": new_stride,
+		"biome_count": biome_count
+	}
+
+
+static func decrease_stride(biomes: Array) -> Dictionary:
+	"""Halve observation stride (slower playback). 1→0 locks.
+
+	Returns: {current_stride: int, new_stride: int, biome_count: int}
+	"""
+	if biomes.is_empty():
+		return {"current_stride": 1, "new_stride": 1, "biome_count": 0}
+
+	var current_stride: int = 1
+	var first_biome = biomes[0]
+	if "observation_stride" in first_biome:
+		current_stride = first_biome.observation_stride
+
+	# 1→0 locks, otherwise halve
+	var new_stride: int
+	if current_stride <= 1:
+		new_stride = 0
+	else:
+		new_stride = maxi(current_stride / 2, 1)
+
+	var biome_count = 0
+	for biome in biomes:
+		if "observation_stride" in biome:
+			biome.observation_stride = new_stride
+			biome_count += 1
+
+	return {
+		"current_stride": current_stride,
+		"new_stride": new_stride,
+		"biome_count": biome_count
+	}
+
+
+static func get_current_stride(biomes: Array) -> int:
+	"""Get current observation_stride from first biome."""
+	if biomes.is_empty():
+		return 1
+	var first_biome = biomes[0]
+	if "observation_stride" in first_biome:
+		return first_biome.observation_stride
+	return 1
+
+
 static func get_current_granularity(biomes: Array) -> float:
 	"""Get current max_evolution_dt from first biome."""
 	if biomes.is_empty():

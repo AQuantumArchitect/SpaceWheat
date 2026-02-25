@@ -9,23 +9,10 @@ extends RefCounted
 ## Performance Optimization: Skip evolution for biomes with no bound terminals
 ## ("Out of sight, out of mind" - don't evolve unpopulated biomes)
 
-## Safely log via VerboseConfig (Resource can't use @onready)
+const VerboseHelper = preload("res://Core/Config/VerboseHelper.gd")
+
 func _log(level: String, category: String, emoji: String, message: String) -> void:
-	var tree = Engine.get_main_loop()
-	if not tree or not tree is SceneTree:
-		return
-	var verbose = tree.root.get_node_or_null("/root/VerboseConfig")
-	if not verbose:
-		return
-	match level:
-		"info":
-			verbose.info(category, emoji, message)
-		"debug":
-			verbose.debug(category, emoji, message)
-		"warn":
-			verbose.warn(category, emoji, message)
-		"error":
-			verbose.error(category, emoji, message)
+	VerboseHelper.log(level, category, emoji, message)
 
 func _env_truthy(raw: String) -> bool:
 	var val = raw.strip_edges().to_lower()
@@ -84,6 +71,7 @@ var evolution_accumulator: float = 0.0
 
 # TerminalPool reference for bound terminal checks
 var terminal_pool = null
+var farm_ref = null
 
 # Stage 2: Lookahead engine and buffers
 var lookahead_engine = null  # MultiBiomeLookaheadEngine (C++)
@@ -97,6 +85,7 @@ var _disable_lookahead_env: bool = false
 var _disable_mi_env: bool = false
 var _disable_force_env: bool = false
 var _headless_env: bool = false
+var _stride_scales_resolution: bool = true
 var frame_buffers: Dictionary = {}  # biome_name -> Array[PackedFloat64Array]
 var buffer_cursors: Dictionary = {}  # biome_name -> int
 var mi_cache: Dictionary = {}  # biome_name -> PackedFloat64Array
@@ -167,6 +156,7 @@ var biome_pending: Dictionary = {}        # biome_name -> bool (has queued packe
 var biome_in_flight: Dictionary = {}      # biome_name -> bool (thread currently running)
 var biome_paused: Dictionary = {}         # biome_name -> bool (no peeked terminals, skip evolution)
 var biome_evolution_counts: Dictionary = {}  # biome_name -> int (cumulative evolution steps, for music ghost timer)
+var biome_stride_dt_carry: Dictionary = {}  # biome_name -> float (accumulated dt until stride threshold)
 var active_flags: Array = []              # Which biomes are active (populated with terminals)
 
 # Legacy global queue (scheduled for removal after full per-biome migration)
@@ -256,14 +246,16 @@ func _cleanup_lookahead_engine() -> void:
 		lookahead_engine = null
 
 
-func initialize(biome_array: Array, p_terminal_pool = null):
+func initialize(biome_array: Array, p_terminal_pool = null, p_farm = null):
 	"""Initialize batcher with all farm biomes.
 
 	Args:
 		biome_array: Array of BiomeBase instances
 		p_terminal_pool: Optional TerminalPool for bound terminal optimization
+		p_farm: Optional Farm reference for infrastructure-aware evolution checks
 	"""
 	terminal_pool = p_terminal_pool
+	farm_ref = p_farm
 
 	# Resolve runtime flags once per session.
 	_headless_env = DisplayServer.get_name() == "headless"
@@ -272,6 +264,7 @@ func initialize(biome_array: Array, p_terminal_pool = null):
 	_disable_mi_env = _resolve_flag("RIG_DISABLE_MI", "SW_DISABLE_MI", rig_enabled)
 	_disable_force_env = _resolve_flag("RIG_DISABLE_FORCE_GRAPH", "SW_DISABLE_FORCE", rig_enabled) \
 		or _resolve_flag("RIG_DISABLE_FORCE", "SW_DISABLE_FORCE", rig_enabled)
+	_stride_scales_resolution = _env_flag("SW_STRIDE_SCALES_RESOLUTION", true)
 	_max_phrame_hz_cap = max(0.0, _env_float("SW_MAX_PHRAME_HZ", 10.0))
 	if _max_phrame_hz_cap > 0.0:
 		_min_phrame_interval_ms = 1000.0 / _max_phrame_hz_cap
@@ -282,6 +275,9 @@ func initialize(biome_array: Array, p_terminal_pool = null):
 	biomes = biome_array.filter(func(b):
 		return b != null and b.quantum_computer != null
 	)
+	for biome in biomes:
+		var biome_name = _get_biome_name(biome)
+		biome_stride_dt_carry[biome_name] = 0.0
 
 	print("BiomeEvolutionBatcher: Registered %d biomes for batch evolution" % biomes.size())
 
@@ -352,6 +348,7 @@ func register_biome(biome) -> void:
 	biome_last_escalation_time[biome_name] = 0.0  # Never escalated yet
 	biome_dirty[biome_name] = false
 	biome_pending_reregister[biome_name] = false
+	biome_stride_dt_carry[biome_name] = 0.0
 
 	# If native engine is ready, register and prime immediately
 	if _engine_ready and lookahead_engine and ENABLE_LOOKAHEAD:
@@ -419,6 +416,7 @@ func unregister_biome(biome) -> void:
 	biome_last_good_purity.erase(biome_name)
 	biome_dirty.erase(biome_name)
 	biome_pending_reregister.erase(biome_name)
+	biome_stride_dt_carry.erase(biome_name)
 
 	# Clean up per-biome state
 	biome_packet_queues.erase(biome_name)
@@ -1069,6 +1067,103 @@ func _get_biome_depth(biome_name: String) -> int:
 	return buffer.size() - cursor
 
 
+func _get_observation_stride(biome) -> int:
+	if not _is_valid_biome(biome):
+		return 1
+	if "observation_stride" in biome:
+		return clampi(int(biome.observation_stride), 0, 256)
+	return 1
+
+
+func _get_base_max_dt(biome) -> float:
+	if not _is_valid_biome(biome):
+		return MAX_SUBSTEP_DT
+	if "max_evolution_dt" in biome:
+		return maxf(0.000001, float(biome.max_evolution_dt))
+	return MAX_SUBSTEP_DT
+
+
+func _get_effective_max_dt_for_stride(biome, stride: int) -> float:
+	var base_max_dt = _get_base_max_dt(biome)
+	if stride <= 1 or not _stride_scales_resolution:
+		return base_max_dt
+	return maxf(base_max_dt, base_max_dt * float(stride))
+
+
+func reset_stride_carry(biome_name: String = "") -> void:
+	"""Reset stride dt carry after runtime stride/resolution changes."""
+	if biome_name == "":
+		biome_stride_dt_carry.clear()
+		for biome in biomes:
+			if _is_valid_biome(biome):
+				biome_stride_dt_carry[_get_biome_name(biome)] = 0.0
+		return
+	biome_stride_dt_carry[biome_name] = 0.0
+
+
+func _collect_stride_evolution_packets(biome, incoming_dt: float) -> Array:
+	"""Convert incoming phrame dt into stride-aware evolution packets.
+
+	Returns Array[{dt, max_dt, stride}] and carries remainder per-biome.
+	"""
+	var packets: Array = []
+	if incoming_dt <= 0.0 or not _is_valid_biome(biome):
+		return packets
+
+	var biome_name = _get_biome_name(biome)
+	var stride = _get_observation_stride(biome)
+	if stride <= 0:
+		biome_stride_dt_carry[biome_name] = 0.0
+		return packets
+
+	var carry_dt = float(biome_stride_dt_carry.get(biome_name, 0.0)) + incoming_dt
+
+	if stride <= 1:
+		packets.append({
+			"dt": carry_dt,
+			"max_dt": _get_effective_max_dt_for_stride(biome, 1),
+			"stride": 1
+		})
+		biome_stride_dt_carry[biome_name] = 0.0
+		return packets
+
+	var stride_window_dt = EVOLUTION_INTERVAL * float(stride)
+	if stride_window_dt <= 0.0:
+		stride_window_dt = incoming_dt
+	var effective_max_dt = _get_effective_max_dt_for_stride(biome, stride)
+
+	while carry_dt + 1e-9 >= stride_window_dt:
+		packets.append({
+			"dt": stride_window_dt,
+			"max_dt": effective_max_dt,
+			"stride": stride
+		})
+		carry_dt -= stride_window_dt
+
+	biome_stride_dt_carry[biome_name] = maxf(0.0, carry_dt)
+	return packets
+
+
+func _flush_stride_packet(biome) -> Dictionary:
+	"""Flush remaining stride carry as one coarse packet (command-boundary use)."""
+	if not _is_valid_biome(biome):
+		return {}
+	var stride = _get_observation_stride(biome)
+	if stride <= 1:
+		return {}
+	var biome_name = _get_biome_name(biome)
+	var carry_dt = float(biome_stride_dt_carry.get(biome_name, 0.0))
+	if carry_dt <= 0.0:
+		return {}
+	biome_stride_dt_carry[biome_name] = 0.0
+	return {
+		"dt": carry_dt,
+		"max_dt": _get_effective_max_dt_for_stride(biome, stride),
+		"stride": stride,
+		"flushed": true
+	}
+
+
 func _get_biome_buffer_time_ms(biome_name: String) -> float:
 	var depth = _get_biome_depth(biome_name)
 	return depth * EVOLUTION_INTERVAL * 1000.0
@@ -1184,16 +1279,16 @@ func _update_biome_pause_states():
 			continue
 
 		var biome_name = _get_biome_name(biome)
-		var has_bubbles = _biome_has_bound_terminals(biome)
+		var has_activity = _biome_has_bound_terminals(biome, true)
 		var was_paused = biome_paused.get(biome_name, false)
-		biome_paused[biome_name] = not has_bubbles
+		biome_paused[biome_name] = not has_activity
 
 		# Log state changes
-		if was_paused != (not has_bubbles):
-			if has_bubbles:
-				print("[BiomeEvolution] %s: RESUMED (has bubbles)" % biome_name)
+		if was_paused != (not has_activity):
+			if has_activity:
+				print("[BiomeEvolution] %s: RESUMED (has activity)" % biome_name)
 			else:
-				print("[BiomeEvolution] %s: PAUSED (no bubbles)" % biome_name)
+				print("[BiomeEvolution] %s: PAUSED (no activity)" % biome_name)
 
 
 func _biome_has_peeked_terminals(biome) -> bool:
@@ -2004,6 +2099,19 @@ func _advance_all_buffers():
 		if biome_paused.get(biome_name, false):
 			continue
 
+		# Observation stride: 0=locked, 1=normal, 2+=fast forward
+		var stride: int = biome.observation_stride if "observation_stride" in biome else 1
+		if stride <= 0:
+			continue  # Locked — no advancement
+
+		if stride > 1:
+			# Fast-forward: advance cursor by (stride-1) without applying, then apply final
+			var buf = bloch_buffers.get(biome_name, [])
+			var cursor = buffer_cursors.get(biome_name, 0)
+			var skip_count = mini(stride - 1, buf.size() - cursor - 1)
+			if skip_count > 0:
+				buffer_cursors[biome_name] = cursor + skip_count
+
 		_apply_buffered_step(biome)
 
 
@@ -2095,6 +2203,7 @@ func _apply_buffered_step(biome, apply_post: bool = true) -> void:
 		_abs_other_us += (t4 - t3)
 
 	buffer_cursors[biome_name] = cursor + 1
+	_accumulate_sink_flux_from_couplings(biome, LOOKAHEAD_DT)
 
 	# Increment cumulative evolution count (for music ghost timer sync)
 	biome_evolution_counts[biome_name] = biome_evolution_counts.get(biome_name, 0) + 1
@@ -2246,7 +2355,7 @@ func _refill_all_lookahead_buffers(force_all: bool = false):
 			var status = _get_biome_rho_status(biome_name, biome)
 			var active = status.valid
 			if not force_all:
-				if terminal_pool and not _biome_has_bound_terminals(biome):
+				if terminal_pool and not _biome_has_bound_terminals(biome, true):
 					active = false
 				if not biome.quantum_evolution_enabled or biome.evolution_paused:
 					active = false
@@ -2350,6 +2459,16 @@ func get_global_icon_map() -> Dictionary:
 	}
 
 
+func get_biome_icon_map(biome_name: String) -> Dictionary:
+	"""Return IconMap payload for a single biome (or empty dict if unavailable)."""
+	if biome_name == "":
+		return {}
+	var payload = icon_map_payloads.get(biome_name, {})
+	if payload is Dictionary:
+		return payload.duplicate(true)
+	return {}
+
+
 func run_additional_cycles(cycles: int, biome_names: Array = []) -> Dictionary:
 	"""Run additional evolution cycles immediately.
 
@@ -2406,9 +2525,18 @@ func run_additional_cycles(cycles: int, biome_names: Array = []) -> Dictionary:
 				else:
 					skipped_due_empty_buffer += 1
 			else:
-				_run_direct_biome_cycle(biome, LOOKAHEAD_DT)
-				direct_evolve_steps += 1
-				evolved_steps += 1
+				var packets = _collect_stride_evolution_packets(biome, LOOKAHEAD_DT)
+				if packets.is_empty():
+					skipped_due_empty_buffer += 1
+					continue
+				for packet in packets:
+					_run_direct_biome_cycle(
+						biome,
+						float(packet.get("dt", LOOKAHEAD_DT)),
+						float(packet.get("max_dt", _get_base_max_dt(biome)))
+					)
+					direct_evolve_steps += 1
+					evolved_steps += 1
 
 	return {
 		"success": true,
@@ -2422,14 +2550,148 @@ func run_additional_cycles(cycles: int, biome_names: Array = []) -> Dictionary:
 	}
 
 
-func _run_direct_biome_cycle(biome, dt: float) -> void:
+func run_time_skip_cycles(cycles: int, dt: float = LOOKAHEAD_DT, biome_names: Array = []) -> Dictionary:
+	"""Deterministic synchronous evolution for rig time-skip.
+
+	Bypasses physics-frame guards and async packet queues. Always uses direct
+	biome evolution to avoid lookahead race/crash conditions during headless control.
+	"""
+	var target_cycles = maxi(cycles, 0)
+	if target_cycles <= 0:
+		return {
+			"success": true,
+			"cycles": 0,
+			"biomes": 0,
+			"evolved_steps": 0,
+			"skipped_biomes": 0,
+			"mode": "direct"
+		}
+
+	var target_dt = maxf(0.000001, dt)
+	var debug_time_skip = _env_flag("RIG_DEBUG_TIMESKIP", false)
+	var require_activity = _env_flag("RIG_TIME_SKIP_REQUIRE_ACTIVITY", false)
+	var requested: Dictionary = {}
+	for biome_name in biome_names:
+		var key = str(biome_name)
+		if key != "":
+			requested[key] = true
+
+	var target_biomes: Array = []
+	var skipped_biomes = 0
+	for biome in biomes:
+		if not _is_valid_biome(biome):
+			continue
+		var biome_name = _get_biome_name(biome)
+		if not requested.is_empty() and not requested.has(biome_name):
+			continue
+		if not biome.quantum_evolution_enabled or biome.evolution_paused:
+			skipped_biomes += 1
+			continue
+		if require_activity and terminal_pool and not _biome_has_bound_terminals(biome, true):
+			skipped_biomes += 1
+			continue
+		target_biomes.append(biome)
+
+	if target_biomes.is_empty():
+		return {
+			"success": false,
+			"error": "no_target_biomes",
+			"message": "No eligible biomes for time-skip evolution.",
+			"cycles": target_cycles,
+			"biomes": 0,
+			"evolved_steps": 0,
+			"skipped_biomes": skipped_biomes,
+			"mode": "direct"
+		}
+
+	var evolved_steps = 0
+	var stride_deferred_steps = 0
+	var stride_flushed_steps = 0
+	for _i in range(target_cycles):
+		for biome in target_biomes:
+			var packets = _collect_stride_evolution_packets(biome, target_dt)
+			if packets.is_empty():
+				stride_deferred_steps += 1
+				continue
+			if debug_time_skip:
+				var qc = biome.quantum_computer if biome else null
+				var reg_dim = int(qc.register_map.dim()) if qc and qc.register_map else -1
+				var rho_dim = int(qc.density_matrix.n) if qc and qc.density_matrix else -1
+				var h_dim = int(qc.hamiltonian.n) if qc and qc.hamiltonian else -1
+				var lindblad_count = int(qc.lindblad_operators.size()) if qc and "lindblad_operators" in qc else 0
+				print("[TIME_SKIP][BATCHER] cycle=%d biome=%s reg_dim=%d rho_dim=%d H_dim=%d L_count=%d max_dt=%.6f target_dt=%.6f" % [
+					_i,
+					_get_biome_name(biome),
+					reg_dim,
+					rho_dim,
+					h_dim,
+					lindblad_count,
+					(biome.max_evolution_dt if "max_evolution_dt" in biome else -1.0),
+					target_dt
+				])
+			for packet in packets:
+				var packet_dt = float(packet.get("dt", target_dt))
+				var packet_max_dt = float(packet.get("max_dt", _get_base_max_dt(biome)))
+				var packet_stride = int(packet.get("stride", 1))
+				_run_direct_biome_cycle(biome, packet_dt, packet_max_dt)
+				if debug_time_skip:
+					print("[TIME_SKIP][BATCHER] cycle=%d biome=%s evolve_ok stride=%d packet_dt=%.6f packet_max_dt=%.6f carry_dt=%.6f" % [
+						_i,
+						_get_biome_name(biome),
+						packet_stride,
+						packet_dt,
+						packet_max_dt,
+						float(biome_stride_dt_carry.get(_get_biome_name(biome), 0.0))
+					])
+				evolved_steps += 1
+
+	# Flush remaining carry once at command boundary so short waits still evolve.
+	for biome in target_biomes:
+		var flush_packet = _flush_stride_packet(biome)
+		if flush_packet.is_empty():
+			continue
+		var flush_dt = float(flush_packet.get("dt", 0.0))
+		if flush_dt <= 0.0:
+			continue
+		var flush_max_dt = float(flush_packet.get("max_dt", _get_base_max_dt(biome)))
+		_run_direct_biome_cycle(biome, flush_dt, flush_max_dt)
+		stride_flushed_steps += 1
+		evolved_steps += 1
+		if debug_time_skip:
+			print("[TIME_SKIP][BATCHER] flush biome=%s stride=%d packet_dt=%.6f packet_max_dt=%.6f" % [
+				_get_biome_name(biome),
+				int(flush_packet.get("stride", 1)),
+				flush_dt,
+				flush_max_dt
+			])
+
+	# Refresh pause state after deterministic stepping.
+	_update_biome_pause_states()
+
+	return {
+		"success": true,
+		"cycles": target_cycles,
+		"biomes": target_biomes.size(),
+		"evolved_steps": evolved_steps,
+		"stride_deferred_steps": stride_deferred_steps,
+		"stride_flushed_steps": stride_flushed_steps,
+		"skipped_biomes": skipped_biomes,
+		"mode": "direct",
+		"dt": target_dt,
+		"require_activity": require_activity
+	}
+
+
+func _run_direct_biome_cycle(biome, dt: float, max_dt_override: float = -1.0) -> void:
 	if not _is_valid_biome(biome):
+		return
+	if not _ensure_biome_quantum_shapes(biome):
 		return
 
 	if biome.time_tracker:
 		biome.time_tracker.update(dt)
 
-	var max_dt = biome.max_evolution_dt if "max_evolution_dt" in biome else MAX_SUBSTEP_DT
+	var max_dt = max_dt_override if max_dt_override > 0.0 else _get_base_max_dt(biome)
 	biome.quantum_computer.evolve(dt, max_dt, null)
 
 	if biome.viz_cache:
@@ -2437,12 +2699,60 @@ func _run_direct_biome_cycle(biome, dt: float) -> void:
 		var num_qubits = biome.quantum_computer.register_map.num_qubits if biome.quantum_computer.register_map else 0
 		if packet.size() > 0 and num_qubits > 0:
 			biome.viz_cache.update_from_bloch_packet(packet, num_qubits)
-		if biome.quantum_computer.has_method("get_purity"):
-			biome.viz_cache.update_purity(biome.quantum_computer.get_purity())
+	if biome.quantum_computer.has_method("get_purity"):
+		biome.viz_cache.update_purity(biome.quantum_computer.get_purity())
 
+	_accumulate_sink_flux_from_couplings(biome, dt)
 	_post_evolution_update(biome)
 	var biome_name = _get_biome_name(biome)
 	biome_evolution_counts[biome_name] = biome_evolution_counts.get(biome_name, 0) + 1
+
+
+func _quantum_shapes_valid(qc) -> bool:
+	if not qc or not qc.register_map:
+		return false
+	var dim = int(qc.register_map.dim())
+	if dim <= 0:
+		return false
+	if not qc.density_matrix or int(qc.density_matrix.n) != dim:
+		return false
+	if qc.hamiltonian and int(qc.hamiltonian.n) != dim:
+		return false
+	var lindblad_ops = qc.lindblad_operators if "lindblad_operators" in qc else []
+	for L in lindblad_ops:
+		if L and int(L.n) != dim:
+			return false
+	return true
+
+
+func _ensure_biome_quantum_shapes(biome) -> bool:
+	"""Prevent native matrix-dimension asserts by validating/repairing QC shapes."""
+	if not _is_valid_biome(biome):
+		return false
+	var qc = biome.quantum_computer
+	if _quantum_shapes_valid(qc):
+		return true
+
+	var biome_name = _get_biome_name(biome)
+	_log("warn", "quantum", "🧯", "%s: shape mismatch detected before evolve; attempting repair" % biome_name)
+
+	# First pass: ensure density matrix matches current register_map dimension.
+	if qc and qc.register_map:
+		var target_dim = int(qc.register_map.dim())
+		if target_dim > 0 and (not qc.density_matrix or int(qc.density_matrix.n) != target_dim):
+			if qc.has_method("initialize_uniform_superposition"):
+				qc.initialize_uniform_superposition()
+
+	# Second pass: rebuild biome operators from current register_map.
+	if biome.has_method("rebuild_quantum_operators"):
+		biome.rebuild_quantum_operators()
+
+	if _quantum_shapes_valid(qc):
+		_log("info", "quantum", "✅", "%s: repaired QC shapes; evolution resumed" % biome_name)
+		return true
+
+	_log("error", "quantum", "🛑", "%s: QC shape repair failed; skipping evolve cycle" % biome_name)
+	return false
 
 
 func _evolve_batch(dt: float):
@@ -2460,21 +2770,29 @@ func _evolve_batch(dt: float):
 		var biome = biomes[idx]
 
 		if biome and biome.quantum_computer:
-			if biome.time_tracker:
-				biome.time_tracker.update(dt)
-
 			if not ENABLE_EVOLUTION:
 				skipped_count += 1
 				continue
 
-			if terminal_pool and not _biome_has_bound_terminals(biome):
+			if terminal_pool and not _biome_has_bound_terminals(biome, true):
 				skipped_count += 1
 				continue
 
 			if biome.quantum_evolution_enabled and not biome.evolution_paused:
-				biome.quantum_computer.evolve(dt, biome.max_evolution_dt)
-				evolved_count += 1
-				_post_evolution_update(biome)
+				if not _ensure_biome_quantum_shapes(biome):
+					skipped_count += 1
+					continue
+					var packets = _collect_stride_evolution_packets(biome, dt)
+					if packets.is_empty():
+						skipped_count += 1
+						continue
+					for packet in packets:
+						_run_direct_biome_cycle(
+							biome,
+							float(packet.get("dt", dt)),
+							float(packet.get("max_dt", _get_base_max_dt(biome)))
+						)
+						evolved_count += 1
 
 	var batch_end = Time.get_ticks_usec()
 	last_batch_time_ms = (batch_end - batch_start) / 1000.0
@@ -2488,16 +2806,44 @@ func _evolve_batch(dt: float):
 		])
 
 
-func _biome_has_bound_terminals(biome) -> bool:
+func _biome_has_bound_terminals(biome, include_persistent_infra: bool = false) -> bool:
 	"""Check if a biome has any bound terminals (planted plots)."""
 	if not terminal_pool:
 		return true
 
 	if terminal_pool.has_method("get_terminals_in_biome"):
 		var biome_name = _get_biome_name(biome)  # Use helper with proper type checking
-		return terminal_pool.get_terminals_in_biome(biome_name).size() > 0
+		if terminal_pool.get_terminals_in_biome(biome_name).size() > 0:
+			return true
+		if include_persistent_infra:
+			return _biome_has_persistent_lindblad_channels(biome)
+		return false
 
-	return true
+	if include_persistent_infra:
+		return _biome_has_persistent_lindblad_channels(biome)
+	return false
+
+
+func _biome_has_persistent_lindblad_channels(biome) -> bool:
+	"""Treat persistent Lindblad channels as active biome infrastructure.
+
+	This keeps drain/pump infrastructure meaningful even when no terminals are bound.
+	"""
+	if not farm_ref or not ("grid" in farm_ref) or not farm_ref.grid:
+		return false
+	if not ("plot_biome_assignments" in farm_ref.grid):
+		return false
+
+	var biome_name = _get_biome_name(biome)
+	for pos in farm_ref.grid.plot_biome_assignments:
+		if str(farm_ref.grid.plot_biome_assignments[pos]) != str(biome_name):
+			continue
+		var plot = farm_ref.grid.get_plot(pos)
+		if not plot:
+			continue
+		if plot.lindblad_pump_active or plot.lindblad_drain_active:
+			return true
+	return false
 
 
 func _any_active_flags(flags: Array) -> bool:
@@ -2577,7 +2923,7 @@ func _any_active_biomes() -> bool:
 			continue
 		if not biome.quantum_evolution_enabled or biome.evolution_paused:
 			continue
-		if terminal_pool and not _biome_has_bound_terminals(biome):
+		if terminal_pool and not _biome_has_bound_terminals(biome, true):
 			continue
 		return true
 	return false
@@ -2643,6 +2989,22 @@ func _post_evolution_update(biome):
 		"VolcanicWorlds":
 			if biome.has_method("_update_eruption_state"):
 				biome._update_eruption_state()
+
+
+func _accumulate_sink_flux_from_couplings(biome, dt: float) -> void:
+	"""Accumulate Lindblad sink flux using native coupling rates and live state."""
+	if dt <= 0.0 or not _is_valid_biome(biome):
+		return
+	var qc = biome.quantum_computer
+	if not qc or not qc.has_method("accumulate_sink_flux_from_rates"):
+		return
+	var biome_name = _get_biome_name(biome)
+	var payload = coupling_payloads.get(biome_name, {})
+	if payload.is_empty():
+		return
+	var sink_fluxes = payload.get("sink_fluxes", {})
+	if sink_fluxes is Dictionary and not sink_fluxes.is_empty():
+		qc.accumulate_sink_flux_from_rates(sink_fluxes, dt)
 
 
 func signal_user_action():

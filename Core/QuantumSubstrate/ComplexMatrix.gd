@@ -48,7 +48,19 @@ func _to_packed() -> PackedFloat64Array:
 
 	# Native path: get from native backend if available
 	if _native_available and _native_backend != null:
-		return _native_backend.to_packed()
+		var native_packed: PackedFloat64Array = _native_backend.to_packed()
+		if native_packed.size() >= n * n * 2:
+			return native_packed
+		# Native cache is stale/empty: rebuild from authoritative GDScript data.
+		_ensure_data_valid()
+		var rebuilt = PackedFloat64Array()
+		rebuilt.resize(n * n * 2)
+		for i in range(n * n):
+			rebuilt[i * 2] = _data[i].re
+			rebuilt[i * 2 + 1] = _data[i].im
+		_packed_cache = rebuilt
+		_native_backend.from_packed(rebuilt, n)
+		return rebuilt
 
 	# Fallback: marshal from _data (slow)
 	_ensure_data_valid()
@@ -333,11 +345,23 @@ func mul(other):
 	# Use native acceleration if available
 	var native = _get_native()
 	if native:
-		_sync_to_native()
-		var result_packed = native.mul(other._to_packed(), n)
-		return _result_from_packed(result_packed, n)
+		var expected = n * n * 2
+		var self_packed = _to_packed()
+		var other_packed = other._to_packed()
+		if self_packed.size() >= expected and other_packed.size() >= expected:
+			native.from_packed(self_packed, n)
+			var result_packed = native.mul(other_packed, n)
+			return _result_from_packed(result_packed, n)
+		push_warning("ComplexMatrix.mul: invalid packed payload (self=%d other=%d expected=%d), falling back to GDScript" % [
+			self_packed.size(), other_packed.size(), expected
+		])
+		return _mul_gdscript(other)
 
 	# Fallback: pure GDScript O(n³)
+	return _mul_gdscript(other)
+
+
+func _mul_gdscript(other):
 	var result = load("res://Core/QuantumSubstrate/ComplexMatrix.gd").new(n)
 	for i in range(n):
 		for j in range(n):

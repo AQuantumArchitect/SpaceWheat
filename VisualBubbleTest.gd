@@ -8,7 +8,6 @@ extends Node2D
 const _PC = preload("res://Core/Config/PhysicsConfig.gd")
 const TestBootManager = preload("res://Tests/TestBootManager.gd")
 const QuantumForceGraph = preload("res://Core/Visualization/QuantumForceGraph.gd")
-const SimStatsOverlay = preload("res://UI/Overlays/SimStatsOverlay.gd")
 const TestInspectorOverlay = preload("res://Tests/TestInspectorOverlay.gd")
 const FrameBudgetProfiler = preload("res://Tests/FrameBudgetProfiler.gd")
 const RenderingProfiler = preload("res://Tests/RenderingProfiler.gd")
@@ -21,7 +20,6 @@ var lookahead_engine = null  # Native C++ evolution engine (shared across all bi
 var emoji_atlas = null  # Pre-built emoji atlas for GPU-accelerated rendering
 var bubble_atlas = null  # Pre-built bubble atlas for GPU-accelerated bubble rendering
 var force_graph: QuantumForceGraph = null
-var stats_overlay = null
 var inspector_overlay = null
 var frame = 0
 var test_phase = "init"
@@ -245,11 +243,7 @@ func _create_visualization():
 				force_graph.nested_force_optimizer.register_bubble(node, node.biome_name, force_graph.center_position)
 		print("  Re-registered %d bubbles" % force_graph.quantum_nodes.size())
 
-	# Create stats overlay
-	stats_overlay = SimStatsOverlay.new()
-	stats_overlay.name = "SimStatsOverlay"
-	stats_overlay.set_meta("test_controller", self)
-	add_child(stats_overlay)
+	# SimStatsOverlay removed - stats merged into InspectorOverlay (N key)
 
 	# Create inspector overlay (density matrix display)
 	inspector_overlay = TestInspectorOverlay.new()

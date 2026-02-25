@@ -74,9 +74,9 @@ func _setup_quest_board():
 	print("Loading QuestBoard...")
 
 	# Load the real QuestBoard script
-	var QuestBoardClass = load("res://UI/Panels/QuestBoard.gd")
+	var QuestBoardClass = load("res://UI/Overlays/QuestBoard.gd")
 	if not QuestBoardClass:
-		_fail("QuestBoard not found at res://UI/Panels/QuestBoard.gd")
+		_fail("QuestBoard not found at res://UI/Overlays/QuestBoard.gd")
 		return
 
 	quest_board = Node.new()

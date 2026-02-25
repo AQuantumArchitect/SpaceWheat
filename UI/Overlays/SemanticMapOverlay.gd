@@ -16,8 +16,6 @@ extends "res://UI/Core/OverlayBase.gd"
 ##   WASD = Navigate within octant emojis
 ##   ESC = Close overlay
 
-const UIStyleFactory_Local = preload("res://UI/Core/UIStyleFactory.gd")
-
 # Semantic octant regions (from SemanticOctant.gd)
 const REGIONS = [
 	{"name": "Phoenix", "icon": "🔥", "desc": "Abundance & transformation", "color": Color(1.0, 0.6, 0.2)},
@@ -654,3 +652,49 @@ func get_action_labels() -> Dictionary:
 		labels["E"] = "Zoom In"
 
 	return labels
+
+
+func get_snapshot() -> Dictionary:
+	"""Return all currently-displayed state as structured data."""
+	# Collect known pairs from game state
+	var known_pairs: Array = []
+	var gsm = get_node_or_null("/root/GameStateManager")
+	if gsm:
+		var pairs_raw: Array = []
+		if "active_farm" in gsm and gsm.active_farm and gsm.active_farm.has_method("get_known_pairs"):
+			pairs_raw = gsm.active_farm.get_known_pairs()
+		elif gsm.current_state:
+			pairs_raw = gsm.current_state.known_pairs
+		for p in pairs_raw:
+			known_pairs.append({"north": p.get("north", "?"), "south": p.get("south", "?")})
+
+	# Collect octant data
+	var octants: Array = []
+	for i in range(8):
+		var region = REGIONS[i]
+		var count = _get_octant_emoji_count(i)
+		var emojis: Array = []
+		if vocabulary_data.has(i) and vocabulary_data[i] is Array:
+			for item in vocabulary_data[i]:
+				emojis.append(item.get("north", "?"))
+				emojis.append(item.get("south", "?"))
+		octants.append({
+			"name": region.name,
+			"icon": region.icon,
+			"emoji_count": count,
+			"emojis": emojis
+		})
+
+	# Count accessible factions
+	var total_factions = 0
+	if gsm and gsm.has_method("get_accessible_factions"):
+		total_factions = gsm.get_accessible_factions().size()
+
+	return {
+		"view_mode": VIEW_MODE_NAMES[current_view_mode].to_lower().replace(" ", "_"),
+		"known_pairs": known_pairs,
+		"pair_count": known_pairs.size(),
+		"total_factions": total_factions,
+		"selected_octant": selected_octant,
+		"octants": octants
+	}

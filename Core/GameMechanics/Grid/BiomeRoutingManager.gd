@@ -72,7 +72,7 @@ func get_biome_for_plot(position: Vector2i):
 	"""Get the biome responsible for a specific plot
 
 	Returns the biome instance for the given plot position.
-	If no assignment exists, returns the BioticFlux biome (default).
+	If no assignment exists, falls back to StarterForest (starter biome).
 	"""
 	# Check if plot has explicit assignment
 	if plot_biome_assignments.has(position):
@@ -80,9 +80,9 @@ func get_biome_for_plot(position: Vector2i):
 		if biomes.has(biome_name):
 			return biomes[biome_name]
 
-	# Fallback to BioticFlux (default biome)
-	if biomes.has("BioticFlux"):
-		return biomes["BioticFlux"]
+	# Fallback to StarterForest (starter biome)
+	if biomes.has("StarterForest"):
+		return biomes["StarterForest"]
 
 	# Final fallback to legacy biome variable (for backward compatibility)
 	return legacy_biome

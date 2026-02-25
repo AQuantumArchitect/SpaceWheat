@@ -7,6 +7,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List
 
+from milk_hunt_io import write_json
 from milk_hunt_paths import resolve_batch_summary
 
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -24,6 +25,18 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--runs", type=int, default=3, help="Runs per profile")
     parser.add_argument("--max-loops", type=int, default=220, help="Max offer cycles per run")
     parser.add_argument(
+        "--console-profile",
+        choices=["quiet", "normal", "debug", "trace", "test"],
+        default=None,
+        help="Batch + runner console verbosity profile",
+    )
+    parser.add_argument(
+        "--profile-save-index",
+        type=str,
+        default=None,
+        help="Optional profile-save registry index path passed to batch runs",
+    )
+    parser.add_argument(
         "--output-dir",
         type=Path,
         default=Path("/home/tehcr33d/ws/SpaceWheat/🍄/🎛️/logs/milk_batches"),
@@ -32,7 +45,14 @@ def _build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _run_profile(profile: str, runs: int, max_loops: int, output_dir: Path) -> Dict[str, Any]:
+def _run_profile(
+    profile: str,
+    runs: int,
+    max_loops: int,
+    output_dir: Path,
+    profile_save_index: str | None = None,
+    console_profile: str | None = None,
+) -> Dict[str, Any]:
     cmd = [
         "python3",
         str(RUNNER),
@@ -45,6 +65,10 @@ def _run_profile(profile: str, runs: int, max_loops: int, output_dir: Path) -> D
         "--output-dir",
         str(output_dir),
     ]
+    if profile_save_index:
+        cmd.extend(["--profile-save-index", profile_save_index])
+    if console_profile:
+        cmd.extend(["--console-profile", console_profile])
     proc = subprocess.run(cmd, capture_output=True, text=True, check=False)
     summary: Dict[str, Any] = {
         "profile": profile,
@@ -77,7 +101,14 @@ def main() -> int:
     results: List[Dict[str, Any]] = []
     for profile in profiles:
         print(f"[matrix] running profile={profile}", flush=True)
-        summary = _run_profile(profile, args.runs, args.max_loops, args.output_dir)
+        summary = _run_profile(
+            profile,
+            args.runs,
+            args.max_loops,
+            args.output_dir,
+            args.profile_save_index,
+            args.console_profile,
+        )
         results.append(summary)
         print(f"[matrix] done profile={profile} exit={summary['exit_code']}", flush=True)
 
@@ -89,7 +120,7 @@ def main() -> int:
         "results": results,
     }
     out_path = matrix_dir / "matrix_summary.json"
-    out_path.write_text(json.dumps(output, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    write_json(out_path, output)
     print("[matrix] summary written", out_path, flush=True)
     return 0
 

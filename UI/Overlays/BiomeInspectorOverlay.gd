@@ -16,7 +16,7 @@ extends "res://UI/Core/OverlayBase.gd"
 ##   Extends OverlayBase for unified overlay infrastructure.
 ##   Dynamic panels created on demand within scrollable content area.
 
-const BiomeOvalPanel = preload("res://UI/Panels/BiomeOvalPanel.gd")
+const BiomeOvalPanel = preload("res://UI/Widgets/BiomeOvalPanel.gd")
 
 # Biome display order (consistent across app)
 const BIOME_ORDER: Array[String] = ["StarterForest", "Village", "BioticFlux", "StellarForges", "FungalNetworks", "VolcanicWorlds"]

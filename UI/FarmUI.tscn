@@ -1,7 +1,7 @@
 [gd_scene load_steps=4 format=3 uid="uid://cdxfwm3p04laq"]
 
 [ext_resource type="Script" path="res://UI/FarmUI.gd" id="1_farmui"]
-[ext_resource type="Script" path="res://UI/Panels/ResourcePanel.gd" id="2_resourcepanel"]
+[ext_resource type="Script" path="res://UI/Widgets/ResourcePanel.gd" id="2_resourcepanel"]
 [ext_resource type="Script" path="res://UI/PlotGridDisplay.gd" id="3_plotgrid"]
 
 [node name="FarmUI" type="Control"]

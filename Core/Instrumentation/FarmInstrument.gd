@@ -24,6 +24,7 @@ var _probe_status_hide_at_ms: int = 0
 
 const PROBE_STATUS_DURATION_MS: int = 900
 const PhysicsConfig = preload("res://Core/Config/PhysicsConfig.gd")
+const QuantumInstrumentClass = preload("res://Core/Instrumentation/QuantumInstrument.gd")
 
 
 func setup(farm_ref: Node, shell_ref: Node) -> void:
@@ -79,16 +80,19 @@ func _open_overlay(name: String) -> bool:
 
 
 func get_resource_amount(emoji: String) -> float:
+	return QuantumInstrumentClass._get_resource_amount(farm, emoji)
+
+
+func _get_economy():
 	if farm and "economy" in farm and farm.economy:
-		if farm.economy.has_method("get_resource"):
-			return farm.economy.get_resource(emoji)
-	return 0
+		return farm.economy
+	return null
 
 
 func describe_resources() -> Dictionary:
-	if farm and "economy" in farm and farm.economy:
-		if farm.economy.has_method("get_all_resources"):
-			return farm.economy.get_all_resources()
+	var economy = _get_economy()
+	if economy and economy.has_method("get_all_resources"):
+		return economy.get_all_resources()
 	return {}
 
 
@@ -138,30 +142,27 @@ func get_batcher_metrics() -> Dictionary:
 
 func add_resource(emoji: String, credits_amount: int, reason: String = "rig_seed") -> bool:
 	"""Add emoji-credits directly to economy (used by QA rigs)."""
-	if not farm or not ("economy" in farm) or not farm.economy:
+	var economy = _get_economy()
+	if not economy or not economy.has_method("add_resource"):
 		return false
-	if not farm.economy.has_method("add_resource"):
-		return false
-	farm.economy.add_resource(emoji, credits_amount, reason)
+	economy.add_resource(emoji, credits_amount, reason)
 	return true
 
 
 func set_resource(emoji: String, credits_amount: int, reason: String = "rig_set") -> bool:
 	"""Set emoji-credits to an exact amount (used by deterministic rig seeding)."""
-	if not farm or not ("economy" in farm) or not farm.economy:
+	var economy = _get_economy()
+	if not economy or not economy.has_method("set_resource"):
 		return false
-	if not farm.economy.has_method("set_resource"):
-		return false
-	farm.economy.set_resource(emoji, credits_amount, reason)
+	economy.set_resource(emoji, credits_amount, reason)
 	return true
 
 
 func get_recent_resource_mutations(limit: int = 40) -> Array:
-	if not farm or not ("economy" in farm) or not farm.economy:
+	var economy = _get_economy()
+	if not economy or not economy.has_method("get_recent_resource_mutations"):
 		return []
-	if not farm.economy.has_method("get_recent_resource_mutations"):
-		return []
-	return farm.economy.get_recent_resource_mutations(limit)
+	return economy.get_recent_resource_mutations(limit)
 
 
 func get_active_quests() -> Array:
@@ -260,47 +261,16 @@ func offer_all_quests_for_current_biome() -> void:
 ## QUANTUM GATE & LINDBLAD OPERATIONS
 ## ============================================================================
 
-const GateActionHandler = preload("res://UI/Handlers/GateActionHandler.gd")
 const LindbladHandler = preload("res://UI/Handlers/LindbladHandler.gd")
 const BalanceService = preload("res://Core/GameMechanics/BalanceService.gd")
 
-## Map of rig gate names to GateActionHandler static callables.
-const _GATE_DISPATCH: Dictionary = {
-	"pauli_x": Callable(GateActionHandler, "apply_pauli_x"),
-	"pauli_y": Callable(GateActionHandler, "apply_pauli_y"),
-	"pauli_z": Callable(GateActionHandler, "apply_pauli_z"),
-	"hadamard": Callable(GateActionHandler, "apply_hadamard"),
-	"s_gate": Callable(GateActionHandler, "apply_s_gate"),
-	"t_gate": Callable(GateActionHandler, "apply_t_gate"),
-	"sdg": Callable(GateActionHandler, "apply_sdg_gate"),
-	"tdg": Callable(GateActionHandler, "apply_tdg_gate"),
-	"rx": Callable(GateActionHandler, "apply_rx_gate"),
-	"ry": Callable(GateActionHandler, "apply_ry_gate"),
-	"rz": Callable(GateActionHandler, "apply_rz_gate"),
-	"cnot": Callable(GateActionHandler, "apply_cnot"),
-	"cz": Callable(GateActionHandler, "apply_cz"),
-	"swap": Callable(GateActionHandler, "apply_swap"),
-	"bell": Callable(GateActionHandler, "create_bell_pair"),
-	"ghz": Callable(GateActionHandler, "create_ghz_state"),
-	"cluster": Callable(GateActionHandler, "cluster"),
-}
-
 
 func gate_inject(gate_name: String, positions: Array[Vector2i]) -> Dictionary:
-	"""Apply a quantum gate. Delegates to QuantumInstrument if available."""
+	"""Apply a quantum gate. Always delegates to QuantumInstrument."""
 	if instrument:
 		return instrument.gate_inject(gate_name, positions)
-	# Fallback to direct dispatch
-	if not farm:
-		return {"ok": false, "error": "no_farm"}
-	if not _GATE_DISPATCH.has(gate_name):
-		return {"ok": false, "error": "unknown_gate", "gate": gate_name, "available": _GATE_DISPATCH.keys()}
-	var gate_callable = _GATE_DISPATCH[gate_name] as Callable
-	if gate_callable == null or not gate_callable.is_valid():
-		return {"ok": false, "error": "invalid_gate_dispatch", "gate": gate_name}
-	var result = gate_callable.call(farm, positions)
-	result["gate"] = gate_name
-	return result
+	push_error("FarmInstrument: no QuantumInstrument available for gate_inject")
+	return {"ok": false, "error": "no_instrument"}
 
 
 func lindblad_pump(positions: Array[Vector2i]) -> Dictionary:
@@ -328,6 +298,69 @@ func time_skip(phrames: int, delta: float = -1.0) -> Dictionary:
 	if not farm or not farm.has_method("time_skip_phrames"):
 		return {"ok": false, "error": "no_time_skip_support"}
 	return farm.time_skip_phrames(phrames, delta if delta > 0.0 else PhysicsConfig.PHRAME_DT)
+
+
+func set_biome_stride(biome_name: String, stride: int) -> Dictionary:
+	"""Set observation stride for a biome. Delegates to QuantumInstrument."""
+	if instrument:
+		return instrument.set_observation_stride(biome_name, stride)
+	return {"ok": false, "error": "no_instrument"}
+
+
+func set_biome_resolution(biome_name: String, dt: float) -> Dictionary:
+	"""Set evolution resolution (dt) for a biome. Delegates to QuantumInstrument."""
+	if instrument:
+		return instrument.set_resolution(biome_name, dt)
+	return {"ok": false, "error": "no_instrument"}
+
+
+func get_biome_timescale(biome_name: String) -> Dictionary:
+	"""Get timescale snapshot for a biome. Delegates to QuantumInstrument."""
+	if instrument:
+		return instrument.get_timescale_snapshot(biome_name)
+	return {"ok": false, "error": "no_instrument"}
+
+
+func set_timescale_objective(objective: Dictionary) -> Dictionary:
+	"""Set shared timescale objective (used by UI + headless runners)."""
+	if instrument and instrument.has_method("set_timescale_objective"):
+		return instrument.set_timescale_objective(objective)
+	return {"ok": false, "error": "no_instrument"}
+
+
+func get_timescale_objective() -> Dictionary:
+	"""Get current timescale objective payload."""
+	if instrument and instrument.has_method("get_timescale_objective"):
+		return instrument.get_timescale_objective()
+	return {"ok": false, "error": "no_instrument"}
+
+
+func clear_timescale_objective() -> Dictionary:
+	"""Reset timescale objective to defaults."""
+	if instrument and instrument.has_method("clear_timescale_objective"):
+		return instrument.clear_timescale_objective()
+	return {"ok": false, "error": "no_instrument"}
+
+
+func get_timescale_projection(biome_name: String, top_k: int = -1) -> Dictionary:
+	"""Project icon-map probabilities + objective scoring for a biome."""
+	if instrument and instrument.has_method("get_timescale_projection"):
+		return instrument.get_timescale_projection(biome_name, top_k)
+	return {"ok": false, "error": "no_instrument"}
+
+
+func recommend_timescale(biome_name: String, top_k: int = -1) -> Dictionary:
+	"""Return recommended stride/dt/wait for a biome under current objective."""
+	if instrument and instrument.has_method("recommend_timescale"):
+		return instrument.recommend_timescale(biome_name, top_k)
+	return {"ok": false, "error": "no_instrument"}
+
+
+func auto_apply_timescale(biome_name: String, top_k: int = -1) -> Dictionary:
+	"""One-click helper: recommend + apply stride/dt for a biome."""
+	if instrument and instrument.has_method("auto_apply_timescale"):
+		return instrument.auto_apply_timescale(biome_name, top_k)
+	return {"ok": false, "error": "no_instrument"}
 
 
 func configure_economy(overrides: Dictionary) -> Dictionary:

@@ -55,8 +55,89 @@ static func _preflight_lindblad_cost(
 
 
 static func _resolve_axis_pair(farm, pos: Vector2i) -> Dictionary:
+	var biome = farm.grid.get_biome_for_plot(pos) if farm and farm.grid else null
+	var binding = _resolve_axis_binding(farm, pos, biome)
+	return {
+		"north": str(binding.get("north", "")),
+		"south": str(binding.get("south", ""))
+	}
+
+
+static func _get_biome_name(biome) -> String:
+	if not biome:
+		return ""
+	if biome.has_method("get_biome_type"):
+		return str(biome.get_biome_type())
+	return str(biome.name if "name" in biome else "")
+
+
+static func _sorted_biome_positions(farm, biome_name: String) -> Array[Vector2i]:
+	var out: Array[Vector2i] = []
+	if not farm or not farm.grid:
+		return out
+	if not ("plot_biome_assignments" in farm.grid):
+		return out
+
+	for key in farm.grid.plot_biome_assignments.keys():
+		var assigned = str(farm.grid.plot_biome_assignments.get(key, ""))
+		if assigned != biome_name:
+			continue
+		if key is Vector2i:
+			out.append(key)
+		elif key is Vector2:
+			out.append(Vector2i(int((key as Vector2).x), int((key as Vector2).y)))
+	out.sort_custom(func(a, b) -> bool:
+		if a.y == b.y:
+			return a.x < b.x
+		return a.y < b.y
+	)
+	return out
+
+
+static func _project_register_for_position(farm, biome, pos: Vector2i) -> int:
+	if not farm or not farm.grid or not biome:
+		return -1
+
+	var biome_name = _get_biome_name(biome)
+	if biome_name == "":
+		return -1
+
+	var positions = _sorted_biome_positions(farm, biome_name)
+	if positions.is_empty():
+		return -1
+
+	var slot_index = -1
+	for i in range(positions.size()):
+		if positions[i] == pos:
+			slot_index = i
+			break
+	if slot_index < 0:
+		return -1
+
+	var num_qubits = 0
+	if biome.viz_cache and biome.viz_cache.has_method("get_num_qubits"):
+		num_qubits = int(biome.viz_cache.get_num_qubits())
+	if num_qubits <= 0 and biome.quantum_computer and biome.quantum_computer.register_map:
+		num_qubits = int(biome.quantum_computer.register_map.num_qubits)
+	if num_qubits <= 0:
+		return -1
+
+	return posmod(slot_index, num_qubits)
+
+
+static func _resolve_axis_binding(farm, pos: Vector2i, biome) -> Dictionary:
+	"""Resolve axis+register for a plot and bind BasePlot if needed.
+
+	Persistent Lindblad infra is stored on register_infrastructure through BasePlot
+	properties. If a selected plot is unbound, we project a deterministic register
+	by biome slot so drain/pump can still be installed for headless tooling.
+	"""
 	var north = ""
 	var south = ""
+	var register_id = -1
+	var auto_bound_plot = false
+	var plot = farm.grid.get_plot(pos) if farm and farm.grid else null
+	var biome_name = _get_biome_name(biome)
 
 	if farm and farm.terminal_pool:
 		var terminal = farm.terminal_pool.get_terminal_at_grid_pos(pos)
@@ -64,22 +145,42 @@ static func _resolve_axis_pair(farm, pos: Vector2i) -> Dictionary:
 			var pair = terminal.get_emoji_pair()
 			north = str(pair.get("north", ""))
 			south = str(pair.get("south", ""))
+			if "bound_register_id" in terminal:
+				register_id = int(terminal.bound_register_id)
 
-	if north == "" and farm and farm.grid:
-		var plot = farm.grid.get_plot(pos)
-		if plot and plot.is_active():
-			north = str(plot.north_emoji if plot.north_emoji else "")
+	if north == "" and plot and plot.has_method("is_active") and plot.is_active():
+		north = str(plot.north_emoji if plot.north_emoji else "")
+		south = str(plot.south_emoji if plot.south_emoji else "")
+		if "bound_register_id" in plot:
+			register_id = int(plot.bound_register_id)
 
-	if north != "" and south == "":
-		var biome = farm.grid.get_biome_for_plot(pos) if farm and farm.grid else null
-		if biome and biome.viz_cache and biome.viz_cache.has_metadata():
-			var q = biome.viz_cache.get_qubit(north)
-			if q >= 0:
-				var axis = biome.viz_cache.get_axis(q)
-				if axis is Dictionary:
-					south = str(axis.get("south", ""))
+	if register_id < 0 and north != "":
+		register_id = _resolve_qubit_index(biome, north)
 
-	return {"north": north, "south": south}
+	if register_id < 0:
+		register_id = _project_register_for_position(farm, biome, pos)
+
+	if register_id >= 0 and biome and biome.viz_cache and biome.viz_cache.has_metadata():
+		var axis = biome.viz_cache.get_axis(register_id)
+		if axis is Dictionary:
+			if north == "":
+				north = str(axis.get("north", ""))
+			if south == "":
+				south = str(axis.get("south", ""))
+
+	if plot and register_id >= 0 and north != "" and plot.has_method("is_active") and not plot.is_active():
+		if plot.has_method("bind_to_register"):
+			plot.bind_to_register(register_id, biome_name, {"north": north, "south": south})
+			auto_bound_plot = true
+
+	return {
+		"north": north,
+		"south": south,
+		"register_id": register_id,
+		"plot": plot,
+		"biome_name": biome_name,
+		"auto_bound_plot": auto_bound_plot
+	}
 
 
 static func _resolve_qubit_index(biome, emoji: String) -> int:
@@ -240,48 +341,49 @@ static func enable_persistent_drive(farm, positions: Array[Vector2i],
 	var already_active = 0
 	var insufficient: Dictionary = {}
 	var driven_emojis: Dictionary = {}
+	var no_biome = 0
+	var unresolved_axis = 0
+	var unresolved_qubit = 0
+	var no_plot = 0
+	var unbound_plot = 0
+	var auto_bound_plot = 0
 
 	for pos in positions:
 		var biome = farm.grid.get_biome_for_plot(pos)
 		if not biome or not biome.quantum_computer:
+			no_biome += 1
 			continue
 
-		var pair = _resolve_axis_pair(farm, pos)
-		var north_emoji = str(pair.get("north", ""))
-		var south_emoji = str(pair.get("south", ""))
-		if _resolve_qubit_index(biome, north_emoji) < 0:
+		var binding = _resolve_axis_binding(farm, pos, biome)
+		var north_emoji = str(binding.get("north", ""))
+		var south_emoji = str(binding.get("south", ""))
+		var qubit_idx = int(binding.get("register_id", -1))
+		var plot = binding.get("plot", null)
+		if bool(binding.get("auto_bound_plot", false)):
+			auto_bound_plot += 1
+		if north_emoji == "":
+			unresolved_axis += 1
+			continue
+		if qubit_idx < 0:
+			unresolved_qubit += 1
 			continue
 
-		var plot = farm.grid.get_plot(pos)
+		if not plot:
+			no_plot += 1
+			continue
+		if plot.has_method("is_active") and not plot.is_active():
+			unbound_plot += 1
+			continue
 		if plot and (plot.lindblad_pump_active or plot.lindblad_drain_active):
 			already_active += 1
 			continue
 
-		var known_emojis: Array = farm.get_known_emojis() if farm.has_method("get_known_emojis") else []
-		if north_emoji not in known_emojis:
-			insufficient[north_emoji] = insufficient.get(north_emoji, 0) + 1
-			continue
-
-		var cost = _preflight_lindblad_cost(
-			farm,
-			EconomyConstants.normalize_action_id("lindblad_pump"),
-			north_emoji,
-			south_emoji,
-			insufficient
-		)
-		if cost.is_empty():
-			continue
-
-		if not EconomyConstants.commit_cost(cost, farm.economy, "lindblad_pump"):
-			continue
-
 		if plot:
-			# Activate only after cost commit: keeps per-plot channels idempotent.
+			# Free persistent pump: always activate when placement is valid.
 			plot.lindblad_pump_active = true
 			plot.lindblad_pump_rate = rate
 			activated_count += 1
 
-		charged_count += 1
 		success_count += 1
 		driven_emojis[north_emoji] = driven_emojis.get(north_emoji, 0) + 1
 
@@ -296,8 +398,16 @@ static func enable_persistent_drive(farm, positions: Array[Vector2i],
 		"charged_count": charged_count,
 		"already_active": already_active,
 		"insufficient": insufficient,
-		"cost_model": "pump=8🌱+32N"
-	}
+		"rejections": {
+			"no_biome": no_biome,
+			"no_plot": no_plot,
+			"unbound_plot": unbound_plot,
+			"unresolved_axis": unresolved_axis,
+			"unresolved_qubit": unresolved_qubit
+			},
+			"auto_bound_plot": auto_bound_plot,
+			"cost_model": "pump=free_persistent"
+		}
 
 
 static func enable_persistent_decay(farm, positions: Array[Vector2i],
@@ -323,19 +433,39 @@ static func enable_persistent_decay(farm, positions: Array[Vector2i],
 	var already_active = 0
 	var insufficient: Dictionary = {}
 	var decayed_emojis: Dictionary = {}
+	var no_biome = 0
+	var unresolved_axis = 0
+	var unresolved_qubit = 0
+	var no_plot = 0
+	var unbound_plot = 0
+	var auto_bound_plot = 0
 
 	for pos in positions:
 		var biome = farm.grid.get_biome_for_plot(pos)
 		if not biome or not biome.quantum_computer:
+			no_biome += 1
 			continue
 
-		var pair = _resolve_axis_pair(farm, pos)
-		var north_emoji = str(pair.get("north", ""))
-		var south_emoji = str(pair.get("south", ""))
-		if _resolve_qubit_index(biome, north_emoji) < 0:
+		var binding = _resolve_axis_binding(farm, pos, biome)
+		var north_emoji = str(binding.get("north", ""))
+		var south_emoji = str(binding.get("south", ""))
+		var qubit_idx = int(binding.get("register_id", -1))
+		var plot = binding.get("plot", null)
+		if bool(binding.get("auto_bound_plot", false)):
+			auto_bound_plot += 1
+		if north_emoji == "":
+			unresolved_axis += 1
+			continue
+		if qubit_idx < 0:
+			unresolved_qubit += 1
 			continue
 
-		var plot = farm.grid.get_plot(pos)
+		if not plot:
+			no_plot += 1
+			continue
+		if plot.has_method("is_active") and not plot.is_active():
+			unbound_plot += 1
+			continue
 		var known_emojis: Array = farm.get_known_emojis() if farm.has_method("get_known_emojis") else []
 		if north_emoji not in known_emojis:
 			insufficient[north_emoji] = insufficient.get(north_emoji, 0) + 1
@@ -378,6 +508,14 @@ static func enable_persistent_decay(farm, positions: Array[Vector2i],
 		"charged_count": charged_count,
 		"already_active": already_active,
 		"insufficient": insufficient,
+		"rejections": {
+			"no_biome": no_biome,
+			"no_plot": no_plot,
+			"unbound_plot": unbound_plot,
+			"unresolved_axis": unresolved_axis,
+			"unresolved_qubit": unresolved_qubit
+		},
+		"auto_bound_plot": auto_bound_plot,
 		"cost_model": "drain=2⚙+8S"
 	}
 

@@ -8,8 +8,8 @@ extends RefCounted
 ##
 ## Layout: Delegates sizing to UILayoutManager for consistent responsive behavior.
 
-const ToolSelectionRow = preload("res://UI/Panels/ToolSelectionRow.gd")
-const ActionPreviewRow = preload("res://UI/Panels/ActionPreviewRow.gd")
+const ToolSelectionRow = preload("res://UI/Widgets/ToolSelectionRow.gd")
+const ActionPreviewRow = preload("res://UI/Widgets/ActionPreviewRow.gd")
 const ToolConfig = preload("res://Core/GameState/ToolConfig.gd")
 
 var tool_selection_row: Control = null

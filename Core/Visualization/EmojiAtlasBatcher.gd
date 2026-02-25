@@ -1,6 +1,8 @@
 class_name EmojiAtlasBatcher
 extends RefCounted
 
+const TieredEmojiRegistry = preload("res://Core/Visualization/TieredEmojiRegistry.gd")
+
 ## Emoji Atlas Batcher - GPU-Accelerated Emoji Rendering
 ##
 ## PRE-RENDERS all emojis to a texture atlas at startup, then batches
@@ -69,7 +71,7 @@ var _missing_emojis_this_frame: Dictionary = {}  # Track emojis missing from atl
 var _visual_asset_registry = null
 
 # NEW: Three-tier emoji registry (hand-crafted → twemoji → text)
-var _tiered_emoji_registry: TieredEmojiRegistry = null
+var _tiered_emoji_registry = null
 
 # Cache for persistent atlas storage
 var _atlas_cache = null

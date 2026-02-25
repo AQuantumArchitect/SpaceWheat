@@ -253,6 +253,13 @@ func _get_simulated_vocab_emojis(biome: Node) -> Array:
 # QUEST OFFERING
 # =============================================================================
 
+func _stamp_offered_quest(quest: Dictionary) -> void:
+	"""Stamp status, timestamp, and emit offer signal. Called at end of all offer paths."""
+	quest["status"] = "offered"
+	quest["offered_at"] = Time.get_ticks_msec()
+	quest_offered.emit(quest)
+
+
 func offer_quest(faction: Dictionary, biome_name: String, resources: Array) -> Dictionary:
 	"""Generate and offer a new quest
 
@@ -276,11 +283,7 @@ func offer_quest(faction: Dictionary, biome_name: String, resources: Array) -> D
 	quest["id"] = next_quest_id
 	next_quest_id += 1
 
-	# Add metadata
-	quest["status"] = "offered"
-	quest["offered_at"] = Time.get_ticks_msec()
-
-	quest_offered.emit(quest)
+	_stamp_offered_quest(quest)
 	return quest
 
 func offer_emoji_quest(faction: Dictionary, biome_name: String, resources: Array) -> Dictionary:
@@ -296,10 +299,7 @@ func offer_emoji_quest(faction: Dictionary, biome_name: String, resources: Array
 
 	quest["id"] = next_quest_id
 	next_quest_id += 1
-	quest["status"] = "offered"
-	quest["offered_at"] = Time.get_ticks_msec()
-
-	quest_offered.emit(quest)
+	_stamp_offered_quest(quest)
 	return quest
 
 # =============================================================================
@@ -336,8 +336,6 @@ func offer_quest_emergent(faction: Dictionary, biome) -> Dictionary:
 	# Assign ID and metadata
 	quest["id"] = next_quest_id
 	next_quest_id += 1
-	quest["status"] = "offered"
-	quest["offered_at"] = Time.get_ticks_msec()
 	quest["biome"] = biome.biome_name if biome and biome.get("biome_name") else "Unknown"
 
 	# Generate display text
@@ -347,7 +345,7 @@ func offer_quest_emergent(faction: Dictionary, biome) -> Dictionary:
 	else:
 		quest["full_text"] = "%s wants: %s" % [quest.faction, quest.body]
 
-	quest_offered.emit(quest)
+	_stamp_offered_quest(quest)
 	return quest
 
 
@@ -436,13 +434,15 @@ func _is_valid_offer(quest: Dictionary) -> bool:
 		if resource == "" or quantity <= 0:
 			return false
 
-	# North pole should be new; south may repeat.
+	# Vocab reward is now resonance-gated and optional for delivery quests.
 	var player_vocab = _get_player_vocab_emojis()
 	var north = quest.get("reward_vocab_north", "")
 	var south = quest.get("reward_vocab_south", "")
-	if north == "" or south == "":
+	var has_vocab_pair = (north != "" and south != "")
+	var has_no_vocab = (north == "" and south == "")
+	if not has_vocab_pair and not has_no_vocab:
 		return false
-	if north in player_vocab:
+	if has_vocab_pair and north in player_vocab:
 		return false
 	return true
 
@@ -549,6 +549,18 @@ func check_quest_completion(quest_id: int) -> bool:
 	var player_amount = economy.get_resource(required_emoji)
 	return player_amount >= required_qty
 
+func _finalize_quest_completion(quest_id: int, quest: Dictionary, reward, granted_resources: Dictionary) -> void:
+	"""Stamp completion fields, move quest to completed list, emit signals."""
+	quest["status"] = "completed"
+	quest["completed_at"] = Time.get_ticks_msec()
+	quest["reward"] = reward
+	active_quests.erase(quest_id)
+	completed_quests.append(quest)
+	_stop_quest_timer(quest_id)
+	quest_completed.emit(quest_id, _build_reward_payload(reward, granted_resources))
+	active_quests_changed.emit()
+
+
 func complete_quest(quest_id: int) -> bool:
 	"""Complete an active quest
 
@@ -590,20 +602,7 @@ func complete_quest(quest_id: int) -> bool:
 	var granted_resources = _grant_resource_rewards(reward, faction_name)
 	_grant_vocabulary_rewards(reward, faction_name)
 
-	# Update quest status
-	quest["status"] = "completed"
-	quest["completed_at"] = Time.get_ticks_msec()
-	quest["reward"] = reward
-
-	# Move to completed list
-	active_quests.erase(quest_id)
-	completed_quests.append(quest)
-
-	# Stop timer
-	_stop_quest_timer(quest_id)
-
-	quest_completed.emit(quest_id, _build_reward_payload(reward, granted_resources))
-	active_quests_changed.emit()
+	_finalize_quest_completion(quest_id, quest, reward, granted_resources)
 	return true
 
 
@@ -700,20 +699,7 @@ func claim_quest(quest_id: int) -> bool:
 	var granted_resources = _grant_resource_rewards(reward, faction_name)
 	_grant_vocabulary_rewards(reward, faction_name)
 
-	# Update quest status
-	quest["status"] = "completed"
-	quest["completed_at"] = Time.get_ticks_msec()
-	quest["reward"] = reward
-
-	# Move to completed list
-	active_quests.erase(quest_id)
-	completed_quests.append(quest)
-
-	# Stop timer
-	_stop_quest_timer(quest_id)
-
-	quest_completed.emit(quest_id, _build_reward_payload(reward, granted_resources))
-	active_quests_changed.emit()
+	_finalize_quest_completion(quest_id, quest, reward, granted_resources)
 	return true
 
 

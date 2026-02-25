@@ -8,6 +8,8 @@ extends Control
 signal faction_selected(faction_quest: Dictionary)
 signal browser_closed
 
+const UIStyleFactory = preload("res://UI/Core/UIStyleFactory.gd")
+
 # References
 var layout_manager: Node
 var quest_manager: Node
@@ -288,6 +290,19 @@ func select_current_faction() -> void:
 		close_browser()
 
 
+func get_snapshot() -> Dictionary:
+	"""Return structured snapshot of faction browser state."""
+	var factions: Array = []
+	for item in faction_items:
+		if item and "quest_data" in item:
+			factions.append({
+				"faction": item.quest_data.get("faction", ""),
+				"faction_emoji": item.quest_data.get("faction_emoji", ""),
+				"alignment": item.quest_data.get("_alignment", 0.0),
+			})
+	return {"selected_index": selected_faction_index, "faction_count": faction_items.size(), "factions": factions}
+
+
 func _on_faction_clicked(index: int) -> void:
 	"""Handle faction item clicked"""
 	selected_faction_index = index
@@ -448,21 +463,7 @@ class FactionItem extends PanelContainer:
 		add_theme_stylebox_override("panel", style)
 
 	func _get_alignment_color(alignment: float) -> Color:
-		if alignment > 0.7:
-			return Color(0.2, 0.4, 0.2, 0.8)
-		elif alignment > 0.5:
-			return Color(0.3, 0.3, 0.2, 0.8)
-		elif alignment > 0.3:
-			return Color(0.4, 0.3, 0.2, 0.8)
-		else:
-			return Color(0.4, 0.2, 0.2, 0.8)
+		return UIStyleFactory.get_alignment_color(alignment)
 
 	func _get_alignment_text_color(alignment: float) -> Color:
-		if alignment > 0.7:
-			return Color(0.5, 1.0, 0.5)
-		elif alignment > 0.5:
-			return Color(1.0, 1.0, 0.7)
-		elif alignment > 0.3:
-			return Color(1.0, 0.7, 0.5)
-		else:
-			return Color(1.0, 0.5, 0.5)
+		return UIStyleFactory.get_alignment_text_color(alignment)

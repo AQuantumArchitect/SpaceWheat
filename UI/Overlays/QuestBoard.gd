@@ -358,7 +358,7 @@ func close_faction_browser() -> void:
 
 func _create_faction_browser() -> void:
 	"""Create the faction browser panel"""
-	const FactionBrowser = preload("res://UI/Panels/FactionBrowser.gd")
+	const FactionBrowser = preload("res://UI/Widgets/FactionBrowser.gd")
 	faction_browser = FactionBrowser.new()
 	faction_browser.set_layout_manager(layout_manager)
 	faction_browser.set_quest_manager(quest_manager)
@@ -1536,6 +1536,43 @@ func get_action_labels() -> Dictionary:
 
 		labels[key] = label
 	return labels
+
+
+func get_snapshot() -> Dictionary:
+	"""Return all currently-displayed state as structured data."""
+	var slot_names = ["U", "I", "O", "P"]
+	var slot_state_names = ["empty", "offered", "active", "ready", "locked"]
+
+	var slots_data: Array = []
+	for i in range(quest_slots.size()):
+		var slot = quest_slots[i]
+		var state_idx = slot.state if "state" in slot else 0
+		var state_name = slot_state_names[state_idx] if state_idx < slot_state_names.size() else "unknown"
+		var is_locked = slot.is_locked if "is_locked" in slot else false
+
+		var slot_dict = {
+			"index": i,
+			"key": slot_names[i] if i < slot_names.size() else str(i),
+			"state": state_name,
+			"is_locked": is_locked,
+		}
+
+		if "quest_data" in slot and slot.quest_data is Dictionary and not slot.quest_data.is_empty():
+			var q = slot.quest_data
+			slot_dict["faction"] = q.get("faction", "")
+			slot_dict["requirement"] = q.get("requirement", {})
+			slot_dict["reward"] = q.get("reward", {})
+			slot_dict["alignment"] = q.get("alignment", 0.5)
+
+		slots_data.append(slot_dict)
+
+	return {
+		"current_page": current_page,
+		"total_pages": _calculate_total_pages(),
+		"selected_slot": selected_slot_index,
+		"slots": slots_data,
+		"actions": {"Q": "Accept", "E": "Lock", "R": "Reroll", "F": "Next Page"}
+	}
 
 
 # =============================================================================

@@ -18,6 +18,7 @@ extends RefCounted
 
 const WeightedRandom = preload("res://Core/Utilities/WeightedRandom.gd")
 const EconomyConstants = preload("res://Core/GameMechanics/EconomyConstants.gd")
+const VerboseHelper = preload("res://Core/Config/VerboseHelper.gd")
 const BalanceService = preload("res://Core/GameMechanics/BalanceService.gd")
 
 
@@ -866,22 +867,4 @@ static func get_pop_preview(terminal: RefCounted) -> Dictionary:
 
 
 static func _log(level: String, category: String, emoji: String, message: String) -> void:
-	var tree = Engine.get_main_loop()
-	if not tree:
-		return
-	var verbose = tree.root.get_node_or_null("/root/VerboseConfig")
-	if not verbose:
-		if level == "error":
-			push_error("[%s] %s" % [category.to_upper(), message])
-		elif level == "warn":
-			push_warning("[%s] %s" % [category.to_upper(), message])
-		else:
-			print("[%s] %s" % [category.to_upper(), message])
-		return
-
-	match level:
-		"trace": verbose.trace(category, emoji, message)
-		"debug": verbose.debug(category, emoji, message)
-		"info": verbose.info(category, emoji, message)
-		"warn": verbose.warn(category, emoji, message)
-		"error": verbose.error(category, emoji, message)
+	VerboseHelper.log(level, category, emoji, message)

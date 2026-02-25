@@ -228,6 +228,16 @@ func _update_no_quests_visibility() -> void:
 		no_quests_label.visible = quest_items.is_empty()
 
 
+func get_snapshot() -> Dictionary:
+	"""Return structured snapshot of active quests."""
+	var quests: Array = []
+	for quest_id in quest_items.keys():
+		var item = quest_items[quest_id]
+		if item and "quest_data" in item:
+			quests.append(item.quest_data)
+	return {"active_count": quest_items.size(), "quests": quests}
+
+
 func _on_quest_item_complete_clicked(quest_id: int) -> void:
 	"""Handle quest item complete button click"""
 	if not quest_manager:

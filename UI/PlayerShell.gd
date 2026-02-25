@@ -17,10 +17,10 @@ const OverlayManager = preload("res://UI/Managers/OverlayManager.gd")
 const OverlayStackManager = preload("res://UI/Managers/OverlayStackManager.gd")
 const QuestManager = preload("res://Core/Quests/QuestManager.gd")
 const FactionDatabase = preload("res://Core/Quests/FactionDatabaseV2.gd")
-const LoggerConfigPanel = preload("res://UI/Panels/LoggerConfigPanel.gd")
+const LoggerConfigPanel = preload("res://UI/Overlays/LoggerConfigPanel.gd")
 # QuantumHUDPanel REMOVED - content merged into InspectorOverlay (N key)
-const QuantumModeStatusIndicator = preload("res://UI/Panels/QuantumModeStatusIndicator.gd")
-const BiomeSelectionRowClass = preload("res://UI/Panels/BiomeSelectionRow.gd")
+const QuantumModeStatusIndicator = preload("res://UI/Widgets/QuantumModeStatusIndicator.gd")
+const BiomeSelectionRowClass = preload("res://UI/Widgets/BiomeSelectionRow.gd")
 
 ## Farm overlay keys (CVBN) - game content overlays
 ## These close each other but not shell menus
@@ -36,15 +36,16 @@ const FARM_OVERLAY_KEYS = {
 const SHELL_MENU_KEYS = [KEY_Z, KEY_X]
 
 var current_farm_ui = null  # FarmUI instance (from scene)
-var overlay_manager: OverlayManager = null
+var overlay_manager = null
 var quest_manager: QuestManager = null
 var farm: Node = null
 var farm_ui_container: Control = null
 var action_bar_manager = null  # ActionBarManager - manages bottom toolbars
 var action_preview_row: Control = null  # Cached reference from ActionBarManager
 var layout_manager: Node = null  # UILayoutManager
-var logger_config_panel: LoggerConfigPanel = null  # Logger configuration UI
+var logger_config_panel = null  # Logger configuration UI
 var farm_instrument = null  # Farm instrumentation node (set by BootManager)
+var advanced_mode_enabled: bool = false
 # quantum_hud_panel REMOVED - content merged into InspectorOverlay (N key)
 var quantum_mode_indicator: QuantumModeStatusIndicator = null  # Current quantum mode display
 var biome_tab_bar: BiomeSelectionRowClass = null  # Top bar for biome selection
@@ -152,9 +153,6 @@ func _any_menu_open() -> bool:
 			return true
 		elif overlay_manager.escape_menu.visible:
 			return true
-	# Check logger config (shell menu)
-	if logger_config_panel and logger_config_panel.visible:
-		return true
 	# Check controls overlay (shell menu, but in v2 system)
 	if overlay_manager and overlay_manager.v2_overlays.has("controls"):
 		var controls = overlay_manager.v2_overlays["controls"]
@@ -178,10 +176,7 @@ func _close_all_menus() -> void:
 			overlay_stack.pop_overlay(overlay_manager.escape_menu)
 		elif overlay_manager.escape_menu.visible:
 			overlay_manager.escape_menu.close_menu()
-	# Close logger config
-	if logger_config_panel and logger_config_panel.visible:
-		logger_config_panel.hide_panel()
-	# Close all v2 overlays (includes controls + farm overlays)
+	# Close all v2 overlays (includes controls + logger + farm overlays)
 	if overlay_manager:
 		overlay_manager.close_all_v2_overlays()
 
@@ -200,8 +195,13 @@ func _toggle_shell_menu(menu_name: String) -> void:
 	"""
 	match menu_name:
 		"balance_workbench":
+			advanced_mode_enabled = _resolve_advanced_mode()
 			if overlay_manager and overlay_manager.v2_overlays.has("balance_workbench"):
 				var wb = overlay_manager.v2_overlays["balance_workbench"]
+				if wb and wb.has_method("set_advanced_mode"):
+					wb.set_advanced_mode(advanced_mode_enabled)
+				if wb and wb.has_method("set_farm_instrument"):
+					wb.set_farm_instrument(farm_instrument)
 				if wb.visible:
 					wb.deactivate()
 					return
@@ -222,14 +222,9 @@ func _toggle_shell_menu(menu_name: String) -> void:
 				overlay_manager.open_v2_overlay("controls")
 
 		"logger":
-			# Check if logger is already open
-			if logger_config_panel and logger_config_panel.visible:
-				logger_config_panel.hide_panel()
-				return
-			# Close everything and open logger
-			_close_all_menus()
-			if logger_config_panel:
-				logger_config_panel.show_panel()
+			# Logger is registered as a v2 overlay — toggle via OverlayManager
+			if overlay_manager:
+				overlay_manager.toggle_v2_overlay("logger")
 
 
 func _toggle_farm_overlay(overlay_name: String) -> void:
@@ -367,6 +362,7 @@ func _pop_modal(modal: Control) -> void:
 func _ready() -> void:
 	"""Initialize player shell UI - children defined in scene"""
 	_verbose.info("boot", "🎪", "PlayerShell initializing...")
+	advanced_mode_enabled = _resolve_advanced_mode()
 
 	# Add to group so overlay buttons can find us
 	add_to_group("player_shell")
@@ -446,12 +442,10 @@ func _ready() -> void:
 	# Initialize overlays (C/V/N/Z/ESC menus - K moved to Z, freeing K/L for homerow)
 	overlay_manager.create_overlays(overlay_layer)
 
-	# Create logger config panel (debug tool, press X to toggle)
+	# Create logger config panel (debug tool, press X to toggle) — registered as v2 overlay
 	logger_config_panel = LoggerConfigPanel.new()
 	overlay_layer.add_child(logger_config_panel)
-	logger_config_panel.closed.connect(func():
-		_pop_modal(logger_config_panel)
-	)
+	overlay_manager.register_v2_overlay("logger", logger_config_panel)
 	_verbose.info("ui", "✅", "Logger config panel created (press X to toggle)")
 
 	# QuantumHUDPanel REMOVED - content merged into InspectorOverlay (N key)
@@ -477,6 +471,19 @@ func _ready() -> void:
 
 	_verbose.info("ui", "✅", "Overlay manager created")
 	_verbose.info("boot", "✅", "PlayerShell ready")
+
+
+func _resolve_advanced_mode() -> bool:
+	var env_mode = OS.get_environment("SPACEWHEAT_ADVANCED_MODE").strip_edges().to_lower()
+	if env_mode in ["1", "true", "yes", "on"]:
+		return true
+	if env_mode in ["0", "false", "no", "off"]:
+		return false
+	var gsm = get_tree().root.get_node_or_null("/root/GameStateManager")
+	if gsm and "current_state" in gsm and gsm.current_state:
+		if "advanced_mode_enabled" in gsm.current_state:
+			return bool(gsm.current_state.advanced_mode_enabled)
+	return OS.is_debug_build()
 
 
 func _on_layout_changed(_layout: Dictionary) -> void:

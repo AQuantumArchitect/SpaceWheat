@@ -9,17 +9,17 @@ extends Node
 ## Handles overlay visibility, positioning, and menu actions
 
 # Preload dependencies
-const QuestPanel = preload("res://UI/Panels/QuestPanel.gd")
-const FactionQuestOffersPanel = preload("res://UI/Panels/FactionQuestOffersPanel.gd")
-const QuestBoard = preload("res://UI/Panels/QuestBoard.gd")  # New modal quest board
+const QuestPanel = preload("res://UI/Widgets/QuestPanel.gd")
+const FactionQuestOffersPanel = preload("res://UI/Widgets/FactionQuestOffersPanel.gd")
+const QuestBoard = preload("res://UI/Overlays/QuestBoard.gd")  # New modal quest board
 const NetworkInfoPanel = preload("res://UI/NetworkInfoPanel.gd")
 # DEPRECATED: ConspiracyNetworkOverlay - tomato conspiracy system removed
 # const ConspiracyNetworkOverlay = preload("res://UI/ConspiracyNetworkOverlay.gd")
-const SaveLoadMenu = preload("res://UI/Panels/SaveLoadMenu.gd")
-const EscapeMenu = preload("res://UI/Panels/EscapeMenu.gd")
-const BiomeInspectorOverlay = preload("res://UI/Panels/BiomeInspectorOverlay.gd")
-const QuantumRigorConfigUI = preload("res://UI/Panels/QuantumRigorConfigUI.gd")
-const IconDetailPanel = preload("res://UI/Panels/IconDetailPanel.gd")
+const SaveLoadMenu = preload("res://UI/Overlays/SaveLoadMenu.gd")
+const EscapeMenu = preload("res://UI/Overlays/EscapeMenu.gd")
+const BiomeInspectorOverlay = preload("res://UI/Overlays/BiomeInspectorOverlay.gd")
+const QuantumRigorConfigUI = preload("res://UI/Overlays/QuantumRigorConfigUI.gd")
+const IconDetailPanel = preload("res://UI/Widgets/IconDetailPanel.gd")
 # const SaveDataAdapter = preload("res://UI/SaveDataAdapter.gd")  # Legacy - unused, commented out to fix compilation error
 
 # v2 Overlay System (now uses unified OverlayBase)
@@ -27,7 +27,6 @@ const OverlayBaseClass = preload("res://UI/Core/OverlayBase.gd")
 const InspectorOverlay = preload("res://UI/Overlays/InspectorOverlay.gd")
 const ControlsOverlay = preload("res://UI/Overlays/ControlsOverlay.gd")
 const SemanticMapOverlay = preload("res://UI/Overlays/SemanticMapOverlay.gd")
-const SimStatsOverlay = preload("res://UI/Overlays/SimStatsOverlay.gd")
 const BalanceWorkbenchOverlay = preload("res://UI/Overlays/BalanceWorkbenchOverlay.gd")
 
 # Overlay instances
@@ -50,7 +49,6 @@ var v2_overlays: Dictionary = {}  # name → OverlayBase instance
 var inspector_overlay = null  # Density matrix inspector
 var controls_overlay = null  # Keyboard controls reference
 var semantic_map_overlay = null  # Semantic octant visualization
-var sim_stats_overlay = null
 var balance_workbench_overlay = null
 
 # Reference to unified overlay stack (set by PlayerShell)

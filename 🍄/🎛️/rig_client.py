@@ -19,6 +19,23 @@ def _pid_alive(pid: int) -> bool:
         return False
 
 
+def _pid_cmdline(pid: int) -> str:
+    try:
+        raw = Path(f"/proc/{pid}/cmdline").read_bytes()
+    except OSError:
+        return ""
+    if not raw:
+        return ""
+    return raw.replace(b"\x00", b" ").decode("utf-8", errors="replace").strip().lower()
+
+
+def _pid_looks_like_rig_listener(pid: int) -> bool:
+    cmdline = _pid_cmdline(pid)
+    if not cmdline:
+        return False
+    return ("godot" in cmdline) and ("tests/rig_listener.gd" in cmdline)
+
+
 class RigClient:
     def __init__(self, *, xdg: Optional[Path] = None, root_from_file: Optional[Path] = None) -> None:
         self.app_name = APP_NAME
@@ -56,18 +73,19 @@ class RigClient:
     def clear_rig_files(self) -> None:
         self.queue_file.unlink(missing_ok=True)
         self.results_file.unlink(missing_ok=True)
+        # Always clear stale sentinel for this XDG root; a fresh listener writes a new one.
+        self._bridge_sentinel_path(self.xdg_root).unlink(missing_ok=True)
         self._results_offset = 0
         self._results_partial = ""
         self._results_by_turn.clear()
         self._latest_result_turn = -1
-        # NOTE: does NOT remove bridge_ready sentinel
 
     @staticmethod
-    def _bridge_sentinel_path() -> Path:
-        return user_dir() / "rig" / "bridge_ready"
+    def _bridge_sentinel_path(xdg: Optional[Path] = None) -> Path:
+        return user_dir(xdg=xdg) / "rig" / "bridge_ready"
 
     @staticmethod
-    def find_listener_pids() -> List[int]:
+    def find_listener_pids(xdg: Optional[Path] = None) -> List[int]:
         out: List[int] = []
         try:
             proc = subprocess.run(
@@ -84,40 +102,40 @@ class RigClient:
             pass
 
         # Also check for phrame bridge sentinel
-        sentinel = RigClient._bridge_sentinel_path()
+        sentinel = RigClient._bridge_sentinel_path(xdg=xdg)
         if sentinel.exists():
             try:
                 pid = int(sentinel.read_text().strip())
-                if pid > 0 and _pid_alive(pid):
+                if pid > 0 and _pid_alive(pid) and _pid_looks_like_rig_listener(pid):
                     out.append(pid)
             except (ValueError, OSError):
                 pass
         return out
 
     @staticmethod
-    def _bridge_sentinel_is_ready() -> bool:
-        sentinel = RigClient._bridge_sentinel_path()
+    def _bridge_sentinel_is_ready(xdg: Optional[Path] = None) -> bool:
+        sentinel = RigClient._bridge_sentinel_path(xdg=xdg)
         if sentinel.exists():
             try:
                 pid = int(sentinel.read_text().strip())
-                if pid > 0 and _pid_alive(pid):
+                if pid > 0 and _pid_alive(pid) and _pid_looks_like_rig_listener(pid):
                     return True
             except (ValueError, OSError):
                 pass
         return False
 
     @staticmethod
-    def wait_for_bridge_sentinel(timeout_s: float = 30.0) -> bool:
+    def wait_for_bridge_sentinel(timeout_s: float = 30.0, xdg: Optional[Path] = None) -> bool:
         deadline = time.time() + timeout_s
         while time.time() < deadline:
-            if RigClient._bridge_sentinel_is_ready():
+            if RigClient._bridge_sentinel_is_ready(xdg=xdg):
                 return True
             time.sleep(0.25)
         return False
 
     @staticmethod
-    def kill_existing_listeners() -> None:
-        for pid in RigClient.find_listener_pids():
+    def kill_existing_listeners(xdg: Optional[Path] = None) -> None:
+        for pid in RigClient.find_listener_pids(xdg=xdg):
             try:
                 os.kill(pid, signal.SIGTERM)
             except ProcessLookupError:
@@ -177,11 +195,11 @@ class RigClient:
         return proc
 
     @staticmethod
-    def wait_for_ready(proc: subprocess.Popen, timeout_s: float = 60.0) -> List[str]:
+    def wait_for_ready(proc: subprocess.Popen, timeout_s: float = 60.0, xdg: Optional[Path] = None) -> List[str]:
         started = time.time()
         seen: List[str] = []
         while time.time() - started < timeout_s:
-            if RigClient._bridge_sentinel_is_ready():
+            if RigClient._bridge_sentinel_is_ready(xdg=xdg):
                 seen.append("[rig] ready via bridge sentinel")
                 return seen
             if proc.poll() is not None:
@@ -197,9 +215,23 @@ class RigClient:
                 continue
             line = line.rstrip("\n")
             seen.append(line)
-            if "Rig ready. Waiting for turns in:" in line:
+            if RigClient.is_ready_line(line):
                 return seen
         return seen
+
+    @staticmethod
+    def is_ready_line(line: str) -> bool:
+        text = str(line or "")
+        if "ready via bridge sentinel" in text:
+            return True
+        return ("Rig ready" in text) and ("Waiting for turns in:" in text)
+
+    @staticmethod
+    def ready_seen(lines: List[str]) -> bool:
+        for line in lines:
+            if RigClient.is_ready_line(line):
+                return True
+        return False
 
     def queue_turn(self, payload: Dict[str, Any]) -> None:
         env = os.environ.copy()
@@ -283,7 +315,7 @@ class RigClient:
         progress_interval_s: float = 5.0,
     ) -> Optional[Dict[str, Any]]:
         started = time.time()
-        next_report_at = started + max(0.5, progress_interval_s)
+        next_report_at = started + max(0.5, progress_interval_s) if progress_interval_s > 0 else float("inf")
         while time.time() - started < timeout_s:
             for row in self._read_new_result_rows():
                 turn = row.get("turn")
@@ -293,7 +325,7 @@ class RigClient:
             if cached is not None:
                 return cached
             now = time.time()
-            if now >= next_report_at:
+            if progress_interval_s > 0 and now >= next_report_at:
                 elapsed = now - started
                 self.safe_print(
                     "[rig_wait] waiting turn=%d elapsed=%.1fs latest_result_turn=%d"

@@ -14,8 +14,8 @@ signal farm_setup_complete  # Emitted when setup_farm() finishes and input_handl
 
 const PlotGridDisplay = preload("res://UI/PlotGridDisplay.gd")
 # Input is handled by QuantumInstrumentInput (created in BootManager)
-const ResourcePanel = preload("res://UI/Panels/ResourcePanel.gd")
-const QuantumModeStatusIndicator = preload("res://UI/Panels/QuantumModeStatusIndicator.gd")
+const ResourcePanel = preload("res://UI/Widgets/ResourcePanel.gd")
+const QuantumModeStatusIndicator = preload("res://UI/Widgets/QuantumModeStatusIndicator.gd")
 const GridConfig = preload("res://Core/GameState/GridConfig.gd")
 
 var farm: Node
@@ -87,8 +87,11 @@ func setup_farm(farm_ref: Node) -> void:
 
 	# Wire ResourcePanel to economy
 	if farm and farm.economy and resource_panel:
-		resource_panel.connect_to_economy(farm.economy)
-		print("   ✅ ResourcePanel wired to economy")
+		if resource_panel.has_method("connect_to_economy"):
+			resource_panel.connect_to_economy(farm.economy)
+			print("   ✅ ResourcePanel wired to economy")
+		else:
+			push_warning("FarmUI.setup_farm: resource_panel has no connect_to_economy()")
 
 	# Wire PlotGridDisplay to farm
 	if farm and plot_grid_display:

@@ -33,8 +33,8 @@ signal neutral_changed(biome: String)
 
 func _ready() -> void:
 	add_to_group("observation_frame")
-	# Initialize from GameState if available
-	call_deferred("_load_unlocked_biomes")
+	# Initialize from GameState synchronously so Farm._ready() sees the correct biome order
+	_load_unlocked_biomes()
 
 
 ## Get the current neutral biome

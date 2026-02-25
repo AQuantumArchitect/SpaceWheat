@@ -22,8 +22,10 @@ extends Node
 ##   R = UP action (extract, harvest, remove)
 ##   F = Mode cycling within tool group
 ##
-##   - = Decrease matrix granularity (finer substeps, more accurate)
-##   = = Increase matrix granularity (coarser substeps, faster)
+##   - = Decrease observation stride (slower playback, halves)
+##   = = Increase observation stride (faster playback, doubles)
+##   Shift+- = Decrease resolution dt (finer substeps, 10x more accurate)
+##   Shift+= = Increase resolution dt (coarser substeps, 10x faster)
 
 # Preloads
 const ToolConfig = preload("res://Core/GameState/ToolConfig.gd")
@@ -191,13 +193,19 @@ func _unhandled_key_input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 		return
 
-	# Speed controls: - (decrease), = (increase)
+	# Timescale controls: -/= = stride (playback speed), Shift+-/Shift+= = resolution (dt)
 	if key == "-":
-		_decrease_simulation_speed()
+		if event.is_shift_pressed():
+			_decrease_resolution()
+		else:
+			_decrease_stride()
 		get_viewport().set_input_as_handled()
 		return
 	if key == "=":
-		_increase_simulation_speed()
+		if event.is_shift_pressed():
+			_increase_resolution()
+		else:
+			_increase_stride()
 		get_viewport().set_input_as_handled()
 		return
 
@@ -1159,6 +1167,15 @@ func _decimate_single_biome_buffer(biome_name: String, decimation_factor: int) -
 	])
 
 
+func _reset_single_biome_stride_carry(biome_name: String) -> void:
+	"""Reset stride dt carry so stride/resolution changes apply deterministically."""
+	if not farm:
+		return
+	var batcher = farm.biome_evolution_batcher if "biome_evolution_batcher" in farm else null
+	if batcher and batcher.has_method("reset_stride_carry"):
+		batcher.reset_stride_carry(biome_name)
+
+
 func _invalidate_all_biome_buffers(reason: String) -> void:
 	"""Invalidate ALL biome buffers after global parameter changes.
 
@@ -1256,7 +1273,15 @@ func _execute_action(action_name: String) -> Dictionary:
 			if result.get("success", false):
 				_refresh_plot_tiles(positions)
 		"explore":
-			result = _instrument.action_explore(biome_name, grid_pos)
+			var explore_positions = _get_homerow_positions()
+			var explored_count = 0
+			var last_result: Dictionary = {"success": false, "error": "no_positions"}
+			for pos in explore_positions:
+				var r = _instrument.action_explore(biome_name, pos)
+				last_result = r
+				if r.get("success", false):
+					explored_count += 1
+			result = {"success": explored_count > 0, "explored_count": explored_count} if explored_count > 0 else last_result
 		"measure":
 			result = _instrument.action_measure(grid_pos)
 		"reap":
@@ -1366,10 +1391,11 @@ func _get_selected_positions() -> Array[Vector2i]:
 
 
 func _get_homerow_positions() -> Array[Vector2i]:
-	"""Return the four plot positions for the current biome (JKL; row)."""
+	"""Return all plot positions for the current biome row (one per qubit/column)."""
 	var positions: Array[Vector2i] = []
 	var row = _get_current_biome_row()
-	for idx in range(4):
+	var width = farm.grid_config.grid_width if farm and farm.grid_config else 4
+	for idx in range(width):
 		positions.append(Vector2i(idx, row))
 	return positions
 
@@ -1379,9 +1405,9 @@ func _get_current_biome_row() -> int:
 		return 0
 	var biome_name = _instrument.current_biome if _instrument.current_biome != "" else ""
 	if biome_name == "":
-		biome_name = _active_biome_mgr.get_active_biome() if _active_biome_mgr else "BioticFlux"
+		biome_name = _active_biome_mgr.get_active_biome() if _active_biome_mgr else "StarterForest"
 	if biome_name == "":
-		biome_name = "BioticFlux"
+		biome_name = "StarterForest"
 	if farm.has_method("get_biome_row"):
 		return farm.get_biome_row(biome_name)
 	return 0
@@ -1504,24 +1530,90 @@ func get_actions_for_current_group() -> Dictionary:
 
 
 ## ============================================================================
-## SIMULATION SPEED CONTROLS
+## TIMESCALE CONTROLS (stride + resolution)
 ## ============================================================================
 
-func _decrease_simulation_speed() -> void:
-	"""Decrease quantum evolution granularity - finer substeps (- key).
+func _decrease_stride() -> void:
+	"""Decrease observation stride - slower playback (- key).
 
 	PER-BIOME CONTROL:
 	- Main game: Affects only the currently selected biome (ActiveBiomeManager)
 	- VisualBubbleTest: Affects only the last biome that was generated
 	"""
 	if not farm or not farm.grid:
-		_verbose.warn("input", "⚠️", "Cannot adjust granularity - no farm/grid")
+		_verbose.warn("input", "⚠️", "Cannot adjust stride - no farm/grid")
+		return
+
+	var target_biome_info = _get_target_biome_for_granularity()
+	if not target_biome_info.has("biome") or target_biome_info.biome == null:
+		_verbose.warn("input", "⚠️", "No target biome for stride control: %s" % target_biome_info.get("reason", "unknown"))
+		return
+
+	var target_biome = target_biome_info.biome
+	var target_biome_name = target_biome_info.name
+
+	var result = GranularityController.decrease_stride([target_biome])
+	_reset_single_biome_stride_carry(target_biome_name)
+
+	# Persist to GameState so stride survives save/load
+	var gsm = get_node_or_null("/root/GameStateManager")
+	if gsm and gsm.current_state:
+		gsm.current_state.observation_stride = result.new_stride
+
+	var locked_str = " (LOCKED)" if result.new_stride == 0 else ""
+	_verbose.info("input", "⏪", "[%s] Stride: %d → %d%s" % [
+		target_biome_name, result.current_stride, result.new_stride, locked_str
+	])
+
+
+func _increase_stride() -> void:
+	"""Increase observation stride - faster playback (= key).
+
+	PER-BIOME CONTROL:
+	- Main game: Affects only the currently selected biome (ActiveBiomeManager)
+	- VisualBubbleTest: Affects only the last biome that was generated
+	"""
+	if not farm or not farm.grid:
+		_verbose.warn("input", "⚠️", "Cannot adjust stride - no farm/grid")
+		return
+
+	var target_biome_info = _get_target_biome_for_granularity()
+	if not target_biome_info.has("biome") or target_biome_info.biome == null:
+		_verbose.warn("input", "⚠️", "No target biome for stride control: %s" % target_biome_info.get("reason", "unknown"))
+		return
+
+	var target_biome = target_biome_info.biome
+	var target_biome_name = target_biome_info.name
+
+	var result = GranularityController.increase_stride([target_biome])
+	_reset_single_biome_stride_carry(target_biome_name)
+
+	# Persist to GameState so stride survives save/load
+	var gsm = get_node_or_null("/root/GameStateManager")
+	if gsm and gsm.current_state:
+		gsm.current_state.observation_stride = result.new_stride
+
+	var unlocked_str = " (UNLOCKED)" if result.current_stride == 0 and result.new_stride == 1 else ""
+	_verbose.info("input", "⏩", "[%s] Stride: %d → %d%s" % [
+		target_biome_name, result.current_stride, result.new_stride, unlocked_str
+	])
+
+
+func _decrease_resolution() -> void:
+	"""Decrease quantum evolution resolution - finer substeps (Shift+- key).
+
+	PER-BIOME CONTROL:
+	- Main game: Affects only the currently selected biome (ActiveBiomeManager)
+	- VisualBubbleTest: Affects only the last biome that was generated
+	"""
+	if not farm or not farm.grid:
+		_verbose.warn("input", "⚠️", "Cannot adjust resolution - no farm/grid")
 		return
 
 	# Get target biome (per-biome control, not global)
 	var target_biome_info = _get_target_biome_for_granularity()
 	if not target_biome_info.has("biome") or target_biome_info.biome == null:
-		_verbose.warn("input", "⚠️", "No target biome for granularity control: %s" % target_biome_info.get("reason", "unknown"))
+		_verbose.warn("input", "⚠️", "No target biome for resolution control: %s" % target_biome_info.get("reason", "unknown"))
 		return
 
 	var target_biome = target_biome_info.biome
@@ -1529,38 +1621,36 @@ func _decrease_simulation_speed() -> void:
 
 	# Use granularity controller on single biome
 	var result = GranularityController.decrease_granularity([target_biome])
+	_reset_single_biome_stride_carry(target_biome_name)
 
-	# Update GameState so it's saved (use target biome's dt as representative value)
+	# Persist to GameState so resolution survives save/load
 	var gsm = get_node_or_null("/root/GameStateManager")
 	if gsm and gsm.current_state:
-		if not ("max_evolution_dt" in gsm.current_state):
-			gsm.current_instrument.set("max_evolution_dt", result.new_dt)
-		else:
-			gsm.current_instrument.max_evolution_dt = result.new_dt
+		gsm.current_state.max_evolution_dt = result.new_dt
 
 	# CRITICAL: Invalidate ONLY target biome's buffer - lookahead was computed with old dt
 	_invalidate_single_biome_buffer(target_biome_name, "granularity_decrease")
 
-	_verbose.info("input", "🔬", "[%s] Matrix granularity: %.4fs → %.4fs (finer, buffer invalidated)" % [
+	_verbose.info("input", "🔬", "[%s] Resolution: %.4fs → %.4fs (finer, buffer invalidated)" % [
 		target_biome_name, result.current_dt, result.new_dt
 	])
 
 
-func _increase_simulation_speed() -> void:
-	"""Increase quantum evolution granularity - coarser substeps (= key).
+func _increase_resolution() -> void:
+	"""Increase quantum evolution resolution - coarser substeps (Shift+= key).
 
 	PER-BIOME CONTROL:
 	- Main game: Affects only the currently selected biome (ActiveBiomeManager)
 	- VisualBubbleTest: Affects only the last biome that was generated
 	"""
 	if not farm or not farm.grid:
-		_verbose.warn("input", "⚠️", "Cannot adjust granularity - no farm/grid")
+		_verbose.warn("input", "⚠️", "Cannot adjust resolution - no farm/grid")
 		return
 
 	# Get target biome (per-biome control, not global)
 	var target_biome_info = _get_target_biome_for_granularity()
 	if not target_biome_info.has("biome") or target_biome_info.biome == null:
-		_verbose.warn("input", "⚠️", "No target biome for granularity control: %s" % target_biome_info.get("reason", "unknown"))
+		_verbose.warn("input", "⚠️", "No target biome for resolution control: %s" % target_biome_info.get("reason", "unknown"))
 		return
 
 	var target_biome = target_biome_info.biome
@@ -1568,18 +1658,16 @@ func _increase_simulation_speed() -> void:
 
 	# Use granularity controller on single biome
 	var result = GranularityController.increase_granularity([target_biome])
+	_reset_single_biome_stride_carry(target_biome_name)
 
-	# Update GameState so it's saved (use target biome's dt as representative value)
+	# Persist to GameState so resolution survives save/load
 	var gsm = get_node_or_null("/root/GameStateManager")
 	if gsm and gsm.current_state:
-		if not ("max_evolution_dt" in gsm.current_state):
-			gsm.current_instrument.set("max_evolution_dt", result.new_dt)
-		else:
-			gsm.current_instrument.max_evolution_dt = result.new_dt
+		gsm.current_state.max_evolution_dt = result.new_dt
 
 	# OPTIMIZATION: Decimate buffer instead of full invalidation (10x coarser = keep every 10th frame)
 	_decimate_single_biome_buffer(target_biome_name, 10)
 
-	_verbose.info("input", "🔭", "[%s] Matrix granularity: %.4fs → %.4fs (coarser, buffer decimated)" % [
+	_verbose.info("input", "🔭", "[%s] Resolution: %.4fs → %.4fs (coarser, buffer decimated)" % [
 		target_biome_name, result.current_dt, result.new_dt
 	])

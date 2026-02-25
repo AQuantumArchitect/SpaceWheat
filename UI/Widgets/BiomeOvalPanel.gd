@@ -9,6 +9,7 @@ signal close_requested
 signal emoji_tapped(emoji: String)
 
 const BiomeInspectionController = preload("res://Core/Visualization/BiomeInspectionController.gd")
+const UIStyleFactory = preload("res://UI/Core/UIStyleFactory.gd")
 
 # UI References
 var title_bar: HBoxContainer
@@ -130,18 +131,7 @@ func refresh_data() -> void:
 
 func _setup_panel_style() -> void:
 	"""Configure panel appearance"""
-	var style = StyleBoxFlat.new()
-	style.bg_color = bg_color
-	style.border_color = border_color
-	style.border_width_left = 2
-	style.border_width_top = 2
-	style.border_width_right = 2
-	style.border_width_bottom = 2
-	style.corner_radius_top_left = corner_radius
-	style.corner_radius_top_right = corner_radius
-	style.corner_radius_bottom_left = corner_radius
-	style.corner_radius_bottom_right = corner_radius
-	add_theme_stylebox_override("panel", style)
+	add_theme_stylebox_override("panel", UIStyleFactory.create_panel_style(bg_color, border_color, 2, corner_radius, 0))
 
 
 func _build_ui() -> void:
@@ -256,71 +246,22 @@ func _create_title_bar() -> HBoxContainer:
 
 func _create_section_header(text: String) -> Label:
 	"""Create a section header label"""
-	var label = Label.new()
-	label.text = text
-	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
-	label.add_theme_font_size_override("font_size", section_header_size)
-	label.add_theme_color_override("font_color", Color(0.6, 0.7, 0.8))
-	return label
+	return UIStyleFactory.create_section_header(text, section_header_size)
 
 
 func _create_stat_bar(label_text: String, value: float, color: Color) -> HBoxContainer:
 	"""Create a compact labeled progress bar for stats"""
-	var hbox = HBoxContainer.new()
-	hbox.add_theme_constant_override("separation", 6)
-
-	# Label
-	var label = Label.new()
-	label.text = label_text + ":"
-	label.custom_minimum_size.x = 55
-	label.add_theme_font_size_override("font_size", small_size)
-	hbox.add_child(label)
-
-	# Bar background
-	var bar_bg = ColorRect.new()
-	bar_bg.color = Color(0.2, 0.2, 0.2)
-	bar_bg.custom_minimum_size = Vector2(100, 14)
-	hbox.add_child(bar_bg)
-
-	# Bar fill (added as child of background)
-	var bar_fill = ColorRect.new()
-	bar_fill.color = color
-	bar_fill.name = "Fill"
-	bar_fill.set_anchors_preset(Control.PRESET_LEFT_WIDE)
-	bar_fill.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
-	bar_bg.add_child(bar_fill)
-
-	# Percentage label
-	var pct_label = Label.new()
-	pct_label.name = "Percent"
-	pct_label.text = "50%"
-	pct_label.custom_minimum_size.x = 35
-	pct_label.add_theme_font_size_override("font_size", small_size)
-	hbox.add_child(pct_label)
-
-	return hbox
+	return UIStyleFactory.create_stat_bar(label_text, value, color, 55, 100, 14, small_size)
 
 
 func _update_stat_bar(bar: HBoxContainer, value: float) -> void:
 	"""Update a stat bar's fill and percentage"""
-	if not bar:
-		return
+	UIStyleFactory.update_stat_bar(bar, value)
 
-	# Find the bar background (second child)
-	if bar.get_child_count() < 3:
-		return
 
-	var bar_bg = bar.get_child(1)
-	var pct_label = bar.get_child(2)
-
-	# Update fill width
-	var fill = bar_bg.get_node_or_null("Fill")
-	if fill:
-		fill.custom_minimum_size.x = bar_bg.size.x * clamp(value, 0.0, 1.0)
-
-	# Update percentage text
-	if pct_label and pct_label is Label:
-		pct_label.text = "%d%%" % int(value * 100)
+func get_snapshot() -> Dictionary:
+	"""Return structured snapshot of biome oval panel state."""
+	return {"biome_data": biome_data, "quantum_detail": quantum_detail}
 
 
 # ============================================================================

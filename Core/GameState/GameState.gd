@@ -22,7 +22,10 @@ extends Resource
 @export var save_timestamp: int = 0  # Unix timestamp
 @export var game_time: float = 0.0  # Total playtime
 @export var quantum_time_scale: float = 0.03125  # Simulation speed multiplier (0.001-16.0) - Start 4x slower for observation
+@export var observation_stride: int = 1  # Observation stride (0=locked, 1=normal, 2+=fast forward)
+@export var max_evolution_dt: float = 0.02  # Euler substep size for Lindblad evolution (resolution)
 @export var save_version: int = 1  # Phase 4: Save format version (increment when format changes)
+@export var advanced_mode_enabled: bool = false  # Enables advanced workbench controls in UI/tools
 
 ## Grid Dimensions (for variable-sized farms)
 @export var grid_width: int = 0
@@ -74,6 +77,9 @@ extends Resource
 ## Pool of unexplored biomes (assigned to UIOP slots dynamically)
 ## These are available but not yet assigned to keyboard slots
 @export var unexplored_biome_pool: Array[String] = ["BioticFlux", "StellarForges", "FungalNetworks", "VolcanicWorlds"]
+
+## Active biome in the observation spindle when save was captured
+@export var active_biome_name: String = "StarterForest"
 
 ## Selection State (player's configured multi-select for batch operations)
 ## Array of Vector2i positions of selected/checked plots

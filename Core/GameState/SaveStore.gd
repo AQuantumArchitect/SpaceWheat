@@ -55,6 +55,7 @@ static func save_state_to_path(state: GameState, path: String) -> int:
 		push_error("No game state to save!")
 		return ERR_INVALID_DATA
 	ensure_save_dir()
+	_ensure_parent_dir(path)
 	return ResourceSaver.save(state, path)
 
 
@@ -71,12 +72,30 @@ static func load_state(slot: int) -> GameState:
 
 static func load_state_by_emoji_alias(alias_filename: String) -> GameState:
 	"""Load a save directly via emoji alias file name or full user:// path."""
-	var path = alias_filename
-	if not path.begins_with("user://"):
+	var path = alias_filename.strip_edges()
+	if path == "":
+		return null
+	if not path.begins_with("user://") and not path.begins_with("res://") and not _is_absolute_path(path):
 		path = SAVE_DIR + alias_filename
 	if not FileAccess.file_exists(path):
 		return null
 	return ResourceLoader.load(path, "", ResourceLoader.CACHE_MODE_IGNORE) as GameState
+
+
+static func _ensure_parent_dir(path: String) -> void:
+	var global_path = ProjectSettings.globalize_path(path)
+	var parent = global_path.get_base_dir()
+	if parent == "":
+		return
+	DirAccess.make_dir_recursive_absolute(parent)
+
+
+static func _is_absolute_path(path: String) -> bool:
+	if path.begins_with("/"):
+		return true
+	if path.length() >= 3 and path[1] == ":" and (path[2] == "/" or path[2] == "\\"):
+		return true
+	return false
 
 
 static func get_save_info(slot: int) -> Dictionary:

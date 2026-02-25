@@ -4,6 +4,7 @@ extends RefCounted
 ## Biome Affinity Calculator
 ## Calculates quantum affinity between vocab pairs and biomes
 ## Uses graph-based connection weights from VocabularyPairing
+const VocabularyPairing = preload("res://Core/Quests/VocabularyPairing.gd")
 
 static func calculate_affinity(vocab_pair: Dictionary, biome, player_vocab_qc = null) -> float:
 	"""Calculate quantum affinity between vocab pair and biome.

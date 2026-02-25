@@ -37,3 +37,16 @@ static func error(category: String, emoji: String, message: String) -> void:
 		config.error(category, emoji, message)
 	else:
 		push_error("[ERROR][%s] %s %s" % [category, emoji, message])
+
+static func trace(category: String, emoji: String, message: String) -> void:
+	var config = get_config()
+	if config and config.has_method("trace"):
+		config.trace(category, emoji, message)
+
+static func log(level: String, category: String, emoji: String, message: String) -> void:
+	match level:
+		"trace": trace(category, emoji, message)
+		"debug": debug(category, emoji, message)
+		"info": info(category, emoji, message)
+		"warn": warn(category, emoji, message)
+		"error": error(category, emoji, message)

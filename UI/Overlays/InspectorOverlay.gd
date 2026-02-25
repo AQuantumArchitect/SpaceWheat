@@ -19,8 +19,6 @@ extends "res://UI/Core/OverlayBase.gd"
 ##
 ## Note: Performance stats merged from SimStatsOverlay - only visible when overlay is open (N key)
 
-const UIStyleFactory_Local = preload("res://UI/Core/UIStyleFactory.gd")
-
 # View modes
 enum ViewMode { HEATMAP, PROBABILITY_BARS }
 const VIEW_MODE_NAMES = ["Density Matrix", "Probability Bars"]
@@ -515,72 +513,31 @@ func _update_stats() -> void:
 
 
 func _get_simulation_speed() -> float:
-	"""Get current simulation time scale."""
-	var farm = _locate_farm()
-	if farm and farm.grid:
-		for biome_entry in farm.grid.biomes.values():
-			if not biome_entry:
-				continue
-			if "quantum_time_scale" in biome_entry:
-				return biome_entry.quantum_time_scale
-			if biome_entry.has_method("get_quantum_time_scale"):
-				return biome_entry.get_quantum_time_scale()
-	if farm and "quantum_time_scale" in farm:
-		return farm.quantum_time_scale
-	return 1.0
+	return UIStyleFactory.get_simulation_speed(_locate_farm())
 
 
 func _get_speed_fraction(speed: float) -> String:
-	"""Convert decimal speed to fraction string."""
-	var lookup = {
-		0.03125: "1/32",
-		0.0625: "1/16",
-		0.125: "1/8",
-		0.25: "1/4",
-		0.5: "1/2",
-		1.0: "1",
-		2.0: "2",
-		4.0: "4",
-		8.0: "8",
-		16.0: "16"
-	}
-	for key in lookup.keys():
-		if abs(speed - key) < 1e-4:
-			return lookup[key]
-	return ""
+	return UIStyleFactory.get_speed_fraction(speed)
 
 
 func _get_physics_fps() -> float:
 	"""Get physics frames per second from batcher."""
-	# Check cached batcher reference
 	if batcher_ref and "physics_frames_per_second" in batcher_ref:
 		return batcher_ref.physics_frames_per_second
-
-	# Try to find farm's batcher
 	var farm = _locate_farm()
-	if farm and "biome_evolution_batcher" in farm:
-		var batcher = farm.biome_evolution_batcher
-		if batcher and "physics_frames_per_second" in batcher:
-			batcher_ref = batcher
-			return batcher.physics_frames_per_second
-
-	return 0.0
+	var pfps = UIStyleFactory.get_physics_fps_from_farm(farm)
+	if pfps > 0.0 and farm and "biome_evolution_batcher" in farm:
+		batcher_ref = farm.biome_evolution_batcher
+	return pfps
 
 
 func _locate_farm():
 	"""Find the active farm instance."""
 	if farm_ref and farm_ref.is_inside_tree():
 		return farm_ref
-
-	var root = get_tree().root if get_tree() else null
-	if root:
-		var candidate = root.get_node_or_null("/root/FarmView/Farm")
-		if not candidate:
-			candidate = root.get_node_or_null("/root/Farm")
-		if not candidate:
-			var gsm = root.get_node_or_null("/root/GameStateManager")
-			if gsm and "active_farm" in gsm and gsm.active_farm:
-				candidate = gsm.active_farm
+	var gsm = get_node_or_null("/root/GameStateManager") if get_tree() else null
+	if gsm and gsm.has_method("get_active_farm"):
+		var candidate = gsm.get_active_farm()
 		if candidate:
 			farm_ref = candidate
 			return farm_ref
@@ -634,3 +591,32 @@ func _show_register_details(reg: Dictionary) -> void:
 func get_action_labels() -> Dictionary:
 	"""Get context-sensitive QER+F labels."""
 	return action_labels.duplicate()
+
+
+func get_snapshot() -> Dictionary:
+	"""Return all currently-displayed state as structured data."""
+	var biome_name = biome.name if biome and biome.get("name") else ""
+	var speed = _get_simulation_speed() if biome else 0.0
+	var vfps = Engine.get_frames_per_second()
+	var pfps = _get_physics_fps()
+
+	var regs: Array = []
+	for reg in register_data:
+		regs.append({
+			"index": reg.get("index", -1),
+			"emoji": reg.get("emoji", "?"),
+			"probability": reg.get("probability", 0.0),
+			"coherence": reg.get("coherence", 0.0)
+		})
+
+	return {
+		"view_mode": VIEW_MODE_NAMES[current_view_mode].to_lower().replace(" ", "_"),
+		"biome": biome_name,
+		"registers": regs,
+		"selected_register": selected_index,
+		"stats": {
+			"sim_speed": speed,
+			"vfps": vfps,
+			"pfps": pfps,
+		}
+	}

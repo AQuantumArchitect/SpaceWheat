@@ -20,23 +20,10 @@ extends Resource
 
 const DualEmojiQubit = preload("res://Core/QuantumSubstrate/DualEmojiQubit.gd")
 const QuantumRigorConfig = preload("res://Core/GameState/QuantumRigorConfig.gd")
+const VerboseHelper = preload("res://Core/Config/VerboseHelper.gd")
 
-
-## Safely log via VerboseConfig (Resource can't use @onready)
 func _log(level: String, category: String, emoji: String, message: String) -> void:
-	var tree = Engine.get_main_loop()
-	if not tree or not tree is SceneTree:
-		return
-	var verbose = tree.root.get_node_or_null("/root/VerboseConfig")
-	if not verbose:
-		return
-	match level:
-		"info":
-			verbose.info(category, emoji, message)
-		"debug":
-			verbose.debug(category, emoji, message)
-		"warn":
-			verbose.warn(category, emoji, message)
+	VerboseHelper.log(level, category, emoji, message)
 
 # Signals removed: growth_complete (unused), state_collapsed (unused)
 

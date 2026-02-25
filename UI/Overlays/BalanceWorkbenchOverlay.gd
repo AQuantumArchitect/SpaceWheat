@@ -1,17 +1,25 @@
 class_name BalanceWorkbenchOverlay
-extends OverlayBase
+extends "res://UI/Core/OverlayBase.gd"
 
 const BalanceService = preload("res://Core/GameMechanics/BalanceService.gd")
 
 var _farm: Node = null
+var _farm_instrument = null
+var _advanced_mode: bool = false
 var _profile_label: Label = null
 var _action_label: Label = null
 var _cost_label: Label = null
 var _roi_label: Label = null
+var _timescale_label: RichTextLabel = null
+var _easy_apply_button: Button = null
+var _easy_status_label: Label = null
 var _quest_label: RichTextLabel = null
 
 var _action_keys: Array[String] = []
 var _selected_action_idx: int = 0
+var _timescale_biomes: Array[String] = []
+var _selected_timescale_biome_idx: int = 0
+var _last_projection: Dictionary = {}
 var _snapshot: Dictionary = {}
 
 
@@ -33,6 +41,15 @@ func _init() -> void:
 
 func set_farm(farm_ref: Node) -> void:
 	_farm = farm_ref
+
+
+func set_farm_instrument(inst) -> void:
+	_farm_instrument = inst
+
+
+func set_advanced_mode(enabled: bool) -> void:
+	_advanced_mode = enabled
+	_render()
 
 
 func _build_content(container: Control) -> void:
@@ -57,6 +74,36 @@ func _build_content(container: Control) -> void:
 	_roi_label.add_theme_font_size_override("font_size", 16)
 	root.add_child(_roi_label)
 
+	var timescale_title = Label.new()
+	timescale_title.text = "Timescale Objective Projection"
+	timescale_title.add_theme_font_size_override("font_size", 18)
+	root.add_child(timescale_title)
+
+	_timescale_label = RichTextLabel.new()
+	_timescale_label.custom_minimum_size = Vector2(0, 160)
+	_timescale_label.fit_content = false
+	_timescale_label.scroll_active = true
+	_timescale_label.bbcode_enabled = false
+	_timescale_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_timescale_label.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	root.add_child(_timescale_label)
+
+	var easy_row = HBoxContainer.new()
+	easy_row.add_theme_constant_override("separation", 10)
+	easy_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	root.add_child(easy_row)
+
+	_easy_apply_button = Button.new()
+	_easy_apply_button.text = "Easy: Auto Apply Suggested Timescale"
+	_easy_apply_button.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	_easy_apply_button.pressed.connect(_on_easy_apply_pressed)
+	easy_row.add_child(_easy_apply_button)
+
+	_easy_status_label = Label.new()
+	_easy_status_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_easy_status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	easy_row.add_child(_easy_status_label)
+
 	var quest_title = Label.new()
 	quest_title.text = "Quest Reward Tuning"
 	quest_title.add_theme_font_size_override("font_size", 18)
@@ -72,7 +119,7 @@ func _build_content(container: Control) -> void:
 	root.add_child(_quest_label)
 
 	var hints = Label.new()
-	hints.text = "Keys: [ and ] select resource in action | Shift+R/F = +/-5 | T/Y tune quest ratio"
+	hints.text = "Dummy mode: click Auto Apply button. Keys: Q/E action nav | R/F edit in advanced mode, otherwise biome/refresh | T/Y quest ratio (advanced)"
 	hints.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	root.add_child(hints)
 
@@ -93,6 +140,7 @@ func _refresh_snapshot() -> void:
 	_action_keys.sort()
 	if _selected_action_idx >= _action_keys.size():
 		_selected_action_idx = 0
+	_refresh_timescale_projection()
 	_render()
 
 
@@ -102,7 +150,7 @@ func _render() -> void:
 
 	var profile_id = str(_snapshot.get("profile_id", "default"))
 	var profile_name = str(_snapshot.get("profile_display_name", profile_id))
-	_profile_label.text = "Profile: %s (%s)" % [profile_id, profile_name]
+	_profile_label.text = "Profile: %s (%s) | Advanced: %s" % [profile_id, profile_name, "ON" if _advanced_mode else "OFF (read-only tuning)"]
 
 	if _action_keys.is_empty():
 		_action_label.text = "Action: n/a"
@@ -119,7 +167,25 @@ func _render() -> void:
 		var note = str(roi_notes.get(action, "No ROI note configured"))
 		_roi_label.text = "ROI Hint: %s" % note
 
+	if _advanced_mode:
+		action_labels = {
+			"Q": "Prev Action",
+			"E": "Next Action",
+			"R": "Cost +1",
+			"F": "Cost -1"
+		}
+	else:
+		action_labels = {
+			"Q": "Prev Action",
+			"E": "Next Action",
+			"R": "Next Biome",
+			"F": "Refresh"
+		}
+
+	_render_timescale_projection()
 	_render_quest_tuning()
+	if _easy_apply_button:
+		_easy_apply_button.disabled = _timescale_biomes.is_empty() or not bool(_last_projection.get("ok", false))
 
 
 func _render_quest_tuning() -> void:
@@ -154,14 +220,22 @@ func _on_action_e() -> void:
 
 
 func _on_action_r() -> void:
+	if not _advanced_mode:
+		_cycle_timescale_biome(1)
+		return
 	_apply_delta_to_selected_action(1 if not Input.is_key_pressed(KEY_SHIFT) else 5)
 
 
 func _on_action_f() -> void:
+	if not _advanced_mode:
+		_refresh_snapshot()
+		return
 	_apply_delta_to_selected_action(-1 if not Input.is_key_pressed(KEY_SHIFT) else -5)
 
 
 func _on_unhandled_key(keycode: int, _event: InputEvent) -> bool:
+	if not _advanced_mode:
+		return false
 	if keycode == KEY_T:
 		_apply_quest_ratio_delta(0.05)
 		return true
@@ -208,6 +282,165 @@ func _apply_quest_ratio_delta(delta: float) -> void:
 	}
 	BalanceService.apply_patch(_farm, patch, "ui.balance_workbench")
 	_refresh_snapshot()
+
+
+func _refresh_timescale_projection() -> void:
+	_last_projection = {}
+	_timescale_biomes.clear()
+	if _farm_instrument and _farm_instrument.has_method("get_grid_snapshot"):
+		var grid = _farm_instrument.get_grid_snapshot()
+		if bool(grid.get("ok", false)):
+			var biomes = grid.get("biomes", [])
+			if biomes is Array:
+				for biome_name in biomes:
+					var b = str(biome_name)
+					if b != "":
+						_timescale_biomes.append(b)
+	elif _farm and "grid" in _farm and _farm.grid and "biomes" in _farm.grid:
+		_timescale_biomes = _farm.grid.biomes.keys()
+		_timescale_biomes.sort()
+
+	if _timescale_biomes.is_empty():
+		return
+	_selected_timescale_biome_idx = clampi(_selected_timescale_biome_idx, 0, _timescale_biomes.size() - 1)
+	var biome_name = _timescale_biomes[_selected_timescale_biome_idx]
+
+	if _farm_instrument and _farm_instrument.has_method("recommend_timescale"):
+		_last_projection = _farm_instrument.recommend_timescale(biome_name, 8)
+		if _last_projection.is_empty() and _farm_instrument.has_method("get_timescale_projection"):
+			_last_projection = _farm_instrument.get_timescale_projection(biome_name, 8)
+		return
+
+	# Fallback when farm instrument is unavailable: show top global probabilities only.
+	if _farm and "biome_evolution_batcher" in _farm and _farm.biome_evolution_batcher:
+		var batcher = _farm.biome_evolution_batcher
+		if batcher.has_method("get_global_icon_map"):
+			var global_map = batcher.get_global_icon_map()
+			var by_emoji = global_map.get("by_emoji", {})
+			var total = max(1e-9, float(global_map.get("total", 1.0)))
+			var rows: Array = []
+			if by_emoji is Dictionary:
+				for emoji in by_emoji.keys():
+					var p = float(by_emoji[emoji]) / total
+					rows.append({"emoji": str(emoji), "probability": p})
+				rows.sort_custom(func(a, b): return float(a.get("probability", 0.0)) > float(b.get("probability", 0.0)))
+			_last_projection = {"ok": true, "biome": biome_name, "emoji_rankings": rows.slice(0, min(8, rows.size()))}
+
+
+func _cycle_timescale_biome(delta: int) -> void:
+	if _timescale_biomes.is_empty():
+		return
+	_selected_timescale_biome_idx = posmod(_selected_timescale_biome_idx + delta, _timescale_biomes.size())
+	_refresh_timescale_projection()
+	_render_timescale_projection()
+
+
+func _render_timescale_projection() -> void:
+	if not _timescale_label:
+		return
+	if _timescale_biomes.is_empty():
+		_timescale_label.text = "No biome data available."
+		return
+	var biome_name = _timescale_biomes[_selected_timescale_biome_idx]
+	var rows = _last_projection.get("emoji_rankings", [])
+	var lines: Array[String] = []
+	lines.append("Biome: %s (%d/%d)" % [biome_name, _selected_timescale_biome_idx + 1, _timescale_biomes.size()])
+	if bool(_last_projection.get("ok", false)):
+		var stride = int(_last_projection.get("recommended_stride", -1))
+		var dt = float(_last_projection.get("recommended_dt", -1.0))
+		var wait_p = int(_last_projection.get("recommended_wait_phrames", -1))
+		if stride >= 0 and dt > 0.0:
+			lines.append("Rec: stride=%d dt=%.4f wait=%d phrames" % [stride, dt, wait_p])
+		var top = str(_last_projection.get("top_emoji", ""))
+		if top != "":
+			lines.append("Top target: %s (p=%.3f)" % [top, float(_last_projection.get("top_probability", 0.0))])
+	else:
+		lines.append("Projection unavailable.")
+	lines.append("")
+	lines.append("Likely emoji choices (sorted by probability):")
+	if rows is Array:
+		var limit = min(8, rows.size())
+		for i in range(limit):
+			var row = rows[i]
+			if not (row is Dictionary):
+				continue
+			lines.append("%d. %s p=%.3f score=%.3f floor=%.0f have=%.1f" % [
+				i + 1,
+				str(row.get("emoji", "?")),
+				float(row.get("probability", 0.0)),
+				float(row.get("objective_score", 0.0)),
+				float(row.get("resource_floor", 0.0)),
+				float(row.get("resource_have", 0.0))
+			])
+	_timescale_label.text = "\n".join(lines)
+
+
+func _on_easy_apply_pressed() -> void:
+	if _timescale_biomes.is_empty():
+		_set_easy_status("No biome available.")
+		return
+	var biome_name = _timescale_biomes[_selected_timescale_biome_idx]
+
+	if not _farm_instrument:
+		_set_easy_status("Farm instrument unavailable.")
+		_render()
+		return
+
+	if _farm_instrument.has_method("auto_apply_timescale"):
+		var apply_result = _farm_instrument.auto_apply_timescale(biome_name, 8)
+		if bool(apply_result.get("ok", false)):
+			var stride = int(apply_result.get("recommended_stride", 1))
+			var dt = float(apply_result.get("recommended_dt", 0.02))
+			_set_easy_status("Applied to %s: stride=%d dt=%.4f" % [biome_name, stride, dt])
+			var gsm = get_tree().root.get_node_or_null("/root/GameStateManager")
+			if gsm and "current_state" in gsm and gsm.current_state:
+				gsm.current_state.observation_stride = stride
+				gsm.current_state.max_evolution_dt = dt
+		else:
+			_set_easy_status("Apply failed on %s." % biome_name)
+		_refresh_timescale_projection()
+		_render()
+		return
+
+	# Legacy fallback if instrument doesn't expose auto helper.
+	if not (_farm_instrument.has_method("set_biome_stride") and _farm_instrument.has_method("set_biome_resolution")):
+		_set_easy_status("Timescale controls unavailable.")
+		_render()
+		return
+
+	_refresh_timescale_projection()
+	var rec = _last_projection
+	if not bool(rec.get("ok", false)):
+		_set_easy_status("No recommendation available.")
+		_render()
+		return
+
+	var stride = int(rec.get("recommended_stride", -1))
+	var dt = float(rec.get("recommended_dt", -1.0))
+	if stride <= 0 or dt <= 0.0:
+		_set_easy_status("Recommendation missing stride/dt.")
+		_render()
+		return
+
+	var stride_result = _farm_instrument.set_biome_stride(biome_name, stride)
+	var dt_result = _farm_instrument.set_biome_resolution(biome_name, dt)
+	var stride_ok = bool(stride_result.get("ok", false))
+	var dt_ok = bool(dt_result.get("ok", false))
+	if stride_ok and dt_ok:
+		_set_easy_status("Applied to %s: stride=%d dt=%.4f" % [biome_name, stride, dt])
+		# Persist global timescale defaults through save state path (best-effort).
+		var gsm = get_tree().root.get_node_or_null("/root/GameStateManager")
+		if gsm and "current_state" in gsm and gsm.current_state:
+			gsm.current_state.observation_stride = stride
+			gsm.current_state.max_evolution_dt = dt
+	else:
+		_set_easy_status("Apply failed on %s." % biome_name)
+	_render()
+
+
+func _set_easy_status(message: String) -> void:
+	if _easy_status_label:
+		_easy_status_label.text = message
 
 
 func _format_cost(cost: Dictionary) -> String:

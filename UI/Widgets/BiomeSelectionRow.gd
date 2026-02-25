@@ -1,5 +1,5 @@
 class_name BiomeSelectionRow
-extends "res://UI/Panels/SelectionButtonRow.gd"
+extends "res://UI/Widgets/SelectionButtonRow.gd"
 
 ## BiomeSelectionRow - Top bar with biome selection buttons (T/Y/U/I/O/P).
 ## Dynamically expands as new biomes are unlocked.

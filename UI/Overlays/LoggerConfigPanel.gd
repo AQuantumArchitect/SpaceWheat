@@ -1,19 +1,9 @@
 class_name LoggerConfigPanel
-extends Control
-
-# Access autoload safely (avoids compile-time errors)
-@onready var _verbose = get_node("/root/VerboseConfig")
+extends "res://UI/Core/OverlayBase.gd"
 
 ## Logger Configuration Panel
 ## Runtime UI for configuring log categories and levels
-## Toggle with 'L' key
-
-signal closed()
-
-var background: ColorRect
-var menu_panel: PanelContainer
-var scroll_container: ScrollContainer
-var categories_vbox: VBoxContainer
+## Toggle with X key (shell menu)
 
 # Category controls
 var category_checkboxes: Dictionary = {}  # category_name -> CheckBox
@@ -43,87 +33,69 @@ const CATEGORY_EMOJIS = {
 
 func _init():
 	name = "LoggerConfigPanel"
+	overlay_name = "logger"
+	panel_title = "Logger Config"
+	panel_size_mode = PanelSizeMode.MEDIUM
+	panel_border_color = Color(0.3, 0.5, 0.3, 0.8)  # Green border
+	show_dimmer = true
+	use_scroll_container = false
+	navigation_mode = NavigationMode.NONE
+	action_labels = {
+		"Q": "",
+		"E": "",
+		"R": "Reset Defaults",
+		"F": ""
+	}
 
-	# Fill entire screen
-	set_anchors_preset(Control.PRESET_FULL_RECT)
-	layout_mode = 1
-	mouse_filter = Control.MOUSE_FILTER_STOP
-	hide()  # Hidden by default
 
-
-func _ready():
-	"""Build UI after _verbose is available"""
-	# Background - semi-transparent black
-	background = ColorRect.new()
-	background.color = Color(0.0, 0.0, 0.0, 0.8)
-	background.set_anchors_preset(Control.PRESET_FULL_RECT)
-	background.layout_mode = 1
-	add_child(background)
-
-	# Menu panel - centered, sized to fit 960x540 screen
-	menu_panel = PanelContainer.new()
-	menu_panel.custom_minimum_size = Vector2(550, 480)
-	menu_panel.anchor_left = 0.5
-	menu_panel.anchor_right = 0.5
-	menu_panel.anchor_top = 0.5
-	menu_panel.anchor_bottom = 0.5
-	menu_panel.offset_left = -275
-	menu_panel.offset_right = 275
-	menu_panel.offset_top = -240
-	menu_panel.offset_bottom = 240
-	menu_panel.layout_mode = 1
-	add_child(menu_panel)
-
-	# Main VBox
-	var main_vbox = VBoxContainer.new()
-	main_vbox.add_theme_constant_override("separation", 15)
-	menu_panel.add_child(main_vbox)
-
-	# Title
-	var title = Label.new()
-	title.text = "📝 Logger Configuration"
-	title.add_theme_font_size_override("font_size", 28)
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	main_vbox.add_child(title)
+func _build_content(container: Control) -> void:
+	"""Build logger config UI inside OverlayBase panel."""
+	var _verbose = get_node_or_null("/root/VerboseConfig")
+	if not _verbose:
+		var err = Label.new()
+		err.text = "VerboseConfig not available"
+		container.add_child(err)
+		return
 
 	# Output options section
-	_create_output_options(main_vbox)
+	_create_output_options(container, _verbose)
 
 	# Spacer
 	var spacer1 = Control.new()
-	spacer1.custom_minimum_size = Vector2(0, 10)
-	main_vbox.add_child(spacer1)
+	spacer1.custom_minimum_size = Vector2(0, 8)
+	container.add_child(spacer1)
 
 	# Categories label
 	var cat_label = Label.new()
 	cat_label.text = "Categories (Enable | Level)"
-	cat_label.add_theme_font_size_override("font_size", 18)
+	cat_label.add_theme_font_size_override("font_size", 16)
 	cat_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	main_vbox.add_child(cat_label)
+	container.add_child(cat_label)
 
 	# Scroll container for categories
-	scroll_container = ScrollContainer.new()
-	scroll_container.custom_minimum_size = Vector2(0, 280)
-	scroll_container.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	main_vbox.add_child(scroll_container)
+	var scroll = ScrollContainer.new()
+	scroll.custom_minimum_size = Vector2(0, 240)
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	container.add_child(scroll)
 
-	categories_vbox = VBoxContainer.new()
+	var categories_vbox = VBoxContainer.new()
 	categories_vbox.add_theme_constant_override("separation", 8)
-	scroll_container.add_child(categories_vbox)
+	scroll.add_child(categories_vbox)
 
 	# Create category controls
-	_create_category_controls()
+	_create_category_controls(categories_vbox, _verbose)
 
 	# Spacer
 	var spacer2 = Control.new()
-	spacer2.custom_minimum_size = Vector2(0, 10)
-	main_vbox.add_child(spacer2)
+	spacer2.custom_minimum_size = Vector2(0, 8)
+	container.add_child(spacer2)
 
 	# Buttons
-	_create_buttons(main_vbox)
+	_create_buttons(container)
 
 
-func _create_output_options(parent: VBoxContainer):
+func _create_output_options(parent: Control, _verbose: Node) -> void:
 	"""Create output toggles (console, file, timestamps)"""
 	var output_hbox = HBoxContainer.new()
 	output_hbox.alignment = BoxContainer.ALIGNMENT_CENTER
@@ -134,25 +106,25 @@ func _create_output_options(parent: VBoxContainer):
 	console_checkbox = CheckBox.new()
 	console_checkbox.text = "Console Output"
 	console_checkbox.button_pressed = _verbose.enable_console_output
-	console_checkbox.toggled.connect(_on_console_toggled)
+	console_checkbox.toggled.connect(func(enabled): _on_console_toggled(enabled, _verbose))
 	output_hbox.add_child(console_checkbox)
 
 	# File logging
 	file_checkbox = CheckBox.new()
 	file_checkbox.text = "File Logging"
 	file_checkbox.button_pressed = _verbose.enable_file_logging
-	file_checkbox.toggled.connect(_on_file_toggled)
+	file_checkbox.toggled.connect(func(enabled): _on_file_toggled(enabled, _verbose))
 	output_hbox.add_child(file_checkbox)
 
 	# Timestamps
 	timestamps_checkbox = CheckBox.new()
 	timestamps_checkbox.text = "Timestamps"
 	timestamps_checkbox.button_pressed = _verbose.show_timestamps
-	timestamps_checkbox.toggled.connect(_on_timestamps_toggled)
+	timestamps_checkbox.toggled.connect(func(enabled): _on_timestamps_toggled(enabled, _verbose))
 	output_hbox.add_child(timestamps_checkbox)
 
 
-func _create_category_controls():
+func _create_category_controls(categories_vbox: VBoxContainer, _verbose: Node) -> void:
 	"""Create checkbox + dropdown for each category"""
 	var categories = _verbose.get_all_categories()
 	categories.sort()  # Alphabetical order
@@ -165,7 +137,7 @@ func _create_category_controls():
 		# Checkbox (enable/disable)
 		var checkbox = CheckBox.new()
 		checkbox.button_pressed = _verbose.category_enabled.get(category, true)
-		checkbox.toggled.connect(func(enabled): _on_category_enabled_changed(category, enabled))
+		checkbox.toggled.connect(func(enabled): _on_category_enabled_changed(category, enabled, _verbose))
 		row_hbox.add_child(checkbox)
 		category_checkboxes[category] = checkbox
 
@@ -187,12 +159,12 @@ func _create_category_controls():
 		# Set current level
 		var current_level = _verbose.get_category_level(category)
 		option_btn.selected = current_level
-		option_btn.item_selected.connect(func(idx): _on_category_level_changed(category, idx))
+		option_btn.item_selected.connect(func(idx): _on_category_level_changed(category, idx, _verbose))
 		row_hbox.add_child(option_btn)
 		category_option_buttons[category] = option_btn
 
 
-func _create_buttons(parent: VBoxContainer):
+func _create_buttons(parent: Control) -> void:
 	"""Create action buttons at bottom"""
 	var button_hbox = HBoxContainer.new()
 	button_hbox.alignment = BoxContainer.ALIGNMENT_CENTER
@@ -201,16 +173,16 @@ func _create_buttons(parent: VBoxContainer):
 
 	# Reset to defaults button
 	var reset_btn = Button.new()
-	reset_btn.text = "Reset to Defaults"
-	reset_btn.custom_minimum_size = Vector2(150, 40)
+	reset_btn.text = "Reset to Defaults [R]"
+	reset_btn.custom_minimum_size = Vector2(170, 40)
 	reset_btn.pressed.connect(_on_reset_pressed)
 	button_hbox.add_child(reset_btn)
 
 	# Close button
 	var close_btn = Button.new()
-	close_btn.text = "Close [L / ESC]"
+	close_btn.text = "Close [X / ESC]"
 	close_btn.custom_minimum_size = Vector2(150, 40)
-	close_btn.pressed.connect(_on_close_pressed)
+	close_btn.pressed.connect(deactivate)
 	button_hbox.add_child(close_btn)
 
 
@@ -218,34 +190,34 @@ func _create_buttons(parent: VBoxContainer):
 # EVENT HANDLERS
 # ============================================================================
 
-func _on_console_toggled(enabled: bool):
+func _on_console_toggled(enabled: bool, _verbose: Node) -> void:
 	_verbose.enable_console_output = enabled
-	print("🔧 Logger: Console output %s" % ("ENABLED" if enabled else "DISABLED"))
 
 
-func _on_file_toggled(enabled: bool):
+func _on_file_toggled(enabled: bool, _verbose: Node) -> void:
 	_verbose.enable_file_logging = enabled
 	if enabled and not _verbose._log_file:
 		_verbose._init_file_logging()
-	print("🔧 Logger: File logging %s" % ("ENABLED" if enabled else "DISABLED"))
 
 
-func _on_timestamps_toggled(enabled: bool):
+func _on_timestamps_toggled(enabled: bool, _verbose: Node) -> void:
 	_verbose.show_timestamps = enabled
-	print("🔧 Logger: Timestamps %s" % ("ENABLED" if enabled else "DISABLED"))
 
 
-func _on_category_enabled_changed(category: String, enabled: bool):
+func _on_category_enabled_changed(category: String, enabled: bool, _verbose: Node) -> void:
 	_verbose.set_category_enabled(category, enabled)
 
 
-func _on_category_level_changed(category: String, level_idx: int):
-	_verbose.set_category_level(category, level_idx)  # level_idx already matches LogLevel enum values
+func _on_category_level_changed(category: String, level_idx: int, _verbose: Node) -> void:
+	_verbose.set_category_level(category, level_idx)
 
 
-func _on_reset_pressed():
+func _on_reset_pressed() -> void:
 	"""Reset all categories to default levels"""
-	# Reset to defaults
+	var _verbose = get_node_or_null("/root/VerboseConfig")
+	if not _verbose:
+		return
+
 	_verbose.category_levels = {
 		"ui": _verbose.LogLevel.INFO,
 		"input": _verbose.LogLevel.WARN,
@@ -266,19 +238,16 @@ func _on_reset_pressed():
 		_verbose.category_enabled[category] = true
 
 	# Refresh UI
-	_refresh_ui()
-
-	print("🔧 Logger: Reset to default configuration")
+	_refresh_ui(_verbose)
 
 
-func _on_close_pressed():
-	hide()
-	closed.emit()
+func _on_action_r() -> void:
+	"""R = Reset to defaults."""
+	_on_reset_pressed()
 
 
-func _refresh_ui():
+func _refresh_ui(_verbose: Node) -> void:
 	"""Update UI controls to match current VerboseConfig state"""
-	# Update checkboxes and dropdowns
 	for category in category_checkboxes.keys():
 		var checkbox = category_checkboxes[category]
 		checkbox.button_pressed = _verbose.category_enabled.get(category, true)
@@ -286,38 +255,51 @@ func _refresh_ui():
 		var option_btn = category_option_buttons[category]
 		option_btn.selected = _verbose.get_category_level(category)
 
-	# Update output toggles
-	console_checkbox.button_pressed = _verbose.enable_console_output
-	file_checkbox.button_pressed = _verbose.enable_file_logging
-	timestamps_checkbox.button_pressed = _verbose.show_timestamps
+	if console_checkbox:
+		console_checkbox.button_pressed = _verbose.enable_console_output
+	if file_checkbox:
+		file_checkbox.button_pressed = _verbose.enable_file_logging
+	if timestamps_checkbox:
+		timestamps_checkbox.button_pressed = _verbose.show_timestamps
 
 
 # ============================================================================
-# INPUT HANDLING
+# SNAPSHOT PROTOCOL
 # ============================================================================
 
-func _input(event: InputEvent):
-	if not visible:
-		return
+func get_snapshot() -> Dictionary:
+	"""Return all currently-displayed state as structured data."""
+	var _verbose = get_node_or_null("/root/VerboseConfig")
+	if not _verbose:
+		return {"error": "verbose_config_unavailable"}
 
-	# Close on ESC or X key
-	if event is InputEventKey and event.pressed:
-		if event.keycode == KEY_ESCAPE or event.keycode == KEY_X:
-			_on_close_pressed()
-			get_viewport().set_input_as_handled()
+	var categories: Array = []
+	var all_cats = _verbose.get_all_categories()
+	all_cats.sort()
+	for cat in all_cats:
+		var level_idx = _verbose.get_category_level(cat)
+		var level_name = _verbose.LEVEL_NAMES[level_idx] if level_idx < _verbose.LEVEL_NAMES.size() else "UNKNOWN"
+		categories.append({
+			"name": cat,
+			"enabled": _verbose.category_enabled.get(cat, true),
+			"level": level_name
+		})
+
+	return {
+		"categories": categories,
+		"console_enabled": _verbose.enable_console_output,
+		"file_enabled": _verbose.enable_file_logging,
+		"timestamps_enabled": _verbose.show_timestamps
+	}
 
 
 # ============================================================================
-# PUBLIC API
+# LEGACY COMPATIBILITY
 # ============================================================================
 
-func show_panel():
-	"""Show the logger config panel"""
-	_refresh_ui()
-	show()
+## Keep show_panel/hide_panel as thin aliases for callers not yet updated
+func show_panel() -> void:
+	activate()
 
-
-func hide_panel():
-	"""Hide the logger config panel"""
-	hide()
-	closed.emit()
+func hide_panel() -> void:
+	deactivate()

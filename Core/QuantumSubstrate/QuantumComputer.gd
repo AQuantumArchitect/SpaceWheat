@@ -12,27 +12,10 @@ const ComplexMatrix = preload("res://Core/QuantumSubstrate/ComplexMatrix.gd")
 # SparseMatrix deprecated - sparse optimization now handled by native C++ backend
 const QuantumGateLibrary = preload("res://Core/QuantumSubstrate/QuantumGateLibrary.gd")
 const RegisterMap = preload("res://Core/QuantumSubstrate/RegisterMap.gd")
+const VerboseHelper = preload("res://Core/Config/VerboseHelper.gd")
 
-
-## Safely log via VerboseConfig (Resource can't use @onready)
 func _log(level: String, category: String, emoji: String, message: String) -> void:
-	var tree = Engine.get_main_loop()
-	if not tree or not tree is SceneTree:
-		return
-	var verbose = tree.root.get_node_or_null("/root/VerboseConfig")
-	if not verbose:
-		return
-	match level:
-		"info":
-			verbose.info(category, emoji, message)
-		"debug":
-			verbose.debug(category, emoji, message)
-		"warn":
-			verbose.warn(category, emoji, message)
-		"error":
-			verbose.error(category, emoji, message)
-		"trace":
-			verbose.trace(category, emoji, message)
+	VerboseHelper.log(level, category, emoji, message)
 
 @export var biome_name: String = ""
 
@@ -75,6 +58,9 @@ var register_infrastructure: Dictionary = {}  # register_id → {field: value}
 ## Phase 4: Energy tap flux tracking
 ## Accumulated energy flux per tapped emoji (accumulated this frame from Lindblad drain operators)
 var sink_flux_per_emoji: Dictionary = {}  # emoji → float (accumulated flux)
+var _last_renorm_trace_before_cap: float = 1.0
+var _last_renorm_scale: float = 1.0
+var _cumulative_renorm_excess: float = 0.0
 
 ## TIME TRACKING FOR TIME-DEPENDENT HAMILTONIAN
 ## Tracks elapsed time to apply time-dependent drivers (e.g., sun oscillation)
@@ -87,6 +73,14 @@ var phase_lnn = null  # LiquidNeuralNet reference (optional)
 
 # Performance: Purity cache (invalidated on density matrix changes)
 var _purity_cache: float = -1.0
+var _sparse_evolution_enabled_cached: int = -1  # -1 unknown, 0 false, 1 true
+
+
+func _sparse_evolution_enabled() -> bool:
+	if _sparse_evolution_enabled_cached < 0:
+		var raw = OS.get_environment("SW_ENABLE_SPARSE_EVOLVE").to_lower()
+		_sparse_evolution_enabled_cached = 1 if raw in ["1", "true", "yes", "on"] else 0
+	return _sparse_evolution_enabled_cached == 1
 
 func _init(name: String = ""):
 	biome_name = name
@@ -455,9 +449,59 @@ func get_all_sink_fluxes() -> Dictionary:
 	"""
 	return sink_flux_per_emoji.duplicate()
 
+
+func add_sink_flux(emoji: String, amount: float) -> void:
+	"""Accumulate positive sink flux for one emoji."""
+	if emoji == "" or amount <= 0.0:
+		return
+	sink_flux_per_emoji[emoji] = float(sink_flux_per_emoji.get(emoji, 0.0)) + amount
+
+
+func consume_sink_flux(emoji: String, amount: float) -> float:
+	"""Consume sink flux so payouts and reap do not double count the same mass."""
+	if emoji == "" or amount <= 0.0:
+		return 0.0
+	var available = float(sink_flux_per_emoji.get(emoji, 0.0))
+	if available <= 0.0:
+		return 0.0
+	var consumed = min(available, amount)
+	var remaining = available - consumed
+	if remaining <= 1e-12:
+		sink_flux_per_emoji.erase(emoji)
+	else:
+		sink_flux_per_emoji[emoji] = remaining
+	return consumed
+
+
+func accumulate_sink_flux_from_rates(rate_map: Dictionary, dt: float) -> void:
+	"""Accumulate flux from structural Lindblad rates and current emoji populations."""
+	if rate_map.is_empty() or dt <= 0.0:
+		return
+	for key in rate_map.keys():
+		var emoji = str(key)
+		if emoji == "" or not register_map.has(emoji):
+			continue
+		var rate = max(0.0, float(rate_map.get(key, 0.0)))
+		if rate <= 0.0:
+			continue
+		var population = max(0.0, get_population(emoji))
+		var flux = population * rate * dt
+		if flux > 0.0:
+			add_sink_flux(emoji, flux)
+
+
 func reset_sink_flux() -> void:
 	"""Reset accumulated sink flux for next frame."""
 	sink_flux_per_emoji.clear()
+
+
+func get_renorm_diagnostics() -> Dictionary:
+	"""Expose renormalization diagnostics for debugging only (not gameplay economy)."""
+	return {
+		"last_trace_before_cap": _last_renorm_trace_before_cap,
+		"last_scale": _last_renorm_scale,
+		"cumulative_trace_excess": _cumulative_renorm_excess
+	}
 
 func debug_dump() -> String:
 	"""Generate human-readable dump of quantum computer state."""
@@ -1075,6 +1119,8 @@ func _apply_lindblad_1q(qubit_index: int, from_pole: int, to_pole: int,
 	var dim = register_map.dim()
 	var shift = num_qubits - 1 - qubit_index
 	var rho_new = ComplexMatrix.zeros(dim)
+	var source_emoji = _emoji_for_qubit_pole(qubit_index, from_pole)
+	var before_source_pop = get_marginal(qubit_index, from_pole)
 
 	# Build Lindblad superoperator: L ρ L† - {L†L, ρ}/2
 	for i in range(dim):
@@ -1107,6 +1153,19 @@ func _apply_lindblad_1q(qubit_index: int, from_pole: int, to_pole: int,
 	density_matrix = rho_new
 	_renormalize()
 
+	if source_emoji != "":
+		var after_source_pop = get_marginal(qubit_index, from_pole)
+		var drained = max(0.0, before_source_pop - after_source_pop)
+		if drained > 0.0:
+			add_sink_flux(source_emoji, drained)
+
+
+func _emoji_for_qubit_pole(qubit_index: int, pole: int) -> String:
+	var axis = register_map.axis(qubit_index)
+	if axis.is_empty():
+		return ""
+	return str(axis.get("north", "")) if pole == 0 else str(axis.get("south", ""))
+
 
 func _renormalize() -> void:
 	"""Ensure Tr(ρ) = 1 after numerical integration.
@@ -1137,19 +1196,25 @@ func _renormalize() -> void:
 		trace += diag_re
 		if diag_re < min_diag:
 			min_diag = diag_re
+	_last_renorm_trace_before_cap = trace
 
 	# Stage 2: Only reinitialize on truly catastrophic failure
 	if abs(trace) < 1e-10 or min_diag < -0.15:
 		push_warning("⚠️ Quantum state catastrophic (trace=%.4f, min_diag=%.4f), reinitializing" % [trace, min_diag])
+		_last_renorm_scale = 0.0
 		_reinitialize_mixed_state()
 		return
 
 	# Stage 3: Cap trace to 1 (allow dissipative trace < 1)
 	if trace > 1.0 + 1e-10:
 		var scale = 1.0 / trace
+		_last_renorm_scale = scale
+		_cumulative_renorm_excess += (trace - 1.0)
 		var scale_c = Complex.new(scale, 0.0)
 		for i in range(data.size()):
 			data[i] = data[i].mul(scale_c)
+	else:
+		_last_renorm_scale = 1.0
 	
 	_purity_cache = -1.0
 
@@ -1266,33 +1331,80 @@ func evolve(dt: float, max_dt: float = 0.02, lnn: Object = null) -> void:
 	if lnn == null:
 		lnn = phase_lnn
 
-	# ACCUMULATE TIME for time-dependent drivers (sun oscillation, etc.)
-	elapsed_time += dt
-
 	# UPDATE TIME-DEPENDENT DRIVERS (e.g., sun/moon 20-second oscillation)
-	# This modifies Hamiltonian diagonal terms for icons with active drivers
-	if not driven_icons.is_empty():
-		update_driven_self_energies(elapsed_time)
+	# This modifies Hamiltonian diagonal terms for icons with active drivers.
+	# dt controls total simulated time. max_dt controls integrator granularity.
+	var total_dt = maxf(0.0, dt)
+	if total_dt <= 0.0:
+		return
+	var substep_max_dt = maxf(0.000001, max_dt if max_dt > 0.0 else total_dt)
+	var substeps = maxi(1, int(ceili(total_dt / substep_max_dt)))
+	var step_dt = total_dt / float(substeps)
 
 	# ==========================================================================
-	# EVOLUTION PATH: GDScript per-operator sparse path (CPU-optimized)
+	# EVOLUTION PATH: subcycled Euler integration with optional phase modulation
 	# ==========================================================================
-	# Single evolution step using max_dt as actual timestep (no subcycling)
-	# max_dt is the granularity setting (user-adjustable)
-	# dt parameter is ignored (legacy from subcycling era)
-	var actual_dt = max_dt if max_dt > 0.0 else dt
-	_evolve_step(actual_dt)
-	# Apply phase modulation from LNN (phasic shadow)
-	if lnn:
-		_apply_phase_lnn(lnn)
+	for _i in range(substeps):
+		elapsed_time += step_dt
+		if not driven_icons.is_empty():
+			update_driven_self_energies(elapsed_time)
+		_evolve_step(step_dt)
+		if lnn:
+			_apply_phase_lnn(lnn)
+
 	var t1 = Time.get_ticks_usec()
 	if Engine.get_process_frames() % 60 == 0:
-		_log("trace", "quantum", "⏱️", "QC Evolve Trace (Single+LNN, dt=%.4f): Total %d us" % [actual_dt, t1 - t0])
+		_log("trace", "quantum", "⏱️", "QC Evolve Trace (substeps=%d, dt=%.4f, max_dt=%.4f): Total %d us" % [
+			substeps, total_dt, substep_max_dt, t1 - t0
+		])
 
 
 func _evolve_step(dt: float) -> void:
 	"""Single Euler integration step (internal)."""
 	var dim = register_map.dim()
+	var use_sparse_evolution = _sparse_evolution_enabled()
+	if dim <= 0 or density_matrix == null or int(density_matrix.n) != dim:
+		_log("error", "quantum", "🛑", "Skipping evolve: invalid density matrix shape (dim=%d, rho=%s)" % [
+			dim, str(density_matrix.n if density_matrix else -1)
+		])
+		return
+
+	# Defensive shape sanitization before any native matrix products.
+	if hamiltonian != null and int(hamiltonian.n) != dim:
+		_log("warn", "quantum", "🧯", "Hamiltonian shape mismatch (H=%d dim=%d) - disabling Hamiltonian term this step" % [
+			int(hamiltonian.n), dim
+		])
+		hamiltonian = null
+		sparse_hamiltonian = null
+	if sparse_hamiltonian != null and int(sparse_hamiltonian.n) != dim:
+		_log("warn", "quantum", "🧯", "Sparse Hamiltonian shape mismatch (Hs=%d dim=%d) - falling back to dense/null" % [
+			int(sparse_hamiltonian.n), dim
+		])
+		sparse_hamiltonian = null
+
+	if lindblad_operators.size() > 0:
+		var valid_lindblad: Array = []
+		for L in lindblad_operators:
+			if L == null:
+				continue
+			if int(L.n) == dim:
+				valid_lindblad.append(L)
+			else:
+				_log("warn", "quantum", "🧯", "Dropping Lindblad op with shape %d (expected %d)" % [int(L.n), dim])
+		if valid_lindblad.size() != lindblad_operators.size():
+			lindblad_operators = valid_lindblad
+
+	if sparse_lindblad_operators.size() > 0:
+		var valid_sparse_lindblad: Array = []
+		for Ls in sparse_lindblad_operators:
+			if Ls == null:
+				continue
+			if int(Ls.n) == dim:
+				valid_sparse_lindblad.append(Ls)
+			else:
+				_log("warn", "quantum", "🧯", "Dropping sparse Lindblad op with shape %d (expected %d)" % [int(Ls.n), dim])
+		if valid_sparse_lindblad.size() != sparse_lindblad_operators.size():
+			sparse_lindblad_operators = valid_sparse_lindblad
 
 	# Accumulate dρ/dt
 	var drho = ComplexMatrix.zeros(dim)
@@ -1300,7 +1412,7 @@ func _evolve_step(dt: float) -> void:
 	# -------------------------------------------------------------------------
 	# Term 1: Hamiltonian evolution -i[H, ρ]
 	# -------------------------------------------------------------------------
-	if sparse_hamiltonian != null:
+	if use_sparse_evolution and sparse_hamiltonian != null:
 		# SPARSE path: 10-50x faster commutator
 		var commutator = sparse_hamiltonian.commutator_with_dense(density_matrix)
 		var neg_i = Complex.new(0.0, -1.0)
@@ -1349,7 +1461,7 @@ func _evolve_step(dt: float) -> void:
 	# Term 2: Lindblad dissipation Σ_k (L_k ρ L_k† - ½{L_k†L_k, ρ})
 	# -------------------------------------------------------------------------
 	# SPARSE path: use optimized native lindblad_dissipator()
-	if sparse_lindblad_operators.size() > 0:
+	if use_sparse_evolution and sparse_lindblad_operators.size() > 0:
 		for L_sparse in sparse_lindblad_operators:
 			if L_sparse == null:
 				continue

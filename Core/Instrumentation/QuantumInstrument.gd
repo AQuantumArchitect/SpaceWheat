@@ -17,6 +17,24 @@ const LindbladHandler = preload("res://UI/Handlers/LindbladHandler.gd")
 const EconomyConstants = preload("res://Core/GameMechanics/EconomyConstants.gd")
 const BiomeHandler = preload("res://UI/Handlers/BiomeHandler.gd")
 const PhysicsConfig = preload("res://Core/Config/PhysicsConfig.gd")
+const GranularityController = preload("res://Core/Utils/GranularityController.gd")
+const GameStateSerializerClass = preload("res://Core/GameState/GameStateSerializer.gd")
+const VerboseHelper = preload("res://Core/Config/VerboseHelper.gd")
+
+## Fallback biome pool used when ObservationFrame.get_loadable_biomes() is unavailable.
+const DEFAULT_BIOME_POOL: Array[String] = [
+	"StarterForest", "Village", "BioticFlux",
+	"StellarForges", "FungalNetworks", "VolcanicWorlds"
+]
+
+const DEFAULT_TIMESCALE_OBJECTIVE: Dictionary = {
+	"focus_emojis": [],
+	"resource_floors": {"🍞": 64.0, "❄️": 32.0, "👥": 64.0},
+	"top_k": 8,
+	"target_gain_per_wait": 1.0,
+	"horizon_min_phrames": 6,
+	"horizon_max_phrames": 72
+}
 
 # ============================================================================
 # SIGNALS
@@ -47,6 +65,7 @@ var submenu_page: int = 0
 ## Tool state
 var current_tool_group: int = 3
 var tool_mode_indices: Dictionary = {}
+var _timescale_objective: Dictionary = DEFAULT_TIMESCALE_OBJECTIVE.duplicate(true)
 
 ## Cached autoload references
 var _verbose = null
@@ -270,11 +289,18 @@ func restore_state(snapshot: Dictionary) -> void:
 # GROUP 1: UNITARY GATE ACTIONS
 # ============================================================================
 
-func action_rotate(positions: Array[Vector2i], direction: int) -> Dictionary:
+func _action_guard(positions: Array[Vector2i]) -> Dictionary:
+	"""Return an error dict if preconditions fail, or {} if all clear."""
 	if not farm:
 		return {"success": false, "error": "no_farm", "message": "Farm not initialized"}
 	if positions.is_empty():
 		return {"success": false, "error": "no_selection", "message": "No plot selected"}
+	return {}
+
+
+func action_rotate(positions: Array[Vector2i], direction: int) -> Dictionary:
+	var guard = _action_guard(positions)
+	if not guard.is_empty(): return guard
 
 	var ToolConfig = load("res://Core/GameState/ToolConfig.gd")
 	var axis = ToolConfig.get_group_mode_name(1)
@@ -293,10 +319,8 @@ func action_rotate(positions: Array[Vector2i], direction: int) -> Dictionary:
 
 
 func action_hadamard(positions: Array[Vector2i]) -> Dictionary:
-	if not farm:
-		return {"success": false, "error": "no_farm", "message": "Farm not initialized"}
-	if positions.is_empty():
-		return {"success": false, "error": "no_selection", "message": "No plot selected"}
+	var guard = _action_guard(positions)
+	if not guard.is_empty(): return guard
 
 	var result = GateActionHandler.apply_hadamard(farm, positions)
 	action_performed.emit("hadamard", result)
@@ -308,10 +332,8 @@ func action_hadamard(positions: Array[Vector2i]) -> Dictionary:
 # ============================================================================
 
 func action_drain(positions: Array[Vector2i]) -> Dictionary:
-	if not farm:
-		return {"success": false, "error": "no_farm", "message": "Farm not initialized"}
-	if positions.is_empty():
-		return {"success": false, "error": "no_selection", "message": "No plot selected"}
+	var guard = _action_guard(positions)
+	if not guard.is_empty(): return guard
 
 	var result = LindbladHandler.enable_persistent_decay(farm, positions)
 	action_performed.emit("drain", result)
@@ -319,10 +341,8 @@ func action_drain(positions: Array[Vector2i]) -> Dictionary:
 
 
 func action_transfer(positions: Array[Vector2i]) -> Dictionary:
-	if not farm:
-		return {"success": false, "error": "no_farm", "message": "Farm not initialized"}
-	if positions.is_empty():
-		return {"success": false, "error": "no_selection", "message": "No plot selected"}
+	var guard = _action_guard(positions)
+	if not guard.is_empty(): return guard
 
 	var result = LindbladHandler.lindblad_transfer(farm, positions)
 	action_performed.emit("transfer", result)
@@ -330,10 +350,8 @@ func action_transfer(positions: Array[Vector2i]) -> Dictionary:
 
 
 func action_pump(positions: Array[Vector2i]) -> Dictionary:
-	if not farm:
-		return {"success": false, "error": "no_farm", "message": "Farm not initialized"}
-	if positions.is_empty():
-		return {"success": false, "error": "no_selection", "message": "No plot selected"}
+	var guard = _action_guard(positions)
+	if not guard.is_empty(): return guard
 
 	var result = LindbladHandler.enable_persistent_drive(farm, positions)
 	action_performed.emit("pump", result)
@@ -355,10 +373,7 @@ func action_explore(biome_name: String, grid_pos: Vector2i = Vector2i(-1, -1)) -
 		return {"success": false, "error": "no_biome", "message": "Biome '%s' not found" % biome_name}
 
 	var result = ProbeActions.action_explore(farm.terminal_pool, biome, farm.economy)
-
-	if farm.has_method("emit_action_signal"):
-		farm.emit_action_signal("explore", result, grid_pos)
-
+	_emit_farm_action("explore", result, grid_pos)
 	action_performed.emit("explore", result)
 	return result
 
@@ -381,10 +396,7 @@ func action_measure(grid_pos: Vector2i) -> Dictionary:
 		return {"success": false, "error": "no_biome", "message": "Biome '%s' not found" % biome_name, "blocked": true}
 
 	var result = ProbeActions.action_measure(terminal, biome, farm.economy)
-
-	if farm.has_method("emit_action_signal"):
-		farm.emit_action_signal("measure", result, grid_pos)
-
+	_emit_farm_action("measure", result, grid_pos)
 	action_performed.emit("measure", result)
 	return result
 
@@ -398,10 +410,7 @@ func action_pop(grid_pos: Vector2i) -> Dictionary:
 		return {"success": false, "error": "no_terminal", "message": "No terminal at selection"}
 
 	var result = ProbeActions.action_pop(terminal, farm.terminal_pool, farm.economy, farm)
-
-	if farm.has_method("emit_action_signal"):
-		farm.emit_action_signal("pop", result, grid_pos)
-
+	_emit_farm_action("pop", result, grid_pos)
 	action_performed.emit("pop", result)
 	return result
 
@@ -411,10 +420,7 @@ func action_reap() -> Dictionary:
 		return {"success": false, "error": "no_farm", "message": "Farm not ready"}
 
 	var result = ProbeActions.action_reap(farm, farm.economy)
-
-	if farm.has_method("emit_action_signal"):
-		farm.emit_action_signal("reap", result)
-
+	_emit_farm_action("reap", result)
 	action_performed.emit("reap", result)
 	return result
 
@@ -424,10 +430,8 @@ func action_harvest_all() -> Dictionary:
 		return {"success": false, "error": "no_farm", "message": "Farm not ready"}
 
 	var result = ProbeActions.action_reap(farm, farm.economy)
-
-	if farm.has_method("emit_action_signal"):
-		farm.emit_action_signal("reap", result)
-		farm.emit_action_signal("harvest_all", result)
+	_emit_farm_action("reap", result)
+	_emit_farm_action("harvest_all", result)
 
 	if result.get("success", false):
 		clear_checked_plots()
@@ -441,10 +445,7 @@ func action_clear_all() -> Dictionary:
 		return {"success": false, "error": "no_farm", "message": "Farm not ready"}
 
 	var result = ProbeActions.action_clear_all(farm.terminal_pool)
-
-	if farm.has_method("emit_action_signal"):
-		farm.emit_action_signal("clear_all", result)
-
+	_emit_farm_action("clear_all", result)
 	action_performed.emit("clear_all", result)
 	return result
 
@@ -684,32 +685,25 @@ func probe_cycle(biome_name: String) -> Dictionary:
 	if not biome:
 		return {"success": false, "error": "unknown_biome"}
 
-	var active_biome_mgr = _get_autoload("ActiveBiomeManager")
-	if active_biome_mgr and active_biome_mgr.has_method("set_active_biome"):
-		active_biome_mgr.set_active_biome(biome_name)
-	var obs = _get_autoload("ObservationFrame")
-	if obs and obs.has_method("set_neutral_biome"):
-		obs.set_neutral_biome(biome_name)
+	_notify_autoload("ActiveBiomeManager", "set_active_biome", [biome_name])
+	_notify_autoload("ObservationFrame", "set_neutral_biome", [biome_name])
 
 	var explore = ProbeActions.action_explore(farm.terminal_pool, biome, farm.economy)
 	if not explore.get("success", false):
 		var explore_fail = {"success": false, "stage": "explore", "details": explore}
 		return explore_fail
 	# Emit explore signal so bubbles appear during bot runs
-	if farm.has_method("emit_action_signal"):
-		farm.emit_action_signal("explore", explore, Vector2i(-1, -1))
+	_emit_farm_action("explore", explore)
 
 	var terminal = explore.get("terminal", null)
 	var measure = ProbeActions.action_measure(terminal, biome, farm.economy)
 	if not measure.get("success", false):
 		var measure_fail = {"success": false, "stage": "measure", "details": measure}
 		return measure_fail
-	if farm.has_method("emit_action_signal"):
-		farm.emit_action_signal("measure", measure, Vector2i(-1, -1))
+	_emit_farm_action("measure", measure)
 
 	var pop = ProbeActions.action_pop(terminal, farm.terminal_pool, farm.economy, farm)
-	if farm.has_method("emit_action_signal"):
-		farm.emit_action_signal("pop", pop, Vector2i(-1, -1))
+	_emit_farm_action("pop", pop)
 
 	var probe_result = {"success": true, "explore": explore, "measure": measure, "pop": pop, "active_biome": biome_name}
 	_notify_quest_projection("probe_cycle", probe_result)
@@ -740,8 +734,7 @@ func victory_lap() -> Dictionary:
 			var explore = ProbeActions.action_explore(terminal_pool, biome, farm.economy)
 			if explore.get("success", false):
 				explore_total += 1
-				if farm.has_method("emit_action_signal"):
-					farm.emit_action_signal("explore", explore, Vector2i(-1, -1))
+				_emit_farm_action("explore", explore)
 				continue
 			var reason = str(explore.get("error", "unknown"))
 			if reason == "no_registers":
@@ -767,8 +760,7 @@ func victory_lap() -> Dictionary:
 		var measure = ProbeActions.action_measure(terminal, biome, farm.economy)
 		if measure.get("success", false):
 			measure_total += 1
-			if farm.has_method("emit_action_signal"):
-				farm.emit_action_signal("measure", measure, Vector2i(-1, -1))
+			_emit_farm_action("measure", measure)
 		else:
 			measure_failures.append({
 				"terminal": terminal.terminal_id,
@@ -786,8 +778,7 @@ func victory_lap() -> Dictionary:
 		var pop = ProbeActions.action_pop(terminal, terminal_pool, farm.economy, farm)
 		if pop.get("success", false):
 			harvest_total += 1
-			if farm.has_method("emit_action_signal"):
-				farm.emit_action_signal("pop", pop, Vector2i(-1, -1))
+			_emit_farm_action("pop", pop)
 		else:
 			harvest_failures.append({
 				"terminal": terminal.terminal_id,
@@ -878,8 +869,7 @@ func victory_lap_partial(
 			var term = explore.get("terminal", null)
 			if term:
 				explored_terminals.append(term)
-			if farm.has_method("emit_action_signal"):
-				farm.emit_action_signal("explore", explore, Vector2i(-1, -1))
+			_emit_farm_action("explore", explore)
 			if terminal_pool.get_unbound_count() <= 0:
 				break
 
@@ -896,8 +886,7 @@ func victory_lap_partial(
 		if measure.get("success", false):
 			measure_total += 1
 			measured_terminals.append(terminal)
-			if farm.has_method("emit_action_signal"):
-				farm.emit_action_signal("measure", measure, Vector2i(-1, -1))
+			_emit_farm_action("measure", measure)
 		else:
 			measure_failures.append({
 				"terminal": terminal.terminal_id,
@@ -925,8 +914,7 @@ func victory_lap_partial(
 		var pop = ProbeActions.action_pop(terminal, terminal_pool, farm.economy, farm)
 		if pop.get("success", false):
 			harvest_total += 1
-			if farm.has_method("emit_action_signal"):
-				farm.emit_action_signal("pop", pop, Vector2i(-1, -1))
+			_emit_farm_action("pop", pop)
 			var resource = str(pop.get("resource", ""))
 			var amount = float(pop.get("amount", 0))
 			if resource != "" and amount > 0.0 and reward_multiplier > 1.0 and farm.economy and farm.economy.has_method("add_resource"):
@@ -987,21 +975,21 @@ func configure_seed_state(cmd: Dictionary) -> Dictionary:
 	var unlocked_biomes = _sanitize_biomes(cmd.get("unlocked_biomes", []))
 	if not unlocked_biomes.is_empty():
 		gsm.current_state.unlocked_biomes = unlocked_biomes.duplicate()
+		if unlocked_biomes.size() > 0 and str(gsm.current_state.active_biome_name) == "":
+			gsm.current_state.active_biome_name = str(unlocked_biomes[0])
 		out["unlocked_biomes"] = unlocked_biomes
 		var default_pool: Array[String] = []
 		var obs = _get_autoload("ObservationFrame")
 		if obs and obs.has_method("get_loadable_biomes"):
 			default_pool = obs.get_loadable_biomes()
 		else:
-			default_pool = ["StarterForest", "Village", "BioticFlux", "StellarForges", "FungalNetworks", "VolcanicWorlds"]
+			default_pool = DEFAULT_BIOME_POOL.duplicate()
 		var pool: Array[String] = []
 		for biome_name in default_pool:
 			if biome_name not in unlocked_biomes:
 				pool.append(biome_name)
 		gsm.current_state.unexplored_biome_pool = pool
-		var active_biome_mgr = _get_autoload("ActiveBiomeManager")
-		if active_biome_mgr and active_biome_mgr.has_method("set_biome_order"):
-			active_biome_mgr.set_biome_order(unlocked_biomes)
+		_notify_autoload("ActiveBiomeManager", "set_biome_order", [unlocked_biomes])
 
 	var unexplored_biomes = _sanitize_biomes(cmd.get("unexplored_biomes", []))
 	if not unexplored_biomes.is_empty():
@@ -1010,12 +998,9 @@ func configure_seed_state(cmd: Dictionary) -> Dictionary:
 
 	var active_biome = str(cmd.get("active_biome", ""))
 	if active_biome != "":
-		var obs2 = _get_autoload("ObservationFrame")
-		if obs2 and obs2.has_method("set_neutral_biome"):
-			obs2.set_neutral_biome(active_biome)
-		var active_biome_mgr2 = _get_autoload("ActiveBiomeManager")
-		if active_biome_mgr2 and active_biome_mgr2.has_method("set_active_biome"):
-			active_biome_mgr2.set_active_biome(active_biome)
+		gsm.current_state.active_biome_name = active_biome
+		_notify_autoload("ObservationFrame", "set_neutral_biome", [active_biome])
+		_notify_autoload("ActiveBiomeManager", "set_active_biome", [active_biome])
 		out["active_biome"] = active_biome
 
 	return out
@@ -1034,6 +1019,17 @@ func _compute_partial_victory_multiplier(selected_count: int, milk_spend: float,
 	return max(1.0, register_factor * milk_factor * phase_factor)
 
 
+func _emit_farm_action(action: String, result: Dictionary, pos: Vector2i = Vector2i(-1, -1)) -> void:
+	if farm and farm.has_method("emit_action_signal"):
+		farm.emit_action_signal(action, result, pos)
+
+
+func _notify_autoload(node_name: String, method: String, args: Array) -> void:
+	var node = _get_autoload(node_name)
+	if node and node.has_method(method):
+		node.callv(method, args)
+
+
 func _resolve_quest_manager():
 	if farm and "quest_manager" in farm and farm.quest_manager:
 		return farm.quest_manager
@@ -1049,6 +1045,333 @@ func _notify_quest_projection(action_name: String, payload: Dictionary) -> void:
 		return
 	if qm.has_method("record_quantum_action"):
 		qm.record_quantum_action(action_name, payload)
+
+
+# ============================================================================
+# TIMESCALE CONTROLS (two-axis: stride + resolution)
+# ============================================================================
+
+func set_observation_stride(biome_name: String, stride: int) -> Dictionary:
+	"""Set observation stride for a biome. 0=locked, 1=normal, 2+=fast forward."""
+	var biome = _resolve_biome(biome_name)
+	if not biome:
+		return {"ok": false, "error": "unknown_biome", "biome": biome_name}
+	var clamped = clampi(stride, GranularityController.MIN_STRIDE, GranularityController.MAX_STRIDE)
+	var old_stride = _biome_stride(biome)
+	biome.observation_stride = clamped
+	var batcher = farm.biome_evolution_batcher if farm and "biome_evolution_batcher" in farm else null
+	if batcher and batcher.has_method("reset_stride_carry"):
+		batcher.reset_stride_carry(biome_name)
+	var result = {"ok": true, "biome": biome_name, "old_stride": old_stride, "new_stride": clamped, "locked": clamped == 0}
+	action_performed.emit("set_observation_stride", result)
+	return result
+
+
+func set_resolution(biome_name: String, dt: float) -> Dictionary:
+	"""Set evolution resolution (max_evolution_dt) for a biome."""
+	var biome = _resolve_biome(biome_name)
+	if not biome:
+		return {"ok": false, "error": "unknown_biome", "biome": biome_name}
+	var clamped = clampf(dt, GranularityController.MIN_DT, GranularityController.MAX_DT)
+	var old_dt = _biome_dt(biome)
+	biome.max_evolution_dt = clamped
+	var batcher = farm.biome_evolution_batcher if farm and "biome_evolution_batcher" in farm else null
+	if batcher and batcher.has_method("reset_stride_carry"):
+		batcher.reset_stride_carry(biome_name)
+	var result = {"ok": true, "biome": biome_name, "old_dt": old_dt, "new_dt": clamped}
+	action_performed.emit("set_resolution", result)
+	return result
+
+
+func get_timescale_snapshot(biome_name: String) -> Dictionary:
+	"""Get current timescale state for a biome: stride, dt, locked status."""
+	var biome = _resolve_biome(biome_name)
+	if not biome:
+		return {"ok": false, "error": "unknown_biome", "biome": biome_name}
+	var stride = _biome_stride(biome)
+	var dt = _biome_dt(biome)
+	return {"ok": true, "biome": biome_name, "stride": stride, "dt": dt, "locked": stride == 0}
+
+
+func set_timescale_objective(objective: Dictionary) -> Dictionary:
+	_timescale_objective = _sanitize_timescale_objective(objective)
+	var result = {"ok": true, "objective": _timescale_objective.duplicate(true)}
+	action_performed.emit("set_timescale_objective", result)
+	return result
+
+
+func get_timescale_objective() -> Dictionary:
+	return {"ok": true, "objective": _timescale_objective.duplicate(true)}
+
+
+func clear_timescale_objective() -> Dictionary:
+	_timescale_objective = DEFAULT_TIMESCALE_OBJECTIVE.duplicate(true)
+	var result = {"ok": true, "objective": _timescale_objective.duplicate(true)}
+	action_performed.emit("clear_timescale_objective", result)
+	return result
+
+
+func get_timescale_projection(biome_name: String, top_k: int = -1) -> Dictionary:
+	var biome = _resolve_biome(biome_name)
+	if not biome:
+		return {"ok": false, "error": "unknown_biome", "biome": biome_name}
+
+	var icon_map = _get_biome_icon_map_payload(biome_name, biome)
+	var rankings = _build_timescale_emoji_rankings(icon_map, _timescale_objective, top_k)
+	var recommendation = _build_timescale_recommendation(rankings, icon_map, biome, _timescale_objective)
+	return {
+		"ok": true,
+		"biome": biome_name,
+		"objective": _timescale_objective.duplicate(true),
+		"icon_map": icon_map,
+		"emoji_rankings": rankings,
+		"recommendation": recommendation
+	}
+
+
+func recommend_timescale(biome_name: String, top_k: int = -1) -> Dictionary:
+	var projection = get_timescale_projection(biome_name, top_k)
+	if not bool(projection.get("ok", false)):
+		return projection
+	var recommendation = projection.get("recommendation", {}).duplicate(true)
+	recommendation["ok"] = true
+	recommendation["biome"] = biome_name
+	recommendation["emoji_rankings"] = projection.get("emoji_rankings", [])
+	return recommendation
+
+
+func auto_apply_timescale(biome_name: String, top_k: int = -1) -> Dictionary:
+	"""One-click helper: recommend + apply stride/dt for a biome."""
+	var recommendation = recommend_timescale(biome_name, top_k)
+	if not bool(recommendation.get("ok", false)):
+		return {
+			"ok": false,
+			"biome": biome_name,
+			"error": recommendation.get("error", "recommendation_failed"),
+			"recommendation": recommendation
+		}
+
+	var stride = int(recommendation.get("recommended_stride", 1))
+	var dt = float(recommendation.get("recommended_dt", 0.02))
+	if stride <= 0:
+		stride = 1
+	if dt <= 0.0:
+		dt = 0.02
+
+	var stride_result = set_observation_stride(biome_name, stride)
+	var resolution_result = set_resolution(biome_name, dt)
+	var ok = bool(stride_result.get("ok", false)) and bool(resolution_result.get("ok", false))
+	return {
+		"ok": ok,
+		"biome": biome_name,
+		"applied": ok,
+		"recommended_stride": stride,
+		"recommended_dt": dt,
+		"recommended_wait_phrames": int(recommendation.get("recommended_wait_phrames", 0)),
+		"recommendation": recommendation,
+		"stride_result": stride_result,
+		"resolution_result": resolution_result
+	}
+
+
+func _sanitize_timescale_objective(raw: Dictionary) -> Dictionary:
+	var out = DEFAULT_TIMESCALE_OBJECTIVE.duplicate(true)
+	if raw.is_empty():
+		return out
+
+	var focus: Array[String] = []
+	var seen: Dictionary = {}
+	var raw_focus = raw.get("focus_emojis", [])
+	if raw_focus is Array:
+		for emoji in raw_focus:
+			var s = str(emoji)
+			if s == "" or seen.has(s):
+				continue
+			seen[s] = true
+			focus.append(s)
+	out["focus_emojis"] = focus
+
+	var floors: Dictionary = out.get("resource_floors", {}).duplicate(true)
+	var raw_floors = raw.get("resource_floors", {})
+	if raw_floors is Dictionary:
+		for emoji in raw_floors.keys():
+			var s = str(emoji)
+			if s == "":
+				continue
+			floors[s] = max(0.0, float(raw_floors[emoji]))
+	out["resource_floors"] = floors
+
+	out["top_k"] = clampi(int(raw.get("top_k", out.get("top_k", 8))), 1, 32)
+	out["target_gain_per_wait"] = clampf(float(raw.get("target_gain_per_wait", out.get("target_gain_per_wait", 1.0))), 0.05, 100.0)
+	out["horizon_min_phrames"] = max(1, int(raw.get("horizon_min_phrames", out.get("horizon_min_phrames", 6))))
+	out["horizon_max_phrames"] = max(out["horizon_min_phrames"], int(raw.get("horizon_max_phrames", out.get("horizon_max_phrames", 72))))
+	return out
+
+
+func _get_biome_icon_map_payload(biome_name: String, biome) -> Dictionary:
+	var payload: Dictionary = {}
+	if biome and biome.viz_cache and biome.viz_cache.has_method("get_icon_map"):
+		payload = biome.viz_cache.get_icon_map()
+	if payload.is_empty() and farm and "biome_evolution_batcher" in farm and farm.biome_evolution_batcher:
+		var batcher = farm.biome_evolution_batcher
+		if batcher.has_method("get_biome_icon_map"):
+			payload = batcher.get_biome_icon_map(biome_name)
+		elif batcher.has_method("get_global_icon_map"):
+			payload = batcher.get_global_icon_map()
+
+	var by_emoji: Dictionary = {}
+	var total = 0.0
+	var steps = 0
+	var raw_by_emoji = payload.get("by_emoji", {})
+	if raw_by_emoji is Dictionary:
+		for emoji in raw_by_emoji.keys():
+			var s = str(emoji)
+			if s == "":
+				continue
+			var weight = float(raw_by_emoji[emoji])
+			if weight <= 0.0:
+				continue
+			by_emoji[s] = weight
+			total += weight
+	steps = max(1, int(payload.get("steps", 1)))
+	if by_emoji.is_empty() and farm and farm.has_method("get_known_emojis"):
+		var known = farm.get_known_emojis()
+		if known is Array:
+			for emoji in known:
+				var s = str(emoji)
+				if s == "":
+					continue
+				by_emoji[s] = 1.0
+				total += 1.0
+			steps = 1
+	if total <= 0.0:
+		total = 1.0
+	return {
+		"by_emoji": by_emoji,
+		"total": total,
+		"steps": steps,
+		"num_qubits": int(payload.get("num_qubits", 0))
+	}
+
+
+func _build_timescale_emoji_rankings(icon_map: Dictionary, objective: Dictionary, top_k_override: int = -1) -> Array:
+	var rankings: Array = []
+	var by_emoji: Dictionary = icon_map.get("by_emoji", {})
+	var total = max(1e-9, float(icon_map.get("total", 1.0)))
+	var steps = max(1, int(icon_map.get("steps", 1)))
+	var focus_raw = objective.get("focus_emojis", [])
+	var focus: Dictionary = {}
+	if focus_raw is Array:
+		for emoji in focus_raw:
+			focus[str(emoji)] = true
+	var floors: Dictionary = objective.get("resource_floors", {})
+
+	for emoji in by_emoji.keys():
+		var s = str(emoji)
+		var weight = float(by_emoji[s])
+		var probability = weight / total
+		var per_step_probability = weight / float(steps)
+		var floor = float(floors.get(s, 0.0))
+		var have = _get_resource_amount(farm, s)
+		var deficit = max(0.0, floor - have)
+		var deficit_norm = (deficit / max(1.0, floor)) if floor > 0.0 else 0.0
+		var is_focus = focus.has(s)
+		var objective_score = probability * (1.0 + (1.5 * deficit_norm) + (0.6 if is_focus else 0.0))
+		rankings.append({
+			"emoji": s,
+			"weight": weight,
+			"probability": probability,
+			"per_step_probability": per_step_probability,
+			"resource_have": have,
+			"resource_floor": floor,
+			"resource_deficit": deficit,
+			"focus": is_focus,
+			"objective_score": objective_score
+		})
+
+	rankings.sort_custom(func(a, b):
+		var sa = float(a.get("objective_score", 0.0))
+		var sb = float(b.get("objective_score", 0.0))
+		if sa == sb:
+			return float(a.get("probability", 0.0)) > float(b.get("probability", 0.0))
+		return sa > sb
+	)
+
+	var top_k = int(objective.get("top_k", 8))
+	if top_k_override > 0:
+		top_k = top_k_override
+	top_k = clampi(top_k, 1, 64)
+	if rankings.size() > top_k:
+		return rankings.slice(0, top_k)
+	return rankings
+
+
+func _build_timescale_recommendation(rankings: Array, icon_map: Dictionary, biome, objective: Dictionary) -> Dictionary:
+	var by_emoji: Dictionary = icon_map.get("by_emoji", {})
+	var total = max(1e-9, float(icon_map.get("total", 1.0)))
+
+	var concentration = 0.0
+	var entropy = 0.0
+	for emoji in by_emoji.keys():
+		var p = float(by_emoji[emoji]) / total
+		if p <= 0.0:
+			continue
+		concentration += p * p
+		entropy += -p * log(p)
+	var entropy_max = log(max(2.0, float(by_emoji.size())))
+	var entropy_normalized = (entropy / entropy_max) if entropy_max > 0.0 else 0.0
+
+	var focus_pressure = 0.0
+	var floors: Dictionary = objective.get("resource_floors", {})
+	for emoji in floors.keys():
+		var floor = float(floors[emoji])
+		if floor <= 0.0:
+			continue
+		var have = _get_resource_amount(farm, str(emoji))
+		if have < floor:
+			focus_pressure += (floor - have) / max(1.0, floor)
+
+	var roughness = clampf(concentration, 0.0, 1.0)
+	var stride = int(round(1.0 + (1.0 - roughness) * 7.0))
+	if focus_pressure > 0.75:
+		stride -= 1
+	if focus_pressure > 1.5:
+		stride -= 1
+	stride = clampi(stride, 1, 16)
+
+	var dt = 0.004 + ((1.0 - roughness) * 0.06)
+	if focus_pressure > 0.75:
+		dt *= 0.7
+	dt = clampf(dt, GranularityController.MIN_DT, 0.2)
+
+	var min_wait = max(1, int(objective.get("horizon_min_phrames", 6)))
+	var max_wait = max(min_wait, int(objective.get("horizon_max_phrames", 72)))
+	var wait_phrames = int(round(float(min_wait) + (1.0 - roughness) * float(max_wait - min_wait) + (focus_pressure * 8.0)))
+	wait_phrames = clampi(wait_phrames, min_wait, max_wait)
+
+	var current_stride = _biome_stride(biome)
+	var current_dt = _biome_dt(biome)
+
+	return {
+		"current_stride": current_stride,
+		"current_dt": current_dt,
+		"recommended_stride": stride,
+		"recommended_dt": dt,
+		"recommended_wait_phrames": wait_phrames,
+		"concentration": concentration,
+		"entropy_normalized": entropy_normalized,
+		"focus_pressure": focus_pressure,
+		"top_emoji": rankings[0].get("emoji", "") if not rankings.is_empty() else "",
+		"top_probability": float(rankings[0].get("probability", 0.0)) if not rankings.is_empty() else 0.0
+	}
+
+
+static func _get_resource_amount(farm_node: Node, emoji: String) -> float:
+	if not farm_node or not ("economy" in farm_node) or not farm_node.economy:
+		return 0.0
+	if not farm_node.economy.has_method("get_resource"):
+		return 0.0
+	return float(farm_node.economy.get_resource(emoji))
 
 
 func _resolve_biome(biome_name: String):
@@ -1290,7 +1613,19 @@ func _rebuild_operators_after_shrink(biome) -> void:
 	qc.set_driven_icons(driven_configs)
 
 
-func _sanitize_biomes(raw) -> Array[String]:
+## Return observation_stride for a biome with a safe default.
+static func _biome_stride(biome) -> int:
+	return biome.observation_stride if "observation_stride" in biome else 1
+
+
+## Return max_evolution_dt for a biome with a safe default.
+static func _biome_dt(biome) -> float:
+	return biome.max_evolution_dt if "max_evolution_dt" in biome else 0.02
+
+
+## Deduplicate and validate a raw biome name array from RPC input.
+## Static so rig_listener can call QuantumInstrument._sanitize_biomes() without an instance.
+static func _sanitize_biomes(raw) -> Array[String]:
 	var out: Array[String] = []
 	var seen: Dictionary = {}
 	if raw is Array:
@@ -1303,7 +1638,9 @@ func _sanitize_biomes(raw) -> Array[String]:
 	return out
 
 
-func _sanitize_known_pairs(raw) -> Array:
+## Deduplicate and validate a raw known_pairs array from RPC input.
+## Static so rig_listener can call QuantumInstrument._sanitize_known_pairs() without an instance.
+static func _sanitize_known_pairs(raw) -> Array:
 	var out: Array = []
 	var seen: Dictionary = {}
 	if raw is Array:
@@ -1327,26 +1664,13 @@ func _sanitize_known_pairs(raw) -> Array:
 # ============================================================================
 
 func _get_autoload(name: String):
-	var tree = Engine.get_main_loop()
-	if tree and tree is SceneTree:
-		return tree.root.get_node_or_null(name)
-	return null
+	return GameStateSerializerClass.get_autoload(name)
 
 
 func _get_verbose():
-	if _verbose:
-		return _verbose
-	_verbose = _get_autoload("VerboseConfig")
+	if not _verbose:
+		_verbose = VerboseHelper.get_config()
 	return _verbose
 
-
 func _log(level: String, category: String, emoji: String, message: String) -> void:
-	var verbose = _get_verbose()
-	if not verbose:
-		return
-	match level:
-		"trace": verbose.trace(category, emoji, message)
-		"debug": verbose.debug(category, emoji, message)
-		"info": verbose.info(category, emoji, message)
-		"warn": verbose.warn(category, emoji, message)
-		"error": verbose.error(category, emoji, message)
+	VerboseHelper.log(level, category, emoji, message)

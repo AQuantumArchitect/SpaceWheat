@@ -28,7 +28,7 @@ func _log(level: String, category: String, icon: String, msg: String) -> void:
 		_verbose.call(level, category, icon, msg)
 
 
-func _find_quantum_instrument_input(farm: Node):
+func _find_quantum_instrument_input(farm: Node) -> Node:
 	"""Find QuantumInstrumentInput in the scene tree (for selection state)."""
 	var tree = Engine.get_main_loop()
 	if not tree or not tree is SceneTree:
@@ -78,7 +78,11 @@ func capture_state_from_farm(farm: Node, current_state: GameState, scenario_id: 
 		var first_biome = farm.grid.biomes.values()[0]
 		if "quantum_time_scale" in first_biome:
 			state.quantum_time_scale = first_biome.quantum_time_scale
-			_log("debug", "save", "⏱️", "Captured simulation speed: %.4fx" % state.quantum_time_scale)
+		if "observation_stride" in first_biome:
+			state.observation_stride = first_biome.observation_stride
+		if "max_evolution_dt" in first_biome:
+			state.max_evolution_dt = first_biome.max_evolution_dt
+			_log("debug", "save", "⏱️", "Captured timescale: speed=%.4fx stride=%d dt=%.4f" % [state.quantum_time_scale, state.observation_stride, state.max_evolution_dt])
 
 	# Grid Dimensions (from Farm.grid)
 	state.grid_width = farm.grid.grid_width
@@ -111,6 +115,9 @@ func capture_state_from_farm(farm: Node, current_state: GameState, scenario_id: 
 			if south != "" and south not in state.known_emojis:
 				state.known_emojis.append(south)
 		_log("debug", "save", "📖", "Captured vocabulary: %d pairs → %d emojis" % [state.known_pairs.size(), state.known_emojis.size()])
+
+	# Biome progression state (unlocked/unexplored/active spindle position)
+	_capture_biome_progression_state(state, current_state)
 
 	# IconMap snapshot (tooling cache only; known_pairs remain canonical truth)
 	var icon_snapshot = _capture_icon_map_snapshot(farm, state.known_emojis)
@@ -263,7 +270,11 @@ func apply_state_to_farm(state: GameState, farm: Node) -> void:
 			if "quantum_time_scale" in biome:
 				biome.quantum_time_scale = state.quantum_time_scale
 				biome_count += 1
-		_log("debug", "save", "⏱️", "Applied simulation speed %.4fx to %d biomes" % [state.quantum_time_scale, biome_count])
+			if "observation_stride" in biome:
+				biome.observation_stride = state.observation_stride
+			if "max_evolution_dt" in biome:
+				biome.max_evolution_dt = state.max_evolution_dt
+		_log("debug", "save", "⏱️", "Applied timescale: speed=%.4fx stride=%d dt=%.4f to %d biomes" % [state.quantum_time_scale, state.observation_stride, state.max_evolution_dt, biome_count])
 
 	var has_player_vocab_data = state.player_vocab_data and not state.player_vocab_data.is_empty()
 	if farm and farm.has_method("set_known_pairs"):
@@ -273,6 +284,9 @@ func apply_state_to_farm(state: GameState, farm: Node) -> void:
 				state.icon_map_snapshot_source,
 				state.icon_map_snapshot.get("by_emoji", {}).size()
 			])
+
+	# Restore biome unlock/exploration progression before grid refresh so layout sync is correct.
+	_restore_biome_progression_state(state)
 
 	var grid = farm.grid
 	if farm.has_method("refresh_grid_for_biomes"):
@@ -388,6 +402,76 @@ func apply_state_to_farm(state: GameState, farm: Node) -> void:
 	_log("info", "save", "✓", "State applied to farm successfully - quantum states will regenerate from biome")
 
 
+func _capture_biome_progression_state(state: GameState, current_state: GameState) -> void:
+	var observation_frame = _get_autoload("ObservationFrame")
+	if observation_frame and observation_frame.has_method("get_unlocked_biomes"):
+		state.unlocked_biomes = observation_frame.get_unlocked_biomes()
+	elif current_state:
+		state.unlocked_biomes = current_state.unlocked_biomes.duplicate()
+	else:
+		state.unlocked_biomes = ["StarterForest", "Village"]
+
+	if observation_frame and observation_frame.has_method("get_unexplored_biomes"):
+		state.unexplored_biome_pool = observation_frame.get_unexplored_biomes()
+	elif current_state:
+		state.unexplored_biome_pool = current_state.unexplored_biome_pool.duplicate()
+
+	var active_biome_manager = _get_autoload("ActiveBiomeManager")
+	if active_biome_manager and active_biome_manager.has_method("get_active_biome"):
+		state.active_biome_name = str(active_biome_manager.get_active_biome())
+	elif observation_frame and observation_frame.has_method("get_neutral_biome"):
+		state.active_biome_name = str(observation_frame.get_neutral_biome())
+	elif current_state:
+		state.active_biome_name = str(current_state.active_biome_name)
+	else:
+		state.active_biome_name = "StarterForest"
+
+
+func _restore_biome_progression_state(state: GameState) -> void:
+	var unlocked_biomes = state.unlocked_biomes.duplicate()
+	if unlocked_biomes.is_empty():
+		unlocked_biomes = ["StarterForest", "Village"]
+
+	var active_biome = str(state.active_biome_name)
+	if (active_biome == "" or not (active_biome in unlocked_biomes)) and not unlocked_biomes.is_empty():
+		active_biome = str(unlocked_biomes[0])
+
+	var gsm = _get_autoload("GameStateManager")
+	if gsm and gsm.current_state:
+		gsm.current_state.unlocked_biomes = unlocked_biomes.duplicate()
+		gsm.current_state.unexplored_biome_pool = state.unexplored_biome_pool.duplicate()
+		gsm.current_state.active_biome_name = active_biome
+
+	var observation_frame = _get_autoload("ObservationFrame")
+	if observation_frame:
+		if "BIOME_ORDER" in observation_frame:
+			observation_frame.BIOME_ORDER = unlocked_biomes.duplicate()
+		if observation_frame.has_method("set_neutral_biome") and active_biome != "":
+			observation_frame.set_neutral_biome(active_biome)
+
+	var active_biome_manager = _get_autoload("ActiveBiomeManager")
+	if active_biome_manager:
+		if active_biome_manager.has_method("set_biome_order"):
+			active_biome_manager.set_biome_order(unlocked_biomes)
+		if active_biome_manager.has_method("set_active_biome") and active_biome != "":
+			active_biome_manager.set_active_biome(active_biome)
+
+
+## Canonical autoload accessor. Static so any class can call GameStateSerializer.get_autoload().
+static func get_autoload(name: String) -> Node:
+	var tree = Engine.get_main_loop()
+	if not tree or not (tree is SceneTree):
+		return null
+	return tree.root.get_node_or_null(name)
+
+
+func _get_autoload(name: String) -> Node:
+	var tree = Engine.get_main_loop()
+	if not tree or not (tree is SceneTree):
+		return null
+	return tree.root.get_node_or_null(name)
+
+
 func _capture_icon_map_snapshot(farm: Node, known_emojis: Array) -> Dictionary:
 	"""Capture a compact icon map payload for tooling.
 
@@ -466,22 +550,6 @@ func _capture_single_biome_state(biome: Node, biome_name: String) -> Dictionary:
 			"radius": biome.sun_qubit.radius
 		}
 
-	if "wheat_icon" in biome and biome.wheat_icon:
-		if biome.wheat_icon is Dictionary and biome.wheat_icon.has("internal_qubit"):
-			var iq = biome.wheat_icon["internal_qubit"]
-			state_dict["wheat_icon"] = {"theta": iq.theta, "phi": iq.phi, "radius": iq.radius}
-		elif biome.wheat_icon.has("internal_qubit"):
-			var iq = biome.wheat_icon.internal_qubit
-			state_dict["wheat_icon"] = {"theta": iq.theta, "phi": iq.phi, "radius": iq.radius}
-
-	if "mushroom_icon" in biome and biome.mushroom_icon:
-		if biome.mushroom_icon is Dictionary and biome.mushroom_icon.has("internal_qubit"):
-			var iq = biome.mushroom_icon["internal_qubit"]
-			state_dict["mushroom_icon"] = {"theta": iq.theta, "phi": iq.phi, "radius": iq.radius}
-		elif biome.mushroom_icon.has("internal_qubit"):
-			var iq = biome.mushroom_icon.internal_qubit
-			state_dict["mushroom_icon"] = {"theta": iq.theta, "phi": iq.phi, "radius": iq.radius}
-
 	if "quantum_states" in biome and not ("bath" in biome and biome.bath):
 		for pos in biome.quantum_states.keys():
 			var qubit = biome.quantum_states[pos]
@@ -554,32 +622,6 @@ func _restore_single_biome_state(biome: Node, state: Dictionary, biome_name: Str
 		biome.sun_qubit.theta = sq.get("theta", 0.0)
 		biome.sun_qubit.phi = sq.get("phi", 0.0)
 		biome.sun_qubit.radius = sq.get("radius", 1.0)
-
-	if state.has("wheat_icon") and "wheat_icon" in biome and biome.wheat_icon:
-		var wi = state.wheat_icon
-		if biome.wheat_icon is Dictionary and biome.wheat_icon.has("internal_qubit"):
-			var iq = biome.wheat_icon["internal_qubit"]
-			iq.theta = wi.get("theta", PI/4.0)
-			iq.phi = wi.get("phi", 0.0)
-			iq.radius = wi.get("radius", 1.0)
-		elif biome.wheat_icon.has("internal_qubit"):
-			var iq = biome.wheat_icon.internal_qubit
-			iq.theta = wi.get("theta", PI/4.0)
-			iq.phi = wi.get("phi", 0.0)
-			iq.radius = wi.get("radius", 1.0)
-
-	if state.has("mushroom_icon") and "mushroom_icon" in biome and biome.mushroom_icon:
-		var mi = state.mushroom_icon
-		if biome.mushroom_icon is Dictionary and biome.mushroom_icon.has("internal_qubit"):
-			var iq = biome.mushroom_icon["internal_qubit"]
-			iq.theta = mi.get("theta", PI)
-			iq.phi = mi.get("phi", 0.0)
-			iq.radius = mi.get("radius", 1.0)
-		elif biome.mushroom_icon.has("internal_qubit"):
-			var iq = biome.mushroom_icon.internal_qubit
-			iq.theta = mi.get("theta", PI)
-			iq.phi = mi.get("phi", 0.0)
-			iq.radius = mi.get("radius", 1.0)
 
 	if state.has("quantum_states") and "quantum_states" in biome:
 		for qubit_data in state.quantum_states:

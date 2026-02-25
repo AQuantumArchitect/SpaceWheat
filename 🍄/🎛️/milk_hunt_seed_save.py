@@ -95,6 +95,12 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--active-biome", type=str, default=None, help="Active biome to select before saving")
     parser.add_argument(
+        "--save-path",
+        type=str,
+        default=None,
+        help="Optional explicit save path (e.g. user://saves/profiles/granary_scout.tres)",
+    )
+    parser.add_argument(
         "--known-pair",
         action="append",
         default=[],
@@ -197,10 +203,7 @@ def main() -> int:
         rig.clear_rig_files()
         proc = rig.start_listener(load_slot=args.load_slot, scenario_id=scenario_id)
         boot_lines = rig.wait_for_ready(proc, timeout_s=70.0)
-        ready = any(
-            ("Rig ready. Waiting for turns in:" in ln) or ("ready via bridge sentinel" in ln)
-            for ln in boot_lines
-        )
+        ready = RigClient.ready_seen(boot_lines)
         if proc.poll() is not None or not ready:
             safe_print("seed-save: listener failed to reach ready state")
             for line in boot_lines[-20:]:
@@ -247,12 +250,19 @@ def main() -> int:
             turn += 1
             economy_configure_result = econ_row
 
-        history.append(run_turn(turn, "save_game", slot=args.slot))
+        if args.save_path:
+            history.append(run_turn(turn, "save_game_path", path=args.save_path))
+        else:
+            history.append(run_turn(turn, "save_game", slot=args.slot))
         turn += 1
-        history.append(run_turn(turn, "save_info", slot=args.slot))
+        if not args.save_path:
+            history.append(run_turn(turn, "save_info", slot=args.slot))
+        else:
+            history.append({"info": {"path": args.save_path}})
         turn += 1
         summary = {
             "slot": args.slot,
+            "save_path": args.save_path,
             "load_slot": args.load_slot,
             "scenario_id": scenario_id,
             "profile": args.profile,

@@ -1,5 +1,5 @@
 class_name ToolSelectionRow
-extends "res://UI/Panels/SelectionButtonRow.gd"
+extends "res://UI/Widgets/SelectionButtonRow.gd"
 
 ## Physical keyboard layout UI - Bottom row with tool selection buttons [1-4]
 ## Each button shows the keyboard shortcut and highlights when selected

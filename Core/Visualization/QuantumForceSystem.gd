@@ -4,6 +4,7 @@ extends RefCounted
 const ComputeBackendSelector = preload("res://Core/Visualization/ComputeBackendSelector.gd")
 const GPUForceCalculator = preload("res://Core/Visualization/GPUForceCalculator.gd")
 const GPUForceCalculatorV2 = preload("res://Core/Visualization/GPUForceCalculatorV2.gd")
+const VerboseHelper = preload("res://Core/Config/VerboseHelper.gd")
 
 # Logger
 var _verbose: Node = null
@@ -811,12 +812,7 @@ func _print_debug_info(nodes: Array, biomes: Dictionary) -> void:
 
 func _test_log(message: String) -> void:
 	"""Log test/debug message with [TEST] prefix via VerboseConfig."""
-	var tree = Engine.get_main_loop()
-	if not tree:
-		return
-	var verbose = tree.root.get_node_or_null("/root/VerboseConfig")
-	if verbose:
-		verbose.trace("test", "📊", message)
+	VerboseHelper.trace("test", "📊", message)
 
 
 func enable_profiling() -> void:

@@ -2,6 +2,8 @@
 extends Control
 class_name EmojiDisplay
 
+const TieredEmojiRegistry = preload("res://Core/Visualization/TieredEmojiRegistry.gd")
+
 ## EmojiDisplay: Unified emoji/glyph display component
 ##
 ## Automatically uses SVG glyph if available via TieredEmojiRegistry,
@@ -44,7 +46,7 @@ var label: Label
 var _ready_called: bool = false
 
 # Tiered emoji registry (lazy initialization)
-var _tiered_emoji_registry: TieredEmojiRegistry = null
+var _tiered_emoji_registry = null
 
 # Warning flag (to avoid spam)
 var _has_warned_fallback: Dictionary = {}  # emoji → bool

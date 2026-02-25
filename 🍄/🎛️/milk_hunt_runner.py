@@ -8,7 +8,16 @@ from collections import deque
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
 
+from milk_hunt_console import (
+    Console,
+    default_listener_stdout,
+    default_rig_log_profile,
+    default_wait_progress_seconds,
+    resolve_console_profile,
+)
 from milk_hunt_paths import project_root
+from profile_save_registry import get_profile_name_for_save, get_profile_save, resolve_profile_save_spec
+from milk_hunt_io import write_json
 from milk_hunt_quantum_policy import HunterStateAdapter, QuantumGraphPolicy
 from milk_hunt_runtime_config import get_cfg_bool, get_cfg_float, get_cfg_int, get_cfg_str, load_json_config
 from milk_hunt_strategy import Strategy, load_strategy
@@ -19,6 +28,10 @@ MILK = "\U0001F37C"
 PROJECT_ROOT = project_root()
 _RIG = RigClient(root_from_file=Path(__file__))
 FACTIONS_PATH = PROJECT_ROOT / "Core" / "Factions" / "data" / "factions_merged.json"
+_CONSOLE = Console("quiet")
+_TURN_PROGRESS_INTERVAL_S = 30.0
+
+
 class TurnTimeoutError(TimeoutError):
     def __init__(self, turn_id: int, action: str, timeout_s: float) -> None:
         super().__init__(f"turn={turn_id} action={action} timeout_waiting_for_result timeout_s={timeout_s:.1f}")
@@ -27,8 +40,18 @@ class TurnTimeoutError(TimeoutError):
         self.timeout_s = float(timeout_s)
 
 
-def _safe_print(msg: str) -> None:
-    RigClient.safe_print(msg)
+def _set_console_profile(profile: str) -> None:
+    global _CONSOLE
+    _CONSOLE = Console(profile)
+
+
+def _set_turn_progress_interval(seconds: float) -> None:
+    global _TURN_PROGRESS_INTERVAL_S
+    _TURN_PROGRESS_INTERVAL_S = max(0.0, float(seconds))
+
+
+def _safe_print(msg: str, channel: str = "info") -> None:
+    _CONSOLE.log(msg, channel)
 
 
 def _json_load_lines(path: Path) -> List[Dict[str, Any]]:
@@ -51,7 +74,7 @@ def _start_listener(
     load_slot: Optional[int] = None,
     scenario_id: str = "default",
     allow_resource_injection: Optional[bool] = None,
-    listener_stdout: str = "file",
+    listener_stdout: str = "null",
     listener_log_path: Optional[Path] = None,
     rig_log_profile: Optional[str] = None,
     rig_log_category_levels: Optional[str] = None,
@@ -81,6 +104,7 @@ def _wait_for_turn(turn_id: int, timeout_s: float = 10.0) -> Optional[Dict[str, 
 
 def _run_turn(turn_id: int, action: str, **kwargs: Any) -> Dict[str, Any]:
     timeout_s = kwargs.pop("timeout_s", None)
+    progress_interval_s = kwargs.pop("progress_interval_s", _TURN_PROGRESS_INTERVAL_S)
     if timeout_s is None:
         if action in {"complete_quest", "complete_or_claim", "claim_quest"}:
             timeout_s = 120.0
@@ -96,7 +120,13 @@ def _run_turn(turn_id: int, action: str, **kwargs: Any) -> Dict[str, Any]:
             timeout_s = 180.0
         else:
             timeout_s = 10.0
-    row = _RIG.run_turn(turn_id, action, timeout_s=float(timeout_s), progress_interval_s=5.0, **kwargs)
+    row = _RIG.run_turn(
+        turn_id,
+        action,
+        timeout_s=float(timeout_s),
+        progress_interval_s=float(progress_interval_s),
+        **kwargs,
+    )
     if isinstance(row, dict) and row.get("error") == "timeout_waiting_for_result":
         raise TurnTimeoutError(turn_id=turn_id, action=action, timeout_s=float(timeout_s))
     return row
@@ -485,6 +515,19 @@ def _parse_biome_list(raw: Optional[str]) -> List[str]:
     return out
 
 
+def _parse_emoji_list(values: List[str]) -> List[str]:
+    out: List[str] = []
+    seen: Set[str] = set()
+    for raw in values:
+        for token in str(raw).split(","):
+            emoji = token.strip()
+            if not emoji or emoji in seen:
+                continue
+            seen.add(emoji)
+            out.append(emoji)
+    return out
+
+
 def _encode_positions_for_rig(raw_positions: Any, limit: int = 0, offset: int = 0) -> List[List[int]]:
     out: List[List[int]] = []
     if not isinstance(raw_positions, list) or not raw_positions:
@@ -617,8 +660,32 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--max-loops", type=int, default=None, help="Maximum offer cycles")
     parser.add_argument("--summary-path", type=Path, default=None, help="Optional JSON summary output path")
     parser.add_argument("--json-only", action="store_true", help="Print only the summary JSON")
+    parser.add_argument(
+        "--console-profile",
+        choices=["quiet", "normal", "debug", "trace", "test"],
+        default=None,
+        help="Runner console verbosity profile",
+    )
+    parser.add_argument(
+        "--wait-progress-seconds",
+        type=float,
+        default=None,
+        help="Emit wait heartbeat every N seconds while turn is pending (0 disables)",
+    )
     parser.add_argument("--load-slot", type=int, default=None, help="Boot the rig from a save slot")
     parser.add_argument("--load-alias", type=str, default=None, help="Load from emoji alias save filename/path")
+    parser.add_argument(
+        "--profile-save",
+        type=str,
+        default=None,
+        help="Canonical profile save path or profile id from registry",
+    )
+    parser.add_argument(
+        "--profile-save-index",
+        type=str,
+        default=None,
+        help="Optional registry JSON path for profile-id resolution",
+    )
     parser.add_argument("--scenario-id", type=str, default=None, help="Scenario id when not loading a slot")
     parser.add_argument(
         "--hunter-profile",
@@ -687,8 +754,8 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--rig-listener-stdout",
         choices=["file", "pipe", "null"],
-        default="file",
-        help="Listener stdout mode: file (default), pipe, or null",
+        default=None,
+        help="Listener stdout mode (defaults from console profile)",
     )
     parser.add_argument(
         "--rig-listener-log",
@@ -699,8 +766,8 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--rig-log-profile",
         choices=["quiet", "normal", "debug", "trace", "test"],
-        default="quiet",
-        help="Rig listener VerboseConfig profile",
+        default=None,
+        help="Rig listener VerboseConfig profile (defaults from console profile)",
     )
     parser.add_argument(
         "--rig-log-categories",
@@ -877,25 +944,121 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Phrases per threshold-wait poll tick",
     )
+    parser.add_argument(
+        "--stride",
+        type=int,
+        default=None,
+        help="Set observation stride on all biomes at start (0=locked, 1=normal, 2+=fast forward)",
+    )
+    parser.add_argument(
+        "--resolution",
+        type=float,
+        default=None,
+        help="Set evolution resolution dt on all biomes at start (seconds, e.g. 0.02)",
+    )
+    parser.add_argument(
+        "--advanced-mode",
+        dest="advanced_mode",
+        action="store_true",
+        help="Enable advanced timescale-objective rig path (shared with user workbench semantics)",
+    )
+    parser.add_argument(
+        "--no-advanced-mode",
+        dest="advanced_mode",
+        action="store_false",
+        help="Disable advanced timescale-objective rig path",
+    )
+    parser.add_argument(
+        "--timescale-focus-emoji",
+        action="append",
+        default=[],
+        help="Objective focus emoji (repeatable or comma-separated), e.g. --timescale-focus-emoji 🍞,👥",
+    )
+    parser.add_argument(
+        "--timescale-top-k",
+        type=int,
+        default=None,
+        help="Top-K emoji rankings to request from the objective projection",
+    )
+    parser.add_argument(
+        "--timescale-target-gain",
+        type=float,
+        default=None,
+        help="Objective target_gain_per_wait value",
+    )
+    parser.add_argument(
+        "--timescale-horizon-min-phrames",
+        type=int,
+        default=None,
+        help="Objective minimum wait horizon in phrames",
+    )
+    parser.add_argument(
+        "--timescale-horizon-max-phrames",
+        type=int,
+        default=None,
+        help="Objective maximum wait horizon in phrames",
+    )
+    parser.add_argument(
+        "--timescale-floor",
+        action="append",
+        default=[],
+        help="Objective resource floor override as EMOJI:AMOUNT (repeatable)",
+    )
     parser.set_defaults(enforce_primary_resource_floors=True, allow_rig_resource_injection=True)
     parser.set_defaults(victory_lap=True)
     parser.set_defaults(strict_biome_economy=True)
     parser.set_defaults(include_offer_reward_resources=True)
     parser.set_defaults(lindblad_drain_focus=None)
+    parser.set_defaults(advanced_mode=None)
     return parser
 
 
 def main() -> int:
     args = _build_parser().parse_args()
     cfg = load_json_config(args.config)
+    console_profile = resolve_console_profile(args.console_profile, cfg)
+    _set_console_profile(console_profile)
     strategy = load_strategy(args.strategy)
     load_slot = args.load_slot
     load_alias = args.load_alias
+    profile_save = args.profile_save
+    profile_save_index = args.profile_save_index
     scenario_id = args.scenario_id
     hunter_profile = args.hunter_profile
     hunter_policy_mode = args.hunter_policy
     strict_biome_economy = args.strict_biome_economy
     max_loops = args.max_loops
+    wait_progress_seconds = args.wait_progress_seconds
+
+    if wait_progress_seconds is None:
+        wait_progress_seconds = get_cfg_float(cfg, "wait_progress_seconds")
+    if wait_progress_seconds is None and os.environ.get("MILK_HUNT_WAIT_PROGRESS_SECONDS", "") != "":
+        wait_progress_seconds = float(os.environ["MILK_HUNT_WAIT_PROGRESS_SECONDS"])
+    if wait_progress_seconds is None:
+        wait_progress_seconds = default_wait_progress_seconds(console_profile)
+    _set_turn_progress_interval(float(wait_progress_seconds))
+
+    rig_listener_stdout = args.rig_listener_stdout
+    if not rig_listener_stdout:
+        rig_listener_stdout = get_cfg_str(cfg, "rig_listener_stdout")
+    if not rig_listener_stdout and os.environ.get("MILK_HUNT_RIG_LISTENER_STDOUT", "") != "":
+        rig_listener_stdout = os.environ["MILK_HUNT_RIG_LISTENER_STDOUT"]
+    if not rig_listener_stdout:
+        rig_listener_stdout = default_listener_stdout(console_profile)
+
+    rig_log_profile = args.rig_log_profile
+    if not rig_log_profile:
+        rig_log_profile = get_cfg_str(cfg, "rig_log_profile")
+    if not rig_log_profile and os.environ.get("RIG_LOG_PROFILE", "") != "":
+        rig_log_profile = os.environ["RIG_LOG_PROFILE"]
+    if not rig_log_profile:
+        rig_log_profile = default_rig_log_profile(console_profile)
+
+    rig_log_categories = args.rig_log_categories
+    if not rig_log_categories:
+        rig_log_categories = get_cfg_str(cfg, "rig_log_categories")
+    if not rig_log_categories and os.environ.get("RIG_LOG_CATEGORY_LEVELS", "") != "":
+        rig_log_categories = os.environ["RIG_LOG_CATEGORY_LEVELS"]
 
     if max_loops is None:
         max_loops = get_cfg_int(cfg, "max_loops")
@@ -914,6 +1077,15 @@ def main() -> int:
     if not load_alias and os.environ.get("MILK_HUNT_LOAD_ALIAS", "") != "":
         load_alias = os.environ["MILK_HUNT_LOAD_ALIAS"]
 
+    if not profile_save:
+        profile_save = get_cfg_str(cfg, "profile_save")
+    if not profile_save and os.environ.get("MILK_HUNT_PROFILE_SAVE", "") != "":
+        profile_save = os.environ["MILK_HUNT_PROFILE_SAVE"]
+    if not profile_save_index:
+        profile_save_index = get_cfg_str(cfg, "profile_save_index")
+    if not profile_save_index and os.environ.get("MILK_HUNT_PROFILE_SAVE_INDEX", "") != "":
+        profile_save_index = os.environ["MILK_HUNT_PROFILE_SAVE_INDEX"]
+
     if scenario_id is None:
         scenario_id = get_cfg_str(cfg, "scenario_id")
     if not scenario_id:
@@ -925,6 +1097,31 @@ def main() -> int:
         hunter_profile = os.environ["MILK_HUNT_PROFILE"]
     if not hunter_profile:
         hunter_profile = "default"
+
+    resolved_profile_save: Optional[str] = None
+    if profile_save:
+        resolved_profile_save = resolve_profile_save_spec(profile_save, profile_save_index)
+        if not load_alias:
+            load_alias = resolved_profile_save
+            load_slot = None
+            _safe_print(f"milk-hunt: using profile-save '{resolved_profile_save}'", "detail")
+        if not args.hunter_profile:
+            mapped = get_profile_save(profile_save, profile_save_index)
+            if mapped:
+                hunter_profile = profile_save
+            else:
+                mapped_name = get_profile_name_for_save(resolved_profile_save, profile_save_index)
+                if mapped_name:
+                    hunter_profile = mapped_name
+    elif not load_alias and load_slot is None and hunter_profile:
+        mapped_profile_save = get_profile_save(hunter_profile, profile_save_index)
+        if mapped_profile_save:
+            resolved_profile_save = mapped_profile_save
+            load_alias = mapped_profile_save
+            _safe_print(
+                f"milk-hunt: hunter-profile '{hunter_profile}' resolved to profile-save '{mapped_profile_save}'",
+                "detail",
+            )
 
     if hunter_policy_mode is None:
         hunter_policy_mode = get_cfg_str(cfg, "hunter_policy")
@@ -1037,12 +1234,76 @@ def main() -> int:
     lindblad_wait_max_phrames = max(0, int(lindblad_wait_max_phrames))
     lindblad_wait_poll_phrames = max(1, int(lindblad_wait_poll_phrames))
 
+    advanced_mode = args.advanced_mode
+    if advanced_mode is None:
+        advanced_mode = get_cfg_bool(cfg, "advanced_mode")
+    if advanced_mode is None and os.environ.get("MILK_HUNT_ADVANCED_MODE", "") != "":
+        advanced_mode = os.environ["MILK_HUNT_ADVANCED_MODE"].strip().lower() in {"1", "true", "yes", "on"}
+    if advanced_mode is None:
+        advanced_mode = False
+
+    timescale_focus_emojis = _parse_emoji_list(args.timescale_focus_emoji)
+    if not timescale_focus_emojis:
+        cfg_focus = get_cfg_str(cfg, "timescale_focus_emojis")
+        if cfg_focus:
+            timescale_focus_emojis = _parse_emoji_list([cfg_focus])
+    if not timescale_focus_emojis and os.environ.get("MILK_HUNT_TIMESCALE_FOCUS", "") != "":
+        timescale_focus_emojis = _parse_emoji_list([os.environ["MILK_HUNT_TIMESCALE_FOCUS"]])
+
+    timescale_floor_overrides = _parse_resource_floor_overrides(args.timescale_floor)
+    timescale_objective_floors = dict(primary_resource_floors)
+    timescale_objective_floors.update(timescale_floor_overrides)
+
+    timescale_top_k = args.timescale_top_k
+    if timescale_top_k is None:
+        timescale_top_k = get_cfg_int(cfg, "timescale_top_k")
+    if timescale_top_k is None and os.environ.get("MILK_HUNT_TIMESCALE_TOP_K", "") != "":
+        timescale_top_k = int(os.environ["MILK_HUNT_TIMESCALE_TOP_K"])
+    if timescale_top_k is None:
+        timescale_top_k = 8
+    timescale_top_k = max(1, int(timescale_top_k))
+
+    timescale_target_gain = args.timescale_target_gain
+    if timescale_target_gain is None:
+        timescale_target_gain = get_cfg_float(cfg, "timescale_target_gain")
+    if timescale_target_gain is None and os.environ.get("MILK_HUNT_TIMESCALE_TARGET_GAIN", "") != "":
+        timescale_target_gain = float(os.environ["MILK_HUNT_TIMESCALE_TARGET_GAIN"])
+    if timescale_target_gain is None:
+        timescale_target_gain = 1.0
+
+    timescale_horizon_min_phrames = args.timescale_horizon_min_phrames
+    if timescale_horizon_min_phrames is None:
+        timescale_horizon_min_phrames = get_cfg_int(cfg, "timescale_horizon_min_phrames")
+    if timescale_horizon_min_phrames is None and os.environ.get("MILK_HUNT_TIMESCALE_HORIZON_MIN", "") != "":
+        timescale_horizon_min_phrames = int(os.environ["MILK_HUNT_TIMESCALE_HORIZON_MIN"])
+    if timescale_horizon_min_phrames is None:
+        timescale_horizon_min_phrames = 6
+
+    timescale_horizon_max_phrames = args.timescale_horizon_max_phrames
+    if timescale_horizon_max_phrames is None:
+        timescale_horizon_max_phrames = get_cfg_int(cfg, "timescale_horizon_max_phrames")
+    if timescale_horizon_max_phrames is None and os.environ.get("MILK_HUNT_TIMESCALE_HORIZON_MAX", "") != "":
+        timescale_horizon_max_phrames = int(os.environ["MILK_HUNT_TIMESCALE_HORIZON_MAX"])
+    if timescale_horizon_max_phrames is None:
+        timescale_horizon_max_phrames = 72
+    timescale_horizon_min_phrames = max(1, int(timescale_horizon_min_phrames))
+    timescale_horizon_max_phrames = max(timescale_horizon_min_phrames, int(timescale_horizon_max_phrames))
+
+    timescale_objective_payload = {
+        "focus_emojis": timescale_focus_emojis,
+        "resource_floors": timescale_objective_floors,
+        "top_k": timescale_top_k,
+        "target_gain_per_wait": float(timescale_target_gain),
+        "horizon_min_phrames": timescale_horizon_min_phrames,
+        "horizon_max_phrames": timescale_horizon_max_phrames,
+    }
+
     if load_alias:
         load_slot = None
     proc: Optional[subprocess.Popen] = None
     boot_lines: List[str] = []
     if not args.reuse_listener:
-        _safe_print("milk-hunt: resetting rig cache and starting listener")
+        _safe_print("milk-hunt: resetting rig cache and starting listener", "detail")
         _kill_existing_listeners()
         if not args.no_clear_rig:
             _clear_rig_files()
@@ -1050,60 +1311,54 @@ def main() -> int:
             load_slot=load_slot,
             scenario_id=scenario_id,
             allow_resource_injection=args.allow_rig_resource_injection,
-            listener_stdout=args.rig_listener_stdout,
+            listener_stdout=rig_listener_stdout,
             listener_log_path=args.rig_listener_log,
-            rig_log_profile=args.rig_log_profile,
-            rig_log_category_levels=args.rig_log_categories,
+            rig_log_profile=rig_log_profile,
+            rig_log_category_levels=rig_log_categories,
         )
         boot_lines = _wait_for_ready(proc, timeout_s=70.0)
         if proc.poll() is not None:
-            _safe_print("milk-hunt: listener exited during boot")
+            _safe_print("milk-hunt: listener exited during boot", "error")
             for line in boot_lines[-20:]:
-                _safe_print(line)
+                _safe_print(line, "error")
             return 1
-        if not any(
-            ("Rig ready. Waiting for turns in:" in ln) or ("ready via bridge sentinel" in ln)
-            for ln in boot_lines
-        ):
-            _safe_print("milk-hunt: listener did not reach ready state")
+        if not RigClient.ready_seen(boot_lines):
+            _safe_print("milk-hunt: listener did not reach ready state", "error")
             for line in boot_lines[-20:]:
-                _safe_print(line)
+                _safe_print(line, "warn")
             proc.terminate()
             return 1
     else:
         if not _find_listener_pids():
-            _safe_print("milk-hunt: reuse requested but no listener found; starting a new one")
+            _safe_print("milk-hunt: reuse requested but no listener found; starting a new one", "detail")
             if not args.no_clear_rig:
                 _clear_rig_files()
             proc = _start_listener(
                 load_slot=load_slot,
                 scenario_id=scenario_id,
                 allow_resource_injection=args.allow_rig_resource_injection,
-                listener_stdout=args.rig_listener_stdout,
+                listener_stdout=rig_listener_stdout,
                 listener_log_path=args.rig_listener_log,
-                rig_log_profile=args.rig_log_profile,
-                rig_log_category_levels=args.rig_log_categories,
+                rig_log_profile=rig_log_profile,
+                rig_log_category_levels=rig_log_categories,
             )
             boot_lines = _wait_for_ready(proc, timeout_s=70.0)
             if proc.poll() is not None:
-                _safe_print("milk-hunt: listener exited during boot")
+                _safe_print("milk-hunt: listener exited during boot", "error")
                 for line in boot_lines[-20:]:
-                    _safe_print(line)
+                    _safe_print(line, "error")
                 return 1
-            if not any(
-                ("Rig ready. Waiting for turns in:" in ln) or ("ready via bridge sentinel" in ln)
-                for ln in boot_lines
-            ):
-                _safe_print("milk-hunt: listener did not reach ready state")
+            if not RigClient.ready_seen(boot_lines):
+                _safe_print("milk-hunt: listener did not reach ready state", "error")
                 for line in boot_lines[-20:]:
-                    _safe_print(line)
+                    _safe_print(line, "warn")
                 proc.terminate()
                 return 1
         else:
             if RigClient._bridge_sentinel_path().exists():
-                _safe_print("milk-hunt: phrame bridge detected — visual mode")
+                _safe_print("milk-hunt: phrame bridge detected — visual mode", "detail")
             else:
-                _safe_print("milk-hunt: reusing existing headless listener")
+                _safe_print("milk-hunt: reusing existing headless listener", "detail")
             if not args.no_clear_rig:
                 _clear_rig_files()
 
@@ -1111,9 +1366,9 @@ def main() -> int:
     history: List[Dict[str, Any]] = []
     error_lines = [ln for ln in boot_lines if "ERROR:" in ln or "SCRIPT ERROR:" in ln]
     if args.fail_on_boot_script_errors and error_lines:
-        _safe_print("milk-hunt: failing due to boot script errors")
+        _safe_print("milk-hunt: failing due to boot script errors", "error")
         for line in error_lines[-20:]:
-            _safe_print(line)
+            _safe_print(line, "warn")
         RigClient.terminate_listener(proc, timeout_s=5.0)
         return 4
     faction_sigs, milk_distances = _load_faction_data()
@@ -1152,12 +1407,35 @@ def main() -> int:
         history.append(_run_turn(turn, "grid_snapshot"))
         turn += 1
         initial_biomes = _extract_biomes(history)
+
+        # Apply stride/resolution overrides to all discovered biomes
+        if args.stride is not None:
+            for biome_name in initial_biomes:
+                history.append(_run_turn(turn, "set_stride", biome=biome_name, stride=args.stride))
+                turn += 1
+            _safe_print(f"milk-hunt: set observation stride={args.stride} on {len(initial_biomes)} biomes", "detail")
+        if args.resolution is not None:
+            for biome_name in initial_biomes:
+                history.append(_run_turn(turn, "set_resolution", biome=biome_name, dt=args.resolution))
+                turn += 1
+            _safe_print(f"milk-hunt: set resolution dt={args.resolution} on {len(initial_biomes)} biomes", "detail")
+        if advanced_mode:
+            history.append(_run_turn(turn, "set_timescale_objective", objective=timescale_objective_payload))
+            turn += 1
+            _safe_print(
+                "milk-hunt: advanced timescale objective enabled "
+                + json.dumps(timescale_objective_payload, ensure_ascii=False),
+                "detail",
+            )
         history.append(_run_turn(turn, "known_vocab_pairs"))
         turn += 1
         resources = _run_turn(turn, "resource_snapshot")
         history.append(resources)
         turn += 1
-        print("RESOURCE_SNAPSHOT", json.dumps(resources.get("resources", {}), ensure_ascii=False))
+        _safe_print(
+            "RESOURCE_SNAPSHOT " + json.dumps(resources.get("resources", {}), ensure_ascii=False),
+            "trace",
+        )
 
         found_milk = False
         found_offer = False
@@ -1179,6 +1457,8 @@ def main() -> int:
         lindblad_biomes_activated: Set[str] = set()
         lindblad_drain_events: List[Dict[str, Any]] = []
         lindblad_wait_events: List[Dict[str, Any]] = []
+        timescale_events: List[Dict[str, Any]] = []
+        biome_timescale_cache: Dict[str, Dict[str, float]] = {}
         policy_trace_limit = max(0, int(args.policy_trace_limit))
 
         def _append_policy_decision(event: Dict[str, Any]) -> None:
@@ -1190,13 +1470,17 @@ def main() -> int:
             if len(policy_decisions) == policy_trace_limit:
                 policy_decisions.append({"kind": "trace_truncated", "limit": policy_trace_limit})
 
-        def _run_loop_tail_wait(loop_number: int, loop_wait_enabled: bool) -> None:
+        def _run_loop_tail_wait(loop_number: int, loop_wait_enabled: bool, wait_override_phrames: int = 0) -> None:
             nonlocal turn, current_resources
-            if not loop_wait_enabled or not (lindblad_wait_phrames > 0 or lindblad_wait_threshold):
+            if not loop_wait_enabled or not (lindblad_wait_phrames > 0 or lindblad_wait_threshold or wait_override_phrames > 0):
                 return
             wait_payload: Dict[str, Any] = {}
             wait_mode = "fixed_time_skip"
-            timeout_hint = int(max(1, lindblad_wait_phrames))
+            effective_wait = int(max(1, lindblad_wait_phrames))
+            if wait_override_phrames > 0 and not lindblad_wait_threshold:
+                effective_wait = int(max(1, wait_override_phrames))
+                wait_mode = "adaptive_time_skip"
+            timeout_hint = int(max(1, effective_wait))
             if lindblad_wait_threshold:
                 wait_mode = "threshold_time_skip"
                 wait_payload["wait_for_resource"] = lindblad_wait_threshold
@@ -1205,8 +1489,8 @@ def main() -> int:
                 wait_payload["phrames"] = int(max(1, lindblad_wait_poll_phrames))
                 timeout_hint = int(max(1, lindblad_wait_max_phrames))
             else:
-                wait_payload["phrames"] = int(max(1, lindblad_wait_phrames))
-                timeout_hint = int(max(1, lindblad_wait_phrames))
+                wait_payload["phrames"] = effective_wait
+                timeout_hint = int(max(1, effective_wait))
 
             wait_row = _run_turn(
                 turn,
@@ -1261,6 +1545,7 @@ def main() -> int:
         for loop_idx in range(max_loops):
             loops_completed = loop_idx + 1
             loop_should_wait = False
+            loop_dynamic_wait_phrames = 0
             if args.enforce_primary_resource_floors:
                 turn, current_resources, floor_events = _enforce_primary_resource_floors(
                     turn,
@@ -1396,6 +1681,49 @@ def main() -> int:
                     selected_biomes = ranked_biomes[: max(1, int(lindblad_drain_max_biomes_per_loop))]
                 did_drain = False
                 for biome_name in selected_biomes:
+                    if advanced_mode:
+                        auto_row = _run_turn(
+                            turn,
+                            "auto_timescale",
+                            biome=biome_name,
+                            top_k=timescale_top_k,
+                        )
+                        history.append(auto_row)
+                        turn += 1
+                        auto_payload = auto_row.get("auto_timescale", {})
+                        if isinstance(auto_payload, dict) and bool(auto_payload.get("ok", False)):
+                            rec_stride = int(auto_payload.get("recommended_stride", 1))
+                            rec_dt = float(auto_payload.get("recommended_dt", 0.02))
+                            rec_wait = int(auto_payload.get("recommended_wait_phrames", 0))
+                            recommendation = auto_payload.get("recommendation", {})
+                            loop_dynamic_wait_phrames = max(loop_dynamic_wait_phrames, rec_wait)
+                            biome_timescale_cache[biome_name] = {"stride": float(rec_stride), "dt": rec_dt}
+                            timescale_event = {
+                                "loop": loop_idx + 1,
+                                "biome": biome_name,
+                                "applied": bool(auto_payload.get("applied", False)),
+                                "recommended_stride": rec_stride,
+                                "recommended_dt": rec_dt,
+                                "recommended_wait_phrames": rec_wait,
+                                "top_emoji": recommendation.get("top_emoji", ""),
+                                "top_probability": recommendation.get("top_probability", 0.0),
+                                "emoji_rankings": recommendation.get("emoji_rankings", []),
+                            }
+                            timescale_events.append(timescale_event)
+                            _append_policy_decision(
+                                {
+                                    "kind": "auto_timescale",
+                                    "loop": loop_idx + 1,
+                                    "biome": biome_name,
+                                    "policy_source": "quantum_graph" if quantum_policy is not None else "heuristic",
+                                    "recommended_stride": rec_stride,
+                                    "recommended_dt": rec_dt,
+                                    "recommended_wait_phrames": rec_wait,
+                                    "top_emoji": timescale_event.get("top_emoji", ""),
+                                    "top_probability": timescale_event.get("top_probability", 0.0),
+                                    "emoji_rankings": timescale_event.get("emoji_rankings", []),
+                                }
+                            )
                     raw_positions: Any = []
                     if int(lindblad_drain_max_plots) > 0:
                         positions_row = _run_turn(turn, "biome_positions", biome=biome_name)
@@ -1560,11 +1888,13 @@ def main() -> int:
             turn += 1
             offers = offer_row.get("offers", [])
             if not isinstance(offers, list) or not offers:
-                _run_loop_tail_wait(loop_idx + 1, loop_should_wait)
+                adaptive_wait = loop_dynamic_wait_phrames if lindblad_wait_phrames > 0 else 0
+                _run_loop_tail_wait(loop_idx + 1, loop_should_wait, adaptive_wait)
                 continue
             eligible_delivery = _eligible_delivery_offer_indices(offers, strict_biome_economy, current_resources)
             if not eligible_delivery:
-                _run_loop_tail_wait(loop_idx + 1, loop_should_wait)
+                adaptive_wait = loop_dynamic_wait_phrames if lindblad_wait_phrames > 0 else 0
+                _run_loop_tail_wait(loop_idx + 1, loop_should_wait, adaptive_wait)
                 continue
 
             known_pairs = _extract_pairs(history)
@@ -1823,7 +2153,8 @@ def main() -> int:
                     found_milk = True
                     break
 
-            _run_loop_tail_wait(loop_idx + 1, loop_should_wait)
+            adaptive_wait = loop_dynamic_wait_phrames if lindblad_wait_phrames > 0 else 0
+            _run_loop_tail_wait(loop_idx + 1, loop_should_wait, adaptive_wait)
 
         if found_milk and args.victory_lap:
             victory_row = _run_turn(turn, "victory_lap")
@@ -1855,7 +2186,15 @@ def main() -> int:
             "strict_biome_economy": strict_biome_economy,
             "load_slot": load_slot,
             "load_alias": load_alias,
+            "profile_save": profile_save,
+            "profile_save_index": profile_save_index,
+            "resolved_profile_save": resolved_profile_save,
             "scenario_id": scenario_id,
+            "console_profile": console_profile,
+            "wait_progress_seconds": float(wait_progress_seconds),
+            "rig_listener_stdout": rig_listener_stdout,
+            "rig_log_profile": rig_log_profile,
+            "rig_log_categories": rig_log_categories,
             "hunter_profile": hunter_profile,
             "hunter_policy_mode": hunter_policy_mode,
             "hunter_policy_active": quantum_policy is not None,
@@ -1906,6 +2245,10 @@ def main() -> int:
             "lindblad_drain_biomes_activated": sorted(lindblad_biomes_activated),
             "lindblad_drain_events": lindblad_drain_events,
             "lindblad_wait_events": lindblad_wait_events,
+            "advanced_mode": advanced_mode,
+            "timescale_top_k": timescale_top_k,
+            "timescale_objective": timescale_objective_payload if advanced_mode else {},
+            "timescale_events": timescale_events,
         }
         if args.save_slot_at_end is not None:
             save_row = _run_turn(turn, "save_game", slot=args.save_slot_at_end)
@@ -1921,12 +2264,23 @@ def main() -> int:
             summary["milk_pair_index"] = None
         if args.summary_path is not None:
             args.summary_path.parent.mkdir(parents=True, exist_ok=True)
-            args.summary_path.write_text(json.dumps(summary, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+            write_json(args.summary_path, summary)
         if args.json_only:
-            _safe_print(json.dumps(summary, ensure_ascii=False))
+            _safe_print(json.dumps(summary, ensure_ascii=False), "info")
+        elif _CONSOLE.allows("trace"):
+            _safe_print("milk-hunt: summary", "info")
+            _safe_print(json.dumps(summary, ensure_ascii=False, indent=2), "detail")
         else:
-            _safe_print("milk-hunt: summary")
-            _safe_print(json.dumps(summary, ensure_ascii=False, indent=2))
+            _safe_print(
+                "milk-hunt: result found_milk=%s loops=%d steps=%d profile=%s"
+                % (
+                    str(found_milk).lower(),
+                    int(summary.get("loops_completed", 0)),
+                    int(summary.get("steps", 0)),
+                    str(summary.get("hunter_profile", "")),
+                ),
+                "info",
+            )
         return 0 if found_milk else 2
     except TurnTimeoutError as exc:
         timeout_diag = _rig_timeout_diagnostics(exc.turn_id, exc.action)
@@ -1941,7 +2295,15 @@ def main() -> int:
             "strict_biome_economy": strict_biome_economy,
             "load_slot": load_slot,
             "load_alias": load_alias,
+            "profile_save": profile_save,
+            "profile_save_index": profile_save_index,
+            "resolved_profile_save": resolved_profile_save,
             "scenario_id": scenario_id,
+            "console_profile": console_profile,
+            "wait_progress_seconds": float(wait_progress_seconds),
+            "rig_listener_stdout": rig_listener_stdout,
+            "rig_log_profile": rig_log_profile,
+            "rig_log_categories": rig_log_categories,
             "hunter_profile": hunter_profile,
             "hunter_policy_mode": hunter_policy_mode,
             "hunter_policy_active": quantum_policy is not None,
@@ -1961,6 +2323,10 @@ def main() -> int:
             "lindblad_wait_poll_phrames": lindblad_wait_poll_phrames,
             "lindblad_wait_poll_seconds": lindblad_wait_poll_seconds,
             "lindblad_drain_configured_biomes": configured_lindblad_biomes,
+            "advanced_mode": advanced_mode,
+            "timescale_top_k": timescale_top_k,
+            "timescale_objective": timescale_objective_payload if advanced_mode else {},
+            "timescale_events": locals().get("timescale_events", []),
             "run_error": "turn_timeout",
             "run_error_detail": str(exc),
             "timeout_turn": exc.turn_id,
@@ -1971,12 +2337,22 @@ def main() -> int:
         }
         if args.summary_path is not None:
             args.summary_path.parent.mkdir(parents=True, exist_ok=True)
-            args.summary_path.write_text(json.dumps(timeout_summary, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+            write_json(args.summary_path, timeout_summary)
         if args.json_only:
-            _safe_print(json.dumps(timeout_summary, ensure_ascii=False))
+            _safe_print(json.dumps(timeout_summary, ensure_ascii=False), "info")
+        elif _CONSOLE.allows("trace"):
+            _safe_print("milk-hunt: timeout summary", "warn")
+            _safe_print(json.dumps(timeout_summary, ensure_ascii=False, indent=2), "detail")
         else:
-            _safe_print("milk-hunt: timeout summary")
-            _safe_print(json.dumps(timeout_summary, ensure_ascii=False, indent=2))
+            _safe_print(
+                "milk-hunt: timeout turn=%d action=%s timeout_s=%.1f"
+                % (
+                    int(timeout_summary.get("timeout_turn", -1)),
+                    str(timeout_summary.get("timeout_action", "")),
+                    float(timeout_summary.get("timeout_seconds", 0.0)),
+                ),
+                "warn",
+            )
         return 3
     finally:
         if not args.no_stop:

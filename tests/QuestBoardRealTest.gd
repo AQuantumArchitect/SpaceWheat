@@ -52,7 +52,7 @@ func _setup():
 	add_child(mock_biome)
 
 	# Load real QuestBoard
-	var qb_path = "res://UI/Panels/QuestBoard.gd"
+	var qb_path = "res://UI/Overlays/QuestBoard.gd"
 	var qb_script = load(qb_path)
 	if not qb_script:
 		_log_fail("Could not load QuestBoard")

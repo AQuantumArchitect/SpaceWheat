@@ -96,6 +96,13 @@ func _update_status() -> void:
 	]
 
 
+func get_snapshot() -> Dictionary:
+	"""Return structured snapshot of current quantum mode status."""
+	if not status_label:
+		return {"mode": ""}
+	return {"mode": status_label.text}
+
+
 func get_full_description() -> String:
 	"""Get detailed mode description for help text"""
 	if not config:

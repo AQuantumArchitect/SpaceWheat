@@ -116,6 +116,10 @@ var quantum_time_scale: float = 0.03125  # Default to 1/32nd real-time for detai
 # Range: 0.005 (very fine) to 0.05 (coarse)
 var max_evolution_dt: float = 0.02  # Default substep size
 
+# Observation stride: phrames consumed per physics tick (playback speed)
+# 0 = locked (no advancement), 1 = normal, 2+ = fast forward
+var observation_stride: int = 1
+
 # BUILD mode pause
 var evolution_paused: bool = false
 
@@ -225,7 +229,7 @@ func _get_base_icon(emoji: String):
 	return reg.get_icon(emoji) if reg else null
 
 
-func _create_local_icon(_emoji: String) -> Icon:
+func _create_local_icon(_emoji: String):
 	"""Override in subclasses to provide biome-local icons."""
 	return null
 

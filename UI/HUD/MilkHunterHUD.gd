@@ -9,6 +9,7 @@ const PANEL_BG_COLOR: Color = Color(0.08, 0.10, 0.18, 0.92)
 const PANEL_BORDER_COLOR: Color = Color(0.3, 0.7, 0.9, 0.7)
 const PANEL_PADDING: int = 8
 const UPDATE_INTERVAL: int = 30  # Refresh cached stats every 30 render frames
+const UIStyleFactory = preload("res://UI/Core/UIStyleFactory.gd")
 
 var _bridge: Node = null  # MilkHunterBridge
 var _status: String = "idle"
@@ -147,6 +148,17 @@ func _update_throughput() -> void:
 	throughput_label.text = "%d actions | %.1f/s" % [total, aps]
 
 
+func get_snapshot() -> Dictionary:
+	"""Return structured snapshot of milk hunter HUD state."""
+	return {
+		"status": _status,
+		"turn_id": _turn_id,
+		"last_action": _last_action,
+		"resources": _last_resources.duplicate(),
+		"vocab_count": _last_vocab_count,
+	}
+
+
 func _build_ui() -> void:
 	anchors_preset = Control.PRESET_TOP_LEFT
 	offset_left = 16
@@ -154,35 +166,11 @@ func _build_ui() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	custom_minimum_size = Vector2(260, 120)
 
-	panel = PanelContainer.new()
-	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var scaffold = UIStyleFactory.create_hud_scaffold(PANEL_BG_COLOR, PANEL_BORDER_COLOR, PANEL_PADDING, 3)
+	panel = scaffold.panel
 	panel.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	panel.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
-
-	var panel_style = StyleBoxFlat.new()
-	panel_style.bg_color = PANEL_BG_COLOR
-	panel_style.border_width_top = 2
-	panel_style.border_width_bottom = 2
-	panel_style.border_width_left = 2
-	panel_style.border_width_right = 2
-	panel_style.border_color = PANEL_BORDER_COLOR
-	panel_style.corner_radius_top_left = 6
-	panel_style.corner_radius_top_right = 6
-	panel_style.corner_radius_bottom_left = 6
-	panel_style.corner_radius_bottom_right = 6
-	panel.add_theme_stylebox_override("panel", panel_style)
-
-	var margin = MarginContainer.new()
-	margin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	margin.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	margin.add_theme_constant_override("margin_left", PANEL_PADDING)
-	margin.add_theme_constant_override("margin_top", PANEL_PADDING)
-	margin.add_theme_constant_override("margin_right", PANEL_PADDING)
-	margin.add_theme_constant_override("margin_bottom", PANEL_PADDING)
-
-	vbox = VBoxContainer.new()
-	vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	vbox.add_theme_constant_override("separation", 3)
+	vbox = scaffold.vbox
 
 	status_label = _create_label("... IDLE", Color(0.3, 0.7, 0.9), true)
 	action_label = _create_label("Waiting for first action...", Color(0.95, 0.95, 0.95))
@@ -200,25 +188,12 @@ func _build_ui() -> void:
 	vbox.add_child(_create_separator())
 	vbox.add_child(throughput_label)
 
-	margin.add_child(vbox)
-	panel.add_child(margin)
 	add_child(panel)
 
 
 func _create_label(text_value: String, color: Color, bold: bool = false) -> Label:
-	var label = Label.new()
-	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
-	label.add_theme_color_override("font_color", color)
-	label.text = text_value
-	var font_size = 13 if bold else 11
-	label.add_theme_font_size_override("font_size", font_size)
-	return label
+	return UIStyleFactory.create_hud_label(text_value, color, 13 if bold else 11)
 
 
 func _create_separator() -> HSeparator:
-	var sep = HSeparator.new()
-	var style = StyleBoxFlat.new()
-	style.bg_color = Color(0.4, 0.4, 0.4, 0.3)
-	sep.add_theme_stylebox_override("separator", style)
-	return sep
+	return UIStyleFactory.create_hud_separator()

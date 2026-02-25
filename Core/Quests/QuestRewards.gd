@@ -140,7 +140,7 @@ static func estimate_resource_rewards(quest: Dictionary, faction: Dictionary = {
 
 
 static func compute_market_projection(quest: Dictionary, icon_map: Dictionary = {}, tuning: Dictionary = {}) -> Dictionary:
-	"""Compute read-only market projection for quest pricing from icon-map availability."""
+	"""Compute read-only market projection (no dynamic cost multiplier by default)."""
 	if quest.is_empty():
 		return {}
 	if int(quest.get("type", -1)) != 0:
@@ -150,25 +150,28 @@ static func compute_market_projection(quest: Dictionary, icon_map: Dictionary = 
 	if resource == "" or base_cost <= 0.0:
 		return {}
 
+	var faction_name = quest.get("faction", "")
+	var signature = quest.get("faction_signature", [])
+	var faction_dynamic = _get_faction_dynamic_data(faction_name, signature)
+	var profile = _compute_interference_reward_profile(faction_dynamic, icon_map if icon_map is Dictionary else {})
+	var weights = profile.get("weights", {})
 	var by_emoji: Dictionary = icon_map.get("by_emoji", {}) if icon_map is Dictionary else {}
 	var total = max(0.0, float(icon_map.get("total", 0.0))) if icon_map is Dictionary else 0.0
 	var availability = max(0.0, float(by_emoji.get(resource, 0.0))) if by_emoji is Dictionary else 0.0
 	var normalized_availability = availability / max(1.0, total)
 	var scarcity = 1.0 / max(0.05, normalized_availability)
-	var beta = float(tuning.get("beta", 0.35))
-	var min_k = float(tuning.get("min_k", 0.75))
-	var max_k = float(tuning.get("max_k", 2.25))
-	var multiplier = clamp(1.0 + (beta * log(1.0 + scarcity)), min_k, max_k)
-	var effective_cost = max(1, int(round(base_cost * multiplier)))
+	var pressure = float(weights.get(resource, 0.0)) if weights is Dictionary else 0.0
 
 	return {
 		"resource": resource,
 		"base_cost": int(base_cost),
-		"effective_cost": effective_cost,
-		"multiplier": multiplier,
+		"effective_cost": int(base_cost),
+		"multiplier": 1.0,
 		"availability": availability,
 		"normalized_availability": normalized_availability,
-		"scarcity": scarcity
+		"scarcity": scarcity,
+		"pressure": pressure,
+		"interference_strength": float(profile.get("interference_strength", 0.0))
 	}
 
 
@@ -180,11 +183,10 @@ static func _build_resource_reward_plan(quest: Dictionary, faction: Dictionary, 
 	var profile: Dictionary
 	var total_budget: int
 
-	# IconMap-projected rewards (north pole from quantum state)
+	# Interference-projected rewards (faction Hamiltonian x player IconMap)
 	if not icon_map.is_empty() and icon_map.has("by_emoji"):
-		profile = _compute_iconmap_reward_profile(faction_dynamic, icon_map)
-		var iconmap_total = float(icon_map.get("total", 0.0))
-		total_budget = int(clamp(round(iconmap_total), _reward_min_total(), _reward_max_total()))
+		profile = _compute_interference_reward_profile(faction_dynamic, icon_map)
+		total_budget = _compute_fibonacci_reward_budget(quest, profile, deterministic)
 	else:
 		# Fallback: Hamiltonian eigenvalue rewards (old behavior)
 		profile = _compute_hamiltonian_reward_profile(faction_dynamic)
@@ -197,12 +199,13 @@ static func _build_resource_reward_plan(quest: Dictionary, faction: Dictionary, 
 		return {}
 
 	var weights: Dictionary = profile["weights"]
+	var quantity = max(0.0, float(quest.get("quantity", 0.0)))
 	var reward_count = 1
-	if total_budget >= 70 and weights.size() >= 2:
+	if quantity >= 5.0 and weights.size() >= 2:
 		reward_count = 2
-	if total_budget >= 140 and weights.size() >= 3:
+	if quantity >= 13.0 and weights.size() >= 3:
 		reward_count = 3
-	if not deterministic and reward_count < weights.size() and randf() < 0.2:
+	if not deterministic and reward_count < weights.size() and quantity >= 8.0 and randf() < 0.15:
 		reward_count += 1
 
 	var selected = _pick_reward_emojis(weights, reward_count, deterministic)
@@ -217,15 +220,16 @@ static func _build_resource_reward_plan(quest: Dictionary, faction: Dictionary, 
 
 	var rewards: Dictionary = {}
 	var remaining = total_budget
+	var min_per_emoji = _reward_min_per_emoji_for_quantity(quantity)
 	for i in range(selected.size()):
 		var emoji = selected[i]
-		var amount = _reward_min_per_emoji()
+		var amount = min_per_emoji
 		if i == selected.size() - 1:
-			amount = max(_reward_min_per_emoji(), remaining)
+			amount = max(min_per_emoji, remaining)
 		else:
 			var ratio = float(weights.get(emoji, 0.0)) / selected_weight_total
-			amount = max(_reward_min_per_emoji(), int(round(total_budget * ratio)))
-			amount = min(amount, remaining - (selected.size() - i - 1) * _reward_min_per_emoji())
+			amount = max(min_per_emoji, int(round(total_budget * ratio)))
+			amount = min(amount, remaining - (selected.size() - i - 1) * min_per_emoji)
 		rewards[emoji] = amount
 		remaining -= amount
 
@@ -422,6 +426,179 @@ static func _compute_iconmap_reward_profile(faction_data: Dictionary, icon_map: 
 	return {"weights": weights}
 
 
+static func _compute_interference_reward_profile(faction_data: Dictionary, icon_map: Dictionary) -> Dictionary:
+	"""Tensor-like interference map between faction Hamiltonian and player IconMap.
+
+	We collapse an interference tensor T[e,i,j] where:
+	- e: reward emoji candidate (faction signature)
+	- i,j: player "mode" indices on the same signature basis
+	- T[e,i,j] ~ |H_f[e,j]| * p_i * |p_j - p_i|
+
+	This boosts reward weight where faction couplings and player mass gradients
+	constructively interfere.
+	"""
+	var signature = faction_data.get("sig", [])
+	if signature.is_empty():
+		return {"weights": {}, "interference_strength": 0.0}
+	var by_emoji: Dictionary = icon_map.get("by_emoji", {})
+	if by_emoji.is_empty():
+		return {"weights": {}, "interference_strength": 0.0}
+
+	var index_by_emoji: Dictionary = {}
+	for i in range(signature.size()):
+		index_by_emoji[signature[i]] = i
+
+	var n = signature.size()
+	var h: Array = []
+	for i in range(n):
+		var row: Array = []
+		row.resize(n)
+		for j in range(n):
+			row[j] = 0.0
+		h.append(row)
+
+	var hamiltonian = faction_data.get("hamiltonian", {})
+	for source in hamiltonian.keys():
+		if not index_by_emoji.has(source):
+			continue
+		var src_i = int(index_by_emoji[source])
+		var edges = hamiltonian[source]
+		if not (edges is Dictionary):
+			continue
+		for target in edges.keys():
+			if not index_by_emoji.has(target):
+				continue
+			var tgt_i = int(index_by_emoji[target])
+			if src_i == tgt_i:
+				continue
+			h[src_i][tgt_i] += _hamiltonian_magnitude(edges[target])
+
+	var p: Array = []
+	var p_total = 0.0
+	for emoji in signature:
+		var mass = max(0.0, float(by_emoji.get(emoji, 0.0)))
+		p.append(mass)
+		p_total += mass
+	if p_total <= 0.0:
+		return {"weights": {}, "interference_strength": 0.0}
+	for i in range(n):
+		p[i] = float(p[i]) / p_total
+
+	var self_energies = faction_data.get("self_energies", {})
+	var lindblad_outgoing = faction_data.get("lindblad_outgoing", {})
+	var weights: Dictionary = {}
+	var total = 0.0
+	var interference_sum = 0.0
+
+	for e in range(n):
+		var emoji = signature[e]
+		var tensor_energy = 0.0
+		for i in range(n):
+			for j in range(n):
+				var hij = abs(float(h[e][j]))
+				if hij <= 0.0:
+					continue
+				var pij = abs(float(p[j]) - float(p[i]))
+				tensor_energy += hij * float(p[i]) * pij
+		var coupling_mass = 0.0
+		for j in range(n):
+			coupling_mass += abs(float(h[e][j])) * float(p[j])
+		var self_term = max(0.0, float(self_energies.get(emoji, 0.0))) * float(p[e]) * 0.5
+		var lind_term = 0.0
+		var outgoing_map = lindblad_outgoing.get(emoji, {})
+		if outgoing_map is Dictionary:
+			for target in outgoing_map.keys():
+				lind_term += abs(float(outgoing_map[target])) * 0.15
+		var raw = max(0.0001, tensor_energy + coupling_mass + self_term + lind_term)
+		weights[emoji] = raw
+		total += raw
+		interference_sum += tensor_energy
+
+	if total > 0.0:
+		for emoji in weights.keys():
+			weights[emoji] = float(weights[emoji]) / total
+
+	return {
+		"weights": weights,
+		"interference_strength": interference_sum
+	}
+
+
+static func _compute_fibonacci_reward_budget(quest: Dictionary, profile: Dictionary, deterministic: bool) -> int:
+	var q = max(1.0, float(quest.get("quantity", 1.0)))
+	var bracket = _fibonacci_bracket_for_quantity(q)
+	var low = float(bracket.get("low", 1.0))
+	var high = float(bracket.get("high", 2.0))
+	var min_reward = int(bracket.get("min_reward", 1))
+	var max_reward = int(bracket.get("max_reward", 2))
+
+	var interference = max(0.0, float(profile.get("interference_strength", 0.0)))
+	var signed = tanh(interference * 0.2)  # bounded [0, 1)
+	var mean = q * (0.92 + 0.22 * signed)  # near 1:1 at small volumes, mild upside from interference
+	mean = clamp(mean, float(min_reward), float(max_reward))
+
+	var amount = int(round(mean))
+	if not deterministic:
+		var sigma = max(0.45, float(max_reward - min_reward) * 0.18)
+		var z = (randf() + randf() + randf() + randf() - 2.0) / 0.57735026919
+		amount = int(round(mean + sigma * z))
+	amount = int(clamp(amount, min_reward, max_reward))
+
+	# Gentle guardrail near q≈10: keep expected trades close to 1:1.
+	if q >= 9.0 and q <= 13.0:
+		amount = int(clamp(amount, int(floor(q * 0.9)), int(ceil(q * 1.1))))
+		amount = int(clamp(amount, min_reward, max_reward))
+
+	# Low-volume quest rewards should be intentionally small.
+	if q <= 3.0:
+		amount = min(amount, max_reward)
+		amount = max(1, amount)
+	elif q <= 5.0:
+		amount = max(2, min(amount, max_reward))
+
+	return amount
+
+
+static func _fibonacci_bracket_for_quantity(quantity: float) -> Dictionary:
+	var q = max(1.0, quantity)
+	var fib = [1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144]
+	var low = 1
+	var high = 2
+	var idx = 0
+	for i in range(fib.size() - 1):
+		if q >= float(fib[i]) and q < float(fib[i + 1]):
+			low = fib[i]
+			high = fib[i + 1]
+			idx = i
+			break
+		if q >= float(fib[fib.size() - 1]):
+			low = fib[fib.size() - 2]
+			high = fib[fib.size() - 1]
+			idx = fib.size() - 2
+
+	# Exact examples requested for low volumes.
+	if q <= 1.0:
+		return {"low": 1, "high": 1, "min_reward": 1, "max_reward": 2}
+	if q < 2.0:
+		return {"low": 1, "high": 2, "min_reward": 1, "max_reward": 3}
+	if q < 3.0:
+		return {"low": 2, "high": 3, "min_reward": 1, "max_reward": 5}
+	if q < 5.0:
+		return {"low": 3, "high": 5, "min_reward": 2, "max_reward": 8}
+	if q < 8.0:
+		return {"low": 5, "high": 8, "min_reward": 2, "max_reward": 13}
+
+	var max_idx = min(idx + 2, fib.size() - 1)
+	var max_reward = fib[max_idx]
+	var min_reward = max(2, int(round(float(low) * 0.35)))
+	return {
+		"low": low,
+		"high": high,
+		"min_reward": min_reward,
+		"max_reward": max_reward
+	}
+
+
 static func _compute_total_resource_budget(quest: Dictionary, dominant_eigenvalue: float) -> int:
 	var quantity = max(0.0, float(quest.get("quantity", 0.0)))
 	var multiplier = clamp(float(quest.get("reward_multiplier", 1.0)), 1.0, 6.0)
@@ -468,6 +645,16 @@ static func _reward_max_total() -> int:
 static func _reward_min_per_emoji() -> int:
 	var raw = get_reward_tuning().get("resource_reward_min_per_emoji", RESOURCE_REWARD_MIN_PER_EMOJI)
 	return max(1, int(raw))
+
+
+static func _reward_min_per_emoji_for_quantity(quantity: float) -> int:
+	if quantity <= 3.0:
+		return 1
+	if quantity <= 8.0:
+		return 2
+	if quantity <= 21.0:
+		return 3
+	return _reward_min_per_emoji()
 
 
 static func _reward_base_ratio() -> float:

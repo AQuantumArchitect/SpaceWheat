@@ -26,6 +26,15 @@ extends SceneTree
 ## - lindblad_pump: {biome: String, positions: [[x,y],...]}
 ## - lindblad_drain: {biome: String, positions: [[x,y],...]}
 ## - time_skip: {phrames: int, delta?: float}
+## - set_stride: {biome: String, stride: int}
+## - set_resolution: {biome: String, dt: float}
+## - get_timescale: {biome: String}
+## - set_timescale_objective: {objective: Dictionary}
+## - get_timescale_objective
+## - clear_timescale_objective
+## - timescale_projection: {biome: String, top_k?: int}
+## - recommend_timescale: {biome: String, top_k?: int}
+## - auto_timescale: {biome: String, top_k?: int}
 ## - configure_economy: {overrides: {action_costs?, gate_costs?, quest_rewards?, production?}}
 ## - configure_seed_state: {known_pairs, unlocked_biomes, unexplored_biomes, active_biome}
 ## - probe_cycle: {biome: String}
@@ -34,10 +43,20 @@ extends SceneTree
 ## - victory_lap
 ## - victory_lap_partial: {selected_biomes?: [String], max_registers?: int, milk_spend?: int, phase_window?: int}
 ## - batcher_metrics
+## - balance_snapshot
+## - balance_patch: {patch: {key: value, ...}, source?: String}
+## - balance_reset
+## - balance_export: {path?: String}
+## - balance_load: {path: String}
 ## - save_game: {slot: int}
+## - save_game_path: {path: String}
 ## - load_game: {slot: int}
 ## - load_game_alias: {alias: String}
 ## - save_info: {slot: int}
+## - overlay_snapshot: {overlay: String} — returns structured dict from overlay.get_snapshot()
+## - widget_snapshot: {widget: String} — returns structured dict from widget.get_snapshot()
+## - hud_snapshot: {hud: String} — returns structured dict from hud.get_snapshot()
+## - full_snapshot — aggregates all widget + HUD + overlay snapshots in one call
 ## - stop
 ##
 ## Future actions can be added to the match statement in _execute_command().
@@ -45,6 +64,13 @@ extends SceneTree
 const PlayerShellScene = preload("res://UI/PlayerShell.tscn")
 const BiomeHandler = preload("res://UI/Handlers/BiomeHandler.gd")
 const ProbeActions = preload("res://Core/Actions/ProbeActions.gd")
+const QuantumForceGraph = preload("res://Core/Visualization/QuantumForceGraph.gd")
+const QuantumInstrumentClass = preload("res://Core/Instrumentation/QuantumInstrument.gd")
+const PhysicsConfig = preload("res://Core/Config/PhysicsConfig.gd")
+
+signal action_executed(turn_id: int, action: String, result: Dictionary)
+signal bridge_idle()
+signal bridge_stopped()
 
 var _queue_path = "user://rig/queue.jsonl"
 var _result_path = "user://rig/results.jsonl"
@@ -55,10 +81,14 @@ var _shell = null
 var _farm_instrument = null
 var _instrument = null  # QuantumInstrument
 var _farm = null
-var _loop_started: bool = false
 var _last_offers: Array = []
 var _is_headless: bool = true
 var _turn_log_enabled: bool = true
+var _polling: bool = false  # Re-entrancy guard for async commands (e.g. victory_lap visual delays)
+
+
+func _phrame_hz() -> float:
+	return float(PhysicsConfig.PHRAME_HZ)
 
 
 func _init() -> void:
@@ -93,8 +123,19 @@ func _bootstrap() -> void:
 	_shell = PlayerShellScene.instantiate()
 	farm_view.add_child(_shell)
 
-	# Boot UI so FarmInstrument exists (no visualization in headless)
-	await boot_manager.boot_ui(_farm, _shell, null)
+	# Create visualization when running with display (viz = outflow)
+	var quantum_viz = null
+	if not _is_headless:
+		quantum_viz = QuantumForceGraph.new()
+		farm_view.add_child(quantum_viz)
+		quantum_viz.top_level = true
+		quantum_viz.position = Vector2.ZERO
+		quantum_viz.z_index = 100
+
+	# boot_ui wires biomes → quantum_viz via _stage_visualization.
+	# Farm signals (terminal_bound, etc.) already connected by boot_ui's
+	# connect_to_farm() call — no extra wiring needed.
+	await boot_manager.boot_ui(_farm, _shell, quantum_viz)
 
 	_on_ready()
 
@@ -102,17 +143,19 @@ func _bootstrap() -> void:
 func _on_ready() -> void:
 	_ensure_rig_dir()
 	_apply_rig_logger_profile()
-	_write_bridge_ready_sentinel()
 	if _shell and "farm_instrument" in _shell:
 		_farm_instrument = _shell.farm_instrument
 		if _farm_instrument and "instrument" in _farm_instrument:
 			_instrument = _farm_instrument.instrument
 	var turn_log_env = OS.get_environment("RIG_VERBOSE_TURN_LOG").to_lower()
-	_turn_log_enabled = (not _is_headless) or (turn_log_env in ["1", "true", "yes", "on"])
-	print("🎛️ Rig ready. Waiting for turns in:", _queue_path)
-	if not _loop_started:
-		_loop_started = true
-		call_deferred("_run_loop")
+	if turn_log_env == "":
+		var profile = OS.get_environment("RIG_LOG_PROFILE").to_lower()
+		_turn_log_enabled = (not _is_headless) or (profile in ["debug", "trace", "test"])
+	else:
+		_turn_log_enabled = (not _is_headless) or (turn_log_env in ["1", "true", "yes", "on"])
+	print("🎛️ Rig ready (%dHz phrame clock). Waiting for turns in:" % int(_phrame_hz()), _queue_path)
+	_write_bridge_ready_sentinel()
+	physics_frame.connect(_on_physics_frame)
 
 
 func _turn_log(level: String, turn_id: int, action: String, details: String = "") -> void:
@@ -130,11 +173,13 @@ func _ensure_runtime_unpaused_for_rig() -> bool:
 	return true
 
 
-func _run_loop() -> void:
-	while true:
-		_poll_queue()
-		# process_always=true prevents deadlock if UI/menu pauses the SceneTree.
-		await create_timer(0.1, true).timeout
+func _on_physics_frame() -> void:
+	if _polling:
+		return
+	_polling = true
+	_ensure_runtime_unpaused_for_rig()
+	await _poll_queue()
+	_polling = false
 
 
 func _poll_queue() -> void:
@@ -155,7 +200,9 @@ func _poll_queue() -> void:
 		var raw = raw_line.strip_edges()
 		if raw == "":
 			continue
-		_handle_line(raw)
+		await _handle_line(raw)
+		if not _is_headless:
+			break  # Visual: one action per physics tick
 	file.close()
 
 
@@ -189,10 +236,28 @@ func _requires_farm_instrument(action: String) -> bool:
 		"lindblad_pump",
 		"lindblad_drain",
 		"time_skip",
+		"set_stride",
+		"set_resolution",
+		"get_timescale",
+		"set_timescale_objective",
+		"get_timescale_objective",
+		"clear_timescale_objective",
+		"timescale_projection",
+		"recommend_timescale",
+		"auto_timescale",
 		"configure_economy",
 		"victory_lap",
 		"victory_lap_partial",
 		"batcher_metrics",
+		"balance_snapshot",
+		"balance_patch",
+		"balance_reset",
+		"balance_export",
+		"balance_load",
+		"overlay_snapshot",
+		"widget_snapshot",
+		"hud_snapshot",
+		"full_snapshot",
 	]
 
 
@@ -218,7 +283,7 @@ func _handle_line(raw: String) -> void:
 	var turn_id = int(cmd.get("turn", -1))
 	_turn_log("BEGIN", turn_id, action)
 	_ensure_runtime_unpaused_for_rig()
-	var result = _execute_command(cmd)
+	var result = await _execute_command(cmd)
 	result["turn"] = turn_id
 	result["action"] = action
 	_write_result(result)
@@ -227,7 +292,9 @@ func _handle_line(raw: String) -> void:
 		_turn_log("END", turn_id, action, "ok=true dur=%sms" % [str(result.get("duration_ms", -1))])
 	else:
 		_turn_log("ERR", turn_id, action, "error=%s dur=%sms" % [str(result.get("error", "unknown")), str(result.get("duration_ms", -1))])
+	action_executed.emit(turn_id, action, result)
 	if bool(result.get("__stop__", false)):
+		bridge_stopped.emit()
 		quit()
 
 
@@ -237,13 +304,18 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 	var started = Time.get_ticks_msec()
 
 	if _requires_farm_instrument(action) and not _ensure_farm_instrument():
-		return {
-			"ok": false,
-			"turn": turn_id,
-			"action": action,
-			"error": "no_farm_instrument",
-			"duration_ms": Time.get_ticks_msec() - started
-		}
+		# Readiness race guard: allow one frame for shell wiring to settle.
+		await process_frame
+		if _ensure_farm_instrument():
+			pass
+		else:
+			return {
+				"ok": false,
+				"turn": turn_id,
+				"action": action,
+				"error": "no_farm_instrument",
+				"duration_ms": Time.get_ticks_msec() - started
+			}
 
 	var result: Dictionary = {"ok": true, "turn": turn_id, "action": action}
 
@@ -438,6 +510,66 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 							"resources": final_resources,
 						}
 
+		"set_stride":
+			var biome_name = str(cmd.get("biome", ""))
+			var stride = int(cmd.get("stride", 1))
+			if biome_name == "":
+				result = {"ok": false, "turn": turn_id, "action": action, "error": "missing_biome"}
+			else:
+				result["stride_result"] = _farm_instrument.set_biome_stride(biome_name, stride)
+
+		"set_resolution":
+			var biome_name = str(cmd.get("biome", ""))
+			var dt = float(cmd.get("dt", 0.02))
+			if biome_name == "":
+				result = {"ok": false, "turn": turn_id, "action": action, "error": "missing_biome"}
+			else:
+				result["resolution_result"] = _farm_instrument.set_biome_resolution(biome_name, dt)
+
+		"get_timescale":
+			var biome_name = str(cmd.get("biome", ""))
+			if biome_name == "":
+				result = {"ok": false, "turn": turn_id, "action": action, "error": "missing_biome"}
+			else:
+				result["timescale"] = _farm_instrument.get_biome_timescale(biome_name)
+
+		"set_timescale_objective":
+			var objective = cmd.get("objective", {})
+			if not (objective is Dictionary):
+				result = {"ok": false, "turn": turn_id, "action": action, "error": "invalid_objective"}
+			else:
+				result["timescale_objective"] = _farm_instrument.set_timescale_objective(objective)
+
+		"get_timescale_objective":
+			result["timescale_objective"] = _farm_instrument.get_timescale_objective()
+
+		"clear_timescale_objective":
+			result["timescale_objective"] = _farm_instrument.clear_timescale_objective()
+
+		"timescale_projection":
+			var biome_name = str(cmd.get("biome", ""))
+			var top_k = int(cmd.get("top_k", -1))
+			if biome_name == "":
+				result = {"ok": false, "turn": turn_id, "action": action, "error": "missing_biome"}
+			else:
+				result["timescale_projection"] = _farm_instrument.get_timescale_projection(biome_name, top_k)
+
+		"recommend_timescale":
+			var biome_name = str(cmd.get("biome", ""))
+			var top_k = int(cmd.get("top_k", -1))
+			if biome_name == "":
+				result = {"ok": false, "turn": turn_id, "action": action, "error": "missing_biome"}
+			else:
+				result["recommendation"] = _farm_instrument.recommend_timescale(biome_name, top_k)
+
+		"auto_timescale":
+			var biome_name = str(cmd.get("biome", ""))
+			var top_k = int(cmd.get("top_k", -1))
+			if biome_name == "":
+				result = {"ok": false, "turn": turn_id, "action": action, "error": "missing_biome"}
+			else:
+				result["auto_timescale"] = _farm_instrument.auto_apply_timescale(biome_name, top_k)
+
 		"configure_economy":
 			var overrides = cmd.get("overrides", {})
 			if not (overrides is Dictionary) or overrides.is_empty():
@@ -478,7 +610,7 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 			if _instrument:
 				result["victory_lap"] = _instrument.victory_lap()
 			else:
-				result["victory_lap"] = _run_victory_lap()
+				result["victory_lap"] = await _run_victory_lap()
 
 		"victory_lap_partial":
 			var selected_biomes_raw = cmd.get("selected_biomes", [])
@@ -509,6 +641,28 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 		"batcher_metrics":
 			result["metrics"] = _farm_instrument.get_batcher_metrics() if _farm_instrument else {}
 
+		"balance_snapshot":
+			result["balance"] = _farm_instrument.get_balance_snapshot()
+
+		"balance_patch":
+			var patch = cmd.get("patch", {})
+			if not (patch is Dictionary) or patch.is_empty():
+				result = {"ok": false, "turn": turn_id, "action": action, "error": "empty_patch"}
+			else:
+				var source = str(cmd.get("source", "rig_balance_patch"))
+				result["balance"] = _farm_instrument.patch_balance(patch, source)
+
+		"balance_reset":
+			result["balance"] = _farm_instrument.reset_balance_to_default()
+
+		"balance_export":
+			var export_path = str(cmd.get("path", "user://saves/balance_profile_last.json"))
+			result["balance"] = _farm_instrument.export_balance_profile(export_path)
+
+		"balance_load":
+			var load_path = str(cmd.get("path", ""))
+			result["balance"] = _farm_instrument.load_balance_profile(load_path)
+
 		"save_game":
 			var slot = int(cmd.get("slot", -1))
 			var gsm = get_root().get_node_or_null("GameStateManager")
@@ -518,6 +672,20 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 				result["slot"] = slot
 				result["saved"] = gsm.save_game(slot)
 				result["save_path"] = gsm.get_save_path(slot) if gsm.has_method("get_save_path") else ""
+
+		"save_game_path":
+			var save_path = str(cmd.get("path", ""))
+			var gsm = get_root().get_node_or_null("GameStateManager")
+			if not gsm:
+				result = {"ok": false, "turn": turn_id, "action": action, "error": "no_game_state_manager"}
+			elif save_path == "":
+				result = {"ok": false, "turn": turn_id, "action": action, "error": "missing_save_path"}
+			else:
+				result["path"] = save_path
+				if gsm.has_method("save_game_to_path"):
+					result["saved"] = gsm.save_game_to_path(save_path)
+				else:
+					result = {"ok": false, "turn": turn_id, "action": action, "error": "save_game_to_path_unavailable"}
 
 		"load_game":
 			var slot = int(cmd.get("slot", -1))
@@ -547,6 +715,58 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 			else:
 				result["slot"] = slot
 				result["info"] = gsm.get_save_info(slot)
+
+		"overlay_snapshot":
+			var overlay_name = str(cmd.get("overlay", ""))
+			if overlay_name == "":
+				result = {"ok": false, "turn": turn_id, "action": action, "error": "missing_overlay_name"}
+			else:
+				var overlay_manager = _shell.overlay_manager if _shell and "overlay_manager" in _shell else null
+				var overlay = overlay_manager.get_v2_overlay(overlay_name) if overlay_manager else null
+				if overlay and overlay.has_method("get_snapshot"):
+					result["overlay"] = overlay_name
+					result["snapshot"] = overlay.get_snapshot()
+				else:
+					result = {"ok": false, "turn": turn_id, "action": action,
+						"error": "overlay_not_found", "overlay": overlay_name}
+
+		"widget_snapshot":
+			var widget_name = str(cmd.get("widget", ""))
+			if widget_name == "":
+				result = {"ok": false, "turn": turn_id, "action": action, "error": "missing_widget_name"}
+			else:
+				var widget = _resolve_widget(widget_name)
+				if widget and widget.has_method("get_snapshot"):
+					result["widget"] = widget_name
+					result["snapshot"] = widget.get_snapshot()
+				else:
+					result = {"ok": false, "turn": turn_id, "action": action,
+						"error": "widget_not_found", "widget": widget_name}
+
+		"hud_snapshot":
+			var hud_name = str(cmd.get("hud", ""))
+			if hud_name == "":
+				result = {"ok": false, "turn": turn_id, "action": action, "error": "missing_hud_name"}
+			else:
+				var hud = _resolve_hud(hud_name)
+				if hud and hud.has_method("get_snapshot"):
+					result["hud"] = hud_name
+					result["snapshot"] = hud.get_snapshot()
+				else:
+					result = {"ok": false, "turn": turn_id, "action": action,
+						"error": "hud_not_found", "hud": hud_name}
+
+		"full_snapshot":
+			var snapshot: Dictionary = {"widgets": {}, "huds": {}}
+			for wname in ["resources", "action_preview", "quantum_mode", "biome_oval", "quest_panel", "faction_browser"]:
+				var w = _resolve_widget(wname)
+				if w and w.has_method("get_snapshot"):
+					snapshot["widgets"][wname] = w.get_snapshot()
+			for hname in ["milk_hunter", "performance"]:
+				var h = _resolve_hud(hname)
+				if h and h.has_method("get_snapshot"):
+					snapshot["huds"][hname] = h.get_snapshot()
+			result["snapshot"] = snapshot
 
 		"stop":
 			result["stopped"] = true
@@ -609,61 +829,11 @@ func _apply_rig_logger_profile() -> void:
 	var verbose = get_root().get_node_or_null("VerboseConfig")
 	if not verbose:
 		return
-
 	var profile = OS.get_environment("RIG_LOG_PROFILE").to_lower()
 	if profile == "":
 		profile = "quiet"
-
-	match profile:
-		"quiet":
-			verbose.enable_console_output = false
-			verbose.enable_file_logging = false
-		"test", "trace":
-			_set_all_logger_levels(verbose, 4)
-		"debug":
-			_set_all_logger_levels(verbose, 3)
-		"normal":
-			pass
-
 	var overrides_raw = OS.get_environment("RIG_LOG_CATEGORY_LEVELS")
-	if overrides_raw == "":
-		return
-	for token in overrides_raw.split(","):
-		var trimmed = token.strip_edges()
-		if trimmed == "":
-			continue
-		var kv = trimmed.split(":")
-		if kv.size() != 2:
-			continue
-		var category = kv[0].strip_edges().to_lower()
-		var level_name = kv[1].strip_edges().to_lower()
-		var level = _parse_log_level(level_name)
-		if level >= 0 and verbose.has_method("set_category_level"):
-			verbose.set_category_level(category, level)
-
-
-func _set_all_logger_levels(verbose: Node, level: int) -> void:
-	if not verbose.has_method("get_all_categories") or not verbose.has_method("set_category_level"):
-		return
-	var categories = verbose.get_all_categories()
-	for category in categories:
-		verbose.set_category_level(str(category), level)
-
-
-func _parse_log_level(level_name: String) -> int:
-	match level_name:
-		"error":
-			return 0
-		"warn", "warning":
-			return 1
-		"info":
-			return 2
-		"debug":
-			return 3
-		"trace":
-			return 4
-		_:
-			return -1
+	verbose.apply_runtime_profile(profile, overrides_raw)
 
 
 func _slim_offers(offers: Array, include_reward_resources: bool = true) -> Array:
@@ -781,6 +951,9 @@ func _probe_cycle(biome_name: String) -> Dictionary:
 	return out
 
 
+## Legacy fallback for victory_lap when no _instrument is available.
+## When _instrument is set (standard case), _instrument.victory_lap() is called instead.
+## Canonical implementation lives in QuantumInstrument.victory_lap().
 func _run_victory_lap() -> Dictionary:
 	if not _farm or not _farm.grid or not _farm.grid.biomes:
 		return {"success": false, "error": "no_farm_or_biomes"}
@@ -817,7 +990,7 @@ func _run_victory_lap() -> Dictionary:
 		if terminal_pool.get_unbound_count() <= 0:
 			break
 
-	_apply_visual_stage_delay("explore_batch")
+	await _apply_visual_stage_delay("explore_batch")
 
 	var measure_total = 0
 	var measure_failures: Array = []
@@ -841,7 +1014,7 @@ func _run_victory_lap() -> Dictionary:
 				"details": measure
 			})
 
-	_apply_visual_stage_delay("measure_batch")
+	await _apply_visual_stage_delay("measure_batch")
 
 	var harvest_total = 0
 	var harvest_failures: Array = []
@@ -1064,7 +1237,9 @@ func _apply_visual_stage_delay(stage: String) -> void:
 	var seconds = _get_visual_stage_delay_seconds(stage)
 	if seconds <= 0.0:
 		return
-	OS.delay_msec(int(round(seconds * 1000.0)))
+	var phrames = int(ceil(seconds * _phrame_hz()))
+	for i in range(phrames):
+		await physics_frame
 
 
 func _configure_seed_state(cmd: Dictionary) -> Dictionary:
@@ -1084,6 +1259,8 @@ func _configure_seed_state(cmd: Dictionary) -> Dictionary:
 	var unlocked_biomes = _sanitize_biomes(cmd.get("unlocked_biomes", []))
 	if not unlocked_biomes.is_empty():
 		gsm.current_state.unlocked_biomes = unlocked_biomes.duplicate()
+		if unlocked_biomes.size() > 0 and str(gsm.current_state.active_biome_name) == "":
+			gsm.current_state.active_biome_name = str(unlocked_biomes[0])
 		out["unlocked_biomes"] = unlocked_biomes
 		var default_pool: Array[String] = []
 		var obs = get_root().get_node_or_null("ObservationFrame")
@@ -1107,6 +1284,7 @@ func _configure_seed_state(cmd: Dictionary) -> Dictionary:
 
 	var active_biome = str(cmd.get("active_biome", ""))
 	if active_biome != "":
+		gsm.current_state.active_biome_name = active_biome
 		var obs2 = get_root().get_node_or_null("ObservationFrame")
 		if obs2 and obs2.has_method("set_neutral_biome"):
 			obs2.set_neutral_biome(active_biome)
@@ -1118,36 +1296,13 @@ func _configure_seed_state(cmd: Dictionary) -> Dictionary:
 	return out
 
 
+## Delegate to QuantumInstrument static helpers to avoid duplicate implementations.
 func _sanitize_biomes(raw) -> Array[String]:
-	var out: Array[String] = []
-	var seen: Dictionary = {}
-	if raw is Array:
-		for value in raw:
-			var biome_name = str(value)
-			if biome_name == "" or seen.has(biome_name):
-				continue
-			seen[biome_name] = true
-			out.append(biome_name)
-	return out
+	return QuantumInstrumentClass._sanitize_biomes(raw)
 
 
 func _sanitize_known_pairs(raw) -> Array:
-	var out: Array = []
-	var seen: Dictionary = {}
-	if raw is Array:
-		for pair in raw:
-			if not (pair is Dictionary):
-				continue
-			var north = str(pair.get("north", ""))
-			var south = str(pair.get("south", ""))
-			if north == "" or south == "" or north == south:
-				continue
-			var key = "%s|%s" % [north, south]
-			if seen.has(key):
-				continue
-			seen[key] = true
-			out.append({"north": north, "south": south})
-	return out
+	return QuantumInstrumentClass._sanitize_known_pairs(raw)
 
 
 func _perform_time_skip(phrames: int, delta: float) -> Dictionary:
@@ -1202,6 +1357,19 @@ func _parse_positions(raw_positions, biome_name: String) -> Array[Vector2i]:
 		for entry in raw_positions:
 			if entry is Array and entry.size() >= 2:
 				positions.append(Vector2i(int(entry[0]), int(entry[1])))
+			elif entry is Dictionary:
+				if entry.has("x") and entry.has("y"):
+					positions.append(Vector2i(int(entry.get("x", 0)), int(entry.get("y", 0))))
+			elif entry is String:
+				var raw = str(entry).strip_edges()
+				if raw.begins_with("(") and raw.ends_with(")"):
+					raw = raw.substr(1, raw.length() - 2)
+				var parts = raw.split(",", false)
+				if parts.size() >= 2:
+					var x_raw = parts[0].strip_edges()
+					var y_raw = parts[1].strip_edges()
+					if x_raw.is_valid_int() and y_raw.is_valid_int():
+						positions.append(Vector2i(int(x_raw), int(y_raw)))
 	elif biome_name != "" and _farm_instrument:
 		var biome_positions = _farm_instrument.get_biome_positions(biome_name)
 		for pos in biome_positions:
@@ -1214,3 +1382,58 @@ func _allow_rig_resource_injection() -> bool:
 	if raw == "":
 		return true
 	return raw in ["1", "true", "yes", "on"]
+
+
+func _resolve_widget(widget_name: String):
+	"""Resolve a widget name to the live Control instance (or null)."""
+	var farm_ui = _shell.get_farm_ui() if _shell and _shell.has_method("get_farm_ui") else null
+	match widget_name:
+		"resources":
+			return farm_ui.resource_panel if farm_ui and "resource_panel" in farm_ui else null
+		"action_preview":
+			if _shell and "action_preview_row" in _shell:
+				return _shell.action_preview_row
+			if _shell and "action_bar_manager" in _shell and _shell.action_bar_manager:
+				return _shell.action_bar_manager.action_preview_row
+			return null
+		"quantum_mode":
+			return _shell.quantum_mode_indicator if _shell and "quantum_mode_indicator" in _shell else null
+		"biome_oval":
+			var overlay_manager = _shell.overlay_manager if _shell and "overlay_manager" in _shell else null
+			var overlay = overlay_manager.get_v2_overlay("biome_inspector") if overlay_manager else null
+			if overlay and "current_biome_panel" in overlay:
+				return overlay.current_biome_panel
+			return null
+		"quest_panel":
+			var overlay_manager = _shell.overlay_manager if _shell and "overlay_manager" in _shell else null
+			var overlay = overlay_manager.get_v2_overlay("quests") if overlay_manager else null
+			if overlay and "quest_panel" in overlay:
+				return overlay.quest_panel
+			return null
+		"faction_browser":
+			var overlay_manager = _shell.overlay_manager if _shell and "overlay_manager" in _shell else null
+			var overlay = overlay_manager.get_v2_overlay("quests") if overlay_manager else null
+			if overlay and "faction_browser" in overlay:
+				return overlay.faction_browser
+			return null
+	return null
+
+
+func _resolve_hud(hud_name: String):
+	"""Resolve a HUD name to the live Control instance (or null)."""
+	var farm_view = get_root().get_node_or_null("FarmView") if get_root() else null
+	match hud_name:
+		"milk_hunter":
+			# MilkHunterHUD is a child of FarmView (if created)
+			if farm_view:
+				for child in farm_view.get_children():
+					if child.has_method("get_snapshot") and child.get_class() == "Control" and "MilkHunter" in child.name:
+						return child
+					if "milk_hunter" in str(child.name).to_lower():
+						return child
+			return null
+		"performance":
+			if farm_view and "performance_hud" in farm_view:
+				return farm_view.performance_hud
+			return null
+	return null

@@ -25,4 +25,4 @@ echo "Queue:  user://rig/queue.jsonl"
 echo "Results: user://rig/results.jsonl"
 echo "User dir: $GODOT_USER_DIR"
 
-godot --headless --path . --script Tests/rig_listener.gd
+exec godot --headless --path . --script Tests/rig_listener.gd

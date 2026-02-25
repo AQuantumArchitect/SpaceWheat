@@ -106,11 +106,22 @@ var verbose_vocabulary: bool = false  # Maps to "quest"
 var verbose_farm: bool = false        # Maps to "farm"
 var verbose_network: bool = false     # Maps to "network"
 
+# Baseline profile snapshot for runtime resets
+var _baseline_category_levels: Dictionary = {}
+var _baseline_category_enabled: Dictionary = {}
+var _baseline_console_output: bool = true
+var _baseline_file_logging: bool = false
+
 # ============================================================================
 # INITIALIZATION
 # ============================================================================
 
 func _ready():
+	_baseline_category_levels = category_levels.duplicate(true)
+	_baseline_category_enabled = category_enabled.duplicate(true)
+	_baseline_console_output = enable_console_output
+	_baseline_file_logging = enable_file_logging
+
 	var disable_file_logging = OS.get_environment("DISABLE_VERBOSE_FILE_LOGGING") == "1"
 
 	# Check for --verbose flag or VERBOSE_LOGGING env var
@@ -280,6 +291,106 @@ func get_all_categories() -> Array[String]:
 	for cat in category_levels.keys():
 		cats.append(cat)
 	return cats
+
+
+func apply_runtime_profile(profile_name: String, category_overrides: String = "") -> Dictionary:
+	"""Apply a named profile and optional per-category overrides.
+
+	Used by rig tooling and can be reused by in-game debug controls.
+	"""
+	var profile = profile_name.strip_edges().to_lower()
+	if profile == "":
+		profile = "quiet"
+
+	match profile:
+		"quiet":
+			enable_console_output = false
+			enable_file_logging = false
+			_set_all_category_levels_silent(LogLevel.ERROR)
+		"normal":
+			_restore_baseline_profile()
+			enable_console_output = true
+			enable_file_logging = false
+		"debug":
+			_restore_baseline_profile()
+			enable_console_output = true
+			enable_file_logging = false
+			_set_all_category_levels_silent(LogLevel.DEBUG)
+		"trace", "test":
+			_restore_baseline_profile()
+			enable_console_output = true
+			enable_file_logging = false
+			_set_all_category_levels_silent(LogLevel.TRACE)
+		_:
+			profile = "quiet"
+			enable_console_output = false
+			enable_file_logging = false
+			_set_all_category_levels_silent(LogLevel.ERROR)
+
+	_apply_runtime_overrides(category_overrides)
+	if not enable_file_logging and _log_file:
+		_flush_file()
+		_log_file.close()
+		_log_file = null
+	elif enable_file_logging and not _log_file:
+		_ensure_log_path()
+		_init_file_logging()
+
+	return {
+		"profile": profile,
+		"category_overrides": category_overrides,
+		"enable_console_output": enable_console_output,
+		"enable_file_logging": enable_file_logging,
+	}
+
+
+func _restore_baseline_profile() -> void:
+	if not _baseline_category_levels.is_empty():
+		category_levels = _baseline_category_levels.duplicate(true)
+	if not _baseline_category_enabled.is_empty():
+		category_enabled = _baseline_category_enabled.duplicate(true)
+	enable_console_output = _baseline_console_output
+	enable_file_logging = _baseline_file_logging
+
+
+func _set_all_category_levels_silent(level: int) -> void:
+	for category in category_levels.keys():
+		category_levels[category] = level
+
+
+func _apply_runtime_overrides(overrides_raw: String) -> void:
+	if overrides_raw.strip_edges() == "":
+		return
+	for token in overrides_raw.split(","):
+		var trimmed = token.strip_edges()
+		if trimmed == "":
+			continue
+		var kv = trimmed.split(":")
+		if kv.size() != 2:
+			continue
+		var category = kv[0].strip_edges().to_lower()
+		var level_name = kv[1].strip_edges().to_lower()
+		var level = _parse_runtime_log_level(level_name)
+		if level < 0:
+			continue
+		if category_levels.has(category):
+			category_levels[category] = level
+
+
+func _parse_runtime_log_level(level_name: String) -> int:
+	match level_name:
+		"error":
+			return LogLevel.ERROR
+		"warn", "warning":
+			return LogLevel.WARN
+		"info":
+			return LogLevel.INFO
+		"debug":
+			return LogLevel.DEBUG
+		"trace":
+			return LogLevel.TRACE
+		_:
+			return -1
 
 # ============================================================================
 # LEGACY API (backwards compatibility)

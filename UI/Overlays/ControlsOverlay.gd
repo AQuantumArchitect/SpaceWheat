@@ -169,6 +169,10 @@ func _create_actions_section() -> Control:
 		["F", "Cycle Mode", "Switch tool sub-modes"],
 		["Tab", "PLAY/BUILD", "Toggle between modes"],
 		["Space", "Pause", "Pause/resume evolution"],
+		["-", "Stride Down", "Slower playback (halve), 0=locked"],
+		["=", "Stride Up", "Faster playback (double), up to 256x"],
+		["Shift+-", "Resolution Down", "Finer substeps (10x smaller dt)"],
+		["Shift+=", "Resolution Up", "Coarser substeps (10x larger dt)"],
 		["H", "Harvest All", "Global harvest"]
 	]
 
@@ -241,7 +245,7 @@ func _create_overlays_section() -> Control:
 		["C", "Quest Board", "View and manage quests"],
 		["V", "Vocabulary", "Semantic vocabulary"],
 		["B", "Biome Inspector", "Detailed biome info"],
-		["Shift+B", "Balance Workbench", "Tune action costs and quest reward scalars"],
+		["Shift+B", "Balance Workbench", "One-click auto timescale + probability-ranked emojis (advanced unlocks editing)"],
 		["Z", "Keyboard Help", "This overlay"],
 		["X", "Logger Config", "Debug logging"],
 		["ESC", "Pause Menu", "Save, Load, Quit"]
@@ -412,3 +416,13 @@ func _on_action_f() -> void:
 	compact_mode = not compact_mode
 	_update_section_display()
 	action_performed.emit("toggle_compact", {"compact": compact_mode})
+
+
+func get_snapshot() -> Dictionary:
+	"""Return all currently-displayed state as structured data."""
+	return {
+		"current_section": current_section,
+		"section_name": SECTION_NAMES[current_section],
+		"sections": SECTION_NAMES,
+		"compact_mode": compact_mode
+	}

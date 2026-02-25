@@ -8,6 +8,7 @@ extends HBoxContainer
 
 const FarmEconomy = preload("res://Core/GameMechanics/FarmEconomy.gd")
 const EconomyConstants = preload("res://Core/GameMechanics/EconomyConstants.gd")
+const EmojiDisplay = preload("res://UI/Core/EmojiDisplay.gd")
 
 # Layout manager reference (for dynamic scaling)
 var layout_manager: Node  # Will be UILayoutManager instance
@@ -268,6 +269,16 @@ func _create_ui():
 
 	# Note: Individual resource displays are created dynamically
 	# when connect_to_economy() is called or when resources change
+
+
+func get_snapshot() -> Dictionary:
+	"""Return structured snapshot of visible resources."""
+	var resources: Dictionary = {}
+	for emoji in resource_displays.keys():
+		var data = resource_displays[emoji]
+		if data["units"] > 0:
+			resources[emoji] = data["units"]
+	return {"resources": resources}
 
 
 # Legacy compatibility methods (for code that still uses them)

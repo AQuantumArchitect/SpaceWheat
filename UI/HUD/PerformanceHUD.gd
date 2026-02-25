@@ -7,6 +7,7 @@ const PANEL_BG_COLOR: Color = Color(0.08, 0.10, 0.18, 0.92)
 const PANEL_BORDER_COLOR: Color = Color(0.9, 0.4, 0.4, 0.7)  # Red border for perf warnings
 const PANEL_PADDING: int = 8
 const UPDATE_INTERVAL: int = 30  # Update display every 30 frames (~0.5s at 60fps)
+const UIStyleFactory = preload("res://UI/Core/UIStyleFactory.gd")
 
 var graph_ref = null  # QuantumForceGraph reference
 var frame_counter: int = 0
@@ -316,6 +317,15 @@ func _show_no_data() -> void:
 	draw_label.text = ""
 	bottleneck_label.visible = false
 
+func get_snapshot() -> Dictionary:
+	"""Return structured snapshot of performance HUD state."""
+	return {
+		"fps": Engine.get_frames_per_second(),
+		"process_ms": Performance.get_monitor(Performance.TIME_PROCESS) * 1000.0,
+		"physics_ms": Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS) * 1000.0,
+	}
+
+
 func _build_ui() -> void:
 	"""Build the HUD UI elements."""
 	anchors_preset = Control.PRESET_TOP_RIGHT
@@ -325,36 +335,12 @@ func _build_ui() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	custom_minimum_size = Vector2(300, 200)
 
-	panel = PanelContainer.new()
-	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var scaffold = UIStyleFactory.create_hud_scaffold(PANEL_BG_COLOR, PANEL_BORDER_COLOR, PANEL_PADDING, 6)
+	panel = scaffold.panel
 	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	panel.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
-
-	var panel_style = StyleBoxFlat.new()
-	panel_style.bg_color = PANEL_BG_COLOR
-	panel_style.border_width_top = 2
-	panel_style.border_width_bottom = 2
-	panel_style.border_width_left = 2
-	panel_style.border_width_right = 2
-	panel_style.border_color = PANEL_BORDER_COLOR
-	panel_style.corner_radius_top_left = 6
-	panel_style.corner_radius_top_right = 6
-	panel_style.corner_radius_bottom_left = 6
-	panel_style.corner_radius_bottom_right = 6
-	panel.add_theme_stylebox_override("panel", panel_style)
-
-	var margin = MarginContainer.new()
-	margin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	margin.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	margin.add_theme_constant_override("margin_left", PANEL_PADDING)
-	margin.add_theme_constant_override("margin_top", PANEL_PADDING)
-	margin.add_theme_constant_override("margin_right", PANEL_PADDING)
-	margin.add_theme_constant_override("margin_bottom", PANEL_PADDING)
-
-	vbox = VBoxContainer.new()
-	vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	vbox = scaffold.vbox
 	vbox.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	vbox.add_theme_constant_override("separation", 6)
 
 	# Create labels
 	header_label = _create_label("🔬 Performance", Color(0.95, 0.95, 0.95), true)
@@ -373,8 +359,6 @@ func _build_ui() -> void:
 	vbox.add_child(_create_separator())
 	vbox.add_child(bottleneck_label)
 
-	margin.add_child(vbox)
-	panel.add_child(margin)
 	add_child(panel)
 
 func _profile_node_tree(node: Node, depth: int, max_depth: int) -> void:
@@ -429,23 +413,7 @@ func _v_error(category: String, emoji: String, message: String) -> void:
 
 
 func _create_label(text_value: String, color: Color, bold: bool = false) -> Label:
-	"""Create a styled label."""
-	var label = Label.new()
-	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
-	label.add_theme_color_override("font_color", color)
-	label.text = text_value
-
-	# Use monospace font for better alignment
-	var font_size = 13 if bold else 11
-	label.add_theme_font_size_override("font_size", font_size)
-
-	return label
+	return UIStyleFactory.create_hud_label(text_value, color, 13 if bold else 11)
 
 func _create_separator() -> HSeparator:
-	"""Create a visual separator."""
-	var sep = HSeparator.new()
-	var style = StyleBoxFlat.new()
-	style.bg_color = Color(0.4, 0.4, 0.4, 0.3)
-	sep.add_theme_stylebox_override("separator", style)
-	return sep
+	return UIStyleFactory.create_hud_separator()
