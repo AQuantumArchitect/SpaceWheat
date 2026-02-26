@@ -466,10 +466,6 @@ static func enable_persistent_decay(farm, positions: Array[Vector2i],
 		if plot.has_method("is_active") and not plot.is_active():
 			unbound_plot += 1
 			continue
-		var known_emojis: Array = farm.get_known_emojis() if farm.has_method("get_known_emojis") else []
-		if north_emoji not in known_emojis:
-			insufficient[north_emoji] = insufficient.get(north_emoji, 0) + 1
-			continue
 		if plot and (plot.lindblad_drain_active or plot.lindblad_pump_active):
 			already_active += 1
 			continue
@@ -491,6 +487,8 @@ static func enable_persistent_decay(farm, positions: Array[Vector2i],
 			# Activate only after cost commit: one persistent drain channel per plot.
 			plot.lindblad_drain_active = true
 			plot.lindblad_drain_rate = rate
+			if plot.has_method("_set_infra_field"):
+				plot._set_infra_field("lindblad_harvest_visible", true)
 			activated_count += 1
 
 		charged_count += 1

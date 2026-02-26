@@ -140,6 +140,104 @@ func get_batcher_metrics() -> Dictionary:
 	return {}
 
 
+func get_probability_map(biome_name: String = "") -> Dictionary:
+	"""Return normalized probability map from live IconMap exposure payloads."""
+	if not farm or not ("biome_evolution_batcher" in farm) or not farm.biome_evolution_batcher:
+		return {"ok": false, "error": "no_batcher"}
+	var batcher = farm.biome_evolution_batcher
+	var payload: Dictionary = {}
+	if biome_name == "":
+		if batcher.has_method("get_global_probability_map"):
+			payload = batcher.get_global_probability_map()
+	else:
+		if batcher.has_method("get_biome_probability_map"):
+			payload = batcher.get_biome_probability_map(biome_name)
+	return {
+		"ok": true,
+		"scope": "global" if biome_name == "" else "biome",
+		"biome": biome_name,
+		"map": payload
+	}
+
+
+func get_lindblad_snapshot(biome_name: String = "", include_populations: bool = true) -> Dictionary:
+	"""Return no-guess diagnostics for lindblad channels, accumulators, and flux."""
+	if not farm or not ("grid" in farm) or not farm.grid:
+		return {"ok": false, "error": "no_grid"}
+	var grid = farm.grid
+	var plots = grid.plots if "plots" in grid else {}
+	var plot_channels: Array = []
+	var active_plot_count = 0
+
+	for pos in plots.keys():
+		var plot = plots[pos]
+		if not plot:
+			continue
+		if not plot.lindblad_pump_active and not plot.lindblad_drain_active:
+			continue
+		var biome = grid.get_biome_for_plot(pos)
+		var bname = ""
+		if biome and biome.has_method("get_biome_type"):
+			bname = str(biome.get_biome_type())
+		elif biome and "name" in biome:
+			bname = str(biome.name)
+		if biome_name != "" and bname != biome_name:
+			continue
+		var pair = {}
+		if farm.has_method("_get_lindblad_pair_for_plot"):
+			pair = farm._get_lindblad_pair_for_plot(plot, pos)
+		elif plot.has_method("get_plot_emojis"):
+			pair = plot.get_plot_emojis()
+		plot_channels.append({
+			"grid_pos": {"x": int(pos.x), "y": int(pos.y)},
+			"biome": bname,
+			"north": str(pair.get("north", "")),
+			"south": str(pair.get("south", "")),
+			"pump_active": bool(plot.lindblad_pump_active),
+			"pump_rate": float(plot.lindblad_pump_rate),
+			"drain_active": bool(plot.lindblad_drain_active),
+			"drain_rate": float(plot.lindblad_drain_rate),
+			"drain_accumulator": float(plot.lindblad_drain_accumulator),
+			"harvest_visible": bool(plot._get_infra_field("lindblad_harvest_visible", false)) if plot.has_method("_get_infra_field") else false
+		})
+		active_plot_count += 1
+
+	var biomes_data: Dictionary = {}
+	if "biomes" in grid and grid.biomes:
+		for bkey in grid.biomes.keys():
+			var biome = grid.biomes[bkey]
+			if not biome:
+				continue
+			var bname = str(bkey)
+			if biome_name != "" and bname != biome_name:
+				continue
+			var stride = int(biome.observation_stride) if "observation_stride" in biome else 1
+			var max_dt = float(biome.max_evolution_dt) if "max_evolution_dt" in biome else 0.02
+			var sink_fluxes: Dictionary = {}
+			var populations: Dictionary = {}
+			if biome.quantum_computer:
+				if biome.quantum_computer.has_method("get_all_sink_fluxes"):
+					sink_fluxes = biome.quantum_computer.get_all_sink_fluxes()
+				if include_populations and biome.quantum_computer.has_method("get_all_populations"):
+					populations = biome.quantum_computer.get_all_populations()
+			biomes_data[bname] = {
+				"stride": stride,
+				"max_evolution_dt": max_dt,
+				"sink_fluxes": sink_fluxes,
+				"populations": populations
+			}
+
+	return {
+		"ok": true,
+		"biome_filter": biome_name,
+		"active_plot_channels": plot_channels,
+		"active_plot_count": active_plot_count,
+		"biomes": biomes_data,
+		"rainbow_mode": bool(farm._is_rainbow_drain_mode()) if farm and farm.has_method("_is_rainbow_drain_mode") else true,
+		"rainbow_accumulators": farm.lindblad_rainbow_accumulators.duplicate(true) if ("lindblad_rainbow_accumulators" in farm) else {}
+	}
+
+
 func add_resource(emoji: String, credits_amount: int, reason: String = "rig_seed") -> bool:
 	"""Add emoji-credits directly to economy (used by QA rigs)."""
 	var economy = _get_economy()

@@ -40,7 +40,15 @@ func _ready():
 	# ═══════════════════════════════════════════════════════════════════════
 	# BOOT CORE (GameStateManager owns Farm)
 	# ═══════════════════════════════════════════════════════════════════════
-	farm = await _boot_mgr.boot_core(-1, "default", is_headless)
+	# Consume pending_restart_slot if a restart was requested (R key / ESC menu).
+	# -1 means fresh game; >=0 means load that slot through the normal boot path.
+	var gsm = get_node_or_null("/root/GameStateManager")
+	var load_slot := -1
+	if gsm and gsm.pending_restart_slot >= 0:
+		load_slot = gsm.pending_restart_slot
+		gsm.pending_restart_slot = -1
+		_verbose.info("ui", "🔄", "Restarting into save slot %d" % load_slot)
+	farm = await _boot_mgr.boot_core(load_slot, "default", is_headless)
 	if not farm:
 		_verbose.warn("ui", "❌", "Farm not available after core boot")
 		return

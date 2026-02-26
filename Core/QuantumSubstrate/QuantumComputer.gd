@@ -549,6 +549,7 @@ func _ensure_register_infra(reg_id: int) -> Dictionary:
 			"lindblad_pump_active": false, "lindblad_pump_rate": 0.5,
 			"lindblad_drain_active": false, "lindblad_drain_rate": 0.5,
 			"lindblad_drain_accumulator": 0.0,
+			"lindblad_harvest_visible": false,
 			"theta_frozen": false,
 			"persistent_gates": [],
 			"entanglement_blueprints": [],

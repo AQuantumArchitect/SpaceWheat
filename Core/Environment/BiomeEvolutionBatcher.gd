@@ -782,17 +782,26 @@ func _get_coupling_payload_from_viz_cache(biome) -> Dictionary:
 	# Extract it by querying all emojis
 	var hamiltonian_couplings: Dictionary = {}
 	var lindblad_outgoing: Dictionary = {}
+	var sink_fluxes: Dictionary = {}
 
 	var qc = biome.quantum_computer
 	var register_map = qc.register_map
 
 	for emoji in register_map.coordinates.keys():
 		hamiltonian_couplings[emoji] = biome.viz_cache.get_hamiltonian_couplings(emoji)
-		lindblad_outgoing[emoji] = biome.viz_cache.get_lindblad_outgoing(emoji)
+		var outgoing = biome.viz_cache.get_lindblad_outgoing(emoji)
+		lindblad_outgoing[emoji] = outgoing
+		var total_rate = 0.0
+		if outgoing is Dictionary:
+			for target in outgoing.keys():
+				total_rate += absf(float(outgoing.get(target, 0.0)))
+		if total_rate > 0.0:
+			sink_fluxes[emoji] = total_rate
 
 	return {
 		"hamiltonian": hamiltonian_couplings,
-		"lindblad": lindblad_outgoing
+		"lindblad": lindblad_outgoing,
+		"sink_fluxes": sink_fluxes
 	}
 
 
@@ -2195,7 +2204,12 @@ func _apply_buffered_step(biome, apply_post: bool = true) -> void:
 		var coupling_payload = coupling_payloads.get(biome_name, {})
 		if coupling_payload:
 			biome.viz_cache.update_couplings_from_payload(coupling_payload)
-		var icon_map_payload = icon_map_payloads.get(biome_name, {})
+		var icon_map_payload = _decorate_icon_map_payload_with_flow(
+			biome_name,
+			biome,
+			icon_map_payloads.get(biome_name, {})
+		)
+		icon_map_payloads[biome_name] = icon_map_payload
 		if icon_map_payload:
 			biome.viz_cache.update_icon_map(icon_map_payload)
 
@@ -2203,7 +2217,6 @@ func _apply_buffered_step(biome, apply_post: bool = true) -> void:
 		_abs_other_us += (t4 - t3)
 
 	buffer_cursors[biome_name] = cursor + 1
-	_accumulate_sink_flux_from_couplings(biome, LOOKAHEAD_DT)
 
 	# Increment cumulative evolution count (for music ghost timer sync)
 	biome_evolution_counts[biome_name] = biome_evolution_counts.get(biome_name, 0) + 1
@@ -2278,7 +2291,11 @@ func _prime_single_biome(biome, biome_id: int) -> void:
 	purity_buffers[biome_name] = result.get("purity_steps", [])
 	metadata_payloads[biome_name] = result.get("metadata", metadata_payloads.get(biome_name, {}))
 	coupling_payloads[biome_name] = result.get("couplings", coupling_payloads.get(biome_name, {}))
-	icon_map_payloads[biome_name] = result.get("icon_map", icon_map_payloads.get(biome_name, {}))
+	icon_map_payloads[biome_name] = _decorate_icon_map_payload_with_flow(
+		biome_name,
+		biome,
+		result.get("icon_map", icon_map_payloads.get(biome_name, {}))
+	)
 
 	_apply_buffered_step(biome, false)
 
@@ -2420,7 +2437,9 @@ func _physics_process_rotation(delta: float):
 func get_global_icon_map() -> Dictionary:
 	"""Aggregate IconMap payloads across all biomes (resource vocabulary)."""
 	var by_emoji: Dictionary = {}
+	var sink_flux_by_emoji: Dictionary = {}
 	var total = 0.0
+	var sink_flux_total = 0.0
 	var steps = 0
 	var biome_count = 0
 
@@ -2437,6 +2456,13 @@ func get_global_icon_map() -> Dictionary:
 		for emoji in local.keys():
 			var weight = float(local[emoji])
 			by_emoji[emoji] = by_emoji.get(emoji, 0.0) + weight
+		var sink_fluxes = payload.get("sink_fluxes", {})
+		if sink_fluxes is Dictionary and not sink_fluxes.is_empty():
+			for emoji in sink_fluxes.keys():
+				var flux = maxf(0.0, float(sink_fluxes.get(emoji, 0.0)))
+				if flux <= 0.0:
+					continue
+				sink_flux_by_emoji[emoji] = sink_flux_by_emoji.get(emoji, 0.0) + flux
 
 	var emojis: Array = by_emoji.keys()
 	emojis.sort_custom(func(a, b): return by_emoji[a] > by_emoji[b])
@@ -2448,15 +2474,184 @@ func get_global_icon_map() -> Dictionary:
 		var weight = float(by_emoji[emoji])
 		weights[i] = weight
 		total += weight
+	for emoji in sink_flux_by_emoji.keys():
+		sink_flux_total += maxf(0.0, float(sink_flux_by_emoji.get(emoji, 0.0)))
 
 	return {
 		"emojis": emojis,
 		"weights": weights,
 		"by_emoji": by_emoji,
+		"sink_fluxes": sink_flux_by_emoji,
+		"sink_flux_total": sink_flux_total,
 		"steps": steps,
 		"total": total,
 		"num_biomes": biome_count
 	}
+
+
+func _decorate_icon_map_payload_with_flow(biome_name: String, biome, payload: Dictionary) -> Dictionary:
+	"""Attach sink-flux rates + live sink flux snapshot to IconMap payload."""
+	var out = payload.duplicate(true) if payload is Dictionary else {}
+
+	var rates = get_biome_sink_flux_rates(biome_name)
+	if rates is Dictionary and not rates.is_empty():
+		out["sink_flux_rates"] = rates
+
+	var sink_fluxes: Dictionary = {}
+	if _is_valid_biome(biome) and biome.quantum_computer and biome.quantum_computer.has_method("get_all_sink_fluxes"):
+		sink_fluxes = biome.quantum_computer.get_all_sink_fluxes()
+	if sink_fluxes is Dictionary:
+		var cleaned: Dictionary = {}
+		var total = 0.0
+		for emoji in sink_fluxes.keys():
+			var flux = maxf(0.0, float(sink_fluxes.get(emoji, 0.0)))
+			if flux <= 0.0:
+				continue
+			cleaned[emoji] = flux
+			total += flux
+		if not cleaned.is_empty():
+			out["sink_fluxes"] = cleaned
+			out["sink_flux_total"] = total
+		else:
+			out.erase("sink_fluxes")
+			out.erase("sink_flux_total")
+
+	return out
+
+
+func _build_probability_map_from_icon_payload(payload: Dictionary) -> Dictionary:
+	"""Normalize IconMap exposure weights into a probability map (sum = 1 when non-empty)."""
+	if payload.is_empty():
+		return {
+			"emojis": [],
+			"weights": PackedFloat64Array(),
+			"by_emoji": {},
+			"total": 0.0,
+			"source_total": 0.0,
+			"steps": 0
+		}
+
+	var by_emoji_raw = payload.get("by_emoji", {})
+	if not (by_emoji_raw is Dictionary) or by_emoji_raw.is_empty():
+		return {
+			"emojis": [],
+			"weights": PackedFloat64Array(),
+			"by_emoji": {},
+			"total": 0.0,
+			"source_total": 0.0,
+			"steps": int(payload.get("steps", 0))
+		}
+
+	var source_total = maxf(0.0, float(payload.get("total", 0.0)))
+	if source_total <= 0.0:
+		for emoji in by_emoji_raw.keys():
+			source_total += maxf(0.0, float(by_emoji_raw.get(emoji, 0.0)))
+
+	if source_total <= 0.0:
+		return {
+			"emojis": [],
+			"weights": PackedFloat64Array(),
+			"by_emoji": {},
+			"total": 0.0,
+			"source_total": 0.0,
+			"steps": int(payload.get("steps", 0))
+		}
+
+	var by_emoji: Dictionary = {}
+	var emojis: Array = by_emoji_raw.keys()
+	for emoji in emojis:
+		by_emoji[emoji] = maxf(0.0, float(by_emoji_raw.get(emoji, 0.0))) / source_total
+	emojis.sort_custom(func(a, b): return float(by_emoji.get(a, 0.0)) > float(by_emoji.get(b, 0.0)))
+
+	var weights = PackedFloat64Array()
+	weights.resize(emojis.size())
+	var total = 0.0
+	for i in range(emojis.size()):
+		var emoji = emojis[i]
+		var prob = float(by_emoji.get(emoji, 0.0))
+		weights[i] = prob
+		total += prob
+
+	return {
+		"emojis": emojis,
+		"weights": weights,
+		"by_emoji": by_emoji,
+		"total": total,
+		"source_total": source_total,
+		"steps": int(payload.get("steps", 0)),
+		"source": "icon_map"
+	}
+
+
+func _build_probability_map_from_populations(by_emoji_raw: Dictionary) -> Dictionary:
+	"""Build probability map from live quantum populations when IconMap payload is missing."""
+	if by_emoji_raw.is_empty():
+		return {
+			"emojis": [],
+			"weights": PackedFloat64Array(),
+			"by_emoji": {},
+			"total": 0.0,
+			"source_total": 0.0,
+			"steps": 1,
+			"source": "qc_populations"
+		}
+
+	var source_total = 0.0
+	for emoji in by_emoji_raw.keys():
+		source_total += maxf(0.0, float(by_emoji_raw.get(emoji, 0.0)))
+	if source_total <= 0.0:
+		return {
+			"emojis": [],
+			"weights": PackedFloat64Array(),
+			"by_emoji": {},
+			"total": 0.0,
+			"source_total": 0.0,
+			"steps": 1,
+			"source": "qc_populations"
+		}
+
+	var by_emoji: Dictionary = {}
+	var emojis: Array = by_emoji_raw.keys()
+	for emoji in emojis:
+		by_emoji[emoji] = maxf(0.0, float(by_emoji_raw.get(emoji, 0.0))) / source_total
+	emojis.sort_custom(func(a, b): return float(by_emoji.get(a, 0.0)) > float(by_emoji.get(b, 0.0)))
+
+	var weights = PackedFloat64Array()
+	weights.resize(emojis.size())
+	var total = 0.0
+	for i in range(emojis.size()):
+		var emoji = emojis[i]
+		var prob = float(by_emoji.get(emoji, 0.0))
+		weights[i] = prob
+		total += prob
+
+	return {
+		"emojis": emojis,
+		"weights": weights,
+		"by_emoji": by_emoji,
+		"total": total,
+		"source_total": source_total,
+		"steps": 1,
+		"source": "qc_populations"
+	}
+
+
+func get_global_probability_map() -> Dictionary:
+	"""Return normalized global probability map derived from IconMap exposure data."""
+	var icon_map = get_global_icon_map()
+	var out = _build_probability_map_from_icon_payload(icon_map)
+	if float(out.get("total", 0.0)) <= 0.0:
+		var populations: Dictionary = {}
+		for biome in biomes:
+			if not _is_valid_biome(biome) or not biome.quantum_computer:
+				continue
+			if biome.quantum_computer.has_method("get_all_populations"):
+				var local = biome.quantum_computer.get_all_populations()
+				for emoji in local.keys():
+					populations[emoji] = float(populations.get(emoji, 0.0)) + maxf(0.0, float(local.get(emoji, 0.0)))
+		out = _build_probability_map_from_populations(populations)
+	out["num_biomes"] = int(icon_map.get("num_biomes", 0))
+	return out
 
 
 func get_biome_icon_map(biome_name: String) -> Dictionary:
@@ -2467,6 +2662,38 @@ func get_biome_icon_map(biome_name: String) -> Dictionary:
 	if payload is Dictionary:
 		return payload.duplicate(true)
 	return {}
+
+
+func get_biome_sink_flux_rates(biome_name: String) -> Dictionary:
+	"""Return per-emoji sink flux rates for a biome from coupling payloads."""
+	if biome_name == "":
+		return {}
+	var payload = coupling_payloads.get(biome_name, {})
+	if not (payload is Dictionary):
+		return {}
+	var sink_fluxes = payload.get("sink_fluxes", {})
+	if sink_fluxes is Dictionary:
+		return sink_fluxes.duplicate(true)
+	return {}
+
+
+func get_biome_probability_map(biome_name: String) -> Dictionary:
+	"""Return normalized probability map for a single biome."""
+	if biome_name == "":
+		return {}
+	var payload = get_biome_icon_map(biome_name)
+	var out = _build_probability_map_from_icon_payload(payload)
+	if float(out.get("total", 0.0)) > 0.0:
+		return out
+	for biome in biomes:
+		if not _is_valid_biome(biome):
+			continue
+		if _get_biome_name(biome) != biome_name:
+			continue
+		if biome.quantum_computer and biome.quantum_computer.has_method("get_all_populations"):
+			return _build_probability_map_from_populations(biome.quantum_computer.get_all_populations())
+		break
+	return out
 
 
 func run_additional_cycles(cycles: int, biome_names: Array = []) -> Dictionary:
@@ -2702,7 +2929,6 @@ func _run_direct_biome_cycle(biome, dt: float, max_dt_override: float = -1.0) ->
 	if biome.quantum_computer.has_method("get_purity"):
 		biome.viz_cache.update_purity(biome.quantum_computer.get_purity())
 
-	_accumulate_sink_flux_from_couplings(biome, dt)
 	_post_evolution_update(biome)
 	var biome_name = _get_biome_name(biome)
 	biome_evolution_counts[biome_name] = biome_evolution_counts.get(biome_name, 0) + 1

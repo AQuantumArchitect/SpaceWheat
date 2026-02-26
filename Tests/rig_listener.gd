@@ -249,6 +249,8 @@ func _requires_farm_instrument(action: String) -> bool:
 		"victory_lap",
 		"victory_lap_partial",
 		"batcher_metrics",
+		"probability_map",
+		"lindblad_snapshot",
 		"balance_snapshot",
 		"balance_patch",
 		"balance_reset",
@@ -640,6 +642,15 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 
 		"batcher_metrics":
 			result["metrics"] = _farm_instrument.get_batcher_metrics() if _farm_instrument else {}
+
+		"probability_map":
+			var biome_name = str(cmd.get("biome", ""))
+			result["probability_map"] = _farm_instrument.get_probability_map(biome_name)
+
+		"lindblad_snapshot":
+			var biome_name = str(cmd.get("biome", ""))
+			var include_populations = bool(cmd.get("include_populations", true))
+			result["lindblad_snapshot"] = _farm_instrument.get_lindblad_snapshot(biome_name, include_populations)
 
 		"balance_snapshot":
 			result["balance"] = _farm_instrument.get_balance_snapshot()

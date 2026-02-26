@@ -290,59 +290,30 @@ func _toggle_build_play_mode() -> void:
 
 
 func _on_restart_pressed() -> void:
-	"""Handle R key from escape menu - reload last save via GameStateManager.
+	"""Handle R or Shift+R - reload the most recently saved or loaded game.
 
-	Uses the DRY save/load system which properly resets:
-	- Biomes (through boot manager flow)
-	- Force graph visualization
-	- Time settings
-	- All game state
+	Delegates to GameStateManager.request_restart(), which sets pending_restart_slot
+	and triggers reload_current_scene(). FarmView picks up the slot on next _ready().
 	"""
-	_verbose.info("ui", "🔄", "Restart (R) - Reloading last save via GameStateManager")
+	_verbose.info("ui", "🔄", "Restart - requesting reload of last active save")
 
-	# Close all menus first (escape menu keeps game paused)
-	_close_all_menus()
-
-	var gsm = get_node_or_null("/root/GameStateManager")
-	if gsm and gsm.has_method("reload_last_save"):
-		var success = gsm.reload_last_save()
-		if success:
-			_verbose.info("ui", "✅", "Last save reloaded successfully")
-		else:
-			_verbose.warn("ui", "⚠️", "No save found to reload - reloading scene")
-			# Fallback: reload scene if no saves exist
-			_reload_scene()
-	else:
-		_verbose.warn("ui", "⚠️", "GameStateManager not available - falling back to scene reload")
-		_reload_scene()
-
-
-func _on_dev_restart_pressed() -> void:
-	"""Handle Shift+R from escape menu - hard reset (reload scene + reset autoloads).
-
-	This is a developer tool for testing boot sequences.
-	"""
-	_verbose.info("ui", "🔥", "Dev Restart (Shift+R) - Hard reset with scene reload")
-
-	# Close all menus first
-	_close_all_menus()
-
-	_reload_scene()
-
-
-func _reload_scene() -> void:
-	"""Reload the current scene (resets everything including autoloads)."""
-	# Unpause BEFORE reloading (escape menu pauses the game)
-	if is_inside_tree():
-		get_tree().paused = false
-
-	# Reset music completely before reloading
+	# Reset music before the scene goes away
 	if has_node("/root/MusicManager"):
 		var music = get_node("/root/MusicManager")
 		if music.has_method("reset"):
 			music.reset()
 
-	get_tree().reload_current_scene()
+	var gsm = get_node_or_null("/root/GameStateManager")
+	if gsm and gsm.has_method("request_restart"):
+		gsm.request_restart()
+	else:
+		# Fallback: plain scene reload (no save context)
+		get_tree().paused = false
+		get_tree().reload_current_scene()
+
+
+func _on_dev_restart_pressed() -> void:
+	_on_restart_pressed()
 
 
 func _push_modal(modal: Control) -> void:

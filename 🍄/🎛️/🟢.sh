@@ -10,6 +10,9 @@ GODOT_USER_DIR="${GODOT_USER_DIR:-${XDG_ROOT}/godot/app_userdata/${APPLICATION_N
 
 mkdir -p "$GODOT_USER_DIR/rig"
 
+# Clear queue so stale turns (e.g. "stop") from previous session don't replay
+> "$GODOT_USER_DIR/rig/queue.jsonl"
+
 cd "$PROJECT_ROOT"
 export XDG_DATA_HOME="$XDG_ROOT"
 export XDG_CONFIG_HOME="$XDG_ROOT"

@@ -23,7 +23,9 @@ signal farm_ready(farm: Node, state: GameState)
 # Current state
 var current_state: GameState = null
 var current_scenario_id: String = "default"
-var last_saved_slot: int = -1  # Track most recent save for "Reload Last Save"
+var last_saved_slot: int = -1   # Track most recent save
+var last_active_slot: int = -1  # Track most recently saved OR loaded slot
+var pending_restart_slot: int = -1  # Set before reload_current_scene(); FarmView reads+clears it
 
 # Removed: active_farm_view (never used)
 
@@ -324,6 +326,7 @@ func save_game(slot: int) -> bool:
 	var result = SaveStore.save_state(state, slot)
 	if result == OK:
 		last_saved_slot = slot
+		last_active_slot = slot
 		_verbose.info("save", "💾", "Game saved to slot " + str(slot + 1) + ": " + SaveStore.get_save_path(slot))
 		return true
 	else:
@@ -420,9 +423,8 @@ func load_and_apply(slot: int) -> bool:
 
 	current_state = state
 	current_scenario_id = state.scenario_id
+	last_active_slot = slot
 	apply_state_to_game(state)
-	# NOTE: Don't update last_saved_slot here - only update on actual save
-	# This ensures "Reload Last Save" reloads the last SAVED file, not last LOADED file
 	return true
 
 
@@ -452,28 +454,37 @@ func _apply_loaded_state_deferred(state: GameState) -> void:
 	apply_state_to_game(state)
 
 
-func reload_last_save() -> bool:
-	"""Reload the most recently saved game by scanning all slots for latest timestamp"""
-	var latest_slot = -1
-	var latest_timestamp = 0.0
+func request_restart() -> bool:
+	"""Set pending_restart_slot to the most recently active slot and reload the scene.
 
-	# Scan all save slots to find the most recent
-	for slot in range(SaveStore.NUM_SAVE_SLOTS):
-		if not SaveStore.save_exists(slot):
-			continue
+	Prefers last_active_slot (most recently saved OR loaded). Falls back to scanning
+	all slots by timestamp. If no saves exist, reboots to a fresh new game (slot -1).
+	FarmView reads pending_restart_slot in _ready() and passes it to boot_core().
+	"""
+	var slot = last_active_slot
 
-		var state = SaveStore.load_state(slot)
-		if state and state.save_timestamp > latest_timestamp:
-			latest_timestamp = state.save_timestamp
-			latest_slot = slot
+	if slot < 0:
+		# Fall back to most-recently-saved slot by timestamp scan
+		var latest_timestamp = 0.0
+		for s in range(SaveStore.NUM_SAVE_SLOTS):
+			if not SaveStore.save_exists(s):
+				continue
+			var state = SaveStore.load_state(s)
+			if state and state.save_timestamp > latest_timestamp:
+				latest_timestamp = state.save_timestamp
+				slot = s
 
-	# No saves found
-	if latest_slot < 0:
-		_verbose.info("save", "⚠", "No saves found to reload")
-		return false
+	pending_restart_slot = slot  # -1 = fresh game, >=0 = load that slot
+	_verbose.info("save", "🔄", "Restart requested → slot %d" % pending_restart_slot)
 
-	_verbose.info("save", "🔄", "Reloading most recent save from slot " + str(latest_slot + 1) + " (saved at " + str(latest_timestamp) + ")")
-	return load_and_apply(latest_slot)
+	# Full scene reload; FarmView._ready() picks up pending_restart_slot
+	var tree = Engine.get_main_loop()
+	if tree and tree.has_method("reload_current_scene"):
+		if tree.paused:
+			tree.paused = false
+		tree.reload_current_scene()
+		return true
+	return false
 
 
 ## State Capture/Restore (delegates to serializer)

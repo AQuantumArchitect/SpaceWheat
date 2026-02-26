@@ -115,20 +115,8 @@ func get_emoji() -> String:
 
 
 func _can_gain_midwife() -> bool:
-	"""Allow gains only if the emoji is in known vocabulary (standard rule)."""
-	var gsm = get_node_or_null("/root/GameStateManager")
-	if not gsm:
-		return true
-
-	# Prefer farm-owned vocabulary when available
-	if "active_farm" in gsm and gsm.active_farm and gsm.active_farm.has_method("get_known_emojis"):
-		var known_emojis = gsm.active_farm.get_known_emojis()
-		return MIDWIFE_EMOJI in known_emojis
-
-	if not gsm.current_state:
-		return true
-	var known = gsm.current_state.get_known_emojis() if gsm.current_state.has_method("get_known_emojis") else []
-	return MIDWIFE_EMOJI in known
+	"""All gains are allowed regardless of vocabulary; purity handles bonuses."""
+	return true
 
 
 ## Serialize for save system
