@@ -46,7 +46,11 @@ var known_pairs: Array = []  # Player vocabulary pairs (canonical, farm-owned)
 var reap_count: int = 0  # Number of global seasonal reaps completed
 var ui_state: FarmUIState  # UI State abstraction layer
 var grid_config: GridConfig = null  # Single source of truth for grid layout
-var terminal_pool: TerminalPoolClass = null  # v2 Architecture: Terminal pool for EXPLORE/MEASURE/POP
+var _bootstrap_pool: TerminalPoolClass = null  # Created at boot, transferred to instrument via set_instrument()
+var instrument = null  # QuantumInstrument (set via set_instrument() after boot)
+## terminal_pool: backward-compat getter — returns instrument's pool if available, else bootstrap pool
+var terminal_pool: TerminalPoolClass:
+	get: return instrument.terminal_pool if instrument and instrument.terminal_pool else _bootstrap_pool
 var biome_evolution_batcher: BiomeEvolutionBatcherClass = null  # Batched quantum evolution
 
 # Icon system now managed by faction-based IconRegistry (deprecated variables removed)
@@ -58,6 +62,12 @@ var _mushroom_count_dirty: bool = true  # Set true when plots change
 func invalidate_mushroom_cache() -> void:
 	"""Call when plots are planted/harvested to recalculate mushroom count on next frame"""
 	_mushroom_count_dirty = true
+
+
+func set_instrument(inst) -> void:
+	"""Transfer bootstrap terminal pool to instrument and store reference."""
+	instrument = inst
+	inst.terminal_pool = _bootstrap_pool
 
 
 func _safe_load_biome(script_path: String, biome_name: String):
@@ -125,10 +135,14 @@ var biome_enabled: bool = false
 # Dynamic grid sizing
 const DEFAULT_PLOTS_PER_BIOME = 4
 const MAX_PLOTS_PER_BIOME = 7  # J K L ; ' H G
+const LINDBLAD_TIMESCALE_BASE_DT = 0.02
+const LINDBLAD_TIMESCALE_CAP = 4096.0
+const RAINBOW_DRAIN_MODE_DEFAULT = true
 
 # Dynamic row mappings (built from explored biome order)
 var biome_row_map: Dictionary = {}  # biome_name -> row index
 var row_biome_map: Dictionary = {}  # row index -> biome_name
+var lindblad_rainbow_accumulators: Dictionary = {}  # emoji -> fractional credits remainder
 
 # Special gather actions (not plantable, not buildings)
 const GATHER_ACTIONS = {
@@ -271,15 +285,16 @@ func _ready():
 	add_child(grid)
 
 	# v2 Architecture: Create terminal pool for EXPLORE/MEASURE/POP actions
+	# Stored as _bootstrap_pool; transferred to instrument via set_instrument()
 	var total_plots = grid_config.grid_width * grid_config.grid_height
-	terminal_pool = TerminalPoolClass.new(total_plots)
+	_bootstrap_pool = TerminalPoolClass.new(total_plots)
 	if grid:
-		grid.set_terminal_pool(terminal_pool)
+		grid.set_terminal_pool(_bootstrap_pool)
 
 	# Create biome evolution batcher BEFORE loading biomes
 	# This allows BootManager.load_biome() to register each biome as it loads
 	biome_evolution_batcher = BiomeEvolutionBatcherClass.new()
-	biome_evolution_batcher.initialize([], terminal_pool, self)  # Initialize with empty array, biomes register individually
+	biome_evolution_batcher.initialize([], _bootstrap_pool, self)  # Initialize with empty array, biomes register individually
 
 	# Create environmental simulations (six biomes for multi-biome support)
 	# UNIFIED LOADING: All biomes go through BootManager.load_biome() for consistency
@@ -707,8 +722,9 @@ func _process_lindblad_effects(delta: float) -> void:
 	var plots = grid.plots if "plots" in grid else {}
 	if plots.is_empty():
 		return
-	var known_emojis: Array = get_known_emojis()
-	var has_vocab_gate = not known_emojis.is_empty()
+	var rainbow_mode = _is_rainbow_drain_mode()
+	var processed_structural_flux: Dictionary = {}
+	var harvestable_drain_biomes: Dictionary = {}
 
 	for pos in plots.keys():
 		var plot = plots[pos]
@@ -720,6 +736,17 @@ func _process_lindblad_effects(delta: float) -> void:
 		var biome = grid.get_biome_for_plot(pos)
 		if not biome or not biome.quantum_computer:
 			continue
+		var effective_delta = _get_lindblad_effective_delta_for_biome(biome, delta)
+		if effective_delta <= 0.0:
+			continue
+		var biome_name = ""
+		if biome.has_method("get_biome_type"):
+			biome_name = str(biome.get_biome_type())
+		elif "name" in biome:
+			biome_name = str(biome.name)
+		if biome_name != "" and not processed_structural_flux.has(biome_name):
+			_accumulate_sink_flux_from_biome_rates(biome_name, biome, effective_delta)
+			processed_structural_flux[biome_name] = true
 
 		var pair = _get_lindblad_pair_for_plot(plot, pos)
 		if pair.is_empty():
@@ -728,7 +755,7 @@ func _process_lindblad_effects(delta: float) -> void:
 		if plot.lindblad_pump_active:
 			var target = pair.get("north", "")
 			if target != "":
-				biome.quantum_computer.apply_drive(target, plot.lindblad_pump_rate, delta)
+				biome.quantum_computer.apply_drive(target, plot.lindblad_pump_rate, effective_delta)
 
 		if plot.lindblad_drain_active:
 			var north = pair.get("north", "")
@@ -742,33 +769,110 @@ func _process_lindblad_effects(delta: float) -> void:
 					before_flux = float(biome.quantum_computer.get_sink_flux(axis_emoji))
 
 				var qubit_idx = biome.quantum_computer.register_map.qubit(axis_emoji)
-				biome.quantum_computer.apply_decay(qubit_idx, plot.lindblad_drain_rate, delta)
+				biome.quantum_computer.apply_decay(qubit_idx, plot.lindblad_drain_rate, effective_delta)
 
-				var drained_probability = 0.0
-				if biome.quantum_computer.has_method("get_sink_flux"):
-					var after_flux = float(biome.quantum_computer.get_sink_flux(axis_emoji))
-					drained_probability = max(0.0, after_flux - before_flux)
-					if drained_probability > 0.0 and biome.quantum_computer.has_method("consume_sink_flux"):
-						drained_probability = float(biome.quantum_computer.consume_sink_flux(axis_emoji, drained_probability))
-				if drained_probability <= 0.0:
-					var after_pop = biome.quantum_computer.get_population(sample_emoji)
-					drained_probability = max(0.0, before_pop - after_pop)
-				if drained_probability <= 0.0:
-					drained_probability = max(0.0, before_pop) * plot.lindblad_drain_rate * delta
-				_accumulate_lindblad_harvest(
-					plot,
-					axis_emoji,
-					drained_probability,
-					known_emojis,
-					has_vocab_gate
-				)
+				var can_harvest = _is_plot_drain_harvest_visible(plot)
+				if rainbow_mode:
+					if can_harvest and biome_name != "":
+						harvestable_drain_biomes[biome_name] = biome
+				elif can_harvest:
+					var drained_probability = 0.0
+					if biome.quantum_computer.has_method("get_sink_flux"):
+						var after_flux = float(biome.quantum_computer.get_sink_flux(axis_emoji))
+						drained_probability = max(0.0, after_flux - before_flux)
+						if drained_probability > 0.0 and biome.quantum_computer.has_method("consume_sink_flux"):
+							drained_probability = float(biome.quantum_computer.consume_sink_flux(axis_emoji, drained_probability))
+					if drained_probability <= 0.0:
+						var after_pop = biome.quantum_computer.get_population(sample_emoji)
+						drained_probability = max(0.0, before_pop - after_pop)
+					if drained_probability <= 0.0:
+						drained_probability = max(0.0, before_pop) * plot.lindblad_drain_rate * effective_delta
+					_accumulate_lindblad_harvest(plot, axis_emoji, drained_probability)
+
+	if rainbow_mode and not harvestable_drain_biomes.is_empty():
+		_harvest_rainbow_sink_flux(harvestable_drain_biomes)
 
 
-func _accumulate_lindblad_harvest(plot, emoji: String, drained_probability: float,
-		known_emojis: Array, has_vocab_gate: bool) -> void:
-	if not economy or emoji == "":
+func _get_lindblad_effective_delta_for_biome(biome, frame_delta: float) -> float:
+	"""Scale Lindblad timestep by biome timescale controls (stride + resolution)."""
+	var base_delta = maxf(0.0, float(frame_delta))
+	if base_delta <= 0.0:
+		return 0.0
+	if not biome:
+		return base_delta
+
+	var stride = 1
+	if "observation_stride" in biome:
+		stride = max(0, int(biome.observation_stride))
+	if stride <= 0:
+		return 0.0
+
+	var dt_scale = 1.0
+	if "max_evolution_dt" in biome:
+		var max_dt = maxf(0.000001, float(biome.max_evolution_dt))
+		dt_scale = max_dt / LINDBLAD_TIMESCALE_BASE_DT
+
+	var multiplier = clampf(float(stride) * dt_scale, 0.0, LINDBLAD_TIMESCALE_CAP)
+	return base_delta * multiplier
+
+
+func _accumulate_sink_flux_from_biome_rates(biome_name: String, biome, dt: float) -> void:
+	if dt <= 0.0 or not biome or not biome.quantum_computer:
 		return
-	if has_vocab_gate and emoji not in known_emojis:
+	if not biome.quantum_computer.has_method("accumulate_sink_flux_from_rates"):
+		return
+	if not biome_evolution_batcher or not biome_evolution_batcher.has_method("get_biome_sink_flux_rates"):
+		return
+	var sink_rates = biome_evolution_batcher.get_biome_sink_flux_rates(biome_name)
+	if sink_rates is Dictionary and not sink_rates.is_empty():
+		biome.quantum_computer.accumulate_sink_flux_from_rates(sink_rates, dt)
+
+
+func _is_plot_drain_harvest_visible(plot) -> bool:
+	if not plot:
+		return false
+	if plot.has_method("_get_infra_field"):
+		return bool(plot._get_infra_field("lindblad_harvest_visible", false))
+	return false
+
+
+func _is_rainbow_drain_mode() -> bool:
+	var raw = OS.get_environment("SW_RAINBOW_DRAIN_MODE").strip_edges().to_lower()
+	if raw == "":
+		return RAINBOW_DRAIN_MODE_DEFAULT
+	return raw in ["1", "true", "yes", "on"]
+
+
+func _harvest_rainbow_sink_flux(active_drain_biomes: Dictionary) -> void:
+	if not economy:
+		return
+	for biome_name in active_drain_biomes.keys():
+		var biome = active_drain_biomes[biome_name]
+		if not biome or not biome.quantum_computer or not biome.quantum_computer.has_method("get_all_sink_fluxes"):
+			continue
+		var fluxes = biome.quantum_computer.get_all_sink_fluxes()
+		if not (fluxes is Dictionary) or fluxes.is_empty():
+			continue
+		for emoji in fluxes.keys():
+			var requested = maxf(0.0, float(fluxes.get(emoji, 0.0)))
+			if requested <= 0.0:
+				continue
+			var consumed = requested
+			if biome.quantum_computer.has_method("consume_sink_flux"):
+				consumed = float(biome.quantum_computer.consume_sink_flux(str(emoji), requested))
+			if consumed <= 0.0:
+				continue
+			var credits = consumed * EconomyConstants.QUANTUM_TO_CREDITS
+			var accum = float(lindblad_rainbow_accumulators.get(emoji, 0.0)) + credits
+			var whole = int(accum)
+			if whole > 0:
+				economy.add_resource(str(emoji), whole, "lindblad_rainbow")
+				accum -= whole
+			lindblad_rainbow_accumulators[emoji] = maxf(0.0, accum)
+
+
+func _accumulate_lindblad_harvest(plot, emoji: String, drained_probability: float) -> void:
+	if not economy or emoji == "":
 		return
 
 	var credits = max(0.0, drained_probability) * EconomyConstants.QUANTUM_TO_CREDITS

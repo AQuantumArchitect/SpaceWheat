@@ -61,10 +61,9 @@ static func assign_plots_to_biome(farm, positions: Array[Vector2i], biome_name: 
 		if plot:
 			# Unbind terminal when reassigning to different biome
 			if plot.is_active() and prev_biome != biome_name:
-				if plot.bound_terminal and farm.terminal_pool:
-					farm.terminal_pool.unbind_terminal(plot.bound_terminal)
-				plot.bound_terminal = null
-				plot._cached_biome = null
+				if plot.terminal and farm.terminal_pool:
+					farm.terminal_pool.unbind_terminal(plot.terminal)
+				plot.detach_terminal()
 
 		assigned_count += 1
 		results.append({
@@ -118,10 +117,7 @@ static func clear_biome_assignment(farm, positions: Array[Vector2i]) -> Dictiona
 					var terminal = farm.terminal_pool.get_terminal_at_grid_pos(pos)
 					if terminal:
 						farm.terminal_pool.unbind_terminal(terminal)
-				if "bound_terminal" in plot:
-					plot.bound_terminal = null
-				if "_cached_biome" in plot:
-					plot._cached_biome = null
+				plot.detach_terminal()
 
 			cleared_count += 1
 			results.append({

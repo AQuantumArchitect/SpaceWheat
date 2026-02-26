@@ -415,6 +415,7 @@ func _stage_ui(farm: Node, shell: Node, quantum_viz: Node) -> void:
 	var QuantumInstrumentClass = load("res://Core/Instrumentation/QuantumInstrument.gd")
 	var instrument = QuantumInstrumentClass.new()
 	instrument.setup(farm)
+	farm.set_instrument(instrument)
 	input_handler.inject_instrument(instrument)
 	_verbose.info("boot", "🎛️", "QuantumInstrument ready (unified game mechanics API)")
 

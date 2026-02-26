@@ -598,9 +598,8 @@ func is_terminal_measured() -> bool:
 	"""Check if this node's terminal is measured (v2 single source of truth)"""
 	if terminal:
 		return terminal.is_measured
-	# Fallback to plot-based check for v1 compatibility
 	if plot:
-		return plot.is_measured if "is_measured" in plot else plot.is_measured
+		return plot.is_measured
 	return false
 
 

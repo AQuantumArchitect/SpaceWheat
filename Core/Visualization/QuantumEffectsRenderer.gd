@@ -104,140 +104,23 @@ func _draw_strange_attractor(graph: Node2D, ctx: Dictionary) -> void:
 		graph.draw_string(font, label_pos + Vector2(0, 16), season, HORIZONTAL_ALIGNMENT_LEFT, -1, 10, label_color.lightened(0.2))
 
 
-func _draw_energy_transfer_forces(graph: Node2D, ctx: Dictionary) -> void:
+func _draw_energy_transfer_forces(_graph: Node2D, _ctx: Dictionary) -> void:
 	"""Draw energy transfer forces from sun (Lindbladian evolution).
 
-	Game physics: Hamiltonian potential wells create attractor basins.
+	TODO: Port to Model C. Previously read qubit.theta from Model B quantum_state
+	objects. In Model C, theta lives in the density matrix on QuantumComputer.
+	Needs: extract Bloch angles from density matrix diagonal for each register.
 	"""
-	var sun_qubit_node = ctx.get("sun_qubit_node")
-	var biotic_flux_biome = ctx.get("biotic_flux_biome")
-	var quantum_nodes = ctx.get("quantum_nodes", [])
-	var batcher = ctx.get("geometry_batcher")
-
-	if not sun_qubit_node or not biotic_flux_biome:
-		return
-
-	var sun_color_vis = biotic_flux_biome.get_sun_visualization()
-	var sun_theta = sun_color_vis["theta"]
-
-	var energy_strength = abs(cos(sun_theta))
-	if energy_strength < 0.1:
-		return
-
-	for node in quantum_nodes:
-		if not node.plot or not node.plot.is_active() or not node.plot.quantum_state:
-			continue
-
-		if node.plot_id == "celestial_sun" or node.plot_id == "celestial_moon":
-			continue
-
-		var qubit = node.plot.quantum_state
-		if not qubit:
-			continue
-
-		var alignment = cos((qubit.theta - sun_theta) / 2.0)
-		var plot_alignment = cos(qubit.theta / 2.0)
-		var energy_transfer_rate = plot_alignment * plot_alignment * alignment * alignment * energy_strength
-
-		if energy_transfer_rate < 0.05:
-			continue
-
-		var arrow_thickness = clamp(energy_transfer_rate * 3.0, 0.5, 2.5)
-		var arrow_color = sun_color_vis["color"]
-		arrow_color.a = clamp(energy_transfer_rate * 0.8, 0.2, 0.7)
-
-		var from = sun_qubit_node.position
-		var to = node.position
-
-		# Arrow head
-		var direction = (to - from).normalized()
-		var arrow_size = arrow_thickness * 3.0
-		var arrow_left = to - direction * arrow_size + direction.rotated(PI/2) * arrow_size * 0.5
-		var arrow_right = to - direction * arrow_size - direction.rotated(PI/2) * arrow_size * 0.5
-
-		var arrow_head_color = arrow_color
-		arrow_head_color.a = arrow_color.a * 0.8
-
-		if batcher:
-			batcher.add_line(from, to, arrow_color, arrow_thickness)
-			batcher.add_colored_polygon([to, arrow_left, arrow_right], arrow_head_color)
-		else:
-			graph.draw_line(from, to, arrow_color, arrow_thickness, true)
-			graph.draw_colored_polygon([to, arrow_left, arrow_right], arrow_head_color)
-
-	# Icon influence forces
-	_draw_icon_influence_forces(graph, ctx)
+	pass
 
 
-func _draw_icon_influence_forces(graph: Node2D, ctx: Dictionary) -> void:
+func _draw_icon_influence_forces(_graph: Node2D, _ctx: Dictionary) -> void:
 	"""Draw spring attraction forces toward icon stable points.
 
-	Game physics: Shows how icons pull qubits toward their stable states.
+	TODO: Port to Model C. Previously read qubit.theta from Model B quantum_state
+	objects. In Model C, per-register Bloch angles live in the density matrix.
 	"""
-	var biotic_flux_biome = ctx.get("biotic_flux_biome")
-	var quantum_nodes = ctx.get("quantum_nodes", [])
-	var batcher = ctx.get("geometry_batcher")
-
-	if not biotic_flux_biome:
-		return
-
-	var wheat_stable = PI / 4.0
-	var mushroom_stable = PI
-
-	for node in quantum_nodes:
-		if not node.plot or not node.plot.is_active() or not node.plot.quantum_state:
-			continue
-
-		if node.plot_id == "celestial_sun" or node.plot_id == "celestial_moon":
-			continue
-
-		var qubit = node.plot.quantum_state
-		if not qubit:
-			continue
-
-		var wheat_deviation = abs(qubit.theta - wheat_stable)
-		var mushroom_deviation = abs(qubit.theta - mushroom_stable)
-
-		if wheat_deviation > PI:
-			wheat_deviation = TAU - wheat_deviation
-		if mushroom_deviation > PI:
-			mushroom_deviation = TAU - mushroom_deviation
-
-		# Wheat icon force
-		if biotic_flux_biome.wheat_icon and wheat_deviation > 0.1:
-			var spring_strength = (1.0 - wheat_deviation / PI) * 0.6
-			if spring_strength > 0.1:
-				var wheat_color = Color(1.0, 0.9, 0.3, spring_strength * 0.5)
-				var force_magnitude = spring_strength * 15.0
-				var force_direction = sign(wheat_stable - qubit.theta)
-				if abs(wheat_stable - qubit.theta) > PI:
-					force_direction = -force_direction
-
-				var indicator_center = node.position
-				var indicator_direction = Vector2(cos(qubit.theta), sin(qubit.theta))
-				var indicator_end = indicator_center + indicator_direction * force_magnitude * force_direction
-				if batcher:
-					batcher.add_line(indicator_center, indicator_end, wheat_color, 1.0)
-				else:
-					graph.draw_line(indicator_center, indicator_end, wheat_color, 1.0, true)
-
-		# Mushroom icon force
-		if biotic_flux_biome.mushroom_icon and mushroom_deviation > 0.1:
-			var spring_strength = (1.0 - mushroom_deviation / PI) * 0.6
-			if spring_strength > 0.1:
-				var mushroom_color = Color(0.8, 0.4, 0.9, spring_strength * 0.5)
-				var force_magnitude = spring_strength * 15.0
-				var force_direction = sign(mushroom_stable - qubit.theta)
-				if abs(mushroom_stable - qubit.theta) > PI:
-					force_direction = -force_direction
-
-				var indicator_center = node.position
-				var indicator_direction = Vector2(cos(qubit.theta), sin(qubit.theta))
-				var indicator_end = indicator_center + indicator_direction * force_magnitude * force_direction * 1.5
-				if batcher:
-					batcher.add_line(indicator_center, indicator_end, mushroom_color, 1.0)
-				else:
-					graph.draw_line(indicator_center, indicator_end, mushroom_color, 1.0, true)
+	pass
 
 
 func _draw_particles(graph: Node2D, ctx: Dictionary) -> void:

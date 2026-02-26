@@ -937,7 +937,7 @@ func get_stats() -> Dictionary:
 	var active_nodes = 0
 	var total_entanglements = 0
 	for node in quantum_nodes:
-		if node.plot and node.plot.is_active() and node.plot.quantum_state:
+		if node.plot and node.plot.is_active():
 			active_nodes += 1
 			total_entanglements += node.plot.entangled_plots.size()
 	return {
@@ -1036,7 +1036,7 @@ func update_plot_positions(plot_positions: Dictionary, biome_name: String = "") 
 		var anchor_pos = plot_positions[node.grid_position]
 		node.classical_anchor = anchor_pos
 		# Keep measured nodes frozen at the new anchor position
-		var is_measured = node.is_terminal_measured() or (node.plot and node.plot.is_measured)
+		var is_measured = node.is_terminal_measured()
 		if is_measured:
 			node.frozen_anchor = anchor_pos
 			node.position = anchor_pos

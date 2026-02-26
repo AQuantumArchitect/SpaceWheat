@@ -169,11 +169,8 @@ static func get_active_projections(biome: BiomeBase, farm_grid) -> Array[Diction
 					"measured": plot.is_measured
 				}
 
-				# Get quantum state info
-				if plot.quantum_state:
-					proj_data["north_emoji"] = plot.quantum_state.north_emoji
-					proj_data["south_emoji"] = plot.quantum_state.south_emoji
-					proj_data["energy"] = plot.quantum_state.get_quantum_energy()
+				proj_data["north_emoji"] = plot.north_emoji
+				proj_data["south_emoji"] = plot.south_emoji
 
 				projections.append(proj_data)
 

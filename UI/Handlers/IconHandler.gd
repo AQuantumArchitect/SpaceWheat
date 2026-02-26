@@ -153,11 +153,11 @@ static func icon_swap(farm, positions: Array[Vector2i]) -> Dictionary:
 		var old_north = plot.get_north_emoji()
 		var old_south = plot.get_south_emoji()
 
-		if plot.bound_terminal and plot.bound_terminal.has_method("set_emoji_pair"):
-			plot.bound_terminal.set_emoji_pair({"north": old_south, "south": old_north})
-		elif plot.bound_terminal:
-			plot.bound_terminal.north_emoji = old_south
-			plot.bound_terminal.south_emoji = old_north
+		if plot.terminal and plot.terminal.has_method("set_emoji_pair"):
+			plot.terminal.set_emoji_pair({"north": old_south, "south": old_north})
+		elif plot.terminal:
+			plot.terminal.north_emoji = old_south
+			plot.terminal.south_emoji = old_north
 
 		swap_count += 1
 		results.append({

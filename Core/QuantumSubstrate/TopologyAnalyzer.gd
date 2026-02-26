@@ -116,10 +116,10 @@ func _build_graph_from_plots(plots: Array) -> Dictionary:
 	return graph
 
 
-func _find_plot_by_qubit(plots: Array, qubit) -> Variant:
-	"""Helper: Find wheat plot containing specific qubit"""
+func _find_plot_by_id(plots: Array, plot_id: String) -> Variant:
+	"""Helper: Find plot by ID"""
 	for plot in plots:
-		if plot.quantum_state == qubit:
+		if plot.plot_id == plot_id:
 			return plot
 	return null
 

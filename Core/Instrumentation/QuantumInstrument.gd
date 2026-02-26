@@ -50,6 +50,9 @@ signal plot_check_changed(position: Vector2i, is_checked: bool)
 
 var farm: Node = null
 
+## Terminal pool (instrument owns its measurement probes)
+var terminal_pool = null
+
 ## Selection state (absorbed from QuantumInstrumentState)
 var current_biome: String = ""
 var current_plot_idx: int = -1
@@ -363,7 +366,7 @@ func action_pump(positions: Array[Vector2i]) -> Dictionary:
 # ============================================================================
 
 func action_explore(biome_name: String, grid_pos: Vector2i = Vector2i(-1, -1)) -> Dictionary:
-	if not farm or not farm.terminal_pool:
+	if not farm or not terminal_pool:
 		return {"success": false, "error": "no_farm", "message": "Farm not ready"}
 	if not farm.economy:
 		return {"success": false, "error": "no_economy", "message": "Economy system not initialized"}
@@ -372,17 +375,20 @@ func action_explore(biome_name: String, grid_pos: Vector2i = Vector2i(-1, -1)) -
 	if not biome:
 		return {"success": false, "error": "no_biome", "message": "Biome '%s' not found" % biome_name}
 
-	var result = ProbeActions.action_explore(farm.terminal_pool, biome, farm.economy)
+	var result = ProbeActions.action_explore(terminal_pool, biome, farm.economy)
+	# Attach terminal to its grid plot
+	if result.get("success", false):
+		_attach_terminal_to_plot(result.get("terminal"))
 	_emit_farm_action("explore", result, grid_pos)
 	action_performed.emit("explore", result)
 	return result
 
 
 func action_measure(grid_pos: Vector2i) -> Dictionary:
-	if not farm or not farm.terminal_pool:
+	if not farm or not terminal_pool:
 		return {"success": false, "error": "no_farm", "message": "Farm not ready"}
 
-	var terminal = farm.terminal_pool.get_terminal_at_grid_pos(grid_pos)
+	var terminal = terminal_pool.get_terminal_at_grid_pos(grid_pos)
 	if not terminal:
 		return {"success": false, "error": "no_terminal", "message": "No terminal at selection", "blocked": true}
 	if not terminal.can_measure():
@@ -402,14 +408,15 @@ func action_measure(grid_pos: Vector2i) -> Dictionary:
 
 
 func action_pop(grid_pos: Vector2i) -> Dictionary:
-	if not farm or not farm.terminal_pool or not farm.economy:
+	if not farm or not terminal_pool or not farm.economy:
 		return {"success": false, "error": "no_farm", "message": "Farm not ready"}
 
 	var terminal = _resolve_terminal_for_harvest(grid_pos)
 	if not terminal:
 		return {"success": false, "error": "no_terminal", "message": "No terminal at selection"}
 
-	var result = ProbeActions.action_pop(terminal, farm.terminal_pool, farm.economy, farm)
+	_detach_terminal_from_plot(terminal)
+	var result = ProbeActions.action_pop(terminal, terminal_pool, farm.economy, farm)
 	_emit_farm_action("pop", result, grid_pos)
 	action_performed.emit("pop", result)
 	return result
@@ -441,10 +448,14 @@ func action_harvest_all() -> Dictionary:
 
 
 func action_clear_all() -> Dictionary:
-	if not farm or not farm.terminal_pool:
+	if not farm or not terminal_pool:
 		return {"success": false, "error": "no_farm", "message": "Farm not ready"}
 
-	var result = ProbeActions.action_clear_all(farm.terminal_pool)
+	# Detach all terminals from their plots before clearing
+	for t in terminal_pool.get_all_terminals():
+		if t.is_bound:
+			_detach_terminal_from_plot(t)
+	var result = ProbeActions.action_clear_all(terminal_pool)
 	_emit_farm_action("clear_all", result)
 	action_performed.emit("clear_all", result)
 	return result
@@ -555,7 +566,7 @@ func action_remove_vocabulary(biome_name: String, grid_pos: Vector2i) -> Diction
 
 	var target_qubit = rm.num_qubits - 1
 	var pair_to_remove = {}
-	var terminal = farm.terminal_pool.get_terminal_at_grid_pos(grid_pos) if farm and farm.terminal_pool else null
+	var terminal = terminal_pool.get_terminal_at_grid_pos(grid_pos) if terminal_pool else null
 	var biome_type = biome.get_biome_type() if biome.has_method("get_biome_type") else biome.name
 	if terminal and terminal.is_bound and terminal.bound_biome_name == biome_type:
 		target_qubit = terminal.bound_register_id
@@ -677,7 +688,7 @@ func time_skip(phrames: int, delta: float = -1.0) -> Dictionary:
 # ============================================================================
 
 func probe_cycle(biome_name: String) -> Dictionary:
-	if not farm or not ("terminal_pool" in farm) or not farm.terminal_pool:
+	if not farm or not terminal_pool:
 		return {"success": false, "error": "no_terminal_pool"}
 	if not farm.grid or not farm.grid.biomes:
 		return {"success": false, "error": "no_biomes"}
@@ -688,21 +699,23 @@ func probe_cycle(biome_name: String) -> Dictionary:
 	_notify_autoload("ActiveBiomeManager", "set_active_biome", [biome_name])
 	_notify_autoload("ObservationFrame", "set_neutral_biome", [biome_name])
 
-	var explore = ProbeActions.action_explore(farm.terminal_pool, biome, farm.economy)
+	var explore = ProbeActions.action_explore(terminal_pool, biome, farm.economy)
 	if not explore.get("success", false):
 		var explore_fail = {"success": false, "stage": "explore", "details": explore}
 		return explore_fail
+	var terminal = explore.get("terminal", null)
+	_attach_terminal_to_plot(terminal)
 	# Emit explore signal so bubbles appear during bot runs
 	_emit_farm_action("explore", explore)
 
-	var terminal = explore.get("terminal", null)
 	var measure = ProbeActions.action_measure(terminal, biome, farm.economy)
 	if not measure.get("success", false):
 		var measure_fail = {"success": false, "stage": "measure", "details": measure}
 		return measure_fail
 	_emit_farm_action("measure", measure)
 
-	var pop = ProbeActions.action_pop(terminal, farm.terminal_pool, farm.economy, farm)
+	_detach_terminal_from_plot(terminal)
+	var pop = ProbeActions.action_pop(terminal, terminal_pool, farm.economy, farm)
 	_emit_farm_action("pop", pop)
 
 	var probe_result = {"success": true, "explore": explore, "measure": measure, "pop": pop, "active_biome": biome_name}
@@ -713,7 +726,7 @@ func probe_cycle(biome_name: String) -> Dictionary:
 func victory_lap() -> Dictionary:
 	if not farm or not farm.grid or not farm.grid.biomes:
 		return {"success": false, "error": "no_farm_or_biomes"}
-	if not ("terminal_pool" in farm) or not farm.terminal_pool:
+	if not terminal_pool:
 		return {"success": false, "error": "no_terminal_pool"}
 
 	var biomes: Array[String] = []
@@ -724,7 +737,6 @@ func victory_lap() -> Dictionary:
 
 	var explore_total = 0
 	var explore_failures: Array = []
-	var terminal_pool = farm.terminal_pool
 
 	for biome_name in biomes:
 		var biome = farm.grid.biomes.get(biome_name, null)
@@ -734,6 +746,7 @@ func victory_lap() -> Dictionary:
 			var explore = ProbeActions.action_explore(terminal_pool, biome, farm.economy)
 			if explore.get("success", false):
 				explore_total += 1
+				_attach_terminal_to_plot(explore.get("terminal"))
 				_emit_farm_action("explore", explore)
 				continue
 			var reason = str(explore.get("error", "unknown"))
@@ -775,6 +788,7 @@ func victory_lap() -> Dictionary:
 	for terminal in measured_terminals:
 		if not terminal:
 			continue
+		_detach_terminal_from_plot(terminal)
 		var pop = ProbeActions.action_pop(terminal, terminal_pool, farm.economy, farm)
 		if pop.get("success", false):
 			harvest_total += 1
@@ -813,10 +827,9 @@ func victory_lap_partial(
 ) -> Dictionary:
 	if not farm or not farm.grid or not farm.grid.biomes:
 		return {"success": false, "error": "no_farm_or_biomes"}
-	if not ("terminal_pool" in farm) or not farm.terminal_pool:
+	if not terminal_pool:
 		return {"success": false, "error": "no_terminal_pool"}
 
-	var terminal_pool = farm.terminal_pool
 	var target_registers = max(1, max_registers)
 	var target_phase_window = max(1, phase_window)
 	var target_milk_spend = max(0, milk_spend)
@@ -868,6 +881,7 @@ func victory_lap_partial(
 			explore_total += 1
 			var term = explore.get("terminal", null)
 			if term:
+				_attach_terminal_to_plot(term)
 				explored_terminals.append(term)
 			_emit_farm_action("explore", explore)
 			if terminal_pool.get_unbound_count() <= 0:
@@ -911,6 +925,7 @@ func victory_lap_partial(
 	for terminal in measured_terminals:
 		if not terminal:
 			continue
+		_detach_terminal_from_plot(terminal)
 		var pop = ProbeActions.action_pop(terminal, terminal_pool, farm.economy, farm)
 		if pop.get("success", false):
 			harvest_total += 1
@@ -1022,6 +1037,20 @@ func _compute_partial_victory_multiplier(selected_count: int, milk_spend: float,
 func _emit_farm_action(action: String, result: Dictionary, pos: Vector2i = Vector2i(-1, -1)) -> void:
 	if farm and farm.has_method("emit_action_signal"):
 		farm.emit_action_signal(action, result, pos)
+
+
+func _attach_terminal_to_plot(t) -> void:
+	if t and t.grid_position != Vector2i(-1, -1) and farm and farm.grid:
+		var plot = farm.grid.get_plot(t.grid_position)
+		if plot:
+			plot.terminal = t
+
+
+func _detach_terminal_from_plot(t) -> void:
+	if t and t.grid_position != Vector2i(-1, -1) and farm and farm.grid:
+		var plot = farm.grid.get_plot(t.grid_position)
+		if plot:
+			plot.terminal = null
 
 
 func _notify_autoload(node_name: String, method: String, args: Array) -> void:
@@ -1381,17 +1410,17 @@ func _resolve_biome(biome_name: String):
 
 
 func _resolve_terminal_for_harvest(grid_pos: Vector2i) -> RefCounted:
-	if not farm or not farm.terminal_pool:
+	if not terminal_pool:
 		return null
-	var terminal = farm.terminal_pool.get_terminal_at_grid_pos(grid_pos)
+	var terminal = terminal_pool.get_terminal_at_grid_pos(grid_pos)
 	if terminal:
 		return terminal
 	if last_selected_position != Vector2i(-1, -1) and last_selected_position != grid_pos:
-		var fallback = farm.terminal_pool.get_terminal_at_grid_pos(last_selected_position)
+		var fallback = terminal_pool.get_terminal_at_grid_pos(last_selected_position)
 		if fallback and fallback.is_measured:
 			return fallback
-	if farm.terminal_pool.has_method("get_measured_terminals"):
-		for candidate in farm.terminal_pool.get_measured_terminals():
+	if terminal_pool.has_method("get_measured_terminals"):
+		for candidate in terminal_pool.get_measured_terminals():
 			if candidate.grid_position == grid_pos:
 				return candidate
 	return null
@@ -1465,19 +1494,20 @@ func _get_pair_for_qubit(register_map, qubit_index: int) -> Dictionary:
 
 
 func _unbind_terminals_for_register(biome, register_id: int) -> void:
-	if not farm or not farm.terminal_pool:
+	if not terminal_pool:
 		return
 	var biome_name = biome.get_biome_type() if biome.has_method("get_biome_type") else biome.name
-	for terminal in farm.terminal_pool.get_all_terminals():
+	for terminal in terminal_pool.get_all_terminals():
 		if terminal.is_bound and terminal.bound_biome_name == biome_name and terminal.bound_register_id == register_id:
-			farm.terminal_pool.unbind_terminal(terminal)
+			_detach_terminal_from_plot(terminal)
+			terminal_pool.unbind_terminal(terminal)
 
 
 func _reindex_bound_terminals(biome, removed_qubit: int) -> void:
-	if not farm or not farm.terminal_pool:
+	if not terminal_pool:
 		return
 	var biome_name = biome.get_biome_type() if biome.has_method("get_biome_type") else biome.name
-	for terminal in farm.terminal_pool.get_all_terminals():
+	for terminal in terminal_pool.get_all_terminals():
 		if not terminal.is_bound or terminal.bound_biome_name != biome_name:
 			continue
 		if terminal.bound_register_id > removed_qubit:

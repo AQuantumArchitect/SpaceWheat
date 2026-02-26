@@ -324,19 +324,30 @@ func apply_state_to_farm(state: GameState, farm: Node) -> void:
 				if saved_register >= 0 and saved_biome != "":
 					var emoji_pair = {"north": saved_north, "south": saved_south}
 
-					# NEW: Bind register to plot directly (Register→Plot architecture)
+					# Set fallback fields (headless compatible)
 					plot.bind_to_register(saved_register, saved_biome, emoji_pair)
+
+					# Attach terminal from pool if available (terminal↔plot link)
+					var tp = farm.terminal_pool if "terminal_pool" in farm else null
+					if tp and tp.has_method("get_unbound_terminal"):
+						var t = tp.get_unbound_terminal()
+						if t:
+							t.grid_position = pos
+							tp.bind_terminal(t, saved_register, saved_biome, emoji_pair)
+							plot.attach_terminal(t)
 
 					# Restore measurement state if present
 					if plot_data.get("has_been_measured", false):
 						var outcome = plot_data.get("measured_outcome", "")
 						var probability = plot_data.get("measured_probability", 0.5)
 						plot.mark_measured(outcome, probability)
+						if plot.terminal:
+							plot.terminal.mark_measured(outcome, probability)
 
 					# Emit signal to trigger UI refresh (creates Terminal in UI layer)
 					# UI will create Terminal and bubble based on plot state
 					if farm.has_signal("terminal_bound"):
-						farm.terminal_bound.emit(pos, "", emoji_pair)  # terminal_id not needed anymore
+						farm.terminal_bound.emit(pos, "", emoji_pair)
 
 					if plot.is_measured and farm.has_signal("plot_measured"):
 						farm.plot_measured.emit(pos, plot.measured_outcome)

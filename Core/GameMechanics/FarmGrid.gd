@@ -149,6 +149,7 @@ func _ready():
 	# Wire verbose logger to all components (requires @onready _verbose)
 	_plot_manager.set_verbose(_verbose)
 	_biome_routing.set_verbose(_verbose)
+	_biome_routing.set_plot_manager(_plot_manager)
 	if terminal_pool:
 		_biome_routing.set_terminal_pool(terminal_pool)
 	_entanglement.set_verbose(_verbose)
@@ -355,20 +356,6 @@ func _update_cluster_gameplay_connections(cluster):
 	"""Update WheatPlot.entangled_plots for cluster"""
 	_entanglement.update_cluster_gameplay_connections(cluster)
 
-
-func _add_to_cluster(cluster, new_plot, control_index: int) -> bool:
-	"""Add new qubit to existing cluster"""
-	return _entanglement.add_to_cluster(cluster, new_plot, control_index)
-
-
-func _upgrade_pair_to_cluster(pair, new_plot) -> bool:
-	"""Upgrade 2-qubit pair to 3-qubit cluster"""
-	return _entanglement.upgrade_pair_to_cluster(pair, new_plot)
-
-
-func _handle_cluster_collapse(cluster):
-	"""Handle measurement cascade when cluster is measured"""
-	_entanglement.handle_cluster_collapse(cluster)
 
 
 func _create_quantum_entanglement(pos_a: Vector2i, pos_b: Vector2i, bell_type: String = "phi_plus") -> bool:

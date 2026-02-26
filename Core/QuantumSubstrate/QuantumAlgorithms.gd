@@ -245,14 +245,14 @@ static func phase_estimation(bath, control: Dictionary, target: Dictionary, evol
 ## UTILITY FUNCTIONS
 ## ============================================================
 
-## Get qubit pair from plot's quantum state
+## Get qubit pair from plot
 static func qubit_from_plot(plot) -> Dictionary:
-	if not plot or not plot.quantum_state:
+	if not plot or not plot.is_active():
 		return {}
 
 	return {
-		"north": plot.quantum_state.north_emoji,
-		"south": plot.quantum_state.south_emoji
+		"north": plot.north_emoji,
+		"south": plot.south_emoji
 	}
 
 

@@ -790,7 +790,7 @@ func _transform_plot_to_ui_data(pos: Vector2i, plot, terminal = null) -> Diction
 		"south_emoji": "",
 		"north_probability": 0.0,
 		"south_probability": 0.0,
-		"has_been_measured": (plot and plot.is_measured) or (terminal and terminal.is_measured),
+		"has_been_measured": (plot and plot.is_measured),
 		"entangled_plots": entangled_list,
 		"lindblad_pump_active": plot and plot.lindblad_pump_active,
 		"lindblad_drain_active": plot and plot.lindblad_drain_active

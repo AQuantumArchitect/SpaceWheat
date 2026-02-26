@@ -186,23 +186,22 @@ func remove_entanglement(pos_a: Vector2i, pos_b: Vector2i) -> void:
 	var plot_a = _plot_manager.get_plot(pos_a)
 	var plot_b = _plot_manager.get_plot(pos_b)
 
-	# Find and remove EntangledPair if it exists
-	if plot_a and plot_a.quantum_state and plot_a.quantum_state.entangled_pair != null:
-		var pair = plot_a.quantum_state.entangled_pair
-		if pair in entangled_pairs:
-			entangled_pairs.erase(pair)
-
-		# Unlink from both qubits
-		if plot_a:
-			plot_a.quantum_state.entangled_pair = null
-		if plot_b and plot_b.quantum_state:
-			plot_b.quantum_state.entangled_pair = null
-
-	# Also remove legacy entanglement tracking
+	# Remove entanglement tracking
 	if plot_a:
 		plot_a.remove_entanglement(plot_b.plot_id if plot_b else "")
 	if plot_b:
 		plot_b.remove_entanglement(plot_a.plot_id if plot_a else "")
+
+	# Remove register-level entanglement blueprints
+	var reg_a = _biome_routing.get_register_for_plot(pos_a)
+	var reg_b = _biome_routing.get_register_for_plot(pos_b)
+	var biome = _biome_routing.get_biome_for_plot(pos_a)
+	if biome and biome.quantum_computer and reg_a >= 0 and reg_b >= 0:
+		var qc = biome.quantum_computer
+		var infra_a = qc.get_register_infra_field(reg_a, "entanglement_blueprints", [])
+		var infra_b = qc.get_register_infra_field(reg_b, "entanglement_blueprints", [])
+		infra_a.erase(reg_b)
+		infra_b.erase(reg_a)
 
 	entanglement_removed.emit(pos_a, pos_b)
 
@@ -319,16 +318,15 @@ func _auto_cluster_from_gate(position: Vector2i, linked_plots: Array) -> void:
 	Entangles with all other planted plots in the linked_plots array.
 	"""
 	var plot = _plot_manager.get_plot(position)
-	if not plot or not plot.quantum_state:
+	if not plot or not plot.is_active():
 		return
 
 	for linked_pos in linked_plots:
 		if linked_pos == position:
-			continue  # Skip self
+			continue
 
 		var linked_plot = _plot_manager.get_plot(linked_pos)
-		if linked_plot and linked_plot.is_active() and linked_plot.quantum_state:
-			# Check if already entangled
+		if linked_plot and linked_plot.is_active():
 			if not plot.entangled_plots.has(linked_plot.plot_id):
 				_create_quantum_entanglement(position, linked_pos)
 				if _verbose:
@@ -419,102 +417,38 @@ func update_cluster_gameplay_connections(cluster) -> void:
 				plot.entangled_plots[other_id] = 1.0  # Full strength
 
 
-func add_to_cluster(cluster, new_plot, control_index: int) -> bool:
-	"""Add new qubit to existing cluster via CNOT gate"""
+func add_to_cluster(_cluster, _new_plot, _control_index: int) -> bool:
+	"""Add new qubit to existing cluster via CNOT gate.
 
-	# Check cluster size limit (recommend 6-qubit max)
-	if cluster.get_qubit_count() >= 6:
-		if _verbose:
-			_verbose.warn("quantum", "⚠️", "Cluster at max size (6 qubits)")
-		return false
-
-	# Add qubit to cluster with CNOT gate
-	cluster.entangle_new_qubit_cnot(new_plot.quantum_state, new_plot.plot_id, control_index)
-
-	# Link qubit to cluster
-	new_plot.quantum_state.entangled_cluster = cluster
-	new_plot.quantum_state.cluster_qubit_index = cluster.get_qubit_count() - 1
-
-	# Update gameplay entanglement tracking (for topology)
-	update_cluster_gameplay_connections(cluster)
-
-	if _verbose:
-		_verbose.info("quantum", "🔗", "Added %s to cluster (size: %d)" % [new_plot.plot_id, cluster.get_qubit_count()])
-	return true
+	Note: Model B quantum_state code removed. Cluster operations now go through
+	biome.quantum_computer entanglement graph. This stub remains for FarmGrid API compat.
+	"""
+	push_warning("add_to_cluster: Model B cluster API — use _create_quantum_entanglement instead")
+	return false
 
 
-func upgrade_pair_to_cluster(pair, new_plot) -> bool:
-	"""Upgrade 2-qubit pair to 3-qubit cluster"""
+func upgrade_pair_to_cluster(_pair, _new_plot) -> bool:
+	"""Upgrade 2-qubit pair to 3-qubit cluster.
 
-	# Create new cluster
-	var cluster = EntangledCluster.new()
-
-	# Find the two plots in the pair
-	var plot_a = _plot_manager.get_plot_by_id(pair.qubit_a_id)
-	var plot_b = _plot_manager.get_plot_by_id(pair.qubit_b_id)
-
-	if not plot_a or not plot_b:
-		if _verbose:
-			_verbose.warn("quantum", "⚠️", "Cannot find plots in pair")
-		return false
-
-	# Add both qubits to cluster
-	cluster.add_qubit(plot_a.quantum_state, plot_a.plot_id)
-	cluster.add_qubit(plot_b.quantum_state, plot_b.plot_id)
-
-	# Create GHZ state (|00⟩ + |11⟩) - equivalent to Bell state
-	cluster.create_ghz_state()
-
-	# Add third qubit via CNOT
-	cluster.entangle_new_qubit_cnot(new_plot.quantum_state, new_plot.plot_id, 0)
-
-	# Update qubit references
-	plot_a.quantum_state.entangled_pair = null
-	plot_a.quantum_state.entangled_cluster = cluster
-	plot_a.quantum_state.cluster_qubit_index = 0
-
-	plot_b.quantum_state.entangled_pair = null
-	plot_b.quantum_state.entangled_cluster = cluster
-	plot_b.quantum_state.cluster_qubit_index = 1
-
-	new_plot.quantum_state.entangled_cluster = cluster
-	new_plot.quantum_state.cluster_qubit_index = 2
-
-	# Remove old pair, add cluster
-	entangled_pairs.erase(pair)
-	entangled_clusters.append(cluster)
-
-	# Update gameplay connections
-	update_cluster_gameplay_connections(cluster)
-
-	if _verbose:
-		_verbose.info("quantum", "✨", "Upgraded pair to 3-qubit cluster: %s" % cluster.get_state_string())
-	return true
+	Note: Model B quantum_state code removed. This stub remains for FarmGrid API compat.
+	"""
+	push_warning("upgrade_pair_to_cluster: Model B cluster API — use _create_quantum_entanglement instead")
+	return false
 
 
 func handle_cluster_collapse(cluster) -> void:
-	"""Handle measurement cascade when cluster is measured"""
+	"""Handle measurement cascade when cluster is measured.
+
+	Model C: Clear gameplay entanglement tracking. Quantum state collapse
+	is handled by biome.quantum_computer measurement.
+	"""
 	var plot_ids = cluster.get_all_plot_ids()
 
-	# Update all qubits from collapsed cluster state
-	for i in range(cluster.get_qubit_count()):
-		var plot_id = plot_ids[i]
+	for plot_id in plot_ids:
 		var plot = _plot_manager.get_plot_by_id(plot_id)
-		if not plot:
-			continue
+		if plot:
+			plot.entangled_plots.clear()
 
-		# Get reduced density matrix for this qubit (partial trace)
-		# For now: simplified - cluster measurement collapses to product state
-		# Qubits become separable after measurement
-
-		# Clear cluster reference
-		plot.quantum_state.entangled_cluster = null
-		plot.quantum_state.cluster_qubit_index = -1
-
-		# Clear gameplay connections
-		plot.entangled_plots.clear()
-
-	# Remove cluster from tracking
 	entangled_clusters.erase(cluster)
 
 	if _verbose:

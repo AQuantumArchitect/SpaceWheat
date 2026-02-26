@@ -1,22 +1,20 @@
 class_name BasePlot
 extends Resource
 
-## BasePlot - Foundation class for all farm plots (Register→Plot→Terminal Architecture)
+## BasePlot - Thin grid cell with delegating properties
 ##
-## REFACTOR (2026-02-14): BasePlot is now the single source of truth for game state.
-## - Works in headless mode (no Terminal needed)
-## - Stores register binding (simulation layer)
-## - Terminal is optional UI proxy (instrument layer)
+## Architecture: Register → Terminal → (thin Plot) → Visualization
 ##
-## Architecture:
-##   Register (quantum) → BasePlot (farm/simulation) → Terminal (UI instrument)
+## When a terminal (instrument probe) is attached, delegating properties
+## read from it directly. Without a terminal, fallback fields are used
+## (headless mode / bind_to_register without a terminal).
 ##
-## BasePlot owns:
-##   - Register binding (register_id, biome_name, emoji_pair)
-##   - Measurement state (is_measured, outcome, probability)
-##   - Infrastructure (theta_frozen, lindblad_*, persistent_gates)
+## Terminal is the primary data source when attached:
+##   plot.bound_register_id → terminal.bound_register_id (if terminal) else fallback
+##   plot.is_measured → terminal.is_measured (if terminal) else fallback
 ##
-## Terminal delegates to BasePlot (UI-only proxy)
+## Infrastructure (theta_frozen, lindblad_*, persistent_gates) delegates to
+## register_infrastructure via QuantumComputer (unchanged).
 
 const DualEmojiQubit = preload("res://Core/QuantumSubstrate/DualEmojiQubit.gd")
 const QuantumRigorConfig = preload("res://Core/GameState/QuantumRigorConfig.gd")
@@ -35,22 +33,43 @@ func _log(level: String, category: String, emoji: String, message: String) -> vo
 @export var grid_position: Vector2i = Vector2i.ZERO
 
 # ============================================================================
-# REGISTER BINDING (single source of truth for game mechanics - headless compatible)
+# REGISTER BINDING (delegates to terminal when attached, else uses fallback fields)
 # ============================================================================
 
-## Register binding state (simulation layer - works in headless mode)
-var bound_register_id: int = -1  # -1 = unbound
-var bound_biome_name: String = ""  # Biome name (decoupled from object reference)
-var north_emoji: String = ""  # North pole emoji
-var south_emoji: String = ""  # South pole emoji
+## Terminal reference (instrument probe attached to this plot — primary data source)
+var terminal = null
 
-## Measurement state (simulation layer)
-var is_measured: bool = false
-var measured_outcome: String = ""
-var measured_probability: float = 0.0
+## Fallback fields (used by headless mode / bind_to_register without a terminal)
+var _bound_register_id: int = -1
+var _bound_biome_name: String = ""
+var _north_emoji: String = ""
+var _south_emoji: String = ""
+var _is_measured: bool = false
+var _measured_outcome: String = ""
+var _measured_probability: float = 0.0
 
-## Terminal reference (UI layer - optional, only exists when UI is active)
-var ui_terminal = null  # Terminal instance (UI proxy)
+## Delegating properties: terminal takes priority when present
+var bound_register_id: int:
+	get: return terminal.bound_register_id if terminal else _bound_register_id
+	set(value): _bound_register_id = value
+var bound_biome_name: String:
+	get: return terminal.bound_biome_name if terminal else _bound_biome_name
+	set(value): _bound_biome_name = value
+var north_emoji: String:
+	get: return terminal.north_emoji if terminal else _north_emoji
+	set(value): _north_emoji = value
+var south_emoji: String:
+	get: return terminal.south_emoji if terminal else _south_emoji
+	set(value): _south_emoji = value
+var is_measured: bool:
+	get: return terminal.is_measured if terminal else _is_measured
+	set(value): _is_measured = value
+var measured_outcome: String:
+	get: return terminal.measured_outcome if terminal else _measured_outcome
+	set(value): _measured_outcome = value
+var measured_probability: float:
+	get: return terminal.measured_probability if terminal else _measured_probability
+	set(value): _measured_probability = value
 
 ## Cached biome Node (resolved from bound_biome_name)
 var _cached_biome = null
@@ -120,6 +139,9 @@ func get_biome_name() -> String:
 func is_active() -> bool:
 	return bound_register_id >= 0 and bound_biome_name != ""
 
+func has_terminal() -> bool:
+	return terminal != null and terminal.is_bound
+
 func get_north_emoji() -> String:
 	return north_emoji
 
@@ -139,39 +161,52 @@ func get_measured_probability() -> float:
 # REGISTER BINDING METHODS (simulation layer - headless compatible)
 # ============================================================================
 
-func bind_to_register(register_id: int, biome_name: String, emoji_pair: Dictionary) -> void:
-	"""Bind this plot to a quantum register (simulation layer).
+func attach_terminal(t) -> void:
+	"""Attach a terminal probe to this plot. Delegating properties auto-switch to reading from it."""
+	terminal = t
+	_cached_biome = null
 
-	This is the core simulation state - works in headless mode.
-	UI layer (Terminal) can be created separately.
+
+func detach_terminal() -> void:
+	"""Detach terminal probe. Delegating properties fall back to stored fields."""
+	terminal = null
+	_cached_biome = null
+
+
+func bind_to_register(register_id: int, biome_name: String, emoji_pair: Dictionary) -> void:
+	"""Bind this plot to a quantum register (headless / fallback path).
+
+	Sets fallback fields directly. When a terminal is attached, delegating
+	properties read from the terminal instead (terminal takes priority).
 	"""
-	bound_register_id = register_id
-	bound_biome_name = biome_name
-	north_emoji = emoji_pair.get("north", "")
-	south_emoji = emoji_pair.get("south", "")
-	is_measured = false
-	measured_outcome = ""
-	measured_probability = 0.0
-	_cached_biome = null  # Invalidate cache
+	_bound_register_id = register_id
+	_bound_biome_name = biome_name
+	_north_emoji = emoji_pair.get("north", "")
+	_south_emoji = emoji_pair.get("south", "")
+	_is_measured = false
+	_measured_outcome = ""
+	_measured_probability = 0.0
+	_cached_biome = null
 
 
 func unbind_register() -> void:
-	"""Unbind this plot from its register (simulation layer)."""
-	bound_register_id = -1
-	bound_biome_name = ""
-	north_emoji = ""
-	south_emoji = ""
-	is_measured = false
-	measured_outcome = ""
-	measured_probability = 0.0
+	"""Unbind this plot from its register and detach terminal."""
+	terminal = null
+	_bound_register_id = -1
+	_bound_biome_name = ""
+	_north_emoji = ""
+	_south_emoji = ""
+	_is_measured = false
+	_measured_outcome = ""
+	_measured_probability = 0.0
 	_cached_biome = null
 
 
 func mark_measured(outcome: String, probability: float) -> void:
-	"""Mark this plot as measured (simulation layer)."""
-	is_measured = true
-	measured_outcome = outcome
-	measured_probability = probability
+	"""Mark this plot as measured (fallback fields — terminal.mark_measured is preferred)."""
+	_is_measured = true
+	_measured_outcome = outcome
+	_measured_probability = probability
 
 
 # ============================================================================
