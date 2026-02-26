@@ -83,3 +83,17 @@ llm_inbox/player_logs/
 # - .sh files
 # - .py files (except __pycache__)
 build_web/
+
+# 🍄 runtime artifacts (ignore by default)
+🍄/logs/
+🍄/🎛️/logs/
+🍄/🎛️/🧾/
+🍄/🎛️/.godot/
+🍄/🎛️/.godot_tmp/
+🍄/🎛️/.godot_tmp2/
+🍄/🎛️/__pycache__/
+🍄/🎛️/dev/__pycache__/
+
+# 🍄 curated artifacts explicitly kept in git
+!🍄/artifacts_whitelist/
+!🍄/artifacts_whitelist/**
