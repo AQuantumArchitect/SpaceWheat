@@ -5,6 +5,7 @@ extends RefCounted
 const VisualizationConstants = preload("res://Core/Visualization/VisualizationConstants.gd")
 const QuantumBubbleRenderer = preload("res://Core/Visualization/QuantumBubbleRenderer.gd")
 const EmojiAtlasBatcher = preload("res://Core/Visualization/EmojiAtlasBatcher.gd")
+const VerboseConfig = preload("res://Core/Config/VerboseConfig.gd")
 
 ## Batched Bubble Renderer - Rendering Tier Coordinator
 ##
@@ -339,9 +340,10 @@ func _draw_with_atlas(graph: Node2D, ctx: Dictionary) -> void:
 		var flush_ms = _perf_flush_us / 1000.0 / _perf_frame_count
 		var emoji_ms = _perf_emoji_us / 1000.0 / _perf_frame_count
 		var total_ms = loop_ms + flush_ms + emoji_ms
-		print("[BUBBLE_PERF] loop=%.2fms flush=%.2fms emoji=%.2fms total=%.2fms" % [
-			loop_ms, flush_ms, emoji_ms, total_ms
-		])
+		if VerboseConfig.safe_is_verbose("perf_hud"):
+			print("[BUBBLE_PERF] loop=%.2fms flush=%.2fms emoji=%.2fms total=%.2fms" % [
+				loop_ms, flush_ms, emoji_ms, total_ms
+			])
 		_perf_loop_us = 0
 		_perf_flush_us = 0
 		_perf_emoji_us = 0

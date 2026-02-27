@@ -14,6 +14,7 @@ extends RefCounted
 ## - I(i:j) = mutual information (clustering strength)
 
 const BiomeMetaQuantum = preload("res://Core/Visualization/BiomeMetaQuantum.gd")
+const VerboseConfig = preload("res://Core/Config/VerboseConfig.gd")
 
 # Force constants - calibrated for screen-space pixels with double-delta integration
 # Euler: vel += force * delta, vel *= DAMPING, pos += vel * delta
@@ -331,7 +332,7 @@ func _update_inner_graph(delta: float, inner: BiomeInnerGraph, mi: PackedFloat64
 		bubble.position = center + local_pos
 
 		# DIAG: Trace first bubble per biome for startup frames only
-		if i == 0 and _frame_count <= 5:
+		if i == 0 and _frame_count <= 5 and VerboseConfig.safe_is_verbose("perf_hud"):
 			var pos_change = vel * delta
 			print("[FORCE_DIAG] frame=%d biome=%s | local_pos=(%.1f,%.1f) dist=%.1f | force=%.1f vel=%.2f pos_change=%.3f | center=%s world=%s delta=%.4f" % [
 				_frame_count, inner.biome_name,

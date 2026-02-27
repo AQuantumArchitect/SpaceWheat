@@ -2,19 +2,26 @@ extends Node
 
 ## UIPerformanceTracker - Global singleton for tracking UI component performance
 ## Collects timing data from all UI components to identify bottlenecks
+const VerboseConfig = preload("res://Core/Config/VerboseConfig.gd")
 
 # Per-component timing samples (last 100 frames)
 var component_samples: Dictionary = {}
 const MAX_SAMPLES = 100
 
 func _ready() -> void:
-	print("[UIPerformanceTracker] Initialized - tracking UI component performance")
+	if _perf_debug_enabled():
+		print("[UIPerformanceTracker] Initialized - tracking UI component performance")
+
+
+func _perf_debug_enabled() -> bool:
+	return VerboseConfig.safe_is_verbose("perf_hud")
 
 func record_time(component_name: String, time_us: float) -> void:
 	"""Record timing for a component (in microseconds)."""
 	if not component_samples.has(component_name):
 		component_samples[component_name] = []
-		print("[UIPerformanceTracker] Started tracking: %s" % component_name)
+		if _perf_debug_enabled():
+			print("[UIPerformanceTracker] Started tracking: %s" % component_name)
 
 	var samples = component_samples[component_name]
 	samples.append(time_us)
@@ -24,7 +31,7 @@ func record_time(component_name: String, time_us: float) -> void:
 		samples.pop_front()
 
 	# Debug: print first few recordings
-	if samples.size() <= 3:
+	if samples.size() <= 3 and _perf_debug_enabled():
 		print("[UIPerformanceTracker] %s: %.2f us" % [component_name, time_us])
 
 func get_average_ms(component_name: String) -> float:

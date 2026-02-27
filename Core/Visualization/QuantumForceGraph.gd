@@ -279,7 +279,7 @@ func _process(delta: float):
 			_perf_samples[key].pop_front()
 
 	# Report every N frames
-	if frame_count % _perf_report_interval == 0:
+	if frame_count % _perf_report_interval == 0 and _verbose and _verbose.is_verbose("perf_hud"):
 		_print_perf_report()
 
 
