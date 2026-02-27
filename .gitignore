@@ -10,7 +10,7 @@ llm_outbox/
 Archive/
 archive/
 
-# Test files (development only)
+# Test workspace (large local scratch area)
 Tests/
 !Tests/rig_listener.gd
 
@@ -44,6 +44,10 @@ native/lib/*.a
 native/lib/*.so
 native/src/*.o
 native/src/*.obj
+native_OLD_BLOATED_*/
+*.gd.backup
+*.gd.old
+*.gd.old_v1
 
 # User-specific
 *.cfg
