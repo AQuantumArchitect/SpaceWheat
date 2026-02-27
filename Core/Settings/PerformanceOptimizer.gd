@@ -32,6 +32,9 @@ static func optimize_for_platform() -> void:
 	if is_software_render:
 		print("[PerformanceOptimizer] Software rendering detected: %s" % gpu_name)
 		print("[PerformanceOptimizer] Disabling VSYNC for better responsiveness")
+	elif is_opengl_backend:
+		print("[PerformanceOptimizer] GPU detected: %s" % gpu_name)
+		print("[PerformanceOptimizer] OpenGL backend detected: runtime VSYNC switching unavailable")
 	else:
 		print("[PerformanceOptimizer] GPU detected: %s" % gpu_name)
 		print("[PerformanceOptimizer] Keeping VSYNC enabled for smooth presentation")

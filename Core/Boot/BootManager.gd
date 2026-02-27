@@ -17,6 +17,7 @@ var _ui_booted: bool = false
 var _booted: bool = false  # Full boot (core + UI)
 var is_ready: bool = false  # Public flag for checking boot completion
 var _current_stage: String = ""
+var _boot_start_ms: int = 0
 
 # Registries for O(1) lookups
 var _biome_registry = null  # BiomeRegistry (lazy-loaded)
@@ -36,15 +37,32 @@ func _ready() -> void:
 	_biome_registry = BiomeRegistry.new()
 	_verbose.debug("boot", "📚", "BiomeRegistry initialized (%d biomes)" % _biome_registry.get_all().size())
 
+
+func _mark_boot_start_if_needed() -> void:
+	if _boot_start_ms == 0:
+		_boot_start_ms = Time.get_ticks_msec()
+
+
+func _boot_elapsed_ms() -> int:
+	if _boot_start_ms == 0:
+		return 0
+	return Time.get_ticks_msec() - _boot_start_ms
+
+
+func _boot_timing(message: String) -> void:
+	_verbose.info("boot", "⏱", "T+%dms %s" % [_boot_elapsed_ms(), message])
+
 ## Main boot sequence entry point - call after farm and shell are created
 func boot_core(load_slot: int = -1, scenario_id: String = "default", headless: bool = false) -> Node:
 	"""Boot core systems and ensure Farm exists (no UI)."""
 	if _core_booted:
 		return get_node_or_null("/root/GameStateManager").active_farm if get_node_or_null("/root/GameStateManager") else null
 
+	_mark_boot_start_if_needed()
 	_verbose.info("boot", "🚀", "======================================================================")
 	_verbose.info("boot", "🚀", "BOOT CORE STARTING")
 	_verbose.info("boot", "🚀", "======================================================================")
+	_boot_timing("boot_core start")
 
 	var gsm = get_node_or_null("/root/GameStateManager")
 	if not gsm:
@@ -55,12 +73,15 @@ func boot_core(load_slot: int = -1, scenario_id: String = "default", headless: b
 	if not farm:
 		push_warning("BootManager: Farm not available after start_session")
 		return null
+	_boot_timing("session started")
 
 	# Stage 3A: Core Systems
 	_stage_core_systems(farm)
+	_boot_timing("core systems initialized")
 
 	# Stage 3D: Start Simulation (core runs even without UI)
 	_stage_start_simulation(farm)
+	_boot_timing("simulation started")
 
 	_core_booted = true
 
@@ -69,6 +90,7 @@ func boot_core(load_slot: int = -1, scenario_id: String = "default", headless: b
 		_booted = true
 		is_ready = true
 		_verbose.info("boot", "✅", "BOOT CORE COMPLETE (headless) - GAME READY")
+		_boot_timing("headless game ready")
 		game_ready.emit()
 
 	return farm
@@ -82,15 +104,19 @@ func boot_ui(farm: Node, shell: Node, quantum_viz: Node) -> void:
 		push_warning("BootManager: boot_ui called with null farm")
 		return
 
+	_mark_boot_start_if_needed()
 	_verbose.info("boot", "🚀", "======================================================================")
 	_verbose.info("boot", "🚀", "BOOT UI STARTING")
 	_verbose.info("boot", "🚀", "======================================================================")
+	_boot_timing("boot_ui start")
 
 	# Stage 3B: Visualization
 	_stage_visualization(farm, quantum_viz)
+	_boot_timing("visualization initialized")
 
 	# Stage 3C: UI (async - must await to ensure QuantumInstrumentInput is created)
 	await _stage_ui(farm, shell, quantum_viz)
+	_boot_timing("ui initialized")
 
 	_ui_booted = true
 
@@ -103,6 +129,7 @@ func boot_ui(farm: Node, shell: Node, quantum_viz: Node) -> void:
 		_verbose.info("boot", "✅", "======================================================================")
 		_verbose.info("boot", "✅", "BOOT SEQUENCE COMPLETE - GAME READY")
 		_verbose.info("boot", "✅", "======================================================================")
+		_boot_timing("full game ready")
 		game_ready.emit()
 
 ## Stage 3A: Initialize core systems
