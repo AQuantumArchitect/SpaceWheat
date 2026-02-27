@@ -278,6 +278,8 @@ static func _write_emoji_sidecar(
 		"known_emojis": state.get_known_emojis(),
 		"balance_profile_id": state.balance_profile_id,
 		"balance_overrides": state.balance_overrides,
+		"balance_workbench_config": state.balance_workbench_config,
+		"economy_variables": state.economy_variables,
 		"icon_map_snapshot": sidecar_icon_map,
 		"icon_map_snapshot_source": sidecar_icon_source,
 		"icon_map_snapshot_time": sidecar_icon_time

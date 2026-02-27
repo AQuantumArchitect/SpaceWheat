@@ -109,9 +109,29 @@ const PLANT_TYPE_EMOJIS: Dictionary = {
 ## CONVERSION FUNCTIONS
 ## ===========================================
 
-static func quantum_to_credits(probability: float) -> int:
+static func get_quantum_to_credits(economy = null) -> float:
+	"""Get conversion rate, allowing save-driven economy variable overrides."""
+	var fallback = QUANTUM_TO_CREDITS
+	if economy and economy.has_method("get_economy_variable"):
+		var value = float(economy.get_economy_variable("quantum_to_credits", fallback))
+		if value > 0.0:
+			return value
+	return fallback
+
+
+static func get_max_biome_qubits(economy = null) -> int:
+	"""Get max biome qubit cap, allowing save-driven economy variable overrides."""
+	var fallback = MAX_BIOME_QUBITS
+	if economy and economy.has_method("get_economy_variable"):
+		var value = int(economy.get_economy_variable("max_biome_qubits", fallback))
+		if value > 0:
+			return value
+	return fallback
+
+
+static func quantum_to_credits(probability: float, economy = null) -> int:
 	"""Convert quantum probability to emoji-credits"""
-	return int(probability * QUANTUM_TO_CREDITS)
+	return int(probability * get_quantum_to_credits(economy))
 
 
 static func get_vocab_injection_cost(south_emoji: String) -> Dictionary:

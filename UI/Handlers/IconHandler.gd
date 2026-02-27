@@ -84,11 +84,12 @@ static func icon_assign(farm, positions: Array[Vector2i], emoji: String, _game_s
 			"message": "Biome visualization data not ready"
 		}
 	var qubit_count = biome.get_total_register_count() if biome.has_method("get_total_register_count") else 0
-	if qubit_count >= EconomyConstants.MAX_BIOME_QUBITS:
+	var max_qubits = EconomyConstants.get_max_biome_qubits(farm.economy if farm and farm.economy else null)
+	if qubit_count >= max_qubits:
 		return {
 			"success": false,
 			"error": "qubit_cap_reached",
-			"message": "Biome is at max capacity (%d qubits)" % EconomyConstants.MAX_BIOME_QUBITS
+			"message": "Biome is at max capacity (%d qubits)" % max_qubits
 		}
 
 	# Check if either emoji already exists in biome (prevent axis conflicts)

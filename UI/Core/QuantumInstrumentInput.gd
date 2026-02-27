@@ -490,8 +490,9 @@ func _execute_inject_vocabulary(vocab_pair: Dictionary) -> void:
 		_verbose.warn("input", "+", "Biome visualization data not ready")
 		return
 	var qubit_count = biome.get_total_register_count() if biome.has_method("get_total_register_count") else 0
-	if qubit_count >= EconomyConstants.MAX_BIOME_QUBITS:
-		_verbose.warn("input", "+", "Biome at max capacity (%d qubits)" % EconomyConstants.MAX_BIOME_QUBITS)
+	var max_qubits = EconomyConstants.get_max_biome_qubits(farm.economy if farm else null)
+	if qubit_count >= max_qubits:
+		_verbose.warn("input", "+", "Biome at max capacity (%d qubits)" % max_qubits)
 		return
 
 	# Check if pair is already in biome

@@ -23,6 +23,10 @@ var imperium_icon = null
 var resource_mutation_log: Array = []
 var _economy_overrides: Dictionary = {}
 var _balance_profile_id: String = "default"
+var _economy_variables: Dictionary = {
+	"quantum_to_credits": EconomyConstants.QUANTUM_TO_CREDITS,
+	"max_biome_qubits": EconomyConstants.MAX_BIOME_QUBITS
+}
 
 const MAX_RESOURCE_MUTATION_LOG: int = 400
 
@@ -33,8 +37,9 @@ func _ready():
 
 func _print_resources():
 	var output = ""
+	var q2c = _q2c()
 	for emoji in emoji_credits:
-		var quantum_units = emoji_credits[emoji] / EconomyConstants.QUANTUM_TO_CREDITS
+		var quantum_units = emoji_credits[emoji] / q2c
 		output += "%s: %d  " % [emoji, quantum_units]
 	if _verbose: _verbose.debug("economy", "📊", output)
 
@@ -59,7 +64,7 @@ func add_resource(emoji: String, credits_amount, reason: String = "") -> void:
 	_emit_resource_change(emoji)
 	_record_resource_mutation(emoji, float(final_amount), reason)
 
-	var quantum_units = final_amount / EconomyConstants.QUANTUM_TO_CREDITS
+	var quantum_units = final_amount / _q2c()
 	if reason != "":
 		if _verbose: _verbose.info("economy", "+", "%d %s-credits (%d units) from %s" % [final_amount, emoji, quantum_units, reason])
 
@@ -119,7 +124,7 @@ func remove_resource(emoji: String, credits_amount, reason: String = "") -> bool
 	_emit_resource_change(emoji)
 	_record_resource_mutation(emoji, -float(credits_amount), reason)
 
-	var quantum_units = credits_amount / EconomyConstants.QUANTUM_TO_CREDITS
+	var quantum_units = credits_amount / _q2c()
 	if reason != "":
 		if _verbose: _verbose.info("economy", "-", "%.2f %s-credits (%.2f units) for %s" % [credits_amount, emoji, quantum_units, reason])
 	return true
@@ -144,7 +149,7 @@ func get_resource(emoji: String):
 
 func get_resource_units(emoji: String) -> int:
 	"""Get resource in quantum units (credits / 10)"""
-	return get_resource(emoji) / EconomyConstants.QUANTUM_TO_CREDITS
+	return get_resource(emoji) / _q2c()
 
 
 func get_all_resources() -> Dictionary:
@@ -191,7 +196,7 @@ func receive_harvest(emoji: String, quantum_energy: float, reason: String = "har
 	1 quantum energy = 1 credit (direct mass mapping)
 	Returns: number of credits added
 	"""
-	var credits_amount = int(quantum_energy * EconomyConstants.QUANTUM_TO_CREDITS)
+	var credits_amount = int(quantum_energy * _q2c())
 	add_resource(emoji, credits_amount, reason)
 	return credits_amount
 
@@ -229,7 +234,7 @@ func _get_missing_resources(cost: Dictionary) -> String:
 		var have = get_resource(emoji)
 		var need = cost[emoji]
 		if have < need:
-			missing.append("%d more %s" % [(need - have) / EconomyConstants.QUANTUM_TO_CREDITS, emoji])
+			missing.append("%d more %s" % [(need - have) / _q2c(), emoji])
 	return ", ".join(missing)
 
 
@@ -247,15 +252,24 @@ func _format_cost(cost: Dictionary) -> String:
 func apply_economy_overrides(config: Dictionary) -> Dictionary:
 	"""Store economy overrides from a world state config.
 
-	config may contain keys: action_costs, gate_costs, quest_rewards, production.
+	config may contain keys: action_costs, gate_costs, quest_rewards, production, economy_variables.
 	Returns a summary of what was applied.
 	"""
 	_economy_overrides = config.duplicate(true)
 	_balance_profile_id = str(_economy_overrides.get("profile_id", "default"))
+	_economy_variables = {
+		"quantum_to_credits": EconomyConstants.QUANTUM_TO_CREDITS,
+		"max_biome_qubits": EconomyConstants.MAX_BIOME_QUBITS
+	}
 	var applied: Dictionary = {}
-	for key in ["action_costs", "gate_costs", "quest_rewards", "production"]:
+	for key in ["action_costs", "gate_costs", "quest_rewards", "production", "economy_variables"]:
 		if _economy_overrides.has(key) and _economy_overrides[key] is Dictionary:
 			applied[key] = _economy_overrides[key].size()
+	var incoming_vars = _economy_overrides.get("economy_variables", {})
+	if incoming_vars is Dictionary and not incoming_vars.is_empty():
+		_economy_variables = _economy_variables.duplicate(true)
+		for key in incoming_vars.keys():
+			_economy_variables[str(key)] = incoming_vars[key]
 
 	var quest_tuning = _economy_overrides.get("quest_rewards", {})
 	if quest_tuning is Dictionary:
@@ -273,6 +287,16 @@ func get_economy_overrides() -> Dictionary:
 
 func get_balance_profile_id() -> String:
 	return _balance_profile_id
+
+
+func get_economy_variables() -> Dictionary:
+	return _economy_variables.duplicate(true)
+
+
+func get_economy_variable(name: String, default_value = null):
+	if _economy_variables.has(name):
+		return _economy_variables[name]
+	return default_value
 
 
 func get_overridden_action_cost(action: String, context: Dictionary = {}) -> Dictionary:
@@ -311,7 +335,7 @@ func can_fulfill_quota(wheat_required: int) -> bool:
 func fulfill_quota(wheat_required: int) -> bool:
 	if not can_fulfill_quota(wheat_required):
 		return false
-	return remove_resource("🌾", wheat_required * EconomyConstants.QUANTUM_TO_CREDITS, "quota")
+	return remove_resource("🌾", wheat_required * _q2c(), "quota")
 
 
 ## ============================================================================
@@ -339,6 +363,10 @@ func print_stats():
 	if _verbose: _verbose.debug("economy", "📊", "=== FARM ECONOMY (Emoji-Credits) ===")
 	for emoji in emoji_credits:
 		var credits_val = emoji_credits[emoji]
-		var units = credits_val / EconomyConstants.QUANTUM_TO_CREDITS
+		var units = credits_val / _q2c()
 		if _verbose: _verbose.debug("economy", "  ", "%s: %d units (%d credits)" % [emoji, units, credits_val])
 	if _verbose: _verbose.debug("economy", "📊", "Total wheat harvested: %d" % total_wheat_harvested)
+
+
+func _q2c() -> float:
+	return EconomyConstants.get_quantum_to_credits(self)

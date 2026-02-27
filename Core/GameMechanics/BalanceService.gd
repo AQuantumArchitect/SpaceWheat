@@ -28,13 +28,15 @@ const ACTION_CATALOG: Array[String] = [
 
 
 static func get_snapshot(farm: Node) -> Dictionary:
-	var config = BalanceConfig.load_default_config()
+	var state = _get_current_state(farm)
+	var config = BalanceConfig.load_default_config(state)
 	var profile_id = "default"
 	var overrides: Dictionary = {}
 	var quest_tuning = QuestRewards.get_reward_tuning()
 	var action_costs: Dictionary = {}
 	var gate_costs: Dictionary = {}
 	var tuning = config.get("tuning", {}).duplicate(true)
+	var economy_variables = config.get("economy_variables", {}).duplicate(true)
 
 	var economy = _get_economy(farm)
 	if economy:
@@ -46,6 +48,10 @@ static func get_snapshot(farm: Node) -> Dictionary:
 			if override_tuning is Dictionary:
 				for key in override_tuning.keys():
 					tuning[str(key)] = override_tuning[key]
+			var override_vars = overrides.get("economy_variables", {})
+			if override_vars is Dictionary:
+				for key in override_vars.keys():
+					economy_variables[str(key)] = override_vars[key]
 
 	for action in ACTION_CATALOG:
 		var normalized = ActionIds.normalize_action(action)
@@ -67,6 +73,7 @@ static func get_snapshot(farm: Node) -> Dictionary:
 		"gate_costs": gate_costs,
 		"quest_rewards": quest_tuning,
 		"tuning": tuning,
+		"economy_variables": economy_variables,
 		"overrides": overrides,
 		"roi_notes": config.get("action_roi_notes", {}),
 		"quest_notes": config.get("quest_reward_notes", {})
@@ -123,12 +130,22 @@ static func apply_patch(farm: Node, patch: Dictionary, source: String = "balance
 			tuning_target[str(key)] = tuning_patch[key]
 		merged["tuning"] = tuning_target
 
+	var variable_patch = patch.get("economy_variables", {})
+	if variable_patch is Dictionary and not variable_patch.is_empty():
+		var variable_target = merged.get("economy_variables", {})
+		if not (variable_target is Dictionary):
+			variable_target = {}
+		for key in variable_patch.keys():
+			variable_target[str(key)] = variable_patch[key]
+		merged["economy_variables"] = variable_target
+
 	if patch.has("profile_id"):
 		merged["profile_id"] = str(patch.get("profile_id", "default"))
 
 	if not economy.has_method("apply_economy_overrides"):
 		return {"ok": false, "error": "economy_override_unavailable"}
 	var applied = economy.apply_economy_overrides(merged)
+	_sync_state_from_economy(farm, economy)
 	return {
 		"ok": true,
 		"applied": applied,
@@ -145,11 +162,12 @@ static func reset_to_default(farm: Node) -> Dictionary:
 		return {"ok": false, "error": "economy_override_unavailable"}
 	var defaults = {"profile_id": "default"}
 	var applied = economy.apply_economy_overrides(defaults)
+	_sync_state_from_economy(farm, economy)
 	return {"ok": true, "applied": applied, "profile_id": "default"}
 
 
 static func get_tuning_value(farm: Node, key: String, default_value):
-	var config = BalanceConfig.load_default_config()
+	var config = BalanceConfig.load_default_config(_get_current_state(farm))
 	var tuning = config.get("tuning", {}).duplicate(true)
 	var economy = _get_economy(farm)
 	if economy and economy.has_method("get_economy_overrides"):
@@ -178,3 +196,46 @@ static func _get_economy(farm: Node):
 	if farm and ("economy" in farm) and farm.economy:
 		return farm.economy
 	return null
+
+
+static func _get_current_state(farm: Node):
+	if not farm:
+		return null
+	var gsm = farm.get_node_or_null("/root/GameStateManager")
+	if not gsm:
+		return null
+	if not ("current_state" in gsm):
+		return null
+	return gsm.current_state
+
+
+static func _sync_state_from_economy(farm: Node, economy) -> void:
+	var state = _get_current_state(farm)
+	if not state:
+		return
+	if state.has_method("ensure_balance_workbench_defaults"):
+		state.ensure_balance_workbench_defaults()
+	if economy and economy.has_method("get_balance_profile_id"):
+		state.balance_profile_id = str(economy.get_balance_profile_id())
+	var cfg = {}
+	if state.balance_workbench_config is Dictionary:
+		cfg = state.balance_workbench_config.duplicate(true)
+	if economy and economy.has_method("get_economy_overrides"):
+		state.balance_overrides = economy.get_economy_overrides().duplicate(true)
+		var overrides = state.balance_overrides
+		for key in ["action_costs", "gate_costs", "quest_rewards", "production", "tuning", "economy_variables"]:
+			var block = overrides.get(key, null)
+			if block is Dictionary:
+				var merged_block = cfg.get(key, {})
+				if not (merged_block is Dictionary):
+					merged_block = {}
+				for sub_key in block.keys():
+					merged_block[str(sub_key)] = block[sub_key]
+				cfg[key] = merged_block
+	if economy and economy.has_method("get_economy_variables"):
+		state.economy_variables = economy.get_economy_variables().duplicate(true)
+	if state.balance_profile_id != "":
+		cfg["profile_id"] = state.balance_profile_id
+	if state.economy_variables is Dictionary and not state.economy_variables.is_empty():
+		cfg["economy_variables"] = state.economy_variables.duplicate(true)
+	state.balance_workbench_config = BalanceConfig.merge_with_defaults(cfg)

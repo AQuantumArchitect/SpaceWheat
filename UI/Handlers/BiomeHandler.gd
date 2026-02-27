@@ -302,11 +302,12 @@ static func inject_vocabulary(farm, positions: Array[Vector2i], vocab_pair: Dict
 	if not biome:
 		return {"success": false, "error": "no_biome"}
 	var qubit_count = biome.get_total_register_count() if biome.has_method("get_total_register_count") else 0
-	if qubit_count >= EconomyConstants.MAX_BIOME_QUBITS:
+	var max_qubits = EconomyConstants.get_max_biome_qubits(farm.economy if farm and farm.economy else null)
+	if qubit_count >= max_qubits:
 		return {
 			"success": false,
 			"error": "qubit_cap_reached",
-			"message": "Biome is at max capacity (%d qubits)" % EconomyConstants.MAX_BIOME_QUBITS
+			"message": "Biome is at max capacity (%d qubits)" % max_qubits
 		}
 
 	# Check if vocab pair is valid

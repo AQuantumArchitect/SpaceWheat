@@ -97,6 +97,12 @@ func capture_state_from_farm(farm: Node, current_state: GameState, scenario_id: 
 		state.balance_profile_id = economy.get_balance_profile_id()
 	if economy.has_method("get_economy_overrides"):
 		state.balance_overrides = economy.get_economy_overrides().duplicate(true)
+	if economy.has_method("get_economy_variables"):
+		state.economy_variables = economy.get_economy_variables().duplicate(true)
+	if current_state and ("balance_workbench_config" in current_state):
+		var cfg = current_state.balance_workbench_config
+		if cfg is Dictionary and not cfg.is_empty():
+			state.balance_workbench_config = cfg.duplicate(true)
 	if farm.has_method("get_reap_count"):
 		state.reap_count = int(farm.get_reap_count())
 	elif "reap_count" in farm:
@@ -254,9 +260,28 @@ func apply_state_to_farm(state: GameState, farm: Node) -> void:
 		economy._emit_resource_change(emoji)
 
 	if economy.has_method("apply_economy_overrides"):
-		var balance_payload = state.balance_overrides.duplicate(true)
+		var balance_payload: Dictionary = {}
+		if state.balance_workbench_config is Dictionary and not state.balance_workbench_config.is_empty():
+			for key in ["action_costs", "gate_costs", "quest_rewards", "production", "tuning", "economy_variables"]:
+				var block = state.balance_workbench_config.get(key, null)
+				if block is Dictionary and not block.is_empty():
+					balance_payload[key] = block.duplicate(true)
+		if state.balance_overrides is Dictionary and not state.balance_overrides.is_empty():
+			for key in state.balance_overrides.keys():
+				var value = state.balance_overrides[key]
+				if value is Dictionary:
+					var merged = balance_payload.get(key, {})
+					if not (merged is Dictionary):
+						merged = {}
+					for sub_key in value.keys():
+						merged[str(sub_key)] = value[sub_key]
+					balance_payload[key] = merged
+				else:
+					balance_payload[key] = value
 		if state.balance_profile_id != "" and not balance_payload.has("profile_id"):
 			balance_payload["profile_id"] = state.balance_profile_id
+		if state.economy_variables is Dictionary and not state.economy_variables.is_empty():
+			balance_payload["economy_variables"] = state.economy_variables.duplicate(true)
 		economy.apply_economy_overrides(balance_payload)
 
 	if farm.has_method("set_reap_count"):

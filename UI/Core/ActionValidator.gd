@@ -344,7 +344,8 @@ static func _can_execute_inject_vocabulary(farm, current_selection: Vector2i) ->
 		return false
 	if not biome.viz_cache or not biome.viz_cache.has_metadata():
 		return false
-	if _get_qubit_count(biome) >= EconomyConstants.MAX_BIOME_QUBITS:
+	var max_qubits = EconomyConstants.get_max_biome_qubits(farm.economy if farm else null)
+	if _get_qubit_count(biome) >= max_qubits:
 		return false
 
 	var pairs = _collect_injectable_pairs(farm, biome)
@@ -414,7 +415,8 @@ static func _can_execute_icon_assign(farm, selected_plots: Array[Vector2i], acti
 		return false
 	if not biome.viz_cache or not biome.viz_cache.has_metadata():
 		return false
-	if _get_qubit_count(biome) >= EconomyConstants.MAX_BIOME_QUBITS:
+	var max_qubits = EconomyConstants.get_max_biome_qubits(farm.economy if farm else null)
+	if _get_qubit_count(biome) >= max_qubits:
 		return false
 
 	if _biome_has_emoji(biome, north):

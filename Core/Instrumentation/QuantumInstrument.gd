@@ -56,7 +56,6 @@ var terminal_pool = null
 ## Selection state (absorbed from QuantumInstrumentState)
 var current_biome: String = ""
 var current_plot_idx: int = -1
-var current_subspace_idx: int = -1
 var last_selected_position: Vector2i = Vector2i(-1, -1)
 var checked_plots: Array[Vector2i] = []
 
@@ -150,18 +149,6 @@ func clear_checked_plots() -> void:
 	checked_plots.clear()
 
 
-func get_checked_plots() -> Array[Vector2i]:
-	return checked_plots.duplicate()
-
-
-func set_checked_plots(positions: Array) -> void:
-	checked_plots.clear()
-	for pos in positions:
-		if pos is Vector2i:
-			checked_plots.append(pos)
-			plot_check_changed.emit(pos, true)
-	_log("debug", "instrument", "✅", "Set %d checked plots" % checked_plots.size())
-
 
 # ============================================================================
 # SUBMENU MANAGEMENT (absorbed from QuantumInstrumentState)
@@ -233,60 +220,6 @@ func cycle_tool_mode() -> Dictionary:
 # ============================================================================
 # STATE QUERY (for AI/automation)
 # ============================================================================
-
-func get_available_actions(context: Dictionary) -> Array:
-	var actions: Array = []
-	if is_in_submenu():
-		for key in ["Q", "E", "R"]:
-			if current_submenu_data.get("actions", {}).has(key):
-				var action_data = current_submenu_data["actions"][key]
-				actions.append({
-					"key": key,
-					"action": action_data.get("action", ""),
-					"enabled": action_data.get("enabled", true),
-					"cost": action_data.get("cost", {}),
-					"label": action_data.get("label", "")
-				})
-	else:
-		var ToolConfig = load("res://Core/GameState/ToolConfig.gd")
-		var tool_group = ToolConfig.get_group(current_tool_group)
-		var mode_index = ToolConfig.get_group_mode_index(current_tool_group)
-		var modes = tool_group.get("modes", [[]])
-		if mode_index < 0 or mode_index >= modes.size():
-			return actions
-		var tool_actions = modes[mode_index]
-		if tool_actions is String:
-			actions.append({"key": "Q", "action": tool_actions, "enabled": true, "cost": {}, "label": tool_actions})
-		elif tool_actions is Array:
-			for i in range(min(3, tool_actions.size())):
-				var action_key = ["Q", "E", "R"][i]
-				actions.append({"key": action_key, "action": tool_actions[i], "enabled": true, "cost": {}, "label": tool_actions[i]})
-	return actions
-
-
-func get_state_snapshot() -> Dictionary:
-	return {
-		"current_biome": current_biome,
-		"current_plot_idx": current_plot_idx,
-		"last_selected_position": last_selected_position,
-		"checked_plots": checked_plots.duplicate(),
-		"current_submenu_name": current_submenu_name,
-		"submenu_page": submenu_page,
-		"current_tool_group": current_tool_group,
-		"tool_mode_indices": tool_mode_indices.duplicate()
-	}
-
-
-func restore_state(snapshot: Dictionary) -> void:
-	current_biome = snapshot.get("current_biome", "")
-	current_plot_idx = snapshot.get("current_plot_idx", -1)
-	last_selected_position = snapshot.get("last_selected_position", Vector2i(-1, -1))
-	checked_plots = snapshot.get("checked_plots", []).duplicate()
-	current_submenu_name = snapshot.get("current_submenu_name", "")
-	submenu_page = snapshot.get("submenu_page", 0)
-	current_tool_group = snapshot.get("current_tool_group", 3)
-	tool_mode_indices = snapshot.get("tool_mode_indices", {}).duplicate()
-
 
 # ============================================================================
 # GROUP 1: UNITARY GATE ACTIONS
@@ -518,11 +451,12 @@ func action_inject_vocabulary(biome_name: String) -> Dictionary:
 		return {"success": false, "error": "no_biome", "message": "No biome at selection"}
 
 	var qubit_count = biome.get_total_register_count() if biome.has_method("get_total_register_count") else 0
-	if qubit_count >= EconomyConstants.MAX_BIOME_QUBITS:
+	var max_qubits = EconomyConstants.get_max_biome_qubits(farm.economy if farm and farm.economy else null)
+	if qubit_count >= max_qubits:
 		return {
 			"success": false,
 			"error": "qubit_cap_reached",
-			"message": "Biome is at max capacity (%d qubits)" % EconomyConstants.MAX_BIOME_QUBITS
+			"message": "Biome is at max capacity (%d qubits)" % max_qubits
 		}
 
 	var candidate_pairs = _collect_injectable_pairs(farm, biome)
@@ -819,160 +753,6 @@ func victory_lap() -> Dictionary:
 	return result
 
 
-func victory_lap_partial(
-	selected_biomes: Array[String] = [],
-	max_registers: int = 8,
-	milk_spend: int = 0,
-	phase_window: int = 1
-) -> Dictionary:
-	if not farm or not farm.grid or not farm.grid.biomes:
-		return {"success": false, "error": "no_farm_or_biomes"}
-	if not terminal_pool:
-		return {"success": false, "error": "no_terminal_pool"}
-
-	var target_registers = max(1, max_registers)
-	var target_phase_window = max(1, phase_window)
-	var target_milk_spend = max(0, milk_spend)
-
-	var chosen_biomes: Array[String] = []
-	var seen: Dictionary = {}
-	if selected_biomes.is_empty():
-		for biome_name in farm.grid.biomes.keys():
-			if biome_name is String and str(biome_name) != "":
-				var b = str(biome_name)
-				if not seen.has(b):
-					chosen_biomes.append(b)
-					seen[b] = true
-	else:
-		for biome_name in selected_biomes:
-			if biome_name == "":
-				continue
-			if not farm.grid.biomes.has(biome_name):
-				continue
-			if seen.has(biome_name):
-				continue
-			chosen_biomes.append(biome_name)
-			seen[biome_name] = true
-	chosen_biomes.sort()
-	if chosen_biomes.is_empty():
-		return {"success": false, "error": "no_target_biomes"}
-
-	var explore_total = 0
-	var measure_total = 0
-	var harvest_total = 0
-	var explore_failures: Array = []
-	var measure_failures: Array = []
-	var harvest_failures: Array = []
-	var explored_terminals: Array = []
-
-	for biome_name in chosen_biomes:
-		if explore_total >= target_registers:
-			break
-		var biome = farm.grid.biomes.get(biome_name, null)
-		if not biome:
-			continue
-		while explore_total < target_registers:
-			var explore = ProbeActions.action_explore(terminal_pool, biome, farm.economy)
-			if not explore.get("success", false):
-				var reason = str(explore.get("error", "unknown"))
-				if reason != "no_registers":
-					explore_failures.append({"biome": biome_name, "error": reason, "details": explore})
-				break
-			explore_total += 1
-			var term = explore.get("terminal", null)
-			if term:
-				_attach_terminal_to_plot(term)
-				explored_terminals.append(term)
-			_emit_farm_action("explore", explore)
-			if terminal_pool.get_unbound_count() <= 0:
-				break
-
-	var measured_terminals: Array = []
-	for terminal in explored_terminals:
-		if not terminal or not terminal.is_bound:
-			continue
-		var t_biome_name = str(terminal.bound_biome_name)
-		var biome = farm.grid.biomes.get(t_biome_name, null)
-		if not biome:
-			measure_failures.append({"terminal": terminal.terminal_id, "error": "unknown_biome", "biome": t_biome_name})
-			continue
-		var measure = ProbeActions.action_measure(terminal, biome, farm.economy)
-		if measure.get("success", false):
-			measure_total += 1
-			measured_terminals.append(terminal)
-			_emit_farm_action("measure", measure)
-		else:
-			measure_failures.append({
-				"terminal": terminal.terminal_id,
-				"biome": t_biome_name,
-				"error": str(measure.get("error", "unknown")),
-				"details": measure
-			})
-
-	var milk_before = 0.0
-	if farm and "economy" in farm and farm.economy and farm.economy.has_method("get_resource"):
-		milk_before = float(farm.economy.get_resource("🍼"))
-	var actual_milk_spend = 0.0
-	if target_milk_spend > 0 and farm.economy and farm.economy.has_method("remove_resource"):
-		var spend = min(float(target_milk_spend), milk_before)
-		if spend > 0.0 and farm.economy.remove_resource("🍼", spend, "victory_lap_partial_spend"):
-			actual_milk_spend = spend
-
-	var reward_multiplier = _compute_partial_victory_multiplier(measure_total, actual_milk_spend, target_phase_window)
-	var bonus_total = 0.0
-	var bonus_by_emoji: Dictionary = {}
-
-	for terminal in measured_terminals:
-		if not terminal:
-			continue
-		_detach_terminal_from_plot(terminal)
-		var pop = ProbeActions.action_pop(terminal, terminal_pool, farm.economy, farm)
-		if pop.get("success", false):
-			harvest_total += 1
-			_emit_farm_action("pop", pop)
-			var resource = str(pop.get("resource", ""))
-			var amount = float(pop.get("amount", 0))
-			if resource != "" and amount > 0.0 and reward_multiplier > 1.0 and farm.economy and farm.economy.has_method("add_resource"):
-				var bonus = floor(max(0.0, amount * (reward_multiplier - 1.0)))
-				if bonus > 0.0:
-					farm.economy.add_resource(resource, bonus, "victory_lap_partial_bonus")
-					bonus_total += bonus
-					bonus_by_emoji[resource] = float(bonus_by_emoji.get(resource, 0.0)) + bonus
-		else:
-			harvest_failures.append({
-				"terminal": terminal.terminal_id,
-				"error": str(pop.get("error", "unknown")),
-				"details": pop
-			})
-
-	var milk_after = milk_before
-	if farm and "economy" in farm and farm.economy and farm.economy.has_method("get_resource"):
-		milk_after = float(farm.economy.get_resource("🍼"))
-
-	var result = {
-		"success": true,
-		"mode": "partial",
-		"biomes": chosen_biomes,
-		"max_registers": target_registers,
-		"phase_window": target_phase_window,
-		"milk_spend_requested": target_milk_spend,
-		"milk_spend_actual": actual_milk_spend,
-		"reward_multiplier": reward_multiplier,
-		"explore_total": explore_total,
-		"explore_failures": explore_failures,
-		"measure_total": measure_total,
-		"measure_failures": measure_failures,
-		"harvest_total": harvest_total,
-		"harvest_failures": harvest_failures,
-		"bonus_total": bonus_total,
-		"bonus_by_emoji": bonus_by_emoji,
-		"milk_before": milk_before,
-		"milk_after": milk_after
-	}
-	_notify_quest_projection("victory_lap_partial", result)
-	return result
-
-
 func configure_seed_state(cmd: Dictionary) -> Dictionary:
 	var out: Dictionary = {"ok": true}
 	var gsm = _get_autoload("GameStateManager")
@@ -1024,15 +804,6 @@ func configure_seed_state(cmd: Dictionary) -> Dictionary:
 # ============================================================================
 # PRIVATE HELPERS
 # ============================================================================
-
-func _compute_partial_victory_multiplier(selected_count: int, milk_spend: float, phase_window: int) -> float:
-	var registers = max(0, selected_count)
-	var phase = max(1, phase_window)
-	var register_factor = max(1.0, log(1.0 + float(registers)) / log(2.0))
-	var milk_factor = 1.0 + (0.20 * (log(1.0 + max(0.0, milk_spend)) / log(2.0)))
-	var phase_factor = clamp(0.8 + (0.1 * float(phase - 1)), 0.8, 1.2)
-	return max(1.0, register_factor * milk_factor * phase_factor)
-
 
 func _emit_farm_action(action: String, result: Dictionary, pos: Vector2i = Vector2i(-1, -1)) -> void:
 	if farm and farm.has_method("emit_action_signal"):
@@ -1123,7 +894,33 @@ func get_timescale_snapshot(biome_name: String) -> Dictionary:
 
 
 func set_timescale_objective(objective: Dictionary) -> Dictionary:
-	_timescale_objective = _sanitize_timescale_objective(objective)
+	var out = DEFAULT_TIMESCALE_OBJECTIVE.duplicate(true)
+	if not objective.is_empty():
+		var focus: Array[String] = []
+		var seen: Dictionary = {}
+		var raw_focus = objective.get("focus_emojis", [])
+		if raw_focus is Array:
+			for emoji in raw_focus:
+				var s = str(emoji)
+				if s == "" or seen.has(s):
+					continue
+				seen[s] = true
+				focus.append(s)
+		out["focus_emojis"] = focus
+		var floors: Dictionary = out.get("resource_floors", {}).duplicate(true)
+		var raw_floors = objective.get("resource_floors", {})
+		if raw_floors is Dictionary:
+			for emoji in raw_floors.keys():
+				var s = str(emoji)
+				if s == "":
+					continue
+				floors[s] = max(0.0, float(raw_floors[emoji]))
+		out["resource_floors"] = floors
+		out["top_k"] = clampi(int(objective.get("top_k", out.get("top_k", 8))), 1, 32)
+		out["target_gain_per_wait"] = clampf(float(objective.get("target_gain_per_wait", out.get("target_gain_per_wait", 1.0))), 0.05, 100.0)
+		out["horizon_min_phrames"] = max(1, int(objective.get("horizon_min_phrames", out.get("horizon_min_phrames", 6))))
+		out["horizon_max_phrames"] = max(out["horizon_min_phrames"], int(objective.get("horizon_max_phrames", out.get("horizon_max_phrames", 72))))
+	_timescale_objective = out
 	var result = {"ok": true, "objective": _timescale_objective.duplicate(true)}
 	action_performed.emit("set_timescale_objective", result)
 	return result
@@ -1138,261 +935,6 @@ func clear_timescale_objective() -> Dictionary:
 	var result = {"ok": true, "objective": _timescale_objective.duplicate(true)}
 	action_performed.emit("clear_timescale_objective", result)
 	return result
-
-
-func get_timescale_projection(biome_name: String, top_k: int = -1) -> Dictionary:
-	var biome = _resolve_biome(biome_name)
-	if not biome:
-		return {"ok": false, "error": "unknown_biome", "biome": biome_name}
-
-	var icon_map = _get_biome_icon_map_payload(biome_name, biome)
-	var rankings = _build_timescale_emoji_rankings(icon_map, _timescale_objective, top_k)
-	var recommendation = _build_timescale_recommendation(rankings, icon_map, biome, _timescale_objective)
-	return {
-		"ok": true,
-		"biome": biome_name,
-		"objective": _timescale_objective.duplicate(true),
-		"icon_map": icon_map,
-		"emoji_rankings": rankings,
-		"recommendation": recommendation
-	}
-
-
-func recommend_timescale(biome_name: String, top_k: int = -1) -> Dictionary:
-	var projection = get_timescale_projection(biome_name, top_k)
-	if not bool(projection.get("ok", false)):
-		return projection
-	var recommendation = projection.get("recommendation", {}).duplicate(true)
-	recommendation["ok"] = true
-	recommendation["biome"] = biome_name
-	recommendation["emoji_rankings"] = projection.get("emoji_rankings", [])
-	return recommendation
-
-
-func auto_apply_timescale(biome_name: String, top_k: int = -1) -> Dictionary:
-	"""One-click helper: recommend + apply stride/dt for a biome."""
-	var recommendation = recommend_timescale(biome_name, top_k)
-	if not bool(recommendation.get("ok", false)):
-		return {
-			"ok": false,
-			"biome": biome_name,
-			"error": recommendation.get("error", "recommendation_failed"),
-			"recommendation": recommendation
-		}
-
-	var stride = int(recommendation.get("recommended_stride", 1))
-	var dt = float(recommendation.get("recommended_dt", 0.02))
-	if stride <= 0:
-		stride = 1
-	if dt <= 0.0:
-		dt = 0.02
-
-	var stride_result = set_observation_stride(biome_name, stride)
-	var resolution_result = set_resolution(biome_name, dt)
-	var ok = bool(stride_result.get("ok", false)) and bool(resolution_result.get("ok", false))
-	return {
-		"ok": ok,
-		"biome": biome_name,
-		"applied": ok,
-		"recommended_stride": stride,
-		"recommended_dt": dt,
-		"recommended_wait_phrames": int(recommendation.get("recommended_wait_phrames", 0)),
-		"recommendation": recommendation,
-		"stride_result": stride_result,
-		"resolution_result": resolution_result
-	}
-
-
-func _sanitize_timescale_objective(raw: Dictionary) -> Dictionary:
-	var out = DEFAULT_TIMESCALE_OBJECTIVE.duplicate(true)
-	if raw.is_empty():
-		return out
-
-	var focus: Array[String] = []
-	var seen: Dictionary = {}
-	var raw_focus = raw.get("focus_emojis", [])
-	if raw_focus is Array:
-		for emoji in raw_focus:
-			var s = str(emoji)
-			if s == "" or seen.has(s):
-				continue
-			seen[s] = true
-			focus.append(s)
-	out["focus_emojis"] = focus
-
-	var floors: Dictionary = out.get("resource_floors", {}).duplicate(true)
-	var raw_floors = raw.get("resource_floors", {})
-	if raw_floors is Dictionary:
-		for emoji in raw_floors.keys():
-			var s = str(emoji)
-			if s == "":
-				continue
-			floors[s] = max(0.0, float(raw_floors[emoji]))
-	out["resource_floors"] = floors
-
-	out["top_k"] = clampi(int(raw.get("top_k", out.get("top_k", 8))), 1, 32)
-	out["target_gain_per_wait"] = clampf(float(raw.get("target_gain_per_wait", out.get("target_gain_per_wait", 1.0))), 0.05, 100.0)
-	out["horizon_min_phrames"] = max(1, int(raw.get("horizon_min_phrames", out.get("horizon_min_phrames", 6))))
-	out["horizon_max_phrames"] = max(out["horizon_min_phrames"], int(raw.get("horizon_max_phrames", out.get("horizon_max_phrames", 72))))
-	return out
-
-
-func _get_biome_icon_map_payload(biome_name: String, biome) -> Dictionary:
-	var payload: Dictionary = {}
-	if biome and biome.viz_cache and biome.viz_cache.has_method("get_icon_map"):
-		payload = biome.viz_cache.get_icon_map()
-	if payload.is_empty() and farm and "biome_evolution_batcher" in farm and farm.biome_evolution_batcher:
-		var batcher = farm.biome_evolution_batcher
-		if batcher.has_method("get_biome_icon_map"):
-			payload = batcher.get_biome_icon_map(biome_name)
-		elif batcher.has_method("get_global_icon_map"):
-			payload = batcher.get_global_icon_map()
-
-	var by_emoji: Dictionary = {}
-	var total = 0.0
-	var steps = 0
-	var raw_by_emoji = payload.get("by_emoji", {})
-	if raw_by_emoji is Dictionary:
-		for emoji in raw_by_emoji.keys():
-			var s = str(emoji)
-			if s == "":
-				continue
-			var weight = float(raw_by_emoji[emoji])
-			if weight <= 0.0:
-				continue
-			by_emoji[s] = weight
-			total += weight
-	steps = max(1, int(payload.get("steps", 1)))
-	if by_emoji.is_empty() and farm and farm.has_method("get_known_emojis"):
-		var known = farm.get_known_emojis()
-		if known is Array:
-			for emoji in known:
-				var s = str(emoji)
-				if s == "":
-					continue
-				by_emoji[s] = 1.0
-				total += 1.0
-			steps = 1
-	if total <= 0.0:
-		total = 1.0
-	return {
-		"by_emoji": by_emoji,
-		"total": total,
-		"steps": steps,
-		"num_qubits": int(payload.get("num_qubits", 0))
-	}
-
-
-func _build_timescale_emoji_rankings(icon_map: Dictionary, objective: Dictionary, top_k_override: int = -1) -> Array:
-	var rankings: Array = []
-	var by_emoji: Dictionary = icon_map.get("by_emoji", {})
-	var total = max(1e-9, float(icon_map.get("total", 1.0)))
-	var steps = max(1, int(icon_map.get("steps", 1)))
-	var focus_raw = objective.get("focus_emojis", [])
-	var focus: Dictionary = {}
-	if focus_raw is Array:
-		for emoji in focus_raw:
-			focus[str(emoji)] = true
-	var floors: Dictionary = objective.get("resource_floors", {})
-
-	for emoji in by_emoji.keys():
-		var s = str(emoji)
-		var weight = float(by_emoji[s])
-		var probability = weight / total
-		var per_step_probability = weight / float(steps)
-		var floor = float(floors.get(s, 0.0))
-		var have = _get_resource_amount(farm, s)
-		var deficit = max(0.0, floor - have)
-		var deficit_norm = (deficit / max(1.0, floor)) if floor > 0.0 else 0.0
-		var is_focus = focus.has(s)
-		var objective_score = probability * (1.0 + (1.5 * deficit_norm) + (0.6 if is_focus else 0.0))
-		rankings.append({
-			"emoji": s,
-			"weight": weight,
-			"probability": probability,
-			"per_step_probability": per_step_probability,
-			"resource_have": have,
-			"resource_floor": floor,
-			"resource_deficit": deficit,
-			"focus": is_focus,
-			"objective_score": objective_score
-		})
-
-	rankings.sort_custom(func(a, b):
-		var sa = float(a.get("objective_score", 0.0))
-		var sb = float(b.get("objective_score", 0.0))
-		if sa == sb:
-			return float(a.get("probability", 0.0)) > float(b.get("probability", 0.0))
-		return sa > sb
-	)
-
-	var top_k = int(objective.get("top_k", 8))
-	if top_k_override > 0:
-		top_k = top_k_override
-	top_k = clampi(top_k, 1, 64)
-	if rankings.size() > top_k:
-		return rankings.slice(0, top_k)
-	return rankings
-
-
-func _build_timescale_recommendation(rankings: Array, icon_map: Dictionary, biome, objective: Dictionary) -> Dictionary:
-	var by_emoji: Dictionary = icon_map.get("by_emoji", {})
-	var total = max(1e-9, float(icon_map.get("total", 1.0)))
-
-	var concentration = 0.0
-	var entropy = 0.0
-	for emoji in by_emoji.keys():
-		var p = float(by_emoji[emoji]) / total
-		if p <= 0.0:
-			continue
-		concentration += p * p
-		entropy += -p * log(p)
-	var entropy_max = log(max(2.0, float(by_emoji.size())))
-	var entropy_normalized = (entropy / entropy_max) if entropy_max > 0.0 else 0.0
-
-	var focus_pressure = 0.0
-	var floors: Dictionary = objective.get("resource_floors", {})
-	for emoji in floors.keys():
-		var floor = float(floors[emoji])
-		if floor <= 0.0:
-			continue
-		var have = _get_resource_amount(farm, str(emoji))
-		if have < floor:
-			focus_pressure += (floor - have) / max(1.0, floor)
-
-	var roughness = clampf(concentration, 0.0, 1.0)
-	var stride = int(round(1.0 + (1.0 - roughness) * 7.0))
-	if focus_pressure > 0.75:
-		stride -= 1
-	if focus_pressure > 1.5:
-		stride -= 1
-	stride = clampi(stride, 1, 16)
-
-	var dt = 0.004 + ((1.0 - roughness) * 0.06)
-	if focus_pressure > 0.75:
-		dt *= 0.7
-	dt = clampf(dt, GranularityController.MIN_DT, 0.2)
-
-	var min_wait = max(1, int(objective.get("horizon_min_phrames", 6)))
-	var max_wait = max(min_wait, int(objective.get("horizon_max_phrames", 72)))
-	var wait_phrames = int(round(float(min_wait) + (1.0 - roughness) * float(max_wait - min_wait) + (focus_pressure * 8.0)))
-	wait_phrames = clampi(wait_phrames, min_wait, max_wait)
-
-	var current_stride = _biome_stride(biome)
-	var current_dt = _biome_dt(biome)
-
-	return {
-		"current_stride": current_stride,
-		"current_dt": current_dt,
-		"recommended_stride": stride,
-		"recommended_dt": dt,
-		"recommended_wait_phrames": wait_phrames,
-		"concentration": concentration,
-		"entropy_normalized": entropy_normalized,
-		"focus_pressure": focus_pressure,
-		"top_emoji": rankings[0].get("emoji", "") if not rankings.is_empty() else "",
-		"top_probability": float(rankings[0].get("probability", 0.0)) if not rankings.is_empty() else 0.0
-	}
 
 
 static func _get_resource_amount(farm_node: Node, emoji: String) -> float:

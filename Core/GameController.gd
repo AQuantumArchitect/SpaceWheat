@@ -71,12 +71,12 @@ func harvest_plot(pos: Vector2i) -> Dictionary:
 		# Fallback: if energy not provided, derive from yield
 		if quantum_energy == 0.0:
 			var yield_amount = harvest_data.get("yield", 1)
-			quantum_energy = float(yield_amount) / float(EconomyConstants.QUANTUM_TO_CREDITS)
+			quantum_energy = float(yield_amount) / EconomyConstants.get_quantum_to_credits(economy)
 
-		if not outcome_emoji.is_empty():
-			# Generic routing: any emoji → its credits
-			var credits_earned = economy.receive_harvest(outcome_emoji, quantum_energy, "harvest")
-			var units = credits_earned / EconomyConstants.QUANTUM_TO_CREDITS
+			if not outcome_emoji.is_empty():
+				# Generic routing: any emoji → its credits
+				var credits_earned = economy.receive_harvest(outcome_emoji, quantum_energy, "harvest")
+				var units = credits_earned / EconomyConstants.get_quantum_to_credits(economy)
 
 			# Goal tracking for wheat
 			if outcome_emoji == "🌾":

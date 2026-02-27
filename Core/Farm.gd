@@ -862,7 +862,8 @@ func _harvest_rainbow_sink_flux(active_drain_biomes: Dictionary) -> void:
 				consumed = float(biome.quantum_computer.consume_sink_flux(str(emoji), requested))
 			if consumed <= 0.0:
 				continue
-			var credits = consumed * EconomyConstants.QUANTUM_TO_CREDITS
+			var q2c = EconomyConstants.get_quantum_to_credits(economy)
+			var credits = consumed * q2c
 			var accum = float(lindblad_rainbow_accumulators.get(emoji, 0.0)) + credits
 			var whole = int(accum)
 			if whole > 0:
@@ -875,7 +876,8 @@ func _accumulate_lindblad_harvest(plot, emoji: String, drained_probability: floa
 	if not economy or emoji == "":
 		return
 
-	var credits = max(0.0, drained_probability) * EconomyConstants.QUANTUM_TO_CREDITS
+	var q2c = EconomyConstants.get_quantum_to_credits(economy)
+	var credits = max(0.0, drained_probability) * q2c
 	if credits <= 0.0:
 		return
 
@@ -1762,7 +1764,7 @@ func _get_missing_resources(cost: Dictionary) -> String:
 		var need = cost[emoji]
 		var have = economy.get_resource(emoji)
 		if have < need:
-			var shortfall = (need - have) / EconomyConstants.QUANTUM_TO_CREDITS
+			var shortfall = (need - have) / EconomyConstants.get_quantum_to_credits(economy)
 			missing.append("%d more %s" % [shortfall, emoji])
 	return ", ".join(missing)
 
@@ -1786,7 +1788,7 @@ func _process_harvest_outcome(harvest_data: Dictionary) -> void:
 	# Fallback: if energy not provided, use yield * 0.1 (inverse of QUANTUM_TO_CREDITS)
 	if quantum_energy == 0.0:
 		var yield_amount = harvest_data.get("yield", 1)
-		quantum_energy = float(yield_amount) / float(EconomyConstants.QUANTUM_TO_CREDITS)
+		quantum_energy = float(yield_amount) / EconomyConstants.get_quantum_to_credits(economy)
 
 	if outcome_emoji.is_empty():
 		return

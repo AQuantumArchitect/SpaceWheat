@@ -69,6 +69,11 @@ extends Resource
 ## Balance profile state (shared between headless and UI)
 @export var balance_profile_id: String = "default"
 @export var balance_overrides: Dictionary = {}
+@export var balance_workbench_config: Dictionary = {}
+@export var economy_variables: Dictionary = {
+	"quantum_to_credits": 1.0,
+	"max_biome_qubits": 12
+}
 @export var reap_count: int = 0
 
 ## Unlocked Biomes - Start with StarterForest and Village, unlock more through exploration
@@ -235,6 +240,7 @@ func _init():
 	# Player vocabulary is initialized in the @export default above
 	# 🌾 (Wheat) and 👥 (People) are the starter emojis
 	# These match faction signatures and seed initial faction conversations
+	ensure_balance_workbench_defaults()
 
 
 ## Convenience method to create state for a specific grid size
@@ -273,3 +279,86 @@ func get_save_display_name() -> String:
 		time.month, time.day, time.year,
 		time.hour, time.minute
 	]
+
+
+func ensure_balance_workbench_defaults() -> void:
+	var defaults = _default_balance_workbench_config()
+	if not (balance_workbench_config is Dictionary):
+		balance_workbench_config = {}
+	if balance_workbench_config.is_empty():
+		balance_workbench_config = defaults
+	else:
+		if not balance_workbench_config.has("profile_id"):
+			balance_workbench_config["profile_id"] = defaults.get("profile_id", "default")
+		if not balance_workbench_config.has("display_name"):
+			balance_workbench_config["display_name"] = defaults.get("display_name", "Default Runtime Balance")
+		var tuning = balance_workbench_config.get("tuning", {})
+		if not (tuning is Dictionary):
+			tuning = {}
+		for key in defaults.get("tuning", {}).keys():
+			if not tuning.has(key):
+				tuning[key] = defaults["tuning"][key]
+		balance_workbench_config["tuning"] = tuning
+		var roi_notes = balance_workbench_config.get("action_roi_notes", {})
+		if not (roi_notes is Dictionary):
+			roi_notes = {}
+		for key in defaults.get("action_roi_notes", {}).keys():
+			if not roi_notes.has(key):
+				roi_notes[key] = defaults["action_roi_notes"][key]
+		balance_workbench_config["action_roi_notes"] = roi_notes
+		var quest_notes = balance_workbench_config.get("quest_reward_notes", {})
+		if not (quest_notes is Dictionary):
+			quest_notes = {}
+		for key in defaults.get("quest_reward_notes", {}).keys():
+			if not quest_notes.has(key):
+				quest_notes[key] = defaults["quest_reward_notes"][key]
+		balance_workbench_config["quest_reward_notes"] = quest_notes
+
+	if balance_profile_id == "":
+		balance_profile_id = str(balance_workbench_config.get("profile_id", "default"))
+	if not (balance_overrides is Dictionary):
+		balance_overrides = {}
+	if not (economy_variables is Dictionary):
+		economy_variables = {}
+	for key in ["quantum_to_credits", "max_biome_qubits"]:
+		if not economy_variables.has(key):
+			economy_variables[key] = defaults.get("economy_variables", {}).get(key, 1.0 if key == "quantum_to_credits" else 12)
+
+
+func _default_balance_workbench_config() -> Dictionary:
+	return {
+		"profile_id": "default",
+		"display_name": "Default Runtime Balance",
+		"tuning": {
+			"pop_base_yield_scale": 100.0,
+			"reap_base_yield": 50.0,
+			"reap_evolution_cycles": 13,
+			"flux_to_credits": 1.0,
+			"reap_cost_sequence": [1, 1, 2, 3, 5, 8, 13, 21],
+			"reap_starting_tokens": 6
+		},
+		"economy_variables": {
+			"quantum_to_credits": 1.0,
+			"max_biome_qubits": 12
+		},
+		"action_roi_notes": {
+			"explore": "Unlocks one terminal cycle; prerequisite for measure/pop.",
+			"measure": "Collapses state and unlocks deterministic harvest paths.",
+			"pop": "Single terminal payoff from measured outcome, driven by icon-map mass and purity.",
+			"reap": "Season change: fast-forward, collect sink flux, and broad harvest across active biomes.",
+			"harvest_all": "Legacy alias path for reap.",
+			"explore_biome": "Long-term expansion unlock; increases future terminal surface area.",
+			"inject_vocabulary": "Converts known pairs into biome terminals and new learning options.",
+			"remove_vocabulary": "Emergency rollback action; expensive by design.",
+			"lindblad_pump": "Raises local population/energy; setup cost for stronger harvest curves.",
+			"lindblad_drain": "Removes unstable population; useful for stabilizing noisy plots.",
+			"quest_reroll": "Short-horizon quest quality control.",
+			"quest_lock": "Preserves high-value quest offers for later claim timing."
+		},
+		"quest_reward_notes": {
+			"resource_reward_base_ratio": "Global scaler on quest resource payout budget.",
+			"resource_reward_min_total": "Lower clamp for total payout.",
+			"resource_reward_max_total": "Upper clamp for total payout.",
+			"resource_reward_min_per_emoji": "Floor per resource emoji in split payouts."
+		}
+	}

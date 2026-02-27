@@ -112,9 +112,9 @@ func _build_new_session_state(scenario_id: String) -> GameState:
 		if ResourceLoader.exists(scenario_path):
 			var scenario_state = SaveStore.load_scenario(requested)
 			if scenario_state:
-				return scenario_state
+				return _hydrate_state_defaults(scenario_state)
 		_verbose.warn("save", "⚠", "Scenario '%s' not found, falling back to new game template" % requested)
-	return load_new_game_template()
+	return _hydrate_state_defaults(load_new_game_template())
 
 
 func _create_farm() -> Node:
@@ -305,6 +305,7 @@ func new_game(scenario_id: String = "default") -> GameState:
 	current_state = SaveStore.load_scenario(scenario_id)
 	if current_state and current_state.scenario_id == "":
 		current_state.scenario_id = scenario_id
+	current_state = _hydrate_state_defaults(current_state)
 
 	current_state.save_timestamp = Time.get_unix_time_from_system()
 	current_state.game_time = 0.0
@@ -383,13 +384,14 @@ func load_new_game_template() -> GameState:
 		_verbose.info("save", "📂", "Loaded new game template from: " + project_path)
 	else:
 		_verbose.warn("save", "⚠", "new_game_easy.tres not found, creating blank state")
-	return state
+	return _hydrate_state_defaults(state)
 
 
 func load_game_state(slot: int) -> GameState:
 	"""Load game state from slot (returns state, doesn't apply it)"""
 	var state = SaveStore.load_state(slot)
 	if state:
+		state = _hydrate_state_defaults(state)
 		_verbose.info("save", "📂", "Loaded save from slot " + str(slot + 1))
 		return state
 	_verbose.info("save", "⚠", "No save file in slot " + str(slot + 1))
@@ -400,6 +402,7 @@ func load_game_state_by_alias(alias_filename: String) -> GameState:
 	"""Load game state from emoji alias filename/path (returns state, doesn't apply it)."""
 	var state = SaveStore.load_state_by_emoji_alias(alias_filename)
 	if state:
+		state = _hydrate_state_defaults(state)
 		_verbose.info("save", "📂", "Loaded save alias: " + alias_filename)
 		return state
 	_verbose.info("save", "⚠", "No save found for alias: " + alias_filename)
@@ -591,3 +594,11 @@ func get_icon_registry():
 	if tree:
 		return tree.root.get_node_or_null("/root/IconRegistry")
 	return null
+
+
+func _hydrate_state_defaults(state: GameState) -> GameState:
+	if not state:
+		return null
+	if state.has_method("ensure_balance_workbench_defaults"):
+		state.ensure_balance_workbench_defaults()
+	return state

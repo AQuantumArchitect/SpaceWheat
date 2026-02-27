@@ -90,7 +90,8 @@ static func _generate_delivery_quest(params: FactionStateMatcher.QuestParameters
 
 	# intensity → quantity in CREDITS (fallback when IconMap missing)
 	var base_units = 1 + int(params.intensity * 4)  # 1-5 base
-	var quantity = base_units * EconomyConstants.QUANTUM_TO_CREDITS
+	var q2c = EconomyConstants.get_quantum_to_credits(economy)
+	var quantity = base_units * q2c
 
 	# Sample resource from ALLOWED emojis only (vocabulary constraint!)
 	var allowed_emojis = params.available_emojis if params.available_emojis.size() > 0 else []
@@ -101,7 +102,7 @@ static func _generate_delivery_quest(params: FactionStateMatcher.QuestParameters
 	if icon_map and icon_map.has("by_emoji") and resource != "":
 		var weight = icon_map["by_emoji"].get(resource, 0.0)
 		if weight > 0.0:
-			quantity = int(round(weight * EconomyConstants.QUANTUM_TO_CREDITS))
+			quantity = int(round(weight * q2c))
 			quantity = max(quantity, 1)
 
 	# urgency → time limit
