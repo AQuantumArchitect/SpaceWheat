@@ -19,7 +19,7 @@ export XDG_CONFIG_HOME="$XDG_ROOT"
 export APPLICATION_NAME
 export GODOT_USER_DIR
 export DISABLE_VERBOSE_FILE_LOGGING=1
-export RIG_DISABLE_LOOKAHEAD=1
+# RIG_DISABLE_LOOKAHEAD removed — use C++ MultiBiomeLookaheadEngine when available
 export RIG_DISABLE_MI=1
 export RIG_DISABLE_FORCE=1
 

@@ -2781,8 +2781,8 @@ func run_additional_cycles(cycles: int, biome_names: Array = []) -> Dictionary:
 func run_time_skip_cycles(cycles: int, dt: float = LOOKAHEAD_DT, biome_names: Array = []) -> Dictionary:
 	"""Deterministic synchronous evolution for rig time-skip.
 
-	Bypasses physics-frame guards and async packet queues. Always uses direct
-	biome evolution to avoid lookahead race/crash conditions during headless control.
+	Uses C++ MultiBiomeLookaheadEngine when available (evolve_single_biome per
+	biome per stride packet). Falls back to GDScript direct evolution otherwise.
 	"""
 	var target_cycles = maxi(cycles, 0)
 	if target_cycles <= 0:
@@ -2832,6 +2832,8 @@ func run_time_skip_cycles(cycles: int, dt: float = LOOKAHEAD_DT, biome_names: Ar
 			"mode": "direct"
 		}
 
+	var use_native = lookahead_engine != null and _engine_ready
+	var mode_str = "native" if use_native else "direct"
 	var evolved_steps = 0
 	var stride_deferred_steps = 0
 	var stride_flushed_steps = 0
@@ -2847,7 +2849,7 @@ func run_time_skip_cycles(cycles: int, dt: float = LOOKAHEAD_DT, biome_names: Ar
 				var rho_dim = int(qc.density_matrix.n) if qc and qc.density_matrix else -1
 				var h_dim = int(qc.hamiltonian.n) if qc and qc.hamiltonian else -1
 				var lindblad_count = int(qc.lindblad_operators.size()) if qc and "lindblad_operators" in qc else 0
-				print("[TIME_SKIP][BATCHER] cycle=%d biome=%s reg_dim=%d rho_dim=%d H_dim=%d L_count=%d max_dt=%.6f target_dt=%.6f" % [
+				print("[TIME_SKIP][BATCHER] cycle=%d biome=%s reg_dim=%d rho_dim=%d H_dim=%d L_count=%d max_dt=%.6f target_dt=%.6f mode=%s" % [
 					_i,
 					_get_biome_name(biome),
 					reg_dim,
@@ -2855,13 +2857,17 @@ func run_time_skip_cycles(cycles: int, dt: float = LOOKAHEAD_DT, biome_names: Ar
 					h_dim,
 					lindblad_count,
 					(biome.max_evolution_dt if "max_evolution_dt" in biome else -1.0),
-					target_dt
+					target_dt,
+					mode_str
 				])
 			for packet in packets:
 				var packet_dt = float(packet.get("dt", target_dt))
 				var packet_max_dt = float(packet.get("max_dt", _get_base_max_dt(biome)))
 				var packet_stride = int(packet.get("stride", 1))
-				_run_direct_biome_cycle(biome, packet_dt, packet_max_dt)
+				if use_native:
+					_run_native_biome_cycle(biome, packet_dt, packet_max_dt)
+				else:
+					_run_direct_biome_cycle(biome, packet_dt, packet_max_dt)
 				if debug_time_skip:
 					print("[TIME_SKIP][BATCHER] cycle=%d biome=%s evolve_ok stride=%d packet_dt=%.6f packet_max_dt=%.6f carry_dt=%.6f" % [
 						_i,
@@ -2882,7 +2888,10 @@ func run_time_skip_cycles(cycles: int, dt: float = LOOKAHEAD_DT, biome_names: Ar
 		if flush_dt <= 0.0:
 			continue
 		var flush_max_dt = float(flush_packet.get("max_dt", _get_base_max_dt(biome)))
-		_run_direct_biome_cycle(biome, flush_dt, flush_max_dt)
+		if use_native:
+			_run_native_biome_cycle(biome, flush_dt, flush_max_dt)
+		else:
+			_run_direct_biome_cycle(biome, flush_dt, flush_max_dt)
 		stride_flushed_steps += 1
 		evolved_steps += 1
 		if debug_time_skip:
@@ -2904,7 +2913,7 @@ func run_time_skip_cycles(cycles: int, dt: float = LOOKAHEAD_DT, biome_names: Ar
 		"stride_deferred_steps": stride_deferred_steps,
 		"stride_flushed_steps": stride_flushed_steps,
 		"skipped_biomes": skipped_biomes,
-		"mode": "direct",
+		"mode": mode_str,
 		"dt": target_dt,
 		"require_activity": require_activity
 	}
@@ -2931,7 +2940,43 @@ func _run_direct_biome_cycle(biome, dt: float, max_dt_override: float = -1.0) ->
 		biome.viz_cache.update_purity(biome.quantum_computer.get_purity())
 
 	_post_evolution_update(biome)
+
+
+func _run_native_biome_cycle(biome, dt: float, max_dt_override: float = -1.0) -> void:
+	"""Evolve one biome for one step using C++ evolve_single_biome.
+
+	Falls back to GDScript if the biome isn't registered with the native engine.
+	"""
+	if not _is_valid_biome(biome):
+		return
+	if not _ensure_biome_quantum_shapes(biome):
+		return
+
 	var biome_name = _get_biome_name(biome)
+	var engine_id = _biome_engine_ids.get(biome_name, -1)
+	if engine_id < 0:
+		# Biome not registered with native engine — fall back to GDScript
+		_run_direct_biome_cycle(biome, dt, max_dt_override)
+		return
+
+	if biome.time_tracker:
+		biome.time_tracker.update(dt)
+
+	var qc = biome.quantum_computer
+	var rho_packed = qc.density_matrix._to_packed()
+	var max_dt = max_dt_override if max_dt_override > 0.0 else _get_base_max_dt(biome)
+
+	var result = lookahead_engine.evolve_single_biome(engine_id, rho_packed, 1, dt, max_dt)
+
+	# Write back evolved state
+	var results = result.get("results", [])
+	if results.size() > 0:
+		var final_rho = results[results.size() - 1]
+		if final_rho is PackedFloat64Array and final_rho.size() > 0:
+			var dim = int(qc.register_map.dim())
+			qc.load_packed_state(final_rho, dim, true)
+
+	_post_evolution_update(biome)
 	biome_evolution_counts[biome_name] = biome_evolution_counts.get(biome_name, 0) + 1
 
 

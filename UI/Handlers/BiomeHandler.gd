@@ -187,17 +187,17 @@ static func inspect_plot(farm, positions: Array[Vector2i]) -> Dictionary:
 		var _info_plot = farm.grid.get_plot(pos) if farm.grid else null
 		var terminal = _info_plot.terminal if _info_plot else null
 		if terminal:
-				info.has_terminal = true
-				info.terminal_id = terminal.terminal_id
-				info.terminal_bound = terminal.is_bound
-				info.terminal_measured = terminal.is_measured
-				if terminal.is_measured:
-					info.measured_outcome = terminal.measured_outcome
-					info.measured_probability = terminal.measured_probability
-				if biome and terminal.is_bound:
-					info.north_probability = biome.get_register_probability(terminal.bound_register_id)
-			else:
-				info.has_terminal = false
+			info.has_terminal = true
+			info.terminal_id = terminal.terminal_id
+			info.terminal_bound = terminal.is_bound
+			info.terminal_measured = terminal.is_measured
+			if terminal.is_measured:
+				info.measured_outcome = terminal.measured_outcome
+				info.measured_probability = terminal.measured_probability
+			if biome and terminal.is_bound:
+				info.north_probability = biome.get_register_probability(terminal.bound_register_id)
+		else:
+			info.has_terminal = false
 
 		# Plot fallback probability (if no terminal info)
 		if biome and (not info.get("has_terminal", false)) and plot.is_active() and plot.north_emoji != "":
