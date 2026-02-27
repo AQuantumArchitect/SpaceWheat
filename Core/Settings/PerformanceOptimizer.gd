@@ -26,6 +26,7 @@ static func optimize_for_platform() -> void:
 	"""Auto-configure performance settings based on detected hardware."""
 	var is_software_render = detect_software_renderer()
 	var gpu_name = RenderingServer.get_video_adapter_name()
+	var is_opengl_backend = not RenderingServer.get_rendering_device()
 
 	# Log detection
 	if is_software_render:
@@ -37,15 +38,15 @@ static func optimize_for_platform() -> void:
 
 	# Apply settings
 	if is_software_render:
-		# Software rendering: disable VSYNC, cap FPS to avoid 100% CPU spin
-		DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED)
+		# Software rendering: cap FPS to avoid 100% CPU spin.
+		# OpenGL compatibility on WSL often cannot switch VSYNC mode at runtime.
+		if not is_opengl_backend:
+			DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED)
 		Engine.max_fps = 30
 		print("[PerformanceOptimizer] VSYNC: OFF (software rendering), FPS cap: 30")
 	else:
 		# Real GPU: VSYNC if supported, otherwise cap at 60 FPS
-		# OpenGL via Mesa d3d12 doesn't support runtime VSYNC changes
-		var is_opengl = not RenderingServer.get_rendering_device()
-		if is_opengl:
+		if is_opengl_backend:
 			Engine.max_fps = 60
 			print("[PerformanceOptimizer] OpenGL mode — FPS cap: 60 (VSYNC not available)")
 		else:

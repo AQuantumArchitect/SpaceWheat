@@ -3,6 +3,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="${PROJECT_ROOT:-$(cd "${SCRIPT_DIR}/../.." && pwd)}"
+source "${PROJECT_ROOT}/scripts/lib/godot_runtime_env.sh"
 XDG_ROOT="${XDG_ROOT:-${PROJECT_ROOT}/.godot}"
 APPLICATION_NAME="${APPLICATION_NAME:-SpaceWheat - Quantum Farm}"
 # Godot resolves user:// under $XDG_DATA_HOME/godot/app_userdata/<AppName>
@@ -22,10 +23,11 @@ export DISABLE_VERBOSE_FILE_LOGGING=1
 # RIG_DISABLE_LOOKAHEAD removed — use C++ MultiBiomeLookaheadEngine when available
 export RIG_DISABLE_MI=1
 export RIG_DISABLE_FORCE=1
+sw_prepare_runtime_env "headless"
 
 echo "Starting live rig listener..."
 echo "Queue:  user://rig/queue.jsonl"
 echo "Results: user://rig/results.jsonl"
 echo "User dir: $GODOT_USER_DIR"
 
-exec godot --headless --path . --script Tests/rig_listener.gd
+exec godot --audio-driver "${SW_GODOT_AUDIO_DRIVER:-Dummy}" --headless --path . --script Tests/rig_listener.gd

@@ -1,11 +1,10 @@
 #!/bin/bash
 # Launch Godot editor for WSL2 development
 
-export WAYLAND_DISPLAY=wayland-0
-export XDG_RUNTIME_DIR=/mnt/wslg/runtime-dir
-export DISPLAY=:0
+set -euo pipefail
 
-# Force software compositing so WSLg's Weston can actually present frames
-export LIBGL_ALWAYS_SOFTWARE=1
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${SCRIPT_DIR}/scripts/lib/godot_runtime_env.sh"
 
-godot --rendering-driver opengl3 --rendering-method gl_compatibility -e
+sw_prepare_runtime_env "interactive"
+sw_godot --rendering-driver opengl3 --rendering-method gl_compatibility -e

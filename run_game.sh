@@ -2,6 +2,12 @@
 # Launch SpaceWheat with software rendering (WSL2 workaround)
 # The Intel D3D12 driver in WSL2 crashes - use Mesa software rasterizer instead
 
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${SCRIPT_DIR}/scripts/lib/godot_runtime_env.sh"
+sw_prepare_runtime_env "interactive"
+
 export LIBGL_ALWAYS_SOFTWARE=1
 # Direct Godot's user data to a workspace path we control and
 # make sure the internal logs/cache directories exist.
@@ -15,4 +21,4 @@ if [ -n "$GODOT_USER_DIR" ]; then
 fi
 
 # Run Godot with all arguments passed through
-godot "$@"
+sw_godot "$@"

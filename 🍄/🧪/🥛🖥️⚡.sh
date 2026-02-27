@@ -7,6 +7,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="${PROJECT_ROOT:-$(cd "${SCRIPT_DIR}/../.." && pwd)}"
 cd "${PROJECT_ROOT}"
+source "${PROJECT_ROOT}/scripts/lib/godot_runtime_env.sh"
 
 CONFIG_FILE="${CONFIG_FILE:-${PROJECT_ROOT}/🍄/🎛️/config/milk_hunt_visual.conf}"
 if [[ -f "${CONFIG_FILE}" ]]; then
@@ -63,11 +64,8 @@ done
 echo "[run] Launching visual rig listener (windowed, D3D12 GPU)..." | tee -a "${RUN_LOG}"
 (
   cd "${PROJECT_ROOT}"
-  # Force D3D12 GPU (Intel HD 620) instead of llvmpipe (CPU)
-  export GALLIUM_DRIVER=d3d12
-  export MESA_D3D12_DEFAULT_ADAPTER_NAME=AUTO
-  export MESA_LOADER_DRIVER_OVERRIDE=zink
-  godot --path . --rendering-method gl_compatibility --script Tests/rig_listener.gd
+  sw_prepare_runtime_env "interactive"
+  sw_godot --path . --rendering-method gl_compatibility --script Tests/rig_listener.gd
 ) >"${LISTENER_LOG}" 2>&1 &
 LISTENER_PID=$!
 

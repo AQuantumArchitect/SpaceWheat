@@ -231,6 +231,8 @@ func _refresh_loadable_biomes() -> void:
 		if not biome:
 			continue
 		var name = biome.name
+		if name.begins_with("_"):
+			continue  # Skip internal/debug biomes (e.g. _orphan_lindblads)
 		# Build icons (cached) to validate biome is loadable
 		var icons = _icon_cache.get_icons_for_biome(name)
 		if icons.size() > 0:

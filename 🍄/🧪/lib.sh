@@ -7,6 +7,7 @@ set -e
 
 PROJECT_ROOT="/home/tehcr33d/ws/SpaceWheat"
 cd "$PROJECT_ROOT"
+source "${PROJECT_ROOT}/scripts/lib/godot_runtime_env.sh"
 
 LOG_ROOT="${PROJECT_ROOT}/logs"
 
@@ -105,15 +106,21 @@ run_test_with_log() {
     echo "Output will be saved to: $log_file"
     echo ""
 
-    # Build godot command
-    local godot_cmd="godot"
     if [ "$headless" = "true" ]; then
-        godot_cmd="$godot_cmd --headless"
+        sw_prepare_runtime_env "headless"
+    else
+        sw_prepare_runtime_env "interactive"
     fi
-    godot_cmd="$godot_cmd --scene $scene_path"
+
+    # Build godot command
+    local godot_cmd=(godot --audio-driver "${SW_GODOT_AUDIO_DRIVER:-Dummy}")
+    if [ "$headless" = "true" ]; then
+        godot_cmd+=(--headless)
+    fi
+    godot_cmd+=(--scene "$scene_path")
 
     # Run test and tee to both console and log
-    timeout "$timeout_secs" $godot_cmd 2>&1 | tee "$log_file"
+    timeout "$timeout_secs" "${godot_cmd[@]}" 2>&1 | tee "$log_file"
     local exit_code=${PIPESTATUS[0]}
 
     # Analyze results
