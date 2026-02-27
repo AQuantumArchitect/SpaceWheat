@@ -131,7 +131,8 @@ static func measure(farm, terminal_pool, positions: Array[Vector2i]) -> Dictiona
 	var results: Array = []
 
 	for pos in positions:
-		var terminal = terminal_pool.get_terminal_at_grid_pos(pos)
+		var _plot = farm.grid.get_plot(pos) if farm.grid else null
+		var terminal = _plot.terminal if _plot else null
 		if not terminal or not terminal.can_measure():
 			continue
 
@@ -212,7 +213,8 @@ static func pop(farm, terminal_pool, economy, positions: Array[Vector2i]) -> Dic
 	var results: Array = []
 
 	for pos in positions:
-		var terminal = terminal_pool.get_terminal_at_grid_pos(pos)
+		var _plot = farm.grid.get_plot(pos) if farm.grid else null
+		var terminal = _plot.terminal if _plot else null
 		if not terminal or not terminal.can_pop():
 			continue
 

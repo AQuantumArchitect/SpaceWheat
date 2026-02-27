@@ -743,11 +743,7 @@ func update_tile_from_farm(pos: Vector2i) -> void:
 		return
 
 	var plot = farm.grid.get_plot(pos)
-	var terminal = null
-
-	# Check for terminal-bound state (from EXPLORE action)
-	if farm.terminal_pool:
-		terminal = farm.terminal_pool.get_terminal_at_grid_pos(pos)
+	var terminal = plot.terminal if plot else null
 
 	if not plot and not terminal:
 		# Truly empty plot - no plot object and no terminal

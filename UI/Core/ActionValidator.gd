@@ -239,8 +239,10 @@ static func _can_execute_measure(farm, selected_plots: Array[Vector2i]) -> bool:
 		return false
 
 	# Check any selected plot has an active terminal
+	var grid = farm.get("grid") if farm else null
 	for pos in selected_plots:
-		var terminal = terminal_pool.get_terminal_at_grid_pos(pos)
+		var plot = grid.get_plot(pos) if grid else null
+		var terminal = plot.terminal if plot else null
 		if terminal and terminal.can_measure():
 			return true
 
@@ -253,16 +255,17 @@ static func _can_execute_pop(farm, selected_plots: Array[Vector2i]) -> bool:
 	POP harvests a measured terminal and unbinds it.
 	Available when: measured terminal exists at any selected position.
 	"""
-	var terminal_pool = farm.get("terminal_pool") if farm else null
-	if not terminal_pool:
+	if not farm:
 		return false
 
 	if selected_plots.is_empty():
 		return false
 
 	# Check any selected plot has a measured terminal
+	var grid = farm.get("grid") if farm else null
 	for pos in selected_plots:
-		var terminal = terminal_pool.get_terminal_at_grid_pos(pos)
+		var plot = grid.get_plot(pos) if grid else null
+		var terminal = plot.terminal if plot else null
 		if terminal and terminal.can_pop():
 			return true
 
@@ -317,19 +320,17 @@ static func _can_execute_submenu_action(
 
 static func has_active_terminal_at(farm, pos: Vector2i) -> bool:
 	"""Check if there's an active (bound but not measured) terminal at position."""
-	var terminal_pool = farm.get("terminal_pool") if farm else null
-	if not terminal_pool:
-		return false
-	var terminal = terminal_pool.get_terminal_at_grid_pos(pos)
+	var grid = farm.get("grid") if farm else null
+	var plot = grid.get_plot(pos) if grid else null
+	var terminal = plot.terminal if plot else null
 	return terminal != null and terminal.can_measure()
 
 
 static func has_measured_terminal_at(farm, pos: Vector2i) -> bool:
 	"""Check if there's a measured terminal at position."""
-	var terminal_pool = farm.get("terminal_pool") if farm else null
-	if not terminal_pool:
-		return false
-	var terminal = terminal_pool.get_terminal_at_grid_pos(pos)
+	var grid = farm.get("grid") if farm else null
+	var plot = grid.get_plot(pos) if grid else null
+	var terminal = plot.terminal if plot else null
 	return terminal != null and terminal.can_pop()
 
 

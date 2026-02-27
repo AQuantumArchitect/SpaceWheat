@@ -44,7 +44,8 @@ func harvest_wheat(position: Vector2i) -> Dictionary:
 	if not _terminal_pool:
 		return {"success": false, "error": "no_pool"}
 
-	var terminal = _terminal_pool.get_terminal_at_grid_pos(position)
+	var plot = _plot_manager.get_plot(position) if _plot_manager else null
+	var terminal = plot.terminal if plot else null
 	if not terminal:
 		return {"success": false, "error": "no_terminal"}
 
@@ -80,7 +81,8 @@ func measure_plot(position: Vector2i) -> String:
 	if not _terminal_pool:
 		return ""
 
-	var terminal = _terminal_pool.get_terminal_at_grid_pos(position)
+	var plot = _plot_manager.get_plot(position) if _plot_manager else null
+	var terminal = plot.terminal if plot else null
 	if not terminal:
 		return ""
 

@@ -614,14 +614,8 @@ func _is_node_measured(node, terminal_pool) -> bool:
 	if node.plot != null and node.plot.is_measured:
 		return true
 
-	# Check terminal directly on node (v2 - preferred)
+	# Check terminal directly on node
 	if node.terminal and node.terminal.is_measured:
 		return true
-
-	# Fallback: lookup terminal from terminal_pool by grid position
-	if terminal_pool and node.grid_position != Vector2i(-1, -1):
-		var terminal = terminal_pool.get_terminal_at_grid_pos(node.grid_position) if terminal_pool.has_method("get_terminal_at_grid_pos") else null
-		if terminal and terminal.is_measured:
-			return true
 
 	return false

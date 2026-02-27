@@ -1000,18 +1000,18 @@ func _get_biome_for_position(pos: Vector2i):
 
 
 func _get_qubit_for_position(pos: Vector2i, biome) -> int:
-	"""Get qubit index for a grid position via terminal binding."""
-	if not farm or not farm.terminal_pool:
+	"""Get qubit index for a grid position via plot/terminal binding."""
+	if not farm or not farm.grid:
 		return -1
 
-	var terminal = farm.terminal_pool.get_terminal_at_grid_pos(pos)
-	if terminal and terminal.is_bound:
-		return terminal.bound_register_id
-
-	# Fallback: try viz_cache lookup
-	var plot = farm.grid.get_plot(pos) if farm.grid else null
-	if plot and plot.is_active() and biome and biome.viz_cache:
-		return biome.viz_cache.get_qubit(plot.north_emoji)
+	var plot = farm.grid.get_plot(pos)
+	if plot and plot.is_active():
+		var reg = plot.bound_register_id
+		if reg >= 0:
+			return reg
+		# Fallback: try viz_cache lookup
+		if biome and biome.viz_cache:
+			return biome.viz_cache.get_qubit(plot.north_emoji)
 
 	return -1
 

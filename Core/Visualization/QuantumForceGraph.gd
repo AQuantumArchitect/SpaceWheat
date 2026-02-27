@@ -584,11 +584,9 @@ func _on_terminal_bound(position: Vector2i, terminal_id: String, emoji_pair: Dic
 			return
 
 	var plot = farm_ref.grid.get_plot(position)
-	var terminal = null
-	if farm_ref.terminal_pool:
-		terminal = farm_ref.terminal_pool.get_terminal_at_grid_pos(position)
-		if not terminal:
-			terminal = farm_ref.terminal_pool.get_terminal(terminal_id)
+	var terminal = plot.terminal if plot else null
+	if not terminal and farm_ref.terminal_pool:
+		terminal = farm_ref.terminal_pool.get_terminal(terminal_id)
 
 	_create_bubble_for_terminal(biome_name, position, north_emoji, south_emoji, plot, terminal)
 	queue_redraw()
@@ -606,8 +604,10 @@ func _on_terminal_measured(position: Vector2i, terminal_id: String, outcome: Str
 	var bubble = quantum_nodes_by_grid_pos.get(position)
 	if bubble:
 		# Ensure bubble has terminal reference
-		if not bubble.terminal and farm_ref and farm_ref.terminal_pool:
-			bubble.terminal = farm_ref.terminal_pool.get_terminal_at_grid_pos(position)
+		if not bubble.terminal and farm_ref and farm_ref.grid:
+			var measured_plot = farm_ref.grid.get_plot(position)
+			if measured_plot:
+				bubble.terminal = measured_plot.terminal
 
 		# Freeze position for measurement visualization
 		if bubble.terminal:

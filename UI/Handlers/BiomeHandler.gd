@@ -113,10 +113,8 @@ static func clear_biome_assignment(farm, positions: Array[Vector2i]) -> Dictiona
 			# Unbind terminal
 			var plot = farm.grid.get_plot(pos)
 			if plot:
-				if farm.terminal_pool:
-					var terminal = farm.terminal_pool.get_terminal_at_grid_pos(pos)
-					if terminal:
-						farm.terminal_pool.unbind_terminal(terminal)
+				if plot.terminal and farm.terminal_pool:
+					farm.terminal_pool.unbind_terminal(plot.terminal)
 				plot.detach_terminal()
 
 			cleared_count += 1
@@ -185,10 +183,10 @@ static func inspect_plot(farm, positions: Array[Vector2i]) -> Dictionary:
 			# Get quantum state info (viz_cache-backed)
 			info.qubit_count = biome.get_total_register_count() if biome.has_method("get_total_register_count") else -1
 
-		# Get terminal info (v2 model)
-		if farm.terminal_pool:
-			var terminal = farm.terminal_pool.get_terminal_at_grid_pos(pos)
-			if terminal:
+		# Get terminal info
+		var _info_plot = farm.grid.get_plot(pos) if farm.grid else null
+		var terminal = _info_plot.terminal if _info_plot else null
+		if terminal:
 				info.has_terminal = true
 				info.terminal_id = terminal.terminal_id
 				info.terminal_bound = terminal.is_bound

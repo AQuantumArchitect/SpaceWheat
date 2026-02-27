@@ -332,7 +332,8 @@ func action_measure(grid_pos: Vector2i) -> Dictionary:
 	if not farm or not terminal_pool:
 		return {"success": false, "error": "no_farm", "message": "Farm not ready"}
 
-	var terminal = terminal_pool.get_terminal_at_grid_pos(grid_pos)
+	var _plot = farm.grid.get_plot(grid_pos) if farm.grid else null
+	var terminal = _plot.terminal if _plot else null
 	if not terminal:
 		return {"success": false, "error": "no_terminal", "message": "No terminal at selection", "blocked": true}
 	if not terminal.can_measure():
@@ -511,7 +512,8 @@ func action_remove_vocabulary(biome_name: String, grid_pos: Vector2i) -> Diction
 
 	var target_qubit = rm.num_qubits - 1
 	var pair_to_remove = {}
-	var terminal = terminal_pool.get_terminal_at_grid_pos(grid_pos) if terminal_pool else null
+	var _vocab_plot = farm.grid.get_plot(grid_pos) if farm and farm.grid else null
+	var terminal = _vocab_plot.terminal if _vocab_plot else null
 	var biome_type = biome.get_biome_type() if biome.has_method("get_biome_type") else biome.name
 	if terminal and terminal.is_bound and terminal.bound_biome_name == biome_type:
 		target_qubit = terminal.bound_register_id
@@ -963,19 +965,16 @@ func _resolve_biome(biome_name: String):
 
 
 func _resolve_terminal_for_harvest(grid_pos: Vector2i) -> RefCounted:
-	if not terminal_pool:
+	if not farm or not farm.grid:
 		return null
-	var terminal = terminal_pool.get_terminal_at_grid_pos(grid_pos)
-	if terminal:
-		return terminal
+	var plot = farm.grid.get_plot(grid_pos)
+	if plot and plot.terminal:
+		return plot.terminal
+	# Fallback: try last selected position
 	if last_selected_position != Vector2i(-1, -1) and last_selected_position != grid_pos:
-		var fallback = terminal_pool.get_terminal_at_grid_pos(last_selected_position)
-		if fallback and fallback.is_measured:
-			return fallback
-	if terminal_pool.has_method("get_measured_terminals"):
-		for candidate in terminal_pool.get_measured_terminals():
-			if candidate.grid_position == grid_pos:
-				return candidate
+		var fallback_plot = farm.grid.get_plot(last_selected_position)
+		if fallback_plot and fallback_plot.terminal and fallback_plot.terminal.is_measured:
+			return fallback_plot.terminal
 	return null
 
 

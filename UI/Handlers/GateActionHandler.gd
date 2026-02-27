@@ -490,23 +490,16 @@ static func _apply_single_qubit_gate(farm, position: Vector2i, gate_name: String
 	var biome = null
 	var register_id: int = -1
 
-	# V2 MODEL: Try terminal-based approach first
-	if farm.terminal_pool:
-		var terminal = farm.terminal_pool.get_terminal_at_grid_pos(position)
-		if terminal and terminal.is_bound:
-			# Resolve biome from terminal's biome name
-			var biome_name = terminal.bound_biome_name
-			if biome_name != "" and farm.grid:
-				biome = farm.grid.biomes.get(biome_name, null)
-			register_id = terminal.bound_register_id
-
-	# V1 MODEL: Fall back to plot-based approach (viz_cache mapping)
-	if register_id < 0 and farm.grid:
+	# Plot delegates to terminal when attached (O(1) vs O(n) pool scan)
+	if farm.grid:
 		var plot = farm.grid.get_plot(position)
 		if plot and plot.is_active():
-			biome = farm.grid.get_biome_for_plot(position)
-			# Resolve qubit via viz_cache metadata
-			if biome and plot.north_emoji:
+			var biome_name = plot.bound_biome_name
+			if biome_name != "":
+				biome = farm.grid.biomes.get(biome_name, null)
+			register_id = plot.bound_register_id
+			# Fallback: resolve register via viz_cache if plot binding didn't set it
+			if register_id < 0 and biome and plot.north_emoji:
 				register_id = _resolve_register_id(biome, plot.north_emoji)
 
 	# Validate biome and register
@@ -573,26 +566,24 @@ static func _apply_two_qubit_gate(farm, position_a: Vector2i, position_b: Vector
 	var reg_a: int = -1
 	var reg_b: int = -1
 
-	# V2 MODEL: Try terminal-based approach first
-	if farm.terminal_pool:
-		var terminal_a = farm.terminal_pool.get_terminal_at_grid_pos(position_a)
-		var terminal_b = farm.terminal_pool.get_terminal_at_grid_pos(position_b)
+	# Plot delegates to terminal when attached (O(1) vs O(n) pool scan)
+	if farm.grid:
+		var plot_a = farm.grid.get_plot(position_a)
+		var plot_b = farm.grid.get_plot(position_b)
 
-		if terminal_a and terminal_a.is_bound and not terminal_a.is_measured:
-			# Resolve biome from terminal's biome name
-			var biome_name_a = terminal_a.bound_biome_name
-			if biome_name_a != "" and farm.grid:
+		if plot_a and plot_a.is_active() and not plot_a.is_measured:
+			var biome_name_a = plot_a.bound_biome_name
+			if biome_name_a != "":
 				biome_a = farm.grid.biomes.get(biome_name_a, null)
-			reg_a = terminal_a.bound_register_id
+			reg_a = plot_a.bound_register_id
 
-		if terminal_b and terminal_b.is_bound and not terminal_b.is_measured:
-			# Resolve biome from terminal's biome name
-			var biome_name_b = terminal_b.bound_biome_name
-			if biome_name_b != "" and farm.grid:
+		if plot_b and plot_b.is_active() and not plot_b.is_measured:
+			var biome_name_b = plot_b.bound_biome_name
+			if biome_name_b != "":
 				biome_b = farm.grid.biomes.get(biome_name_b, null)
-			reg_b = terminal_b.bound_register_id
+			reg_b = plot_b.bound_register_id
 
-	# V1 MODEL: Fall back to plot-based approach (viz_cache mapping)
+	# Fallback: resolve via viz_cache mapping
 	if (reg_a < 0 or reg_b < 0) and farm.grid:
 		var plot_a = farm.grid.get_plot(position_a)
 		var plot_b = farm.grid.get_plot(position_b)

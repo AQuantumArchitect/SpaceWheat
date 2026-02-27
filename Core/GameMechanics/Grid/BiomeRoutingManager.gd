@@ -136,16 +136,10 @@ func get_register_for_plot(position: Vector2i) -> int:
 
 	Returns: Register ID (int) if plot is planted, -1 if not found
 	"""
-	# Prefer plot.terminal (Phase 2: terminal lives on plot)
 	if _plot_manager:
 		var plot = _plot_manager.get_plot(position)
-		if plot and plot.has_terminal():
-			return plot.terminal.bound_register_id
-	# Fallback to terminal_pool scan
-	if terminal_pool:
-		var terminal = terminal_pool.get_terminal_at_grid_pos(position)
-		if terminal and terminal.is_bound:
-			return terminal.bound_register_id
+		if plot and plot.is_active():
+			return plot.bound_register_id
 	return -1
 
 
@@ -154,17 +148,11 @@ func get_plot_for_register(register_id: int) -> Vector2i:
 
 	Returns: Grid position if found, Vector2i(-1, -1) if not found
 	"""
-	# Prefer iterating plots (Phase 2: terminal lives on plot)
 	if _plot_manager:
 		for pos in _plot_manager.plots.keys():
 			var plot = _plot_manager.plots[pos]
-			if plot.has_terminal() and plot.terminal.bound_register_id == register_id:
+			if plot.is_active() and plot.bound_register_id == register_id:
 				return pos
-	# Fallback to terminal_pool scan
-	if terminal_pool:
-		for terminal in terminal_pool.terminals:
-			if terminal.is_bound and terminal.bound_register_id == register_id:
-				return terminal.grid_position
 	return Vector2i(-1, -1)
 
 

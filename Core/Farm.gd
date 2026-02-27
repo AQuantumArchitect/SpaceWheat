@@ -892,16 +892,10 @@ func _accumulate_lindblad_harvest(plot, emoji: String, drained_probability: floa
 	economy.add_resource(emoji, whole_credits, "lindblad_drain")
 
 
-func _get_lindblad_pair_for_plot(plot, pos: Vector2i) -> Dictionary:
-	"""Resolve emoji pair for a plot using terminal binding when available."""
-	if terminal_pool:
-		var terminal = terminal_pool.get_terminal_at_grid_pos(pos)
-		if terminal and terminal.is_bound:
-			return terminal.get_emoji_pair()
-
+func _get_lindblad_pair_for_plot(plot, _pos: Vector2i) -> Dictionary:
+	"""Resolve emoji pair for a plot (delegates to terminal when attached)."""
 	if plot and plot.is_active():
 		return plot.get_plot_emojis()
-
 	return {}
 
 

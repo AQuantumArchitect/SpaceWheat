@@ -139,20 +139,11 @@ static func _resolve_axis_binding(farm, pos: Vector2i, biome) -> Dictionary:
 	var plot = farm.grid.get_plot(pos) if farm and farm.grid else null
 	var biome_name = _get_biome_name(biome)
 
-	if farm and farm.terminal_pool:
-		var terminal = farm.terminal_pool.get_terminal_at_grid_pos(pos)
-		if terminal and terminal.has_method("get_emoji_pair"):
-			var pair = terminal.get_emoji_pair()
-			north = str(pair.get("north", ""))
-			south = str(pair.get("south", ""))
-			if "bound_register_id" in terminal:
-				register_id = int(terminal.bound_register_id)
-
-	if north == "" and plot and plot.has_method("is_active") and plot.is_active():
-		north = str(plot.north_emoji if plot.north_emoji else "")
-		south = str(plot.south_emoji if plot.south_emoji else "")
-		if "bound_register_id" in plot:
-			register_id = int(plot.bound_register_id)
+	# Terminal-delegating: plot.north_emoji reads from plot.terminal when attached
+	if plot and plot.is_active():
+		north = str(plot.north_emoji) if plot.north_emoji else ""
+		south = str(plot.south_emoji) if plot.south_emoji else ""
+		register_id = plot.bound_register_id
 
 	if register_id < 0 and north != "":
 		register_id = _resolve_qubit_index(biome, north)
@@ -227,19 +218,10 @@ static func lindblad_drive(farm, positions: Array[Vector2i]) -> Dictionary:
 		if not biome or not biome.quantum_computer:
 			continue
 
-		# V2 MODEL: Get emoji from terminal
-		var emoji = ""
-		if farm.terminal_pool:
-			var terminal = farm.terminal_pool.get_terminal_at_grid_pos(pos)
-			if terminal and terminal.is_bound and terminal.has_method("get_emoji_pair"):
-				var pair = terminal.get_emoji_pair()
-				emoji = pair.get("north", "")
-
-		# V1 FALLBACK: Get emoji from plot
-		if emoji == "":
-			var plot = farm.grid.get_plot(pos)
-			if plot and plot.is_active():
-				emoji = plot.north_emoji if plot.north_emoji else ""
+		var plot = farm.grid.get_plot(pos)
+		if not plot or not plot.is_active():
+			continue
+		var emoji = plot.north_emoji if plot.north_emoji else ""
 
 		if _resolve_qubit_index(biome, emoji) < 0:
 			continue
@@ -286,19 +268,10 @@ static func lindblad_decay(farm, positions: Array[Vector2i]) -> Dictionary:
 		if not biome or not biome.quantum_computer:
 			continue
 
-		# V2 MODEL: Get emoji from terminal
-		var emoji = ""
-		if farm.terminal_pool:
-			var terminal = farm.terminal_pool.get_terminal_at_grid_pos(pos)
-			if terminal and terminal.is_bound and terminal.has_method("get_emoji_pair"):
-				var pair = terminal.get_emoji_pair()
-				emoji = pair.get("north", "")
-
-		# V1 FALLBACK: Get emoji from plot
-		if emoji == "":
-			var plot = farm.grid.get_plot(pos)
-			if plot and plot.is_active():
-				emoji = plot.north_emoji if plot.north_emoji else ""
+		var plot = farm.grid.get_plot(pos)
+		if not plot or not plot.is_active():
+			continue
+		var emoji = plot.north_emoji if plot.north_emoji else ""
 
 		var qubit_idx = _resolve_qubit_index(biome, emoji)
 		if qubit_idx < 0:
@@ -548,28 +521,10 @@ static func lindblad_transfer(farm, positions: Array[Vector2i]) -> Dictionary:
 			"message": "No quantum computer"
 		}
 
-	# V2 MODEL: Get emojis from terminals
-	var emoji_from = ""
-	var emoji_to = ""
-
-	if farm.terminal_pool:
-		var terminal_from = farm.terminal_pool.get_terminal_at_grid_pos(pos_from)
-		if terminal_from and terminal_from.is_bound and terminal_from.has_method("get_emoji_pair"):
-			emoji_from = terminal_from.get_emoji_pair().get("north", "")
-
-		var terminal_to = farm.terminal_pool.get_terminal_at_grid_pos(pos_to)
-		if terminal_to and terminal_to.is_bound and terminal_to.has_method("get_emoji_pair"):
-			emoji_to = terminal_to.get_emoji_pair().get("north", "")
-
-	# V1 FALLBACK: Get emojis from plots
-	if emoji_from == "":
-		var plot_from = farm.grid.get_plot(pos_from)
-		if plot_from and plot_from.is_active():
-			emoji_from = plot_from.north_emoji if plot_from.north_emoji else ""
-	if emoji_to == "":
-		var plot_to = farm.grid.get_plot(pos_to)
-		if plot_to and plot_to.is_active():
-			emoji_to = plot_to.north_emoji if plot_to.north_emoji else ""
+	var plot_from = farm.grid.get_plot(pos_from)
+	var plot_to = farm.grid.get_plot(pos_to)
+	var emoji_from = plot_from.north_emoji if (plot_from and plot_from.is_active()) else ""
+	var emoji_to = plot_to.north_emoji if (plot_to and plot_to.is_active()) else ""
 
 	if emoji_from == "" or emoji_to == "":
 		return {
@@ -648,17 +603,8 @@ static func pump_to_wheat(farm, positions: Array[Vector2i]) -> Dictionary:
 
 
 static func _resolve_north_emoji(farm, pos: Vector2i) -> String:
-	"""Resolve north emoji from terminal first, then planted plot."""
-	if farm.terminal_pool:
-		var terminal = farm.terminal_pool.get_terminal_at_grid_pos(pos)
-		if terminal and terminal.is_bound and terminal.has_method("get_emoji_pair"):
-			var pair = terminal.get_emoji_pair()
-			var north = pair.get("north", "")
-			if north != "":
-				return north
-
-	var plot = farm.grid.get_plot(pos) if farm.grid else null
+	"""Resolve north emoji from plot (delegates to terminal when attached)."""
+	var plot = farm.grid.get_plot(pos) if farm and farm.grid else null
 	if plot and plot.is_active():
 		return plot.north_emoji if plot.north_emoji else ""
-
 	return ""

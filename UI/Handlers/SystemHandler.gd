@@ -158,27 +158,27 @@ static func system_debug(farm, positions: Array[Vector2i], current_selection: Ve
 	else:
 		debug_info.quantum_computer = {"exists": false}
 
-	# Terminal info (v2 model)
-	if farm.terminal_pool:
-		var terminal = farm.terminal_pool.get_terminal_at_grid_pos(target_pos)
-		if terminal:
-			debug_info.terminal = {
-				"exists": true,
-				"id": terminal.terminal_id,
-				"is_bound": terminal.is_bound,
-				"is_measured": terminal.is_measured
-			}
+	# Terminal info
+	var _plot = farm.grid.get_plot(target_pos) if farm.grid else null
+	var terminal = _plot.terminal if _plot else null
+	if terminal:
+		debug_info.terminal = {
+			"exists": true,
+			"id": terminal.terminal_id,
+			"is_bound": terminal.is_bound,
+			"is_measured": terminal.is_measured
+		}
 
-			if terminal.is_bound:
-				debug_info.terminal.bound_register_id = terminal.bound_register_id
-				debug_info.terminal.north_emoji = terminal.north_emoji
-				debug_info.terminal.south_emoji = terminal.south_emoji
+		if terminal.is_bound:
+			debug_info.terminal.bound_register_id = terminal.bound_register_id
+			debug_info.terminal.north_emoji = terminal.north_emoji
+			debug_info.terminal.south_emoji = terminal.south_emoji
 
-			if terminal.is_measured:
-				debug_info.terminal.measured_outcome = terminal.measured_outcome
-				debug_info.terminal.measured_probability = terminal.measured_probability
-		else:
-			debug_info.terminal = {"exists": false}
+		if terminal.is_measured:
+			debug_info.terminal.measured_outcome = terminal.measured_outcome
+			debug_info.terminal.measured_probability = terminal.measured_probability
+	else:
+		debug_info.terminal = {"exists": false}
 
 	return {
 		"success": true,
@@ -216,22 +216,13 @@ static func peek_state(farm, positions: Array[Vector2i]) -> Dictionary:
 		if not biome:
 			continue
 
-		var emoji = ""
-		var register_id = -1
-
-		if farm.terminal_pool:
-			var terminal = farm.terminal_pool.get_terminal_at_grid_pos(pos)
-			if terminal and terminal.is_bound:
-				emoji = terminal.north_emoji
-				register_id = terminal.bound_register_id
-
-		if register_id < 0:
-			var plot = farm.grid.get_plot(pos)
-			if not plot or not plot.is_active():
-				continue
-			emoji = plot.north_emoji if plot.north_emoji else ""
-			if biome.viz_cache:
-				register_id = biome.viz_cache.get_qubit(emoji)
+		var plot = farm.grid.get_plot(pos)
+		if not plot or not plot.is_active():
+			continue
+		var emoji = plot.north_emoji if plot.north_emoji else ""
+		var register_id = plot.bound_register_id
+		if register_id < 0 and biome.viz_cache:
+			register_id = biome.viz_cache.get_qubit(emoji)
 
 		if register_id < 0:
 			continue

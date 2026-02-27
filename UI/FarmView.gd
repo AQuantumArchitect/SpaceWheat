@@ -217,8 +217,9 @@ func _on_quantum_node_clicked(grid_pos: Vector2i, button_index: int) -> void:
 		_verbose.warn("ui", "⚠️", "No farm or terminal_pool available")
 		return
 
-	# v2: Look up terminal by grid position
-	var terminal = farm.terminal_pool.get_terminal_at_grid_pos(grid_pos)
+	# Look up terminal via plot (O(1) vs O(n) pool scan)
+	var plot = farm.grid.get_plot(grid_pos) if farm.grid else null
+	var terminal = plot.terminal if plot else null
 	if not terminal:
 		_verbose.warn("ui", "⚠️", "No terminal bound at %s" % grid_pos)
 		return

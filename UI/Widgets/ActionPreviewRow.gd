@@ -744,14 +744,12 @@ func _resolve_selected_axis_pair() -> Dictionary:
 	if pos.x < 0:
 		return {}
 
-	if farm.terminal_pool:
-		var terminal = farm.terminal_pool.get_terminal_at_grid_pos(pos)
-		if terminal and terminal.is_bound and terminal.has_method("get_emoji_pair"):
-			var pair = terminal.get_emoji_pair()
-			north = str(pair.get("north", ""))
-			south = str(pair.get("south", ""))
-			if north != "":
-				return {"north": north, "south": south}
+	var _preview_plot = farm.grid.get_plot(pos) if farm.grid else null
+	if _preview_plot and _preview_plot.is_active():
+		north = str(_preview_plot.north_emoji) if _preview_plot.north_emoji else ""
+		south = str(_preview_plot.south_emoji) if _preview_plot.south_emoji else ""
+		if north != "":
+			return {"north": north, "south": south}
 
 	var plot = farm.grid.get_plot(pos) if farm and farm.grid else null
 	if plot and plot.is_active():
