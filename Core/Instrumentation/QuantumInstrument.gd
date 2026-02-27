@@ -149,6 +149,17 @@ func clear_checked_plots() -> void:
 	checked_plots.clear()
 
 
+func get_checked_plots() -> Array[Vector2i]:
+	return checked_plots.duplicate()
+
+
+func set_checked_plots(positions: Array) -> void:
+	checked_plots.clear()
+	for pos in positions:
+		if pos is Vector2i:
+			checked_plots.append(pos)
+			plot_check_changed.emit(pos, true)
+
 
 # ============================================================================
 # SUBMENU MANAGEMENT (absorbed from QuantumInstrumentState)

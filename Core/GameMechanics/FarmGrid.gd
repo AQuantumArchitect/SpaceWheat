@@ -342,64 +342,9 @@ func are_plots_entangled(pos_a: Vector2i, pos_b: Vector2i) -> bool:
 	return _entanglement.are_plots_entangled(pos_a, pos_b)
 
 
-func _auto_entangle_from_infrastructure(position: Vector2i):
-	"""Auto-entangle quantum states when planting"""
-	_entanglement.auto_entangle_from_infrastructure(position)
-
-
-func _auto_apply_persistent_gates(position: Vector2i) -> void:
-	"""Apply persistent gate infrastructure to newly planted qubit"""
-	_entanglement.auto_apply_persistent_gates(position)
-
-
-func _update_cluster_gameplay_connections(cluster):
-	"""Update WheatPlot.entangled_plots for cluster"""
-	_entanglement.update_cluster_gameplay_connections(cluster)
-
-
-
-func _create_quantum_entanglement(pos_a: Vector2i, pos_b: Vector2i, bell_type: String = "phi_plus") -> bool:
-	"""Create quantum state entanglement (internal helper)"""
-	return _entanglement._create_quantum_entanglement(pos_a, pos_b, bell_type)
-
-
 # ═══════════════════════════════════════════════════════════════════════════════
 # ICON MANAGEMENT (kept in FarmGrid)
 # ═══════════════════════════════════════════════════════════════════════════════
-
-func add_icon(icon) -> void:
-	"""Add Icon to farm for quantum effects"""
-	if icon not in active_icons:
-		active_icons.append(icon)
-		_verbose.info("farm", "✨", "Added Icon to farm: %s" % icon.icon_name)
-
-
-func add_scoped_icon(icon, biome_names: Array[String]) -> void:
-	"""Add Icon that only affects plots in specific biomes"""
-	if icon not in active_icons:
-		active_icons.append(icon)
-		icon_scopes[icon] = biome_names
-		_verbose.info("farm", "✨", "Scoped Icon added to farm: %s → %s" % [icon.icon_name, biome_names])
-	else:
-		icon_scopes[icon] = biome_names
-		_verbose.info("farm", "📍", "Updated scope for %s → %s" % [icon.icon_name, biome_names])
-
-
-func remove_icon(icon) -> void:
-	"""Remove Icon from farm"""
-	if icon in active_icons:
-		active_icons.erase(icon)
-		_verbose.info("farm", "🚫", "Removed Icon from farm: %s" % icon.icon_name)
-
-
-func get_effective_temperature() -> float:
-	"""Get effective farm temperature from base + all Icons"""
-	var temp = base_temperature
-	for icon in active_icons:
-		if icon.active_strength > 0.0:
-			temp += icon.get_effective_temperature() - icon.base_temperature
-	return temp
-
 
 func _build_icon_network() -> Dictionary:
 	"""Build icon_network dictionary from active_icons array"""
