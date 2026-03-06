@@ -78,6 +78,7 @@ def _start_listener(
     listener_log_path: Optional[Path] = None,
     rig_log_profile: Optional[str] = None,
     rig_log_category_levels: Optional[str] = None,
+    extra_env: Optional[Dict[str, str]] = None,
 ) -> Any:
     return _RIG.start_listener(
         load_slot=load_slot,
@@ -87,6 +88,7 @@ def _start_listener(
         listener_log_path=listener_log_path,
         rig_log_profile=rig_log_profile,
         rig_log_category_levels=rig_log_category_levels,
+        extra_env=extra_env,
     )
 
 
@@ -191,6 +193,94 @@ def _tail_json_rows(path: Path, max_rows: int = 6) -> List[Dict[str, Any]]:
     return rows
 
 
+def _file_size(path: Optional[Path]) -> int:
+    if path is None:
+        return 0
+    try:
+        return int(path.stat().st_size)
+    except OSError:
+        return 0
+
+
+def _read_new_lines(path: Optional[Path], start_offset: int = 0, max_lines: int = 4000) -> List[str]:
+    if path is None or not path.exists():
+        return []
+    try:
+        with path.open("r", encoding="utf-8", errors="replace") as handle:
+            if start_offset > 0:
+                handle.seek(start_offset)
+            data = handle.read().splitlines()
+    except OSError:
+        return []
+    if max_lines > 0 and len(data) > max_lines:
+        return data[-max_lines:]
+    return data
+
+
+def _extract_boot_script_errors(lines: List[str]) -> List[str]:
+    patterns = (
+        "SCRIPT ERROR:",
+        "Parse Error:",
+        "Compile Error:",
+        "Failed to load script",
+        "Could not preload resource script",
+        "Could not resolve script",
+    )
+    out: List[str] = []
+    for ln in lines:
+        text = str(ln or "")
+        if any(token in text for token in patterns):
+            out.append(text)
+    return out
+
+
+def _git_metadata(max_dirty_files: int = 32) -> Dict[str, Any]:
+    branch = ""
+    commit = ""
+    dirty_files: List[str] = []
+    try:
+        branch_proc = subprocess.run(
+            ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+            cwd=str(PROJECT_ROOT),
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        branch = branch_proc.stdout.strip()
+    except Exception:
+        branch = ""
+    try:
+        commit_proc = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=str(PROJECT_ROOT),
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        commit = commit_proc.stdout.strip()
+    except Exception:
+        commit = ""
+    try:
+        dirty_proc = subprocess.run(
+            ["git", "status", "--porcelain"],
+            cwd=str(PROJECT_ROOT),
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        lines = [ln.rstrip() for ln in dirty_proc.stdout.splitlines() if ln.strip()]
+        dirty_files = lines[: max(0, int(max_dirty_files))]
+        dirty_count = len(lines)
+    except Exception:
+        dirty_count = -1
+    return {
+        "git_branch": branch,
+        "git_commit": commit,
+        "git_dirty_count": dirty_count,
+        "git_dirty_files": dirty_files,
+    }
+
+
 def _compact_diag_row(row: Dict[str, Any]) -> Dict[str, Any]:
     out: Dict[str, Any] = {}
     for key in ("turn", "action", "ok", "duration_ms", "error"):
@@ -228,6 +318,121 @@ def _compact_batcher_metrics(metrics: Dict[str, Any]) -> Dict[str, Any]:
         if key in metrics:
             out[key] = metrics.get(key)
     return out
+
+
+def _runtime_profile_env_overrides(profile_name: str) -> Dict[str, str]:
+    profile = str(profile_name or "default").strip().lower()
+    if profile == "quantum_fiber_nodes":
+        # Keep C++ lookahead active, cap phrame rate, and lower queue polling churn.
+        return {
+            "SW_MAX_PHRAME_HZ": "10",
+            "SW_STRIDE_SCALES_RESOLUTION": "1",
+            "RIG_QUEUE_POLL_MS": "100",
+            "RIG_DISABLE_MI": "1",
+            "RIG_DISABLE_FORCE": "1",
+        }
+    if profile == "io_min":
+        return {
+            "RIG_QUEUE_POLL_MS": "160",
+            "RIG_LOG_PROFILE": "quiet",
+        }
+    return {}
+
+
+def _compute_profile_metrics(history: List[Dict[str, Any]], initial_pairs: int, final_pairs: int) -> Dict[str, Any]:
+    metrics: Dict[str, Any] = {
+        "quest_offer_cycles": 0,
+        "quest_offers_seen": 0,
+        "quest_offers_accepted": 0,
+        "quest_completions": 0,
+        "quest_complete_or_claim": 0,
+        "quest_claims": 0,
+        "active_quest_reads": 0,
+        "probe_cycles_total": 0,
+        "probe_cycles_success": 0,
+        "time_skip_actions": 0,
+        "time_skip_total_phrames": 0,
+        "time_skip_total_evolved_steps": 0,
+        "lindblad_drain_actions": 0,
+        "lindblad_drains_established": 0,
+        "lindblad_drain_charged_total": 0,
+        "lindblad_drain_persistent_total": 0,
+        "lindblad_drain_already_active_total": 0,
+        "resource_snapshot_calls": 0,
+        "known_vocab_reads": 0,
+        "vocab_pairs_initial": max(0, int(initial_pairs)),
+        "vocab_pairs_final": max(0, int(final_pairs)),
+        "vocab_pairs_learned": max(0, int(final_pairs) - int(initial_pairs)),
+    }
+
+    for row in history:
+        if not isinstance(row, dict):
+            continue
+        action = str(row.get("action", "") or "")
+        if action == "offer_quests":
+            metrics["quest_offer_cycles"] += 1
+            offers = row.get("offers", [])
+            if isinstance(offers, list):
+                metrics["quest_offers_seen"] += len(offers)
+        elif action == "accept_offer":
+            if bool(row.get("accepted", False)):
+                metrics["quest_offers_accepted"] += 1
+        elif action == "complete_quest":
+            if bool(row.get("completed", False)):
+                metrics["quest_completions"] += 1
+        elif action == "complete_or_claim":
+            if bool(row.get("completed_or_claimed", False)):
+                metrics["quest_complete_or_claim"] += 1
+        elif action == "claim_quest":
+            if bool(row.get("claimed", False)):
+                metrics["quest_claims"] += 1
+        elif action == "active_quests":
+            metrics["active_quest_reads"] += 1
+        elif action == "probe_cycle":
+            metrics["probe_cycles_total"] += 1
+            probe = row.get("probe", {})
+            if isinstance(probe, dict) and bool(probe.get("success", False)):
+                metrics["probe_cycles_success"] += 1
+        elif action == "time_skip":
+            metrics["time_skip_actions"] += 1
+            payload = row.get("time_skip", {})
+            if isinstance(payload, dict):
+                try:
+                    metrics["time_skip_total_phrames"] += int(payload.get("phrames", 0) or 0)
+                except (TypeError, ValueError):
+                    pass
+                try:
+                    metrics["time_skip_total_evolved_steps"] += int(payload.get("evolved_steps", 0) or 0)
+                except (TypeError, ValueError):
+                    pass
+        elif action == "lindblad_drain":
+            metrics["lindblad_drain_actions"] += 1
+            payload = row.get("drain_result", {})
+            if not isinstance(payload, dict):
+                continue
+            try:
+                charged = int(payload.get("charged_count", 0) or 0)
+            except (TypeError, ValueError):
+                charged = 0
+            try:
+                persistent = int(payload.get("persistent_enabled", 0) or 0)
+            except (TypeError, ValueError):
+                persistent = 0
+            try:
+                already = int(payload.get("already_active", 0) or 0)
+            except (TypeError, ValueError):
+                already = 0
+            metrics["lindblad_drain_charged_total"] += max(0, charged)
+            metrics["lindblad_drain_persistent_total"] += max(0, persistent)
+            metrics["lindblad_drain_already_active_total"] += max(0, already)
+            if bool(payload.get("success", False)) or charged > 0 or persistent > 0 or already > 0:
+                metrics["lindblad_drains_established"] += 1
+        elif action == "resource_snapshot":
+            metrics["resource_snapshot_calls"] += 1
+        elif action == "known_vocab_pairs":
+            metrics["known_vocab_reads"] += 1
+
+    return metrics
 
 
 def _rig_timeout_diagnostics(turn_id: int, action: str) -> Dict[str, Any]:
@@ -721,8 +926,15 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--save-slot-at-end", type=int, default=None, help="Save the run state to this slot before exit")
     parser.add_argument(
         "--reuse-listener",
+        dest="reuse_listener",
         action="store_true",
         help="Reuse an existing rig listener instead of starting a new one",
+    )
+    parser.add_argument(
+        "--no-reuse-listener",
+        dest="reuse_listener",
+        action="store_false",
+        help="Do not reuse an existing rig listener",
     )
     parser.add_argument("--turn-start", type=int, default=1, help="Turn id to start at")
     parser.add_argument("--no-stop", action="store_true", help="Skip sending stop on exit")
@@ -740,6 +952,12 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Sample batcher metrics every N loops (0 disables periodic sampling)",
     )
     parser.add_argument(
+        "--runtime-profile",
+        choices=["default", "quantum_fiber_nodes", "io_min"],
+        default=None,
+        help="Runtime env profile for listener startup and batcher path",
+    )
+    parser.add_argument(
         "--include-offer-reward-resources",
         dest="include_offer_reward_resources",
         action="store_true",
@@ -750,6 +968,18 @@ def _build_parser() -> argparse.ArgumentParser:
         dest="include_offer_reward_resources",
         action="store_false",
         help="Exclude reward_resources from offer_quests payload to reduce IO",
+    )
+    parser.add_argument(
+        "--include-offer-market-projection",
+        dest="include_offer_market_projection",
+        action="store_true",
+        help="Include market_projection payload in offer_quests responses",
+    )
+    parser.add_argument(
+        "--no-include-offer-market-projection",
+        dest="include_offer_market_projection",
+        action="store_false",
+        help="Exclude market_projection payload from offer_quests responses to reduce IO",
     )
     parser.add_argument(
         "--rig-listener-stdout",
@@ -791,6 +1021,11 @@ def _build_parser() -> argparse.ArgumentParser:
         "--fail-on-boot-script-errors",
         action="store_true",
         help="Fail run if boot logs include SCRIPT ERROR / compile failures",
+    )
+    parser.add_argument(
+        "--require-clean-worktree",
+        action="store_true",
+        help="Fail fast when git working tree is dirty (reproducibility gate)",
     )
     parser.add_argument(
         "--open-quests-overlay",
@@ -1004,10 +1239,11 @@ def _build_parser() -> argparse.ArgumentParser:
         default=[],
         help="Objective resource floor override as EMOJI:AMOUNT (repeatable)",
     )
-    parser.set_defaults(enforce_primary_resource_floors=True, allow_rig_resource_injection=True)
+    parser.set_defaults(enforce_primary_resource_floors=True, allow_rig_resource_injection=True, reuse_listener=False)
     parser.set_defaults(victory_lap=True)
     parser.set_defaults(strict_biome_economy=True)
-    parser.set_defaults(include_offer_reward_resources=True)
+    parser.set_defaults(include_offer_reward_resources=False)
+    parser.set_defaults(include_offer_market_projection=False)
     parser.set_defaults(lindblad_drain_focus=None)
     parser.set_defaults(advanced_mode=None)
     return parser
@@ -1045,6 +1281,14 @@ def main() -> int:
         rig_listener_stdout = os.environ["MILK_HUNT_RIG_LISTENER_STDOUT"]
     if not rig_listener_stdout:
         rig_listener_stdout = default_listener_stdout(console_profile)
+    listener_log_path = args.rig_listener_log
+    if rig_listener_stdout == "file" and listener_log_path is None:
+        listener_log_path = Path(__file__).resolve().parent / "logs" / "rig_listener.log"
+    if args.fail_on_boot_script_errors and rig_listener_stdout == "null":
+        rig_listener_stdout = "file"
+        if listener_log_path is None:
+            listener_log_path = Path(__file__).resolve().parent / "logs" / "rig_listener.log"
+        _safe_print("milk-hunt: fail-on-boot-script-errors forcing listener stdout mode to file", "detail")
 
     rig_log_profile = args.rig_log_profile
     if not rig_log_profile:
@@ -1140,7 +1384,16 @@ def main() -> int:
         strict_biome_economy = True
     # Runner pacing is phrame-driven in-game via `time_skip`; no wall-clock throttling.
     metrics_every = max(0, int(args.metrics_every))
+    runtime_profile = args.runtime_profile
+    if not runtime_profile:
+        runtime_profile = get_cfg_str(cfg, "runtime_profile")
+    if not runtime_profile and os.environ.get("MILK_HUNT_RUNTIME_PROFILE", "") != "":
+        runtime_profile = os.environ["MILK_HUNT_RUNTIME_PROFILE"]
+    if runtime_profile not in {"default", "quantum_fiber_nodes", "io_min"}:
+        runtime_profile = "default"
+    runtime_env_overrides = _runtime_profile_env_overrides(runtime_profile)
     include_offer_reward_resources = bool(args.include_offer_reward_resources)
+    include_offer_market_projection = bool(args.include_offer_market_projection)
 
     # Eagle / expansion defaults: CLI > strategy > hardcoded
     eagle_emoji = args.eagle_emoji if args.eagle_emoji is not None else strategy.eagle_emoji
@@ -1297,11 +1550,23 @@ def main() -> int:
         "horizon_min_phrames": timescale_horizon_min_phrames,
         "horizon_max_phrames": timescale_horizon_max_phrames,
     }
+    git_meta = _git_metadata()
+    git_dirty_count = int(git_meta.get("git_dirty_count", 0))
+    if git_dirty_count > 0:
+        _safe_print(
+            "milk-hunt: warning - git worktree dirty (%d files), verification reproducibility reduced"
+            % git_dirty_count,
+            "warn",
+        )
+    if args.require_clean_worktree and git_dirty_count > 0:
+        _safe_print("milk-hunt: failing due to dirty worktree (--require-clean-worktree)", "error")
+        return 5
 
     if load_alias:
         load_slot = None
     proc: Optional[subprocess.Popen] = None
     boot_lines: List[str] = []
+    listener_log_boot_offset = _file_size(listener_log_path) if rig_listener_stdout == "file" else 0
     if not args.reuse_listener:
         _safe_print("milk-hunt: resetting rig cache and starting listener", "detail")
         _kill_existing_listeners()
@@ -1312,9 +1577,10 @@ def main() -> int:
             scenario_id=scenario_id,
             allow_resource_injection=args.allow_rig_resource_injection,
             listener_stdout=rig_listener_stdout,
-            listener_log_path=args.rig_listener_log,
+            listener_log_path=listener_log_path,
             rig_log_profile=rig_log_profile,
             rig_log_category_levels=rig_log_categories,
+            extra_env=runtime_env_overrides,
         )
         boot_lines = _wait_for_ready(proc, timeout_s=70.0)
         if proc.poll() is not None:
@@ -1338,9 +1604,10 @@ def main() -> int:
                 scenario_id=scenario_id,
                 allow_resource_injection=args.allow_rig_resource_injection,
                 listener_stdout=rig_listener_stdout,
-                listener_log_path=args.rig_listener_log,
+                listener_log_path=listener_log_path,
                 rig_log_profile=rig_log_profile,
                 rig_log_category_levels=rig_log_categories,
+                extra_env=runtime_env_overrides,
             )
             boot_lines = _wait_for_ready(proc, timeout_s=70.0)
             if proc.poll() is not None:
@@ -1364,7 +1631,9 @@ def main() -> int:
 
     turn = max(1, int(args.turn_start))
     history: List[Dict[str, Any]] = []
-    error_lines = [ln for ln in boot_lines if "ERROR:" in ln or "SCRIPT ERROR:" in ln]
+    initial_known_pairs_count = 0
+    boot_log_lines = _read_new_lines(listener_log_path, start_offset=listener_log_boot_offset, max_lines=4000)
+    error_lines = _extract_boot_script_errors(boot_lines + boot_log_lines)
     if args.fail_on_boot_script_errors and error_lines:
         _safe_print("milk-hunt: failing due to boot script errors", "error")
         for line in error_lines[-20:]:
@@ -1429,6 +1698,7 @@ def main() -> int:
             )
         history.append(_run_turn(turn, "known_vocab_pairs"))
         turn += 1
+        initial_known_pairs_count = len(_extract_pairs(history))
         resources = _run_turn(turn, "resource_snapshot")
         history.append(resources)
         turn += 1
@@ -1883,6 +2153,7 @@ def main() -> int:
                 turn,
                 "offer_quests",
                 include_reward_resources=include_offer_reward_resources,
+                include_market_projection=include_offer_market_projection,
             )
             history.append(offer_row)
             turn += 1
@@ -2171,6 +2442,7 @@ def main() -> int:
             current_resources = _extract_resource_map(post_victory_snapshot)
 
         final_pairs = _extract_pairs(history)
+        profile_metrics = _compute_profile_metrics(history, initial_known_pairs_count, len(final_pairs))
         steps = len(history)
         summary = {
             "found_milk_pair": found_milk,
@@ -2193,15 +2465,21 @@ def main() -> int:
             "console_profile": console_profile,
             "wait_progress_seconds": float(wait_progress_seconds),
             "rig_listener_stdout": rig_listener_stdout,
+            "rig_listener_log": str(listener_log_path) if listener_log_path is not None else "",
             "rig_log_profile": rig_log_profile,
             "rig_log_categories": rig_log_categories,
+            "boot_log_lines_scanned": len(boot_log_lines),
             "hunter_profile": hunter_profile,
             "hunter_policy_mode": hunter_policy_mode,
             "hunter_policy_active": quantum_policy is not None,
             "policy_trace_limit": policy_trace_limit,
             "target_turn_hz": args.target_turn_hz,
             "metrics_every": metrics_every,
+            "runtime_profile": runtime_profile,
+            "runtime_env_overrides": runtime_env_overrides,
+            "reuse_listener": bool(args.reuse_listener),
             "include_offer_reward_resources": include_offer_reward_resources,
+            "include_offer_market_projection": include_offer_market_projection,
             "biome_discovery_order": newly_discovered_biomes,
             "biome_visit_order": discovered_biomes,
             "initial_unlocked_biomes": initial_biomes,
@@ -2249,6 +2527,25 @@ def main() -> int:
             "timescale_top_k": timescale_top_k,
             "timescale_objective": timescale_objective_payload if advanced_mode else {},
             "timescale_events": timescale_events,
+            "profile_metrics": profile_metrics,
+            "quest_offer_cycles": profile_metrics.get("quest_offer_cycles", 0),
+            "quest_offers_seen": profile_metrics.get("quest_offers_seen", 0),
+            "quest_offers_accepted": profile_metrics.get("quest_offers_accepted", 0),
+            "quest_completions": profile_metrics.get("quest_completions", 0),
+            "quest_complete_or_claim": profile_metrics.get("quest_complete_or_claim", 0),
+            "quest_claims": profile_metrics.get("quest_claims", 0),
+            "vocab_pairs_initial": profile_metrics.get("vocab_pairs_initial", 0),
+            "vocab_pairs_final": profile_metrics.get("vocab_pairs_final", len(final_pairs)),
+            "vocab_pairs_learned": profile_metrics.get("vocab_pairs_learned", 0),
+            "lindblad_drain_actions": profile_metrics.get("lindblad_drain_actions", 0),
+            "lindblad_drains_established": profile_metrics.get("lindblad_drains_established", 0),
+            "time_skip_actions": profile_metrics.get("time_skip_actions", 0),
+            "time_skip_total_phrames": profile_metrics.get("time_skip_total_phrames", 0),
+            "time_skip_total_evolved_steps": profile_metrics.get("time_skip_total_evolved_steps", 0),
+            "git_branch": git_meta.get("git_branch", ""),
+            "git_commit": git_meta.get("git_commit", ""),
+            "git_dirty_count": git_meta.get("git_dirty_count", 0),
+            "git_dirty_files": git_meta.get("git_dirty_files", []),
         }
         if args.save_slot_at_end is not None:
             save_row = _run_turn(turn, "save_game", slot=args.save_slot_at_end)
@@ -2284,10 +2581,16 @@ def main() -> int:
         return 0 if found_milk else 2
     except TurnTimeoutError as exc:
         timeout_diag = _rig_timeout_diagnostics(exc.turn_id, exc.action)
+        timeout_pairs = _extract_pairs(history)
+        timeout_profile_metrics = _compute_profile_metrics(
+            history,
+            initial_known_pairs_count,
+            len(timeout_pairs),
+        )
         timeout_summary = {
             "found_milk_pair": False,
             "found_milk_offer": False,
-            "known_pairs_count": len(_extract_pairs(history)),
+            "known_pairs_count": len(timeout_pairs),
             "steps": len(history),
             "turns_executed": len(history),
             "loops_completed": locals().get("loops_completed", 0),
@@ -2302,6 +2605,7 @@ def main() -> int:
             "console_profile": console_profile,
             "wait_progress_seconds": float(wait_progress_seconds),
             "rig_listener_stdout": rig_listener_stdout,
+            "rig_listener_log": str(listener_log_path) if listener_log_path is not None else "",
             "rig_log_profile": rig_log_profile,
             "rig_log_categories": rig_log_categories,
             "hunter_profile": hunter_profile,
@@ -2309,7 +2613,11 @@ def main() -> int:
             "hunter_policy_active": quantum_policy is not None,
             "target_turn_hz": args.target_turn_hz,
             "metrics_every": metrics_every,
+            "runtime_profile": runtime_profile,
+            "runtime_env_overrides": runtime_env_overrides,
+            "reuse_listener": bool(args.reuse_listener),
             "include_offer_reward_resources": include_offer_reward_resources,
+            "include_offer_market_projection": include_offer_market_projection,
             "lindblad_drain_focus": lindblad_drain_focus,
             "lindblad_drain_every": lindblad_drain_every,
             "lindblad_drain_max_biomes_per_loop": lindblad_drain_max_biomes_per_loop,
@@ -2327,6 +2635,25 @@ def main() -> int:
             "timescale_top_k": timescale_top_k,
             "timescale_objective": timescale_objective_payload if advanced_mode else {},
             "timescale_events": locals().get("timescale_events", []),
+            "profile_metrics": timeout_profile_metrics,
+            "quest_offer_cycles": timeout_profile_metrics.get("quest_offer_cycles", 0),
+            "quest_offers_seen": timeout_profile_metrics.get("quest_offers_seen", 0),
+            "quest_offers_accepted": timeout_profile_metrics.get("quest_offers_accepted", 0),
+            "quest_completions": timeout_profile_metrics.get("quest_completions", 0),
+            "quest_complete_or_claim": timeout_profile_metrics.get("quest_complete_or_claim", 0),
+            "quest_claims": timeout_profile_metrics.get("quest_claims", 0),
+            "vocab_pairs_initial": timeout_profile_metrics.get("vocab_pairs_initial", 0),
+            "vocab_pairs_final": timeout_profile_metrics.get("vocab_pairs_final", len(timeout_pairs)),
+            "vocab_pairs_learned": timeout_profile_metrics.get("vocab_pairs_learned", 0),
+            "lindblad_drain_actions": timeout_profile_metrics.get("lindblad_drain_actions", 0),
+            "lindblad_drains_established": timeout_profile_metrics.get("lindblad_drains_established", 0),
+            "time_skip_actions": timeout_profile_metrics.get("time_skip_actions", 0),
+            "time_skip_total_phrames": timeout_profile_metrics.get("time_skip_total_phrames", 0),
+            "time_skip_total_evolved_steps": timeout_profile_metrics.get("time_skip_total_evolved_steps", 0),
+            "git_branch": git_meta.get("git_branch", ""),
+            "git_commit": git_meta.get("git_commit", ""),
+            "git_dirty_count": git_meta.get("git_dirty_count", 0),
+            "git_dirty_files": git_meta.get("git_dirty_files", []),
             "run_error": "turn_timeout",
             "run_error_detail": str(exc),
             "timeout_turn": exc.turn_id,

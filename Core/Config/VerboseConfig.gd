@@ -123,6 +123,7 @@ func _ready():
 	_baseline_file_logging = enable_file_logging
 
 	var disable_file_logging = OS.get_environment("DISABLE_VERBOSE_FILE_LOGGING") == "1"
+	var force_file_logging = OS.get_environment("VERBOSE_FILE_LOGGING") == "1"
 
 	# Check for --verbose flag or VERBOSE_LOGGING env var
 	var args = OS.get_cmdline_args()
@@ -131,13 +132,15 @@ func _ready():
 		_enable_all_verbose()
 		print("🔍 VERBOSE LOGGING ENABLED (ALL CATEGORIES AT TRACE LEVEL)")
 
-	# Enable file logging in debug builds by default (unless disabled explicitly)
-	if not disable_file_logging and OS.is_debug_build():
+	# File logging is opt-in to avoid heavy disk churn during long-running automation.
+	if force_file_logging and not disable_file_logging:
 		enable_file_logging = true
 		_ensure_log_path()
 		_init_file_logging()
 	elif disable_file_logging:
 		print("📝 File logging disabled by environment")
+	else:
+		enable_file_logging = false
 
 	# Legacy: Check for subsystem-specific flags
 	if OS.get_environment("VERBOSE_FOREST") == "1":

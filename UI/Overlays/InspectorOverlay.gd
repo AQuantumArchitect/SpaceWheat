@@ -599,6 +599,8 @@ func get_snapshot() -> Dictionary:
 	var speed = _get_simulation_speed() if biome else 0.0
 	var vfps = Engine.get_frames_per_second()
 	var pfps = _get_physics_fps()
+	var process_ms = Performance.get_monitor(Performance.TIME_PROCESS) * 1000.0
+	var physics_ms = Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS) * 1000.0
 
 	var regs: Array = []
 	for reg in register_data:
@@ -614,9 +616,15 @@ func get_snapshot() -> Dictionary:
 		"biome": biome_name,
 		"registers": regs,
 		"selected_register": selected_index,
+		# Compatibility fields for prior PerformanceHUD consumers.
+		"fps": vfps,
+		"process_ms": process_ms,
+		"physics_ms": physics_ms,
 		"stats": {
 			"sim_speed": speed,
 			"vfps": vfps,
 			"pfps": pfps,
+			"process_ms": process_ms,
+			"physics_ms": physics_ms,
 		}
 	}

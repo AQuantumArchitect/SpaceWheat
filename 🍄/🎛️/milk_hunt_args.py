@@ -25,7 +25,8 @@ def make_base_parser(description: str = "Milk hunt tool") -> argparse.ArgumentPa
       --hunter-policy     Policy mode (auto / classic / quantum_graph)
       --strategy          Strategy JSON path
       --strict-biome-economy / --no-strict-biome-economy
-      --reuse-listener    Reuse a single rig listener across runs
+      --reuse-listener / --no-reuse-listener
+                         Reuse a single rig listener across runs
     """
     parser = argparse.ArgumentParser(description=description)
 
@@ -97,9 +98,16 @@ def make_base_parser(description: str = "Milk hunt tool") -> argparse.ArgumentPa
     )
     parser.add_argument(
         "--reuse-listener",
+        dest="reuse_listener",
         action="store_true",
         help="Reuse a single rig listener across runs",
     )
-    parser.set_defaults(strict_biome_economy=None)
+    parser.add_argument(
+        "--no-reuse-listener",
+        dest="reuse_listener",
+        action="store_false",
+        help="Do not reuse a listener across runs",
+    )
+    parser.set_defaults(strict_biome_economy=None, reuse_listener=None)
 
     return parser

@@ -177,8 +177,12 @@ const EMERGENCY_RESCUE_STEPS = 5           # Small packet: 5 phrames
 const EMERGENCY_SAFETY_MARGIN = 1.5        # Trigger when buffer_time < batch_time × 1.5
 const EMERGENCY_CRITICAL_DEPTH = 2          # Only rescue when biome is critically low (<= 2 phrames)
 const EMERGENCY_COOLDOWN_MS = 600           # Prevent rescue-loop lock-in (global packet cooldown)
+const EMERGENCY_LOG_INTERVAL_MS = 5000      # Throttle repetitive starvation logs per-biome
 var _emergency_rescues: int = 0            # Track emergency packet count
 var _last_emergency_packet_time_ms: int = 0
+var _rescue_starving_state: Dictionary = {}  # biome_name -> bool
+var _rescue_last_log_ms: Dictionary = {}  # biome_name -> int
+var _rescue_suppressed_logs: Dictionary = {}  # biome_name -> int
 
 # Statistics
 var total_evolutions: int = 0
@@ -1214,6 +1218,27 @@ func _get_biome_rho_status(biome_name: String, biome) -> Dictionary:
 		status.reason = "empty_rho"
 		return status
 
+	# Guard: zero-trace or NaN density matrices (can occur after probe_cycle measurement)
+	# will SIGABRT in the C++ engine. Detect and rebuild as mixed state.
+	# NOTE: Cannot use _reinitialize_mixed_state() + _to_packed() here because
+	# set_element() clears _packed_cache but not _native_backend, causing _to_packed()
+	# to return stale zero-trace native data. Instead, build the packed array directly
+	# and call _from_packed() to sync both _packed_cache and native backend.
+	if dim > 0 and rho_packed.size() >= dim * dim * 2:
+		var tr = 0.0
+		for i in range(dim):
+			tr += rho_packed[i * (dim + 1) * 2]
+		if is_nan(tr) or tr < 1e-10:
+			push_warning("BiomeEvolutionBatcher: degenerate rho for '%s' (tr=%.6f), reinitializing to mixed state" % [biome_name, tr])
+			var fresh_packed = PackedFloat64Array()
+			fresh_packed.resize(dim * dim * 2)
+			var diag_val = 1.0 / float(dim)
+			for i in range(dim):
+				fresh_packed[i * (dim + 1) * 2] = diag_val
+			qc.density_matrix._from_packed(fresh_packed, dim)
+			rho_packed = fresh_packed
+			status.rho = rho_packed
+
 	var engine_dim = status.engine_dim
 	if engine_dim >= 0 and engine_dim != dim:
 		status.reason = "engine_dim_mismatch"
@@ -1559,6 +1584,7 @@ func _check_starving_by_time() -> Array:
 		return starving  # No timing data yet
 
 	var threshold_time = batch_time * EMERGENCY_SAFETY_MARGIN
+	var now_ms = Time.get_ticks_msec()
 
 	for biome in biomes:
 		if not _is_valid_biome(biome):
@@ -1577,11 +1603,37 @@ func _check_starving_by_time() -> Array:
 
 		# Emergency rescue is for CRITICAL depletion only.
 		# Non-critical low buffers are handled by regular hybrid refill.
-		if depth <= EMERGENCY_CRITICAL_DEPTH and buffer_time_ms < threshold_time:
+		var is_starving = depth <= EMERGENCY_CRITICAL_DEPTH and buffer_time_ms < threshold_time
+		if is_starving:
 			starving.append(biome_name)
-			_log("warn", "RESCUE", "🚨",
-				"%s: CRITICAL depth=%d, buffer=%dms < %dms (%.1fx batch)" %
-				[biome_name, depth, buffer_time_ms, threshold_time, EMERGENCY_SAFETY_MARGIN])
+
+			var was_starving = bool(_rescue_starving_state.get(biome_name, false))
+			var last_log_ms = int(_rescue_last_log_ms.get(biome_name, 0))
+			var should_log = (not was_starving) or (now_ms - last_log_ms >= EMERGENCY_LOG_INTERVAL_MS)
+			if should_log:
+				var suppressed = int(_rescue_suppressed_logs.get(biome_name, 0))
+				var suffix = ""
+				if suppressed > 0:
+					suffix = " (suppressed=%d)" % suppressed
+				# Use INFO for recurring rescue state to avoid expensive push_warning backtraces.
+				_log("info", "RESCUE", "🚨",
+					"%s: CRITICAL depth=%d, buffer=%dms < %dms (%.1fx batch)%s" %
+					[biome_name, depth, buffer_time_ms, threshold_time, EMERGENCY_SAFETY_MARGIN, suffix])
+				_rescue_last_log_ms[biome_name] = now_ms
+				_rescue_suppressed_logs[biome_name] = 0
+			else:
+				_rescue_suppressed_logs[biome_name] = int(_rescue_suppressed_logs.get(biome_name, 0)) + 1
+			_rescue_starving_state[biome_name] = true
+		elif bool(_rescue_starving_state.get(biome_name, false)):
+			var suppressed_recovery = int(_rescue_suppressed_logs.get(biome_name, 0))
+			var recovery_suffix = ""
+			if suppressed_recovery > 0:
+				recovery_suffix = " (suppressed=%d)" % suppressed_recovery
+			_log("info", "RESCUE", "✅",
+				"%s: RECOVERED depth=%d, buffer=%dms >= %dms%s" %
+				[biome_name, depth, buffer_time_ms, threshold_time, recovery_suffix])
+			_rescue_starving_state[biome_name] = false
+			_rescue_suppressed_logs[biome_name] = 0
 
 	return starving
 
@@ -2965,6 +3017,23 @@ func _run_native_biome_cycle(biome, dt: float, max_dt_override: float = -1.0) ->
 	var qc = biome.quantum_computer
 	var rho_packed = qc.density_matrix._to_packed()
 	var max_dt = max_dt_override if max_dt_override > 0.0 else _get_base_max_dt(biome)
+	var dim = int(qc.register_map.dim())
+
+	# Guard: zero-trace density matrices (produced by probe_cycle measurement/projection)
+	# will SIGABRT in the C++ engine. Build fresh mixed state directly (same approach
+	# as _get_biome_rho_status guard: avoids stale _native_backend cache).
+	if dim > 0 and rho_packed.size() >= dim * dim * 2:
+		var tr = 0.0
+		for i in range(dim):
+			tr += rho_packed[i * (dim + 1) * 2]
+		if tr < 1e-10:
+			var fresh_packed = PackedFloat64Array()
+			fresh_packed.resize(dim * dim * 2)
+			var diag_val = 1.0 / float(dim)
+			for i in range(dim):
+				fresh_packed[i * (dim + 1) * 2] = diag_val
+			qc.density_matrix._from_packed(fresh_packed, dim)
+			rho_packed = fresh_packed
 
 	var result = lookahead_engine.evolve_single_biome(engine_id, rho_packed, 1, dt, max_dt)
 
@@ -2973,7 +3042,6 @@ func _run_native_biome_cycle(biome, dt: float, max_dt_override: float = -1.0) ->
 	if results.size() > 0:
 		var final_rho = results[results.size() - 1]
 		if final_rho is PackedFloat64Array and final_rho.size() > 0:
-			var dim = int(qc.register_map.dim())
 			qc.load_packed_state(final_rho, dim, true)
 
 	_post_evolution_update(biome)
@@ -3675,12 +3743,26 @@ func _queue_adaptive_packet(biome_rhos: Array, active_flags_arr: Array, packet_s
 		return
 
 	# Validate: C++ bug - it doesn't check active_flags before unpacking rhos
-	# Log warning if we're sending empty rhos for active biomes (will crash!)
+	# Block empty rhos and zero-trace rhos (both will SIGABRT in C++)
 	for i in range(mini(biome_rhos.size(), active_flags_arr.size())):
-		if active_flags_arr[i] and biome_rhos[i].is_empty():
+		if not active_flags_arr[i]:
+			continue
+		var rho = biome_rhos[i]
+		if rho.is_empty():
 			var biome_name = _engine_id_to_biome.get(i, "unknown")
-			push_error("BiomeEvolutionBatcher: Active biome '%s' (engine_id=%d) has empty rho! C++ will crash. Marking inactive." % [biome_name, i])
-			active_flags_arr[i] = false  # Force inactive to prevent crash
+			push_error("BiomeEvolutionBatcher: Active biome '%s' (engine_id=%d) has empty rho! Marking inactive." % [biome_name, i])
+			active_flags_arr[i] = false
+			continue
+		# Also guard zero-trace rhos: C++ crashes on degenerate density matrices
+		var dim_i = _biome_engine_dims.get(_engine_id_to_biome.get(i, ""), -1)
+		if dim_i > 0 and rho.size() >= dim_i * dim_i * 2:
+			var tr = 0.0
+			for k in range(dim_i):
+				tr += rho[k * (dim_i + 1) * 2]
+			if tr < 1e-10:
+				var biome_name = _engine_id_to_biome.get(i, "unknown")
+				push_warning("BiomeEvolutionBatcher: Active biome '%s' has zero-trace rho. Marking inactive for this packet." % biome_name)
+				active_flags_arr[i] = false
 
 	# Clear any previous partial results
 	_batches_in_flight.clear()

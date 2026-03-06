@@ -6,13 +6,11 @@ extends Control
 const QuantumForceGraph = preload("res://Core/Visualization/QuantumForceGraph.gd")
 const ProbeActions = preload("res://Core/Actions/ProbeActions.gd")
 const BiomeBackgroundClass = preload("res://Core/Visualization/BiomeBackground.gd")
-const PerformanceHUDClass = preload("res://UI/HUD/PerformanceHUD.gd")
 # BootManager is an autoload singleton - no need to preload
 
 const BACKGROUND_LAYER := -1
 const SHELL_Z_INDEX := 10
 const QUANTUM_VIZ_Z_INDEX := 40
-const PERFORMANCE_HUD_Z_INDEX := 2000
 
 var shell = null  # PlayerShell (from scene)
 var farm: Node = null
@@ -84,7 +82,6 @@ func _ready():
 		return
 
 	_create_quantum_visualization()
-	_create_performance_hud()
 
 	# ═══════════════════════════════════════════════════════════════════════
 	# PRE-BOOT: Signal connections needed before game starts
@@ -106,6 +103,7 @@ func _ready():
 	# ═══════════════════════════════════════════════════════════════════════
 
 	_connect_visualization_ui_signals()
+	_bind_overlay_hud_proxies()
 
 	# Input is handled by PlayerShell._input() → modal stack → QuantumInstrumentInput
 	# No need for InputController anymore!
@@ -137,15 +135,6 @@ func _create_quantum_visualization() -> void:
 	quantum_viz.top_level = true
 	quantum_viz.position = Vector2.ZERO
 	quantum_viz.z_index = QUANTUM_VIZ_Z_INDEX
-
-
-func _create_performance_hud() -> void:
-	"""Create high-z performance profiling overlay."""
-	_verbose.debug("ui", "🔬", "Creating performance profiling HUD...")
-	performance_hud = PerformanceHUDClass.new()
-	add_child(performance_hud)
-	performance_hud.z_index = PERFORMANCE_HUD_Z_INDEX  # Above all UI
-	_verbose.info("ui", "✅", "Performance HUD created")
 
 
 func _connect_quantum_viz_to_farm() -> void:
@@ -180,6 +169,18 @@ func _connect_visualization_ui_signals() -> void:
 
 		quantum_viz.chain_swiped.connect(_on_chain_swiped)
 		_verbose.info("ui", "✅", "Touch: Chain-swipe-to-gate connected")
+
+
+func _bind_overlay_hud_proxies() -> void:
+	"""Expose overlay-driven HUDs through legacy FarmView properties."""
+	performance_hud = null
+	if not shell or not ("overlay_manager" in shell) or not shell.overlay_manager:
+		return
+	var overlay_manager = shell.overlay_manager
+	if overlay_manager.has_method("get_v2_overlay"):
+		performance_hud = overlay_manager.get_v2_overlay("inspector")
+	elif "v2_overlays" in overlay_manager:
+		performance_hud = overlay_manager.v2_overlays.get("inspector")
 
 
 func _on_quit_requested() -> void:

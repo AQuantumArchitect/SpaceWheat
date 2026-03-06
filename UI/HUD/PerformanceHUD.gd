@@ -16,6 +16,9 @@ var frame_counter: int = 0
 var _perf_log_file: FileAccess = null
 var _perf_log_path: String = ""
 var _verbose = null
+var _perf_file_logging_enabled: bool = false
+var _perf_log_buffer: PackedStringArray = []
+const PERF_LOG_BUFFER_SIZE: int = 30
 
 # UI elements
 var panel: PanelContainer
@@ -30,13 +33,28 @@ func _ready() -> void:
 	_build_ui()
 	_verbose = get_node_or_null("/root/VerboseConfig")
 	set_process(true)
-	_open_perf_log()
+	_perf_file_logging_enabled = _should_enable_perf_file_logging()
+	if _perf_file_logging_enabled:
+		_open_perf_log()
 
 func _exit_tree() -> void:
 	"""Close performance log file on cleanup."""
 	if _perf_log_file:
+		_flush_perf_log()
 		_perf_log_file.close()
 		_perf_log_file = null
+
+
+func _should_enable_perf_file_logging() -> bool:
+	"""Gate file logging behind explicit opt-in to prevent disk churn."""
+	if OS.get_environment("PERF_HUD_FILE_LOGGING") == "1":
+		return true
+	if not _verbose:
+		return false
+	if _verbose.has_method("get_category_level"):
+		var level = int(_verbose.get_category_level("perf_hud"))
+		return level >= 3  # DEBUG or TRACE
+	return false
 
 func _open_perf_log() -> void:
 	"""Open performance log file for writing."""
@@ -61,9 +79,20 @@ func _open_perf_log() -> void:
 
 func _log_perf(message: String) -> void:
 	"""Write performance data to log file (silent - no console spam)."""
-	if _perf_log_file:
-		_perf_log_file.store_line(message)
-		_perf_log_file.flush()  # Ensure data is written immediately
+	if not _perf_log_file:
+		return
+	_perf_log_buffer.append(message)
+	if _perf_log_buffer.size() >= PERF_LOG_BUFFER_SIZE:
+		_flush_perf_log()
+
+
+func _flush_perf_log() -> void:
+	if not _perf_log_file or _perf_log_buffer.is_empty():
+		return
+	for line in _perf_log_buffer:
+		_perf_log_file.store_line(line)
+	_perf_log_file.flush()
+	_perf_log_buffer.clear()
 
 func _process(_delta: float) -> void:
 	frame_counter += 1

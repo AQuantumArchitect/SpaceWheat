@@ -151,6 +151,7 @@ class RigClient:
         listener_log_path: Optional[Path] = None,
         rig_log_profile: Optional[str] = "quiet",
         rig_log_category_levels: Optional[str] = None,
+        extra_env: Optional[Dict[str, str]] = None,
     ) -> subprocess.Popen:
         env = os.environ.copy()
         env["XDG_ROOT"] = str(self.xdg_root)
@@ -164,6 +165,10 @@ class RigClient:
             env["RIG_LOG_PROFILE"] = str(rig_log_profile)
         if rig_log_category_levels:
             env["RIG_LOG_CATEGORY_LEVELS"] = str(rig_log_category_levels)
+        if extra_env:
+            for key, value in extra_env.items():
+                if key and value is not None:
+                    env[str(key)] = str(value)
 
         mode = (listener_stdout or "file").strip().lower()
         stdout_target: Any = subprocess.PIPE
@@ -234,17 +239,11 @@ class RigClient:
         return False
 
     def queue_turn(self, payload: Dict[str, Any]) -> None:
-        env = os.environ.copy()
-        env["XDG_ROOT"] = str(self.xdg_root)
         raw = json.dumps(payload, ensure_ascii=False)
-        subprocess.run(
-            [str(self.queue_script), raw],
-            cwd=str(self.project_root),
-            env=env,
-            check=True,
-            capture_output=True,
-            text=True,
-        )
+        self.queue_file.parent.mkdir(parents=True, exist_ok=True)
+        with self.queue_file.open("a", encoding="utf-8") as fh:
+            fh.write(raw)
+            fh.write("\n")
 
     def _read_new_result_rows(self) -> List[Dict[str, Any]]:
         if not self.results_file.exists():
@@ -332,7 +331,7 @@ class RigClient:
                     % (turn_id, elapsed, self._latest_result_turn)
                 )
                 next_report_at = now + max(0.5, progress_interval_s)
-            time.sleep(0.1)
+            time.sleep(0.2)
         return None
 
     def run_turn(

@@ -24,6 +24,18 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--runs", type=int, default=5, help="How many independent trials to run")
     parser.add_argument("--max-loops", type=int, default=220, help="Max offer cycles per trial")
     parser.add_argument(
+        "--metrics-every",
+        type=int,
+        default=0,
+        help="Sample batcher metrics every N loops in each run (0 disables)",
+    )
+    parser.add_argument(
+        "--runtime-profile",
+        choices=["default", "quantum_fiber_nodes", "io_min"],
+        default=None,
+        help="Runtime env profile to apply when launching rig listener",
+    )
+    parser.add_argument(
         "--output-dir",
         type=Path,
         default=Path("/tmp/milk_hunt_batches"),
@@ -39,6 +51,33 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Resource application mode for profile seeding",
     )
+    parser.add_argument(
+        "--include-offer-reward-resources",
+        dest="include_offer_reward_resources",
+        action="store_true",
+        help="Include reward_resources payload in offer_quests responses",
+    )
+    parser.add_argument(
+        "--no-include-offer-reward-resources",
+        dest="include_offer_reward_resources",
+        action="store_false",
+        help="Exclude reward_resources payload from offer_quests responses",
+    )
+    parser.add_argument(
+        "--include-offer-market-projection",
+        dest="include_offer_market_projection",
+        action="store_true",
+        help="Include market_projection payload in offer_quests responses",
+    )
+    parser.add_argument(
+        "--no-include-offer-market-projection",
+        dest="include_offer_market_projection",
+        action="store_false",
+        help="Exclude market_projection payload from offer_quests responses",
+    )
+    parser.set_defaults(strict_biome_economy=True, reuse_listener=True)
+    parser.set_defaults(include_offer_reward_resources=False)
+    parser.set_defaults(include_offer_market_projection=False)
     return parser
 
 
@@ -64,6 +103,10 @@ def _run_trial(
     hunter_profile: str | None = None,
     hunter_policy: str | None = None,
     console_profile: str | None = None,
+    metrics_every: int = 0,
+    runtime_profile: str | None = None,
+    include_offer_reward_resources: bool = False,
+    include_offer_market_projection: bool = False,
 ) -> Dict[str, Any]:
     run_name = f"run_{run_idx:03d}"
     run_dir = batch_dir / run_name
@@ -87,6 +130,10 @@ def _run_trial(
         cmd.extend(["--hunter-policy", hunter_policy])
     if console_profile is not None:
         cmd.extend(["--console-profile", console_profile])
+    if metrics_every > 0:
+        cmd.extend(["--metrics-every", str(int(metrics_every))])
+    if runtime_profile:
+        cmd.extend(["--runtime-profile", str(runtime_profile)])
     if load_slot is not None:
         cmd.extend(["--load-slot", str(load_slot)])
     if profile_save is not None:
@@ -99,6 +146,14 @@ def _run_trial(
         cmd.append("--strict-biome-economy")
     elif strict_biome_economy is False:
         cmd.append("--no-strict-biome-economy")
+    if include_offer_reward_resources:
+        cmd.append("--include-offer-reward-resources")
+    else:
+        cmd.append("--no-include-offer-reward-resources")
+    if include_offer_market_projection:
+        cmd.append("--include-offer-market-projection")
+    else:
+        cmd.append("--no-include-offer-market-projection")
     if reuse_listener:
         cmd.append("--reuse-listener")
         cmd.append("--no-clear-rig")
@@ -209,8 +264,8 @@ def main() -> int:
         console.log(f"[batch] '{seed_source}' seeded into slot {seed_slot}", "info")
 
     strict_biome_economy = args.strict_biome_economy
-    if strict_biome_economy is None and profile and "strict_biome_economy" in profile:
-        strict_biome_economy = bool(profile.get("strict_biome_economy"))
+    if strict_biome_economy is None:
+        strict_biome_economy = True
     hunter_profile = args.hunter_profile or args.profile
     if hunter_profile is None and args.profile_save:
         mapped = get_profile_save(args.profile_save, args.profile_save_index)
@@ -222,12 +277,14 @@ def main() -> int:
     if hunter_profile is None and resolved_profile_save:
         hunter_profile = get_profile_name_for_save(resolved_profile_save, args.profile_save_index)
     hunter_policy = args.hunter_policy
+    reuse_enabled = bool(args.reuse_listener)
+    metrics_every = max(0, int(args.metrics_every))
 
     run_summaries: List[Dict[str, Any]] = []
     turn_cursor = 1
     for i in range(1, args.runs + 1):
-        reuse = bool(args.reuse_listener and i > 1)
-        no_stop = bool(args.reuse_listener and i < args.runs)
+        reuse = bool(reuse_enabled and i > 1)
+        no_stop = bool(reuse_enabled and i < args.runs)
         summary = _run_trial(
             batch_dir,
             i,
@@ -244,6 +301,10 @@ def main() -> int:
             hunter_profile=hunter_profile,
             hunter_policy=hunter_policy,
             console_profile=console.profile,
+            metrics_every=metrics_every,
+            runtime_profile=args.runtime_profile,
+            include_offer_reward_resources=bool(args.include_offer_reward_resources),
+            include_offer_market_projection=bool(args.include_offer_market_projection),
         )
         run_summaries.append(summary)
         found = bool(summary.get("found_milk_pair", False))
@@ -287,6 +348,36 @@ def main() -> int:
     milk_pair_steps = [int(s.get("milk_pair_index", 0) or 0) for s in successes if s.get("milk_pair_index") is not None]
     discovered_per_run = [len(s.get("biome_discovery_order", []) or []) for s in run_summaries]
     probe_events_per_run = [len(s.get("biome_probe_events", []) or []) for s in run_summaries]
+    quest_offers_seen_per_run = [int(s.get("quest_offers_seen", 0) or 0) for s in run_summaries]
+    quest_completions_per_run = [int(s.get("quest_completions", 0) or 0) for s in run_summaries]
+    quest_claims_per_run = [int(s.get("quest_claims", 0) or 0) for s in run_summaries]
+    vocab_pairs_learned_per_run = [int(s.get("vocab_pairs_learned", 0) or 0) for s in run_summaries]
+    drains_established_per_run = [int(s.get("lindblad_drains_established", 0) or 0) for s in run_summaries]
+    drain_actions_per_run = [int(s.get("lindblad_drain_actions", 0) or 0) for s in run_summaries]
+    time_skip_actions_per_run = [int(s.get("time_skip_actions", 0) or 0) for s in run_summaries]
+    time_skip_phrames_per_run = [int(s.get("time_skip_total_phrames", 0) or 0) for s in run_summaries]
+    time_skip_evolved_steps_per_run = [int(s.get("time_skip_total_evolved_steps", 0) or 0) for s in run_summaries]
+
+    def _sample_metric(field: str) -> List[float]:
+        values: List[float] = []
+        for summary in run_summaries:
+            samples = summary.get("batcher_metrics_samples", [])
+            if not isinstance(samples, list):
+                continue
+            for sample in samples:
+                if not isinstance(sample, dict):
+                    continue
+                metrics = sample.get("metrics", {})
+                if not isinstance(metrics, dict):
+                    continue
+                raw = metrics.get(field)
+                if isinstance(raw, (int, float)):
+                    values.append(float(raw))
+        return values
+
+    sampled_threads_running = _sample_metric("threads_running")
+    sampled_packets_pending = _sample_metric("packets_pending")
+    sampled_physics_fps = _sample_metric("physics_fps")
     all_discovered = sorted(
         {
             biome
@@ -319,6 +410,11 @@ def main() -> int:
         "profile_save": resolved_profile_save,
         "profile_save_index": args.profile_save_index,
         "console_profile": console.profile,
+        "reuse_listener": reuse_enabled,
+        "metrics_every": metrics_every,
+        "runtime_profile": args.runtime_profile or "default",
+        "include_offer_reward_resources": bool(args.include_offer_reward_resources),
+        "include_offer_market_projection": bool(args.include_offer_market_projection),
         "strategy": args.strategy,
         "seed_result": seed_result,
         "success_count": len(successes),
@@ -345,6 +441,20 @@ def main() -> int:
         "max_vocab_steps_to_milk": max(milk_pair_steps) if milk_pair_steps else None,
         "avg_biomes_discovered_per_run": _avg(discovered_per_run),
         "avg_probe_events_per_run": _avg(probe_events_per_run),
+        "avg_quest_offers_seen_per_run": _avg(quest_offers_seen_per_run),
+        "avg_quest_completions_per_run": _avg(quest_completions_per_run),
+        "avg_quest_claims_per_run": _avg(quest_claims_per_run),
+        "avg_vocab_pairs_learned_per_run": _avg(vocab_pairs_learned_per_run),
+        "avg_lindblad_drain_actions_per_run": _avg(drain_actions_per_run),
+        "avg_lindblad_drains_established_per_run": _avg(drains_established_per_run),
+        "avg_time_skip_actions_per_run": _avg(time_skip_actions_per_run),
+        "avg_time_skip_phrames_per_run": _avg(time_skip_phrames_per_run),
+        "avg_time_skip_evolved_steps_per_run": _avg(time_skip_evolved_steps_per_run),
+        "avg_sampled_threads_running": float(statistics.mean(sampled_threads_running)) if sampled_threads_running else 0.0,
+        "max_sampled_threads_running": int(max(sampled_threads_running)) if sampled_threads_running else 0,
+        "avg_sampled_packets_pending": float(statistics.mean(sampled_packets_pending)) if sampled_packets_pending else 0.0,
+        "max_sampled_packets_pending": int(max(sampled_packets_pending)) if sampled_packets_pending else 0,
+        "avg_sampled_physics_fps": float(statistics.mean(sampled_physics_fps)) if sampled_physics_fps else 0.0,
         "discovered_biomes_union": all_discovered,
         "first_discovery_counts": first_discovery_counts,
         "batch_dir": str(batch_dir),
@@ -353,6 +463,47 @@ def main() -> int:
 
     agg_path = batch_dir / "batch_summary.json"
     write_json(agg_path, aggregate)
+    profile_report = {
+        "profile": aggregate.get("profile", ""),
+        "runs": [
+            {
+                "run_name": s.get("run_name", ""),
+                "found_milk_pair": bool(s.get("found_milk_pair", False)),
+                "steps": int(s.get("steps", s.get("turns_executed", 0) or 0) or 0),
+                "loops_completed": int(s.get("loops_completed", 0) or 0),
+                "quest_offer_cycles": int(s.get("quest_offer_cycles", 0) or 0),
+                "quest_offers_seen": int(s.get("quest_offers_seen", 0) or 0),
+                "quest_offers_accepted": int(s.get("quest_offers_accepted", 0) or 0),
+                "quest_completions": int(s.get("quest_completions", 0) or 0),
+                "quest_claims": int(s.get("quest_claims", 0) or 0),
+                "vocab_pairs_learned": int(s.get("vocab_pairs_learned", 0) or 0),
+                "lindblad_drain_actions": int(s.get("lindblad_drain_actions", 0) or 0),
+                "lindblad_drains_established": int(s.get("lindblad_drains_established", 0) or 0),
+                "time_skip_actions": int(s.get("time_skip_actions", 0) or 0),
+                "time_skip_total_phrames": int(s.get("time_skip_total_phrames", 0) or 0),
+                "time_skip_total_evolved_steps": int(s.get("time_skip_total_evolved_steps", 0) or 0),
+                "batcher_metrics_samples": len(s.get("batcher_metrics_samples", []) or []),
+                "exit_code": int(s.get("exit_code", -1) or -1),
+                "run_error": s.get("run_error"),
+                "timeout_action": s.get("timeout_action"),
+            }
+            for s in run_summaries
+        ],
+        "averages": {
+            "steps": aggregate.get("avg_steps_all", 0.0),
+            "loops_completed": aggregate.get("avg_loops_completed_all", 0.0),
+            "quest_offers_seen": aggregate.get("avg_quest_offers_seen_per_run", 0.0),
+            "quest_completions": aggregate.get("avg_quest_completions_per_run", 0.0),
+            "quest_claims": aggregate.get("avg_quest_claims_per_run", 0.0),
+            "vocab_pairs_learned": aggregate.get("avg_vocab_pairs_learned_per_run", 0.0),
+            "lindblad_drain_actions": aggregate.get("avg_lindblad_drain_actions_per_run", 0.0),
+            "lindblad_drains_established": aggregate.get("avg_lindblad_drains_established_per_run", 0.0),
+            "time_skip_actions": aggregate.get("avg_time_skip_actions_per_run", 0.0),
+            "time_skip_phrames": aggregate.get("avg_time_skip_phrames_per_run", 0.0),
+            "time_skip_evolved_steps": aggregate.get("avg_time_skip_evolved_steps_per_run", 0.0),
+        },
+    }
+    write_json(batch_dir / "profile_report.json", profile_report)
     if console.allows("trace"):
         console.log("[batch] summary", "info")
         console.log(json.dumps(aggregate, ensure_ascii=False, indent=2), "detail")

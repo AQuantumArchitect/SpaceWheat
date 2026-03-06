@@ -531,7 +531,10 @@ func discover_pair(north: String, south: String) -> bool:
 			return false
 
 	known_pairs.append({"north": north, "south": south})
-	_sync_player_vocabulary(false)
+	# Incremental sync: only push the new pair (was O(n²): full _sync_player_vocabulary on every discovery)
+	var player_vocab = get_node_or_null("/root/PlayerVocabulary")
+	if player_vocab and player_vocab.has_method("learn_vocab_pair"):
+		player_vocab.learn_vocab_pair(north, south)
 	_sync_gsm_vocab_state()
 	return true
 

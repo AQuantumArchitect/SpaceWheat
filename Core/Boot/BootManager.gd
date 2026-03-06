@@ -52,6 +52,36 @@ func _boot_elapsed_ms() -> int:
 func _boot_timing(message: String) -> void:
 	_verbose.info("boot", "⏱", "T+%dms %s" % [_boot_elapsed_ms(), message])
 
+
+func _biome_operators_look_valid(biome) -> bool:
+	if not biome:
+		return false
+	var qc = biome.get("quantum_computer")
+	if not qc:
+		return false
+	var h = qc.get("hamiltonian")
+	if not h:
+		return false
+	if h.has_method("dimension") and int(h.dimension()) <= 0:
+		return false
+	return true
+
+
+func _should_rebuild_biome_operators(farm: Node) -> bool:
+	var force_rebuild = OS.get_environment("SW_FORCE_OPERATOR_REBUILD").to_lower() in ["1", "true", "yes", "on"]
+	if force_rebuild:
+		return true
+	var skip_rebuild = OS.get_environment("SW_SKIP_OPERATOR_REBUILD").to_lower() in ["1", "true", "yes", "on"]
+	if skip_rebuild:
+		return false
+	if not farm or not farm.grid or not farm.grid.biomes:
+		return false
+	for biome_name in farm.grid.biomes.keys():
+		var biome = farm.grid.biomes[biome_name]
+		if not _biome_operators_look_valid(biome):
+			return true
+	return false
+
 ## Main boot sequence entry point - call after farm and shell are created
 func boot_core(load_slot: int = -1, scenario_id: String = "default", headless: bool = false) -> Node:
 	"""Boot core systems and ensure Farm exists (no UI)."""
@@ -160,16 +190,19 @@ func _stage_core_systems(farm: Node) -> void:
 	# CRITICAL: Rebuild biome quantum operators now that IconRegistry is guaranteed ready
 	# Biomes may have initialized before IconRegistry loaded all icons
 	if has_biomes:
-		_verbose.info("boot", "🔧", "Rebuilding biome quantum operators...")
-		if farm.has_method("rebuild_all_biome_operators"):
-			farm.rebuild_all_biome_operators()
+		if _should_rebuild_biome_operators(farm):
+			_verbose.info("boot", "🔧", "Rebuilding biome quantum operators...")
+			if farm.has_method("rebuild_all_biome_operators"):
+				farm.rebuild_all_biome_operators()
+			else:
+				# Fallback: rebuild each biome directly
+				for biome_name in farm.grid.biomes.keys():
+					var biome = farm.grid.biomes[biome_name]
+					if biome and biome.has_method("rebuild_quantum_operators"):
+						biome.rebuild_quantum_operators()
+			_verbose.info("boot", "✓", "All biome operators rebuilt")
 		else:
-			# Fallback: rebuild each biome directly
-			for biome_name in farm.grid.biomes.keys():
-				var biome = farm.grid.biomes[biome_name]
-				if biome and biome.has_method("rebuild_quantum_operators"):
-					biome.rebuild_quantum_operators()
-		_verbose.info("boot", "✓", "All biome operators rebuilt")
+			_verbose.info("boot", "✓", "Biome quantum operators already valid; skipping rebuild")
 
 		# Verify all biomes initialized correctly
 		for biome_name in farm.grid.biomes.keys():
@@ -203,16 +236,23 @@ func _stage_core_systems(farm: Node) -> void:
 func _stage_visualization(farm: Node, quantum_viz: Node) -> void:
 	_current_stage = "VISUALIZATION"
 	_verbose.info("boot", "📍", "Stage 3B: Visualization")
+	var is_headless = DisplayServer.get_name() == "headless"
 
 	if not quantum_viz:
-		_verbose.warn("boot", "⚠️", "QuantumViz is null - skipping visualization")
+		if is_headless:
+			_verbose.info("boot", "ℹ️", "Headless rig: QuantumViz unavailable (expected)")
+		else:
+			_verbose.warn("boot", "⚠️", "QuantumViz is null - skipping visualization")
 		visualization_ready.emit()
 		return
 
 	# Register biomes with QuantumForceGraph (direct - no controller middleman)
 	# QuantumForceGraph now handles visualization directly
 	if not quantum_viz.layout_calculator:
-		_verbose.warn("boot", "⚠️", "BiomeLayoutCalculator not created - visualization disabled")
+		if is_headless:
+			_verbose.info("boot", "ℹ️", "Headless rig: layout calculator unavailable (expected)")
+		else:
+			_verbose.warn("boot", "⚠️", "BiomeLayoutCalculator not created - visualization disabled")
 		visualization_ready.emit()
 		return
 
@@ -306,9 +346,8 @@ func _stage_visualization(farm: Node, quantum_viz: Node) -> void:
 		var atlas_batcher = EmojiAtlasBatcherClass.new()
 
 		# Check if we're in headless mode (can't render emojis without viewport)
-		var is_headless = DisplayServer.get_name() == "headless"
 		if is_headless:
-			_verbose.warn("boot", "⚠️", "Headless mode detected - skipping atlas build (will use text fallback)")
+			_verbose.info("boot", "ℹ️", "Headless mode detected - skipping atlas build (text fallback)")
 		else:
 			# Try to build atlas, but don't fail if it errors
 			_verbose.info("boot", "🎨", "  Attempting atlas build (may take 10-30 seconds)...")
@@ -382,7 +421,10 @@ func _stage_ui(farm: Node, shell: Node, quantum_viz: Node) -> void:
 			if plot_grid_display.has_method("inject_layout_calculator"):
 				plot_grid_display.inject_layout_calculator(quantum_viz.layout_calculator)
 		else:
-			_verbose.warn("boot", "⚠️", "No layout_calculator available - tiles will use fallback positioning")
+			if DisplayServer.get_name() == "headless":
+				_verbose.info("boot", "ℹ️", "Headless rig: no layout_calculator (fallback tile positions)")
+			else:
+				_verbose.warn("boot", "⚠️", "No layout_calculator available - tiles will use fallback positioning")
 
 		if farm.grid and farm.grid.biomes and not farm.grid.biomes.is_empty():
 			plot_grid_display.inject_biomes(farm.grid.biomes)

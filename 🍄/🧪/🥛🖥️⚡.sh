@@ -27,6 +27,7 @@ TURN_DELAY_S="${TURN_DELAY_S:-${TURN_DELAY_S_DEFAULT:-}}"
 PROBE_DELAY_S="${PROBE_DELAY_S:-${PROBE_DELAY_S_DEFAULT:-}}"
 PROBE_EACH_LOOP="${PROBE_EACH_LOOP:-${PROBE_EACH_LOOP_DEFAULT:-}}"
 STRICT_BIOME_ECONOMY="${STRICT_BIOME_ECONOMY:-${STRICT_BIOME_ECONOMY_DEFAULT:-1}}"
+RENDERING_METHOD="${RENDERING_METHOD:-${RENDERING_METHOD_DEFAULT:-forward_plus}}"
 LISTENER_READY_TIMEOUT_S="${LISTENER_READY_TIMEOUT_S:-${LISTENER_READY_TIMEOUT_S_DEFAULT:-180}}"
 LOG_ROOT="${LOG_ROOT:-${LOG_ROOT_DEFAULT:-${PROJECT_ROOT}/logs/milk_visual}}"
 STAMP="$(date +%Y%m%d_%H%M%S)"
@@ -65,7 +66,7 @@ echo "[run] Launching visual rig listener (windowed, D3D12 GPU)..." | tee -a "${
 (
   cd "${PROJECT_ROOT}"
   sw_prepare_runtime_env "interactive"
-  sw_godot --path . --rendering-method gl_compatibility --script Tests/rig_listener.gd
+  sw_godot --path . --rendering-method "${RENDERING_METHOD}" --script Tests/rig_listener.gd
 ) >"${LISTENER_LOG}" 2>&1 &
 LISTENER_PID=$!
 
@@ -79,7 +80,7 @@ trap cleanup EXIT
 READY=0
 READY_CHECKS=$(( LISTENER_READY_TIMEOUT_S * 5 ))
 for _ in $(seq 1 "${READY_CHECKS}"); do
-  if grep -q "Rig ready. Waiting for turns in:" "${LISTENER_LOG}" 2>/dev/null; then
+  if grep -qE "Rig ready.*Waiting for turns in:" "${LISTENER_LOG}" 2>/dev/null; then
     READY=1
     break
   fi

@@ -124,9 +124,14 @@ func _select_backend() -> void:
 		selected_backend = _try_native_cpu()
 		return
 
-	# Software renderer - still try GPU (llvmpipe supports Vulkan compute)
+	# Software renderer - prefer native CPU unless explicitly overridden.
 	if is_software_renderer:
-		print("[ComputeSelector] Software renderer detected - will still try GPU compute")
+		var allow_software_gpu = OS.get_environment("SW_ALLOW_SOFTWARE_GPU_COMPUTE").to_lower() in ["1", "true", "yes", "on"]
+		if not allow_software_gpu:
+			print("[ComputeSelector] Software renderer detected - preferring native CPU backend")
+			selected_backend = _try_native_cpu()
+			return
+		print("[ComputeSelector] Software renderer detected - SW_ALLOW_SOFTWARE_GPU_COMPUTE=1, trying GPU compute")
 
 	# Try GPU compute for platforms that support it
 	match current_platform:
@@ -174,12 +179,16 @@ func _should_use_gpu() -> bool:
 		print("[ComputeSelector] RenderingDevice unavailable - skipping GPU")
 		return false
 
-	# Software renderers (llvmpipe, swiftshader) still support Vulkan compute
-	# Let them through - the shader compile will validate if it actually works
+	# Software renderers can expose Vulkan compute but are usually slower than native CPU.
+	# Only allow this path when explicitly enabled.
 	if gpu_device_name.to_lower().contains("llvmpipe") or \
 	   gpu_device_name.to_lower().contains("swiftshader"):
-		print("[ComputeSelector] Software Vulkan detected (%s) - allowing GPU compute" % gpu_device_name)
-		return true
+		var allow_software_gpu = OS.get_environment("SW_ALLOW_SOFTWARE_GPU_COMPUTE").to_lower() in ["1", "true", "yes", "on"]
+		if allow_software_gpu:
+			print("[ComputeSelector] Software Vulkan detected (%s) - GPU compute allowed by env override" % gpu_device_name)
+			return true
+		print("[ComputeSelector] Software Vulkan detected (%s) - preferring native CPU" % gpu_device_name)
+		return false
 
 	# Hardware GPU detected, but no benchmark - assume it's faster
 	print("[ComputeSelector] Hardware GPU detected (no benchmark) - assuming faster")

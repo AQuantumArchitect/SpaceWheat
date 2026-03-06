@@ -7,7 +7,7 @@ extends SceneTree
 ##
 ## Actions supported:
 ## - open_overlay: {name: "quests"|"vocabulary"|"controls"}
-## - offer_quests
+## - offer_quests: {include_reward_resources?: bool, include_market_projection?: bool}
 ## - accept_offer: {offer_index: int}
 ## - complete_quest: {quest_id: int}
 ## - complete_or_claim: {quest_id: int}
@@ -85,6 +85,9 @@ var _last_offers: Array = []
 var _is_headless: bool = true
 var _turn_log_enabled: bool = true
 var _polling: bool = false  # Re-entrancy guard for async commands (e.g. victory_lap visual delays)
+var _poll_interval_ms: int = 0
+var _next_poll_at_ms: int = 0
+var _result_writer: FileAccess = null
 
 
 func _phrame_hz() -> float:
@@ -153,6 +156,9 @@ func _on_ready() -> void:
 		_turn_log_enabled = (not _is_headless) or (profile in ["debug", "trace", "test"])
 	else:
 		_turn_log_enabled = (not _is_headless) or (turn_log_env in ["1", "true", "yes", "on"])
+	var poll_ms_env = int(OS.get_environment("RIG_QUEUE_POLL_MS")) if OS.get_environment("RIG_QUEUE_POLL_MS") != "" else -1
+	_poll_interval_ms = poll_ms_env if poll_ms_env >= 0 else (100 if _is_headless else 16)
+	_next_poll_at_ms = 0
 	print("🎛️ Rig ready (%dHz phrame clock). Waiting for turns in:" % int(_phrame_hz()), _queue_path)
 	_write_bridge_ready_sentinel()
 	physics_frame.connect(_on_physics_frame)
@@ -176,6 +182,10 @@ func _ensure_runtime_unpaused_for_rig() -> bool:
 func _on_physics_frame() -> void:
 	if _polling:
 		return
+	var now = Time.get_ticks_msec()
+	if _poll_interval_ms > 0 and now < _next_poll_at_ms:
+		return
+	_next_poll_at_ms = now + _poll_interval_ms
 	_polling = true
 	_ensure_runtime_unpaused_for_rig()
 	await _poll_queue()
@@ -335,7 +345,8 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 			_last_offers = offers
 			var full = bool(cmd.get("full", false))
 			var include_reward_resources = bool(cmd.get("include_reward_resources", true))
-			result["offers"] = offers if full else _slim_offers(offers, include_reward_resources)
+			var include_market_projection = bool(cmd.get("include_market_projection", true))
+			result["offers"] = offers if full else _slim_offers(offers, include_reward_resources, include_market_projection)
 
 		"accept_offer":
 			var idx = int(cmd.get("offer_index", -1))
@@ -792,15 +803,23 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 
 func _write_result(payload: Dictionary) -> void:
 	var line = JSON.stringify(payload)
-	var result_file_path = ProjectSettings.globalize_path(_result_path)
-	var file = FileAccess.open(result_file_path, FileAccess.READ_WRITE)
-	if not file:
-		file = FileAccess.open(result_file_path, FileAccess.WRITE)
+	var file = _ensure_result_writer()
 	if not file:
 		return
-	file.seek_end()
 	file.store_line(line)
-	file.close()
+	file.flush()
+
+
+func _ensure_result_writer() -> FileAccess:
+	if _result_writer:
+		return _result_writer
+	var result_file_path = ProjectSettings.globalize_path(_result_path)
+	_result_writer = FileAccess.open(result_file_path, FileAccess.READ_WRITE)
+	if not _result_writer:
+		_result_writer = FileAccess.open(result_file_path, FileAccess.WRITE)
+	if _result_writer:
+		_result_writer.seek_end()
+	return _result_writer
 
 
 func _ensure_rig_dir() -> void:
@@ -833,6 +852,10 @@ func _clear_bridge_ready_sentinel() -> void:
 
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_PREDELETE:
+		if _result_writer:
+			_result_writer.flush()
+			_result_writer.close()
+			_result_writer = null
 		_clear_bridge_ready_sentinel()
 
 
@@ -847,7 +870,11 @@ func _apply_rig_logger_profile() -> void:
 	verbose.apply_runtime_profile(profile, overrides_raw)
 
 
-func _slim_offers(offers: Array, include_reward_resources: bool = true) -> Array:
+func _slim_offers(
+	offers: Array,
+	include_reward_resources: bool = true,
+	include_market_projection: bool = true
+) -> Array:
 	var slim: Array = []
 	for offer in offers:
 		var quest_type = int(offer.get("type", -1))
@@ -862,7 +889,7 @@ func _slim_offers(offers: Array, include_reward_resources: bool = true) -> Array
 			"reward_vocab_south": offer.get("reward_vocab_south", ""),
 			"completion_action": completion_action
 		}
-		if offer.has("market_projection"):
+		if include_market_projection and offer.has("market_projection"):
 			row["market_projection"] = offer.get("market_projection", {})
 		if include_reward_resources:
 			row["reward_resources"] = offer.get("reward_resources", {})
@@ -1444,7 +1471,13 @@ func _resolve_hud(hud_name: String):
 						return child
 			return null
 		"performance":
-			if farm_view and "performance_hud" in farm_view:
+			if farm_view and "performance_hud" in farm_view and farm_view.performance_hud:
 				return farm_view.performance_hud
-			return null
+			var overlay_manager = _shell.overlay_manager if _shell and "overlay_manager" in _shell else null
+			if overlay_manager:
+				if overlay_manager.has_method("get_v2_overlay"):
+					return overlay_manager.get_v2_overlay("inspector")
+				if "v2_overlays" in overlay_manager:
+					return overlay_manager.v2_overlays.get("inspector")
+				return null
 	return null

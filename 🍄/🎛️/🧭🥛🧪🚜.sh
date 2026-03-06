@@ -17,13 +17,15 @@ STARTER_SAVE_SLOT="${STARTER_SAVE_SLOT:-${STARTER_SAVE_SLOT_DEFAULT:-}}"
 PROFILE="${PROFILE:-${PROFILE_DEFAULT:-}}"
 WORLD_STATE="${WORLD_STATE:-${WORLD_STATE_DEFAULT:-}}"
 STRATEGY="${STRATEGY:-${STRATEGY_DEFAULT:-}}"
+RUNTIME_PROFILE="${RUNTIME_PROFILE:-${RUNTIME_PROFILE_DEFAULT:-}}"
+METRICS_EVERY="${METRICS_EVERY:-${METRICS_EVERY_DEFAULT:-0}}"
 RESOURCE_MODE="${RESOURCE_MODE:-${RESOURCE_MODE_DEFAULT:-}}"
 SEED_FROM_SLOT="${SEED_FROM_SLOT:-${SEED_FROM_SLOT_DEFAULT:-}}"
 LOAD_ALIAS="${LOAD_ALIAS:-${LOAD_ALIAS_DEFAULT:-}}"
 PROFILE_SAVE="${PROFILE_SAVE:-${PROFILE_SAVE_DEFAULT:-}}"
 PROFILE_SAVE_INDEX="${PROFILE_SAVE_INDEX:-${PROFILE_SAVE_INDEX_DEFAULT:-}}"
 STRICT_BIOME_ECONOMY="${STRICT_BIOME_ECONOMY:-${STRICT_BIOME_ECONOMY_DEFAULT:-0}}"
-REUSE_LISTENER="${REUSE_LISTENER:-${REUSE_LISTENER_DEFAULT:-0}}"
+REUSE_LISTENER="${REUSE_LISTENER:-${REUSE_LISTENER_DEFAULT:-1}}"
 STAMP="$(date +%Y%m%d_%H%M%S)"
 LOG_FILE="${LOG_FILE:-${OUT_DIR}/batch_launch_${STAMP}.log}"
 mkdir -p "$(dirname "${LOG_FILE}")"
@@ -77,6 +79,12 @@ fi
 if [[ -n "${STRATEGY}" ]]; then
   batch_args+=(--strategy "${STRATEGY}")
 fi
+if [[ -n "${RUNTIME_PROFILE}" ]]; then
+  batch_args+=(--runtime-profile "${RUNTIME_PROFILE}")
+fi
+if [[ -n "${METRICS_EVERY}" ]]; then
+  batch_args+=(--metrics-every "${METRICS_EVERY}")
+fi
 if [[ -n "${SEED_FROM_SLOT}" ]]; then
   batch_args+=(--seed-from-slot "${SEED_FROM_SLOT}")
 fi
@@ -88,6 +96,8 @@ if [[ "${STRICT_BIOME_ECONOMY}" == "1" ]]; then
 fi
 if [[ "${REUSE_LISTENER}" == "1" ]]; then
   batch_args+=(--reuse-listener)
+else
+  batch_args+=(--no-reuse-listener)
 fi
 
 python3 "${SCRIPT_DIR}/milk_hunt_batch.py" \

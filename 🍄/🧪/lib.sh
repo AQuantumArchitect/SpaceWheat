@@ -8,8 +8,18 @@ set -e
 PROJECT_ROOT="/home/tehcr33d/ws/SpaceWheat"
 cd "$PROJECT_ROOT"
 source "${PROJECT_ROOT}/scripts/lib/godot_runtime_env.sh"
+APPLICATION_NAME="${APPLICATION_NAME:-SpaceWheat - Quantum Farm}"
 
 LOG_ROOT="${PROJECT_ROOT}/logs"
+
+prepare_godot_user_dir() {
+	local xdg_root="${XDG_ROOT:-${PROJECT_ROOT}/.godot}"
+	export XDG_DATA_HOME="${XDG_DATA_HOME:-${xdg_root}}"
+	export XDG_CONFIG_HOME="${XDG_CONFIG_HOME:-${xdg_root}}"
+	export APPLICATION_NAME
+	export GODOT_USER_DIR="${GODOT_USER_DIR:-${XDG_DATA_HOME}/godot/app_userdata/${APPLICATION_NAME}}"
+	mkdir -p "${GODOT_USER_DIR}/logs" "${GODOT_USER_DIR}/rig" "${GODOT_USER_DIR}/saves"
+}
 
 sanitize_log_name() {
 	local name="$1"
@@ -106,6 +116,7 @@ run_test_with_log() {
     echo "Output will be saved to: $log_file"
     echo ""
 
+    prepare_godot_user_dir
     if [ "$headless" = "true" ]; then
         sw_prepare_runtime_env "headless"
     else
@@ -144,7 +155,7 @@ run_test_with_log() {
     validate_emoji_atlas "$output" "$test_name"
 
     # Verify GPU offload
-    verify_gpu_offload "$output"
+    verify_gpu_offload "$output" "$headless"
 
     return $exit_code
 }
@@ -165,9 +176,17 @@ run_test_scene() {
 # Check if emoji rendering is GPU-accelerated
 verify_gpu_offload() {
     local test_output="$1"
+    local headless_mode="${2:-false}"
 
     echo ""
     echo -e "${BLUE}=== 💻 GPU OFFLOAD ANALYSIS ===${NC}"
+
+    if echo "$test_output" | grep -Eiq "llvmpipe|lavapipe|swiftshader|software rendering detected"; then
+        echo -e "${YELLOW}ℹ Software renderer detected; GPU claims are non-representative${NC}"
+    fi
+    if [ "$headless_mode" = "true" ]; then
+        echo -e "${YELLOW}ℹ Headless mode: render-path FPS/GPU claims are not authoritative${NC}"
+    fi
 
     # Check for GPU-accelerated bubble rendering (atlas priority)
     # With new optimization: Native C++ not instantiated when using atlas
@@ -186,6 +205,18 @@ verify_gpu_offload() {
         echo -e "${YELLOW}⚠ Emoji rendering: Individual/fallback path${NC}"
     fi
 
+    if [ "$headless_mode" = "true" ]; then
+        if echo "$test_output" | grep -q "ComputeSelector.*Selected: NATIVE_CPU"; then
+            echo -e "${GREEN}✓ Headless compute backend: native CPU fallback active${NC}"
+        elif echo "$test_output" | grep -q "ComputeSelector.*Selected:"; then
+            local backend_line
+            backend_line=$(echo "$test_output" | grep "ComputeSelector.*Selected:" | tail -n 1)
+            echo -e "${GREEN}✓ Headless compute backend detected: ${backend_line}${NC}"
+        else
+            echo -e "${YELLOW}⚠ Compute backend selection line not found${NC}"
+        fi
+    fi
+
     echo ""
 }
 
@@ -193,3 +224,4 @@ export -f validate_emoji_atlas
 export -f run_test_with_log
 export -f run_test_scene
 export -f verify_gpu_offload
+export -f prepare_godot_user_dir
