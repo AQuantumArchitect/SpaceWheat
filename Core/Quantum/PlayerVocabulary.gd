@@ -23,16 +23,9 @@ func learn_vocab_pair(north: String, south: String) -> void:
 		if pair.get("north", "") == north and pair.get("south", "") == south:
 			return  # Already known
 
-	var north_known = vocab_qc.has(north)
-	var south_known = vocab_qc.has(south)
-
-	# Allocate qubit in vocab QC only if both emojis are new.
-	if not north_known and not south_known:
-		var qubit_idx = vocab_qc.allocate_qubit(north, south)
-		if qubit_idx < 0:
-			return
-
-	# Track in learned list regardless (south may repeat).
+	# Note: vocab_qc qubit allocation skipped — BiomeAffinityCalculator marks
+	# player_vocab_qc as "unused for now, future use", so growing a 2^n density
+	# matrix on every pair would cause O(4^n) cost with no benefit.
 	learned_pairs.append({
 		"north": north,
 		"south": south,
