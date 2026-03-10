@@ -87,19 +87,22 @@ class RigClient:
     @staticmethod
     def find_listener_pids(xdg: Optional[Path] = None) -> List[int]:
         out: List[int] = []
-        try:
-            proc = subprocess.run(
-                ["pgrep", "-f", "Tests/rig_listener.gd"],
-                capture_output=True,
-                text=True,
-                check=False,
-            )
-            for line in proc.stdout.splitlines():
-                line = line.strip()
-                if line.isdigit():
-                    out.append(int(line))
-        except FileNotFoundError:
-            pass
+        # When an explicit XDG root is supplied, avoid global process scans.
+        # This keeps concurrent runners from cross-killing each other's listeners.
+        if xdg is None:
+            try:
+                proc = subprocess.run(
+                    ["pgrep", "-f", "Tests/rig_listener.gd"],
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                )
+                for line in proc.stdout.splitlines():
+                    line = line.strip()
+                    if line.isdigit():
+                        out.append(int(line))
+            except FileNotFoundError:
+                pass
 
         # Also check for phrame bridge sentinel
         sentinel = RigClient._bridge_sentinel_path(xdg=xdg)

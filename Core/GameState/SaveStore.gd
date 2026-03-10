@@ -282,7 +282,8 @@ static func _write_emoji_sidecar(
 		"economy_variables": state.economy_variables,
 		"icon_map_snapshot": sidecar_icon_map,
 		"icon_map_snapshot_source": sidecar_icon_source,
-		"icon_map_snapshot_time": sidecar_icon_time
+		"icon_map_snapshot_time": sidecar_icon_time,
+		"policy_state": state.policy_state.duplicate(true) if ("policy_state" in state and state.policy_state is Dictionary) else {},
 	}
 	var file = FileAccess.open(sidecar_path, FileAccess.WRITE)
 	if not file:

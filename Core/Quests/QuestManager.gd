@@ -29,6 +29,8 @@ signal quest_completed(quest_id: int, rewards: Dictionary)
 signal quest_failed(quest_id: int, reason: String)
 signal quest_expired(quest_id: int)
 signal active_quests_changed()
+signal offer_locked(quest_id: int)
+signal offer_unlocked(quest_id: int)
 signal vocabulary_learned(emoji: String, faction: String)
 signal vocabulary_pair_learned(north: String, south: String, faction: String)
 
@@ -37,6 +39,7 @@ signal vocabulary_pair_learned(north: String, south: String, faction: String)
 # =============================================================================
 
 var active_quests: Dictionary = {}  # quest_id -> quest_data (status: "active" or "ready")
+var locked_offers: Dictionary = {}  # quest_id -> quest_data (status: "locked", persists across offer cycles)
 var completed_quests: Array = []
 var failed_quests: Array = []
 var next_quest_id: int = 0
@@ -56,6 +59,7 @@ var _state_projection: QuestStateProjectionService = QuestStateProjectionService
 # =============================================================================
 
 const MAX_ACTIVE_QUESTS: int = 5
+const MAX_LOCKED_OFFERS: int = 3
 const QUEST_OFFER_COOLDOWN: float = 30.0  # Seconds between new quest offers
 const AUTO_FAIL_ON_RESOURCE_SHORTAGE: bool = true
 
@@ -378,8 +382,13 @@ func offer_all_faction_quests(biome) -> Array:
 	Called when player opens quest overlay. Returns array of quest offers
 	from all factions, each with alignment score based on biome state.
 	Respects player vocabulary - inaccessible factions are filtered out.
+	Locked offers are prepended (persist across cycles).
 	"""
 	var quests = []
+
+	# Locked offers come first (persist across cycles)
+	for quest in locked_offers.values():
+		quests.append(quest)
 
 	# Get player vocabulary for filtering
 	var player_vocab = _get_player_vocab_emojis()
@@ -1086,6 +1095,50 @@ func get_active_quests() -> Array:
 	"""Get all active quests as array"""
 	return active_quests.values()
 
+# =============================================================================
+# QUEST LOCKING (pin offers across cycles)
+# =============================================================================
+
+func lock_offer(quest_data: Dictionary) -> bool:
+	"""Lock an offered quest so it persists across offer cycles.
+	Returns false if at capacity, missing id, or already locked/active."""
+	if locked_offers.size() >= MAX_LOCKED_OFFERS:
+		return false
+	if not quest_data.has("id"):
+		return false
+	var quest_id = int(quest_data["id"])
+	if locked_offers.has(quest_id) or active_quests.has(quest_id):
+		return false
+	quest_data["status"] = "locked"
+	quest_data["locked_at"] = Time.get_ticks_msec()
+	locked_offers[quest_id] = quest_data
+	offer_locked.emit(quest_id)
+	return true
+
+
+func unlock_offer(quest_id: int) -> bool:
+	"""Release a locked offer (it disappears)."""
+	if not locked_offers.has(quest_id):
+		return false
+	locked_offers.erase(quest_id)
+	offer_unlocked.emit(quest_id)
+	return true
+
+
+func get_locked_offers() -> Array:
+	"""Return all currently locked offers."""
+	return locked_offers.values()
+
+
+func accept_locked_offer(quest_id: int) -> bool:
+	"""Accept a locked offer — moves it from locked → active."""
+	if not locked_offers.has(quest_id):
+		return false
+	var quest = locked_offers[quest_id]
+	locked_offers.erase(quest_id)
+	return accept_quest(quest)
+
+
 func get_quest_by_id(quest_id: int) -> Dictionary:
 	"""Get quest data by ID (active quests only)"""
 	return active_quests.get(quest_id, {})
@@ -1115,6 +1168,7 @@ func clear_all_quests() -> void:
 		_stop_quest_timer(quest_id)
 
 	active_quests.clear()
+	locked_offers.clear()
 	completed_quests.clear()
 	failed_quests.clear()
 	next_quest_id = 0

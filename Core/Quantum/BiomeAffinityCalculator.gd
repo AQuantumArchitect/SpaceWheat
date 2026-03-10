@@ -110,6 +110,62 @@ static func calculate_affinity_with_populations(vocab_pair: Dictionary, biome, p
 
 	return total_weight / connection_count if connection_count > 0 else 0.0
 
+static func calculate_affinity_by_name(vocab_pair: Dictionary, biome_name: String) -> float:
+	"""Calculate affinity for an unloaded biome using BiomeRegistry (JSON-backed).
+
+	Used for discovery weighting — biome doesn't need to be loaded/instantiated.
+
+	Args:
+		vocab_pair: {north: String, south: String}
+		biome_name: Name of a biome in BiomeRegistry
+
+	Returns:
+		float: Connection weight (same scale as calculate_affinity)
+	"""
+	var biome_registry = _get_biome_registry()
+	if not biome_registry:
+		return 0.0
+	var biome_data = biome_registry.get_by_name(biome_name)
+	if not biome_data:
+		return 0.0
+	var biome_emojis: Array[String] = []
+	for e in biome_data.emojis:
+		biome_emojis.append(e)
+	return _calculate_affinity_from_emojis(vocab_pair, biome_emojis)
+
+
+static func _calculate_affinity_from_emojis(vocab_pair: Dictionary, biome_emojis: Array[String]) -> float:
+	"""Core affinity: connection weight between vocab pair emojis and biome emojis."""
+	var vocab_emojis = [vocab_pair.get("north", ""), vocab_pair.get("south", "")]
+	vocab_emojis = vocab_emojis.filter(func(e): return not e.is_empty())
+	if vocab_emojis.is_empty() or biome_emojis.is_empty():
+		return 0.0
+	var total_weight = 0.0
+	var connection_count = 0
+	var icon_registry = _get_icon_registry()
+	for vocab_emoji in vocab_emojis:
+		var connections = VocabularyPairing.get_connection_weights(vocab_emoji, icon_registry)
+		for biome_emoji in biome_emojis:
+			if connections.has(biome_emoji):
+				var conn_data = connections[biome_emoji]
+				var weight = conn_data.get("weight", 0.0) if conn_data is Dictionary else 0.0
+				total_weight += weight
+				connection_count += 1
+	return total_weight / connection_count if connection_count > 0 else 0.0
+
+
+static var _biome_registry_cache = null
+
+static func _get_biome_registry():
+	"""Get or create a cached BiomeRegistry instance."""
+	if _biome_registry_cache != null:
+		return _biome_registry_cache
+	var BiomeRegistryClass = load("res://Core/Biomes/BiomeRegistry.gd")
+	if BiomeRegistryClass:
+		_biome_registry_cache = BiomeRegistryClass.new()
+	return _biome_registry_cache
+
+
 static func _get_biome_emojis(biome) -> Array[String]:
 	"""Get all emojis registered in biome's quantum computer."""
 	var result: Array[String] = []

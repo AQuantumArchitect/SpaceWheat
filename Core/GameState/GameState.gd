@@ -45,6 +45,10 @@ extends Resource
 	{"north": "🌾", "south": "👥"}
 ]
 
+## Locked Quest Offers — pinned offers that persist across offer cycles
+## Each entry is a full quest_data Dictionary with status="locked"
+@export var locked_quest_offers: Array = []
+
 ## DERIVED: known_emojis is computed from known_pairs (for backward compatibility)
 ## Use get_known_emojis() to access the derived list
 ## This field is still exported for save file compatibility with old saves
@@ -65,6 +69,10 @@ extends Resource
 @export var icon_map_snapshot: Dictionary = {}
 @export var icon_map_snapshot_source: String = ""  # "batcher_global" | "derived_from_pairs"
 @export var icon_map_snapshot_time: int = 0
+
+## Runtime controller policy state (headless/UI automation brain memory)
+## Serialized snapshot from QuantumFiberPolicy.export_state()
+@export var policy_state: Dictionary = {}
 
 ## Balance profile state (shared between headless and UI)
 @export var balance_profile_id: String = "default"
@@ -241,6 +249,7 @@ func _init():
 	# 🌾 (Wheat) and 👥 (People) are the starter emojis
 	# These match faction signatures and seed initial faction conversations
 	ensure_balance_workbench_defaults()
+	ensure_policy_state_defaults()
 
 
 ## Convenience method to create state for a specific grid size
@@ -323,6 +332,25 @@ func ensure_balance_workbench_defaults() -> void:
 	for key in ["quantum_to_credits", "max_biome_qubits"]:
 		if not economy_variables.has(key):
 			economy_variables[key] = defaults.get("economy_variables", {}).get(key, 1.0 if key == "quantum_to_credits" else 12)
+
+
+func ensure_policy_state_defaults() -> void:
+	if not (policy_state is Dictionary):
+		policy_state = {}
+	if not policy_state.has("version"):
+		policy_state["version"] = 1
+	if not policy_state.has("profile"):
+		policy_state["profile"] = "default"
+	if not policy_state.has("step_count"):
+		policy_state["step_count"] = 0
+	# UCB-specific defaults — skip if quantum_register policy is active
+	if str(policy_state.get("policy_type", "")) != "quantum_register":
+		if not policy_state.has("epsilon"):
+			policy_state["epsilon"] = 0.18
+		if not policy_state.has("ucb_scale"):
+			policy_state["ucb_scale"] = 1.10
+		if not policy_state.has("action_stats"):
+			policy_state["action_stats"] = {}
 
 
 func _default_balance_workbench_config() -> Dictionary:

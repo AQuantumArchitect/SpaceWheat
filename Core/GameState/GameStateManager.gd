@@ -601,4 +601,6 @@ func _hydrate_state_defaults(state: GameState) -> GameState:
 		return null
 	if state.has_method("ensure_balance_workbench_defaults"):
 		state.ensure_balance_workbench_defaults()
+	if state.has_method("ensure_policy_state_defaults"):
+		state.ensure_policy_state_defaults()
 	return state

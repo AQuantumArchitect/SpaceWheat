@@ -103,6 +103,10 @@ func capture_state_from_farm(farm: Node, current_state: GameState, scenario_id: 
 		var cfg = current_state.balance_workbench_config
 		if cfg is Dictionary and not cfg.is_empty():
 			state.balance_workbench_config = cfg.duplicate(true)
+	if current_state and ("policy_state" in current_state):
+		var pstate = current_state.policy_state
+		if pstate is Dictionary and not pstate.is_empty():
+			state.policy_state = pstate.duplicate(true)
 	if farm.has_method("get_reap_count"):
 		state.reap_count = int(farm.get_reap_count())
 	elif "reap_count" in farm:
@@ -121,6 +125,13 @@ func capture_state_from_farm(farm: Node, current_state: GameState, scenario_id: 
 			if south != "" and south not in state.known_emojis:
 				state.known_emojis.append(south)
 		_log("debug", "save", "📖", "Captured vocabulary: %d pairs → %d emojis" % [state.known_pairs.size(), state.known_emojis.size()])
+
+	# Locked quest offers
+	var quest_manager_node = _get_autoload("QuestManager")
+	if quest_manager_node and quest_manager_node.has_method("get_locked_offers"):
+		state.locked_quest_offers = quest_manager_node.get_locked_offers()
+		if state.locked_quest_offers.size() > 0:
+			_log("debug", "save", "📌", "Captured %d locked quest offers" % state.locked_quest_offers.size())
 
 	# Biome progression state (unlocked/unexplored/active spindle position)
 	_capture_biome_progression_state(state, current_state)
@@ -309,6 +320,14 @@ func apply_state_to_farm(state: GameState, farm: Node) -> void:
 				state.icon_map_snapshot_source,
 				state.icon_map_snapshot.get("by_emoji", {}).size()
 			])
+
+	# Restore locked quest offers
+	if state.locked_quest_offers and state.locked_quest_offers.size() > 0:
+		var qm_node = _get_autoload("QuestManager")
+		if qm_node and qm_node.has_method("lock_offer"):
+			for offer in state.locked_quest_offers:
+				qm_node.lock_offer(offer)
+			_log("debug", "save", "📌", "Restored %d locked quest offers" % state.locked_quest_offers.size())
 
 	# Restore biome unlock/exploration progression before grid refresh so layout sync is correct.
 	_restore_biome_progression_state(state)

@@ -1350,10 +1350,10 @@ func explore_biome() -> Dictionary:
 		print("❌ All biomes already explored")
 		return {"success": false, "message": "All biomes already explored!"}
 
-	# Pick a random unexplored biome
-	var random_index = randi() % unexplored.size()
-	var new_biome = unexplored[random_index]
-	print("🗺️ Selected random biome: %s" % new_biome)
+	# Pick biome using vocab-weighted discovery
+	var weights = _compute_discovery_weights(unexplored)
+	var new_biome = _weighted_random_pick(unexplored, weights)
+	print("🗺️ Selected biome: %s (weighted discovery)" % new_biome)
 
 	# Unlock it
 	var unlocked = observation_frame.unlock_biome(new_biome)
@@ -1390,6 +1390,92 @@ func explore_biome() -> Dictionary:
 
 	print("🗺️ Exploration complete: %s" % new_biome)
 	return {"success": true, "biome_name": new_biome, "message": "Discovered %s!" % new_biome}
+
+
+func _compute_discovery_weights(unexplored: Array) -> Array[float]:
+	"""Compute vocab-weighted discovery probabilities for unexplored biomes.
+
+	Weight formula per biome b:
+		weight(b) = FLOOR + QUEST_SCALE * quest_affinity(b) + VOCAB_SCALE * vocab_affinity(b)
+	"""
+	const BiomeAffinityCalculator = preload("res://Core/Quantum/BiomeAffinityCalculator.gd")
+	const FLOOR = 1.0
+	const QUEST_SCALE = 3.0
+	const VOCAB_SCALE = 0.5
+
+	var weights: Array[float] = []
+
+	# Gather active quest vocab pairs
+	var quest_pairs: Array = []
+	var quest_manager = get_node_or_null("/root/QuestManager")
+	if quest_manager:
+		for quest in quest_manager.get_active_quests():
+			var north = quest.get("reward_vocab_north", "")
+			if not north.is_empty():
+				quest_pairs.append({"north": north, "south": quest.get("reward_vocab_south", "")})
+		if quest_manager.has_method("get_locked_offers"):
+			for quest in quest_manager.get_locked_offers():
+				var north = quest.get("reward_vocab_north", "")
+				if not north.is_empty():
+					quest_pairs.append({"north": north, "south": quest.get("reward_vocab_south", "")})
+
+	# Gather learned pairs
+	var learned_pairs: Array = []
+	var player_vocab = get_node_or_null("/root/PlayerVocabulary")
+	if player_vocab and player_vocab.has_method("get_all_learned_pairs"):
+		learned_pairs = player_vocab.get_all_learned_pairs()
+
+	for biome_name in unexplored:
+		var w = FLOOR
+
+		for pair in quest_pairs:
+			w += QUEST_SCALE * BiomeAffinityCalculator.calculate_affinity_by_name(pair, biome_name)
+
+		if not learned_pairs.is_empty():
+			var vocab_sum = 0.0
+			for pair in learned_pairs:
+				vocab_sum += BiomeAffinityCalculator.calculate_affinity_by_name(pair, biome_name)
+			w += VOCAB_SCALE * vocab_sum / learned_pairs.size()
+
+		weights.append(w)
+	return weights
+
+
+static func _weighted_random_pick(items: Array, weights: Array[float]) -> Variant:
+	"""Pick an item using weighted random selection."""
+	var total = 0.0
+	for w in weights:
+		total += w
+	if total <= 0.0:
+		return items[randi() % items.size()]
+	var roll = randf() * total
+	var cumulative = 0.0
+	for i in range(items.size()):
+		cumulative += weights[i]
+		if roll <= cumulative:
+			return items[i]
+	return items[items.size() - 1]
+
+
+func compute_discovery_forecast() -> Dictionary:
+	"""Public API: returns discovery weight forecast for all unexplored biomes."""
+	var observation_frame = get_node_or_null("/root/ObservationFrame")
+	if not observation_frame:
+		return {}
+	var unexplored = observation_frame.get_unexplored_biomes()
+	if unexplored.is_empty():
+		return {}
+	var weights = _compute_discovery_weights(unexplored)
+	var total = 0.0
+	for w in weights:
+		total += w
+	var forecast: Dictionary = {}
+	for i in range(unexplored.size()):
+		forecast[unexplored[i]] = {
+			"weight": weights[i],
+			"probability": weights[i] / total if total > 0.0 else 0.0
+		}
+	return forecast
 
 
 func _load_biome_dynamically(biome_name: String) -> bool:
@@ -1725,9 +1811,9 @@ func _ensure_iconregistry() -> void:
 		return
 
 	# Test mode: Create IconRegistry
-	var IconRegistryScript = load("res://Core/QuantumSubstrate/_icon_registry.gd")
+	var IconRegistryScript = load("res://Core/QuantumSubstrate/IconRegistry.gd")
 	if not IconRegistryScript:
-		push_error("Failed to load _icon_registry.gd!")
+		push_error("Failed to load IconRegistry.gd!")
 		return
 
 	icon_registry = IconRegistryScript.new()

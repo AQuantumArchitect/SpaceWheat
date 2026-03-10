@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import argparse
 import json
+import math
 import os
 import subprocess
 import sys
@@ -63,11 +64,11 @@ def _clear_rig_files() -> None:
 
 
 def _find_listener_pids() -> List[int]:
-    return RigClient.find_listener_pids()
+    return RigClient.find_listener_pids(xdg=_RIG.xdg_root)
 
 
 def _kill_existing_listeners() -> None:
-    RigClient.kill_existing_listeners()
+    RigClient.kill_existing_listeners(xdg=_RIG.xdg_root)
 
 
 def _start_listener(
@@ -112,7 +113,11 @@ def _run_turn(turn_id: int, action: str, **kwargs: Any) -> Dict[str, Any]:
             timeout_s = 120.0
         elif action in {"active_quests"}:
             timeout_s = 45.0
+        elif action in {"policy_step"}:
+            timeout_s = 45.0
         elif action in {"offer_quests", "accept_offer", "known_vocab_pairs", "resource_snapshot"}:
+            timeout_s = 20.0
+        elif action in {"grid_snapshot"}:
             timeout_s = 20.0
         elif action in {"probe_cycle", "discover_biome", "explore_biome"}:
             timeout_s = 20.0
@@ -431,6 +436,65 @@ def _compute_profile_metrics(history: List[Dict[str, Any]], initial_pairs: int, 
             metrics["resource_snapshot_calls"] += 1
         elif action == "known_vocab_pairs":
             metrics["known_vocab_reads"] += 1
+        elif action == "policy_step":
+            payload = row.get("policy_step", {})
+            if not isinstance(payload, dict):
+                continue
+            execution = payload.get("execution", {})
+            if not isinstance(execution, dict):
+                continue
+            executed_action = str(execution.get("action", "") or "")
+            if executed_action == "probe_cycle":
+                metrics["probe_cycles_total"] += 1
+                probe = execution.get("probe", {})
+                if isinstance(probe, dict) and bool(probe.get("success", False)):
+                    metrics["probe_cycles_success"] += 1
+            elif executed_action == "time_skip":
+                metrics["time_skip_actions"] += 1
+                skip_payload = execution.get("time_skip", {})
+                if isinstance(skip_payload, dict):
+                    try:
+                        metrics["time_skip_total_phrames"] += int(skip_payload.get("phrames", 0) or 0)
+                    except (TypeError, ValueError):
+                        pass
+                    try:
+                        metrics["time_skip_total_evolved_steps"] += int(skip_payload.get("evolved_steps", 0) or 0)
+                    except (TypeError, ValueError):
+                        pass
+            elif executed_action == "lindblad_drain":
+                metrics["lindblad_drain_actions"] += 1
+                drain = execution.get("drain_result", {})
+                if isinstance(drain, dict):
+                    try:
+                        charged = int(drain.get("charged_count", 0) or 0)
+                    except (TypeError, ValueError):
+                        charged = 0
+                    try:
+                        persistent = int(drain.get("persistent_enabled", 0) or 0)
+                    except (TypeError, ValueError):
+                        persistent = 0
+                    try:
+                        already = int(drain.get("already_active", 0) or 0)
+                    except (TypeError, ValueError):
+                        already = 0
+                    metrics["lindblad_drain_charged_total"] += max(0, charged)
+                    metrics["lindblad_drain_persistent_total"] += max(0, persistent)
+                    metrics["lindblad_drain_already_active_total"] += max(0, already)
+                    if bool(drain.get("success", False)) or charged > 0 or persistent > 0 or already > 0:
+                        metrics["lindblad_drains_established"] += 1
+            elif executed_action == "quest_cycle":
+                metrics["quest_offer_cycles"] += 1
+                if bool(execution.get("accepted", False)):
+                    metrics["quest_offers_accepted"] += 1
+                if bool(execution.get("completed_after_accept", False)):
+                    metrics["quest_complete_or_claim"] += 1
+                completed_ids = execution.get("completed_ids", [])
+                if isinstance(completed_ids, list):
+                    metrics["quest_complete_or_claim"] += len(completed_ids)
+                try:
+                    metrics["quest_offers_seen"] += int(execution.get("offers_seen", 0) or 0)
+                except (TypeError, ValueError):
+                    pass
 
     return metrics
 
@@ -733,6 +797,19 @@ def _parse_emoji_list(values: List[str]) -> List[str]:
     return out
 
 
+def _parse_token_list(values: List[str]) -> List[str]:
+    out: List[str] = []
+    seen: Set[str] = set()
+    for raw in values:
+        for token in str(raw).split(","):
+            val = token.strip()
+            if not val or val in seen:
+                continue
+            seen.add(val)
+            out.append(val)
+    return out
+
+
 def _encode_positions_for_rig(raw_positions: Any, limit: int = 0, offset: int = 0) -> List[List[int]]:
     out: List[List[int]] = []
     if not isinstance(raw_positions, list) or not raw_positions:
@@ -848,6 +925,31 @@ def _select_focus_biome(
     return ranked[0] if ranked else None
 
 
+def _policy_action_counts(policy_decisions: List[Dict[str, Any]]) -> Dict[str, int]:
+    counts: Dict[str, int] = {}
+    for ev in policy_decisions:
+        if not isinstance(ev, dict):
+            continue
+        action = ev.get("executed_action", ev.get("selected_action", ""))
+        if not isinstance(action, str) or not action:
+            continue
+        counts[action] = counts.get(action, 0) + 1
+    return counts
+
+
+def _policy_action_entropy(policy_decisions: List[Dict[str, Any]]) -> float:
+    counts = _policy_action_counts(policy_decisions)
+    total = float(sum(counts.values()))
+    if total <= 0.0:
+        return 0.0
+    h = 0.0
+    for count in counts.values():
+        p = float(count) / total
+        if p > 0.0:
+            h -= p * math.log(p, 2)
+    return h
+
+
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Single-run milk hunt rig player")
     parser.add_argument(
@@ -901,9 +1003,51 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--hunter-policy",
         type=str,
-        choices=["auto", "classic", "quantum_graph"],
+        choices=["auto", "classic", "quantum_graph", "engine_policy", "quantum_register"],
         default=None,
-        help="Offer/probe policy mode (default: auto => quantum_graph for granary_scout)",
+        help="Decision policy mode (default: auto => engine_policy)",
+    )
+    parser.add_argument(
+        "--policy-actions-per-loop",
+        type=int,
+        default=None,
+        help="When engine_policy is active, number of policy_step actions per loop",
+    )
+    parser.add_argument(
+        "--policy-epsilon",
+        type=float,
+        default=None,
+        help="Engine policy exploration rate (0..1)",
+    )
+    parser.add_argument(
+        "--policy-ucb-scale",
+        type=float,
+        default=None,
+        help="Engine policy UCB exploration bonus scale",
+    )
+    parser.add_argument(
+        "--policy-max-quest-actions-per-loop",
+        type=int,
+        default=None,
+        help="When engine_policy is active, cap quest_cycle actions per loop to prevent degenerate quest spam",
+    )
+    parser.add_argument(
+        "--policy-forbid-action",
+        action="append",
+        default=[],
+        help="Forbid policy actions globally (repeat or pass comma-separated values), e.g. --policy-forbid-action lock_offer",
+    )
+    parser.add_argument(
+        "--policy-reset-on-start",
+        dest="policy_reset_on_start",
+        action="store_true",
+        help="Reset engine policy memory at run start instead of loading from save state",
+    )
+    parser.add_argument(
+        "--no-policy-reset-on-start",
+        dest="policy_reset_on_start",
+        action="store_false",
+        help="Keep engine policy memory from loaded save state",
     )
     parser.add_argument(
         "--policy-trace-limit",
@@ -1246,6 +1390,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.set_defaults(include_offer_market_projection=False)
     parser.set_defaults(lindblad_drain_focus=None)
     parser.set_defaults(advanced_mode=None)
+    parser.set_defaults(policy_reset_on_start=None)
     return parser
 
 
@@ -1371,8 +1516,61 @@ def main() -> int:
         hunter_policy_mode = get_cfg_str(cfg, "hunter_policy")
     if not hunter_policy_mode and os.environ.get("MILK_HUNT_POLICY", "") != "":
         hunter_policy_mode = os.environ["MILK_HUNT_POLICY"]
-    if hunter_policy_mode not in {"auto", "classic", "quantum_graph"}:
+    if hunter_policy_mode not in {"auto", "classic", "quantum_graph", "engine_policy", "quantum_register"}:
         hunter_policy_mode = "auto"
+    # Default migration target: decision authority in-engine.
+    if hunter_policy_mode == "auto":
+        hunter_policy_mode = "engine_policy"
+
+    policy_actions_per_loop = args.policy_actions_per_loop
+    if policy_actions_per_loop is None:
+        policy_actions_per_loop = get_cfg_int(cfg, "policy_actions_per_loop")
+    if policy_actions_per_loop is None and os.environ.get("MILK_HUNT_POLICY_ACTIONS_PER_LOOP", "") != "":
+        policy_actions_per_loop = int(os.environ["MILK_HUNT_POLICY_ACTIONS_PER_LOOP"])
+    if policy_actions_per_loop is None:
+        policy_actions_per_loop = 6
+    policy_actions_per_loop = max(1, int(policy_actions_per_loop))
+
+    policy_epsilon = args.policy_epsilon
+    if policy_epsilon is None:
+        policy_epsilon = get_cfg_float(cfg, "policy_epsilon")
+    if policy_epsilon is None and os.environ.get("MILK_HUNT_POLICY_EPSILON", "") != "":
+        policy_epsilon = float(os.environ["MILK_HUNT_POLICY_EPSILON"])
+    if policy_epsilon is None:
+        policy_epsilon = 0.18
+    policy_epsilon = max(0.0, min(1.0, float(policy_epsilon)))
+
+    policy_ucb_scale = args.policy_ucb_scale
+    if policy_ucb_scale is None:
+        policy_ucb_scale = get_cfg_float(cfg, "policy_ucb_scale")
+    if policy_ucb_scale is None and os.environ.get("MILK_HUNT_POLICY_UCB_SCALE", "") != "":
+        policy_ucb_scale = float(os.environ["MILK_HUNT_POLICY_UCB_SCALE"])
+    if policy_ucb_scale is None:
+        policy_ucb_scale = 1.10
+    policy_ucb_scale = max(0.0, float(policy_ucb_scale))
+
+    policy_reset_on_start = args.policy_reset_on_start
+    if policy_reset_on_start is None:
+        policy_reset_on_start = get_cfg_bool(cfg, "policy_reset_on_start")
+    if policy_reset_on_start is None and os.environ.get("MILK_HUNT_POLICY_RESET_ON_START", "") != "":
+        policy_reset_on_start = os.environ["MILK_HUNT_POLICY_RESET_ON_START"].strip().lower() in {
+            "1",
+            "true",
+            "yes",
+            "on",
+        }
+    if policy_reset_on_start is None:
+        policy_reset_on_start = False
+
+    policy_max_quest_actions_per_loop = args.policy_max_quest_actions_per_loop
+    if policy_max_quest_actions_per_loop is None:
+        policy_max_quest_actions_per_loop = get_cfg_int(cfg, "policy_max_quest_actions_per_loop")
+    if policy_max_quest_actions_per_loop is None and os.environ.get("MILK_HUNT_POLICY_MAX_QUEST_PER_LOOP", "") != "":
+        policy_max_quest_actions_per_loop = int(os.environ["MILK_HUNT_POLICY_MAX_QUEST_PER_LOOP"])
+    if policy_max_quest_actions_per_loop is None:
+        policy_max_quest_actions_per_loop = 2
+    policy_max_quest_actions_per_loop = max(0, int(policy_max_quest_actions_per_loop))
+    policy_forbid_actions = _parse_token_list(list(args.policy_forbid_action or []))
 
     if strict_biome_economy is None:
         val = strategy.strict_biome_economy
@@ -1382,6 +1580,12 @@ def main() -> int:
             strict_biome_economy = get_cfg_bool(cfg, "strict_biome_economy")
     if strict_biome_economy is None:
         strict_biome_economy = True
+    allow_rig_resource_injection = bool(args.allow_rig_resource_injection) and (not strict_biome_economy)
+    if strict_biome_economy and bool(args.allow_rig_resource_injection):
+        _safe_print(
+            "milk-hunt: strict economy enabled; disabling rig-side resource injection",
+            "detail",
+        )
     # Runner pacing is phrame-driven in-game via `time_skip`; no wall-clock throttling.
     metrics_every = max(0, int(args.metrics_every))
     runtime_profile = args.runtime_profile
@@ -1392,6 +1596,8 @@ def main() -> int:
     if runtime_profile not in {"default", "quantum_fiber_nodes", "io_min"}:
         runtime_profile = "default"
     runtime_env_overrides = _runtime_profile_env_overrides(runtime_profile)
+    if hunter_policy_mode == "quantum_register":
+        runtime_env_overrides["RIG_POLICY_TYPE"] = "quantum_register"
     include_offer_reward_resources = bool(args.include_offer_reward_resources)
     include_offer_market_projection = bool(args.include_offer_market_projection)
 
@@ -1575,7 +1781,7 @@ def main() -> int:
         proc = _start_listener(
             load_slot=load_slot,
             scenario_id=scenario_id,
-            allow_resource_injection=args.allow_rig_resource_injection,
+            allow_resource_injection=allow_rig_resource_injection,
             listener_stdout=rig_listener_stdout,
             listener_log_path=listener_log_path,
             rig_log_profile=rig_log_profile,
@@ -1602,7 +1808,7 @@ def main() -> int:
             proc = _start_listener(
                 load_slot=load_slot,
                 scenario_id=scenario_id,
-                allow_resource_injection=args.allow_rig_resource_injection,
+                allow_resource_injection=allow_rig_resource_injection,
                 listener_stdout=rig_listener_stdout,
                 listener_log_path=listener_log_path,
                 rig_log_profile=rig_log_profile,
@@ -1641,8 +1847,9 @@ def main() -> int:
         RigClient.terminate_listener(proc, timeout_s=5.0)
         return 4
     faction_sigs, milk_distances = _load_faction_data()
-    use_quantum_graph_policy = hunter_policy_mode == "quantum_graph" or (
-        hunter_policy_mode == "auto" and hunter_profile == "granary_scout"
+    use_engine_policy = hunter_policy_mode in ("engine_policy", "quantum_register")
+    use_quantum_graph_policy = (not use_engine_policy) and (
+        hunter_policy_mode == "quantum_graph" or (hunter_policy_mode == "auto" and hunter_profile == "granary_scout")
     )
     quantum_policy: Optional[QuantumGraphPolicy] = None
     if use_quantum_graph_policy:
@@ -1800,9 +2007,25 @@ def main() -> int:
         expansions_attempted = 0
         expansions_succeeded = 0
         loops_completed = 0
+        policy_quest_cap_hits = 0
         current_resources: Dict[str, float] = _extract_resource_map(snap)
+        if use_engine_policy:
+            if policy_reset_on_start:
+                policy_row = _run_turn(
+                    turn,
+                    "policy_reset",
+                    config={
+                        "profile": hunter_profile,
+                        "epsilon": policy_epsilon,
+                        "ucb_scale": policy_ucb_scale,
+                    },
+                )
+            else:
+                policy_row = _run_turn(turn, "policy_snapshot")
+            history.append(policy_row)
+            turn += 1
 
-        if args.enforce_primary_resource_floors:
+        if args.enforce_primary_resource_floors and allow_rig_resource_injection:
             turn, current_resources, floor_events = _enforce_primary_resource_floors(
                 turn,
                 history,
@@ -1816,7 +2039,7 @@ def main() -> int:
             loops_completed = loop_idx + 1
             loop_should_wait = False
             loop_dynamic_wait_phrames = 0
-            if args.enforce_primary_resource_floors:
+            if args.enforce_primary_resource_floors and allow_rig_resource_injection:
                 turn, current_resources, floor_events = _enforce_primary_resource_floors(
                     turn,
                     history,
@@ -1825,6 +2048,200 @@ def main() -> int:
                 )
                 if floor_events:
                     primary_resource_floor_events.append({"loop": loop_idx + 1, "events": floor_events})
+
+            if use_engine_policy:
+                loop_quest_actions = 0
+                for policy_step_idx in range(policy_actions_per_loop):
+                    forbid_actions: List[str] = list(policy_forbid_actions)
+                    if policy_max_quest_actions_per_loop > 0 and loop_quest_actions >= policy_max_quest_actions_per_loop:
+                        if "quest_cycle" not in forbid_actions:
+                            forbid_actions.append("quest_cycle")
+                        policy_quest_cap_hits += 1
+                    policy_row = _run_turn(
+                        turn,
+                        "policy_step",
+                        execute=True,
+                        resource_floors=primary_resource_floors,
+                        forbid_actions=forbid_actions,
+                    )
+                    history.append(policy_row)
+                    turn += 1
+
+                    policy_payload = policy_row.get("policy_step", {})
+                    decision = policy_payload.get("decision", {}) if isinstance(policy_payload, dict) else {}
+                    execution = policy_payload.get("execution", {}) if isinstance(policy_payload, dict) else {}
+                    learning = policy_payload.get("learning", {}) if isinstance(policy_payload, dict) else {}
+                    selected_action = str(decision.get("action", "")) if isinstance(decision, dict) else ""
+                    selected_score = float(decision.get("score", 0.0)) if isinstance(decision, dict) else 0.0
+                    reward = float(learning.get("reward", 0.0)) if isinstance(learning, dict) else 0.0
+                    reward_components = learning.get("reward_components", {}) if isinstance(learning, dict) else {}
+                    executed_action = str(execution.get("action", selected_action)) if isinstance(execution, dict) else selected_action
+                    if executed_action == "quest_cycle":
+                        loop_quest_actions += 1
+                    event: Dict[str, Any] = {
+                        "kind": "engine_policy_step",
+                        "loop": loop_idx + 1,
+                        "step_in_loop": policy_step_idx + 1,
+                        "selected_action": selected_action,
+                        "executed_action": executed_action,
+                        "score": selected_score,
+                        "reward": reward,
+                        "reward_components": reward_components if isinstance(reward_components, dict) else {},
+                        "forbid_actions": forbid_actions,
+                        "ok": bool(execution.get("ok", False)) if isinstance(execution, dict) else False,
+                    }
+                    if isinstance(execution, dict) and executed_action == "quest_cycle":
+                        event["accepted"] = bool(execution.get("accepted", False))
+                        event["completed_after_accept"] = bool(execution.get("completed_after_accept", False))
+                        event["accepted_offer_reward_vocab_north"] = str(
+                            execution.get("accepted_offer_reward_vocab_north", "") or ""
+                        )
+                        event["accepted_offer_reward_vocab_south"] = str(
+                            execution.get("accepted_offer_reward_vocab_south", "") or ""
+                        )
+                    _append_policy_decision(event)
+
+                    if isinstance(policy_payload, dict):
+                        post_resources = policy_payload.get("post_resources", {})
+                        if isinstance(post_resources, dict):
+                            converted: Dict[str, float] = {}
+                            for k, v in post_resources.items():
+                                if not isinstance(k, str):
+                                    continue
+                                try:
+                                    converted[k] = float(v)
+                                except (TypeError, ValueError):
+                                    continue
+                            if converted:
+                                current_resources = converted
+                        post_pair_count = int(policy_payload.get("post_known_pairs_count", prev_pairs_count) or prev_pairs_count)
+                        if post_pair_count > prev_pairs_count:
+                            pairs_row = _run_turn(turn, "known_vocab_pairs")
+                            history.append(pairs_row)
+                            turn += 1
+                            pairs = pairs_row.get("pairs", [])
+                            actual_pair_count = len(pairs) if isinstance(pairs, list) else post_pair_count
+                            new_pairs: List[Dict[str, str]] = []
+                            if isinstance(pairs, list):
+                                for pair in pairs[prev_pairs_count:actual_pair_count]:
+                                    if not isinstance(pair, dict):
+                                        continue
+                                    north = str(pair.get("north", "") or "")
+                                    south = str(pair.get("south", "") or "")
+                                    if north or south:
+                                        new_pairs.append({"north": north, "south": south})
+                            vocab_milestones.append(
+                                {
+                                    "loop": loop_idx + 1,
+                                    "step": len(history),
+                                    "pair_count": actual_pair_count,
+                                    "pair_gain": actual_pair_count - prev_pairs_count,
+                                    "new_pairs": new_pairs,
+                                    "contains_milk_pair": _contains_milk_pair(new_pairs),
+                                }
+                            )
+                            prev_pairs_count = actual_pair_count
+                            if (isinstance(pairs, list) and _contains_milk_pair(pairs)) or bool(
+                                policy_payload.get("contains_milk_pair", False)
+                            ):
+                                found_milk = True
+                                break
+
+                    if isinstance(execution, dict) and executed_action == "probe_cycle":
+                        biome_name = str(execution.get("biome", "") or "")
+                        if biome_name:
+                            if biome_name not in discovered_biomes:
+                                discovered_biomes.append(biome_name)
+                            biome_explore_counts[biome_name] = biome_explore_counts.get(biome_name, 0) + 1
+                        harvested = str(execution.get("harvested_resource", "") or "")
+                        if biome_name and harvested:
+                            biome_resource_hits.setdefault(biome_name, {})
+                            hits = biome_resource_hits[biome_name]
+                            hits[harvested] = hits.get(harvested, 0) + 1
+                        probe = execution.get("probe", {})
+                        probe_ok = bool(isinstance(probe, dict) and probe.get("success", False))
+                        biome_probe_events.append(
+                            {
+                                "vocab_count": int(policy_payload.get("post_known_pairs_count", 0))
+                                if isinstance(policy_payload, dict)
+                                else 0,
+                                "biome": biome_name if biome_name else None,
+                                "ok": probe_ok,
+                                "reason": "engine_policy",
+                                "probe": probe if isinstance(probe, dict) else {},
+                            }
+                        )
+
+                    if isinstance(execution, dict) and executed_action == "discover_biome":
+                        discover = execution.get("discover_biome", {})
+                        success = bool(isinstance(discover, dict) and discover.get("success", False))
+                        if success:
+                            expansions_succeeded += 1
+                            grid_after_expand = _run_turn(turn, "grid_snapshot")
+                            history.append(grid_after_expand)
+                            turn += 1
+                            expanded_biomes = _extract_biomes(history)
+                            for biome_name in expanded_biomes:
+                                if biome_name not in known_biomes:
+                                    known_biomes.add(biome_name)
+                                    newly_discovered_biomes.append(biome_name)
+                        expansions_attempted += 1
+                        policy_expansion_event: Dict[str, Any] = {
+                                "loop": loop_idx + 1,
+                                "attempt": expansions_attempted,
+                                "success": success,
+                                "eagle_stock": float(current_resources.get(eagle_emoji, 0.0)),
+                                "result": discover if isinstance(discover, dict) else {},
+                        }
+                        if isinstance(execution, dict) and "discovery_forecast" in execution:
+                            policy_expansion_event["discovery_forecast"] = execution["discovery_forecast"]
+                        biome_expansion_events.append(policy_expansion_event)
+
+                    if isinstance(execution, dict) and executed_action == "lindblad_drain":
+                        drain_result = execution.get("drain_result", {})
+                        biome_name = str(execution.get("biome", "") or "")
+                        if biome_name:
+                            lindblad_biome_attempts[biome_name] = lindblad_biome_attempts.get(biome_name, 0) + 1
+                        if isinstance(drain_result, dict):
+                            established = bool(drain_result.get("success", False))
+                            established = established or int(drain_result.get("charged_count", 0) or 0) > 0
+                            established = established or int(drain_result.get("persistent_enabled", 0) or 0) > 0
+                            established = established or int(drain_result.get("already_active", 0) or 0) > 0
+                            if established and biome_name:
+                                lindblad_biomes_activated.add(biome_name)
+                            lindblad_drain_events.append(
+                                {
+                                    "loop": loop_idx + 1,
+                                    "biome": biome_name,
+                                    "result": drain_result,
+                                }
+                            )
+
+                    if isinstance(execution, dict) and executed_action == "quest_cycle":
+                        if str(execution.get("accepted_offer_reward_vocab_north", "")) == MILK or str(
+                            execution.get("accepted_offer_reward_vocab_south", "")
+                        ) == MILK:
+                            found_offer = True
+
+                    if isinstance(policy_payload, dict) and bool(policy_payload.get("contains_milk_pair", False)):
+                        found_milk = True
+                        break
+
+                if metrics_every > 0 and ((loop_idx + 1) % metrics_every == 0):
+                    metrics_row = _run_turn(turn, "batcher_metrics", timeout_s=20.0)
+                    history.append(metrics_row)
+                    turn += 1
+                    metrics_payload = metrics_row.get("metrics", {})
+                    if isinstance(metrics_payload, dict):
+                        batcher_metrics_samples.append(
+                            {
+                                "loop": loop_idx + 1,
+                                "metrics": _compact_batcher_metrics(metrics_payload),
+                            }
+                        )
+                if found_milk:
+                    break
+                continue
 
             if args.expand_biomes and expansions_attempted < max(0, int(max_biome_expansions)):
                 if loop_idx % max(1, int(expand_check_every)) == 0:
@@ -1848,15 +2265,17 @@ def main() -> int:
                                 if biome_name not in known_biomes:
                                     known_biomes.add(biome_name)
                                     newly_discovered_biomes.append(biome_name)
-                        biome_expansion_events.append(
-                            {
+                        expansion_event: Dict[str, Any] = {
                                 "loop": loop_idx + 1,
                                 "attempt": expansions_attempted,
                                 "success": success,
                                 "eagle_stock": eagle_stock,
                                 "result": expand_result if isinstance(expand_result, dict) else {},
-                            }
-                        )
+                        }
+                        # Capture vocab-weighted discovery forecast if present
+                        if isinstance(expand_row, dict) and "discovery_forecast" in expand_row:
+                            expansion_event["discovery_forecast"] = expand_row["discovery_forecast"]
+                        biome_expansion_events.append(expansion_event)
 
             if args.eagle_focus and float(current_resources.get(eagle_emoji, 0.0)) < float(eagle_target_stock):
                 burst_count = max(1, int(eagle_probe_burst))
@@ -2443,8 +2862,35 @@ def main() -> int:
 
         final_pairs = _extract_pairs(history)
         profile_metrics = _compute_profile_metrics(history, initial_known_pairs_count, len(final_pairs))
+        policy_action_counts = _policy_action_counts(policy_decisions)
+        policy_action_total = int(sum(policy_action_counts.values()))
+        policy_action_pct = {
+            action: (float(count) / float(policy_action_total))
+            for action, count in policy_action_counts.items()
+            if policy_action_total > 0
+        }
+        policy_action_entropy_bits = _policy_action_entropy(policy_decisions)
+        first_vocab_milestone_step = (
+            int(vocab_milestones[0].get("step", 0))
+            if isinstance(vocab_milestones, list) and len(vocab_milestones) > 0
+            else None
+        )
+        first_vocab_milestone_loop = (
+            int(vocab_milestones[0].get("loop", 0))
+            if isinstance(vocab_milestones, list) and len(vocab_milestones) > 0
+            else None
+        )
+        vocab_gain_loops = sorted(
+            {
+                int(ms.get("loop", 0))
+                for ms in vocab_milestones
+                if isinstance(ms, dict) and int(ms.get("loop", 0)) > 0
+            }
+        )
+        vocab_progress_gate_pass = first_vocab_milestone_loop is not None and int(first_vocab_milestone_loop) <= 6
         steps = len(history)
         summary = {
+            "found_milk": found_milk,
             "found_milk_pair": found_milk,
             "found_milk_offer": found_offer,
             "milk_offer": last_milk_offer,
@@ -2456,6 +2902,7 @@ def main() -> int:
             "errors_seen_during_boot": error_lines,
             "max_loops": max_loops,
             "strict_biome_economy": strict_biome_economy,
+            "allow_rig_resource_injection": allow_rig_resource_injection,
             "load_slot": load_slot,
             "load_alias": load_alias,
             "profile_save": profile_save,
@@ -2471,8 +2918,23 @@ def main() -> int:
             "boot_log_lines_scanned": len(boot_log_lines),
             "hunter_profile": hunter_profile,
             "hunter_policy_mode": hunter_policy_mode,
-            "hunter_policy_active": quantum_policy is not None,
+            "hunter_policy_active": (quantum_policy is not None) or use_engine_policy,
+            "engine_policy_active": use_engine_policy,
+            "policy_actions_per_loop": policy_actions_per_loop,
+            "policy_epsilon": policy_epsilon,
+            "policy_ucb_scale": policy_ucb_scale,
+            "policy_reset_on_start": bool(policy_reset_on_start),
+            "policy_max_quest_actions_per_loop": policy_max_quest_actions_per_loop,
+            "policy_forbid_actions": policy_forbid_actions,
+            "policy_quest_cap_hits": policy_quest_cap_hits,
             "policy_trace_limit": policy_trace_limit,
+            "policy_action_counts": policy_action_counts,
+            "policy_action_pct": policy_action_pct,
+            "policy_action_entropy_bits": policy_action_entropy_bits,
+            "first_vocab_milestone_step": first_vocab_milestone_step,
+            "first_vocab_milestone_loop": first_vocab_milestone_loop,
+            "vocab_gain_loops": vocab_gain_loops,
+            "vocab_progress_gate_pass": vocab_progress_gate_pass,
             "target_turn_hz": args.target_turn_hz,
             "metrics_every": metrics_every,
             "runtime_profile": runtime_profile,
@@ -2501,6 +2963,7 @@ def main() -> int:
             "expansions_succeeded": expansions_succeeded,
             "biome_expansion_events": biome_expansion_events,
             "enforce_primary_resource_floors": args.enforce_primary_resource_floors,
+            "enforce_primary_resource_floors_active": bool(args.enforce_primary_resource_floors and allow_rig_resource_injection),
             "primary_resource_floors": primary_resource_floors,
             "primary_resource_floor_events": primary_resource_floor_events,
             "victory_lap_enabled": args.victory_lap,
@@ -2588,6 +3051,7 @@ def main() -> int:
             len(timeout_pairs),
         )
         timeout_summary = {
+            "found_milk": False,
             "found_milk_pair": False,
             "found_milk_offer": False,
             "known_pairs_count": len(timeout_pairs),
@@ -2596,6 +3060,7 @@ def main() -> int:
             "loops_completed": locals().get("loops_completed", 0),
             "max_loops": max_loops,
             "strict_biome_economy": strict_biome_economy,
+            "allow_rig_resource_injection": allow_rig_resource_injection,
             "load_slot": load_slot,
             "load_alias": load_alias,
             "profile_save": profile_save,
@@ -2610,7 +3075,31 @@ def main() -> int:
             "rig_log_categories": rig_log_categories,
             "hunter_profile": hunter_profile,
             "hunter_policy_mode": hunter_policy_mode,
-            "hunter_policy_active": quantum_policy is not None,
+            "hunter_policy_active": (quantum_policy is not None) or use_engine_policy,
+            "engine_policy_active": use_engine_policy,
+            "policy_actions_per_loop": policy_actions_per_loop,
+            "policy_epsilon": policy_epsilon,
+            "policy_ucb_scale": policy_ucb_scale,
+            "policy_reset_on_start": bool(policy_reset_on_start),
+            "policy_max_quest_actions_per_loop": policy_max_quest_actions_per_loop,
+            "policy_forbid_actions": policy_forbid_actions,
+            "policy_quest_cap_hits": locals().get("policy_quest_cap_hits", 0),
+            "policy_action_counts": _policy_action_counts(locals().get("policy_decisions", [])),
+            "policy_action_entropy_bits": _policy_action_entropy(locals().get("policy_decisions", [])),
+            "first_vocab_milestone_step": (
+                int((locals().get("vocab_milestones", [])[0]).get("step", 0))
+                if isinstance(locals().get("vocab_milestones", []), list)
+                and len(locals().get("vocab_milestones", [])) > 0
+                and isinstance((locals().get("vocab_milestones", [])[0]), dict)
+                else None
+            ),
+            "first_vocab_milestone_loop": (
+                int((locals().get("vocab_milestones", [])[0]).get("loop", 0))
+                if isinstance(locals().get("vocab_milestones", []), list)
+                and len(locals().get("vocab_milestones", [])) > 0
+                and isinstance((locals().get("vocab_milestones", [])[0]), dict)
+                else None
+            ),
             "target_turn_hz": args.target_turn_hz,
             "metrics_every": metrics_every,
             "runtime_profile": runtime_profile,
@@ -2661,6 +3150,13 @@ def main() -> int:
             "timeout_seconds": exc.timeout_s,
             "timeout_diagnostics": timeout_diag,
             "batcher_metrics_samples": locals().get("batcher_metrics_samples", []),
+        }
+        _timeout_policy_counts = _policy_action_counts(locals().get("policy_decisions", []))
+        _timeout_policy_total = int(sum(_timeout_policy_counts.values()))
+        timeout_summary["policy_action_pct"] = {
+            action: (float(count) / float(_timeout_policy_total))
+            for action, count in _timeout_policy_counts.items()
+            if _timeout_policy_total > 0
         }
         if args.summary_path is not None:
             args.summary_path.parent.mkdir(parents=True, exist_ok=True)
