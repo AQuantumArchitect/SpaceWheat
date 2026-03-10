@@ -754,41 +754,55 @@ func _choose_drain_biome(biomes: Array, lindblad: Dictionary, resources: Diction
 	return best_biome
 
 
-func _choose_channel_drain_target(biomes: Array, lindblad: Dictionary, resources: Dictionary) -> Dictionary:
-	"""Pick a biome + source/target emoji pair for strategic channel_drain."""
+func _choose_channel_drain_target(biomes: Array, lindblad: Dictionary, _resources: Dictionary) -> Dictionary:
+	"""Pick a biome + source/target emoji pair for quantum channel_drain.
+
+	Reads biome population snapshots to find natural gradients: a high-population
+	emoji (source) paired with a low-population emoji (target). The dissipative
+	channel transfers population along this gradient — the policy reads quantum
+	state to decide where to open quantum channels.
+	"""
 	var biome_data = lindblad.get("biomes", {})
 	if not (biome_data is Dictionary):
 		return {}
+
+	var best_gradient = 0.0
+	var best_result: Dictionary = {}
+
 	for biome in biomes:
 		var bname = str(biome)
 		var entry = biome_data.get(bname, {})
 		if not (entry is Dictionary):
 			continue
-		var active = bool(entry.get("has_active_drains", false))
-		if not active:
-			continue
-		var sink = entry.get("sink_fluxes", {})
-		if not (sink is Dictionary) or sink.is_empty():
-			continue
-		# Pick emoji pair with highest flux
-		var best_source = ""
-		var best_target = ""
-		var best_flux = 0.0
-		var emojis = sink.keys()
-		if emojis.size() < 2:
-			continue
-		for emoji in emojis:
-			var flux = float(sink.get(emoji, 0.0))
-			if flux > best_flux:
-				best_flux = flux
-				best_target = str(emoji)
-		for emoji in emojis:
-			if str(emoji) != best_target:
-				best_source = str(emoji)
-				break
-		if best_source != "" and best_target != "":
-			return {"biome": bname, "source_emoji": best_source, "target_emoji": best_target}
-	return {}
+		# Read population snapshot if available (from biome quantum state)
+		var populations = entry.get("populations", {})
+		if not (populations is Dictionary) or populations.size() < 2:
+			# Fallback: use sink_fluxes as proxy for population gradients
+			var sink = entry.get("sink_fluxes", {})
+			if sink is Dictionary and sink.size() >= 2:
+				populations = sink
+			else:
+				continue
+
+		# Find the pair with the largest population gradient
+		var emojis = populations.keys()
+		for i in range(emojis.size()):
+			for j in range(i + 1, emojis.size()):
+				var e_i = str(emojis[i])
+				var e_j = str(emojis[j])
+				var p_i = float(populations.get(e_i, 0.0))
+				var p_j = float(populations.get(e_j, 0.0))
+				var gradient = abs(p_i - p_j)
+				if gradient > best_gradient:
+					best_gradient = gradient
+					if p_i > p_j:
+						best_result = {"biome": bname, "source_emoji": e_i, "target_emoji": e_j}
+					else:
+						best_result = {"biome": bname, "source_emoji": e_j, "target_emoji": e_i}
+
+	if best_gradient < 0.05:
+		return {}  # No meaningful gradient — channel would be unproductive
+	return best_result
 
 
 func _biome_sink_flux(biome_data: Dictionary, biome_name: String) -> Dictionary:

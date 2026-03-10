@@ -87,6 +87,9 @@ signal bridge_stopped()
 var _queue_path = "user://rig/queue.jsonl"
 var _result_path = "user://rig/results.jsonl"
 var _bridge_sentinel_path = "user://rig/bridge_ready"
+var _heartbeat_path = "user://rig/heartbeat"
+var _heartbeat_interval_ms: int = 2000
+var _next_heartbeat_at_ms: int = 0
 
 var _queue_offset: int = 0
 var _shell = null
@@ -195,9 +198,14 @@ func _ensure_runtime_unpaused_for_rig() -> bool:
 
 
 func _on_physics_frame() -> void:
+	# Heartbeat: write timestamp so runner can distinguish "busy" from "dead"
+	var now = Time.get_ticks_msec()
+	if now >= _next_heartbeat_at_ms:
+		_next_heartbeat_at_ms = now + _heartbeat_interval_ms
+		_write_heartbeat()
+
 	if _polling:
 		return
-	var now = Time.get_ticks_msec()
 	if _poll_interval_ms > 0 and now < _next_poll_at_ms:
 		return
 	_next_poll_at_ms = now + _poll_interval_ms
@@ -205,6 +213,14 @@ func _on_physics_frame() -> void:
 	_ensure_runtime_unpaused_for_rig()
 	await _poll_queue()
 	_polling = false
+
+
+func _write_heartbeat() -> void:
+	var hb_path = ProjectSettings.globalize_path(_heartbeat_path)
+	var file = FileAccess.open(hb_path, FileAccess.WRITE)
+	if file:
+		file.store_string("%.3f" % Time.get_unix_time_from_system())
+		file.close()
 
 
 func _poll_queue() -> void:
@@ -1926,58 +1942,86 @@ func _parse_positions(raw_positions, biome_name: String) -> Array[Vector2i]:
 
 
 func _execute_channel_drain(biome_name: String, source_emoji: String, target_emoji: String) -> Dictionary:
-	"""Strategic drain: find plots planted with source/target emojis and activate drain.
+	"""Quantum dissipative channel: apply cross-register Lindblad operator.
 
-	Draining shifts population from source (north) toward target (south),
-	which shifts the IconMap and thereby biases Resonance Gate probabilities
-	for factions whose signature contains the target emoji.
+	Creates L = √γ (σ⁺_target ⊗ σ⁻_source) on the biome's quantum computer,
+	transferring population from source_emoji to target_emoji through the
+	density matrix. This is a genuine quantum channel, not a flag toggle.
+
+	Falls back to classical drain activation if the quantum channel can't be
+	created (e.g., emojis on the same qubit axis or not registered).
 	"""
 	if not _farm or not _farm.grid:
 		return {"ok": false, "error": "farm_not_ready"}
 
-	# Find plot positions in this biome whose planted pair matches
-	var matching_positions: Array[Vector2i] = []
-	var all_positions = _farm_instrument.get_biome_positions(biome_name) if _farm_instrument else []
-	for pos in all_positions:
-		var plot = _farm.grid.get_plot(pos)
-		if not plot or not plot.is_active():
-			continue
-		var north = plot.north_emoji if "north_emoji" in plot else ""
-		var south = plot.south_emoji if "south_emoji" in plot else ""
-		# Match: source is the north (being drained from), target is the south (draining toward)
-		if north == source_emoji and south == target_emoji:
-			matching_positions.append(pos)
-		# Also match reversed axis (drain works on the axis regardless of orientation)
-		elif north == target_emoji and south == source_emoji:
-			matching_positions.append(pos)
+	# Find the biome's quantum computer
+	var biome = null
+	for b in _farm.grid.get_all_biomes():
+		var bname = ""
+		if b.has_method("get_biome_type"):
+			bname = str(b.get_biome_type())
+		elif "name" in b:
+			bname = str(b.name)
+		if bname == biome_name:
+			biome = b
+			break
 
-	if matching_positions.is_empty():
+	if not biome or not biome.quantum_computer:
+		return {"ok": false, "error": "biome_not_found", "biome": biome_name}
+
+	var qc = biome.quantum_computer
+	var rm = qc.register_map
+
+	# Resolve qubits for source and target emojis
+	if not rm.has(source_emoji) or not rm.has(target_emoji):
 		return {
 			"ok": false,
-			"error": "no_matching_plots",
-			"message": "No plots in %s planted with %s/%s axis" % [biome_name, source_emoji, target_emoji],
+			"error": "emoji_not_in_register_map",
 			"biome": biome_name,
 			"source_emoji": source_emoji,
-			"target_emoji": target_emoji
+			"target_emoji": target_emoji,
+			"registered_emojis": rm.all_emojis() if rm.has_method("all_emojis") else [],
 		}
 
-	# Activate drain on matching positions
-	var drain_result = {}
-	if _instrument:
-		drain_result = _instrument.lindblad_drain(matching_positions)
-	else:
-		drain_result = _farm_instrument.lindblad_drain(matching_positions)
+	var source_qubit = rm.qubit(source_emoji)
+	var target_qubit = rm.qubit(target_emoji)
+
+	if source_qubit == target_qubit:
+		# Same axis — fall back to single-qubit drain toward target
+		var target_pole = rm.pole(target_emoji)
+		var source_pole = 1 - target_pole
+		var before_pop = qc.get_marginal(source_qubit, source_pole)
+		qc._apply_lindblad_1q(source_qubit, source_pole, target_pole, 0.5, 1.0)
+		var after_pop = qc.get_marginal(source_qubit, source_pole)
+		return {
+			"ok": true,
+			"biome": biome_name,
+			"channel_type": "same_axis_drain",
+			"source_emoji": source_emoji,
+			"target_emoji": target_emoji,
+			"population_transferred": max(0.0, before_pop - after_pop),
+		}
+
+	# Cross-register quantum channel: directed population transfer
+	var before_source_pop = qc.get_population(source_emoji)
+	var before_target_pop = qc.get_population(target_emoji)
+
+	qc.apply_cross_register_channel(source_qubit, target_qubit, 0.5, 1.0)
+
+	var after_source_pop = qc.get_population(source_emoji)
+	var after_target_pop = qc.get_population(target_emoji)
 
 	return {
-		"ok": drain_result.get("success", false),
+		"ok": true,
 		"biome": biome_name,
+		"channel_type": "cross_register",
 		"source_emoji": source_emoji,
 		"target_emoji": target_emoji,
-		"matched_positions": matching_positions.size(),
-		"drain_result": drain_result,
-		"strategic_note": "Population flows %s → %s. Factions with %s in signature get boosted Resonance Gate." % [
-			source_emoji, target_emoji, target_emoji
-		]
+		"source_qubit": source_qubit,
+		"target_qubit": target_qubit,
+		"source_pop_delta": after_source_pop - before_source_pop,
+		"target_pop_delta": after_target_pop - before_target_pop,
+		"population_transferred": max(0.0, before_source_pop - after_source_pop),
 	}
 
 

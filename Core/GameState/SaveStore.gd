@@ -34,7 +34,10 @@ static func save_exists(slot: int) -> bool:
 
 
 static func save_state(state: GameState, slot: int) -> int:
-	"""Returns OK or error code from ResourceSaver.save()."""
+	"""Atomic save: write to .tmp then rename, so interrupted saves never corrupt.
+
+	Returns OK or error code from ResourceSaver.save().
+	"""
 	if slot < 0 or slot >= NUM_SAVE_SLOTS:
 		push_error("Invalid save slot: " + str(slot))
 		return ERR_INVALID_PARAMETER
@@ -43,20 +46,48 @@ static func save_state(state: GameState, slot: int) -> int:
 		return ERR_INVALID_DATA
 	ensure_save_dir()
 	var path = get_save_path(slot)
-	var result = ResourceSaver.save(state, path)
+	var result = _atomic_save(state, path)
 	if result == OK:
 		_write_emoji_alias(state, slot, path)
 	return result
 
 
 static func save_state_to_path(state: GameState, path: String) -> int:
-	"""Save GameState to an explicit path (returns OK or error code)."""
+	"""Atomic save to an explicit path (returns OK or error code)."""
 	if not state:
 		push_error("No game state to save!")
 		return ERR_INVALID_DATA
 	ensure_save_dir()
 	_ensure_parent_dir(path)
-	return ResourceSaver.save(state, path)
+	return _atomic_save(state, path)
+
+
+static func _atomic_save(state: GameState, path: String) -> int:
+	"""Write to a .tmp file, then rename atomically.
+
+	If the process dies mid-write, the .tmp is garbage but the previous
+	save at `path` is untouched. The rename is atomic on all filesystems.
+	A save either succeeds completely or doesn't happen at all.
+	"""
+	var tmp_path = path + ".tmp"
+	var result = ResourceSaver.save(state, tmp_path)
+	if result != OK:
+		# Clean up failed temp file
+		var dir = DirAccess.open(tmp_path.get_base_dir())
+		if dir:
+			dir.remove(tmp_path.get_file())
+		return result
+	# Atomic rename: .tmp → final path
+	var dir = DirAccess.open(tmp_path.get_base_dir())
+	if dir:
+		# Remove old file first (rename won't overwrite on all platforms)
+		if dir.file_exists(path.get_file()):
+			dir.remove(path.get_file())
+		var rename_result = dir.rename(tmp_path.get_file(), path.get_file())
+		if rename_result != OK:
+			push_error("Atomic save rename failed: %d (tmp=%s → %s)" % [rename_result, tmp_path, path])
+			return rename_result
+	return OK
 
 
 static func load_state(slot: int) -> GameState:

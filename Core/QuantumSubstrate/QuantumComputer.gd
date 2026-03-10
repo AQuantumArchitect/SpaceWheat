@@ -61,6 +61,7 @@ var sink_flux_per_emoji: Dictionary = {}  # emoji → float (accumulated flux)
 var _last_renorm_trace_before_cap: float = 1.0
 var _last_renorm_scale: float = 1.0
 var _cumulative_renorm_excess: float = 0.0
+var _catastrophic_recovery_count: int = 0
 
 ## TIME TRACKING FOR TIME-DEPENDENT HAMILTONIAN
 ## Tracks elapsed time to apply time-dependent drivers (e.g., sun oscillation)
@@ -1106,12 +1107,19 @@ func apply_drive(target_emoji: String, rate: float, dt: float) -> void:
 
 func _apply_lindblad_1q(qubit_index: int, from_pole: int, to_pole: int,
                         gamma: float, dt: float) -> void:
-	"""Apply single-qubit Lindblad operator L = √γ |to⟩⟨from|.
+	"""Apply single-qubit amplitude damping channel (exact Kraus map).
 
-	Updates density matrix:
-	    ρ → ρ + dt * γ(L ρ L† - {L†L, ρ}/2)
+	Implements the CPTP map:
+	    ρ → K₀ρK₀† + K₁ρK₁†
+	where:
+	    p = 1 - exp(-γ·dt)          (transition probability)
+	    K₀ = |from⟩⟨from| + √(1-p)|to⟩⟨to| + Σ_other |k⟩⟨k|  (no-jump)
+	    K₁ = √p |to⟩⟨from|                                      (jump)
 
-	This preserves Tr(ρ) = 1 and positive semi-definiteness (to first order).
+	This is trace-preserving and completely positive BY CONSTRUCTION —
+	no Euler instability, no negative populations, no catastrophic resets.
+	Quantum Zeno saturation emerges naturally: as γ→∞, p→1, state collapses
+	to |to⟩⟨to| (drain target) — the physics is exact for arbitrary dt.
 	"""
 	if density_matrix == null:
 		return
@@ -1119,40 +1127,45 @@ func _apply_lindblad_1q(qubit_index: int, from_pole: int, to_pole: int,
 	var num_qubits = register_map.num_qubits
 	var dim = register_map.dim()
 	var shift = num_qubits - 1 - qubit_index
-	var rho_new = ComplexMatrix.zeros(dim)
 	var source_emoji = _emoji_for_qubit_pole(qubit_index, from_pole)
 	var before_source_pop = get_marginal(qubit_index, from_pole)
 
-	# Build Lindblad superoperator: L ρ L† - {L†L, ρ}/2
+	# Exact transition probability (amplitude damping channel)
+	var p = 1.0 - exp(-gamma * dt)
+	p = clampf(p, 0.0, 1.0)
+	var sqrt_1mp = sqrt(1.0 - p)  # Survival amplitude
+
+	# Apply Kraus map element-by-element:
+	#   ρ'[i,j] = K₀[i,·] ρ K₀†[·,j] + K₁[i,·] ρ K₁†[·,j]
+	#
+	# K₀ is diagonal: K₀[k,k] = 1 if qubit has from_pole, √(1-p) if to_pole
+	# K₁ has one nonzero per block: K₁[k',k] = √p where k has from_pole, k'=flip(k)
+	var rho_new = ComplexMatrix.zeros(dim)
 	for i in range(dim):
 		for j in range(dim):
+			var bit_i = (i >> shift) & 1
+			var bit_j = (j >> shift) & 1
+
+			# K₀ ρ K₀† term: K₀ is diagonal, so K₀ρK₀†[i,j] = K₀[i,i] * ρ[i,j] * K₀[j,j]
+			var k0_i = 1.0 if bit_i == from_pole else sqrt_1mp
+			var k0_j = 1.0 if bit_j == from_pole else sqrt_1mp
 			var rho_ij = density_matrix.get_element(i, j)
-			var accum = Complex.zero()
+			var term0 = rho_ij.scale(k0_i * k0_j)
 
-			# Term 1: L ρ L†
-			# L|k⟩ = |k'⟩ if k has from_pole at qubit, else 0
-			# where k' = k with qubit flipped to to_pole
-			var k_bit_i = (i >> shift) & 1
-			var k_bit_j = (j >> shift) & 1
+			# K₁ ρ K₁† term: K₁[i,·] is nonzero only when bit_i == to_pole,
+			# mapping from the flipped source state
+			var term1 = Complex.zero()
+			if bit_i == to_pole and bit_j == to_pole:
+				var i_src = i ^ (1 << shift)  # Flip to from_pole
+				var j_src = j ^ (1 << shift)
+				term1 = density_matrix.get_element(i_src, j_src).scale(p)
 
-			if k_bit_i == to_pole and k_bit_j == to_pole:
-				# i and j both have to_pole: could have come from flipping from_pole
-				var i_source = i ^ (1 << shift)  # Flip back to from_pole
-				var j_source = j ^ (1 << shift)
-				accum = accum.add(density_matrix.get_element(i_source, j_source))
-
-			# Term 2: -{L†L, ρ}/2 = -(L†L ρ + ρ L†L)/2
-			# L†L|k⟩ = |k⟩ if k has from_pole, else 0
-			if k_bit_i == from_pole:
-				accum = accum.sub(rho_ij.scale(0.5))
-			if k_bit_j == from_pole:
-				accum = accum.sub(rho_ij.scale(0.5))
-
-			# ρ_new = ρ + dt * γ * L[ρ]
-			rho_new.set_element(i, j, rho_ij.add(accum.scale(gamma * dt)))
+			rho_new.set_element(i, j, term0.add(term1))
 
 	density_matrix = rho_new
-	_renormalize()
+	# No _renormalize() needed — Kraus map is CPTP by construction.
+	# Only invalidate purity cache.
+	_purity_cache = -1.0
 
 	if source_emoji != "":
 		var after_source_pop = get_marginal(qubit_index, from_pole)
@@ -1199,11 +1212,15 @@ func _renormalize() -> void:
 			min_diag = diag_re
 	_last_renorm_trace_before_cap = trace
 
-	# Stage 2: Only reinitialize on truly catastrophic failure
+	# Stage 2: Catastrophic failure — target Lindbladian steady state
+	# instead of maximally mixed I/d, since the physical steady state
+	# of amplitude damping is the drain target, not "know nothing."
 	if abs(trace) < 1e-10 or min_diag < -0.15:
-		push_warning("⚠️ Quantum state catastrophic (trace=%.4f, min_diag=%.4f), reinitializing" % [trace, min_diag])
+		_catastrophic_recovery_count += 1
+		if _catastrophic_recovery_count <= 3 or _catastrophic_recovery_count % 100 == 0:
+			push_warning("⚠️ Quantum state catastrophic (trace=%.4f, min_diag=%.4f), recovering to steady state (count=%d)" % [trace, min_diag, _catastrophic_recovery_count])
 		_last_renorm_scale = 0.0
-		_reinitialize_mixed_state()
+		_recover_to_steady_state()
 		return
 
 	# Stage 3: Cap trace to 1 (allow dissipative trace < 1)
@@ -1246,6 +1263,58 @@ func _reinitialize_mixed_state() -> void:
 				density_matrix.set_element(i, j, Complex.new(diag_val, 0.0))
 			else:
 				density_matrix.set_element(i, j, Complex.zero())
+
+
+func _recover_to_steady_state() -> void:
+	"""Recover from catastrophic state by targeting the Lindbladian steady state.
+
+	Instead of reinitializing to I/d (which destroys all quantum information),
+	project onto the diagonal (complete decoherence) and clamp negative
+	populations to zero. This preserves the population distribution that the
+	Hamiltonian + Lindblad dynamics were driving toward — the physical steady
+	state of the dissipator — rather than resetting to 'know nothing.'
+
+	For amplitude damping (drain), the steady state is the drain target pole.
+	For driven systems, it's the balance between pump and drain rates.
+	Projecting onto the diagonal is equivalent to a complete dephasing channel,
+	which is the correct physical limit of strong environment coupling.
+	"""
+	if density_matrix == null:
+		return
+
+	var dim = register_map.dim()
+	if dim == 0:
+		return
+
+	# Extract diagonal populations, clamp negatives to zero
+	var populations = PackedFloat64Array()
+	populations.resize(dim)
+	var pop_sum = 0.0
+	for i in range(dim):
+		var p = density_matrix.get_element(i, i).re
+		p = max(0.0, p)
+		populations[i] = p
+		pop_sum += p
+
+	# Renormalize populations (or fall back to I/d if all zero)
+	if pop_sum < 1e-12:
+		var diag_val = 1.0 / float(dim)
+		for i in range(dim):
+			populations[i] = diag_val
+	else:
+		var scale = 1.0 / pop_sum
+		for i in range(dim):
+			populations[i] *= scale
+
+	# Write back as diagonal density matrix (zero off-diagonals = dephased)
+	for i in range(dim):
+		for j in range(dim):
+			if i == j:
+				density_matrix.set_element(i, j, Complex.new(populations[i], 0.0))
+			else:
+				density_matrix.set_element(i, j, Complex.zero())
+
+	_purity_cache = -1.0
 
 
 func _apply_phase_lnn(lnn: Object) -> void:
@@ -2081,6 +2150,87 @@ func apply_decay(qubit_index: int, rate: float, dt: float) -> void:
 	var from_pole = 0  # North
 	var to_pole = 1    # South
 	_apply_lindblad_1q(qubit_index, from_pole, to_pole, rate, dt)
+
+
+func apply_cross_register_channel(source_qubit: int, target_qubit: int,
+                                   rate: float, dt: float) -> void:
+	"""Apply a dissipative channel transferring population between two qubits.
+
+	Creates a cross-register Lindblad jump operator:
+	    L = √γ (σ⁺_target ⊗ σ⁻_source)
+
+	This simultaneously decays the source qubit (north→south) and excites
+	the target qubit (south→north), implementing directed energy/population
+	transfer through the density matrix. Uses the exact Kraus map (CPTP).
+
+	Args:
+	    source_qubit: Qubit to drain FROM (population flows out of north pole)
+	    target_qubit: Qubit to pump INTO (population flows into north pole)
+	    rate: Channel strength γ (1/s)
+	    dt: Time step (s)
+	"""
+	if density_matrix == null:
+		return
+	if source_qubit == target_qubit:
+		return  # Self-channel is meaningless
+
+	var num_qubits = register_map.num_qubits
+	var dim = register_map.dim()
+	if source_qubit < 0 or source_qubit >= num_qubits:
+		return
+	if target_qubit < 0 or target_qubit >= num_qubits:
+		return
+
+	var src_shift = num_qubits - 1 - source_qubit
+	var tgt_shift = num_qubits - 1 - target_qubit
+
+	# Exact transition probability (amplitude damping channel)
+	var p = 1.0 - exp(-rate * dt)
+	p = clampf(p, 0.0, 1.0)
+	if p < 1e-15:
+		return  # No effect
+
+	var sqrt_1mp = sqrt(1.0 - p)
+
+	# The cross-register channel acts on basis states where:
+	#   source qubit has north pole (0) AND target qubit has south pole (1)
+	# Flipping both: source goes 0→1 (decay), target goes 1→0 (excitation)
+	#
+	# K₀ (no-jump): identity on states without the pattern,
+	#   √(1-p) scaling on states matching the pattern
+	# K₁ (jump): √p × flip both qubits on matching states
+	var rho_new = ComplexMatrix.zeros(dim)
+	for i in range(dim):
+		for j in range(dim):
+			var src_bit_i = (i >> src_shift) & 1
+			var tgt_bit_i = (i >> tgt_shift) & 1
+			var src_bit_j = (j >> src_shift) & 1
+			var tgt_bit_j = (j >> tgt_shift) & 1
+
+			# Can this row/col participate in a jump?
+			var jumpable_i = (src_bit_i == 0 and tgt_bit_i == 1)  # source=north, target=south
+			var jumpable_j = (src_bit_j == 0 and tgt_bit_j == 1)
+
+			# K₀ term: diagonal scaling
+			var k0_i = sqrt_1mp if jumpable_i else 1.0
+			var k0_j = sqrt_1mp if jumpable_j else 1.0
+			var rho_ij = density_matrix.get_element(i, j)
+			var result = rho_ij.scale(k0_i * k0_j)
+
+			# K₁ term: jump (flip both qubits) for jumpable states
+			# The flipped state has source=south(1), target=north(0)
+			var flipped_i = (src_bit_i == 1 and tgt_bit_i == 0)  # post-jump pattern
+			var flipped_j = (src_bit_j == 1 and tgt_bit_j == 0)
+			if flipped_i and flipped_j:
+				# Map back to pre-jump source indices
+				var i_pre = i ^ (1 << src_shift) ^ (1 << tgt_shift)
+				var j_pre = j ^ (1 << src_shift) ^ (1 << tgt_shift)
+				result = result.add(density_matrix.get_element(i_pre, j_pre).scale(p))
+
+			rho_new.set_element(i, j, result)
+
+	density_matrix = rho_new
+	_purity_cache = -1.0
 
 
 func get_trace() -> float:

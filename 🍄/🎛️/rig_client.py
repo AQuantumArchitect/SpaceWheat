@@ -11,6 +11,16 @@ from typing import Any, Dict, List, Optional
 from milk_hunt_paths import APP_NAME, rig_queue_file, rig_results_file, runner_root, user_dir, xdg_root
 
 
+def _read_heartbeat(xdg: Optional[Path] = None) -> Optional[float]:
+    """Read Godot heartbeat timestamp. Returns unix time or None if stale/missing."""
+    hb_path = user_dir(xdg=xdg) / "rig" / "heartbeat"
+    try:
+        text = hb_path.read_text().strip()
+        return float(text) if text else None
+    except (OSError, ValueError):
+        return None
+
+
 def _pid_alive(pid: int) -> bool:
     try:
         os.kill(pid, 0)
@@ -315,10 +325,24 @@ class RigClient:
         turn_id: int,
         timeout_s: float = 10.0,
         progress_interval_s: float = 5.0,
+        heartbeat_stale_s: float = 10.0,
     ) -> Optional[Dict[str, Any]]:
+        """Wait for a turn result with heartbeat-aware timeout.
+
+        The timeout_s is a hard cap, but if the Godot heartbeat is fresh
+        (< heartbeat_stale_s old), we extend patience — Godot is busy but
+        alive. Only timeout when the heartbeat proves Godot stopped processing
+        physics frames (dead/stuck), or when the hard cap is reached.
+        """
         started = time.time()
         next_report_at = started + max(0.5, progress_interval_s) if progress_interval_s > 0 else float("inf")
-        while time.time() - started < timeout_s:
+        last_heartbeat_check = 0.0
+        heartbeat_alive = True
+        while True:
+            elapsed = time.time() - started
+            # Hard cap: always respect timeout_s
+            if elapsed >= timeout_s:
+                return None
             for row in self._read_new_result_rows():
                 turn = row.get("turn")
                 if isinstance(turn, (int, float)) and int(turn) == int(turn_id):
@@ -326,16 +350,36 @@ class RigClient:
             cached = self._results_by_turn.get(int(turn_id))
             if cached is not None:
                 return cached
+
             now = time.time()
+
+            # Check heartbeat every 2 seconds
+            if now - last_heartbeat_check >= 2.0:
+                last_heartbeat_check = now
+                hb_time = _read_heartbeat(xdg=self.xdg_root)
+                if hb_time is not None:
+                    heartbeat_age = now - hb_time
+                    heartbeat_alive = heartbeat_age < heartbeat_stale_s
+                else:
+                    # No heartbeat file yet — give benefit of doubt during startup
+                    heartbeat_alive = elapsed < 30.0
+
+                # If heartbeat is stale and we've waited at least 15s, timeout
+                if not heartbeat_alive and elapsed >= 15.0:
+                    self.safe_print(
+                        "[rig_wait] heartbeat stale (Godot unresponsive), timing out turn=%d after %.1fs"
+                        % (turn_id, elapsed)
+                    )
+                    return None
+
             if progress_interval_s > 0 and now >= next_report_at:
-                elapsed = now - started
+                hb_status = "alive" if heartbeat_alive else "STALE"
                 self.safe_print(
-                    "[rig_wait] waiting turn=%d elapsed=%.1fs latest_result_turn=%d"
-                    % (turn_id, elapsed, self._latest_result_turn)
+                    "[rig_wait] waiting turn=%d elapsed=%.1fs latest_result_turn=%d heartbeat=%s"
+                    % (turn_id, elapsed, self._latest_result_turn, hb_status)
                 )
                 next_report_at = now + max(0.5, progress_interval_s)
             time.sleep(0.2)
-        return None
 
     def run_turn(
         self,
