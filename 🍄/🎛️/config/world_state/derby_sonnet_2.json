@@ -1,0 +1,11 @@
+{
+  "name": "derby_sonnet_2",
+  "description": "Granary Fortress: fat stockpile, conservative play, never starve",
+  "scenario_id": "default",
+  "resource_mode": "set",
+  "resources": {"👥": 350, "🌾": 280, "🍞": 300, "❄️": 200, "🌱": 150, "⚙": 140, "🔥": 130},
+  "unlocked_biomes": ["StarterForest", "Village", "WildHill"],
+  "active_biome": "Village",
+  "known_pairs": [{"north": "🌾", "south": "👥"}, {"north": "🍞", "south": "⚙"}],
+  "strict_biome_economy": true
+}

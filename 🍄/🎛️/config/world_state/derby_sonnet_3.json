@@ -1,0 +1,11 @@
+{
+  "name": "derby_sonnet_3",
+  "description": "Arctic Sniper: all-in on critical resource chains, cold-bread axis dominance",
+  "scenario_id": "default",
+  "resource_mode": "set",
+  "resources": {"👥": 85, "🌾": 20, "🍞": 250, "❄️": 180, "🌱": 10, "⚙": 15, "🔥": 5},
+  "unlocked_biomes": ["Village", "ArcticShelf"],
+  "active_biome": "Village",
+  "known_pairs": [{"north": "❄️", "south": "🍞"}],
+  "strict_biome_economy": true
+}

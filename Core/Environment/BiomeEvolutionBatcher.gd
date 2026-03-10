@@ -265,7 +265,8 @@ func initialize(biome_array: Array, p_terminal_pool = null, p_farm = null):
 	_disable_force_env = _resolve_flag("RIG_DISABLE_FORCE_GRAPH", "SW_DISABLE_FORCE", rig_enabled) \
 		or _resolve_flag("RIG_DISABLE_FORCE", "SW_DISABLE_FORCE", rig_enabled)
 	_stride_scales_resolution = _env_flag("SW_STRIDE_SCALES_RESOLUTION", true)
-	_max_phrame_hz_cap = max(0.0, _env_float("SW_MAX_PHRAME_HZ", 10.0))
+	var default_hz = 0.0 if _headless_env else 10.0  # headless: uncapped; GUI: 10 Hz
+	_max_phrame_hz_cap = max(0.0, _env_float("SW_MAX_PHRAME_HZ", default_hz))
 	if _max_phrame_hz_cap > 0.0:
 		_min_phrame_interval_ms = 1000.0 / _max_phrame_hz_cap
 	else:

@@ -1,0 +1,22 @@
+{
+  "offer_novelty": 0.8,
+  "offer_pair": 0.6,
+  "offer_deficit": 1.5,
+  "offer_reward": 0.03,
+  "offer_delivery_cost": -0.04,
+  "offer_critical_any": 9.0,
+  "offer_critical_unknown": 35.0,
+  "offer_critical_pair": 85.0,
+  "offer_milk_direct": 1800.0,
+  "probe_frontier": 0.5,
+  "probe_hits": 1.6,
+  "probe_critical_hits": 3.0,
+  "probe_village_pressure": 3.0,
+  "probe_novelty": 0.2,
+  "loop_probe_base": 0.5,
+  "loop_probe_max": 2.0,
+  "vocab_probe_base": 1.5,
+  "vocab_probe_max": 4.0,
+  "lindblad_critical_hits": 3.5,
+  "lindblad_hits": 2.2
+}

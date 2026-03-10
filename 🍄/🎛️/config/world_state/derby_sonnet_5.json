@@ -1,0 +1,11 @@
+{
+  "name": "derby_sonnet_5",
+  "description": "Volcanic Gambit: fire-heavy speedrun, find milk or burn out trying",
+  "scenario_id": "default",
+  "resource_mode": "set",
+  "resources": {"👥": 82, "🌾": 45, "🍞": 125, "❄️": 62, "🌱": 35, "⚙": 25, "🔥": 200},
+  "unlocked_biomes": ["StarterForest", "Village", "VolcanicRidge", "WildHill", "SolarPlains", "FungalNetworks"],
+  "active_biome": "VolcanicRidge",
+  "known_pairs": [{"north": "🔥", "south": "⚙"}],
+  "strict_biome_economy": false
+}

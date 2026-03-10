@@ -1,0 +1,11 @@
+{
+  "name": "derby_sonnet_4",
+  "description": "Fungal Cartographer: methodical terrain mapping, exploit known-good biomes via Lindblad",
+  "scenario_id": "default",
+  "resource_mode": "set",
+  "resources": {"👥": 180, "🌾": 160, "🍞": 180, "❄️": 100, "🌱": 90, "⚙": 80, "🔥": 70},
+  "unlocked_biomes": ["StarterForest", "Village", "FungalNetworks", "SolarPlains", "CoralReef"],
+  "active_biome": "FungalNetworks",
+  "known_pairs": [{"north": "🌾", "south": "👥"}, {"north": "🌱", "south": "🔥"}],
+  "strict_biome_economy": false
+}

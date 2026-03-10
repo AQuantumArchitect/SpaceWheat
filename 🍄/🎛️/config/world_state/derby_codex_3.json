@@ -1,0 +1,11 @@
+{
+  "name": "derby_codex_3",
+  "description": "Arctic Railgun: all-in cold specialization, extreme critical-pair scoring, ArcticShelf or bust",
+  "scenario_id": "default",
+  "resource_mode": "set",
+  "resources": {"👥": 82, "🌾": 20, "🍞": 122, "❄️": 350, "🌱": 8, "⚙": 5, "🔥": 3},
+  "unlocked_biomes": ["StarterForest", "Village", "ArcticShelf"],
+  "active_biome": "ArcticShelf",
+  "known_pairs": [{"north": "🌾", "south": "👥"}, {"north": "❄️", "south": "🌱"}],
+  "strict_biome_economy": true
+}

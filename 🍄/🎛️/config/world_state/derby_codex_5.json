@@ -1,0 +1,11 @@
+{
+  "name": "derby_codex_5",
+  "description": "Volcanic Bread Engine: bread-heavy fire specialist, burns through probes from VolcanicRidge while surplus sustains",
+  "scenario_id": "default",
+  "resource_mode": "set",
+  "resources": {"👥": 100, "🌾": 90, "🍞": 320, "❄️": 30, "🌱": 40, "⚙": 80, "🔥": 280},
+  "unlocked_biomes": ["StarterForest", "Village", "VolcanicRidge", "SolarPlains"],
+  "active_biome": "VolcanicRidge",
+  "known_pairs": [{"north": "🌾", "south": "👥"}, {"north": "🔥", "south": "⚙"}],
+  "strict_biome_economy": true
+}

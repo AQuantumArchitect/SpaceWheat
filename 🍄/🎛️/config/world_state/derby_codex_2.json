@@ -1,0 +1,11 @@
+{
+  "name": "derby_codex_2",
+  "description": "Grain Fortress: massive stockpiles, strict 2-biome economy, never starves, grinds to milk",
+  "scenario_id": "default",
+  "resource_mode": "set",
+  "resources": {"👥": 400, "🌾": 380, "🍞": 260, "❄️": 200, "🌱": 160, "⚙": 150, "🔥": 140},
+  "unlocked_biomes": ["StarterForest", "Village"],
+  "active_biome": "Village",
+  "known_pairs": [{"north": "🌾", "south": "👥"}, {"north": "🍞", "south": "🌾"}],
+  "strict_biome_economy": true
+}

@@ -9,8 +9,10 @@ This module is intentionally runner-agnostic:
 """
 from __future__ import annotations
 
+import json
 from collections import deque
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Set, Tuple
 
 
@@ -249,6 +251,20 @@ class QuantumGraphPolicy:
                     "lindblad_village_pressure": 1.5,
                 }
             )
+
+        # File-based Graph Tissue™ overrides: config/policy_weights/{profile}.json
+        # Any profile can ship weight overrides without touching this code.
+        pw_path = Path(__file__).resolve().parent / "config" / "policy_weights" / f"{self.profile_name}.json"
+        if pw_path.is_file():
+            try:
+                overrides = json.loads(pw_path.read_text(encoding="utf-8"))
+                if isinstance(overrides, dict):
+                    for k, v in overrides.items():
+                        if k in w:
+                            w[k] = float(v)
+            except (json.JSONDecodeError, ValueError, OSError):
+                pass  # Silently skip malformed weight files
+
         return w
 
     def _resource_deficit_score(self, state: HunterState, rewards: Mapping[str, float]) -> float:

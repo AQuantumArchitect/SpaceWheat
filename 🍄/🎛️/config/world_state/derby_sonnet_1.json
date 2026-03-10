@@ -1,0 +1,11 @@
+{
+  "name": "derby_sonnet_1",
+  "description": "Mycelial Scout: lean and fast, all biomes open, discovery over survival",
+  "scenario_id": "default",
+  "resource_mode": "set",
+  "resources": {"👥": 90, "🌾": 60, "🍞": 130, "❄️": 65, "🌱": 40, "⚙": 30, "🔥": 25},
+  "unlocked_biomes": ["StarterForest", "Village", "WildHill", "FungalNetworks", "SolarPlains", "VolcanicRidge", "ArcticShelf", "CoralReef"],
+  "active_biome": "StarterForest",
+  "known_pairs": [{"north": "🌾", "south": "👥"}],
+  "strict_biome_economy": false
+}
