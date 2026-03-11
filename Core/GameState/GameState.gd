@@ -76,8 +76,9 @@ extends Resource
 
 ## Balance profile state (shared between headless and UI)
 @export var balance_profile_id: String = "default"
-@export var balance_overrides: Dictionary = {}
 @export var balance_workbench_config: Dictionary = {}
+@export var farm_variable_graph_path: String = "res://Core/Config/FarmVariableGraph/default.jsonl"  # Optional source path used to seed this state.
+@export var farm_variable_graph_jsonl: Array[String] = []  # Canonical tunable parameter graph rows.
 @export var economy_variables: Dictionary = {
 	"quantum_to_credits": 1.0,
 	"max_biome_qubits": 12
@@ -325,8 +326,6 @@ func ensure_balance_workbench_defaults() -> void:
 
 	if balance_profile_id == "":
 		balance_profile_id = str(balance_workbench_config.get("profile_id", "default"))
-	if not (balance_overrides is Dictionary):
-		balance_overrides = {}
 	if not (economy_variables is Dictionary):
 		economy_variables = {}
 	for key in ["quantum_to_credits", "max_biome_qubits"]:

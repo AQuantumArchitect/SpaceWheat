@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 import argparse
 import json
+import math
+import random
 import statistics
 import subprocess
 import sys
@@ -75,9 +77,39 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_false",
         help="Exclude market_projection payload from offer_quests responses",
     )
+    parser.add_argument(
+        "--policy-restrictions",
+        dest="policy_restrictions",
+        action="store_true",
+        help="Enable runner-side policy action restrictions",
+    )
+    parser.add_argument(
+        "--no-policy-restrictions",
+        dest="policy_restrictions",
+        action="store_false",
+        help="Disable runner-side policy action restrictions (full action space)",
+    )
+    parser.add_argument(
+        "--topology-gto",
+        dest="topology_gto",
+        action="store_true",
+        help="Mutate policy parameters per run and export topology report",
+    )
+    parser.add_argument(
+        "--no-topology-gto",
+        dest="topology_gto",
+        action="store_false",
+        help="Disable policy mutation topology sweep",
+    )
+    parser.add_argument("--base-policy-epsilon", type=float, default=0.18, help="Baseline policy epsilon")
+    parser.add_argument("--base-policy-ucb-scale", type=float, default=1.10, help="Baseline policy UCB scale")
+    parser.add_argument("--epsilon-jitter", type=float, default=0.12, help="Absolute epsilon mutation radius")
+    parser.add_argument("--ucb-octave-jitter", type=float, default=0.45, help="Log2 mutation radius for UCB scale")
+    parser.add_argument("--mutation-seed", type=int, default=1337, help="RNG seed for topology mutations")
     parser.set_defaults(strict_biome_economy=True, reuse_listener=True)
     parser.set_defaults(include_offer_reward_resources=False)
     parser.set_defaults(include_offer_market_projection=False)
+    parser.set_defaults(policy_restrictions=False, topology_gto=False)
     return parser
 
 
@@ -85,6 +117,130 @@ def _avg(nums: List[int]) -> float:
     if not nums:
         return 0.0
     return float(statistics.mean(nums))
+
+
+def _sample_policy_mutation(
+    run_idx: int,
+    rng: random.Random,
+    base_epsilon: float,
+    base_ucb_scale: float,
+    epsilon_jitter: float,
+    ucb_octave_jitter: float,
+    enabled: bool,
+) -> Dict[str, Any]:
+    if not enabled:
+        return {
+            "id": "baseline",
+            "policy_epsilon": max(0.0, min(1.0, float(base_epsilon))),
+            "policy_ucb_scale": max(0.0, float(base_ucb_scale)),
+            "delta_epsilon": 0.0,
+            "delta_ucb_scale": 0.0,
+            "octave_shift": 0.0,
+        }
+    phase = float(run_idx) * 1.61803398875
+    epsilon_delta = rng.uniform(-epsilon_jitter, epsilon_jitter) + 0.035 * math.sin(phase)
+    epsilon = max(0.0, min(1.0, float(base_epsilon) + epsilon_delta))
+    octave_shift = rng.uniform(-ucb_octave_jitter, ucb_octave_jitter)
+    ucb_scale = max(0.0, float(base_ucb_scale) * (2.0 ** octave_shift))
+    return {
+        "id": f"mut_{run_idx:03d}",
+        "policy_epsilon": epsilon,
+        "policy_ucb_scale": ucb_scale,
+        "delta_epsilon": epsilon - float(base_epsilon),
+        "delta_ucb_scale": ucb_scale - float(base_ucb_scale),
+        "octave_shift": octave_shift,
+    }
+
+
+def _build_topology_report(run_summaries: List[Dict[str, Any]], mode: str) -> Dict[str, Any]:
+    action_universe: set[str] = set()
+    run_rows: List[Dict[str, Any]] = []
+    action_reward_rows: Dict[str, List[float]] = {}
+
+    for summary in run_summaries:
+        counts_raw = summary.get("policy_action_counts", {})
+        counts: Dict[str, int] = {}
+        if isinstance(counts_raw, dict):
+            for key, raw_count in counts_raw.items():
+                if not isinstance(key, str):
+                    continue
+                try:
+                    counts[key] = max(0, int(raw_count))
+                except (TypeError, ValueError):
+                    continue
+        total = int(sum(counts.values()))
+        shares: Dict[str, float] = {}
+        if total > 0:
+            shares = {k: float(v) / float(total) for k, v in counts.items() if v > 0}
+            action_universe.update(shares.keys())
+        dominant_action = ""
+        dominant_share = 0.0
+        if shares:
+            dominant_action, dominant_share = max(shares.items(), key=lambda kv: kv[1])
+        run_rows.append(
+            {
+                "run_name": str(summary.get("run_name", "")),
+                "success": bool(summary.get("found_milk_pair", False)),
+                "steps": int(summary.get("steps", summary.get("turns_executed", 0) or 0) or 0),
+                "loops_completed": int(summary.get("loops_completed", 0) or 0),
+                "action_counts": counts,
+                "action_shares": shares,
+                "dominant_action": dominant_action,
+                "dominant_share": dominant_share,
+                "action_entropy_bits": float(summary.get("policy_action_entropy_bits", 0.0) or 0.0),
+                "policy_epsilon": float(summary.get("policy_epsilon", 0.0) or 0.0),
+                "policy_ucb_scale": float(summary.get("policy_ucb_scale", 0.0) or 0.0),
+                "policy_mutation": summary.get("policy_mutation", {}),
+            }
+        )
+        decisions = summary.get("policy_decisions", [])
+        if isinstance(decisions, list):
+            for row in decisions:
+                if not isinstance(row, dict):
+                    continue
+                action = str(row.get("executed_action", "") or "")
+                reward_raw = row.get("reward", None)
+                if not action or not isinstance(reward_raw, (int, float)):
+                    continue
+                action_reward_rows.setdefault(action, []).append(float(reward_raw))
+
+    def _mean(vals: List[float]) -> float:
+        return float(statistics.mean(vals)) if vals else 0.0
+
+    success_rows = [r for r in run_rows if bool(r.get("success", False))]
+    failure_rows = [r for r in run_rows if not bool(r.get("success", False))]
+    action_stats: Dict[str, Dict[str, Any]] = {}
+    for action in sorted(action_universe):
+        shares_all = [float(r.get("action_shares", {}).get(action, 0.0)) for r in run_rows]
+        shares_success = [float(r.get("action_shares", {}).get(action, 0.0)) for r in success_rows]
+        shares_failure = [float(r.get("action_shares", {}).get(action, 0.0)) for r in failure_rows]
+        counts_all = [float(int(r.get("action_counts", {}).get(action, 0) or 0)) for r in run_rows]
+        success_lift = 0.0
+        if success_rows and failure_rows:
+            success_lift = _mean(shares_success) - _mean(shares_failure)
+        action_stats[action] = {
+            "mean_share_all": _mean(shares_all),
+            "mean_share_success": _mean(shares_success),
+            "mean_share_failure": _mean(shares_failure),
+            "share_success_lift": success_lift,
+            "share_success_lift_defined": bool(success_rows and failure_rows),
+            "mean_count_all": _mean(counts_all),
+            "mean_reward_per_execution": _mean(action_reward_rows.get(action, [])),
+        }
+
+    return {
+        "mode": mode,
+        "runs": len(run_rows),
+        "success_count": len(success_rows),
+        "failure_count": len(failure_rows),
+        "action_space": sorted(action_universe),
+        "action_stats": action_stats,
+        "dominance": {
+            "avg_top_action_share_all": _mean([float(r.get("dominant_share", 0.0)) for r in run_rows]),
+            "avg_action_entropy_bits_all": _mean([float(r.get("action_entropy_bits", 0.0)) for r in run_rows]),
+        },
+        "run_rows": run_rows,
+    }
 
 
 def _run_trial(
@@ -107,6 +263,9 @@ def _run_trial(
     runtime_profile: str | None = None,
     include_offer_reward_resources: bool = False,
     include_offer_market_projection: bool = False,
+    policy_restrictions: bool = False,
+    policy_epsilon: float | None = None,
+    policy_ucb_scale: float | None = None,
 ) -> Dict[str, Any]:
     run_name = f"run_{run_idx:03d}"
     run_dir = batch_dir / run_name
@@ -134,6 +293,14 @@ def _run_trial(
         cmd.extend(["--metrics-every", str(int(metrics_every))])
     if runtime_profile:
         cmd.extend(["--runtime-profile", str(runtime_profile)])
+    if policy_epsilon is not None:
+        cmd.extend(["--policy-epsilon", str(float(policy_epsilon))])
+    if policy_ucb_scale is not None:
+        cmd.extend(["--policy-ucb-scale", str(float(policy_ucb_scale))])
+    if policy_restrictions:
+        cmd.append("--policy-restrictions")
+    else:
+        cmd.append("--no-policy-restrictions")
     if load_slot is not None:
         cmd.extend(["--load-slot", str(load_slot)])
     if profile_save is not None:
@@ -282,9 +449,19 @@ def main() -> int:
 
     run_summaries: List[Dict[str, Any]] = []
     turn_cursor = 1
+    rng = random.Random(int(args.mutation_seed))
     for i in range(1, args.runs + 1):
         reuse = bool(reuse_enabled and i > 1)
         no_stop = bool(reuse_enabled and i < args.runs)
+        mutation = _sample_policy_mutation(
+            run_idx=i,
+            rng=rng,
+            base_epsilon=float(args.base_policy_epsilon),
+            base_ucb_scale=float(args.base_policy_ucb_scale),
+            epsilon_jitter=max(0.0, float(args.epsilon_jitter)),
+            ucb_octave_jitter=max(0.0, float(args.ucb_octave_jitter)),
+            enabled=bool(args.topology_gto),
+        )
         summary = _run_trial(
             batch_dir,
             i,
@@ -305,7 +482,11 @@ def main() -> int:
             runtime_profile=args.runtime_profile,
             include_offer_reward_resources=bool(args.include_offer_reward_resources),
             include_offer_market_projection=bool(args.include_offer_market_projection),
+            policy_restrictions=bool(args.policy_restrictions),
+            policy_epsilon=float(mutation.get("policy_epsilon", args.base_policy_epsilon)),
+            policy_ucb_scale=float(mutation.get("policy_ucb_scale", args.base_policy_ucb_scale)),
         )
+        summary["policy_mutation"] = mutation
         run_summaries.append(summary)
         found = bool(summary.get("found_milk_pair", False))
         steps = int(summary.get("steps", summary.get("turns_executed", 0) or 0) or 0)
@@ -415,6 +596,13 @@ def main() -> int:
         "runtime_profile": args.runtime_profile or "default",
         "include_offer_reward_resources": bool(args.include_offer_reward_resources),
         "include_offer_market_projection": bool(args.include_offer_market_projection),
+        "policy_restrictions": bool(args.policy_restrictions),
+        "topology_gto": bool(args.topology_gto),
+        "base_policy_epsilon": float(args.base_policy_epsilon),
+        "base_policy_ucb_scale": float(args.base_policy_ucb_scale),
+        "epsilon_jitter": float(args.epsilon_jitter),
+        "ucb_octave_jitter": float(args.ucb_octave_jitter),
+        "mutation_seed": int(args.mutation_seed),
         "strategy": args.strategy,
         "seed_result": seed_result,
         "success_count": len(successes),
@@ -459,6 +647,19 @@ def main() -> int:
         "first_discovery_counts": first_discovery_counts,
         "batch_dir": str(batch_dir),
         "run_summaries": run_summaries,
+    }
+
+    topology_report = _build_topology_report(
+        run_summaries,
+        mode="gto_mutation" if bool(args.topology_gto) else "baseline",
+    )
+    topology_path = batch_dir / "topology_report.json"
+    write_json(topology_path, topology_report)
+    aggregate["topology_report_path"] = str(topology_path)
+    aggregate["topology_highlights"] = {
+        "action_space_size": len(topology_report.get("action_space", [])),
+        "avg_top_action_share_all": float((topology_report.get("dominance", {}) or {}).get("avg_top_action_share_all", 0.0) or 0.0),
+        "avg_action_entropy_bits_all": float((topology_report.get("dominance", {}) or {}).get("avg_action_entropy_bits_all", 0.0) or 0.0),
     }
 
     agg_path = batch_dir / "batch_summary.json"

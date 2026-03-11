@@ -9,6 +9,8 @@ signal quest_accept_clicked(quest_id: int)
 signal quest_complete_clicked(quest_id: int)
 signal quest_panel_clicked
 
+const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")
+
 # Layout manager reference (for dynamic scaling)
 var layout_manager: Node  # Will be UILayoutManager instance
 
@@ -238,6 +240,10 @@ func get_snapshot() -> Dictionary:
 	return {"active_count": quest_items.size(), "quests": quests}
 
 
+func _resolve_quantum_instrument():
+	return InstrumentLocator.resolve_quantum_instrument(self)
+
+
 func _on_quest_item_complete_clicked(quest_id: int) -> void:
 	"""Handle quest item complete button click"""
 	if not quest_manager:
@@ -245,7 +251,11 @@ func _on_quest_item_complete_clicked(quest_id: int) -> void:
 
 	# Check if player can complete quest
 	if quest_manager.check_quest_completion(quest_id):
-		quest_manager.complete_quest(quest_id)
+		var instrument = _resolve_quantum_instrument()
+		if instrument and instrument.has_method("quest_complete"):
+			instrument.quest_complete(quest_id)
+		else:
+			quest_manager.complete_quest(quest_id)
 	else:
 		# TODO: Show "insufficient resources" message
 		print("⚠️  Cannot complete quest %d: insufficient resources" % quest_id)

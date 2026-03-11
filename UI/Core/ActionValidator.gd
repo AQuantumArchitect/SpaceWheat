@@ -11,7 +11,8 @@ extends RefCounted
 ## - QuantumInstrumentInput for pre-execution validation
 
 const ToolConfig = preload("res://Core/GameState/ToolConfig.gd")
-const EconomyConstants = preload("res://Core/GameMechanics/EconomyConstants.gd")
+const ActionCostRuntime = preload("res://Core/GameMechanics/ActionCostRuntime.gd")
+const VocabPairUtils = preload("res://Core/Gameplay/VocabPairUtils.gd")
 
 
 ## ============================================================================
@@ -345,48 +346,17 @@ static func _can_execute_inject_vocabulary(farm, current_selection: Vector2i) ->
 		return false
 	if not biome.viz_cache or not biome.viz_cache.has_metadata():
 		return false
-	var max_qubits = EconomyConstants.get_max_biome_qubits(farm.economy if farm else null)
-	if _get_qubit_count(biome) >= max_qubits:
+	if _get_qubit_count(biome) >= ActionCostRuntime.get_max_biome_qubits(farm):
 		return false
 
-	var pairs = _collect_injectable_pairs(farm, biome)
+	var pairs = VocabPairUtils.collect_injectable_pairs(farm, biome)
 	if pairs.is_empty():
 		return false
 		
 	# Check affordability for at least the first candidate pair
 	var first_pair = pairs[0]
-	var cost = EconomyConstants.get_action_cost("inject_vocabulary", {"south_emoji": first_pair.get("south", "")})
-	return EconomyConstants.can_afford(farm.economy, cost)
-
-
-static func _collect_injectable_pairs(farm_ref, biome = null) -> Array:
-	var pairs: Array = []
-	if farm_ref and farm_ref.has_method("get_known_pairs"):
-		pairs.append_array(farm_ref.get_known_pairs())
-	if farm_ref and "vocabulary_evolution" in farm_ref and farm_ref.vocabulary_evolution:
-		var vocab = farm_ref.vocabulary_evolution
-		if vocab and vocab.has_method("get_discovered_vocabulary"):
-			var discovered = vocab.get_discovered_vocabulary()
-			if discovered is Array:
-				pairs.append_array(discovered)
-
-	var filtered: Array = []
-	var seen: Dictionary = {}
-	for pair in pairs:
-		if not (pair is Dictionary):
-			continue
-		var north = pair.get("north", "")
-		var south = pair.get("south", "")
-		if north == "" or south == "" or north == south:
-			continue
-		if biome and (_biome_has_emoji(biome, north) or _biome_has_emoji(biome, south)):
-			continue
-		var key = "%s|%s" % [north, south]
-		if seen.has(key):
-			continue
-		seen[key] = true
-		filtered.append({"north": north, "south": south})
-	return filtered
+	var gate = ActionCostRuntime.preflight_action(farm, "inject_vocabulary", {"south_emoji": first_pair.get("south", "")})
+	return bool(gate.get("ok", false))
 
 
 static func _can_execute_icon_assign(farm, selected_plots: Array[Vector2i], action: String) -> bool:
@@ -416,13 +386,12 @@ static func _can_execute_icon_assign(farm, selected_plots: Array[Vector2i], acti
 		return false
 	if not biome.viz_cache or not biome.viz_cache.has_metadata():
 		return false
-	var max_qubits = EconomyConstants.get_max_biome_qubits(farm.economy if farm else null)
-	if _get_qubit_count(biome) >= max_qubits:
+	if _get_qubit_count(biome) >= ActionCostRuntime.get_max_biome_qubits(farm):
 		return false
 
-	if _biome_has_emoji(biome, north):
+	if VocabPairUtils.biome_has_emoji(biome, north):
 		return false
-	if _biome_has_emoji(biome, south):
+	if VocabPairUtils.biome_has_emoji(biome, south):
 		return false
 
 	return true
@@ -440,9 +409,9 @@ static func _can_execute_remove_vocabulary(farm, current_selection: Vector2i) ->
 
 	if _get_qubit_count(biome) < 2:
 		return false
-		
-	var cost = EconomyConstants.get_action_cost("remove_vocabulary")
-	return EconomyConstants.can_afford(farm.economy, cost)
+
+	var gate = ActionCostRuntime.preflight_action(farm, "remove_vocabulary")
+	return bool(gate.get("ok", false))
 
 
 static func _can_execute_explore_biome(farm) -> bool:
@@ -454,8 +423,8 @@ static func _can_execute_explore_biome(farm) -> bool:
 		var gate = farm.can_explore_biome()
 		return gate.get("ok", false)
 
-	var cost = EconomyConstants.get_action_cost("explore_biome")
-	return EconomyConstants.can_afford(farm.economy, cost)
+	var gate = ActionCostRuntime.preflight_action(farm, "explore_biome")
+	return bool(gate.get("ok", false))
 
 
 static func _get_qubit_count(biome) -> int:
@@ -467,10 +436,3 @@ static func _get_qubit_count(biome) -> int:
 			return count
 	return 0
 
-
-static func _biome_has_emoji(biome, emoji: String) -> bool:
-	if not biome or emoji == "":
-		return false
-	if biome.viz_cache:
-		return biome.viz_cache.get_qubit(emoji) >= 0
-	return false

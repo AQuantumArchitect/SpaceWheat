@@ -9,9 +9,10 @@ extends HBoxContainer
 # Tool actions from shared config (single source of truth)
 const ToolConfig = preload("res://Core/GameState/ToolConfig.gd")
 const ProbeActions = preload("res://Core/Actions/ProbeActions.gd")
-const EconomyConstants = preload("res://Core/GameMechanics/EconomyConstants.gd")
+const ActionCostRuntime = preload("res://Core/GameMechanics/ActionCostRuntime.gd")
 const LindbladHandler = preload("res://UI/Handlers/LindbladHandler.gd")
 const EmojiDisplay = preload("res://UI/Core/EmojiDisplay.gd")
+const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")
 const TOOL_ACTIONS = ToolConfig.TOOL_ACTIONS
 
 # Button texture path (matches ToolSelectionRow)
@@ -550,8 +551,8 @@ func _update_action_costs() -> void:
 
 		# Handle combined display for POP + Shift REAP.
 		if action_name == "pop" and action_info.get("shift_action", "") == "reap":
-			var normal_cost = EconomyConstants.get_action_cost("pop")
-			var shift_cost = EconomyConstants.get_action_cost("reap")
+			var normal_cost = _get_runtime_action_cost("pop")
+			var shift_cost = _get_runtime_action_cost("reap")
 			var has_cost = _set_combined_cost_display(btn_data, normal_cost, shift_cost)
 			_adjust_label_for_cost(btn_data, has_cost, 170)
 			continue
@@ -597,17 +598,34 @@ func _get_cost_for_action_name(action_name: String, action_info: Dictionary = {}
 		"inject_vocabulary":
 			var pair = action_info.get("vocab_pair", {})
 			var context = {"south_emoji": pair.get("south", "")}
-			return EconomyConstants.get_action_cost(action_name, context)
+			return _get_runtime_action_cost(action_name, context)
 		"drain", "pump":
 			var pair = _resolve_selected_axis_pair()
 			if pair.is_empty():
 				return {}
 			var normalized = "lindblad_drain" if action_name == "drain" else "lindblad_pump"
-			return LindbladHandler.get_preview_cost(normalized, pair)
+			var context = {
+				"north_emoji": str(pair.get("north", "")),
+				"south_emoji": str(pair.get("south", ""))
+			}
+			return _get_runtime_action_cost(normalized, context)
 		_:
 			# Use unified cost system for all standard actions
 			# (explore, measure, reap, harvest_all, explore_biome, etc.)
-			return EconomyConstants.get_action_cost(action_name)
+			return _get_runtime_action_cost(action_name)
+
+
+func _resolve_quantum_instrument():
+	if quantum_input and "_instrument" in quantum_input and quantum_input._instrument:
+		return quantum_input._instrument
+	return InstrumentLocator.resolve_quantum_instrument(self)
+
+
+func _get_runtime_action_cost(action_name: String, context: Dictionary = {}) -> Dictionary:
+	var instrument = _resolve_quantum_instrument()
+	if instrument and instrument.has_method("get_action_cost"):
+		return instrument.get_action_cost(action_name, context)
+	return ActionCostRuntime.get_action_cost(farm, action_name, context)
 
 
 func _format_cost(cost: Dictionary) -> String:

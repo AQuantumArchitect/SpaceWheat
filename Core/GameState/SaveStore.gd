@@ -69,9 +69,16 @@ static func _atomic_save(state: GameState, path: String) -> int:
 	save at `path` is untouched. The rename is atomic on all filesystems.
 	A save either succeeds completely or doesn't happen at all.
 	"""
+	# Keep a recognized resource extension in the temp path (`*.tmp.tres`),
+	# otherwise ResourceSaver rejects unknown suffixes like `*.tres.tmp`.
+	var ext = path.get_extension()
 	var tmp_path = path + ".tmp"
+	if ext != "":
+		var stem = path.substr(0, path.length() - ext.length() - 1)
+		tmp_path = "%s.tmp.%s" % [stem, ext]
 	var result = ResourceSaver.save(state, tmp_path)
 	if result != OK:
+		push_error("Atomic save write failed: %d (%s) path=%s" % [result, error_string(result), tmp_path])
 		# Clean up failed temp file
 		var dir = DirAccess.open(tmp_path.get_base_dir())
 		if dir:
@@ -308,8 +315,9 @@ static func _write_emoji_sidecar(
 		"known_pairs": state.known_pairs.duplicate(true),
 		"known_emojis": state.get_known_emojis(),
 		"balance_profile_id": state.balance_profile_id,
-		"balance_overrides": state.balance_overrides,
 		"balance_workbench_config": state.balance_workbench_config,
+		"farm_variable_graph_path": state.farm_variable_graph_path,
+		"farm_variable_graph_jsonl": state.farm_variable_graph_jsonl,
 		"economy_variables": state.economy_variables,
 		"icon_map_snapshot": sidecar_icon_map,
 		"icon_map_snapshot_source": sidecar_icon_source,

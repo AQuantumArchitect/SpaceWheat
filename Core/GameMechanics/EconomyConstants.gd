@@ -285,7 +285,7 @@ static func preflight_gate(gate_name: String, economy) -> Dictionary:
 	return preflight_cost(cost, economy)
 
 
-static func commit_action(action: String, economy, context: Dictionary = {}) -> bool:
+static func commit_action(action: String, economy, context: Dictionary = {}, reason: String = "") -> bool:
 	"""Spend cost for an action after success."""
 	var normalized_action = normalize_action_id(action)
 	var cost: Dictionary
@@ -293,17 +293,19 @@ static func commit_action(action: String, economy, context: Dictionary = {}) -> 
 		cost = economy.get_overridden_action_cost(normalized_action, context)
 	else:
 		cost = get_action_cost(normalized_action, context)
-	return commit_cost(cost, economy, normalized_action)
+	var spend_reason = reason if reason != "" else normalized_action
+	return commit_cost(cost, economy, spend_reason)
 
 
-static func commit_gate(gate_name: String, economy) -> bool:
+static func commit_gate(gate_name: String, economy, reason: String = "") -> bool:
 	"""Spend cost for a quantum gate after success."""
 	var cost: Dictionary
 	if economy and economy.has_method("get_overridden_gate_cost"):
 		cost = economy.get_overridden_gate_cost(gate_name)
 	else:
 		cost = get_gate_cost(gate_name)
-	return commit_cost(cost, economy, gate_name)
+	var spend_reason = reason if reason != "" else gate_name
+	return commit_cost(cost, economy, spend_reason)
 
 
 static func normalize_action_id(action: String) -> String:

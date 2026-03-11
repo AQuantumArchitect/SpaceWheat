@@ -1,0 +1,6 @@
+# SpaceWheat Farm Variable Graph (default)
+{"op":"set","path":"profile_id","value":"default"}
+{"op":"set","path":"economy_variables.quantum_to_credits","value":1.0}
+{"op":"set","path":"economy_variables.max_biome_qubits","value":12}
+{"op":"set","path":"quest_rewards.resource_reward_base_ratio","value":0.4}
+{"op":"set","path":"quest_rewards.resource_reward_random_range","value":0.2}

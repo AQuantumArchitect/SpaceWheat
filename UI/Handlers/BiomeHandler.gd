@@ -8,7 +8,7 @@ extends RefCounted
 ## - Explicit parameters (no implicit state)
 ## - Dictionary returns with {success: bool, ...data, error?: String}
 
-const EconomyConstants = preload("res://Core/GameMechanics/EconomyConstants.gd")
+const ActionCostRuntime = preload("res://Core/GameMechanics/ActionCostRuntime.gd")
 
 
 ## ============================================================================
@@ -300,7 +300,7 @@ static func inject_vocabulary(farm, positions: Array[Vector2i], vocab_pair: Dict
 	if not biome:
 		return {"success": false, "error": "no_biome"}
 	var qubit_count = biome.get_total_register_count() if biome.has_method("get_total_register_count") else 0
-	var max_qubits = EconomyConstants.get_max_biome_qubits(farm.economy if farm and farm.economy else null)
+	var max_qubits = ActionCostRuntime.get_max_biome_qubits(farm)
 	if qubit_count >= max_qubits:
 		return {
 			"success": false,
@@ -316,7 +316,7 @@ static func inject_vocabulary(farm, positions: Array[Vector2i], vocab_pair: Dict
 		return {"success": false, "error": "invalid_pair"}
 
 	# Preflight cost
-	var cost_gate = EconomyConstants.preflight_action("inject_vocabulary", farm.economy, {"south_emoji": south})
+	var cost_gate = ActionCostRuntime.preflight_action(farm, "inject_vocabulary", {"south_emoji": south})
 	var cost = cost_gate.get("cost", {})
 	if not cost_gate.get("ok", true):
 		var current: Dictionary = {}
@@ -334,7 +334,8 @@ static func inject_vocabulary(farm, positions: Array[Vector2i], vocab_pair: Dict
 	var result = biome.expand_quantum_system(north, south)
 
 	if result.get("success", false):
-		if not EconomyConstants.commit_cost(cost, farm.economy, "inject_vocabulary"):
+		var committed = ActionCostRuntime.commit_cost(farm, cost, "inject_vocabulary")
+		if not committed:
 			return {
 				"success": false,
 				"error": "cost_commit_failed",

@@ -7,6 +7,8 @@ extends RefCounted
 
 const BaseSubmenu = preload("res://UI/Core/Submenus/BaseSubmenu.gd")
 const BiomeAffinityCalculator = preload("res://Core/Quantum/BiomeAffinityCalculator.gd")
+const ActionCostRuntime = preload("res://Core/GameMechanics/ActionCostRuntime.gd")
+const VocabPairUtils = preload("res://Core/Gameplay/VocabPairUtils.gd")
 
 
 static func generate_submenu(biome, farm, page: int = 0) -> Dictionary:
@@ -57,31 +59,14 @@ static func _collect_options(biome, farm) -> Array:
 		return options
 
 	# Gather all known pairs
-	var pairs: Array = []
-	if farm.has_method("get_known_pairs"):
-		pairs.append_array(farm.get_known_pairs())
-	if "vocabulary_evolution" in farm and farm.vocabulary_evolution:
-		if farm.vocabulary_evolution.has_method("get_discovered_vocabulary"):
-			var discovered = farm.vocabulary_evolution.get_discovered_vocabulary()
-			if discovered is Array:
-				pairs.append_array(discovered)
-
-	# Filter to injectable pairs
-	var biome_emojis = _get_biome_emojis(biome)
+	var pairs: Array = VocabPairUtils.collect_injectable_pairs(farm, biome)
 	var seen: Dictionary = {}
 
 	for pair in pairs:
-		if not (pair is Dictionary):
-			continue
-
 		var north = pair.get("north", "")
 		var south = pair.get("south", "")
 
 		if north == "" or south == "" or north == south:
-			continue
-
-		# Skip if already in biome
-		if north in biome_emojis or south in biome_emojis:
 			continue
 
 		# Dedupe
@@ -95,7 +80,7 @@ static func _collect_options(biome, farm) -> Array:
 			"north": north,
 			"south": south,
 			"label": "%s/%s" % [north, south],
-			"cost": _get_injection_cost(south),
+			"cost": _get_injection_cost(farm, south),
 			"enabled": true
 		})
 
@@ -133,21 +118,9 @@ static func _build_vocab_action(option: Dictionary) -> Dictionary:
 	}
 
 
-static func _get_injection_cost(south_emoji: String) -> Dictionary:
+static func _get_injection_cost(farm, south_emoji: String) -> Dictionary:
 	"""Get cost for injecting a vocab pair."""
-	# TODO: Pull from EconomyConstants when that's wired up
-	# For now, base cost with modifier based on emoji rarity
-	return {"energy": 1}
-
-
-static func _get_biome_emojis(biome) -> Array[String]:
-	"""Get all emojis in biome's quantum computer."""
-	if not biome:
-		return [] as Array[String]
-	if biome.viz_cache:
-		var emojis = biome.viz_cache.get_emojis()
-		return emojis as Array[String]
-	return [] as Array[String]
+	return ActionCostRuntime.get_action_cost(farm, "inject_vocabulary", {"south_emoji": south_emoji})
 
 
 static func _get_player_vocab_qc():

@@ -46,6 +46,8 @@ var _pump_scale: float = 0.08         # reward → pump rate
 var _drain_scale: float = 0.05        # penalty → drain rate
 var _decay_rate: float = 0.12         # Lindblad rate decay per step
 var _collapse_strength: float = 0.3   # partial projection after decision
+var _prior_injection: float = 0.8     # blend ρ diagonal with prior scores (0=none, 1=full replace)
+var _evolution_steps: int = 1         # Lindblad evolution steps per decision (0 = skip)
 
 
 func _init() -> void:
@@ -64,6 +66,8 @@ func reset(config: Dictionary = {}) -> Dictionary:
 	_drain_scale = clamp(float(config.get("drain_scale", 0.05)), 0.0, 1.0)
 	_decay_rate = clamp(float(config.get("decay_rate", 0.12)), 0.0, 1.0)
 	_collapse_strength = clamp(float(config.get("collapse_strength", 0.3)), 0.0, 1.0)
+	_prior_injection = clamp(float(config.get("prior_injection", 0.6)), 0.0, 1.0)
+	_evolution_steps = clampi(int(config.get("evolution_steps", 5)), 1, 50)
 	_max_history = max(16, int(config.get("max_history", 160)))
 	_step_count = 0
 	_quest_no_vocab_streak = 0
@@ -114,10 +118,38 @@ func decide(state: Dictionary) -> Dictionary:
 	var L_ops = _build_lindblad_operators()
 	_qc.set_lindblad_operators(L_ops)
 
-	# 3. Evolve one step (dt=1.0, single step — no subcycling needed for 8×8)
-	_qc.evolve(1.0, 1.0)
+	# 3. Evolve (Lindblad learning adjusts ρ based on reward history)
+	if _evolution_steps > 0:
+		var dt_step = 1.0
+		_qc.evolve(float(_evolution_steps) * dt_step, dt_step)
 
-	# 4. Read diagonal probabilities
+	# 4. Prior injection AFTER evolution: blend ρ diagonal with economy priors.
+	#    This is a partial preparation channel — ρ = (1-α)ρ + α·diag(π)
+	#    where π_i = prior_i / Σ priors.  Applied AFTER evolution so the
+	#    economy signal isn't destroyed by Hamiltonian rotation.  The evolution
+	#    adjusts the 30% retained from the previous cycle; the prior injection
+	#    grounds 70% in current economy reality.
+	if _prior_injection > 0.001:
+		var prior_scores = PackedFloat64Array()
+		prior_scores.resize(DIM)
+		prior_scores.fill(0.0)
+		var prior_sum = 0.0
+		for candidate in candidates:
+			if candidate is Dictionary:
+				var action_name = str(candidate.get("action", ""))
+				var idx = ACTIONS.find(action_name)
+				if idx >= 0 and available_mask[idx]:
+					var p = max(0.0, float(candidate.get("prior", 0.0)))
+					# Learn-aware prior: modulate by accumulated pump/drain rates.
+					var boost = 1.0 + _pump_rates[idx]
+					var damp = 1.0 + _drain_rates[idx]
+					p = p * boost / damp
+					prior_scores[idx] = p
+					prior_sum += p
+		if prior_sum > 1e-12:
+			_inject_prior_into_density_matrix(prior_scores, prior_sum, _prior_injection)
+
+	# 5. Read diagonal probabilities
 	var rho = _qc.density_matrix
 	var probs = PackedFloat64Array()
 	probs.resize(DIM)
@@ -140,7 +172,8 @@ func decide(state: Dictionary) -> Dictionary:
 		for i in range(DIM):
 			probs[i] /= prob_sum
 
-	# 5. Born rule roulette
+
+	# 6. Born rule roulette
 	var roll = _rng.randf()
 	var cumulative = 0.0
 	var selected_idx = 0
@@ -150,11 +183,11 @@ func decide(state: Dictionary) -> Dictionary:
 			selected_idx = i
 			break
 
-	# 6. Partial collapse: ρ = (1-α)ρ + α|i⟩⟨i|
+	# 7. Partial collapse: ρ = (1-α)ρ + α|i⟩⟨i|
 	if _collapse_strength > 0.001:
 		_apply_partial_collapse(selected_idx)
 
-	# 7. Determine mode from purity
+	# 8. Determine mode from purity
 	var purity = _compute_purity()
 	var mode = "explore" if purity < 0.3 else "exploit"
 
@@ -195,23 +228,22 @@ func observe(pre_state: Dictionary, decision: Dictionary, post_state: Dictionary
 	var reward_components = _compute_reward_components(pre_state, post_state, execution)
 	var reward = float(reward_components.get("reward", 0.0))
 
-	# Stagnation tracking (same as QuantumFiberPolicy)
+	# Stagnation tracking — updates streak counter for quest_pressure raw prior.
+	# Unlike QuantumFiberPolicy, we do NOT add stagnation_penalty to the reward
+	# signal because the learn-aware prior modulation would amplify it through
+	# drain_rates, creating a feedback loop that kills quest priority.
+	# Instead, stagnation only affects the raw prior in _quest_pressure().
 	var delta_pairs = float(reward_components.get("delta_pairs", 0.0))
-	var stagnation_penalty = 0.0
 	if action_name == "quest_cycle":
 		if delta_pairs <= 0.0:
 			_quest_no_vocab_streak += 1
-			stagnation_penalty = -min(24.0, float(_quest_no_vocab_streak) * 1.5)
 		else:
 			_quest_no_vocab_streak = 0
 	else:
 		if delta_pairs > 0.0:
 			_quest_no_vocab_streak = 0
-	reward += stagnation_penalty
 	reward = clamp(reward, -120.0, 220.0)
-	reward_components["stagnation_penalty"] = stagnation_penalty
 	reward_components["quest_no_vocab_streak"] = _quest_no_vocab_streak
-	reward_components["reward_after_stagnation"] = reward
 
 	_last_reward = reward
 	_last_reward_components = reward_components.duplicate(true)
@@ -493,6 +525,35 @@ func _apply_partial_collapse(action_idx: int) -> void:
 	_qc.load_packed_state(packed, DIM, false)
 
 
+func _inject_prior_into_density_matrix(prior_scores: PackedFloat64Array, prior_sum: float, alpha: float) -> void:
+	"""Partial preparation channel: ρ = (1-α)ρ + α·diag(π/Σπ).
+
+	Blends current density matrix with economy-informed prior distribution.
+	This grounds the quantum state in the current economy reality each cycle,
+	while preserving Lindblad-learned correlations in the off-diagonal elements
+	(scaled by 1-α).
+	"""
+	var rho = _qc.density_matrix
+	if rho == null:
+		return
+	var packed = rho._to_packed()
+	if packed.size() != DIM * DIM * 2:
+		return
+
+	var one_minus_alpha = 1.0 - alpha
+	# Scale entire ρ by (1-α) — preserves off-diagonal coherences (dampened)
+	for k in range(packed.size()):
+		packed[k] *= one_minus_alpha
+
+	# Add α·π_i to each diagonal element
+	for i in range(DIM):
+		var pi_i = prior_scores[i] / prior_sum
+		var diag_idx = (i * DIM + i) * 2  # real part of (i,i)
+		packed[diag_idx] += alpha * pi_i
+
+	_qc.load_packed_state(packed, DIM, false)
+
+
 func _compute_purity() -> float:
 	"""Tr(ρ²) — 1/8 for maximally mixed, 1 for pure."""
 	var rho = _qc.density_matrix
@@ -552,7 +613,7 @@ func _build_candidates(state: Dictionary) -> Array:
 	candidates.append({
 		"action": "quest_cycle",
 		"params": {},
-		"prior": quest_pressure,
+		"prior": quest_pressure + 3.0,
 		"tags": ["economy", "vocab"],
 	})
 
@@ -561,7 +622,7 @@ func _build_candidates(state: Dictionary) -> Array:
 		candidates.append({
 			"action": "probe_cycle",
 			"params": {"biome": probe_biome},
-			"prior": 1.0 + _resource_pressure(resources, floors) * 0.8,
+			"prior": 0.5 + _resource_pressure(resources, floors) * 0.8,
 			"tags": ["projection", probe_biome],
 		})
 
@@ -571,7 +632,7 @@ func _build_candidates(state: Dictionary) -> Array:
 		candidates.append({
 			"action": "lindblad_drain",
 			"params": {"biome": drain_biome},
-			"prior": 0.9 + (1.0 if active_drain <= 0 else 0.0),
+			"prior": 0.4 + float(active_drain) * 0.15,
 			"tags": ["passive_gain", drain_biome],
 		})
 
@@ -684,8 +745,11 @@ func _quest_pressure(resources: Dictionary, offers: Array, active_quests: Array,
 			unknown_vocab_reward += 1
 		if s != "" and not known.has(s):
 			unknown_vocab_reward += 1
-	var stagnation_bias = min(6.0, float(_quest_no_vocab_streak) * 0.45)
-	return 0.7 + float(active_quests.size()) * 0.3 + float(affordable) * 0.25 + float(unknown_vocab_reward) * 1.25 - stagnation_bias
+	# Stagnation: when quests aren't producing vocab, reduce penalty gently.
+	# Unlike UCB policy, we can't just "try something else" — quests are THE
+	# primary vocab mechanism.  Cap stagnation drag at 1.5 (not 6.0).
+	var stagnation_bias = min(1.5, float(_quest_no_vocab_streak) * 0.15)
+	return 2.0 + float(active_quests.size()) * 0.3 + float(affordable) * 0.25 + float(unknown_vocab_reward) * 1.25 - stagnation_bias
 
 
 func _resource_pressure(resources: Dictionary, floors: Dictionary) -> float:
@@ -870,7 +934,7 @@ func _compute_reward_components(pre_state: Dictionary, post_state: Dictionary, e
 	var execution_penalty = 0.0
 
 	if execution is Dictionary and not bool(execution.get("ok", false)):
-		execution_penalty = -4.0
+		execution_penalty = -8.0
 		reward += execution_penalty
 	var clamped = clamp(reward, -120.0, 220.0)
 	return {

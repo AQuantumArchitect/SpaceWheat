@@ -10,6 +10,7 @@ const EconomyConstants = preload("res://Core/GameMechanics/EconomyConstants.gd")
 const ActionIds = preload("res://Core/GameMechanics/ActionIds.gd")
 const QuestRewards = preload("res://Core/Quests/QuestRewards.gd")
 const BalanceConfig = preload("res://Core/GameMechanics/BalanceConfig.gd")
+const FarmVariableGraph = preload("res://Core/GameMechanics/FarmVariableGraph.gd")
 
 const ACTION_CATALOG: Array[String] = [
 	"explore",
@@ -76,7 +77,15 @@ static func get_snapshot(farm: Node) -> Dictionary:
 		"economy_variables": economy_variables,
 		"overrides": overrides,
 		"roi_notes": config.get("action_roi_notes", {}),
-		"quest_notes": config.get("quest_reward_notes", {})
+		"quest_notes": config.get("quest_reward_notes", {}),
+		"farm_variable_graph_jsonl": FarmVariableGraph.snapshot_to_graph_lines({
+			"profile_id": profile_id,
+			"action_costs": action_costs,
+			"gate_costs": gate_costs,
+			"quest_rewards": quest_tuning,
+			"tuning": tuning,
+			"economy_variables": economy_variables,
+		}),
 	}
 
 
@@ -166,6 +175,46 @@ static func reset_to_default(farm: Node) -> Dictionary:
 	return {"ok": true, "applied": applied, "profile_id": "default"}
 
 
+static func get_farm_variable_graph(farm: Node) -> Dictionary:
+	var snapshot = get_snapshot(farm)
+	return {
+		"ok": true,
+		"profile_id": str(snapshot.get("profile_id", "default")),
+		"lines": FarmVariableGraph.snapshot_to_graph_lines(snapshot),
+		"patch": {
+			"profile_id": snapshot.get("profile_id", "default"),
+			"action_costs": snapshot.get("action_costs", {}),
+			"gate_costs": snapshot.get("gate_costs", {}),
+			"quest_rewards": snapshot.get("quest_rewards", {}),
+			"tuning": snapshot.get("tuning", {}),
+			"economy_variables": snapshot.get("economy_variables", {}),
+		}
+	}
+
+
+static func apply_farm_variable_graph(farm: Node, lines: Array, source: String = "balance_service.farm_variable_graph") -> Dictionary:
+	if lines.is_empty():
+		return {"ok": false, "error": "empty_graph"}
+	var parsed = FarmVariableGraph.parse_graph_lines(lines)
+	if not bool(parsed.get("ok", false)):
+		return {"ok": false, "error": "invalid_graph", "errors": parsed.get("errors", [])}
+	var patch: Dictionary = parsed.get("patch", {})
+	if patch.is_empty():
+		return {"ok": false, "error": "empty_patch"}
+	var applied = apply_patch(farm, patch, source)
+	applied["graph_errors"] = parsed.get("errors", [])
+	return applied
+
+
+static func load_farm_variable_graph_file(farm: Node, path: String, source: String = "balance_service.farm_variable_graph_file") -> Dictionary:
+	var lines = FarmVariableGraph.load_graph_lines(path)
+	if lines.is_empty():
+		return {"ok": false, "error": "missing_or_empty_graph_file", "path": path}
+	var applied = apply_farm_variable_graph(farm, lines, source)
+	applied["path"] = path
+	return applied
+
+
 static func get_tuning_value(farm: Node, key: String, default_value):
 	var config = BalanceConfig.load_default_config(_get_current_state(farm))
 	var tuning = config.get("tuning", {}).duplicate(true)
@@ -221,8 +270,7 @@ static func _sync_state_from_economy(farm: Node, economy) -> void:
 	if state.balance_workbench_config is Dictionary:
 		cfg = state.balance_workbench_config.duplicate(true)
 	if economy and economy.has_method("get_economy_overrides"):
-		state.balance_overrides = economy.get_economy_overrides().duplicate(true)
-		var overrides = state.balance_overrides
+		var overrides = economy.get_economy_overrides().duplicate(true)
 		for key in ["action_costs", "gate_costs", "quest_rewards", "production", "tuning", "economy_variables"]:
 			var block = overrides.get(key, null)
 			if block is Dictionary:

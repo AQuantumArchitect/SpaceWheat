@@ -12,8 +12,9 @@ Source Of Truth
 
 Current Save-Backed Balance Fields
 - `balance_profile_id`
-- `balance_overrides`
 - `balance_workbench_config`
+- `farm_variable_graph_path`
+- `farm_variable_graph_jsonl`
 - `economy_variables`
 
 Economy Variables (serialized)
@@ -36,7 +37,7 @@ Testing Expectations
 - If you change save schema or economy application paths, validate:
   - New game boot
   - Save -> load roundtrip
-  - Balance overrides apply after load
+  - Farm-variable graph applies after load
 
 What To Avoid
 - Re-introducing detached backup/scaffolding files (`*.gd.backup`, `*.old*`).
@@ -44,5 +45,5 @@ What To Avoid
 - Adding new runtime config sources outside save/load without explicit design approval.
 
 Notes For Balance/Runner Teams
-- Tune through save profiles and `balance_overrides`/`economy_variables` in save state.
+- Tune through save profiles + farm-variable graph + `economy_variables` in save state.
 - Keep runner assumptions aligned with in-game state and serialization fields.

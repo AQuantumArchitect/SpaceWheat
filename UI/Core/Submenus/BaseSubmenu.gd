@@ -199,6 +199,14 @@ static func check_affordability(cost: Dictionary, economy) -> bool:
 	if not economy:
 		return false
 
+	# Canonical runtime affordance surface (matches ActionCostRuntime/FarmEconomy).
+	if economy.has_method("preflight_cost"):
+		return bool(economy.preflight_cost(cost).get("ok", false))
+
+	# Legacy method name.
+	if economy.has_method("can_afford_cost"):
+		return economy.can_afford_cost(cost)
+
 	# Try can_afford method first
 	if economy.has_method("can_afford"):
 		return economy.can_afford(cost)

@@ -59,7 +59,9 @@ class RigClient:
         self._results_offset: int = 0
         self._results_partial: str = ""
         self._results_by_turn: Dict[int, Dict[str, Any]] = {}
+        self._results_by_request: Dict[str, Dict[str, Any]] = {}
         self._latest_result_turn: int = -1
+        self._request_seq: int = 0
 
     @staticmethod
     def safe_print(msg: str) -> None:
@@ -88,7 +90,9 @@ class RigClient:
         self._results_offset = 0
         self._results_partial = ""
         self._results_by_turn.clear()
+        self._results_by_request.clear()
         self._latest_result_turn = -1
+        self._request_seq = 0
 
     @staticmethod
     def _bridge_sentinel_path(xdg: Optional[Path] = None) -> Path:
@@ -309,6 +313,9 @@ class RigClient:
                 self._results_by_turn[turn_i] = row
                 if turn_i > self._latest_result_turn:
                     self._latest_result_turn = turn_i
+            request_id = row.get("request_id")
+            if isinstance(request_id, str) and request_id:
+                self._results_by_request[request_id] = row
         self._trim_result_cache()
         return out
 
@@ -319,6 +326,12 @@ class RigClient:
             except StopIteration:
                 return
             self._results_by_turn.pop(oldest, None)
+        while len(self._results_by_request) > max_entries:
+            try:
+                oldest_request = next(iter(self._results_by_request))
+            except StopIteration:
+                return
+            self._results_by_request.pop(oldest_request, None)
 
     def wait_for_turn(
         self,
@@ -326,6 +339,7 @@ class RigClient:
         timeout_s: float = 10.0,
         progress_interval_s: float = 5.0,
         heartbeat_stale_s: float = 10.0,
+        request_id: Optional[str] = None,
     ) -> Optional[Dict[str, Any]]:
         """Wait for a turn result with heartbeat-aware timeout.
 
@@ -344,12 +358,22 @@ class RigClient:
             if elapsed >= timeout_s:
                 return None
             for row in self._read_new_result_rows():
-                turn = row.get("turn")
-                if isinstance(turn, (int, float)) and int(turn) == int(turn_id):
-                    return row
-            cached = self._results_by_turn.get(int(turn_id))
-            if cached is not None:
-                return cached
+                if request_id:
+                    row_request = row.get("request_id")
+                    if isinstance(row_request, str) and row_request == request_id:
+                        return row
+                else:
+                    turn = row.get("turn")
+                    if isinstance(turn, (int, float)) and int(turn) == int(turn_id):
+                        return row
+            if request_id:
+                cached_request = self._results_by_request.get(request_id)
+                if cached_request is not None:
+                    return cached_request
+            else:
+                cached = self._results_by_turn.get(int(turn_id))
+                if cached is not None:
+                    return cached
 
             now = time.time()
 
@@ -391,10 +415,20 @@ class RigClient:
         delay_s: float = 0.0,
         **kwargs: Any,
     ) -> Dict[str, Any]:
+        request_id = kwargs.pop("request_id", None)
+        if not isinstance(request_id, str) or not request_id:
+            self._request_seq += 1
+            request_id = f"{int(turn_id)}:{self._request_seq}"
         payload: Dict[str, Any] = {"turn": turn_id, "action": action}
+        payload["request_id"] = request_id
         payload.update(kwargs)
         self.queue_turn(payload)
-        result = self.wait_for_turn(turn_id, timeout_s=timeout_s, progress_interval_s=progress_interval_s)
+        result = self.wait_for_turn(
+            turn_id,
+            timeout_s=timeout_s,
+            progress_interval_s=progress_interval_s,
+            request_id=request_id,
+        )
         if result is None:
             return {"ok": False, "turn": turn_id, "action": action, "error": "timeout_waiting_for_result"}
         if delay_s > 0.0:

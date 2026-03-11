@@ -485,18 +485,19 @@ func _stage_ui(farm: Node, shell: Node, quantum_viz: Node) -> void:
 	var instrument = QuantumInstrumentClass.new()
 	instrument.setup(farm)
 	farm.set_instrument(instrument)
+	shell.quantum_instrument = instrument
 	input_handler.inject_instrument(instrument)
 	_verbose.info("boot", "🎛️", "QuantumInstrument ready (unified game mechanics API)")
 
-	# Create FarmInstrument to expose UI/quest/vocabulary helpers
-	const FarmInstrumentClass = preload("res://Core/Instrumentation/FarmInstrument.gd")
-	var farm_instrument = FarmInstrumentClass.new()
-	farm_instrument.name = "FarmInstrument"
-	shell.add_child(farm_instrument)
-	shell.farm_instrument = farm_instrument
-	farm_instrument.setup(farm, shell)
-	farm_instrument.inject_instrument(instrument)
-	_verbose.info("boot", "🎛️", "FarmInstrument ready (classical ↔ quest interface)")
+	# Create SnapshotService for diagnostics/state snapshots shared by UI + headless runners
+	const SnapshotServiceClass = preload("res://Core/Instrumentation/SnapshotService.gd")
+	var snapshot_service = SnapshotServiceClass.new()
+	snapshot_service.name = "SnapshotService"
+	shell.add_child(snapshot_service)
+	shell.snapshot_service = snapshot_service
+	snapshot_service.setup(farm, shell)
+	snapshot_service.inject_instrument(instrument)
+	_verbose.info("boot", "🎛️", "SnapshotService ready (diagnostics + rig snapshots)")
 
 	_verbose.info("boot", "✓", "QuantumInstrumentInput created (Musical Spindle)")
 

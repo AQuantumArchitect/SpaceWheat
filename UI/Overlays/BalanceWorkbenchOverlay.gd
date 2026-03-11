@@ -4,7 +4,8 @@ extends "res://UI/Core/OverlayBase.gd"
 const BalanceService = preload("res://Core/GameMechanics/BalanceService.gd")
 
 var _farm: Node = null
-var _farm_instrument = null
+var _snapshot_service = null
+var _instrument = null
 var _advanced_mode: bool = false
 var _profile_label: Label = null
 var _action_label: Label = null
@@ -43,8 +44,12 @@ func set_farm(farm_ref: Node) -> void:
 	_farm = farm_ref
 
 
-func set_farm_instrument(inst) -> void:
-	_farm_instrument = inst
+func set_snapshot_service(service) -> void:
+	_snapshot_service = service
+
+
+func set_quantum_instrument(inst) -> void:
+	_instrument = inst
 
 
 func set_advanced_mode(enabled: bool) -> void:
@@ -287,8 +292,8 @@ func _apply_quest_ratio_delta(delta: float) -> void:
 func _refresh_timescale_projection() -> void:
 	_last_projection = {}
 	_timescale_biomes.clear()
-	if _farm_instrument and _farm_instrument.has_method("get_grid_snapshot"):
-		var grid = _farm_instrument.get_grid_snapshot()
+	if _snapshot_service and _snapshot_service.has_method("get_grid_snapshot"):
+		var grid = _snapshot_service.get_grid_snapshot()
 		if bool(grid.get("ok", false)):
 			var biomes = grid.get("biomes", [])
 			if biomes is Array:
@@ -305,10 +310,10 @@ func _refresh_timescale_projection() -> void:
 	_selected_timescale_biome_idx = clampi(_selected_timescale_biome_idx, 0, _timescale_biomes.size() - 1)
 	var biome_name = _timescale_biomes[_selected_timescale_biome_idx]
 
-	if _farm_instrument and _farm_instrument.has_method("recommend_timescale"):
-		_last_projection = _farm_instrument.recommend_timescale(biome_name, 8)
-		if _last_projection.is_empty() and _farm_instrument.has_method("get_timescale_projection"):
-			_last_projection = _farm_instrument.get_timescale_projection(biome_name, 8)
+	if _instrument and _instrument.has_method("recommend_timescale"):
+		_last_projection = _instrument.recommend_timescale(biome_name, 8)
+		if _last_projection.is_empty() and _instrument.has_method("get_timescale_projection"):
+			_last_projection = _instrument.get_timescale_projection(biome_name, 8)
 		return
 
 	# Fallback when farm instrument is unavailable: show top global probabilities only.
@@ -381,13 +386,13 @@ func _on_easy_apply_pressed() -> void:
 		return
 	var biome_name = _timescale_biomes[_selected_timescale_biome_idx]
 
-	if not _farm_instrument:
-		_set_easy_status("Farm instrument unavailable.")
+	if not _instrument:
+		_set_easy_status("Quantum instrument unavailable.")
 		_render()
 		return
 
-	if _farm_instrument.has_method("auto_apply_timescale"):
-		var apply_result = _farm_instrument.auto_apply_timescale(biome_name, 8)
+	if _instrument.has_method("auto_apply_timescale"):
+		var apply_result = _instrument.auto_apply_timescale(biome_name, 8)
 		if bool(apply_result.get("ok", false)):
 			var stride = int(apply_result.get("recommended_stride", 1))
 			var dt = float(apply_result.get("recommended_dt", 0.02))
@@ -403,7 +408,7 @@ func _on_easy_apply_pressed() -> void:
 		return
 
 	# Legacy fallback if instrument doesn't expose auto helper.
-	if not (_farm_instrument.has_method("set_biome_stride") and _farm_instrument.has_method("set_biome_resolution")):
+	if not (_instrument.has_method("set_observation_stride") and _instrument.has_method("set_resolution")):
 		_set_easy_status("Timescale controls unavailable.")
 		_render()
 		return
@@ -422,8 +427,8 @@ func _on_easy_apply_pressed() -> void:
 		_render()
 		return
 
-	var stride_result = _farm_instrument.set_biome_stride(biome_name, stride)
-	var dt_result = _farm_instrument.set_biome_resolution(biome_name, dt)
+	var stride_result = _instrument.set_observation_stride(biome_name, stride)
+	var dt_result = _instrument.set_resolution(biome_name, dt)
 	var stride_ok = bool(stride_result.get("ok", false))
 	var dt_ok = bool(dt_result.get("ok", false))
 	if stride_ok and dt_ok:

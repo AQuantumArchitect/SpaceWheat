@@ -5,6 +5,7 @@ extends RefCounted
 ## Keeps GameStateManager focused on orchestration.
 
 const GameState = preload("res://Core/GameState/GameState.gd")
+const BalanceService = preload("res://Core/GameMechanics/BalanceService.gd")
 
 var _verbose = null
 var _vocabulary_evolution = null
@@ -95,10 +96,15 @@ func capture_state_from_farm(farm: Node, current_state: GameState, scenario_id: 
 	state.tributes_failed = economy.total_tributes_failed if "total_tributes_failed" in economy else 0
 	if economy.has_method("get_balance_profile_id"):
 		state.balance_profile_id = economy.get_balance_profile_id()
-	if economy.has_method("get_economy_overrides"):
-		state.balance_overrides = economy.get_economy_overrides().duplicate(true)
 	if economy.has_method("get_economy_variables"):
 		state.economy_variables = economy.get_economy_variables().duplicate(true)
+	var graph_snapshot = BalanceService.get_farm_variable_graph(farm)
+	if bool(graph_snapshot.get("ok", false)):
+		var lines = graph_snapshot.get("lines", [])
+		if lines is Array:
+			state.farm_variable_graph_jsonl = lines.duplicate()
+		if current_state and ("farm_variable_graph_path" in current_state):
+			state.farm_variable_graph_path = str(current_state.farm_variable_graph_path)
 	if current_state and ("balance_workbench_config" in current_state):
 		var cfg = current_state.balance_workbench_config
 		if cfg is Dictionary and not cfg.is_empty():
@@ -270,30 +276,23 @@ func apply_state_to_farm(state: GameState, farm: Node) -> void:
 	for emoji in economy.emoji_credits.keys():
 		economy._emit_resource_change(emoji)
 
-	if economy.has_method("apply_economy_overrides"):
-		var balance_payload: Dictionary = {}
-		if state.balance_workbench_config is Dictionary and not state.balance_workbench_config.is_empty():
-			for key in ["action_costs", "gate_costs", "quest_rewards", "production", "tuning", "economy_variables"]:
-				var block = state.balance_workbench_config.get(key, null)
-				if block is Dictionary and not block.is_empty():
-					balance_payload[key] = block.duplicate(true)
-		if state.balance_overrides is Dictionary and not state.balance_overrides.is_empty():
-			for key in state.balance_overrides.keys():
-				var value = state.balance_overrides[key]
-				if value is Dictionary:
-					var merged = balance_payload.get(key, {})
-					if not (merged is Dictionary):
-						merged = {}
-					for sub_key in value.keys():
-						merged[str(sub_key)] = value[sub_key]
-					balance_payload[key] = merged
-				else:
-					balance_payload[key] = value
-		if state.balance_profile_id != "" and not balance_payload.has("profile_id"):
-			balance_payload["profile_id"] = state.balance_profile_id
-		if state.economy_variables is Dictionary and not state.economy_variables.is_empty():
-			balance_payload["economy_variables"] = state.economy_variables.duplicate(true)
-		economy.apply_economy_overrides(balance_payload)
+	var graph_applied = false
+	if state.farm_variable_graph_jsonl is Array and not state.farm_variable_graph_jsonl.is_empty():
+		var apply_result = BalanceService.apply_farm_variable_graph(
+			farm,
+			state.farm_variable_graph_jsonl,
+			"save_state.farm_variable_graph"
+		)
+		graph_applied = bool(apply_result.get("ok", false))
+	elif state.farm_variable_graph_path != "":
+		var load_result = BalanceService.load_farm_variable_graph_file(
+			farm,
+			state.farm_variable_graph_path,
+			"save_state.farm_variable_graph_path"
+		)
+		graph_applied = bool(load_result.get("ok", false))
+	if not graph_applied:
+		BalanceService.reset_to_default(farm)
 
 	if farm.has_method("set_reap_count"):
 		farm.set_reap_count(int(state.reap_count))

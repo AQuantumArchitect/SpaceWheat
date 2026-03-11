@@ -54,6 +54,11 @@ extends SceneTree
 ## - balance_reset
 ## - balance_export: {path?: String}
 ## - balance_load: {path: String}
+## - farm_variable_graph
+## - farm_variable_graph_apply: {lines: [String], source?: String}
+## - farm_variable_graph_load: {path: String}
+## - action_cost: {name: String, context?: Dictionary}
+## - action_preflight: {name: String, context?: Dictionary}
 ## - save_game: {slot: int}
 ## - save_game_path: {path: String}
 ## - load_game: {slot: int}
@@ -71,14 +76,15 @@ extends SceneTree
 ## Future actions can be added to the match statement in _execute_command().
 
 const PlayerShellScene = preload("res://UI/PlayerShell.tscn")
-const BiomeHandler = preload("res://UI/Handlers/BiomeHandler.gd")
 const ProbeActions = preload("res://Core/Actions/ProbeActions.gd")
 const QuantumForceGraph = preload("res://Core/Visualization/QuantumForceGraph.gd")
 const QuantumInstrumentClass = preload("res://Core/Instrumentation/QuantumInstrument.gd")
 const QuantumFiberPolicyClass = preload("res://Core/AI/QuantumFiberPolicy.gd")
 const PolicyQuantumRegisterClass = preload("res://Core/AI/PolicyQuantumRegister.gd")
 const BiomeAffinityCalc = preload("res://Core/Quantum/BiomeAffinityCalculator.gd")
+const PolicySnapshotBuilder = preload("res://Core/Instrumentation/PolicySnapshotBuilder.gd")
 const PhysicsConfig = preload("res://Core/Config/PhysicsConfig.gd")
+const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")
 
 signal action_executed(turn_id: int, action: String, result: Dictionary)
 signal bridge_idle()
@@ -93,7 +99,7 @@ var _next_heartbeat_at_ms: int = 0
 
 var _queue_offset: int = 0
 var _shell = null
-var _farm_instrument = null
+var _snapshot_service = null
 var _instrument = null  # QuantumInstrument
 var _farm = null
 var _policy = null  # QuantumFiberPolicy
@@ -161,11 +167,10 @@ func _bootstrap() -> void:
 
 func _on_ready() -> void:
 	_ensure_rig_dir()
+	_prime_queue_cursor_to_end()
 	_apply_rig_logger_profile()
-	if _shell and "farm_instrument" in _shell:
-		_farm_instrument = _shell.farm_instrument
-		if _farm_instrument and "instrument" in _farm_instrument:
-			_instrument = _farm_instrument.instrument
+	_snapshot_service = InstrumentLocator.resolve_snapshot_service(_shell)
+	_instrument = InstrumentLocator.resolve_quantum_instrument(_shell)
 	_ensure_policy()
 	_sync_policy_from_game_state()
 	var turn_log_env = OS.get_environment("RIG_VERBOSE_TURN_LOG").to_lower()
@@ -180,6 +185,16 @@ func _on_ready() -> void:
 	print("🎛️ Rig ready (%dHz phrame clock). Waiting for turns in:" % int(_phrame_hz()), _queue_path)
 	_write_bridge_ready_sentinel()
 	physics_frame.connect(_on_physics_frame)
+
+
+func _prime_queue_cursor_to_end() -> void:
+	var queue_file_path = ProjectSettings.globalize_path(_queue_path)
+	var file = FileAccess.open(queue_file_path, FileAccess.READ)
+	if not file:
+		_queue_offset = 0
+		return
+	_queue_offset = file.get_length()
+	file.close()
 
 
 func _turn_log(level: String, turn_id: int, action: String, details: String = "") -> void:
@@ -247,31 +262,48 @@ func _poll_queue() -> void:
 	file.close()
 
 
-func _ensure_farm_instrument() -> bool:
-	if _farm_instrument:
-		return true
-	if _shell and "farm_instrument" in _shell:
-		_farm_instrument = _shell.farm_instrument
-	return _farm_instrument != null
+func _ensure_snapshot_service() -> bool:
+	if not _snapshot_service:
+		_snapshot_service = InstrumentLocator.resolve_snapshot_service(_shell)
+	if not _instrument:
+		_instrument = InstrumentLocator.resolve_quantum_instrument(_shell)
+	return _snapshot_service != null
 
 
-func _requires_farm_instrument(action: String) -> bool:
+func _requires_snapshot_service(action: String) -> bool:
 	return action in [
 		"open_overlay",
-		"offer_quests",
-		"accept_offer",
-		"accept_quest",
-		"complete_quest",
-		"complete_or_claim",
-		"claim_quest",
 		"resource_snapshot",
-		"add_resource",
-		"set_resource",
-		"resource_mutations",
+		"policy_snapshot",
 		"grid_snapshot",
 		"biome_positions",
 		"active_quests",
 		"known_vocab_pairs",
+		"batcher_metrics",
+		"probability_map",
+		"lindblad_snapshot",
+		"overlay_snapshot",
+		"widget_snapshot",
+		"hud_snapshot",
+		"full_snapshot",
+	]
+
+
+func _requires_quantum_instrument(action: String) -> bool:
+	return action in [
+		"offer_quests",
+		"accept_offer",
+		"accept_quest",
+		"lock_offer",
+		"unlock_offer",
+		"accept_locked",
+		"complete_quest",
+		"complete_or_claim",
+		"claim_quest",
+		"locked_offers",
+		"add_resource",
+		"set_resource",
+		"resource_mutations",
 		"inject_vocab",
 		"gate_inject",
 		"lindblad_pump",
@@ -287,22 +319,22 @@ func _requires_farm_instrument(action: String) -> bool:
 		"recommend_timescale",
 		"auto_timescale",
 		"configure_economy",
-		"victory_lap",
-		"victory_lap_partial",
-		"batcher_metrics",
-		"probability_map",
-		"lindblad_snapshot",
 		"balance_snapshot",
 		"balance_patch",
 		"balance_reset",
 		"balance_export",
 		"balance_load",
-		"overlay_snapshot",
-		"widget_snapshot",
-		"hud_snapshot",
-		"full_snapshot",
-		"policy_reset",
-		"policy_snapshot",
+		"farm_variable_graph",
+		"farm_variable_graph_apply",
+		"farm_variable_graph_load",
+		"action_cost",
+		"action_preflight",
+		"configure_seed_state",
+		"probe_cycle",
+		"discover_biome",
+		"explore_biome",
+		"victory_lap",
+		"victory_lap_partial",
 		"policy_step",
 	]
 
@@ -327,11 +359,14 @@ func _handle_line(raw: String) -> void:
 	var cmd: Dictionary = data
 	var action = str(cmd.get("action", ""))
 	var turn_id = int(cmd.get("turn", -1))
+	var request_id = str(cmd.get("request_id", ""))
 	_turn_log("BEGIN", turn_id, action)
 	_ensure_runtime_unpaused_for_rig()
 	var result = await _execute_command(cmd)
 	result["turn"] = turn_id
 	result["action"] = action
+	if request_id != "":
+		result["request_id"] = request_id
 	_write_result(result)
 	var ok = bool(result.get("ok", false))
 	if ok:
@@ -349,17 +384,29 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 	var turn_id = cmd.get("turn", -1)
 	var started = Time.get_ticks_msec()
 
-	if _requires_farm_instrument(action) and not _ensure_farm_instrument():
+	if _requires_snapshot_service(action) and not _ensure_snapshot_service():
 		# Readiness race guard: allow one frame for shell wiring to settle.
 		await process_frame
-		if _ensure_farm_instrument():
+		if _ensure_snapshot_service():
 			pass
 		else:
 			return {
 				"ok": false,
 				"turn": turn_id,
 				"action": action,
-				"error": "no_farm_instrument",
+				"error": "no_snapshot_service",
+				"duration_ms": Time.get_ticks_msec() - started
+			}
+	if _requires_quantum_instrument(action):
+		if not _ensure_snapshot_service():
+			await process_frame
+			_ensure_snapshot_service()
+		if not _instrument:
+			return {
+				"ok": false,
+				"turn": turn_id,
+				"action": action,
+				"error": "no_quantum_instrument",
 				"duration_ms": Time.get_ticks_msec() - started
 			}
 
@@ -368,14 +415,22 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 	match action:
 		"open_overlay":
 			var name = cmd.get("name", "")
-			var opened = _farm_instrument.open_quest_board() if name == "quests" \
-				else _farm_instrument.open_vocabulary_panel() if name == "vocabulary" \
-				else _farm_instrument.open_controls_panel() if name == "controls" \
+			var opened = _snapshot_service.open_quest_board() if name == "quests" \
+				else _snapshot_service.open_vocabulary_panel() if name == "vocabulary" \
+				else _snapshot_service.open_controls_panel() if name == "controls" \
 				else false
 			result["opened"] = opened
 
 		"offer_quests":
-			var offers = _farm_instrument.get_quest_offers_for_current_biome()
+			var offers: Array = []
+			var offer_result = _instrument.quest_offer_all()
+			if bool(offer_result.get("ok", false)):
+				var offered = offer_result.get("offers", [])
+				if offered is Array:
+					offers = offered
+			else:
+				result["ok"] = false
+				result["error"] = str(offer_result.get("error", "offer_failed"))
 			_last_offers = offers
 			var full = bool(cmd.get("full", false))
 			var include_reward_resources = bool(cmd.get("include_reward_resources", true))
@@ -388,46 +443,42 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 				result = {"ok": false, "turn": turn_id, "action": action, "error": "invalid_offer_index"}
 			else:
 				var offer = _last_offers[idx]
-				result["accepted"] = _farm_instrument.accept_quest_data(offer)
+				var accept_result = _instrument.quest_accept(offer)
+				result["accepted"] = bool(accept_result.get("accepted", false))
 				result["quest_id"] = offer.get("id", -1)
 
 		"accept_quest":
 			var quest_id = int(cmd.get("quest_id", -1))
-			result["accepted"] = _farm_instrument.accept_quest_by_id(quest_id)
+			var accept_by_id_result = _instrument.quest_accept_by_id(quest_id)
+			result["accepted"] = bool(accept_by_id_result.get("accepted", false))
 
 		"lock_offer":
 			var idx = int(cmd.get("offer_index", -1))
 			if idx < 0 or idx >= _last_offers.size():
 				result = {"ok": false, "turn": turn_id, "action": action, "error": "invalid_offer_index"}
 			else:
-				var quest_mgr = get_root().get_node_or_null("QuestManager")
-				if quest_mgr and quest_mgr.has_method("lock_offer"):
-					var offer = _last_offers[idx]
-					result["locked"] = quest_mgr.lock_offer(offer)
-					result["quest_id"] = offer.get("id", -1)
-				else:
-					result = {"ok": false, "turn": turn_id, "action": action, "error": "lock_unavailable"}
+				var offer = _last_offers[idx]
+				var lock_result = _instrument.quest_lock_offer(offer)
+				result["locked"] = bool(lock_result.get("locked", false))
+				result["quest_id"] = int(lock_result.get("quest_id", offer.get("id", -1)))
 
 		"unlock_offer":
 			var quest_id = int(cmd.get("quest_id", -1))
-			var quest_mgr = get_root().get_node_or_null("QuestManager")
-			if quest_mgr and quest_mgr.has_method("unlock_offer"):
-				result["unlocked"] = quest_mgr.unlock_offer(quest_id)
-			else:
-				result = {"ok": false, "turn": turn_id, "action": action, "error": "unlock_unavailable"}
+			var unlock_result = _instrument.quest_unlock_offer(quest_id)
+			result["unlocked"] = bool(unlock_result.get("unlocked", false))
 
 		"accept_locked":
 			var quest_id = int(cmd.get("quest_id", -1))
-			var quest_mgr = get_root().get_node_or_null("QuestManager")
-			if quest_mgr and quest_mgr.has_method("accept_locked_offer"):
-				result["accepted"] = quest_mgr.accept_locked_offer(quest_id)
-			else:
-				result = {"ok": false, "turn": turn_id, "action": action, "error": "accept_locked_unavailable"}
+			var accept_locked_result = _instrument.quest_accept_locked(quest_id)
+			result["accepted"] = bool(accept_locked_result.get("accepted", false))
 
 		"locked_offers":
-			var quest_mgr = get_root().get_node_or_null("QuestManager")
-			if quest_mgr and quest_mgr.has_method("get_locked_offers"):
-				var locked = quest_mgr.get_locked_offers()
+			var locked: Array = []
+			var locked_result = _instrument.quest_locked_offers()
+			var locked_raw = locked_result.get("offers", [])
+			if locked_raw is Array:
+				locked = locked_raw
+			if locked is Array:
 				result["locked_offers"] = _slim_offers(locked, true, false)
 				result["count"] = locked.size()
 			else:
@@ -436,18 +487,30 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 
 		"complete_quest":
 			var quest_id = int(cmd.get("quest_id", -1))
-			result["completed"] = _farm_instrument.complete_quest(quest_id)
+			var complete_result = _instrument.quest_complete(quest_id)
+			result["completed"] = bool(complete_result.get("completed", false))
 
 		"complete_or_claim":
 			var quest_id = int(cmd.get("quest_id", -1))
-			result["completed_or_claimed"] = _farm_instrument.complete_or_claim_quest(quest_id)
+			var coc_result = _instrument.quest_complete_or_claim(quest_id)
+			result["completed_or_claimed"] = bool(coc_result.get("completed_or_claimed", false))
 
 		"claim_quest":
 			var quest_id = int(cmd.get("quest_id", -1))
-			result["claimed"] = _farm_instrument.claim_quest(quest_id)
+			var claim_result = _instrument.quest_claim(quest_id)
+			result["claimed"] = bool(claim_result.get("claimed", false))
 
 		"resource_snapshot":
-			result["resources"] = _farm_instrument.get_resource_snapshot()
+			var policy_resources = _get_policy_snapshot(false, false)
+			var resource_snapshot = policy_resources.get("resource_snapshot", {})
+			if not (resource_snapshot is Dictionary):
+				resource_snapshot = {}
+			result["resources"] = resource_snapshot
+
+		"policy_snapshot":
+			var include_offers = bool(cmd.get("include_offers", true))
+			var include_grid = bool(cmd.get("include_grid", true))
+			result["policy_snapshot"] = _get_policy_snapshot(include_offers, include_grid)
 
 		"add_resource":
 			var emoji = str(cmd.get("emoji", ""))
@@ -455,7 +518,7 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 			if not _allow_rig_resource_injection():
 				result = {"ok": false, "turn": turn_id, "action": action, "error": "rig_resource_injection_disabled"}
 			else:
-				result["added"] = _farm_instrument.add_resource(emoji, amount, "rig_add")
+				result["added"] = bool(_instrument.add_resource(emoji, amount, "rig_add").get("ok", false))
 
 		"set_resource":
 			var emoji = str(cmd.get("emoji", ""))
@@ -463,47 +526,46 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 			if not _allow_rig_resource_injection():
 				result = {"ok": false, "turn": turn_id, "action": action, "error": "rig_resource_injection_disabled"}
 			else:
-				result["set"] = _farm_instrument.set_resource(emoji, amount, "rig_set")
+				result["set"] = bool(_instrument.set_resource(emoji, amount, "rig_set").get("ok", false))
 
 		"resource_mutations":
 			var limit = int(cmd.get("limit", 40))
-			result["mutations"] = _farm_instrument.get_recent_resource_mutations(limit)
+			result["mutations"] = _instrument.get_recent_resource_mutations(limit)
 
 		"grid_snapshot":
-			result["grid"] = _farm_instrument.get_grid_snapshot()
+			var policy_grid = _get_policy_snapshot(false, true)
+			var grid_snapshot = policy_grid.get("grid", {})
+			if not (grid_snapshot is Dictionary):
+				grid_snapshot = {}
+			result["grid"] = grid_snapshot
 
 		"biome_positions":
 			var biome_name = str(cmd.get("biome", ""))
 			result["biome"] = biome_name
-			result["positions"] = _farm_instrument.get_biome_positions(biome_name)
+			if _snapshot_service and _snapshot_service.has_method("get_biome_positions"):
+				result["positions"] = _snapshot_service.get_biome_positions(biome_name)
+			else:
+				result["positions"] = _instrument.get_biome_positions(biome_name)
 
 		"active_quests":
 			var full = bool(cmd.get("full", false))
-			var active = _farm_instrument.get_active_quests()
+			var policy_quests = _get_policy_snapshot(false, false)
+			var active = policy_quests.get("active_quests", [])
+			if not (active is Array):
+				active = []
 			result["quests"] = active if full else _slim_active_quests(active)
 
 		"known_vocab_pairs":
-			result["pairs"] = _farm_instrument.get_known_vocab_pairs()
+			var policy_pairs = _get_policy_snapshot(false, false)
+			var pairs = policy_pairs.get("known_pairs", [])
+			result["pairs"] = pairs if pairs is Array else []
 
 		"inject_vocab":
 			var biome_name = str(cmd.get("biome", ""))
-			if _instrument and biome_name != "":
+			if biome_name != "":
 				result["inject_result"] = _instrument.action_inject_vocabulary(biome_name)
 			else:
-				var pair_index = int(cmd.get("pair_index", -1))
-				var pairs = _farm_instrument.get_known_vocab_pairs()
-				if biome_name == "" or pair_index < 0 or pair_index >= pairs.size():
-					result = {"ok": false, "turn": turn_id, "action": action, "error": "invalid_inject_args"}
-				else:
-					var positions_raw = _farm_instrument.get_biome_positions(biome_name)
-					if positions_raw.is_empty():
-						result = {"ok": false, "turn": turn_id, "action": action, "error": "no_biome_positions"}
-					else:
-						var pair = pairs[pair_index]
-						var positions: Array[Vector2i] = []
-						for pos in positions_raw:
-							positions.append(pos)
-						result["inject_result"] = BiomeHandler.inject_vocabulary(_farm, positions, pair)
+				result = {"ok": false, "turn": turn_id, "action": action, "error": "missing_biome"}
 
 		"gate_inject":
 			var gate_name = str(cmd.get("gate", ""))
@@ -515,10 +577,8 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 				var positions: Array[Vector2i] = _parse_positions(raw_positions, biome_name)
 				if positions.is_empty():
 					result = {"ok": false, "turn": turn_id, "action": action, "error": "no_valid_positions"}
-				elif _instrument:
-					result["gate_result"] = _instrument.gate_inject(gate_name, positions)
 				else:
-					result["gate_result"] = _farm_instrument.gate_inject(gate_name, positions)
+					result["gate_result"] = _instrument.gate_inject(gate_name, positions)
 
 		"lindblad_pump":
 			var biome_name = str(cmd.get("biome", ""))
@@ -526,10 +586,8 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 			var positions: Array[Vector2i] = _parse_positions(raw_positions, biome_name)
 			if positions.is_empty():
 				result = {"ok": false, "turn": turn_id, "action": action, "error": "no_valid_positions"}
-			elif _instrument:
-				result["pump_result"] = _instrument.lindblad_pump(positions)
 			else:
-				result["pump_result"] = _farm_instrument.lindblad_pump(positions)
+				result["pump_result"] = _instrument.lindblad_pump(positions)
 
 		"lindblad_drain":
 			var biome_name = str(cmd.get("biome", ""))
@@ -537,10 +595,8 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 			var positions: Array[Vector2i] = _parse_positions(raw_positions, biome_name)
 			if positions.is_empty():
 				result = {"ok": false, "turn": turn_id, "action": action, "error": "no_valid_positions"}
-			elif _instrument:
-				result["drain_result"] = _instrument.lindblad_drain(positions)
 			else:
-				result["drain_result"] = _farm_instrument.lindblad_drain(positions)
+				result["drain_result"] = _instrument.lindblad_drain(positions)
 
 		"channel_drain":
 			# Strategic framing: drain by emoji pair instead of raw positions
@@ -614,7 +670,7 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 			if biome_name == "":
 				result = {"ok": false, "turn": turn_id, "action": action, "error": "missing_biome"}
 			else:
-				result["stride_result"] = _farm_instrument.set_biome_stride(biome_name, stride)
+				result["stride_result"] = _instrument.set_biome_stride(biome_name, stride)
 
 		"set_resolution":
 			var biome_name = str(cmd.get("biome", ""))
@@ -622,27 +678,27 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 			if biome_name == "":
 				result = {"ok": false, "turn": turn_id, "action": action, "error": "missing_biome"}
 			else:
-				result["resolution_result"] = _farm_instrument.set_biome_resolution(biome_name, dt)
+				result["resolution_result"] = _instrument.set_biome_resolution(biome_name, dt)
 
 		"get_timescale":
 			var biome_name = str(cmd.get("biome", ""))
 			if biome_name == "":
 				result = {"ok": false, "turn": turn_id, "action": action, "error": "missing_biome"}
 			else:
-				result["timescale"] = _farm_instrument.get_biome_timescale(biome_name)
+				result["timescale"] = _instrument.get_biome_timescale(biome_name)
 
 		"set_timescale_objective":
 			var objective = cmd.get("objective", {})
 			if not (objective is Dictionary):
 				result = {"ok": false, "turn": turn_id, "action": action, "error": "invalid_objective"}
 			else:
-				result["timescale_objective"] = _farm_instrument.set_timescale_objective(objective)
+				result["timescale_objective"] = _instrument.set_timescale_objective(objective)
 
 		"get_timescale_objective":
-			result["timescale_objective"] = _farm_instrument.get_timescale_objective()
+			result["timescale_objective"] = _instrument.get_timescale_objective()
 
 		"clear_timescale_objective":
-			result["timescale_objective"] = _farm_instrument.clear_timescale_objective()
+			result["timescale_objective"] = _instrument.clear_timescale_objective()
 
 		"timescale_projection":
 			var biome_name = str(cmd.get("biome", ""))
@@ -650,7 +706,7 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 			if biome_name == "":
 				result = {"ok": false, "turn": turn_id, "action": action, "error": "missing_biome"}
 			else:
-				result["timescale_projection"] = _farm_instrument.get_timescale_projection(biome_name, top_k)
+				result["timescale_projection"] = _instrument.get_timescale_projection(biome_name, top_k)
 
 		"recommend_timescale":
 			var biome_name = str(cmd.get("biome", ""))
@@ -658,7 +714,7 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 			if biome_name == "":
 				result = {"ok": false, "turn": turn_id, "action": action, "error": "missing_biome"}
 			else:
-				result["recommendation"] = _farm_instrument.recommend_timescale(biome_name, top_k)
+				result["recommendation"] = _instrument.recommend_timescale(biome_name, top_k)
 
 		"auto_timescale":
 			var biome_name = str(cmd.get("biome", ""))
@@ -666,43 +722,31 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 			if biome_name == "":
 				result = {"ok": false, "turn": turn_id, "action": action, "error": "missing_biome"}
 			else:
-				result["auto_timescale"] = _farm_instrument.auto_apply_timescale(biome_name, top_k)
+				result["auto_timescale"] = _instrument.auto_apply_timescale(biome_name, top_k)
 
 		"configure_economy":
 			var overrides = cmd.get("overrides", {})
 			if not (overrides is Dictionary) or overrides.is_empty():
 				result = {"ok": false, "turn": turn_id, "action": action, "error": "empty_overrides"}
 			else:
-				result["configured"] = _farm_instrument.configure_economy(overrides)
+				result["configured"] = _instrument.configure_economy(overrides)
 
 		"configure_seed_state":
-			if _instrument:
-				result["seed_state"] = _instrument.configure_seed_state(cmd)
-			else:
-				result["seed_state"] = _configure_seed_state(cmd)
+			result["seed_state"] = _instrument.configure_seed_state(cmd)
 
 		"probe_cycle":
 			var biome_name = str(cmd.get("biome", ""))
 			var full_probe = bool(cmd.get("full", false))
-			if _instrument:
-				var probe_data = _instrument.probe_cycle(biome_name)
-				result["probe"] = probe_data if full_probe else _slim_probe_result(probe_data)
-				if _farm_instrument and _farm_instrument.has_method("show_probe_cycle_status"):
-					_farm_instrument.show_probe_cycle_status(biome_name, probe_data)
-			else:
-				var probe_data_fallback = _probe_cycle(biome_name)
-				result["probe"] = probe_data_fallback if full_probe else _slim_probe_result(probe_data_fallback)
+			var probe_data = _instrument.probe_cycle(biome_name)
+			result["probe"] = probe_data if full_probe else _slim_probe_result(probe_data)
+			if _snapshot_service and _snapshot_service.has_method("show_probe_cycle_status"):
+				_snapshot_service.show_probe_cycle_status(biome_name, probe_data)
 
 		"discover_biome", "explore_biome":
-			if _instrument:
-				if _instrument.has_method("action_discover_biome"):
-					result["discover_biome"] = _instrument.action_discover_biome()
-				else:
-					result["discover_biome"] = _instrument.action_explore_biome()
-			elif not _farm or not _farm.has_method("explore_biome"):
-				result = {"ok": false, "turn": turn_id, "action": action, "error": "farm_discover_unavailable"}
+			if _instrument.has_method("action_discover_biome"):
+				result["discover_biome"] = _instrument.action_discover_biome()
 			else:
-				result["discover_biome"] = _farm.explore_biome()
+				result["discover_biome"] = _instrument.action_explore_biome()
 			# Attach discovery forecast to result
 			if _farm and _farm.has_method("compute_discovery_forecast"):
 				result["discovery_forecast"] = _farm.compute_discovery_forecast()
@@ -714,10 +758,7 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 				result = {"ok": false, "turn": turn_id, "action": action, "error": "forecast_unavailable"}
 
 		"victory_lap":
-			if _instrument:
-				result["victory_lap"] = _instrument.victory_lap()
-			else:
-				result["victory_lap"] = await _run_victory_lap()
+			result["victory_lap"] = _instrument.victory_lap()
 
 		"victory_lap_partial":
 			var selected_biomes_raw = cmd.get("selected_biomes", [])
@@ -730,35 +771,27 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 			var max_registers = int(cmd.get("max_registers", 8))
 			var milk_spend = int(cmd.get("milk_spend", 0))
 			var phase_window = int(cmd.get("phase_window", 1))
-			if _instrument:
-				result["victory_lap_partial"] = _instrument.victory_lap_partial(
-					selected_biomes,
-					max_registers,
-					milk_spend,
-					phase_window
-				)
-			else:
-				result["victory_lap_partial"] = _run_victory_lap_partial(
-					selected_biomes,
-					max_registers,
-					milk_spend,
-					phase_window
-				)
+			result["victory_lap_partial"] = _instrument.victory_lap_partial(
+				selected_biomes,
+				max_registers,
+				milk_spend,
+				phase_window
+			)
 
 		"batcher_metrics":
-			result["metrics"] = _farm_instrument.get_batcher_metrics() if _farm_instrument else {}
+			result["metrics"] = _snapshot_service.get_batcher_metrics() if _snapshot_service else {}
 
 		"probability_map":
 			var biome_name = str(cmd.get("biome", ""))
-			result["probability_map"] = _farm_instrument.get_probability_map(biome_name)
+			result["probability_map"] = _snapshot_service.get_probability_map(biome_name)
 
 		"lindblad_snapshot":
 			var biome_name = str(cmd.get("biome", ""))
 			var include_populations = bool(cmd.get("include_populations", true))
-			result["lindblad_snapshot"] = _farm_instrument.get_lindblad_snapshot(biome_name, include_populations)
+			result["lindblad_snapshot"] = _snapshot_service.get_lindblad_snapshot(biome_name, include_populations)
 
 		"balance_snapshot":
-			result["balance"] = _farm_instrument.get_balance_snapshot()
+			result["balance"] = _instrument.get_balance_snapshot()
 
 		"balance_patch":
 			var patch = cmd.get("patch", {})
@@ -766,18 +799,60 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 				result = {"ok": false, "turn": turn_id, "action": action, "error": "empty_patch"}
 			else:
 				var source = str(cmd.get("source", "rig_balance_patch"))
-				result["balance"] = _farm_instrument.patch_balance(patch, source)
+				result["balance"] = _instrument.patch_balance(patch, source)
 
 		"balance_reset":
-			result["balance"] = _farm_instrument.reset_balance_to_default()
+			result["balance"] = _instrument.reset_balance_to_default()
 
 		"balance_export":
 			var export_path = str(cmd.get("path", "user://saves/balance_profile_last.json"))
-			result["balance"] = _farm_instrument.export_balance_profile(export_path)
+			result["balance"] = _instrument.export_balance_profile(export_path)
 
 		"balance_load":
 			var load_path = str(cmd.get("path", ""))
-			result["balance"] = _farm_instrument.load_balance_profile(load_path)
+			result["balance"] = _instrument.load_balance_profile(load_path)
+
+		"farm_variable_graph":
+			result["farm_variable_graph"] = _instrument.get_farm_variable_graph()
+
+		"farm_variable_graph_apply":
+			var lines = cmd.get("lines", [])
+			if not (lines is Array) or lines.is_empty():
+				result = {"ok": false, "turn": turn_id, "action": action, "error": "empty_graph_lines"}
+			else:
+				var source = str(cmd.get("source", "rig.farm_variable_graph_apply"))
+				result["farm_variable_graph"] = _instrument.apply_farm_variable_graph(lines, source)
+
+		"farm_variable_graph_load":
+			var graph_path = str(cmd.get("path", ""))
+			if graph_path == "":
+				result = {"ok": false, "turn": turn_id, "action": action, "error": "missing_graph_path"}
+			else:
+				result["farm_variable_graph"] = _instrument.load_farm_variable_graph_file(graph_path)
+
+		"action_cost":
+			var action_name = str(cmd.get("name", cmd.get("action_name", "")))
+			var context = cmd.get("context", {})
+			if action_name == "":
+				result = {"ok": false, "turn": turn_id, "action": action, "error": "missing_action_name"}
+			elif not (context is Dictionary):
+				result = {"ok": false, "turn": turn_id, "action": action, "error": "invalid_context"}
+			else:
+				result["action_name"] = action_name
+				result["context"] = context
+				result["cost"] = _instrument.get_action_cost(action_name, context)
+
+		"action_preflight":
+			var action_name = str(cmd.get("name", cmd.get("action_name", "")))
+			var context = cmd.get("context", {})
+			if action_name == "":
+				result = {"ok": false, "turn": turn_id, "action": action, "error": "missing_action_name"}
+			elif not (context is Dictionary):
+				result = {"ok": false, "turn": turn_id, "action": action, "error": "invalid_context"}
+			else:
+				result["action_name"] = action_name
+				result["context"] = context
+				result["preflight"] = _instrument.preflight_action_cost(action_name, context)
 
 		"save_game":
 			var slot = int(cmd.get("slot", -1))
@@ -1109,20 +1184,20 @@ func _probe_cycle(biome_name: String) -> Dictionary:
 	var explore = ProbeActions.action_explore(_farm.terminal_pool, biome, _farm.economy)
 	if not explore.get("success", false):
 		var explore_fail = {"success": false, "stage": "explore", "details": explore}
-		if _farm_instrument and _farm_instrument.has_method("show_probe_cycle_status"):
-			_farm_instrument.show_probe_cycle_status(biome_name, explore_fail)
+		if _snapshot_service and _snapshot_service.has_method("show_probe_cycle_status"):
+			_snapshot_service.show_probe_cycle_status(biome_name, explore_fail)
 		return explore_fail
 	var terminal = explore.get("terminal", null)
 	var measure = ProbeActions.action_measure(terminal, biome, _farm.economy)
 	if not measure.get("success", false):
 		var measure_fail = {"success": false, "stage": "measure", "details": measure}
-		if _farm_instrument and _farm_instrument.has_method("show_probe_cycle_status"):
-			_farm_instrument.show_probe_cycle_status(biome_name, measure_fail)
+		if _snapshot_service and _snapshot_service.has_method("show_probe_cycle_status"):
+			_snapshot_service.show_probe_cycle_status(biome_name, measure_fail)
 		return measure_fail
 	var pop = ProbeActions.action_pop(terminal, _farm.terminal_pool, _farm.economy, _farm)
 	var out = {"success": true, "explore": explore, "measure": measure, "pop": pop, "active_biome": biome_name}
-	if _farm_instrument and _farm_instrument.has_method("show_probe_cycle_status"):
-		_farm_instrument.show_probe_cycle_status(biome_name, out)
+	if _snapshot_service and _snapshot_service.has_method("show_probe_cycle_status"):
+		_snapshot_service.show_probe_cycle_status(biome_name, out)
 	return out
 
 
@@ -1483,12 +1558,7 @@ func _sanitize_known_pairs(raw) -> Array:
 func _perform_time_skip(phrames: int, delta: float) -> Dictionary:
 	if _instrument and _instrument.has_method("time_skip"):
 		return _instrument.time_skip(phrames, delta)
-	if _farm_instrument and _farm_instrument.has_method("time_skip"):
-		return _farm_instrument.time_skip(phrames, delta)
-	if _farm and _farm.has_method("time_skip_phrames"):
-		var dt = delta if delta > 0.0 else 1.0 / 6.0
-		return _farm.time_skip_phrames(phrames, dt)
-	return {"ok": false, "error": "time_skip_unavailable"}
+	return {"ok": false, "error": "no_quantum_instrument"}
 
 
 func _parse_wait_threshold(raw) -> Dictionary:
@@ -1506,13 +1576,30 @@ func _parse_wait_threshold(raw) -> Dictionary:
 
 
 func _get_resource_map() -> Dictionary:
-	if not _farm_instrument:
+	if not _instrument:
 		return {}
-	var snap = _farm_instrument.get_resource_snapshot()
-	if not (snap is Dictionary):
-		return {}
-	var resources = snap.get("resources", {})
+	var policy_snapshot = _get_policy_snapshot(false, false)
+	var resources = policy_snapshot.get("resources", {})
+	if not (resources is Dictionary):
+		var snap = _instrument.get_resource_snapshot()
+		if not (snap is Dictionary):
+			return {}
+		resources = snap.get("resources", {})
 	return resources if resources is Dictionary else {}
+
+
+func _get_policy_snapshot(include_offers: bool = true, include_grid: bool = true) -> Dictionary:
+	if _snapshot_service and _snapshot_service.has_method("get_policy_snapshot"):
+		var via_snapshot = _snapshot_service.get_policy_snapshot(include_offers, include_grid)
+		if via_snapshot is Dictionary:
+			return via_snapshot
+	if not _instrument:
+		return {}
+	if _instrument.has_method("get_policy_snapshot"):
+		var bundled = _instrument.get_policy_snapshot(include_offers, include_grid)
+		if bundled is Dictionary:
+			return bundled
+	return PolicySnapshotBuilder.build(_instrument, include_offers, include_grid)
 
 
 func _resource_threshold_met(resources: Dictionary, threshold: Dictionary) -> bool:
@@ -1523,6 +1610,24 @@ func _resource_threshold_met(resources: Dictionary, threshold: Dictionary) -> bo
 		if float(resources.get(emoji, 0.0)) < target:
 			return false
 	return true
+
+
+func _resolve_quest_manager():
+	if _shell and "quest_manager" in _shell:
+		var shell_qm = _shell.quest_manager
+		if shell_qm:
+			return shell_qm
+	var autoload_qm = get_root().get_node_or_null("/root/QuestManager")
+	if autoload_qm:
+		return autoload_qm
+	var local_qm = get_root().get_node_or_null("QuestManager")
+	if local_qm:
+		return local_qm
+	if _shell:
+		var child_qm = _shell.get_node_or_null("QuestManager")
+		if child_qm:
+			return child_qm
+	return null
 
 
 func _ensure_policy():
@@ -1609,20 +1714,34 @@ func _build_policy_state(cmd: Dictionary = {}) -> Dictionary:
 				continue
 			seen[action_name] = true
 			forbid_actions.append(action_name)
-	var resources = _get_resource_map()
-	var known_pairs: Array = _farm_instrument.get_known_vocab_pairs() if _farm_instrument else []
-	var offers: Array = _farm_instrument.get_quest_offers_for_current_biome() if _farm_instrument else []
-	var active_quests: Array = _farm_instrument.get_active_quests() if _farm_instrument else []
-	var grid_snapshot = _farm_instrument.get_grid_snapshot() if _farm_instrument else {}
-	var biomes: Array = []
-	if grid_snapshot is Dictionary:
+	var policy_snapshot: Dictionary = {}
+	policy_snapshot = _get_policy_snapshot(true, true)
+	var resources = policy_snapshot.get("resources", {}) if policy_snapshot is Dictionary else {}
+	if not (resources is Dictionary):
+		resources = _get_resource_map()
+	var known_pairs: Array = policy_snapshot.get("known_pairs", []) if policy_snapshot is Dictionary else []
+	if not (known_pairs is Array):
+		known_pairs = _instrument.get_known_vocab_pairs() if _instrument else []
+	var offers: Array = policy_snapshot.get("offers", []) if policy_snapshot is Dictionary else []
+	if not (offers is Array):
+		offers = _instrument.get_quest_offers_for_current_biome() if _instrument else []
+	var active_quests: Array = policy_snapshot.get("active_quests", []) if policy_snapshot is Dictionary else []
+	if not (active_quests is Array):
+		active_quests = _instrument.get_active_quests() if _instrument else []
+	var grid_snapshot = policy_snapshot.get("grid", {}) if policy_snapshot is Dictionary else {}
+	if not (grid_snapshot is Dictionary):
+		grid_snapshot = _instrument.get_grid_snapshot() if _instrument else {}
+	var biomes: Array = policy_snapshot.get("biomes", []) if policy_snapshot is Dictionary else []
+	if not (biomes is Array):
+		biomes = []
+	if biomes.is_empty() and grid_snapshot is Dictionary:
 		var raw_biomes = grid_snapshot.get("biomes", [])
 		if raw_biomes is Array:
 			for biome_name in raw_biomes:
 				var b = str(biome_name)
 				if b != "":
 					biomes.append(b)
-	var lindblad_snapshot = _farm_instrument.get_lindblad_snapshot("", false) if _farm_instrument else {}
+	var lindblad_snapshot = _snapshot_service.get_lindblad_snapshot("", false) if _snapshot_service else {}
 
 	# Discovery forecast
 	var discovery_forecast: Dictionary = {}
@@ -1630,8 +1749,9 @@ func _build_policy_state(cmd: Dictionary = {}) -> Dictionary:
 		discovery_forecast = _farm.compute_discovery_forecast()
 
 	# Locked offers
-	var quest_mgr = get_root().get_node_or_null("QuestManager")
-	var locked_offers: Array = quest_mgr.get_locked_offers() if quest_mgr else []
+	var locked_offers: Array = policy_snapshot.get("locked_offers", []) if policy_snapshot is Dictionary else []
+	if not (locked_offers is Array):
+		locked_offers = _instrument.get_locked_offers() if _instrument else []
 
 	# Annotate offers with discovery_affinity
 	var obs = get_root().get_node_or_null("ObservationFrame")
@@ -1687,7 +1807,9 @@ func _execute_policy_action(decision: Dictionary) -> Dictionary:
 	match action:
 		"probe_cycle":
 			var biome_name = str(params.get("biome", ""))
-			var probe_data = _instrument.probe_cycle(biome_name) if _instrument else _probe_cycle(biome_name)
+			if not _instrument:
+				return {"ok": false, "action": action, "error": "no_quantum_instrument"}
+			var probe_data = _instrument.probe_cycle(biome_name)
 			var probe_ok = bool(probe_data.get("success", false)) if probe_data is Dictionary else false
 			var harvested = ""
 			if probe_data is Dictionary:
@@ -1708,7 +1830,9 @@ func _execute_policy_action(decision: Dictionary) -> Dictionary:
 			var positions: Array[Vector2i] = _parse_positions(params.get("positions", []), biome_name)
 			if positions.is_empty():
 				return {"ok": false, "action": action, "error": "no_valid_positions", "biome": biome_name}
-			var drain_result = _instrument.lindblad_drain(positions) if _instrument else _farm_instrument.lindblad_drain(positions)
+			if not _instrument:
+				return {"ok": false, "action": action, "error": "no_quantum_instrument", "biome": biome_name}
+			var drain_result = _instrument.lindblad_drain(positions)
 			var ok = false
 			if drain_result is Dictionary:
 				ok = bool(drain_result.get("success", false))
@@ -1746,16 +1870,13 @@ func _execute_policy_action(decision: Dictionary) -> Dictionary:
 				"resources": resources,
 			}
 		"discover_biome":
+			if not _instrument:
+				return {"ok": false, "action": action, "error": "no_quantum_instrument"}
 			var discover_result = {}
-			if _instrument:
-				if _instrument.has_method("action_discover_biome"):
-					discover_result = _instrument.action_discover_biome()
-				else:
-					discover_result = _instrument.action_explore_biome()
-			elif _farm and _farm.has_method("explore_biome"):
-				discover_result = _farm.explore_biome()
+			if _instrument.has_method("action_discover_biome"):
+				discover_result = _instrument.action_discover_biome()
 			else:
-				return {"ok": false, "action": action, "error": "discover_unavailable"}
+				discover_result = _instrument.action_explore_biome()
 			var ok = bool(discover_result.get("success", false)) if discover_result is Dictionary else false
 			var policy_discover_return = {
 				"ok": ok,
@@ -1766,6 +1887,8 @@ func _execute_policy_action(decision: Dictionary) -> Dictionary:
 				policy_discover_return["discovery_forecast"] = _farm.compute_discovery_forecast()
 			return policy_discover_return
 		"victory_lap_partial":
+			if not _instrument:
+				return {"ok": false, "action": action, "error": "no_quantum_instrument"}
 			var selected_raw = params.get("selected_biomes", [])
 			var selected_biomes: Array[String] = []
 			if selected_raw is Array:
@@ -1776,21 +1899,26 @@ func _execute_policy_action(decision: Dictionary) -> Dictionary:
 			var max_registers = int(params.get("max_registers", 8))
 			var milk_spend = int(params.get("milk_spend", 0))
 			var phase_window = int(params.get("phase_window", 1))
-			var lap = _instrument.victory_lap_partial(selected_biomes, max_registers, milk_spend, phase_window) if _instrument else _run_victory_lap_partial(selected_biomes, max_registers, milk_spend, phase_window)
+			var lap = _instrument.victory_lap_partial(selected_biomes, max_registers, milk_spend, phase_window)
 			return {
 				"ok": bool(lap.get("success", false)) if lap is Dictionary else false,
 				"action": action,
 				"victory_lap_partial": lap,
 			}
 		"lock_offer":
+			if not _instrument:
+				return {"ok": false, "action": action, "error": "no_quantum_instrument"}
 			var offer_index = int(params.get("offer_index", -1))
-			var lock_offers = _farm_instrument.get_quest_offers_for_current_biome() if _farm_instrument else []
+			var lock_offers: Array = []
+			var lock_offer_result = _instrument.quest_offer_all()
+			var offered = lock_offer_result.get("offers", [])
+			if offered is Array:
+				lock_offers = offered
 			if offer_index < 0 or offer_index >= lock_offers.size():
 				return {"ok": false, "action": action, "error": "invalid_offer_index"}
-			var lock_quest_mgr = get_root().get_node_or_null("QuestManager")
-			if not lock_quest_mgr:
-				return {"ok": false, "action": action, "error": "no_quest_manager"}
-			var locked = lock_quest_mgr.lock_offer(lock_offers[offer_index])
+			var locked = false
+			var lock_res = _instrument.quest_lock_offer(lock_offers[offer_index])
+			locked = bool(lock_res.get("locked", false))
 			return {
 				"ok": locked,
 				"action": action,
@@ -1801,10 +1929,10 @@ func _execute_policy_action(decision: Dictionary) -> Dictionary:
 
 
 func _execute_policy_quest_cycle() -> Dictionary:
-	if not _farm_instrument:
-		return {"ok": false, "action": "quest_cycle", "error": "no_farm_instrument"}
+	if not _instrument:
+		return {"ok": false, "action": "quest_cycle", "error": "no_instrument"}
 	var completed_ids: Array = []
-	var active = _farm_instrument.get_active_quests()
+	var active = _instrument.get_active_quests()
 	if active is Array:
 		for q in active:
 			if not (q is Dictionary):
@@ -1812,12 +1940,19 @@ func _execute_policy_quest_cycle() -> Dictionary:
 			var qid = int(q.get("id", -1))
 			if qid < 0:
 				continue
-			if _farm_instrument.complete_or_claim_quest(qid):
+			var completed_or_claimed = false
+			var complete_result = _instrument.quest_complete_or_claim(qid)
+			completed_or_claimed = bool(complete_result.get("completed_or_claimed", false))
+			if completed_or_claimed:
 				completed_ids.append(qid)
 
-	var offers = _farm_instrument.get_quest_offers_for_current_biome()
+	var offers: Array = []
+	var offer_result = _instrument.quest_offer_all()
+	var offered = offer_result.get("offers", [])
+	if offered is Array:
+		offers = offered
 	var resources = _get_resource_map()
-	var known_pairs = _farm_instrument.get_known_vocab_pairs()
+	var known_pairs = _instrument.get_known_vocab_pairs() if _instrument else []
 	var known_emojis: Dictionary = {}
 	if known_pairs is Array:
 		for pair in known_pairs:
@@ -1842,10 +1977,12 @@ func _execute_policy_quest_cycle() -> Dictionary:
 			var offer = offers[accepted_offer_index]
 			if offer is Dictionary:
 				accepted_offer = offer
-				accepted = _farm_instrument.accept_quest_data(offer)
+				var accept_result = _instrument.quest_accept(offer)
+				accepted = bool(accept_result.get("accepted", false))
 				accepted_quest_id = int(offer.get("id", -1))
 				if accepted and accepted_quest_id >= 0:
-					completed_after_accept = _farm_instrument.complete_or_claim_quest(accepted_quest_id)
+					var complete_after_result = _instrument.quest_complete_or_claim(accepted_quest_id)
+					completed_after_accept = bool(complete_after_result.get("completed_or_claimed", false))
 
 	var ok = (completed_ids.size() > 0) or accepted or completed_after_accept
 	return {
@@ -1934,8 +2071,8 @@ func _parse_positions(raw_positions, biome_name: String) -> Array[Vector2i]:
 					var y_raw = parts[1].strip_edges()
 					if x_raw.is_valid_int() and y_raw.is_valid_int():
 						positions.append(Vector2i(int(x_raw), int(y_raw)))
-	elif biome_name != "" and _farm_instrument:
-		var biome_positions = _farm_instrument.get_biome_positions(biome_name)
+	elif biome_name != "" and _snapshot_service:
+		var biome_positions = _instrument.get_biome_positions(biome_name) if _instrument else []
 		for pos in biome_positions:
 			positions.append(pos)
 	return positions

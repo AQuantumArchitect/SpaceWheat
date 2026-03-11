@@ -1,7 +1,7 @@
-class_name FarmInstrument
+class_name SnapshotService
 extends Node
 
-## FarmInstrument - Bridge between classical resources, the quest/vocabulary UI, and QII tooling.
+## SnapshotService - Shared diagnostics and state snapshot API for UI + headless runners.
 ##
 ## Provides a single API for external scripts (like the emoji bash runners) to:
 ##   1. Query economy/output information (resources, farm grid)
@@ -23,8 +23,8 @@ var _probe_status_label: Label = null
 var _probe_status_hide_at_ms: int = 0
 
 const PROBE_STATUS_DURATION_MS: int = 900
-const PhysicsConfig = preload("res://Core/Config/PhysicsConfig.gd")
 const QuantumInstrumentClass = preload("res://Core/Instrumentation/QuantumInstrument.gd")
+const PolicySnapshotBuilder = preload("res://Core/Instrumentation/PolicySnapshotBuilder.gd")
 
 
 func setup(farm_ref: Node, shell_ref: Node) -> void:
@@ -43,7 +43,7 @@ func setup(farm_ref: Node, shell_ref: Node) -> void:
 		action_bar_manager = shell_ref.action_bar_manager
 
 	if _verbose:
-		_verbose.info("instrument", "🎛️", "FarmInstrument initialized (farm=%s, shell=%s)" % [
+		_verbose.info("instrument", "🎛️", "SnapshotService initialized (farm=%s, shell=%s)" % [
 			farm_ref.name if farm_ref else "null",
 			shell_ref.name if shell_ref else "null"
 		])
@@ -98,6 +98,9 @@ func describe_resources() -> Dictionary:
 
 func get_resource_snapshot() -> Dictionary:
 	"""Return a stable snapshot of resources for turn-by-turn rigs."""
+	if instrument and instrument.has_method("get_resource_snapshot"):
+		var snap = instrument.get_resource_snapshot()
+		return snap if snap is Dictionary else {}
 	var resources = describe_resources()
 	var keys: Array = resources.keys()
 	keys.sort()
@@ -107,8 +110,16 @@ func get_resource_snapshot() -> Dictionary:
 	}
 
 
+func get_policy_snapshot(include_offers: bool = true, include_grid: bool = true) -> Dictionary:
+	"""Aggregate policy-facing reads into one payload for rigs and UI diagnostics."""
+	return PolicySnapshotBuilder.build(self, include_offers, include_grid)
+
+
 func get_grid_snapshot() -> Dictionary:
 	"""Return a minimal grid snapshot for QA turn-by-turn rigs."""
+	if instrument and instrument.has_method("get_grid_snapshot"):
+		var snap = instrument.get_grid_snapshot()
+		return snap if snap is Dictionary else {"ok": false, "error": "invalid_grid_snapshot"}
 	if not farm or not ("grid" in farm) or not farm.grid:
 		return {"ok": false, "error": "no_grid"}
 	var grid = farm.grid
@@ -238,24 +249,6 @@ func get_lindblad_snapshot(biome_name: String = "", include_populations: bool = 
 	}
 
 
-func add_resource(emoji: String, credits_amount: int, reason: String = "rig_seed") -> bool:
-	"""Add emoji-credits directly to economy (used by QA rigs)."""
-	var economy = _get_economy()
-	if not economy or not economy.has_method("add_resource"):
-		return false
-	economy.add_resource(emoji, credits_amount, reason)
-	return true
-
-
-func set_resource(emoji: String, credits_amount: int, reason: String = "rig_set") -> bool:
-	"""Set emoji-credits to an exact amount (used by deterministic rig seeding)."""
-	var economy = _get_economy()
-	if not economy or not economy.has_method("set_resource"):
-		return false
-	economy.set_resource(emoji, credits_amount, reason)
-	return true
-
-
 func get_recent_resource_mutations(limit: int = 40) -> Array:
 	var economy = _get_economy()
 	if not economy or not economy.has_method("get_recent_resource_mutations"):
@@ -264,6 +257,9 @@ func get_recent_resource_mutations(limit: int = 40) -> Array:
 
 
 func get_active_quests() -> Array:
+	if instrument and instrument.has_method("get_active_quests"):
+		var quests = instrument.get_active_quests()
+		return quests if quests is Array else []
 	if quest_manager and quest_manager.has_method("get_active_quests"):
 		return quest_manager.get_active_quests()
 	return []
@@ -271,6 +267,12 @@ func get_active_quests() -> Array:
 
 func get_quest_offers_for_current_biome() -> Array:
 	"""Return quest offers for the current biome (does not accept)."""
+	if instrument and instrument.has_method("quest_offer_all"):
+		var offer_result = instrument.quest_offer_all()
+		if offer_result is Dictionary and bool(offer_result.get("ok", false)):
+			var offers = offer_result.get("offers", [])
+			if offers is Array:
+				return offers
 	if not quest_manager or not farm:
 		return []
 	if not quest_manager.has_method("offer_all_faction_quests"):
@@ -283,33 +285,10 @@ func get_quest_offers_for_current_biome() -> Array:
 	return quest_manager.offer_all_faction_quests(current_biome)
 
 
-func accept_quest_data(quest_data: Dictionary) -> bool:
-	if not quest_manager:
-		return false
-	return quest_manager.accept_quest(quest_data)
-
-
-func complete_quest(quest_id: int) -> bool:
-	if not quest_manager:
-		return false
-	return quest_manager.complete_quest(quest_id)
-
-
-func complete_or_claim_quest(quest_id: int) -> bool:
-	if not quest_manager:
-		return false
-	if quest_manager.has_method("complete_or_claim"):
-		return quest_manager.complete_or_claim(quest_id)
-	return false
-
-
-func claim_quest(quest_id: int) -> bool:
-	if not quest_manager:
-		return false
-	return quest_manager.claim_quest(quest_id)
-
-
 func get_known_vocab_pairs() -> Array:
+	if instrument and instrument.has_method("get_known_vocab_pairs"):
+		var pairs = instrument.get_known_vocab_pairs()
+		return pairs if pairs is Array else []
 	if farm and farm.has_method("get_known_pairs"):
 		return farm.get_known_pairs()
 	return []
@@ -323,6 +302,9 @@ func get_known_vocab_emojis() -> Array:
 
 func get_biome_positions(biome_name: String) -> Array:
 	"""Return plot positions for a biome name."""
+	if instrument and instrument.has_method("get_biome_positions"):
+		var positions = instrument.get_biome_positions(biome_name)
+		return positions if positions is Array else []
 	if not farm or not ("grid" in farm) or not farm.grid:
 		return []
 	if not ("plot_biome_assignments" in farm.grid):
@@ -334,195 +316,14 @@ func get_biome_positions(biome_name: String) -> Array:
 	return positions
 
 
-func accept_quest_by_id(quest_id: int) -> bool:
-	if not quest_manager:
-		return false
-	var quest = quest_manager.get_quest_by_id(quest_id) if quest_manager.has_method("get_quest_by_id") else {}
-	if quest.is_empty():
-		return false
-	return quest_manager.accept_quest(quest)
-
-
-func offer_all_quests_for_current_biome() -> void:
-	if not quest_manager or not farm:
-		return
-	if not quest_manager.has_method("offer_all_faction_quests"):
-		return
-	var current_biome = farm.get_current_biome() if farm.has_method("get_current_biome") else null
-	if not current_biome and farm.grid and farm.grid.biomes and not farm.grid.biomes.is_empty():
-		current_biome = farm.grid.biomes.values()[0]
-	if current_biome:
-		quest_manager.offer_all_faction_quests(current_biome)
-
-
-## ============================================================================
-## QUANTUM GATE & LINDBLAD OPERATIONS
-## ============================================================================
-
-const LindbladHandler = preload("res://UI/Handlers/LindbladHandler.gd")
-const BalanceService = preload("res://Core/GameMechanics/BalanceService.gd")
-
-
-func gate_inject(gate_name: String, positions: Array[Vector2i]) -> Dictionary:
-	"""Apply a quantum gate. Always delegates to QuantumInstrument."""
-	if instrument:
-		return instrument.gate_inject(gate_name, positions)
-	push_error("FarmInstrument: no QuantumInstrument available for gate_inject")
-	return {"ok": false, "error": "no_instrument"}
-
-
-func lindblad_pump(positions: Array[Vector2i]) -> Dictionary:
-	"""Apply Lindblad drive (pump). Delegates to QuantumInstrument if available."""
-	if instrument:
-		return instrument.lindblad_pump(positions)
-	if not farm:
-		return {"ok": false, "error": "no_farm"}
-	return LindbladHandler.enable_persistent_drive(farm, positions)
-
-
-func lindblad_drain(positions: Array[Vector2i]) -> Dictionary:
-	"""Apply Lindblad decay (drain). Delegates to QuantumInstrument if available."""
-	if instrument:
-		return instrument.lindblad_drain(positions)
-	if not farm:
-		return {"ok": false, "error": "no_farm"}
-	return LindbladHandler.enable_persistent_decay(farm, positions)
-
-
-func time_skip(phrames: int, delta: float = -1.0) -> Dictionary:
-	"""Advance simulation phrames deterministically for headless runner usage."""
-	if instrument and instrument.has_method("time_skip"):
-		return instrument.time_skip(phrames, delta)
-	if not farm or not farm.has_method("time_skip_phrames"):
-		return {"ok": false, "error": "no_time_skip_support"}
-	return farm.time_skip_phrames(phrames, delta if delta > 0.0 else PhysicsConfig.PHRAME_DT)
-
-
-func set_biome_stride(biome_name: String, stride: int) -> Dictionary:
-	"""Set observation stride for a biome. Delegates to QuantumInstrument."""
-	if instrument:
-		return instrument.set_observation_stride(biome_name, stride)
-	return {"ok": false, "error": "no_instrument"}
-
-
-func set_biome_resolution(biome_name: String, dt: float) -> Dictionary:
-	"""Set evolution resolution (dt) for a biome. Delegates to QuantumInstrument."""
-	if instrument:
-		return instrument.set_resolution(biome_name, dt)
-	return {"ok": false, "error": "no_instrument"}
-
-
-func get_biome_timescale(biome_name: String) -> Dictionary:
-	"""Get timescale snapshot for a biome. Delegates to QuantumInstrument."""
-	if instrument:
-		return instrument.get_timescale_snapshot(biome_name)
-	return {"ok": false, "error": "no_instrument"}
-
-
-func set_timescale_objective(objective: Dictionary) -> Dictionary:
-	"""Set shared timescale objective (used by UI + headless runners)."""
-	if instrument and instrument.has_method("set_timescale_objective"):
-		return instrument.set_timescale_objective(objective)
-	return {"ok": false, "error": "no_instrument"}
-
-
-func get_timescale_objective() -> Dictionary:
-	"""Get current timescale objective payload."""
-	if instrument and instrument.has_method("get_timescale_objective"):
-		return instrument.get_timescale_objective()
-	return {"ok": false, "error": "no_instrument"}
-
-
-func clear_timescale_objective() -> Dictionary:
-	"""Reset timescale objective to defaults."""
-	if instrument and instrument.has_method("clear_timescale_objective"):
-		return instrument.clear_timescale_objective()
-	return {"ok": false, "error": "no_instrument"}
-
-
-func get_timescale_projection(biome_name: String, top_k: int = -1) -> Dictionary:
-	"""Project icon-map probabilities + objective scoring for a biome."""
-	if instrument and instrument.has_method("get_timescale_projection"):
-		return instrument.get_timescale_projection(biome_name, top_k)
-	return {"ok": false, "error": "no_instrument"}
-
-
-func recommend_timescale(biome_name: String, top_k: int = -1) -> Dictionary:
-	"""Return recommended stride/dt/wait for a biome under current objective."""
-	if instrument and instrument.has_method("recommend_timescale"):
-		return instrument.recommend_timescale(biome_name, top_k)
-	return {"ok": false, "error": "no_instrument"}
-
-
-func auto_apply_timescale(biome_name: String, top_k: int = -1) -> Dictionary:
-	"""One-click helper: recommend + apply stride/dt for a biome."""
-	if instrument and instrument.has_method("auto_apply_timescale"):
-		return instrument.auto_apply_timescale(biome_name, top_k)
-	return {"ok": false, "error": "no_instrument"}
-
-
-func configure_economy(overrides: Dictionary) -> Dictionary:
-	"""Apply economy overrides from a world state config.
-
-	Delegates to farm.economy.apply_economy_overrides().
-	Returns the result from FarmEconomy.
-	"""
-	if not farm:
-		return {"ok": false, "error": "no_farm"}
-	return BalanceService.apply_patch(farm, overrides, "farm_instrument.configure_economy")
-
-
-func get_balance_snapshot() -> Dictionary:
-	if not farm:
-		return {"ok": false, "error": "no_farm"}
-	var snapshot = BalanceService.get_snapshot(farm)
-	snapshot["ok"] = true
-	return snapshot
-
-
-func patch_balance(patch: Dictionary, source: String = "farm_instrument.patch_balance") -> Dictionary:
-	if not farm:
-		return {"ok": false, "error": "no_farm"}
-	return BalanceService.apply_patch(farm, patch, source)
-
-
-func reset_balance_to_default() -> Dictionary:
-	if not farm:
-		return {"ok": false, "error": "no_farm"}
-	return BalanceService.reset_to_default(farm)
-
-
-func export_balance_profile(path: String = "user://saves/balance_profile_last.json") -> Dictionary:
-	if not farm:
-		return {"ok": false, "error": "no_farm"}
-	var snapshot = BalanceService.get_snapshot(farm)
-	var file = FileAccess.open(path, FileAccess.WRITE)
-	if not file:
-		return {"ok": false, "error": "file_open_failed", "path": path}
-	file.store_string(JSON.stringify(snapshot, "\t"))
-	return {"ok": true, "path": path}
-
-
-func load_balance_profile(path: String) -> Dictionary:
-	if not farm:
-		return {"ok": false, "error": "no_farm"}
-	if path == "":
-		return {"ok": false, "error": "empty_path"}
-	if not FileAccess.file_exists(path):
-		return {"ok": false, "error": "missing_file", "path": path}
-	var file = FileAccess.open(path, FileAccess.READ)
-	if not file:
-		return {"ok": false, "error": "file_open_failed", "path": path}
-	var parsed = JSON.parse_string(file.get_as_text())
-	if not (parsed is Dictionary):
-		return {"ok": false, "error": "invalid_json", "path": path}
-	var patch = {
-		"profile_id": parsed.get("profile_id", "default"),
-		"action_costs": parsed.get("action_costs", {}),
-		"gate_costs": parsed.get("gate_costs", {}),
-		"quest_rewards": parsed.get("quest_rewards", {})
-	}
-	return BalanceService.apply_patch(farm, patch, "farm_instrument.load_balance_profile")
+func get_locked_offers() -> Array:
+	if instrument and instrument.has_method("quest_locked_offers"):
+		var result = instrument.quest_locked_offers()
+		var offers = result.get("offers", [])
+		return offers if offers is Array else []
+	if not quest_manager or not quest_manager.has_method("get_locked_offers"):
+		return []
+	return quest_manager.get_locked_offers()
 
 
 func log_action(action: String, details: Dictionary = {}) -> void:

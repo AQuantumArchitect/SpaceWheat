@@ -15,10 +15,15 @@ const ProbeActions = preload("res://Core/Actions/ProbeActions.gd")
 const GateActionHandler = preload("res://UI/Handlers/GateActionHandler.gd")
 const LindbladHandler = preload("res://UI/Handlers/LindbladHandler.gd")
 const EconomyConstants = preload("res://Core/GameMechanics/EconomyConstants.gd")
+const ActionCostRuntime = preload("res://Core/GameMechanics/ActionCostRuntime.gd")
+const VocabPairUtils = preload("res://Core/Gameplay/VocabPairUtils.gd")
 const BiomeHandler = preload("res://UI/Handlers/BiomeHandler.gd")
 const PhysicsConfig = preload("res://Core/Config/PhysicsConfig.gd")
 const GranularityController = preload("res://Core/Utils/GranularityController.gd")
 const GameStateSerializerClass = preload("res://Core/GameState/GameStateSerializer.gd")
+const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")
+const PolicySnapshotBuilder = preload("res://Core/Instrumentation/PolicySnapshotBuilder.gd")
+const BalanceService = preload("res://Core/GameMechanics/BalanceService.gd")
 const VerboseHelper = preload("res://Core/Config/VerboseHelper.gd")
 
 ## Fallback biome pool used when ObservationFrame.get_loadable_biomes() is unavailable.
@@ -73,7 +78,7 @@ var _timescale_objective: Dictionary = DEFAULT_TIMESCALE_OBJECTIVE.duplicate(tru
 var _verbose = null
 
 # ============================================================================
-# GATE DISPATCH TABLE (moved from FarmInstrument)
+# GATE DISPATCH TABLE (moved from legacy snapshot bridge)
 # ============================================================================
 
 const _GATE_DISPATCH: Dictionary = {
@@ -312,14 +317,15 @@ func action_pump(positions: Array[Vector2i]) -> Dictionary:
 func action_explore(biome_name: String, grid_pos: Vector2i = Vector2i(-1, -1)) -> Dictionary:
 	if not farm or not terminal_pool:
 		return {"success": false, "error": "no_farm", "message": "Farm not ready"}
-	if not farm.economy:
+	var economy = _get_economy()
+	if not economy:
 		return {"success": false, "error": "no_economy", "message": "Economy system not initialized"}
 
 	var biome = _resolve_biome(biome_name)
 	if not biome:
 		return {"success": false, "error": "no_biome", "message": "Biome '%s' not found" % biome_name}
 
-	var result = ProbeActions.action_explore(terminal_pool, biome, farm.economy)
+	var result = ProbeActions.action_explore(terminal_pool, biome, economy)
 	# Attach terminal to its grid plot
 	if result.get("success", false):
 		_attach_terminal_to_plot(result.get("terminal"))
@@ -331,6 +337,7 @@ func action_explore(biome_name: String, grid_pos: Vector2i = Vector2i(-1, -1)) -
 func action_measure(grid_pos: Vector2i) -> Dictionary:
 	if not farm or not terminal_pool:
 		return {"success": false, "error": "no_farm", "message": "Farm not ready"}
+	var economy = _get_economy()
 
 	var _plot = farm.grid.get_plot(grid_pos) if farm.grid else null
 	var terminal = _plot.terminal if _plot else null
@@ -346,14 +353,15 @@ func action_measure(grid_pos: Vector2i) -> Dictionary:
 	if not biome:
 		return {"success": false, "error": "no_biome", "message": "Biome '%s' not found" % biome_name, "blocked": true}
 
-	var result = ProbeActions.action_measure(terminal, biome, farm.economy)
+	var result = ProbeActions.action_measure(terminal, biome, economy)
 	_emit_farm_action("measure", result, grid_pos)
 	action_performed.emit("measure", result)
 	return result
 
 
 func action_pop(grid_pos: Vector2i) -> Dictionary:
-	if not farm or not terminal_pool or not farm.economy:
+	var economy = _get_economy()
+	if not farm or not terminal_pool or not economy:
 		return {"success": false, "error": "no_farm", "message": "Farm not ready"}
 
 	var terminal = _resolve_terminal_for_harvest(grid_pos)
@@ -361,27 +369,29 @@ func action_pop(grid_pos: Vector2i) -> Dictionary:
 		return {"success": false, "error": "no_terminal", "message": "No terminal at selection"}
 
 	_detach_terminal_from_plot(terminal)
-	var result = ProbeActions.action_pop(terminal, terminal_pool, farm.economy, farm)
+	var result = ProbeActions.action_pop(terminal, terminal_pool, economy, farm)
 	_emit_farm_action("pop", result, grid_pos)
 	action_performed.emit("pop", result)
 	return result
 
 
 func action_reap() -> Dictionary:
-	if not farm or not farm.economy:
+	var economy = _get_economy()
+	if not farm or not economy:
 		return {"success": false, "error": "no_farm", "message": "Farm not ready"}
 
-	var result = ProbeActions.action_reap(farm, farm.economy)
+	var result = ProbeActions.action_reap(farm, economy)
 	_emit_farm_action("reap", result)
 	action_performed.emit("reap", result)
 	return result
 
 
 func action_harvest_all() -> Dictionary:
-	if not farm or not farm.economy:
+	var economy = _get_economy()
+	if not farm or not economy:
 		return {"success": false, "error": "no_farm", "message": "Farm not ready"}
 
-	var result = ProbeActions.action_reap(farm, farm.economy)
+	var result = ProbeActions.action_reap(farm, economy)
 	_emit_farm_action("reap", result)
 	_emit_farm_action("harvest_all", result)
 
@@ -463,7 +473,7 @@ func action_inject_vocabulary(biome_name: String) -> Dictionary:
 		return {"success": false, "error": "no_biome", "message": "No biome at selection"}
 
 	var qubit_count = biome.get_total_register_count() if biome.has_method("get_total_register_count") else 0
-	var max_qubits = EconomyConstants.get_max_biome_qubits(farm.economy if farm and farm.economy else null)
+	var max_qubits = _get_max_biome_qubits()
 	if qubit_count >= max_qubits:
 		return {
 			"success": false,
@@ -471,13 +481,43 @@ func action_inject_vocabulary(biome_name: String) -> Dictionary:
 			"message": "Biome is at max capacity (%d qubits)" % max_qubits
 		}
 
-	var candidate_pairs = _collect_injectable_pairs(farm, biome)
+	var candidate_pairs = VocabPairUtils.collect_injectable_pairs(farm, biome)
 	var pair = _pick_injectable_pair(candidate_pairs, biome)
 	if pair.is_empty():
 		return {"success": false, "error": "no_available_pair", "message": "No injectable vocab pair for this biome"}
+	return action_inject_vocabulary_pair(biome_name, pair)
 
-	var context = {"south_emoji": pair.get("south", "")}
-	var gate = EconomyConstants.preflight_action("inject_vocabulary", farm.economy if farm else null, context)
+
+func action_inject_vocabulary_pair(biome_name: String, pair: Dictionary) -> Dictionary:
+	if not farm:
+		return {"success": false, "error": "no_farm", "message": "Farm not initialized"}
+
+	var biome = _resolve_biome(biome_name)
+	if not biome:
+		return {"success": false, "error": "no_biome", "message": "No biome at selection"}
+	if not biome.viz_cache or not biome.viz_cache.has_metadata():
+		return {"success": false, "error": "viz_unavailable", "message": "Biome visualization data not ready"}
+
+	var north_emoji = str(pair.get("north", ""))
+	var south_emoji = str(pair.get("south", ""))
+	if north_emoji == "" or south_emoji == "" or north_emoji == south_emoji:
+		return {"success": false, "error": "invalid_pair", "message": "Invalid vocabulary pair"}
+	if biome.viz_cache.get_qubit(north_emoji) >= 0:
+		return {"success": false, "error": "already_in_biome", "message": "%s already in biome" % north_emoji}
+	if biome.viz_cache.get_qubit(south_emoji) >= 0:
+		return {"success": false, "error": "already_in_biome", "message": "%s already in biome" % south_emoji}
+
+	var qubit_count = biome.get_total_register_count() if biome.has_method("get_total_register_count") else 0
+	var max_qubits = _get_max_biome_qubits()
+	if qubit_count >= max_qubits:
+		return {
+			"success": false,
+			"error": "qubit_cap_reached",
+			"message": "Biome is at max capacity (%d qubits)" % max_qubits
+		}
+
+	var context = {"south_emoji": south_emoji}
+	var gate = preflight_action_cost("inject_vocabulary", context)
 	if not gate.get("ok", true):
 		return {
 			"success": false,
@@ -485,12 +525,15 @@ func action_inject_vocabulary(biome_name: String) -> Dictionary:
 			"message": "Insufficient resources for vocab injection (%s)" % [gate.get("cost", {})]
 		}
 
-	var result = biome.expand_quantum_system(pair.get("north", ""), pair.get("south", ""))
+	var result = biome.expand_quantum_system(north_emoji, south_emoji)
 	if result.get("success", false):
-		if not EconomyConstants.commit_action("inject_vocabulary", farm.economy, context):
+		if not bool(commit_action_cost("inject_vocabulary", context, "inject_vocabulary").get("ok", false)):
 			return {"success": false, "error": "cost_commit_failed", "message": "Vocab injection failed: unable to spend cost."}
 		if farm and farm.has_method("discover_pair"):
-			farm.discover_pair(pair.get("north", ""), pair.get("south", ""))
+			farm.discover_pair(north_emoji, south_emoji)
+		result["north_emoji"] = north_emoji
+		result["south_emoji"] = south_emoji
+		result["cost"] = gate.get("cost", {})
 
 	action_performed.emit("inject_vocabulary", result)
 	return result
@@ -519,7 +562,7 @@ func action_remove_vocabulary(biome_name: String, grid_pos: Vector2i) -> Diction
 		target_qubit = terminal.bound_register_id
 	pair_to_remove = _get_pair_for_qubit(rm, target_qubit)
 
-	var cost_gate = EconomyConstants.preflight_action("remove_vocabulary", farm.economy if farm else null)
+	var cost_gate = preflight_action_cost("remove_vocabulary")
 	if not cost_gate.get("ok", true):
 		var cost = cost_gate.get("cost", {})
 		return {
@@ -536,7 +579,7 @@ func action_remove_vocabulary(biome_name: String, grid_pos: Vector2i) -> Diction
 	var result = _shrink_quantum_system(biome, target_qubit, pair_to_remove)
 
 	if result.get("success", false):
-		if not EconomyConstants.commit_action("remove_vocabulary", farm.economy):
+		if not bool(commit_action_cost("remove_vocabulary", {}, "remove_vocabulary").get("ok", false)):
 			return {"success": false, "error": "cost_commit_failed", "message": "Remove vocabulary failed: unable to spend cost."}
 		_reindex_bound_terminals(biome, target_qubit)
 		_log("info", "instrument", "-", "Removed vocab %s/%s from %s" % [
@@ -580,7 +623,397 @@ func action_cycle_biome() -> Dictionary:
 
 
 # ============================================================================
-# GATE DISPATCH API (moved from FarmInstrument)
+# QUEST API (shared by UI + rig adapters)
+# ============================================================================
+
+func quest_offer_all() -> Dictionary:
+	var qm = _resolve_quest_manager()
+	if not qm or not qm.has_method("offer_all_faction_quests"):
+		return {"ok": false, "error": "no_quest_manager"}
+	var biome = _resolve_current_biome_for_quests()
+	if not biome:
+		return {"ok": false, "error": "no_current_biome"}
+	var offers = qm.offer_all_faction_quests(biome)
+	var biome_name = str(biome.biome_name) if biome and "biome_name" in biome else ""
+	var result = {
+		"ok": true,
+		"offers": offers if offers is Array else [],
+		"biome": biome_name
+	}
+	action_performed.emit("offer_quests", result)
+	_notify_quest_projection("offer_quests", {"count": result["offers"].size(), "biome": biome_name})
+	return result
+
+
+func quest_accept(quest_data: Dictionary) -> Dictionary:
+	var qm = _resolve_quest_manager()
+	if not qm or not qm.has_method("accept_quest"):
+		return {"ok": false, "accepted": false, "error": "accept_unavailable"}
+	var accepted = qm.accept_quest(quest_data)
+	var quest_id = int(quest_data.get("id", -1))
+	var result = {"ok": accepted, "accepted": accepted, "quest_id": quest_id}
+	action_performed.emit("accept_quest", result)
+	if accepted:
+		_notify_quest_projection("accept_quest", {"quest_id": quest_id})
+	return result
+
+
+func quest_accept_by_id(quest_id: int) -> Dictionary:
+	var qm = _resolve_quest_manager()
+	if not qm:
+		return {"ok": false, "accepted": false, "error": "no_quest_manager", "quest_id": quest_id}
+	if qm.has_method("accept_locked_offer"):
+		var accepted_locked = qm.accept_locked_offer(quest_id)
+		if accepted_locked:
+			var locked_result = {"ok": true, "accepted": true, "quest_id": quest_id, "locked": true}
+			action_performed.emit("accept_quest", locked_result)
+			_notify_quest_projection("accept_quest_locked", {"quest_id": quest_id})
+			return locked_result
+	var quest: Dictionary = {}
+	if qm.has_method("get_quest_by_id"):
+		quest = qm.get_quest_by_id(quest_id)
+	if quest.is_empty():
+		var offer_result = quest_offer_all()
+		if bool(offer_result.get("ok", false)):
+			var offers = offer_result.get("offers", [])
+			if offers is Array:
+				for offer in offers:
+					if offer is Dictionary and int(offer.get("id", -1)) == quest_id:
+						quest = offer
+						break
+	if quest.is_empty():
+		return {"ok": false, "accepted": false, "error": "quest_not_found", "quest_id": quest_id}
+	return quest_accept(quest)
+
+
+func quest_complete(quest_id: int) -> Dictionary:
+	var qm = _resolve_quest_manager()
+	if not qm or not qm.has_method("complete_quest"):
+		return {"ok": false, "completed": false, "error": "complete_unavailable", "quest_id": quest_id}
+	var completed = qm.complete_quest(quest_id)
+	var result = {"ok": completed, "completed": completed, "quest_id": quest_id}
+	action_performed.emit("complete_quest", result)
+	if completed:
+		_notify_quest_projection("complete_quest", {"quest_id": quest_id})
+	return result
+
+
+func quest_complete_or_claim(quest_id: int) -> Dictionary:
+	var qm = _resolve_quest_manager()
+	if not qm or not qm.has_method("complete_or_claim"):
+		return {"ok": false, "completed_or_claimed": false, "error": "complete_or_claim_unavailable", "quest_id": quest_id}
+	var completed_or_claimed = qm.complete_or_claim(quest_id)
+	var result = {
+		"ok": completed_or_claimed,
+		"completed_or_claimed": completed_or_claimed,
+		"quest_id": quest_id
+	}
+	action_performed.emit("complete_or_claim", result)
+	if completed_or_claimed:
+		_notify_quest_projection("complete_or_claim", {"quest_id": quest_id})
+	return result
+
+
+func quest_claim(quest_id: int) -> Dictionary:
+	var qm = _resolve_quest_manager()
+	if not qm or not qm.has_method("claim_quest"):
+		return {"ok": false, "claimed": false, "error": "claim_unavailable", "quest_id": quest_id}
+	var claimed = qm.claim_quest(quest_id)
+	var result = {"ok": claimed, "claimed": claimed, "quest_id": quest_id}
+	action_performed.emit("claim_quest", result)
+	if claimed:
+		_notify_quest_projection("claim_quest", {"quest_id": quest_id})
+	return result
+
+
+func quest_lock_offer(quest_data: Dictionary) -> Dictionary:
+	var qm = _resolve_quest_manager()
+	if not qm or not qm.has_method("lock_offer"):
+		return {"ok": false, "locked": false, "error": "lock_unavailable"}
+	var gate = preflight_action_cost("quest_lock")
+	if not bool(gate.get("ok", false)):
+		return {
+			"ok": false,
+			"locked": false,
+			"error": "insufficient_resources",
+			"cost": gate.get("cost", {})
+		}
+	var locked = qm.lock_offer(quest_data)
+	var quest_id = int(quest_data.get("id", -1))
+	if locked:
+		var spend = commit_action_cost("quest_lock", {}, "quest_lock")
+		if not bool(spend.get("ok", false)):
+			if qm.has_method("unlock_offer"):
+				qm.unlock_offer(quest_id)
+			locked = false
+	var result = {"ok": locked, "locked": locked, "quest_id": quest_id, "cost": gate.get("cost", {})}
+	action_performed.emit("lock_offer", result)
+	if locked:
+		_notify_quest_projection("lock_offer", {"quest_id": quest_id})
+	return result
+
+
+func quest_unlock_offer(quest_id: int) -> Dictionary:
+	var qm = _resolve_quest_manager()
+	if not qm or not qm.has_method("unlock_offer"):
+		return {"ok": false, "unlocked": false, "error": "unlock_unavailable", "quest_id": quest_id}
+	var unlocked = qm.unlock_offer(quest_id)
+	var result = {"ok": unlocked, "unlocked": unlocked, "quest_id": quest_id}
+	action_performed.emit("unlock_offer", result)
+	if unlocked:
+		_notify_quest_projection("unlock_offer", {"quest_id": quest_id})
+	return result
+
+
+func quest_locked_offers() -> Dictionary:
+	var qm = _resolve_quest_manager()
+	if not qm or not qm.has_method("get_locked_offers"):
+		return {"ok": false, "offers": [], "error": "locked_offers_unavailable"}
+	var offers = qm.get_locked_offers()
+	return {"ok": true, "offers": offers if offers is Array else []}
+
+
+func quest_accept_locked(quest_id: int) -> Dictionary:
+	var qm = _resolve_quest_manager()
+	if not qm or not qm.has_method("accept_locked_offer"):
+		return {"ok": false, "accepted": false, "error": "accept_locked_unavailable", "quest_id": quest_id}
+	var accepted = qm.accept_locked_offer(quest_id)
+	var result = {"ok": accepted, "accepted": accepted, "quest_id": quest_id}
+	action_performed.emit("accept_locked", result)
+	if accepted:
+		_notify_quest_projection("accept_locked", {"quest_id": quest_id})
+	return result
+
+
+func get_action_cost(action_name: String, context: Dictionary = {}) -> Dictionary:
+	"""Get effective action cost, honoring economy overrides."""
+	return ActionCostRuntime.get_action_cost(farm, EconomyConstants.normalize_action_id(action_name), context)
+
+
+func preflight_action_cost(action_name: String, context: Dictionary = {}) -> Dictionary:
+	"""Check affordability for an action cost (no spend)."""
+	return ActionCostRuntime.preflight_action(farm, action_name, context)
+
+
+func can_afford_cost(cost: Dictionary) -> Dictionary:
+	"""Check affordability for an arbitrary cost dictionary (no spend)."""
+	var gate = ActionCostRuntime.preflight_cost(farm, cost)
+	if bool(gate.get("ok", false)):
+		return gate
+	if not gate.has("cost"):
+		gate["cost"] = cost
+	return gate
+
+
+func get_resource_snapshot() -> Dictionary:
+	var economy = _get_economy()
+	if not economy:
+		return {"resources": {}, "ordered": []}
+	var resources: Dictionary = {}
+	if economy.has_method("get_all_resources"):
+		resources = economy.get_all_resources()
+	else:
+		resources = economy.emoji_credits.duplicate(true) if "emoji_credits" in economy else {}
+	var ordered: Array = resources.keys()
+	ordered.sort()
+	return {"resources": resources, "ordered": ordered}
+
+
+func add_resource(emoji: String, credits_amount: int, reason: String = "rig_add") -> Dictionary:
+	var economy = _get_economy()
+	if not economy:
+		return {"ok": false, "error": "no_economy"}
+	if not economy.has_method("add_resource"):
+		return {"ok": false, "error": "add_resource_unavailable"}
+	economy.add_resource(emoji, credits_amount, reason)
+	return {"ok": true, "emoji": emoji, "amount": credits_amount}
+
+
+func set_resource(emoji: String, credits_amount: int, reason: String = "rig_set") -> Dictionary:
+	var economy = _get_economy()
+	if not economy:
+		return {"ok": false, "error": "no_economy"}
+	if not economy.has_method("set_resource"):
+		return {"ok": false, "error": "set_resource_unavailable"}
+	economy.set_resource(emoji, credits_amount, reason)
+	return {"ok": true, "emoji": emoji, "amount": credits_amount}
+
+
+func get_recent_resource_mutations(limit: int = 40) -> Array:
+	var economy = _get_economy()
+	if not economy:
+		return []
+	if economy.has_method("get_recent_resource_mutations"):
+		return economy.get_recent_resource_mutations(limit)
+	return []
+
+
+func commit_action_cost(action_name: String, context: Dictionary = {}, reason: String = "") -> Dictionary:
+	"""Commit spend for an action via the unified economy action API."""
+	var economy = _get_economy()
+	if not economy:
+		return {"ok": false, "error": "no_economy"}
+	var spend_reason = reason if reason != "" else action_name
+	var ok = ActionCostRuntime.commit_action(economy, action_name, context, spend_reason)
+	return {
+		"ok": ok,
+		"action": EconomyConstants.normalize_action_id(action_name),
+		"cost": get_action_cost(action_name, context),
+		"reason": spend_reason
+	}
+
+
+func configure_economy(overrides: Dictionary) -> Dictionary:
+	if not farm:
+		return {"ok": false, "error": "no_farm"}
+	if not (overrides is Dictionary) or overrides.is_empty():
+		return {"ok": false, "error": "empty_overrides"}
+	return BalanceService.apply_patch(farm, overrides, "instrument.configure_economy")
+
+
+func get_balance_snapshot() -> Dictionary:
+	if not farm:
+		return {"ok": false, "error": "no_farm"}
+	var snapshot = BalanceService.get_snapshot(farm)
+	snapshot["ok"] = true
+	return snapshot
+
+
+func patch_balance(patch: Dictionary, source: String = "instrument.patch_balance") -> Dictionary:
+	if not farm:
+		return {"ok": false, "error": "no_farm"}
+	if not (patch is Dictionary) or patch.is_empty():
+		return {"ok": false, "error": "empty_patch"}
+	return BalanceService.apply_patch(farm, patch, source)
+
+
+func reset_balance_to_default() -> Dictionary:
+	if not farm:
+		return {"ok": false, "error": "no_farm"}
+	return BalanceService.reset_to_default(farm)
+
+
+func export_balance_profile(path: String = "user://saves/balance_profile_last.json") -> Dictionary:
+	if not farm:
+		return {"ok": false, "error": "no_farm"}
+	var snapshot = BalanceService.get_snapshot(farm)
+	var file = FileAccess.open(path, FileAccess.WRITE)
+	if not file:
+		return {"ok": false, "error": "file_open_failed", "path": path}
+	file.store_string(JSON.stringify(snapshot, "\t"))
+	return {"ok": true, "path": path}
+
+
+func load_balance_profile(path: String) -> Dictionary:
+	if not farm:
+		return {"ok": false, "error": "no_farm"}
+	if path == "":
+		return {"ok": false, "error": "empty_path"}
+	if not FileAccess.file_exists(path):
+		return {"ok": false, "error": "missing_file", "path": path}
+	var file = FileAccess.open(path, FileAccess.READ)
+	if not file:
+		return {"ok": false, "error": "file_open_failed", "path": path}
+	var parsed = JSON.parse_string(file.get_as_text())
+	if not (parsed is Dictionary):
+		return {"ok": false, "error": "invalid_json", "path": path}
+	var patch = {
+		"profile_id": parsed.get("profile_id", "default"),
+		"action_costs": parsed.get("action_costs", {}),
+		"gate_costs": parsed.get("gate_costs", {}),
+		"quest_rewards": parsed.get("quest_rewards", {}),
+	}
+	return BalanceService.apply_patch(farm, patch, "instrument.load_balance_profile")
+
+
+func get_farm_variable_graph() -> Dictionary:
+	if not farm:
+		return {"ok": false, "error": "no_farm"}
+	return BalanceService.get_farm_variable_graph(farm)
+
+
+func apply_farm_variable_graph(lines: Array, source: String = "instrument.apply_farm_variable_graph") -> Dictionary:
+	if not farm:
+		return {"ok": false, "error": "no_farm"}
+	return BalanceService.apply_farm_variable_graph(farm, lines, source)
+
+
+func load_farm_variable_graph_file(path: String) -> Dictionary:
+	if not farm:
+		return {"ok": false, "error": "no_farm"}
+	if path == "":
+		return {"ok": false, "error": "empty_path"}
+	return BalanceService.load_farm_variable_graph_file(farm, path, "instrument.load_farm_variable_graph_file")
+
+
+func get_policy_snapshot(include_offers: bool = true, include_grid: bool = true) -> Dictionary:
+	"""Aggregate policy-facing reads into one payload for rig/runner loops."""
+	return PolicySnapshotBuilder.build(self, include_offers, include_grid)
+
+
+func get_active_quests() -> Array:
+	var qm = _resolve_quest_manager()
+	if qm and qm.has_method("get_active_quests"):
+		return qm.get_active_quests()
+	return []
+
+
+func get_known_vocab_pairs() -> Array:
+	if farm and farm.has_method("get_known_pairs"):
+		return farm.get_known_pairs()
+	return []
+
+
+func get_quest_offers_for_current_biome() -> Array:
+	var offer_result = quest_offer_all()
+	if offer_result is Dictionary and bool(offer_result.get("ok", false)):
+		var offers = offer_result.get("offers", [])
+		if offers is Array:
+			return offers
+	return []
+
+
+func get_locked_offers() -> Array:
+	var locked_result = quest_locked_offers()
+	if locked_result is Dictionary and bool(locked_result.get("ok", false)):
+		var offers = locked_result.get("offers", [])
+		if offers is Array:
+			return offers
+	return []
+
+
+func get_biome_positions(biome_name: String) -> Array:
+	if not farm or not ("grid" in farm) or not farm.grid:
+		return []
+	if not ("plot_biome_assignments" in farm.grid):
+		return []
+	var positions: Array = []
+	for pos in farm.grid.plot_biome_assignments:
+		if farm.grid.plot_biome_assignments[pos] == biome_name:
+			positions.append(pos)
+	return positions
+
+
+func get_grid_snapshot() -> Dictionary:
+	if not farm or not ("grid" in farm) or not farm.grid:
+		return {"ok": false, "error": "no_grid"}
+	var grid = farm.grid
+	var snapshot: Dictionary = {"ok": true}
+	if "grid_width" in grid:
+		snapshot["grid_width"] = grid.grid_width
+	if "grid_height" in grid:
+		snapshot["grid_height"] = grid.grid_height
+	if "biomes" in grid and grid.biomes:
+		var biome_names = grid.biomes.keys()
+		biome_names.sort()
+		snapshot["biomes"] = biome_names
+	if snapshot.has("grid_width") and snapshot.has("grid_height"):
+		snapshot["plot_count"] = int(snapshot["grid_width"]) * int(snapshot["grid_height"])
+	return snapshot
+
+
+# ============================================================================
+# GATE DISPATCH API (moved from legacy snapshot bridge)
 # ============================================================================
 
 func gate_inject(gate_name: String, positions: Array[Vector2i]) -> Dictionary:
@@ -637,6 +1070,7 @@ func time_skip(phrames: int, delta: float = -1.0) -> Dictionary:
 func probe_cycle(biome_name: String) -> Dictionary:
 	if not farm or not terminal_pool:
 		return {"success": false, "error": "no_terminal_pool"}
+	var economy = _get_economy()
 	if not farm.grid or not farm.grid.biomes:
 		return {"success": false, "error": "no_biomes"}
 	var biome = farm.grid.biomes.get(biome_name, null)
@@ -646,7 +1080,7 @@ func probe_cycle(biome_name: String) -> Dictionary:
 	_notify_autoload("ActiveBiomeManager", "set_active_biome", [biome_name])
 	_notify_autoload("ObservationFrame", "set_neutral_biome", [biome_name])
 
-	var explore = ProbeActions.action_explore(terminal_pool, biome, farm.economy)
+	var explore = ProbeActions.action_explore(terminal_pool, biome, economy)
 	if not explore.get("success", false):
 		var explore_fail = {"success": false, "stage": "explore", "details": explore}
 		return explore_fail
@@ -655,14 +1089,14 @@ func probe_cycle(biome_name: String) -> Dictionary:
 	# Emit explore signal so bubbles appear during bot runs
 	_emit_farm_action("explore", explore)
 
-	var measure = ProbeActions.action_measure(terminal, biome, farm.economy)
+	var measure = ProbeActions.action_measure(terminal, biome, economy)
 	if not measure.get("success", false):
 		var measure_fail = {"success": false, "stage": "measure", "details": measure}
 		return measure_fail
 	_emit_farm_action("measure", measure)
 
 	_detach_terminal_from_plot(terminal)
-	var pop = ProbeActions.action_pop(terminal, terminal_pool, farm.economy, farm)
+	var pop = ProbeActions.action_pop(terminal, terminal_pool, economy, farm)
 	_emit_farm_action("pop", pop)
 
 	var probe_result = {"success": true, "explore": explore, "measure": measure, "pop": pop, "active_biome": biome_name}
@@ -675,6 +1109,7 @@ func victory_lap() -> Dictionary:
 		return {"success": false, "error": "no_farm_or_biomes"}
 	if not terminal_pool:
 		return {"success": false, "error": "no_terminal_pool"}
+	var economy = _get_economy()
 
 	var biomes: Array[String] = []
 	for biome_name in farm.grid.biomes.keys():
@@ -690,7 +1125,7 @@ func victory_lap() -> Dictionary:
 		if not biome:
 			continue
 		while true:
-			var explore = ProbeActions.action_explore(terminal_pool, biome, farm.economy)
+			var explore = ProbeActions.action_explore(terminal_pool, biome, economy)
 			if explore.get("success", false):
 				explore_total += 1
 				_attach_terminal_to_plot(explore.get("terminal"))
@@ -717,7 +1152,7 @@ func victory_lap() -> Dictionary:
 		if not biome:
 			measure_failures.append({"terminal": terminal.terminal_id, "error": "unknown_biome", "biome": t_biome_name})
 			continue
-		var measure = ProbeActions.action_measure(terminal, biome, farm.economy)
+		var measure = ProbeActions.action_measure(terminal, biome, economy)
 		if measure.get("success", false):
 			measure_total += 1
 			_emit_farm_action("measure", measure)
@@ -736,7 +1171,7 @@ func victory_lap() -> Dictionary:
 		if not terminal:
 			continue
 		_detach_terminal_from_plot(terminal)
-		var pop = ProbeActions.action_pop(terminal, terminal_pool, farm.economy, farm)
+		var pop = ProbeActions.action_pop(terminal, terminal_pool, economy, farm)
 		if pop.get("success", false):
 			harvest_total += 1
 			_emit_farm_action("pop", pop)
@@ -748,8 +1183,8 @@ func victory_lap() -> Dictionary:
 			})
 
 	var milk_amount = 0.0
-	if farm and "economy" in farm and farm.economy and farm.economy.has_method("get_resource"):
-		milk_amount = float(farm.economy.get_resource("\ud83c\udf7c"))
+	if economy and economy.has_method("get_resource"):
+		milk_amount = float(economy.get_resource("\ud83c\udf7c"))
 
 	var result = {
 		"success": true,
@@ -844,11 +1279,21 @@ func _notify_autoload(node_name: String, method: String, args: Array) -> void:
 
 
 func _resolve_quest_manager():
-	if farm and "quest_manager" in farm and farm.quest_manager:
-		return farm.quest_manager
+	var qm = InstrumentLocator.resolve_quest_manager(_get_scope_node(), farm)
+	if qm:
+		return qm
 	var gsm = _get_autoload("GameStateManager")
 	if gsm and "active_farm" in gsm and gsm.active_farm and "quest_manager" in gsm.active_farm:
 		return gsm.active_farm.quest_manager
+	return null
+
+
+func _get_scope_node() -> Node:
+	if farm:
+		return farm
+	var tree = Engine.get_main_loop()
+	if tree and tree is SceneTree:
+		return tree.root
 	return null
 
 
@@ -858,6 +1303,28 @@ func _notify_quest_projection(action_name: String, payload: Dictionary) -> void:
 		return
 	if qm.has_method("record_quantum_action"):
 		qm.record_quantum_action(action_name, payload)
+
+
+func _resolve_current_biome_for_quests():
+	if farm and farm.has_method("get_current_biome"):
+		var current_biome_node = farm.get_current_biome()
+		if current_biome_node:
+			return current_biome_node
+	var biome_name = str(current_biome)
+	if biome_name == "":
+		var active_biome_mgr = _get_autoload("ActiveBiomeManager")
+		if active_biome_mgr and active_biome_mgr.has_method("get_active_biome"):
+			biome_name = str(active_biome_mgr.get_active_biome())
+	if biome_name == "":
+		var obs = _get_autoload("ObservationFrame")
+		if obs and obs.has_method("get_neutral_biome"):
+			biome_name = str(obs.get_neutral_biome())
+	if farm and farm.grid and farm.grid.biomes:
+		if biome_name != "" and farm.grid.biomes.has(biome_name):
+			return farm.grid.biomes[biome_name]
+		if not farm.grid.biomes.is_empty():
+			return farm.grid.biomes.values()[0]
+	return null
 
 
 # ============================================================================
@@ -950,12 +1417,135 @@ func clear_timescale_objective() -> Dictionary:
 	return result
 
 
+func set_biome_stride(biome_name: String, stride: int) -> Dictionary:
+	return set_observation_stride(biome_name, stride)
+
+
+func set_biome_resolution(biome_name: String, dt: float) -> Dictionary:
+	return set_resolution(biome_name, dt)
+
+
+func get_biome_timescale(biome_name: String) -> Dictionary:
+	return get_timescale_snapshot(biome_name)
+
+
+func get_timescale_projection(biome_name: String, top_k: int = -1) -> Dictionary:
+	var timescale = get_timescale_snapshot(biome_name)
+	if not bool(timescale.get("ok", false)):
+		return timescale
+
+	var payload: Dictionary = {}
+	if farm and "biome_evolution_batcher" in farm and farm.biome_evolution_batcher:
+		var batcher = farm.biome_evolution_batcher
+		if batcher.has_method("get_biome_probability_map"):
+			payload = batcher.get_biome_probability_map(biome_name)
+	var weights = _extract_emoji_weights(payload)
+	var ranked: Array = []
+	var floors: Dictionary = _timescale_objective.get("resource_floors", {})
+	for emoji in weights.keys():
+		var w = float(weights[emoji])
+		var floor_target = float(floors.get(emoji, 0.0))
+		var have = _get_resource_amount(farm, emoji)
+		var deficit = max(0.0, floor_target - have)
+		var score = w + deficit
+		ranked.append({
+			"emoji": str(emoji),
+			"weight": w,
+			"have": have,
+			"floor": floor_target,
+			"deficit": deficit,
+			"score": score,
+		})
+	ranked.sort_custom(func(a, b): return float(a.get("score", 0.0)) > float(b.get("score", 0.0)))
+	var limit = top_k if top_k > 0 else int(_timescale_objective.get("top_k", 8))
+	limit = clampi(limit, 1, 64)
+	var projected: Array = []
+	for i in range(min(limit, ranked.size())):
+		projected.append(ranked[i])
+	return {
+		"ok": true,
+		"biome": biome_name,
+		"timescale": timescale,
+		"objective": _timescale_objective.duplicate(true),
+		"ranked": projected,
+		"count": projected.size(),
+	}
+
+
+func recommend_timescale(biome_name: String, top_k: int = -1) -> Dictionary:
+	var projection = get_timescale_projection(biome_name, top_k)
+	if not bool(projection.get("ok", false)):
+		return projection
+	var timescale = projection.get("timescale", {})
+	var current_stride = int(timescale.get("stride", 1))
+	var current_dt = float(timescale.get("dt", 0.02))
+	var ranked: Array = projection.get("ranked", [])
+	var mean_score = 0.0
+	for row in ranked:
+		mean_score += float(row.get("score", 0.0))
+	if not ranked.is_empty():
+		mean_score /= float(ranked.size())
+	var recommended_stride = clampi(int(round(clampf(2.0 - mean_score, 1.0, 16.0))), 1, 16)
+	var recommended_dt = clampf(current_dt * (1.0 + min(1.0, mean_score) * 0.5), GranularityController.MIN_DT, GranularityController.MAX_DT)
+	var horizon_min = int(_timescale_objective.get("horizon_min_phrames", 6))
+	var horizon_max = int(_timescale_objective.get("horizon_max_phrames", 72))
+	var recommended_wait = clampi(int(round(float(horizon_min) * float(recommended_stride))), horizon_min, horizon_max)
+	return {
+		"ok": true,
+		"biome": biome_name,
+		"current_stride": current_stride,
+		"current_dt": current_dt,
+		"recommended_stride": recommended_stride,
+		"recommended_dt": recommended_dt,
+		"recommended_wait_phrames": recommended_wait,
+		"projection": projection,
+	}
+
+
+func auto_apply_timescale(biome_name: String, top_k: int = -1) -> Dictionary:
+	var rec = recommend_timescale(biome_name, top_k)
+	if not bool(rec.get("ok", false)):
+		return rec
+	var stride_result = set_observation_stride(biome_name, int(rec.get("recommended_stride", 1)))
+	var dt_result = set_resolution(biome_name, float(rec.get("recommended_dt", 0.02)))
+	return {
+		"ok": bool(stride_result.get("ok", false)) and bool(dt_result.get("ok", false)),
+		"biome": biome_name,
+		"recommendation": rec,
+		"stride_result": stride_result,
+		"resolution_result": dt_result,
+	}
+
+
+func _extract_emoji_weights(payload: Dictionary) -> Dictionary:
+	if payload.is_empty():
+		return {}
+	var by_emoji = payload.get("by_emoji", {})
+	if by_emoji is Dictionary:
+		return by_emoji.duplicate(true)
+	var out: Dictionary = {}
+	for key in payload.keys():
+		var value = payload.get(key, null)
+		if value is float or value is int:
+			var emoji = str(key)
+			if emoji != "":
+				out[emoji] = float(value)
+	return out
+
+
 static func _get_resource_amount(farm_node: Node, emoji: String) -> float:
-	if not farm_node or not ("economy" in farm_node) or not farm_node.economy:
+	var economy = ActionCostRuntime.resolve_economy(farm_node)
+	if not economy or not economy.has_method("get_resource"):
 		return 0.0
-	if not farm_node.economy.has_method("get_resource"):
-		return 0.0
-	return float(farm_node.economy.get_resource(emoji))
+	return float(economy.get_resource(emoji))
+
+
+func _get_max_biome_qubits() -> int:
+	return ActionCostRuntime.get_max_biome_qubits(farm)
+
+
+func _get_economy():
+	return ActionCostRuntime.resolve_economy(farm)
 
 
 func _resolve_biome(biome_name: String):
@@ -978,35 +1568,6 @@ func _resolve_terminal_for_harvest(grid_pos: Vector2i) -> RefCounted:
 	return null
 
 
-func _collect_injectable_pairs(farm_ref, biome = null) -> Array:
-	var pairs: Array = []
-	if farm_ref and farm_ref.has_method("get_known_pairs"):
-		pairs.append_array(farm_ref.get_known_pairs())
-	if farm_ref and "vocabulary_evolution" in farm_ref and farm_ref.vocabulary_evolution:
-		var vocab = farm_ref.vocabulary_evolution
-		if vocab and vocab.has_method("get_discovered_vocabulary"):
-			var discovered = vocab.get_discovered_vocabulary()
-			if discovered is Array:
-				pairs.append_array(discovered)
-	var filtered: Array = []
-	var seen: Dictionary = {}
-	for pair in pairs:
-		if not (pair is Dictionary):
-			continue
-		var north = pair.get("north", "")
-		var south = pair.get("south", "")
-		if north == "" or south == "" or north == south:
-			continue
-		if biome and (_biome_has_emoji(biome, north) or _biome_has_emoji(biome, south)):
-			continue
-		var key = "%s|%s" % [north, south]
-		if seen.has(key):
-			continue
-		seen[key] = true
-		filtered.append({"north": north, "south": south})
-	return filtered
-
-
 func _pick_injectable_pair(pairs: Array, biome) -> Dictionary:
 	for i in range(pairs.size() - 1, -1, -1):
 		var pair = pairs[i]
@@ -1014,20 +1575,12 @@ func _pick_injectable_pair(pairs: Array, biome) -> Dictionary:
 		var south = pair.get("south", "")
 		if north == "" or south == "":
 			continue
-		if _biome_has_emoji(biome, north):
+		if VocabPairUtils.biome_has_emoji(biome, north):
 			continue
-		if _biome_has_emoji(biome, south):
+		if VocabPairUtils.biome_has_emoji(biome, south):
 			continue
 		return {"north": north, "south": south}
 	return {}
-
-
-func _biome_has_emoji(biome, emoji: String) -> bool:
-	if not biome or emoji == "":
-		return false
-	if biome.viz_cache and biome.viz_cache.has_metadata():
-		return biome.viz_cache.get_qubit(emoji) >= 0
-	return false
 
 
 func _get_pair_for_qubit(register_map, qubit_index: int) -> Dictionary:

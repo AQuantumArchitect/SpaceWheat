@@ -1,0 +1,35 @@
+from pathlib import Path
+
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+RIG_LISTENER = PROJECT_ROOT / "Tests" / "rig_listener.gd"
+RIG_CLIENT = PROJECT_ROOT / "🍄" / "🎛️" / "rig_client.py"
+
+
+def test_rig_listener_primes_queue_cursor_on_ready() -> None:
+    src = RIG_LISTENER.read_text(encoding="utf-8")
+    assert "func _prime_queue_cursor_to_end()" in src
+    assert "_prime_queue_cursor_to_end()" in src
+
+
+def test_rig_listener_echoes_request_id_in_results() -> None:
+    src = RIG_LISTENER.read_text(encoding="utf-8")
+    assert 'var request_id = str(cmd.get("request_id", ""))' in src
+    assert 'result["request_id"] = request_id' in src
+
+
+def test_rig_client_turn_roundtrip_uses_request_id() -> None:
+    src = RIG_CLIENT.read_text(encoding="utf-8")
+    assert 'payload["request_id"] = request_id' in src
+    assert "request_id=request_id" in src
+    assert "self._results_by_request" in src
+
+
+def test_rig_listener_routes_read_actions_through_policy_snapshot() -> None:
+    src = RIG_LISTENER.read_text(encoding="utf-8")
+    assert 'var policy_resources = _get_policy_snapshot(false, false)' in src
+    assert 'var policy_grid = _get_policy_snapshot(false, true)' in src
+    assert 'var policy_quests = _get_policy_snapshot(false, false)' in src
+    assert 'var policy_pairs = _get_policy_snapshot(false, false)' in src
+    assert 'result["resources"] = _instrument.get_resource_snapshot()' not in src
+    assert 'result["grid"] = _instrument.get_grid_snapshot()' not in src

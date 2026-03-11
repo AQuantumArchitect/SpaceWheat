@@ -31,7 +31,6 @@ extends Node
 const ToolConfig = preload("res://Core/GameState/ToolConfig.gd")
 const GateActionHandler = preload("res://UI/Handlers/GateActionHandler.gd")
 const ActionValidator = preload("res://UI/Core/ActionValidator.gd")
-const EconomyConstants = preload("res://Core/GameMechanics/EconomyConstants.gd")
 const GranularityController = preload("res://Core/Utils/GranularityController.gd")
 const GateSelectionSubmenu = preload("res://UI/Core/Submenus/GateSelectionSubmenu.gd")
 
@@ -481,49 +480,18 @@ func _execute_inject_vocabulary(vocab_pair: Dictionary) -> void:
 	Args:
 		vocab_pair: {north: String, south: String}
 	"""
-	var cost: Dictionary = {}
 	var biome = _get_current_biome()
 	if not biome:
 		_verbose.warn("input", "+", "No biome for vocab injection")
 		return
-	if not biome.viz_cache or not biome.viz_cache.has_metadata():
-		_verbose.warn("input", "+", "Biome visualization data not ready")
-		return
-	var qubit_count = biome.get_total_register_count() if biome.has_method("get_total_register_count") else 0
-	var max_qubits = EconomyConstants.get_max_biome_qubits(farm.economy if farm else null)
-	if qubit_count >= max_qubits:
-		_verbose.warn("input", "+", "Biome at max capacity (%d qubits)" % max_qubits)
-		return
-
-	# Check if pair is already in biome
-	if biome.viz_cache and biome.viz_cache.has_metadata():
-		if biome.viz_cache.get_qubit(vocab_pair.get("north", "")) >= 0:
-			_verbose.warn("input", "+", "%s already in biome" % vocab_pair.get("north", ""))
-			return
-		if biome.viz_cache.get_qubit(vocab_pair.get("south", "")) >= 0:
-			_verbose.warn("input", "+", "%s already in biome" % vocab_pair.get("south", ""))
-			return
-
-	# 5. Preflight cost BEFORE expanding
-	var context = {"south_emoji": vocab_pair.get("south", "")}
-	var gate = EconomyConstants.preflight_action("inject_vocabulary", farm.economy if farm else null, context)
-	cost = gate.get("cost", {})
-	if not gate.get("ok", true):
-		_verbose.warn("input", "+", "Insufficient funds for vocab injection (need %s)" % [cost])
-		return
-
-	# 6. Perform expansion
-	var result = biome.expand_quantum_system(vocab_pair.get("north", ""), vocab_pair.get("south", ""))
-
+	var result = _instrument.action_inject_vocabulary_pair(biome.get_biome_type(), vocab_pair)
+	var cost = result.get("cost", {})
 	if result.get("success", false):
-		if not EconomyConstants.commit_action("inject_vocabulary", farm.economy, context):
-			_verbose.warn("input", "+", "Failed to spend vocab injection cost")
-			return
-		# Update game state vocabulary
-		if farm and farm.has_method("discover_pair"):
-			farm.discover_pair(vocab_pair.get("north", ""), vocab_pair.get("south", ""))
-
-		_verbose.info("input", "+", "Injected vocab %s/%s into %s" % [vocab_pair.get("north", ""), vocab_pair.get("south", ""), biome.name])
+		_verbose.info("input", "+", "Injected vocab %s/%s into %s" % [
+			vocab_pair.get("north", ""),
+			vocab_pair.get("south", ""),
+			biome.name
+		])
 
 		# Invalidate buffer (vocab injection adds qubits, modifies density matrix)
 		_invalidate_biome_buffer_for_action("inject_vocabulary")
@@ -536,7 +504,7 @@ func _execute_inject_vocabulary(vocab_pair: Dictionary) -> void:
 			"biome": biome.name
 		})
 	else:
-		_verbose.warn("input", "+", "Vocab injection failed: %s" % result.get("error", "unknown"))
+		_verbose.warn("input", "+", "Vocab injection failed: %s" % result.get("message", result.get("error", "unknown")))
 		action_performed.emit("inject_vocabulary", result)
 
 

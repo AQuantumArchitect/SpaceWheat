@@ -44,7 +44,8 @@ var action_bar_manager = null  # ActionBarManager - manages bottom toolbars
 var action_preview_row: Control = null  # Cached reference from ActionBarManager
 var layout_manager: Node = null  # UILayoutManager
 var logger_config_panel = null  # Logger configuration UI
-var farm_instrument = null  # Farm instrumentation node (set by BootManager)
+var snapshot_service = null  # Snapshot/diagnostics node (set by BootManager)
+var quantum_instrument = null  # Unified action interface (set by BootManager)
 var advanced_mode_enabled: bool = false
 # quantum_hud_panel REMOVED - content merged into InspectorOverlay (N key)
 var quantum_mode_indicator: QuantumModeStatusIndicator = null  # Current quantum mode display
@@ -200,8 +201,10 @@ func _toggle_shell_menu(menu_name: String) -> void:
 				var wb = overlay_manager.v2_overlays["balance_workbench"]
 				if wb and wb.has_method("set_advanced_mode"):
 					wb.set_advanced_mode(advanced_mode_enabled)
-				if wb and wb.has_method("set_farm_instrument"):
-					wb.set_farm_instrument(farm_instrument)
+				if wb and wb.has_method("set_snapshot_service"):
+					wb.set_snapshot_service(snapshot_service)
+				if wb and wb.has_method("set_quantum_instrument"):
+					wb.set_quantum_instrument(quantum_instrument)
 				if wb.visible:
 					wb.deactivate()
 					return

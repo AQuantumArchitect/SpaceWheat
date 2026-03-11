@@ -325,6 +325,57 @@ func get_overridden_gate_cost(gate_name: String) -> Dictionary:
 	return EconomyConstants.get_gate_cost(gate_name)
 
 
+func get_action_cost(action: String, context: Dictionary = {}) -> Dictionary:
+	"""Canonical runtime action-cost lookup (overrides + defaults)."""
+	return get_overridden_action_cost(action, context)
+
+
+func get_gate_cost(gate_name: String) -> Dictionary:
+	"""Canonical runtime gate-cost lookup (overrides + defaults)."""
+	return get_overridden_gate_cost(gate_name)
+
+
+func preflight_action(action: String, context: Dictionary = {}) -> Dictionary:
+	"""Affordability check for an action using effective runtime costs."""
+	return EconomyConstants.preflight_cost(get_action_cost(action, context), self)
+
+
+func commit_action(action: String, context: Dictionary = {}, reason: String = "") -> bool:
+	"""Spend action cost using effective runtime costs."""
+	var normalized_action = EconomyConstants.normalize_action_id(action)
+	var spend_reason = reason if reason != "" else normalized_action
+	return EconomyConstants.commit_cost(get_action_cost(normalized_action, context), self, spend_reason)
+
+
+func preflight_gate(gate_name: String) -> Dictionary:
+	"""Affordability check for a gate using effective runtime costs."""
+	return EconomyConstants.preflight_cost(get_gate_cost(gate_name), self)
+
+
+func commit_gate(gate_name: String, reason: String = "") -> bool:
+	"""Spend gate cost using effective runtime costs."""
+	var spend_reason = reason if reason != "" else gate_name
+	return EconomyConstants.commit_cost(get_gate_cost(gate_name), self, spend_reason)
+
+
+func preflight_cost(cost: Dictionary) -> Dictionary:
+	"""Affordability check for an arbitrary cost dictionary."""
+	return EconomyConstants.preflight_cost(cost, self)
+
+
+func commit_cost(cost: Dictionary, reason: String = "") -> bool:
+	"""Spend an arbitrary cost dictionary."""
+	return EconomyConstants.commit_cost(cost, self, reason)
+
+
+func get_max_biome_qubits() -> int:
+	return int(get_economy_variable("max_biome_qubits", EconomyConstants.MAX_BIOME_QUBITS))
+
+
+func get_quantum_to_credits_value() -> float:
+	return float(get_economy_variable("quantum_to_credits", EconomyConstants.QUANTUM_TO_CREDITS))
+
+
 ## ============================================================================
 ## QUOTA SYSTEM
 ## ============================================================================
@@ -369,4 +420,4 @@ func print_stats():
 
 
 func _q2c() -> float:
-	return EconomyConstants.get_quantum_to_credits(self)
+	return get_quantum_to_credits_value()

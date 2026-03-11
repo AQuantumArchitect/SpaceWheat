@@ -9,7 +9,8 @@ extends "res://UI/Core/OverlayBase.gd"
 ## Uses custom 2x2 grid layout instead of scroll container.
 
 const VocabularyPairing = preload("res://Core/Quests/VocabularyPairing.gd")
-const EconomyConstants = preload("res://Core/GameMechanics/EconomyConstants.gd")
+const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")
+const ActionCostRuntime = preload("res://Core/GameMechanics/ActionCostRuntime.gd")
 
 # Logging
 @onready var _verbose = get_node("/root/VerboseConfig")
@@ -395,6 +396,10 @@ func _get_game_state_manager():
 	return get_node_or_null("/root/GameStateManager")
 
 
+func _resolve_quantum_instrument():
+	return InstrumentLocator.resolve_quantum_instrument(self)
+
+
 func _get_saved_quest_slots() -> Array:
 	"""Safely load quest slots from GameStateManager"""
 	var gsm = _get_game_state_manager()
@@ -772,8 +777,11 @@ func _refresh_all_unlocked_offers() -> void:
 	if refresh_count <= 0:
 		return
 
-	var cost = {"🐇": refresh_count}
-	if not _check_can_afford(cost):
+	var single_cost = _get_runtime_action_cost("quest_reroll")
+	var total_cost: Dictionary = {}
+	for emoji in single_cost.keys():
+		total_cost[emoji] = int(single_cost[emoji]) * refresh_count
+	if not _can_afford_cost(total_cost):
 		if _verbose:
 			_verbose.warn("quest", "🐇", "Cannot refresh all: Need %d 🐇." % refresh_count)
 		return
@@ -854,10 +862,11 @@ func _refresh_all_unlocked_offers() -> void:
 
 	quest_pages_memory = new_memory
 
-	if quest_manager.economy:
-		if not quest_manager.economy.spend_cost(cost, "quest_refresh_all"):
+	for _i in range(refresh_count):
+		if not _spend_action_cost("quest_reroll", {}, "quest_refresh_all"):
 			if _verbose:
 				_verbose.warn("quest", "🐇", "Failed to spend refresh-all cost.")
+			break
 
 	# Refresh current page UI from memory
 	_load_page(current_page)
@@ -885,25 +894,31 @@ func _count_unlocked_offers_all_pages() -> int:
 func _toggle_lock(slot) -> void:
 	"""Toggle lock on offered quest slot (costs 🌲 to lock, free to unlock)"""
 	var was_locked = slot.is_locked
-	var cost = EconomyConstants.get_action_cost("quest_lock")
+	var quest_id = int(slot.quest_data.get("id", -1))
+	var instrument = _resolve_quantum_instrument()
+	if not instrument:
+		return
 
 	# Only check cost when locking (unlock is free)
 	if not was_locked:
-		if not quest_manager or not quest_manager.economy:
-			return
-
-		if not _check_can_afford(cost):
+		if not _can_afford_action("quest_lock"):
 			_verbose.warn("quest", "🌲", "Cannot lock: Need 1 🌲 tree.")
 			return
 
-	slot.toggle_lock()
+	var backend_ok = false
+	if was_locked:
+		if instrument.has_method("quest_unlock_offer"):
+			var unlock_result = instrument.quest_unlock_offer(quest_id)
+			backend_ok = bool(unlock_result.get("unlocked", false))
+	else:
+		if instrument.has_method("quest_lock_offer"):
+			var lock_result = instrument.quest_lock_offer(slot.quest_data)
+			backend_ok = bool(lock_result.get("locked", false))
 
-	# Only commit cost when locking
-	if not was_locked and quest_manager and quest_manager.economy:
-		if not quest_manager.economy.spend_cost(cost, "quest_lock"):
-			slot.toggle_lock()  # Rollback
-			_verbose.warn("quest", "🌲", "Lock failed: unable to spend cost.")
-			return
+	if not backend_ok:
+		return
+
+	slot.toggle_lock()
 
 	_save_current_page()
 	_emit_selection_update()
@@ -914,8 +929,10 @@ func _accept_quest(slot) -> void:
 	if not quest_manager:
 		return
 
+	var instrument = _resolve_quantum_instrument()
 	var quest_data_copy = slot.quest_data.duplicate(true)
 	var quest_id = quest_data_copy.get("id", -1)
+	var was_offer_locked = slot.is_locked
 
 	# Check if already active
 	if quest_manager.active_quests.has(quest_id):
@@ -934,7 +951,19 @@ func _accept_quest(slot) -> void:
 	slot.set_quest_active(quest_data_copy)
 	slot.is_locked = true
 
-	var success = quest_manager.accept_quest(quest_data_copy)
+	var success = false
+	if was_offer_locked and quest_id >= 0:
+		if instrument and instrument.has_method("quest_accept_locked"):
+			var accept_locked_result = instrument.quest_accept_locked(quest_id)
+			success = bool(accept_locked_result.get("accepted", false))
+		elif quest_manager.has_method("accept_locked_offer"):
+			success = quest_manager.accept_locked_offer(quest_id)
+	if not success:
+		if instrument and instrument.has_method("quest_accept"):
+			var accept_result = instrument.quest_accept(quest_data_copy)
+			success = bool(accept_result.get("accepted", false))
+		else:
+			success = quest_manager.accept_quest(quest_data_copy)
 
 	# Reconnect signal
 	if was_connected:
@@ -963,7 +992,7 @@ func _accept_quest(slot) -> void:
 		_emit_selection_update()
 	else:
 		# Revert slot state if accept failed
-		slot.set_quest_offered(quest_data_copy, slot.is_locked)
+		slot.set_quest_offered(quest_data_copy, was_offer_locked)
 
 
 func _deliver_quest(slot) -> void:
@@ -971,6 +1000,7 @@ func _deliver_quest(slot) -> void:
 	if not quest_manager:
 		return
 
+	var instrument = _resolve_quantum_instrument()
 	var quest_id = slot.quest_data.get("id", -1)
 	if quest_id < 0:
 		return
@@ -984,7 +1014,12 @@ func _deliver_quest(slot) -> void:
 		quest_manager.active_quests_changed.disconnect(_refresh_slots)
 		was_connected = true
 
-	var success = quest_manager.complete_quest(quest_id)
+	var success = false
+	if instrument and instrument.has_method("quest_complete"):
+		var complete_result = instrument.quest_complete(quest_id)
+		success = bool(complete_result.get("completed", false))
+	else:
+		success = quest_manager.complete_quest(quest_id)
 
 	# Reconnect signal
 	if was_connected:
@@ -1008,6 +1043,7 @@ func _claim_quest(slot) -> void:
 	if not quest_manager:
 		return
 
+	var instrument = _resolve_quantum_instrument()
 	var quest_id = slot.quest_data.get("id", -1)
 	if quest_id < 0:
 		return
@@ -1018,7 +1054,12 @@ func _claim_quest(slot) -> void:
 		quest_manager.active_quests_changed.disconnect(_refresh_slots)
 		was_connected = true
 
-	var success = quest_manager.claim_quest(quest_id)
+	var success = false
+	if instrument and instrument.has_method("quest_claim"):
+		var claim_result = instrument.quest_claim(quest_id)
+		success = bool(claim_result.get("claimed", false))
+	else:
+		success = quest_manager.claim_quest(quest_id)
 
 	# Reconnect signal
 	if was_connected:
@@ -1111,13 +1152,11 @@ func _abandon_quest(slot) -> void:
 
 func _reroll_quest(slot) -> void:
 	"""Reroll quest in slot (get random different faction) - Costs 1 rabbit 🐇"""
-	if not quest_manager or not current_biome or not quest_manager.economy:
+	if not quest_manager or not current_biome:
 		return
 
-	var cost = EconomyConstants.get_action_cost("quest_reroll")
-
 	# Check affordability first
-	if not _check_can_afford(cost):
+	if not _can_afford_action("quest_reroll"):
 		_verbose.warn("quest", "🐇", "Cannot reroll: Need 1 🐇 rabbit.")
 		return
 
@@ -1150,22 +1189,36 @@ func _reroll_quest(slot) -> void:
 	slot.set_quest_offered(new_quest, slot.is_locked)
 
 	# Commit cost after success
-	if not quest_manager.economy.spend_cost(cost, "quest_reroll"):
+	if not _spend_action_cost("quest_reroll", {}, "quest_reroll"):
 		_verbose.warn("quest", "🐇", "Failed to spend reroll cost.")
 
 
-func _check_can_afford(cost: Dictionary) -> bool:
-	"""Check if economy can afford cost (uses BaseSubmenu pattern)"""
-	if not quest_manager or not quest_manager.economy:
-		return false
+func _get_runtime_action_cost(action_name: String, context: Dictionary = {}) -> Dictionary:
+	var instrument = _resolve_quantum_instrument()
+	if instrument and instrument.has_method("get_action_cost"):
+		return instrument.get_action_cost(action_name, context)
+	return ActionCostRuntime.get_action_cost(quest_manager, action_name, context)
 
-	for resource in cost:
-		var required = cost[resource]
-		var available = quest_manager.economy.get_resource(resource)
-		if available < required:
-			return false
 
-	return true
+func _can_afford_action(action_name: String, context: Dictionary = {}) -> bool:
+	var instrument = _resolve_quantum_instrument()
+	if instrument and instrument.has_method("preflight_action_cost"):
+		return bool(instrument.preflight_action_cost(action_name, context).get("ok", false))
+	return bool(ActionCostRuntime.preflight_action(quest_manager, action_name, context).get("ok", false))
+
+
+func _spend_action_cost(action_name: String, context: Dictionary = {}, reason: String = "") -> bool:
+	var instrument = _resolve_quantum_instrument()
+	if instrument and instrument.has_method("commit_action_cost"):
+		return bool(instrument.commit_action_cost(action_name, context, reason).get("ok", false))
+	return ActionCostRuntime.commit_action(quest_manager, action_name, context, reason)
+
+
+func _can_afford_cost(cost: Dictionary) -> bool:
+	var instrument = _resolve_quantum_instrument()
+	if instrument and instrument.has_method("can_afford_cost"):
+		return bool(instrument.can_afford_cost(cost).get("ok", false))
+	return bool(ActionCostRuntime.preflight_cost(quest_manager, cost).get("ok", false))
 
 
 func _check_can_complete(slot) -> bool:
@@ -1479,14 +1532,14 @@ func get_action_info(key: String) -> Dictionary:
 			# NEUTRAL = Lock/Unlock only (balance, toggle)
 			match slot.state:
 				SlotState.OFFERED:
-					var lock_cost = EconomyConstants.get_action_cost("quest_lock")
+					var lock_cost = _get_runtime_action_cost("quest_lock")
 					return {
 						"action": "quest_lock",
 						"label": "Unlock" if slot.is_locked else "Lock",
 						"emoji": "🔓" if slot.is_locked else "🔒",
 						"cost": {} if slot.is_locked else lock_cost,
 						"cost_display": "" if slot.is_locked else "🌲",
-						"can_afford": slot.is_locked or _check_can_afford(lock_cost)
+						"can_afford": slot.is_locked or _can_afford_action("quest_lock")
 					}
 				_:
 					# E disabled for ACTIVE/READY
@@ -1497,14 +1550,14 @@ func get_action_info(key: String) -> Dictionary:
 				SlotState.OFFERED:
 					if slot.is_locked:
 						return {}
-					var reroll_cost = EconomyConstants.get_action_cost("quest_reroll")
+					var reroll_cost = _get_runtime_action_cost("quest_reroll")
 					return {
 						"action": "quest_refresh",
 						"label": "Refresh",
 						"emoji": "🔄",
 						"cost": reroll_cost,
 						"cost_display": "🐇",
-						"can_afford": _check_can_afford(reroll_cost)
+						"can_afford": _can_afford_action("quest_reroll")
 					}
 				SlotState.ACTIVE:
 					return {}

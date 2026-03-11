@@ -14,6 +14,7 @@ const PERSISTENT_RATE = 0.5
 const PUMP_RESOURCE_EMOJI = "🌱"
 const DRAIN_GEAR_EMOJI = "⚙"
 const EconomyConstants = preload("res://Core/GameMechanics/EconomyConstants.gd")
+const ActionCostRuntime = preload("res://Core/GameMechanics/ActionCostRuntime.gd")
 
 
 static func get_preview_cost(action_name: String, axis_pair: Dictionary = {}) -> Dictionary:
@@ -43,7 +44,7 @@ static func _preflight_lindblad_cost(
 		return {}
 
 	var cost = _get_lindblad_cost(action_name, north_emoji, south_emoji)
-	var gate = EconomyConstants.preflight_cost(cost, farm.economy)
+	var gate = ActionCostRuntime.preflight_cost(farm.economy, cost)
 	if not gate.get("ok", true):
 		for emoji in cost.keys():
 			var amount = float(cost[emoji])
@@ -453,7 +454,7 @@ static func enable_persistent_decay(farm, positions: Array[Vector2i],
 		if cost.is_empty():
 			continue
 
-		if not EconomyConstants.commit_cost(cost, farm.economy, "lindblad_drain"):
+		if not ActionCostRuntime.commit_cost(farm.economy, cost, "lindblad_drain"):
 			continue
 
 		if plot:

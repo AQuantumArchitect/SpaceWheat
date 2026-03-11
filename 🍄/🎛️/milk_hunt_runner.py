@@ -115,6 +115,8 @@ def _run_turn(turn_id: int, action: str, **kwargs: Any) -> Dict[str, Any]:
             timeout_s = 45.0
         elif action in {"policy_step"}:
             timeout_s = 45.0
+        elif action in {"policy_snapshot"}:
+            timeout_s = 20.0
         elif action in {"offer_quests", "accept_offer", "known_vocab_pairs", "resource_snapshot"}:
             timeout_s = 20.0
         elif action in {"grid_snapshot"}:
@@ -146,6 +148,12 @@ def _extract_pairs(rows: List[Dict[str, Any]]) -> List[Dict[str, str]]:
             val = row.get("pairs", [])
             if isinstance(val, list):
                 pairs = val
+        elif row.get("action") == "policy_snapshot":
+            policy_snapshot = row.get("policy_snapshot", {})
+            if isinstance(policy_snapshot, dict):
+                val = policy_snapshot.get("known_pairs", [])
+                if isinstance(val, list):
+                    pairs = val
     return pairs
 
 
@@ -159,16 +167,62 @@ def _contains_milk_pair(pairs: List[Dict[str, str]]) -> bool:
 def _extract_biomes(rows: List[Dict[str, Any]]) -> List[str]:
     biomes: List[str] = []
     for row in rows:
-        if row.get("action") != "grid_snapshot":
-            continue
-        grid = row.get("grid", {})
-        if not isinstance(grid, dict):
-            continue
-        val = grid.get("biomes", [])
-        if not isinstance(val, list):
-            continue
-        biomes = [str(b) for b in val if isinstance(b, str) and b]
+        action = row.get("action")
+        if action == "grid_snapshot":
+            grid = row.get("grid", {})
+            if not isinstance(grid, dict):
+                continue
+            val = grid.get("biomes", [])
+            if not isinstance(val, list):
+                continue
+            biomes = [str(b) for b in val if isinstance(b, str) and b]
+        elif action == "policy_snapshot":
+            policy_snapshot = row.get("policy_snapshot", {})
+            if not isinstance(policy_snapshot, dict):
+                continue
+            val = policy_snapshot.get("biomes", [])
+            if not isinstance(val, list):
+                continue
+            biomes = [str(b) for b in val if isinstance(b, str) and b]
     return biomes
+
+
+def _extract_policy_snapshot(row: Dict[str, Any]) -> Dict[str, Any]:
+    if not isinstance(row, dict):
+        return {}
+    payload = row.get("policy_snapshot", {})
+    return payload if isinstance(payload, dict) else {}
+
+
+def _extract_policy_pairs(row: Dict[str, Any]) -> List[Dict[str, Any]]:
+    payload = _extract_policy_snapshot(row)
+    pairs = payload.get("known_pairs", [])
+    return pairs if isinstance(pairs, list) else []
+
+
+def _extract_policy_biomes(row: Dict[str, Any]) -> List[str]:
+    payload = _extract_policy_snapshot(row)
+    raw = payload.get("biomes", [])
+    if not isinstance(raw, list):
+        return []
+    return [str(b) for b in raw if isinstance(b, str) and b]
+
+
+def _extract_policy_active_quests(row: Dict[str, Any]) -> List[Dict[str, Any]]:
+    payload = _extract_policy_snapshot(row)
+    quests = payload.get("active_quests", [])
+    return quests if isinstance(quests, list) else []
+
+
+def _run_policy_snapshot(
+    turn: int,
+    history: List[Dict[str, Any]],
+    include_grid: bool = False,
+    include_offers: bool = False,
+) -> tuple[int, Dict[str, Any]]:
+    row = _run_turn(turn, "policy_snapshot", include_offers=include_offers, include_grid=include_grid)
+    history.append(row)
+    return turn + 1, row
 
 
 def _tail_lines(path: Path, max_lines: int = 6) -> List[str]:
@@ -364,6 +418,7 @@ def _compute_profile_metrics(history: List[Dict[str, Any]], initial_pairs: int, 
         "lindblad_drain_persistent_total": 0,
         "lindblad_drain_already_active_total": 0,
         "resource_snapshot_calls": 0,
+        "policy_snapshot_calls": 0,
         "known_vocab_reads": 0,
         "vocab_pairs_initial": max(0, int(initial_pairs)),
         "vocab_pairs_final": max(0, int(final_pairs)),
@@ -434,6 +489,8 @@ def _compute_profile_metrics(history: List[Dict[str, Any]], initial_pairs: int, 
                 metrics["lindblad_drains_established"] += 1
         elif action == "resource_snapshot":
             metrics["resource_snapshot_calls"] += 1
+        elif action == "policy_snapshot":
+            metrics["policy_snapshot_calls"] += 1
         elif action == "known_vocab_pairs":
             metrics["known_vocab_reads"] += 1
         elif action == "policy_step":
@@ -716,6 +773,20 @@ def _best_offer_index(
 def _extract_resource_map(row: Dict[str, Any]) -> Dict[str, float]:
     if not isinstance(row, dict):
         return {}
+    policy_snapshot = row.get("policy_snapshot", {})
+    if isinstance(policy_snapshot, dict):
+        policy_resources = policy_snapshot.get("resources", {})
+        if isinstance(policy_resources, dict):
+            out_policy: Dict[str, float] = {}
+            for emoji, amount in policy_resources.items():
+                if not isinstance(emoji, str) or not emoji:
+                    continue
+                try:
+                    out_policy[emoji] = float(amount)
+                except (TypeError, ValueError):
+                    continue
+            if out_policy:
+                return out_policy
     resources = row.get("resources", {})
     if not isinstance(resources, dict):
         return {}
@@ -810,6 +881,81 @@ def _parse_token_list(values: List[str]) -> List[str]:
     return out
 
 
+def _profile_lock_policy(profile_name: str) -> Dict[str, Any]:
+    base: Dict[str, Any] = {
+        "enabled": True,
+        "min_loop": 1,
+        "max_per_loop": 1,
+        "max_total_locks": 2,
+        "loop_mod": 1,
+        "pairs_soft_cap": 20,
+        "min_known_biomes": 2,
+        "critical_pressure_cap": 2.5,
+        "fail_streak_trigger": 2,
+        "cooldown_loops": 2,
+    }
+    per_profile: Dict[str, Dict[str, Any]] = {
+        # Planner: lock a bit more often while building quest chain.
+        "granary_scout": {
+            "max_per_loop": 2,
+            "max_total_locks": 2,
+            "pairs_soft_cap": 18,
+            "critical_pressure_cap": 3.0,
+        },
+        # Explorer: occasional lock, only after opening biome options.
+        "arc_coldpath_explorer": {
+            "min_loop": 2,
+            "max_total_locks": 1,
+            "loop_mod": 2,
+            "pairs_soft_cap": 14,
+            "min_known_biomes": 3,
+            "critical_pressure_cap": 1.75,
+        },
+        # Time-skip heavy: keep lock sparse.
+        "solar_gatekeeper": {
+            "min_loop": 3,
+            "max_total_locks": 1,
+            "loop_mod": 2,
+            "pairs_soft_cap": 16,
+            "critical_pressure_cap": 2.0,
+        },
+        # Quest-centric trader: allow frequent lock usage.
+        "village_diplomat": {
+            "min_loop": 1,
+            "max_per_loop": 3,
+            "max_total_locks": 3,
+            "pairs_soft_cap": 28,
+            "critical_pressure_cap": 4.0,
+            "fail_streak_trigger": 3,
+            "cooldown_loops": 1,
+        },
+        # Chaotic explorer: mostly avoid lock to preserve action diversity.
+        "biotic_bubble_runner": {
+            "min_loop": 2,
+            "max_total_locks": 1,
+            "loop_mod": 3,
+            "pairs_soft_cap": 12,
+            "min_known_biomes": 3,
+            "critical_pressure_cap": 1.5,
+        },
+    }
+    out = dict(base)
+    out.update(per_profile.get(profile_name, {}))
+    return out
+
+
+def _critical_floor_pressure(resources: Dict[str, float], floors: Dict[str, float]) -> float:
+    pressure = 0.0
+    for emoji in ("🍞", "❄️", "👥"):
+        floor = float(floors.get(emoji, 0.0))
+        if floor <= 0.0:
+            continue
+        have = float(resources.get(emoji, 0.0))
+        if have < floor:
+            pressure += (floor - have) / max(1.0, floor)
+    return pressure
+
+
 def _encode_positions_for_rig(raw_positions: Any, limit: int = 0, offset: int = 0) -> List[List[int]]:
     out: List[List[int]] = []
     if not isinstance(raw_positions, list) or not raw_positions:
@@ -871,9 +1017,7 @@ def _enforce_primary_resource_floors(
         changed = True
         events.append({"emoji": emoji, "before": have, "floor": floor, "added": need, "ok": bool(add_row.get("added", False))})
     if changed:
-        snap_row = _run_turn(turn, "resource_snapshot")
-        history.append(snap_row)
-        turn += 1
+        turn, snap_row = _run_policy_snapshot(turn, history, include_grid=False, include_offers=False)
         current_resources = _extract_resource_map(snap_row)
     return turn, current_resources, events
 
@@ -1032,10 +1176,34 @@ def _build_parser() -> argparse.ArgumentParser:
         help="When engine_policy is active, cap quest_cycle actions per loop to prevent degenerate quest spam",
     )
     parser.add_argument(
+        "--policy-restrictions",
+        dest="policy_restrictions",
+        action="store_true",
+        help="Enable runner-side policy action restrictions (quest caps / lock gating / forbid lists)",
+    )
+    parser.add_argument(
+        "--no-policy-restrictions",
+        dest="policy_restrictions",
+        action="store_false",
+        help="Disable runner-side policy action restrictions; keep full policy action space",
+    )
+    parser.add_argument(
         "--policy-forbid-action",
         action="append",
         default=[],
         help="Forbid policy actions globally (repeat or pass comma-separated values), e.g. --policy-forbid-action lock_offer",
+    )
+    parser.add_argument(
+        "--profile-lock-strategy",
+        dest="profile_lock_strategy",
+        action="store_true",
+        help="Enable profile-specific lock_offer usage strategy",
+    )
+    parser.add_argument(
+        "--no-profile-lock-strategy",
+        dest="profile_lock_strategy",
+        action="store_false",
+        help="Disable profile-specific lock_offer strategy",
     )
     parser.add_argument(
         "--policy-reset-on-start",
@@ -1391,6 +1559,8 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.set_defaults(lindblad_drain_focus=None)
     parser.set_defaults(advanced_mode=None)
     parser.set_defaults(policy_reset_on_start=None)
+    parser.set_defaults(profile_lock_strategy=None)
+    parser.set_defaults(policy_restrictions=None)
     return parser
 
 
@@ -1568,9 +1738,38 @@ def main() -> int:
     if policy_max_quest_actions_per_loop is None and os.environ.get("MILK_HUNT_POLICY_MAX_QUEST_PER_LOOP", "") != "":
         policy_max_quest_actions_per_loop = int(os.environ["MILK_HUNT_POLICY_MAX_QUEST_PER_LOOP"])
     if policy_max_quest_actions_per_loop is None:
-        policy_max_quest_actions_per_loop = 2
+        policy_max_quest_actions_per_loop = 0
     policy_max_quest_actions_per_loop = max(0, int(policy_max_quest_actions_per_loop))
     policy_forbid_actions = _parse_token_list(list(args.policy_forbid_action or []))
+    policy_restrictions = args.policy_restrictions
+    if policy_restrictions is None:
+        policy_restrictions = get_cfg_bool(cfg, "policy_restrictions")
+    if policy_restrictions is None and os.environ.get("MILK_HUNT_POLICY_RESTRICTIONS", "") != "":
+        policy_restrictions = os.environ["MILK_HUNT_POLICY_RESTRICTIONS"].strip().lower() in {
+            "1",
+            "true",
+            "yes",
+            "on",
+        }
+    if policy_restrictions is None:
+        policy_restrictions = False
+    profile_lock_strategy = args.profile_lock_strategy
+    if profile_lock_strategy is None:
+        profile_lock_strategy = get_cfg_bool(cfg, "profile_lock_strategy")
+    if profile_lock_strategy is None and os.environ.get("MILK_HUNT_PROFILE_LOCK_STRATEGY", "") != "":
+        profile_lock_strategy = os.environ["MILK_HUNT_PROFILE_LOCK_STRATEGY"].strip().lower() in {
+            "1",
+            "true",
+            "yes",
+            "on",
+        }
+    if profile_lock_strategy is None:
+        profile_lock_strategy = False
+    if not bool(policy_restrictions):
+        policy_max_quest_actions_per_loop = 0
+        policy_forbid_actions = []
+        profile_lock_strategy = False
+    lock_profile_policy = _profile_lock_policy(hunter_profile)
 
     if strict_biome_economy is None:
         val = strategy.strict_biome_economy
@@ -1869,20 +2068,22 @@ def main() -> int:
         if args.open_quests_overlay:
             history.append(_run_turn(turn, "open_overlay", name="quests"))
             turn += 1
-        snap = _run_turn(turn, "resource_snapshot")
+        snap = _run_turn(turn, "policy_snapshot")
         history.append(snap)
         turn += 1
 
-        resources = snap.get("resources", {}).get("resources", {})
+        policy_boot = snap.get("policy_snapshot", {}) if isinstance(snap, dict) else {}
+        resources = policy_boot.get("resources", {}) if isinstance(policy_boot, dict) else {}
         if isinstance(resources, dict) and not strict_biome_economy and strategy.initial_injection_enabled:
             inj_amount = strategy.initial_injection_amount
             for emoji in strategy.initial_injection_resources:
                 history.append(_run_turn(turn, "add_resource", emoji=emoji, amount=inj_amount))
                 turn += 1
 
-        history.append(_run_turn(turn, "grid_snapshot"))
-        turn += 1
-        initial_biomes = _extract_biomes(history)
+        initial_biomes: List[str] = []
+        boot_biomes = policy_boot.get("biomes", []) if isinstance(policy_boot, dict) else []
+        if isinstance(boot_biomes, list):
+            initial_biomes = [str(b) for b in boot_biomes if isinstance(b, str) and b]
 
         # Apply stride/resolution overrides to all discovered biomes
         if args.stride is not None:
@@ -1903,23 +2104,17 @@ def main() -> int:
                 + json.dumps(timescale_objective_payload, ensure_ascii=False),
                 "detail",
             )
-        history.append(_run_turn(turn, "known_vocab_pairs"))
-        turn += 1
-        initial_known_pairs_count = len(_extract_pairs(history))
-        resources = _run_turn(turn, "resource_snapshot")
-        history.append(resources)
-        turn += 1
-        _safe_print(
-            "RESOURCE_SNAPSHOT " + json.dumps(resources.get("resources", {}), ensure_ascii=False),
-            "trace",
-        )
+        boot_pairs = policy_boot.get("known_pairs", []) if isinstance(policy_boot, dict) else []
+        initial_known_pairs_count = len(boot_pairs) if isinstance(boot_pairs, list) else 0
+        current_resources: Dict[str, float] = _extract_resource_map(snap)
+        _safe_print("RESOURCE_SNAPSHOT " + json.dumps(current_resources, ensure_ascii=False), "trace")
 
         found_milk = False
         found_offer = False
         last_milk_offer: Optional[Dict[str, Any]] = None
         victory_lap_result: Dict[str, Any] = {}
         victory_lap_executed = False
-        prev_pairs_count = len(_extract_pairs(history))
+        prev_pairs_count = initial_known_pairs_count
         # Track true biome discovery (newly unlocked biomes beyond initial access).
         known_biomes: Set[str] = set(initial_biomes)
         newly_discovered_biomes: List[str] = []
@@ -1934,6 +2129,13 @@ def main() -> int:
         lindblad_biomes_activated: Set[str] = set()
         lindblad_drain_events: List[Dict[str, Any]] = []
         lindblad_wait_events: List[Dict[str, Any]] = []
+        policy_lock_actions = 0
+        policy_lock_success = 0
+        policy_lock_failed = 0
+        policy_lock_cap_hits = 0
+        policy_lock_cooldown_hits = 0
+        lock_fail_streak = 0
+        lock_cooldown_until_loop = 0
         timescale_events: List[Dict[str, Any]] = []
         biome_timescale_cache: Dict[str, Dict[str, float]] = {}
         policy_trace_limit = max(0, int(args.policy_trace_limit))
@@ -2008,7 +2210,6 @@ def main() -> int:
         expansions_succeeded = 0
         loops_completed = 0
         policy_quest_cap_hits = 0
-        current_resources: Dict[str, float] = _extract_resource_map(snap)
         if use_engine_policy:
             if policy_reset_on_start:
                 policy_row = _run_turn(
@@ -2051,12 +2252,50 @@ def main() -> int:
 
             if use_engine_policy:
                 loop_quest_actions = 0
+                loop_lock_actions = 0
                 for policy_step_idx in range(policy_actions_per_loop):
                     forbid_actions: List[str] = list(policy_forbid_actions)
                     if policy_max_quest_actions_per_loop > 0 and loop_quest_actions >= policy_max_quest_actions_per_loop:
                         if "quest_cycle" not in forbid_actions:
                             forbid_actions.append("quest_cycle")
                         policy_quest_cap_hits += 1
+                    lock_gate_reasons: List[str] = []
+                    lock_gate_pressure: Optional[float] = None
+                    lock_gate_allowed = True
+                    lock_gate_enabled = bool(profile_lock_strategy) and bool(lock_profile_policy.get("enabled", True))
+                    if lock_gate_enabled:
+                        loop_number = loop_idx + 1
+                        min_loop = int(lock_profile_policy.get("min_loop", 1) or 1)
+                        loop_mod = int(lock_profile_policy.get("loop_mod", 1) or 1)
+                        max_per_loop = int(lock_profile_policy.get("max_per_loop", 1) or 1)
+                        max_total_locks = int(lock_profile_policy.get("max_total_locks", 999999) or 999999)
+                        pairs_soft_cap = int(lock_profile_policy.get("pairs_soft_cap", 999999) or 999999)
+                        min_known_biomes = int(lock_profile_policy.get("min_known_biomes", 0) or 0)
+                        critical_pressure_cap = float(lock_profile_policy.get("critical_pressure_cap", 999999.0) or 999999.0)
+                        if loop_number < min_loop:
+                            lock_gate_reasons.append("before_min_loop")
+                        if loop_mod > 1 and loop_number >= min_loop and ((loop_number - min_loop) % loop_mod != 0):
+                            lock_gate_reasons.append("loop_mod_skip")
+                        if loop_lock_actions >= max_per_loop:
+                            lock_gate_reasons.append("per_loop_cap")
+                            policy_lock_cap_hits += 1
+                        if policy_lock_actions >= max_total_locks:
+                            lock_gate_reasons.append("total_lock_cap")
+                            policy_lock_cap_hits += 1
+                        if prev_pairs_count > pairs_soft_cap:
+                            lock_gate_reasons.append("pairs_soft_cap")
+                        if len(known_biomes) < min_known_biomes:
+                            lock_gate_reasons.append("known_biomes_gate")
+                        lock_gate_pressure = _critical_floor_pressure(current_resources, primary_resource_floors)
+                        if lock_gate_pressure > critical_pressure_cap:
+                            lock_gate_reasons.append("critical_pressure")
+                        if loop_number <= lock_cooldown_until_loop:
+                            lock_gate_reasons.append("cooldown")
+                            policy_lock_cooldown_hits += 1
+                        if lock_gate_reasons:
+                            lock_gate_allowed = False
+                            if "lock_offer" not in forbid_actions:
+                                forbid_actions.append("lock_offer")
                     policy_row = _run_turn(
                         turn,
                         "policy_step",
@@ -2078,6 +2317,26 @@ def main() -> int:
                     executed_action = str(execution.get("action", selected_action)) if isinstance(execution, dict) else selected_action
                     if executed_action == "quest_cycle":
                         loop_quest_actions += 1
+                    if executed_action == "lock_offer":
+                        loop_lock_actions += 1
+                        policy_lock_actions += 1
+                        lock_ok = bool(isinstance(execution, dict) and execution.get("ok", False))
+                        if lock_ok:
+                            policy_lock_success += 1
+                            lock_fail_streak = 0
+                        else:
+                            policy_lock_failed += 1
+                            lock_fail_streak += 1
+                            fail_streak_trigger = int(lock_profile_policy.get("fail_streak_trigger", 0) or 0)
+                            cooldown_loops = int(lock_profile_policy.get("cooldown_loops", 0) or 0)
+                            if (
+                                lock_gate_enabled
+                                and fail_streak_trigger > 0
+                                and lock_fail_streak >= fail_streak_trigger
+                                and cooldown_loops > 0
+                            ):
+                                lock_cooldown_until_loop = max(lock_cooldown_until_loop, (loop_idx + 1) + cooldown_loops)
+                                lock_fail_streak = 0
                     event: Dict[str, Any] = {
                         "kind": "engine_policy_step",
                         "loop": loop_idx + 1,
@@ -2090,6 +2349,15 @@ def main() -> int:
                         "forbid_actions": forbid_actions,
                         "ok": bool(execution.get("ok", False)) if isinstance(execution, dict) else False,
                     }
+                    if lock_gate_enabled:
+                        event["lock_gate"] = {
+                            "enabled": True,
+                            "allowed": lock_gate_allowed,
+                            "reasons": lock_gate_reasons,
+                            "critical_pressure": lock_gate_pressure,
+                            "loop_lock_actions": loop_lock_actions,
+                            "cooldown_until_loop": lock_cooldown_until_loop,
+                        }
                     if isinstance(execution, dict) and executed_action == "quest_cycle":
                         event["accepted"] = bool(execution.get("accepted", False))
                         event["completed_after_accept"] = bool(execution.get("completed_after_accept", False))
@@ -2116,10 +2384,8 @@ def main() -> int:
                                 current_resources = converted
                         post_pair_count = int(policy_payload.get("post_known_pairs_count", prev_pairs_count) or prev_pairs_count)
                         if post_pair_count > prev_pairs_count:
-                            pairs_row = _run_turn(turn, "known_vocab_pairs")
-                            history.append(pairs_row)
-                            turn += 1
-                            pairs = pairs_row.get("pairs", [])
+                            turn, pairs_row = _run_policy_snapshot(turn, history, include_grid=False, include_offers=False)
+                            pairs = _extract_policy_pairs(pairs_row)
                             actual_pair_count = len(pairs) if isinstance(pairs, list) else post_pair_count
                             new_pairs: List[Dict[str, str]] = []
                             if isinstance(pairs, list):
@@ -2177,9 +2443,9 @@ def main() -> int:
                         success = bool(isinstance(discover, dict) and discover.get("success", False))
                         if success:
                             expansions_succeeded += 1
-                            grid_after_expand = _run_turn(turn, "grid_snapshot")
-                            history.append(grid_after_expand)
-                            turn += 1
+                            turn, grid_after_expand = _run_policy_snapshot(
+                                turn, history, include_grid=True, include_offers=False
+                            )
                             expanded_biomes = _extract_biomes(history)
                             for biome_name in expanded_biomes:
                                 if biome_name not in known_biomes:
@@ -2257,9 +2523,9 @@ def main() -> int:
                         success = bool(isinstance(expand_result, dict) and expand_result.get("success", False))
                         if success:
                             expansions_succeeded += 1
-                            grid_after_expand = _run_turn(turn, "grid_snapshot")
-                            history.append(grid_after_expand)
-                            turn += 1
+                            turn, grid_after_expand = _run_policy_snapshot(
+                                turn, history, include_grid=True, include_offers=False
+                            )
                             expanded_biomes = _extract_biomes(history)
                             for biome_name in expanded_biomes:
                                 if biome_name not in known_biomes:
@@ -2280,10 +2546,8 @@ def main() -> int:
             if args.eagle_focus and float(current_resources.get(eagle_emoji, 0.0)) < float(eagle_target_stock):
                 burst_count = max(1, int(eagle_probe_burst))
                 for _focus_idx in range(burst_count):
-                    focus_grid = _run_turn(turn, "grid_snapshot")
-                    history.append(focus_grid)
-                    turn += 1
-                    focus_biomes = _extract_biomes(history)
+                    turn, focus_grid = _run_policy_snapshot(turn, history, include_grid=True, include_offers=False)
+                    focus_biomes = _extract_policy_biomes(focus_grid)
                     focus_biome = _select_focus_biome(
                         focus_biomes,
                         biome_explore_counts,
@@ -2303,9 +2567,7 @@ def main() -> int:
                         biome_resource_hits.setdefault(focus_biome, {})
                         hits = biome_resource_hits[focus_biome]
                         hits[harvested] = hits.get(harvested, 0) + 1
-                    focus_snapshot = _run_turn(turn, "resource_snapshot")
-                    history.append(focus_snapshot)
-                    turn += 1
+                    turn, focus_snapshot = _run_policy_snapshot(turn, history, include_grid=False, include_offers=False)
                     current_resources = _extract_resource_map(focus_snapshot)
                     if float(current_resources.get(eagle_emoji, 0.0)) >= float(eagle_target_stock):
                         break
@@ -2314,10 +2576,8 @@ def main() -> int:
             if lindblad_drain_focus and (loop_idx % max(1, int(lindblad_drain_every)) == 0):
                 candidate_biomes = configured_lindblad_biomes if configured_lindblad_biomes else list(loop_biomes)
                 if not candidate_biomes:
-                    grid_for_drain = _run_turn(turn, "grid_snapshot")
-                    history.append(grid_for_drain)
-                    turn += 1
-                    loop_biomes = _extract_biomes(history)
+                    turn, grid_for_drain = _run_policy_snapshot(turn, history, include_grid=True, include_offers=False)
+                    loop_biomes = _extract_policy_biomes(grid_for_drain)
                     candidate_biomes = configured_lindblad_biomes if configured_lindblad_biomes else list(loop_biomes)
 
                 unique_biomes: List[str] = []
@@ -2473,9 +2733,9 @@ def main() -> int:
                             }
                         )
                 if did_drain:
-                    post_drain_snapshot = _run_turn(turn, "resource_snapshot")
-                    history.append(post_drain_snapshot)
-                    turn += 1
+                    turn, post_drain_snapshot = _run_policy_snapshot(
+                        turn, history, include_grid=False, include_offers=False
+                    )
                     current_resources = _extract_resource_map(post_drain_snapshot)
                     loop_should_wait = True
 
@@ -2496,10 +2756,8 @@ def main() -> int:
                 )
                 dynamic_probe_cycles = max(0, int(quantum_policy.extra_probe_cycles(loop_state)))
                 for loop_probe_idx in range(dynamic_probe_cycles):
-                    grid_row = _run_turn(turn, "grid_snapshot")
-                    history.append(grid_row)
-                    turn += 1
-                    biomes = _extract_biomes(history)
+                    turn, grid_row = _run_policy_snapshot(turn, history, include_grid=True, include_offers=False)
+                    biomes = _extract_policy_biomes(grid_row)
                     probe_state = HunterStateAdapter.build(
                         loop_idx=loop_idx,
                         max_loops=max_loops,
@@ -2548,15 +2806,13 @@ def main() -> int:
                             "probe": probe if isinstance(probe, dict) else {},
                         }
                     )
-                    probe_snapshot = _run_turn(turn, "resource_snapshot")
-                    history.append(probe_snapshot)
-                    turn += 1
+                    turn, probe_snapshot = _run_policy_snapshot(
+                        turn, history, include_grid=False, include_offers=False
+                    )
                     current_resources = _extract_resource_map(probe_snapshot)
                     loop_biomes = biomes
 
-            loop_snapshot = _run_turn(turn, "resource_snapshot")
-            history.append(loop_snapshot)
-            turn += 1
+            turn, loop_snapshot = _run_policy_snapshot(turn, history, include_grid=False, include_offers=False)
             current_resources = _extract_resource_map(loop_snapshot)
             if metrics_every > 0 and ((loop_idx + 1) % metrics_every == 0):
                 metrics_row = _run_turn(turn, "batcher_metrics", timeout_s=20.0)
@@ -2695,10 +2951,8 @@ def main() -> int:
                     if isinstance(maybe_offer, dict):
                         selected_offer = maybe_offer
                 if not strict_biome_economy:
-                    active_row = _run_turn(turn, "active_quests")
-                    history.append(active_row)
-                    turn += 1
-                    quests = active_row.get("quests", [])
+                    turn, active_row = _run_policy_snapshot(turn, history, include_grid=False, include_offers=False)
+                    quests = _extract_policy_active_quests(active_row)
                     if isinstance(quests, list):
                         for q in quests:
                             if int(q.get("id", -1)) != quest_id:
@@ -2713,14 +2967,9 @@ def main() -> int:
                     completion_action = "complete_quest" if int(selected_offer.get("type", -1)) == 0 else "complete_or_claim"
                 history.append(_run_turn(turn, completion_action, quest_id=quest_id))
                 turn += 1
-                post_complete_snapshot = _run_turn(turn, "resource_snapshot")
-                history.append(post_complete_snapshot)
-                turn += 1
+                turn, post_complete_snapshot = _run_policy_snapshot(turn, history, include_grid=True, include_offers=False)
                 current_resources = _extract_resource_map(post_complete_snapshot)
-                pairs_row = _run_turn(turn, "known_vocab_pairs")
-                history.append(pairs_row)
-                turn += 1
-                pairs = pairs_row.get("pairs", [])
+                pairs = _extract_policy_pairs(post_complete_snapshot)
                 pair_count = len(pairs) if isinstance(pairs, list) else prev_pairs_count
                 if pair_count > prev_pairs_count:
                     new_pairs: List[Dict[str, str]] = []
@@ -2764,10 +3013,8 @@ def main() -> int:
                             int(quantum_policy.probe_cycles_after_vocab_gain(vocab_state, pair_gain)),
                         )
                     for vocab_probe_idx in range(vocab_probe_cycles):
-                        grid_row = _run_turn(turn, "grid_snapshot")
-                        history.append(grid_row)
-                        turn += 1
-                        biomes = _extract_biomes(history)
+                        turn, grid_row = _run_policy_snapshot(turn, history, include_grid=True, include_offers=False)
+                        biomes = _extract_policy_biomes(grid_row)
                         if not biomes:
                             biome_probe_events.append(
                                 {
@@ -2834,9 +3081,9 @@ def main() -> int:
                                 "probe": probe if isinstance(probe, dict) else {},
                             }
                         )
-                        probe_snapshot = _run_turn(turn, "resource_snapshot")
-                        history.append(probe_snapshot)
-                        turn += 1
+                        turn, probe_snapshot = _run_policy_snapshot(
+                            turn, history, include_grid=False, include_offers=False
+                        )
                         current_resources = _extract_resource_map(probe_snapshot)
                     prev_pairs_count = pair_count
                 if isinstance(pairs, list) and _contains_milk_pair(pairs):
@@ -2855,9 +3102,7 @@ def main() -> int:
                 raw_victory = victory_row.get("victory_lap", {})
                 if isinstance(raw_victory, dict):
                     victory_lap_result = raw_victory
-            post_victory_snapshot = _run_turn(turn, "resource_snapshot")
-            history.append(post_victory_snapshot)
-            turn += 1
+            turn, post_victory_snapshot = _run_policy_snapshot(turn, history, include_grid=False, include_offers=False)
             current_resources = _extract_resource_map(post_victory_snapshot)
 
         final_pairs = _extract_pairs(history)
@@ -2921,12 +3166,22 @@ def main() -> int:
             "hunter_policy_active": (quantum_policy is not None) or use_engine_policy,
             "engine_policy_active": use_engine_policy,
             "policy_actions_per_loop": policy_actions_per_loop,
+            "policy_restrictions_enabled": bool(policy_restrictions),
             "policy_epsilon": policy_epsilon,
             "policy_ucb_scale": policy_ucb_scale,
             "policy_reset_on_start": bool(policy_reset_on_start),
             "policy_max_quest_actions_per_loop": policy_max_quest_actions_per_loop,
             "policy_forbid_actions": policy_forbid_actions,
             "policy_quest_cap_hits": policy_quest_cap_hits,
+            "profile_lock_strategy_enabled": bool(profile_lock_strategy),
+            "profile_lock_strategy_policy": lock_profile_policy if bool(profile_lock_strategy) else {},
+            "policy_lock_actions": policy_lock_actions,
+            "policy_lock_success": policy_lock_success,
+            "policy_lock_failed": policy_lock_failed,
+            "policy_lock_cap_hits": policy_lock_cap_hits,
+            "policy_lock_cooldown_hits": policy_lock_cooldown_hits,
+            "policy_lock_cooldown_until_loop": lock_cooldown_until_loop,
+            "policy_lock_fail_streak_final": lock_fail_streak,
             "policy_trace_limit": policy_trace_limit,
             "policy_action_counts": policy_action_counts,
             "policy_action_pct": policy_action_pct,
@@ -3078,12 +3333,22 @@ def main() -> int:
             "hunter_policy_active": (quantum_policy is not None) or use_engine_policy,
             "engine_policy_active": use_engine_policy,
             "policy_actions_per_loop": policy_actions_per_loop,
+            "policy_restrictions_enabled": bool(policy_restrictions),
             "policy_epsilon": policy_epsilon,
             "policy_ucb_scale": policy_ucb_scale,
             "policy_reset_on_start": bool(policy_reset_on_start),
             "policy_max_quest_actions_per_loop": policy_max_quest_actions_per_loop,
             "policy_forbid_actions": policy_forbid_actions,
             "policy_quest_cap_hits": locals().get("policy_quest_cap_hits", 0),
+            "profile_lock_strategy_enabled": bool(profile_lock_strategy),
+            "profile_lock_strategy_policy": lock_profile_policy if bool(profile_lock_strategy) else {},
+            "policy_lock_actions": locals().get("policy_lock_actions", 0),
+            "policy_lock_success": locals().get("policy_lock_success", 0),
+            "policy_lock_failed": locals().get("policy_lock_failed", 0),
+            "policy_lock_cap_hits": locals().get("policy_lock_cap_hits", 0),
+            "policy_lock_cooldown_hits": locals().get("policy_lock_cooldown_hits", 0),
+            "policy_lock_cooldown_until_loop": locals().get("lock_cooldown_until_loop", 0),
+            "policy_lock_fail_streak_final": locals().get("lock_fail_streak", 0),
             "policy_action_counts": _policy_action_counts(locals().get("policy_decisions", [])),
             "policy_action_entropy_bits": _policy_action_entropy(locals().get("policy_decisions", [])),
             "first_vocab_milestone_step": (

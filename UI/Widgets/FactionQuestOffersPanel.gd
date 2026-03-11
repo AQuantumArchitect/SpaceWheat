@@ -2,6 +2,7 @@ class_name FactionQuestOffersPanel
 extends PanelContainer
 
 const UIStyleFactory = preload("res://UI/Core/UIStyleFactory.gd")
+const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")
 
 ## Faction Quest Offers Panel
 ## Shows emergent quest offers from all 32 factions based on current biome state
@@ -188,13 +189,23 @@ func _clear_offers():
 	offer_items.clear()
 
 
+func _resolve_quantum_instrument():
+	return InstrumentLocator.resolve_quantum_instrument(self)
+
+
 func _on_offer_accepted(quest: Dictionary):
 	"""Handle quest acceptance"""
 	if not quest_manager:
 		return
 
 	# Accept the quest in quest manager
-	var success = quest_manager.accept_quest(quest)
+	var success = false
+	var instrument = _resolve_quantum_instrument()
+	if instrument and instrument.has_method("quest_accept"):
+		var result = instrument.quest_accept(quest)
+		success = bool(result.get("accepted", false))
+	else:
+		success = quest_manager.accept_quest(quest)
 
 	if success:
 		quest_offer_accepted.emit(quest)

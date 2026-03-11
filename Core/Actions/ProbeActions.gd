@@ -18,6 +18,7 @@ extends RefCounted
 
 const WeightedRandom = preload("res://Core/Utilities/WeightedRandom.gd")
 const EconomyConstants = preload("res://Core/GameMechanics/EconomyConstants.gd")
+const ActionCostRuntime = preload("res://Core/GameMechanics/ActionCostRuntime.gd")
 const VerboseHelper = preload("res://Core/Config/VerboseHelper.gd")
 const BalanceService = preload("res://Core/GameMechanics/BalanceService.gd")
 
@@ -62,7 +63,7 @@ static func action_explore(terminal_pool, biome, economy = null) -> Dictionary:
 		}
 
 	# 2b. Preflight cost (after availability gates)
-	var explore_cost_gate = EconomyConstants.preflight_action("explore", economy)
+	var explore_cost_gate = _preflight_action(economy, "explore")
 	if not explore_cost_gate.get("ok", true):
 		var cost = explore_cost_gate.get("cost", {})
 		var missing = cost.keys()[0] if cost.size() > 0 else "resources"
@@ -127,7 +128,7 @@ static func action_explore(terminal_pool, biome, economy = null) -> Dictionary:
 
 	# Commit cost after successful bind
 	var explore_cost = explore_cost_gate.get("cost", {})
-	if not EconomyConstants.commit_cost(explore_cost, economy, "explore"):
+	if not _commit_cost(economy, explore_cost, "explore"):
 		terminal_pool.unbind_terminal(terminal)
 		return {
 			"success": false,
@@ -200,7 +201,7 @@ static func action_measure(terminal, biome, economy = null) -> Dictionary:
 		}
 
 	# 2b. Preflight cost (after validation gates)
-	var measure_cost_gate = EconomyConstants.preflight_action("measure", economy)
+	var measure_cost_gate = _preflight_action(economy, "measure")
 	if not measure_cost_gate.get("ok", true):
 		var cost = measure_cost_gate.get("cost", {})
 		var missing = cost.keys()[0] if cost.size() > 0 else "resources"
@@ -271,7 +272,7 @@ static func action_measure(terminal, biome, economy = null) -> Dictionary:
 
 	# 8. Commit cost after successful measurement
 	var measure_cost = measure_cost_gate.get("cost", {})
-	if not EconomyConstants.commit_cost(measure_cost, economy, "measure"):
+	if not _commit_cost(economy, measure_cost, "measure"):
 		# NOTE: We don't roll back the measurement since it already happened
 		# This should rarely occur since we preflighted the cost
 		return {
@@ -369,14 +370,14 @@ static func _action_reap_global(farm, economy = null) -> Dictionary:
 
 	var reap_count_before = _get_reap_count(farm)
 	var reap_cost = BalanceService.get_reap_cost(farm, reap_count_before)
-	var reap_cost_gate = EconomyConstants.preflight_cost(reap_cost, economy)
+	var reap_cost_gate = _preflight_cost(economy, reap_cost)
 	if not reap_cost_gate.get("ok", true):
 		return {
 			"success": false,
 			"error": "insufficient_resources",
 			"message": "Need %s to reap." % _format_cost(reap_cost)
 		}
-	if not EconomyConstants.commit_cost(reap_cost, economy, "reap"):
+	if not _commit_cost(economy, reap_cost, "reap"):
 		return {
 			"success": false,
 			"error": "cost_commit_failed",
@@ -538,14 +539,14 @@ static func _prepare_pop_result(terminal, terminal_pool, economy = null, farm = 
 	var resource_amount = maxi(int(credits), 1)
 
 	if economy:
-		var pop_cost_gate = EconomyConstants.preflight_action("pop", economy)
+		var pop_cost_gate = _preflight_action(economy, "pop")
 		if not pop_cost_gate.get("ok", true):
 			return {
 				"success": false,
 				"error": "insufficient_resources",
 				"message": "Need 👥 to pop."
 			}
-		if not EconomyConstants.commit_cost(pop_cost_gate.get("cost", {}), economy, "pop"):
+		if not _commit_cost(economy, pop_cost_gate.get("cost", {}), "pop"):
 			return {
 				"success": false,
 				"error": "cost_commit_failed",
@@ -864,6 +865,17 @@ static func get_pop_preview(terminal: RefCounted) -> Dictionary:
 # ============================================================================
 # INTERNAL HELPERS
 # ============================================================================
+
+static func _preflight_action(economy, action_name: String, context: Dictionary = {}) -> Dictionary:
+	return ActionCostRuntime.preflight_action(economy, action_name, context, true)
+
+
+static func _preflight_cost(economy, cost: Dictionary) -> Dictionary:
+	return ActionCostRuntime.preflight_cost(economy, cost, true)
+
+
+static func _commit_cost(economy, cost: Dictionary, reason: String = "") -> bool:
+	return ActionCostRuntime.commit_cost(economy, cost, reason, true)
 
 
 static func _log(level: String, category: String, emoji: String, message: String) -> void:

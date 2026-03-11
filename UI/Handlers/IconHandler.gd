@@ -8,7 +8,7 @@ extends RefCounted
 ## - Explicit parameters (no implicit state)
 ## - Dictionary returns with {success: bool, ...data, error?: String}
 
-const EconomyConstants = preload("res://Core/GameMechanics/EconomyConstants.gd")
+const ActionCostRuntime = preload("res://Core/GameMechanics/ActionCostRuntime.gd")
 
 
 static func _has_emoji(biome, emoji: String) -> bool:
@@ -84,7 +84,7 @@ static func icon_assign(farm, positions: Array[Vector2i], emoji: String, _game_s
 			"message": "Biome visualization data not ready"
 		}
 	var qubit_count = biome.get_total_register_count() if biome.has_method("get_total_register_count") else 0
-	var max_qubits = EconomyConstants.get_max_biome_qubits(farm.economy if farm and farm.economy else null)
+	var max_qubits = ActionCostRuntime.get_max_biome_qubits(farm)
 	if qubit_count >= max_qubits:
 		return {
 			"success": false,
