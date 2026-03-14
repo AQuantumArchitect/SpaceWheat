@@ -2,11 +2,11 @@
 {"op": "set", "path": "action_costs.measure.❄️", "value": 1}
 {"op": "set", "path": "action_costs.pop.👥", "value": 1}
 {"op": "set", "path": "action_costs.reap.🍼", "value": 1}
-{"op": "set", "path": "action_costs.quest_reroll.🐇", "value": 34}
+{"op": "set", "path": "action_costs.quest_reroll.🐇", "value": 3}
 {"op": "set", "path": "action_costs.quest_lock.🌲", "value": 1}
-{"op": "set", "path": "action_costs.explore_biome.🦅", "value": 3}
+{"op": "set", "path": "action_costs.explore_biome.🦅", "value": 5}
 {"op": "set", "path": "action_costs.remove_vocabulary.🐺", "value": 21}
-{"op": "set", "path": "action_costs.lindblad_pump.🌱", "value": 1}
+{"op": "set", "path": "action_costs.lindblad_pump.🌱", "value": 5}
 {"op": "set", "path": "action_costs.lindblad_drain.⚙", "value": 2}
 {"op": "set", "path": "dynamic.lindblad_drain_gear_cost", "value": 2}
 {"op": "set", "path": "dynamic.lindblad_drain_south_cost", "value": 8}

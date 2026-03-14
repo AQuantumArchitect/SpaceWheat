@@ -1,81 +1,46 @@
 #!/usr/bin/env python3
-"""Derby: N agents compete, each running hunters via milk_hunt_batch.
+"""Character-policy derby for milk hunt.
 
-Each agent (lane) gets one Godot rig (isolated XDG_ROOT). Its hunters
-run sequentially via milk_hunt_batch.py on that rig. Agents run in
-parallel — one rig per agent.
+This is the higher-order 🍄 layer over:
+- world_state / save seeding
+- canonical engine policy graphs
 
-Architecture:
-  Derby (N agents in parallel, 1 rig per agent)
-  ├── Agent: sonnet  (1 rig @ /tmp/sw_derby_sonnet)
-  │   ├── milk_hunt_batch --profile derby_sonnet_1 --runs 1
-  │   ├── milk_hunt_batch --profile derby_sonnet_2 --runs 1
-  │   ├── ...
-  │   └── milk_hunt_batch --profile derby_sonnet_5 --runs 1
-  └── Agent: codex   (1 rig @ /tmp/sw_derby_codex)
-      ├── milk_hunt_batch --profile derby_codex_1 --runs 1
-      └── ...
-
-Graph Tissue™ is a trademark of Luke Spooner.
+Each match is:
+  character seed × hunter policy × milk_hunt_batch
 """
 from __future__ import annotations
 
 import argparse
 import json
-import os
 import subprocess
 import sys
 import time
-from concurrent.futures import ProcessPoolExecutor, as_completed
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
+
+from milk_hunt_characters import (
+    get_character,
+    list_character_names,
+    resolve_character_policy,
+    resolve_character_world_state,
+)
+
 
 HERE = Path(__file__).resolve().parent
-CONFIG_WS = HERE / "config" / "world_state"
-CONFIG_PW = HERE / "config" / "policy_weights"
-LOG_DIR = HERE / "logs" / "derby"
-BATCH_SCRIPT = HERE / "milk_hunt_batch.py"
-
-# Graph Tissue™ weight ranges — for learning extraction
-WEIGHT_RANGES: Dict[str, Any] = {
-    "offer_pair":                    {"default": 1.0,   "range": [0.3,   3.0]},
-    "offer_novelty":                 {"default": 1.0,   "range": [0.3,   4.0]},
-    "offer_reward":                  {"default": 0.04,  "range": [0.01,  0.15]},
-    "offer_deficit":                 {"default": 0.9,   "range": [0.3,   2.0]},
-    "offer_delivery_cost":           {"default": -0.06, "range": [-0.15, -0.01]},
-    "offer_milk_direct":             {"default": 900.0, "range": [500.0, 2000.0]},
-    "offer_critical_any":            {"default": 2.0,   "range": [0.5,   10.0]},
-    "offer_critical_unknown":        {"default": 7.0,   "range": [2.0,   40.0]},
-    "offer_critical_pair":           {"default": 16.0,  "range": [4.0,   100.0]},
-    "probe_frontier":                {"default": 1.0,   "range": [0.3,   3.0]},
-    "probe_hits":                    {"default": 0.8,   "range": [0.2,   2.0]},
-    "probe_novelty":                 {"default": 0.4,   "range": [0.1,   1.5]},
-    "probe_critical_hits":           {"default": 1.2,   "range": [0.3,   3.0]},
-    "probe_village_pressure":        {"default": 0.8,   "range": [0.2,   3.0]},
-    "probe_village_known_critical":  {"default": 0.25,  "range": [0.05,  1.5]},
-    "loop_probe_base":               {"default": 1.0,   "range": [0.0,   3.0]},
-    "loop_probe_pair_scale":         {"default": 0.10,  "range": [0.0,   0.5]},
-    "loop_probe_floor_pressure":     {"default": 1.0,   "range": [0.0,   2.0]},
-    "loop_probe_critical_pressure":  {"default": 1.0,   "range": [0.0,   2.0]},
-    "loop_probe_strict_bonus":       {"default": 1.0,   "range": [0.0,   2.0]},
-    "loop_probe_max":                {"default": 4.0,   "range": [1.0,   8.0]},
-    "vocab_probe_base":              {"default": 1.0,   "range": [0.0,   3.0]},
-    "vocab_probe_per_pair":          {"default": 1.0,   "range": [0.0,   3.0]},
-    "vocab_probe_max":               {"default": 6.0,   "range": [1.0,   10.0]},
-    "lindblad_hits":                 {"default": 1.1,   "range": [0.3,   2.5]},
-    "lindblad_critical_hits":        {"default": 1.6,   "range": [0.5,   3.5]},
-    "lindblad_floor_hits":           {"default": 1.8,   "range": [0.5,   4.0]},
-    "lindblad_frontier":             {"default": 0.35,  "range": [0.1,   1.5]},
-    "lindblad_novelty":              {"default": 0.45,  "range": [0.1,   1.5]},
-    "lindblad_village_pressure":     {"default": 0.8,   "range": [0.2,   2.5]},
-}
+SEED_SAVE = HERE / "milk_hunt_seed_save.py"
+BATCH = HERE / "milk_hunt_batch.py"
+LOG_ROOT = HERE / "logs" / "derby"
 
 
 @dataclass
-class HunterResult:
-    profile: str
-    lane: str
+class DerbyResult:
+    character: str
+    policy: str
+    save_uri: str
+    strict_biome_economy: bool
+    policy_graph_path: str
+    policy_graph_jsonl: List[str]
     found_milk: bool
     loops_completed: int
     steps: int
@@ -84,380 +49,283 @@ class HunterResult:
     batch_summary: Dict[str, Any]
 
 
-@dataclass
-class AgentResult:
-    lane: str
-    hunters: List[HunterResult] = field(default_factory=list)
-    total_elapsed_s: float = 0.0
+def _save_uri(character_name: str, policy: str) -> str:
+    return f"user://saves/characters/{character_name}__{policy}.tres"
 
 
-def _xdg_for_agent(lane: str) -> str:
-    """One XDG_ROOT per agent — isolates from other agents and QA."""
-    return f"/tmp/sw_derby_{lane}"
-
-
-def run_agent(
-    lane: str,
-    profiles: List[str],
-    max_loops: int,
-    console_profile: str,
-    hunter_policy: str,
-    derby_dir: Path,
-) -> AgentResult:
-    """Run all hunters for one agent, sequentially on one rig.
-
-    Called in a worker process — agents run in parallel.
-    """
-    env = os.environ.copy()
-    env["XDG_ROOT"] = _xdg_for_agent(lane)
-
-    agent = AgentResult(lane=lane)
-    t_agent = time.time()
-
-    for i, profile in enumerate(profiles):
-        batch_output = derby_dir / lane / profile
-        batch_output.mkdir(parents=True, exist_ok=True)
-
-        cmd = [
-            sys.executable, str(BATCH_SCRIPT),
-            "--profile", profile,
-            "--runs", "1",
-            "--max-loops", str(max_loops),
-            "--hunter-policy", hunter_policy,
-            "--console-profile", console_profile,
-            "--output-dir", str(batch_output),
-        ]
-
-        t0 = time.time()
-        try:
-            proc = subprocess.run(
-                cmd, capture_output=True, text=True,
-                timeout=max(300, max_loops * 30), env=env,
-            )
-        except subprocess.TimeoutExpired:
-            elapsed = time.time() - t0
-            agent.hunters.append(HunterResult(
-                profile=profile, lane=lane, found_milk=False,
-                loops_completed=0, steps=0, elapsed_s=elapsed,
-                exit_code=-1, batch_summary={"error": "timeout"},
-            ))
-            print(f"  [{lane}] {profile}: TIMEOUT ({elapsed:.0f}s)", flush=True)
-            continue
-        elapsed = time.time() - t0
-
-        # Find batch_summary.json
-        batch_summary: Dict[str, Any] = {}
-        for summary_file in sorted(batch_output.rglob("batch_summary.json")):
-            try:
-                batch_summary = json.loads(summary_file.read_text())
-                break
-            except (json.JSONDecodeError, OSError):
-                pass
-
-        # Extract result from first (only) run
-        run_summaries = batch_summary.get("run_summaries", [])
-        run = run_summaries[0] if run_summaries else {}
-
-        result = HunterResult(
-            profile=profile, lane=lane,
-            found_milk=bool(run.get("found_milk_pair", False)),
-            loops_completed=int(run.get("loops_completed", 0)),
-            steps=int(run.get("steps", run.get("turns_executed", 0) or 0) or 0),
-            elapsed_s=round(elapsed, 2),
-            exit_code=proc.returncode,
-            batch_summary=batch_summary,
-        )
-        agent.hunters.append(result)
-
-        tag = "MILK!" if result.found_milk else f"exit={result.exit_code}"
-        print(f"  [{lane}] {profile}: {tag}  "
-              f"loops={result.loops_completed}  steps={result.steps}  "
-              f"{result.elapsed_s:.0f}s", flush=True)
-
-    agent.total_elapsed_s = round(time.time() - t_agent, 2)
-    return agent
-
-
-def score_hunter(result: HunterResult) -> Dict[str, float]:
-    """Score one hunter from its batch_summary."""
-    bs = result.batch_summary
-    sr = float(bs.get("success_rate", 1.0 if result.found_milk else 0.0))
-    avg_steps = float(bs.get("avg_steps_success_only", result.steps if result.found_milk else 999))
-    biomes = len(bs.get("discovered_biomes_union", []))
-    vocab = float(bs.get("avg_vocab_milestones_per_run", 0))
-
-    speed = max(0.0, 1.0 - avg_steps / 300.0) if avg_steps < 999 else 0.0
-    biome_score = min(1.0, biomes / 6.0)
-    vocab_score = min(1.0, vocab / 5.0)
-    composite = 0.50 * sr + 0.25 * speed + 0.15 * biome_score + 0.10 * vocab_score
+def _score(result: DerbyResult) -> Dict[str, float]:
+    summary = result.batch_summary
+    success_rate = float(summary.get("success_rate", 1.0 if result.found_milk else 0.0))
+    avg_steps = float(summary.get("avg_steps_success_only", result.steps if result.found_milk else 999.0))
+    speed = 0.0
+    if success_rate > 0.0 and avg_steps < 999.0:
+        speed = max(0.0, 1.0 - avg_steps / 300.0)
+    vocab = float(summary.get("avg_vocab_milestones_per_run", 0.0))
+    vocab_score = min(1.0, vocab / 40.0)
+    biome_score = min(1.0, float(summary.get("avg_biomes_discovered_per_run", 0.0)) / 4.0)
+    drain_score = min(1.0, float(summary.get("avg_lindblad_drains_established_per_run", 0.0)) / 2.0)
+    composite = (
+        0.60 * success_rate
+        + 0.15 * speed
+        + 0.15 * vocab_score
+        + 0.05 * biome_score
+        + 0.05 * drain_score
+    )
     return {
-        "success_rate": round(sr, 4),
+        "success_rate": round(success_rate, 4),
         "speed_score": round(speed, 4),
-        "biome_score": round(biome_score, 4),
         "vocab_score": round(vocab_score, 4),
+        "biome_score": round(biome_score, 4),
+        "drain_score": round(drain_score, 4),
         "composite": round(composite, 4),
         "avg_steps_winners": round(avg_steps, 1),
     }
 
 
-def score_lane(results: List[HunterResult]) -> Dict[str, float]:
-    scores = [score_hunter(r) for r in results]
-    n = len(scores) or 1
-    composite = sum(s["composite"] for s in scores) / n
-    sr = sum(s["success_rate"] for s in scores) / n
-    speed = sum(s["speed_score"] for s in scores) / n
-    biome = sum(s["biome_score"] for s in scores) / n
-    vocab = sum(s["vocab_score"] for s in scores) / n
-    return {
-        "hunters": n,
-        "milk_count": sum(1 for r in results if r.found_milk),
-        "success_rate": round(sr, 4),
-        "speed_score": round(speed, 4),
-        "biome_score": round(biome, 4),
-        "vocab_score": round(vocab, 4),
-        "composite": round(composite, 4),
-    }
+def _latest_batch_summary(match_dir: Path) -> Dict[str, Any]:
+    summaries = sorted(match_dir.rglob("batch_summary.json"))
+    for path in reversed(summaries):
+        try:
+            return json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+    return {}
 
 
-def extract_learnings(
-    all_hunters: List[HunterResult],
-    weight_ranges: Dict[str, Any],
-) -> Dict[str, Any]:
-    """Extract Graph Tissue™ learnings: which weights + resources correlated with success."""
-    scored = sorted(all_hunters, key=lambda r: score_hunter(r)["composite"], reverse=True)
-    winners = scored[:3]
-    losers = scored[3:]
-
-    learnings: Dict[str, Any] = {
-        "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S"),
-        "trademark": "Graph Tissue™ is a trademark of Luke Spooner",
-        "top_hunters": [],
-        "tissue_signal": {},
-        "resource_signal": {},
-    }
-
-    for r in winners:
-        learnings["top_hunters"].append({
-            "name": r.profile, "lane": r.lane,
-            "composite": score_hunter(r)["composite"],
-            "found_milk": r.found_milk,
-        })
-
-    # Tissue signal: winning weight deltas from defaults
-    tissue_deltas: Dict[str, List[float]] = {}
-    for r in winners:
-        pw_path = CONFIG_PW / f"{r.profile}.json"
-        if pw_path.exists():
-            pw = json.loads(pw_path.read_text())
-            for k, v in pw.items():
-                if k in weight_ranges:
-                    delta = float(v) - float(weight_ranges[k]["default"])
-                    tissue_deltas.setdefault(k, []).append(delta)
-    for k, deltas in tissue_deltas.items():
-        mean_delta = sum(deltas) / len(deltas)
-        if abs(mean_delta) > 0.01:
-            learnings["tissue_signal"][k] = {
-                "mean_delta": round(mean_delta, 4),
-                "direction": "+" if mean_delta > 0 else "-",
-                "n_winners": len(deltas),
-            }
-
-    # Resource signal: winner vs loser starting resources
-    winner_res: Dict[str, List[float]] = {}
-    loser_res: Dict[str, List[float]] = {}
-    for r in winners:
-        prof_path = CONFIG_WS / f"{r.profile}.json"
-        if prof_path.exists():
-            res = json.loads(prof_path.read_text()).get("resources", {})
-            for emoji, val in res.items():
-                winner_res.setdefault(emoji, []).append(float(val))
-    for r in losers:
-        prof_path = CONFIG_WS / f"{r.profile}.json"
-        if prof_path.exists():
-            res = json.loads(prof_path.read_text()).get("resources", {})
-            for emoji, val in res.items():
-                loser_res.setdefault(emoji, []).append(float(val))
-    all_emojis = set(winner_res) | set(loser_res)
-    for emoji in all_emojis:
-        w_vals = winner_res.get(emoji, [0])
-        l_vals = loser_res.get(emoji, [0])
-        w_avg = sum(w_vals) / len(w_vals)
-        l_avg = sum(l_vals) / len(l_vals)
-        if abs(w_avg - l_avg) > 10:
-            learnings["resource_signal"][emoji] = {
-                "winner_avg": round(w_avg, 1),
-                "loser_avg": round(l_avg, 1),
-                "delta": round(w_avg - l_avg, 1),
-            }
-
-    return learnings
+def _seed_character(character_name: str, policy: str, reuse_listener: bool) -> Dict[str, Any]:
+    save_uri = _save_uri(character_name, policy)
+    cmd = [
+        sys.executable,
+        str(SEED_SAVE),
+        "--slot",
+        "2",
+        "--character",
+        character_name,
+        "--policy-mode",
+        policy,
+        "--save-path",
+        save_uri,
+    ]
+    if reuse_listener:
+        cmd.append("--reuse-listener")
+    proc = subprocess.run(cmd, capture_output=True, text=True, timeout=180)
+    if proc.returncode not in (0, 3):
+        raise RuntimeError(
+            "seed failed for %s/%s\n%s%s"
+            % (character_name, policy, proc.stdout or "", proc.stderr or "")
+        )
+    return {"save_uri": save_uri, "stdout": proc.stdout, "stderr": proc.stderr}
 
 
-def main():
-    parser = argparse.ArgumentParser(
-        description="Derby: N agents compete, each running hunters on 1 rig")
-    parser.add_argument("--max-loops", type=int, default=220,
-                        help="Max loops per hunter (default: 220)")
-    parser.add_argument("--console-profile", default="quiet",
-                        choices=["quiet", "normal", "debug", "trace", "test"])
-    parser.add_argument("--hunter-policy", default="quantum_graph",
-                        choices=["auto", "classic", "quantum_graph",
-                                 "engine_policy", "quantum_register"])
-    parser.add_argument("--lanes", nargs="+", default=["sonnet", "codex"],
-                        help="Agent lanes to compete (default: sonnet codex)")
-    parser.add_argument("--hunters-per-lane", type=int, default=5,
-                        help="Hunters per agent (default: 5)")
-    args = parser.parse_args()
+def _run_match(
+    character_name: str,
+    policy: str,
+    runs: int,
+    max_loops: int,
+    runtime_profile: str,
+    console_profile: str,
+    output_dir: Path,
+    reuse_listener: bool,
+) -> DerbyResult:
+    character = get_character(character_name)
+    world_state = resolve_character_world_state(character)
+    policy_cfg = resolve_character_policy(character, policy)
+    strict = bool(world_state.get("strict_biome_economy", True))
 
-    # Discover profiles per lane
-    lane_profiles: Dict[str, List[str]] = {}
-    for lane in args.lanes:
-        profiles = []
-        for i in range(1, args.hunters_per_lane + 1):
-            name = f"derby_{lane}_{i}"
-            if (CONFIG_WS / f"{name}.json").exists():
-                profiles.append(name)
-        if profiles:
-            lane_profiles[lane] = profiles
+    seed_result = _seed_character(character_name, policy, reuse_listener=reuse_listener)
+    save_uri = str(seed_result["save_uri"])
 
-    if not lane_profiles:
-        print("No derby profiles found! Run lane agents first.")
-        sys.exit(1)
+    match_dir = output_dir / f"{character_name}__{policy}"
+    match_dir.mkdir(parents=True, exist_ok=True)
 
-    n_agents = len(lane_profiles)
-    n_hunters = sum(len(p) for p in lane_profiles.values())
+    cmd = [
+        sys.executable,
+        str(BATCH),
+        "--runs",
+        str(runs),
+        "--max-loops",
+        str(max_loops),
+        "--profile-save",
+        save_uri,
+        "--hunter-profile",
+        character_name,
+        "--hunter-policy",
+        policy,
+        "--runtime-profile",
+        runtime_profile,
+        "--console-profile",
+        console_profile,
+        "--output-dir",
+        str(match_dir),
+    ]
+    cmd.append("--strict-biome-economy" if strict else "--no-strict-biome-economy")
+    cmd.append("--reuse-listener" if reuse_listener else "--no-reuse-listener")
 
-    print("=" * 64)
-    print("  DERBY: " + " vs ".join(
-        f"{lane.upper()} ({len(ps)} hunters)"
-        for lane, ps in lane_profiles.items()))
-    print(f"  {n_agents} agents in parallel (1 rig each)")
-    print(f"  {n_hunters} hunters total, {args.max_loops} max loops")
-    print(f"  policy={args.hunter_policy}")
-    print("  Graph Tissue™ is a trademark of Luke Spooner")
-    print("=" * 64)
+    t0 = time.time()
+    proc = subprocess.run(cmd, capture_output=True, text=True, timeout=max(240, max_loops * 30))
+    elapsed = round(time.time() - t0, 2)
+    batch_summary = _latest_batch_summary(match_dir)
+
+    run_rows = batch_summary.get("run_summaries", [])
+    first = run_rows[0] if run_rows else {}
+    return DerbyResult(
+        character=character_name,
+        policy=policy,
+        save_uri=save_uri,
+        strict_biome_economy=strict,
+        policy_graph_path=str(policy_cfg.get("policy_graph_path", "")),
+        policy_graph_jsonl=[str(x) for x in policy_cfg.get("policy_graph_jsonl", [])],
+        found_milk=bool(first.get("found_milk_pair", False)),
+        loops_completed=int(first.get("loops_completed", 0) or 0),
+        steps=int(first.get("steps", first.get("turns_executed", 0) or 0) or 0),
+        elapsed_s=elapsed,
+        exit_code=int(proc.returncode),
+        batch_summary=batch_summary,
+    )
+
+
+def _build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="Run a character-policy derby matrix")
+    parser.add_argument(
+        "--characters",
+        nargs="+",
+        default=None,
+        help="Character names/paths (default: all character specs)",
+    )
+    parser.add_argument(
+        "--policies",
+        nargs="+",
+        default=["engine_policy", "quantum_register"],
+        choices=["engine_policy", "quantum_register"],
+        help="Hunter policies to compare",
+    )
+    parser.add_argument("--runs", type=int, default=1, help="Runs per character/policy match")
+    parser.add_argument("--max-loops", type=int, default=13, help="Max loops per run")
+    parser.add_argument(
+        "--runtime-profile",
+        choices=["default", "quantum_fiber_nodes", "io_min"],
+        default="io_min",
+    )
+    parser.add_argument(
+        "--console-profile",
+        choices=["quiet", "normal", "debug", "trace", "test"],
+        default="quiet",
+    )
+    parser.add_argument("--reuse-listener", dest="reuse_listener", action="store_true")
+    parser.add_argument("--no-reuse-listener", dest="reuse_listener", action="store_false")
+    parser.set_defaults(reuse_listener=True)
+    parser.add_argument(
+        "--output-dir",
+        type=Path,
+        default=LOG_ROOT,
+        help="Directory for derby reports",
+    )
+    return parser
+
+
+def main() -> int:
+    args = _build_parser().parse_args()
+    characters = args.characters or list_character_names()
+    if not characters:
+        print("no character specs found", file=sys.stderr)
+        return 2
 
     ts = time.strftime("%Y%m%d_%H%M%S")
-    derby_dir = LOG_DIR / f"derby_{ts}"
+    derby_dir = args.output_dir / f"derby_{ts}"
     derby_dir.mkdir(parents=True, exist_ok=True)
 
-    t_total = time.time()
+    print("=" * 72, flush=True)
+    print("  CHARACTER POLICY DERBY", flush=True)
+    print("  higher-order 🍄 layer: character seed × policy graph × milk hunt", flush=True)
+    print(f"  characters={','.join(characters)}", flush=True)
+    print(f"  policies={','.join(args.policies)} runs={args.runs} max_loops={args.max_loops}", flush=True)
+    print("=" * 72, flush=True)
 
-    # Launch one worker per agent — agents run in parallel
-    agent_results: List[AgentResult] = []
-    with ProcessPoolExecutor(max_workers=n_agents) as pool:
-        futures = {}
-        for lane, profiles in lane_profiles.items():
-            fut = pool.submit(
-                run_agent,
-                lane=lane, profiles=profiles,
-                max_loops=args.max_loops,
-                console_profile=args.console_profile,
-                hunter_policy=args.hunter_policy,
-                derby_dir=derby_dir,
-            )
-            futures[fut] = lane
-
-        for fut in as_completed(futures):
-            lane = futures[fut]
+    results: List[DerbyResult] = []
+    started = time.time()
+    for character_name in characters:
+        for policy in args.policies:
+            print(f"\n[{character_name} :: {policy}]", flush=True)
             try:
-                agent = fut.result()
+                result = _run_match(
+                    character_name=character_name,
+                    policy=policy,
+                    runs=int(args.runs),
+                    max_loops=int(args.max_loops),
+                    runtime_profile=str(args.runtime_profile),
+                    console_profile=str(args.console_profile),
+                    output_dir=derby_dir,
+                    reuse_listener=bool(args.reuse_listener),
+                )
             except Exception as exc:
-                agent = AgentResult(lane=lane)
-                print(f"  [{lane}] AGENT FAILED: {exc}", flush=True)
-            agent_results.append(agent)
-            milk = sum(1 for h in agent.hunters if h.found_milk)
-            print(f"\n  [{lane}] DONE: {milk}/{len(agent.hunters)} found milk "
-                  f"({agent.total_elapsed_s:.0f}s)", flush=True)
+                print(f"  failed: {exc}", flush=True)
+                continue
+            results.append(result)
+            print(
+                "  milk=%s loops=%d steps=%d exit=%d elapsed=%.1fs"
+                % (
+                    "yes" if result.found_milk else "no",
+                    result.loops_completed,
+                    result.steps,
+                    result.exit_code,
+                    result.elapsed_s,
+                )
+            , flush=True)
 
-    total_elapsed = time.time() - t_total
+    elapsed = round(time.time() - started, 2)
+    scored = []
+    for result in results:
+        scored.append(
+            {
+                "character": result.character,
+                "policy": result.policy,
+                "save_uri": result.save_uri,
+                "strict_biome_economy": result.strict_biome_economy,
+                "policy_graph_path": result.policy_graph_path,
+                "policy_graph_jsonl": result.policy_graph_jsonl,
+                "found_milk": result.found_milk,
+                "loops_completed": result.loops_completed,
+                "steps": result.steps,
+                "elapsed_s": result.elapsed_s,
+                "exit_code": result.exit_code,
+                "scores": _score(result),
+                "resources": resolve_character_world_state(get_character(result.character)).get("resources", {}),
+            }
+        )
+    scored.sort(key=lambda row: row["scores"]["composite"], reverse=True)
 
-    # Collect all results
-    all_hunters: List[HunterResult] = []
-    for agent in agent_results:
-        all_hunters.extend(agent.hunters)
+    print(f"\n{'#':<3} {'Character':<24} {'Policy':<17} {'Milk':<5} {'Loops':>5} {'Steps':>6} {'Score':>7}", flush=True)
+    print("  " + "-" * 74, flush=True)
+    for idx, row in enumerate(scored, start=1):
+        print(
+            f"  {idx:<3} {row['character']:<24} {row['policy']:<17} "
+            f"{('yes' if row['found_milk'] else 'no'):<5} {row['loops_completed']:>5} {row['steps']:>6} "
+            f"{row['scores']['composite']:>7.4f}"
+        , flush=True)
 
-    lane_scores: Dict[str, Dict[str, float]] = {}
-    for agent in agent_results:
-        lane_scores[agent.lane] = score_lane(agent.hunters)
-
-    # Print results
-    print(f"\n{'=' * 64}")
-    print(f"  RESULTS ({total_elapsed:.0f}s)")
-    print(f"{'=' * 64}")
-
-    all_hunters.sort(key=lambda r: (not r.found_milk, r.steps))
-    print(f"\n  {'#':<3} {'Hunter':<24} {'Lane':<8} {'Milk':>5} "
-          f"{'Loops':>6} {'Steps':>6} {'Time':>7}")
-    print("  " + "-" * 60)
-    for i, r in enumerate(all_hunters):
-        milk = "YES" if r.found_milk else "no"
-        print(f"  {i+1:<3} {r.profile:<24} {r.lane:<8} {milk:>5} "
-              f"{r.loops_completed:>6} {r.steps:>6} {r.elapsed_s:>6.0f}s")
-
-    print(f"\n  LANE SCORES:")
-    for lane, s in sorted(lane_scores.items(),
-                          key=lambda x: x[1]["composite"], reverse=True):
-        print(f"    {lane.upper():<8} SR={s['success_rate']:.0%}  "
-              f"speed={s['speed_score']:.2f}  biome={s['biome_score']:.2f}  "
-              f"vocab={s['vocab_score']:.2f}  composite={s['composite']:.4f}")
-
-    winner = None
-    if len(lane_scores) == 2:
-        lanes = sorted(lane_scores.keys())
-        a, b = lanes
-        sa, sb = lane_scores[a]["composite"], lane_scores[b]["composite"]
-        if sa > sb:
-            winner = a.upper()
-        elif sb > sa:
-            winner = b.upper()
-        else:
-            winner = "TIE"
-        print(f"\n  WINNER: {winner} (+{abs(sa - sb):.4f})")
-
-    # Phase 3: Extract learnings
-    print(f"\n  GRAPH TISSUE™ LEARNINGS:")
-    learnings = extract_learnings(all_hunters, WEIGHT_RANGES)
-    if learnings["tissue_signal"]:
-        for k, sig in learnings["tissue_signal"].items():
-            print(f"    {sig['direction']} {k}: {sig['mean_delta']:+.4f}  (n={sig['n_winners']})")
-    else:
-        print("    (no tissue signal — need more winners)")
-    if learnings["resource_signal"]:
-        print(f"\n  RESOURCE SIGNAL:")
-        for emoji, sig in learnings["resource_signal"].items():
-            print(f"    {emoji}: winners={sig['winner_avg']:.0f} losers={sig['loser_avg']:.0f} (Δ{sig['delta']:+.0f})")
-
-    # Save summary
-    summary = {
-        "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S"),
-        "total_elapsed_s": round(total_elapsed, 1),
-        "max_loops": args.max_loops,
-        "hunter_policy": args.hunter_policy,
-        "agents": [
-            {"lane": a.lane, "elapsed_s": a.total_elapsed_s,
-             "hunters": len(a.hunters),
-             "xdg_root": _xdg_for_agent(a.lane),
-             "milk_found": sum(1 for h in a.hunters if h.found_milk)}
-            for a in agent_results
-        ],
-        "hunters": [
-            {"profile": r.profile, "lane": r.lane,
-             "found_milk": r.found_milk,
-             "loops_completed": r.loops_completed,
-             "steps": r.steps, "elapsed_s": r.elapsed_s,
-             "exit_code": r.exit_code}
-            for r in all_hunters
-        ],
-        "lane_scores": lane_scores,
-        "winner": winner,
-        "learnings": learnings,
+    by_policy: Dict[str, List[float]] = {}
+    for row in scored:
+        by_policy.setdefault(str(row["policy"]), []).append(float(row["scores"]["composite"]))
+    policy_totals = {
+        key: round(sum(vals) / max(1, len(vals)), 4)
+        for key, vals in by_policy.items()
     }
-    summary_path = derby_dir / "derby_summary.json"
-    summary_path.write_text(json.dumps(summary, indent=2, ensure_ascii=False) + "\n")
-    print(f"\n  Report: {summary_path}")
-    print("=" * 64)
+
+    report = {
+        "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S"),
+        "elapsed_s": elapsed,
+        "characters": characters,
+        "policies": args.policies,
+        "runs": int(args.runs),
+        "max_loops": int(args.max_loops),
+        "results": scored,
+        "policy_totals": policy_totals,
+    }
+    report_path = derby_dir / "derby_summary.json"
+    report_path.write_text(json.dumps(report, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    print(f"\nreport: {report_path}", flush=True)
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

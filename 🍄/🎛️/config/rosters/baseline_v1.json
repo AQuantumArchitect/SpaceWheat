@@ -1,0 +1,72 @@
+{
+  "roster_id": "baseline_v1",
+  "author": "human",
+  "description": "Canonical 5-character roster using the tuned profiles. Each character has a unique free biome, resource lead, and policy personality.",
+  "max_loops": 89,
+  "policy_mode": "quantum_register",
+  "characters": [
+    {
+      "slot": 1,
+      "name": "granary_scout",
+      "description": "Bread-first survivor. PastoralCommons opener. Quest+lock hybrid.",
+      "world_state": "granary_scout",
+      "policy_overrides": [
+        {"op":"set","path":"action_priors.quest_cycle.base","value":0.55},
+        {"op":"set","path":"action_priors.quest_cycle.unknown_vocab","value":1.6},
+        {"op":"set","path":"action_priors.probe_cycle.base","value":1.35},
+        {"op":"set","path":"action_priors.lock_offer.base","value":0.8},
+        {"op":"set","path":"reward_terms.pair","value":48.0}
+      ]
+    },
+    {
+      "slot": 2,
+      "name": "arc_coldpath_explorer",
+      "description": "Probe specialist. ColdLab opener. Heavy probing, strict economy.",
+      "world_state": "arc_coldpath_explorer",
+      "policy_overrides": [
+        {"op":"set","path":"action_priors.probe_cycle.base","value":1.8},
+        {"op":"set","path":"action_priors.quest_cycle.base","value":0.5},
+        {"op":"set","path":"action_priors.lindblad_drain.base","value":1.1},
+        {"op":"set","path":"reward_terms.resource","value":0.12}
+      ]
+    },
+    {
+      "slot": 3,
+      "name": "solar_gatekeeper",
+      "description": "Sun-forged laborer. StellarForges opener. Drain-forward, strict economy.",
+      "world_state": "solar_gatekeeper",
+      "policy_overrides": [
+        {"op":"set","path":"action_priors.lindblad_drain.base","value":1.3},
+        {"op":"set","path":"action_priors.time_skip.base","value":0.6},
+        {"op":"set","path":"action_priors.quest_cycle.base","value":0.65},
+        {"op":"set","path":"reward_terms.pair","value":40.0}
+      ]
+    },
+    {
+      "slot": 4,
+      "name": "village_diplomat",
+      "description": "Labor-first envoy. MarketDistrict opener. Lock-heavy, relaxed economy.",
+      "world_state": "village_diplomat",
+      "policy_overrides": [
+        {"op":"set","path":"action_priors.lock_offer.base","value":1.2},
+        {"op":"set","path":"action_priors.lock_offer.novelty","value":2.5},
+        {"op":"set","path":"action_priors.quest_cycle.base","value":0.6},
+        {"op":"set","path":"action_priors.probe_cycle.base","value":0.9},
+        {"op":"set","path":"reward_terms.lock","value":6.0}
+      ]
+    },
+    {
+      "slot": 5,
+      "name": "biotic_bubble_runner",
+      "description": "Chaotic popper. FungalNetworks opener. Explore-heavy, strict economy.",
+      "world_state": "biotic_bubble_runner",
+      "policy_overrides": [
+        {"op":"set","path":"action_priors.quest_cycle.base","value":0.7},
+        {"op":"set","path":"action_priors.probe_cycle.base","value":1.5},
+        {"op":"set","path":"action_priors.lindblad_drain.base","value":1.0},
+        {"op":"set","path":"action_priors.time_skip.base","value":0.5},
+        {"op":"set","path":"reward_terms.pair","value":45.0}
+      ]
+    }
+  ]
+}

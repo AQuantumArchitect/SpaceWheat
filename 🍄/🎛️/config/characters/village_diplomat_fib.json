@@ -1,0 +1,48 @@
+{
+  "name": "village_diplomat_fib",
+  "description": "Quest-facing fib-scale envoy with labor, bread, and market instruments.",
+  "resource_scale": "fibonacci",
+  "scenario_id": "default",
+  "strict_biome_economy": false,
+  "resources": {
+    "👥": 21,
+    "🍞": 13,
+    "❄️": 8,
+    "⚙": 5,
+    "💳": 3,
+    "💰": 2,
+    "🦅": 1
+  },
+  "known_pairs": [
+    {
+      "north": "💳",
+      "south": "💰"
+    },
+    {
+      "north": "👥",
+      "south": "⚙"
+    }
+  ],
+  "unlocked_biomes": [
+    "StarterForest",
+    "Village",
+    "MarketDistrict"
+  ],
+  "active_biome": "Village",
+  "policies": {
+    "engine_policy": {
+      "policy_kind": "ucb",
+      "template": "core:ucb/village_diplomat"
+    },
+    "quantum_register": {
+      "policy_kind": "quantum_register",
+      "template": "core:default",
+      "graph_jsonl": [
+        "{\"op\":\"set\",\"path\":\"profile_id\",\"value\":\"village_diplomat_fib\"}",
+        "{\"op\":\"set\",\"path\":\"action_priors.quest_cycle.base\",\"value\":2.3}",
+        "{\"op\":\"set\",\"path\":\"action_priors.lock_offer.base\",\"value\":0.7}",
+        "{\"op\":\"set\",\"path\":\"reward_terms.active_quest\",\"value\":6.5}"
+      ]
+    }
+  }
+}

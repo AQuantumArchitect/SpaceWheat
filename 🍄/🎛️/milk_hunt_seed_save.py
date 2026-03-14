@@ -4,6 +4,7 @@ import json
 import sys
 from typing import Any, Dict, List, Optional
 
+from milk_hunt_characters import get_character, resolve_character_seed
 from milk_hunt_profiles import get_profile, list_profiles
 from policy_graph_runtime import profile_graph_path
 from milk_hunt_world_state import load_world_state
@@ -65,8 +66,27 @@ def _select_resource_mode(args_resource_mode: Optional[str], profile: Optional[D
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Create a starter save slot for milk-hunt testing")
     parser.add_argument("--slot", type=int, required=True, help="Save slot index (0-2)")
+    parser.add_argument("--character", type=str, default=None, help="Higher-order character name/path")
     parser.add_argument("--profile", type=str, default=None, help="Starter profile name")
     parser.add_argument("--world-state", type=str, default=None, help="World state JSON path (alternative to --profile)")
+    parser.add_argument(
+        "--policy-mode",
+        choices=["engine_policy", "quantum_register"],
+        default="engine_policy",
+        help="Policy mode used when resolving a character's policy graph",
+    )
+    parser.add_argument(
+        "--policy-graph-path",
+        type=str,
+        default=None,
+        help="Explicit policy graph path to store in the seeded save",
+    )
+    parser.add_argument(
+        "--policy-graph-line",
+        action="append",
+        default=[],
+        help="Extra JSONL policy graph patch line (repeatable)",
+    )
     parser.add_argument("--list-profiles", action="store_true", help="List available profiles and exit")
     parser.add_argument("--load-slot", type=int, default=None, help="Optional existing slot to load before seeding")
     parser.add_argument("--scenario-id", type=str, default=None, help="Scenario id when not loading a slot")
@@ -136,6 +156,16 @@ def main() -> int:
         return 0
 
     world_state: Optional[Dict[str, Any]] = None
+    character: Optional[Dict[str, Any]] = None
+    character_policy: Dict[str, Any] = {}
+    if args.character:
+        try:
+            character = get_character(args.character)
+        except ValueError as exc:
+            safe_print(f"seed-save: {exc}")
+            return 2
+        world_state, character_policy = resolve_character_seed(character, args.policy_mode)
+
     if args.world_state:
         world_state = load_world_state(args.world_state)
         if not world_state:
@@ -187,10 +217,18 @@ def main() -> int:
         active_biome = str(profile.get("active_biome", "") or "")
 
     policy_graph_path_value = ""
-    if profile:
+    policy_graph_jsonl_value: List[str] = []
+    if character_policy:
+        policy_graph_path_value = str(character_policy.get("policy_graph_path", "") or "")
+        policy_graph_jsonl_value = [str(x) for x in character_policy.get("policy_graph_jsonl", []) if str(x).strip()]
+    elif profile:
         profile_name = str(profile.get("name", "") or args.profile or "")
         if profile_name:
             policy_graph_path_value = str(profile_graph_path(profile_name, "ucb"))
+    if args.policy_graph_path:
+        policy_graph_path_value = str(args.policy_graph_path)
+    if args.policy_graph_line:
+        policy_graph_jsonl_value.extend(str(x) for x in args.policy_graph_line if str(x).strip())
 
     scenario_id = args.scenario_id
     if scenario_id is None:
@@ -223,7 +261,7 @@ def main() -> int:
         snapshot = run_turn(turn, "resource_snapshot")
         history.append(snapshot)
         turn += 1
-        if unlocked_biomes or unexplored_biomes or known_pairs or active_biome or policy_graph_path_value:
+        if unlocked_biomes or unexplored_biomes or known_pairs or active_biome or policy_graph_path_value or policy_graph_jsonl_value:
             payload: Dict[str, Any] = {}
             if unlocked_biomes:
                 payload["unlocked_biomes"] = unlocked_biomes
@@ -235,6 +273,8 @@ def main() -> int:
                 payload["active_biome"] = active_biome
             if policy_graph_path_value:
                 payload["policy_graph_path"] = policy_graph_path_value
+            if policy_graph_jsonl_value:
+                payload["policy_graph_jsonl"] = policy_graph_jsonl_value
             history.append(run_turn(turn, "configure_seed_state", **payload))
             turn += 1
 
@@ -273,9 +313,13 @@ def main() -> int:
             "slot": args.slot,
             "save_path": args.save_path,
             "load_slot": args.load_slot,
+            "character": args.character,
             "scenario_id": scenario_id,
             "profile": args.profile,
             "world_state": args.world_state,
+            "policy_mode": args.policy_mode,
+            "policy_graph_path": policy_graph_path_value or None,
+            "policy_graph_jsonl": policy_graph_jsonl_value or None,
             "resource_mode": resource_mode,
             "starter_resources": resource_map,
             "known_pairs": known_pairs,

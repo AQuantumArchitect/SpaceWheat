@@ -1587,9 +1587,14 @@ func _configure_seed_state(cmd: Dictionary) -> Dictionary:
 
 	var policy_graph_jsonl = cmd.get("policy_graph_jsonl", [])
 	if policy_graph_jsonl is Array:
-		gsm.current_state.policy_graph_jsonl = policy_graph_jsonl.duplicate()
-		if not policy_graph_jsonl.is_empty():
-			out["policy_graph_jsonl"] = policy_graph_jsonl
+		var typed_lines: Array[String] = []
+		for raw_line in policy_graph_jsonl:
+			var line = str(raw_line).strip_edges()
+			if line != "":
+				typed_lines.append(line)
+		gsm.current_state.policy_graph_jsonl = typed_lines
+		if not typed_lines.is_empty():
+			out["policy_graph_jsonl"] = typed_lines
 
 	return out
 

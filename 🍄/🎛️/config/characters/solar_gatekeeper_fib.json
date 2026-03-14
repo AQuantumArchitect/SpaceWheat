@@ -1,0 +1,48 @@
+{
+  "name": "solar_gatekeeper_fib",
+  "description": "Sun-heavy fib-scale gatekeeper with drain-and-wait bias.",
+  "resource_scale": "fibonacci",
+  "scenario_id": "default",
+  "strict_biome_economy": true,
+  "resources": {
+    "☀": 21,
+    "👥": 13,
+    "🍞": 8,
+    "❄️": 5,
+    "🔥": 3,
+    "⚡": 2,
+    "🦅": 1
+  },
+  "known_pairs": [
+    {
+      "north": "☀",
+      "south": "🔥"
+    },
+    {
+      "north": "⚡",
+      "south": "🌙"
+    }
+  ],
+  "unlocked_biomes": [
+    "StarterForest",
+    "Village",
+    "StellarForges"
+  ],
+  "active_biome": "StellarForges",
+  "policies": {
+    "engine_policy": {
+      "policy_kind": "ucb",
+      "template": "core:ucb/solar_gatekeeper"
+    },
+    "quantum_register": {
+      "policy_kind": "quantum_register",
+      "template": "core:default",
+      "graph_jsonl": [
+        "{\"op\":\"set\",\"path\":\"profile_id\",\"value\":\"solar_gatekeeper_fib\"}",
+        "{\"op\":\"set\",\"path\":\"action_priors.lindblad_drain.base\",\"value\":0.75}",
+        "{\"op\":\"set\",\"path\":\"action_priors.time_skip.base\",\"value\":0.7}",
+        "{\"op\":\"set\",\"path\":\"reward_terms.drain\",\"value\":3.2}"
+      ]
+    }
+  }
+}
