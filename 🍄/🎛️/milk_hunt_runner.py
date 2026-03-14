@@ -1774,8 +1774,24 @@ def main() -> int:
         policy_max_quest_actions_per_loop = 0
         policy_forbid_actions = []
     effective_policy_graph_path = str(runtime_policy_graph_path(hunter_profile, "ucb"))
+
+    # MILK_HUNT_POLICY_EXTRA_JSONL: lichen overlay lines (set by derby.py per-lane).
+    # Extends profile action_limits/action_priors on the Python gate side.
+    _lichen_extra_lines = None
+    _lichen_overlay_env = os.environ.get("MILK_HUNT_POLICY_EXTRA_JSONL", "")
+    if _lichen_overlay_env:
+        try:
+            _overlay_p = Path(_lichen_overlay_env)
+            if _overlay_p.exists():
+                _lichen_extra_lines = _overlay_p.read_text().splitlines()
+        except OSError:
+            pass
+
     action_gate_policies: Dict[str, Dict[str, Any]] = {
-        "lock_offer": action_limits_for_action(hunter_profile, "ucb", "lock_offer"),
+        "lock_offer": action_limits_for_action(
+            hunter_profile, "ucb", "lock_offer",
+            extra_lines=_lichen_extra_lines,
+        ),
     }
     if not bool(policy_restrictions):
         action_gate_policies["lock_offer"]["enabled"] = False
