@@ -1,0 +1,52 @@
+{
+  "name": "solar_gatekeeper_fib_civic",
+  "description": "Sun gatekeeper with more bread/cold cushion and a lighter solar spike.",
+  "resource_scale": "fibonacci",
+  "scenario_id": "default",
+  "strict_biome_economy": true,
+  "resources": {
+    "👥": 21,
+    "🍞": 13,
+    "❄️": 8,
+    "☀": 5,
+    "🔥": 3,
+    "⚡": 2,
+    "🦅": 1
+  },
+  "known_pairs": [
+    {
+      "north": "☀",
+      "south": "🔥"
+    },
+    {
+      "north": "⚡",
+      "south": "🌙"
+    }
+  ],
+  "unlocked_biomes": [
+    "StarterForest",
+    "Village",
+    "StellarForges"
+  ],
+  "active_biome": "Village",
+  "policies": {
+    "engine_policy": {
+      "template": "core:ucb/solar_gatekeeper",
+      "graph_jsonl": [
+        "{\"op\":\"set\",\"path\":\"profile_id\",\"value\":\"solar_gatekeeper_fib_civic\"}",
+        "{\"op\":\"set\",\"path\":\"action_priors.quest_cycle.base\",\"value\":0.8}",
+        "{\"op\":\"set\",\"path\":\"action_priors.lindblad_drain.base\",\"value\":1.0}",
+        "{\"op\":\"set\",\"path\":\"action_priors.time_skip.base\",\"value\":0.45}"
+      ]
+    },
+    "quantum_register": {
+      "template": "core:default",
+      "graph_jsonl": [
+        "{\"op\":\"set\",\"path\":\"profile_id\",\"value\":\"solar_gatekeeper_fib_civic\"}",
+        "{\"op\":\"set\",\"path\":\"action_priors.lindblad_drain.base\",\"value\":0.6}",
+        "{\"op\":\"set\",\"path\":\"action_priors.time_skip.base\",\"value\":0.55}",
+        "{\"op\":\"set\",\"path\":\"reward_terms.drain\",\"value\":3.4}"
+      ]
+    }
+  }
+}
