@@ -28,6 +28,7 @@ def test_rig_listener_does_not_use_snapshot_for_mutations() -> None:
         "_snapshot_service.load_balance_profile(",
         "_snapshot_service.apply_farm_variable_graph(",
         "_snapshot_service.load_farm_variable_graph_file(",
+        "_snapshot_service.apply_policy_graph_lines(",
     ]
     for pattern in forbidden_calls:
         assert pattern not in src, f"mutation call should not route through SnapshotService: {pattern}"
@@ -61,6 +62,7 @@ def test_snapshot_service_has_no_mutation_api_methods() -> None:
         "func load_balance_profile(",
         "func apply_farm_variable_graph(",
         "func load_farm_variable_graph_file(",
+        "func apply_policy_graph_lines(",
     ]
     for pattern in forbidden_method_defs:
         assert pattern not in src, f"SnapshotService should stay read-only: {pattern}"
@@ -92,6 +94,15 @@ def test_quantum_instrument_exposes_policy_snapshot_bundle() -> None:
     assert "PolicySnapshotBuilder.build(self, include_offers, include_grid)" in src
 
 
+def test_rig_listener_exposes_policy_graph_actions() -> None:
+    src = RIG_LISTENER.read_text(encoding="utf-8")
+    assert '"policy_graph"' in src
+    assert '"policy_graph_apply"' in src
+    assert '"policy_graph_load"' in src
+    assert "policy.get_policy_graph()" in src
+    assert "policy.apply_policy_graph_lines(lines)" in src
+
+
 def test_policy_snapshot_builder_has_expected_bundle_keys() -> None:
     src = SNAPSHOT_BUILDER.read_text(encoding="utf-8")
     assert '"resources": resources' in src
@@ -102,9 +113,18 @@ def test_policy_snapshot_builder_has_expected_bundle_keys() -> None:
 
 
 def test_rig_listener_uses_policy_snapshot_bundle_for_policy_state() -> None:
-    src = RIG_LISTENER.read_text(encoding="utf-8")
-    assert "_get_policy_snapshot(true, true)" in src
-    assert "func _get_policy_snapshot(" in src
-    assert "_snapshot_service.get_policy_snapshot(include_offers, include_grid)" in src
-    assert "PolicySnapshotBuilder.build(_instrument, include_offers, include_grid)" in src
-    assert '"policy_snapshot"' in src
+    listener = RIG_LISTENER.read_text(encoding="utf-8")
+    snapshot = SNAPSHOT_SERVICE.read_text(encoding="utf-8")
+    assert "_snapshot_service.build_policy_state(cmd)" in listener
+    assert "func build_policy_state(cmd: Dictionary = {}) -> Dictionary:" in snapshot
+    assert "get_policy_snapshot(true, true)" in snapshot
+    assert "_annotate_offer_discovery_affinity(offers)" in snapshot
+
+
+def test_seed_state_mutation_can_set_policy_graph_path() -> None:
+    listener = RIG_LISTENER.read_text(encoding="utf-8")
+    instrument = QUANTUM_INSTRUMENT.read_text(encoding="utf-8")
+    assert 'var policy_graph_path = str(cmd.get("policy_graph_path", ""))' in listener
+    assert 'gsm.current_state.policy_graph_path = policy_graph_path' in listener
+    assert 'var policy_graph_path = str(cmd.get("policy_graph_path", ""))' in instrument
+    assert 'gsm.current_state.policy_graph_path = policy_graph_path' in instrument

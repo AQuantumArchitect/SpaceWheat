@@ -73,6 +73,8 @@ extends Resource
 ## Runtime controller policy state (headless/UI automation brain memory)
 ## Serialized snapshot from QuantumFiberPolicy.export_state()
 @export var policy_state: Dictionary = {}
+@export var policy_graph_path: String = "res://Core/Config/PolicyGraph/default.jsonl"
+@export var policy_graph_jsonl: Array[String] = []
 
 ## Balance profile state (shared between headless and UI)
 @export var balance_profile_id: String = "default"
@@ -350,6 +352,10 @@ func ensure_policy_state_defaults() -> void:
 			policy_state["ucb_scale"] = 1.10
 		if not policy_state.has("action_stats"):
 			policy_state["action_stats"] = {}
+	if not (policy_graph_jsonl is Array):
+		policy_graph_jsonl = []
+	if policy_graph_path == "":
+		policy_graph_path = "res://Core/Config/PolicyGraph/default.jsonl"
 
 
 func _default_balance_workbench_config() -> Dictionary:

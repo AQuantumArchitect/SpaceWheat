@@ -1,0 +1,15 @@
+{"op":"set","path":"profile_id","value":"biotic_bubble_runner"}
+{"op":"set","path":"action_priors.quest_cycle.base","value":0.35}
+{"op":"set","path":"action_priors.probe_cycle.base","value":1.55}
+{"op":"set","path":"action_priors.probe_cycle.biome_pressure","value":0.6}
+{"op":"set","path":"action_priors.discover_biome.base","value":0.95}
+{"op":"set","path":"action_priors.lindblad_drain.base","value":1.05}
+{"op":"set","path":"action_priors.lock_offer.base","value":0.25}
+{"op":"set","path":"action_limits.lock_offer.min_loop","value":2}
+{"op":"set","path":"action_limits.lock_offer.max_total_locks","value":1}
+{"op":"set","path":"action_limits.lock_offer.loop_mod","value":3}
+{"op":"set","path":"action_limits.lock_offer.pairs_soft_cap","value":12}
+{"op":"set","path":"action_limits.lock_offer.min_known_biomes","value":3}
+{"op":"set","path":"action_limits.lock_offer.critical_pressure_cap","value":1.5}
+{"op":"set","path":"reward_terms.biome","value":11.0}
+{"op":"set","path":"reward_terms.drain","value":3.2}

@@ -113,6 +113,12 @@ func capture_state_from_farm(farm: Node, current_state: GameState, scenario_id: 
 		var pstate = current_state.policy_state
 		if pstate is Dictionary and not pstate.is_empty():
 			state.policy_state = pstate.duplicate(true)
+	if current_state and ("policy_graph_jsonl" in current_state):
+		var pgraph = current_state.policy_graph_jsonl
+		if pgraph is Array and not pgraph.is_empty():
+			state.policy_graph_jsonl = pgraph.duplicate()
+	if current_state and ("policy_graph_path" in current_state):
+		state.policy_graph_path = str(current_state.policy_graph_path)
 	if farm.has_method("get_reap_count"):
 		state.reap_count = int(farm.get_reap_count())
 	elif "reap_count" in farm:

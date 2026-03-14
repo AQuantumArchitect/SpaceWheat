@@ -25,6 +25,7 @@ var _probe_status_hide_at_ms: int = 0
 const PROBE_STATUS_DURATION_MS: int = 900
 const QuantumInstrumentClass = preload("res://Core/Instrumentation/QuantumInstrument.gd")
 const PolicySnapshotBuilder = preload("res://Core/Instrumentation/PolicySnapshotBuilder.gd")
+const BiomeAffinityCalc = preload("res://Core/Quantum/BiomeAffinityCalculator.gd")
 
 
 func setup(farm_ref: Node, shell_ref: Node) -> void:
@@ -113,6 +114,67 @@ func get_resource_snapshot() -> Dictionary:
 func get_policy_snapshot(include_offers: bool = true, include_grid: bool = true) -> Dictionary:
 	"""Aggregate policy-facing reads into one payload for rigs and UI diagnostics."""
 	return PolicySnapshotBuilder.build(self, include_offers, include_grid)
+
+
+func build_policy_state(cmd: Dictionary = {}) -> Dictionary:
+	"""Build canonical policy input state for engine-side automation."""
+	var resource_floors = _parse_resource_thresholds(cmd.get("resource_floors", {}))
+	var forbid_actions = _parse_forbid_actions(cmd.get("forbid_actions", []))
+	var policy_snapshot = get_policy_snapshot(true, true)
+
+	var resources = policy_snapshot.get("resources", {})
+	if not (resources is Dictionary):
+		resources = describe_resources()
+
+	var known_pairs: Array = policy_snapshot.get("known_pairs", [])
+	if not (known_pairs is Array):
+		known_pairs = get_known_vocab_pairs()
+
+	var offers: Array = policy_snapshot.get("offers", [])
+	if not (offers is Array):
+		offers = get_quest_offers_for_current_biome()
+
+	var active_quests: Array = policy_snapshot.get("active_quests", [])
+	if not (active_quests is Array):
+		active_quests = get_active_quests()
+
+	var biomes: Array = policy_snapshot.get("biomes", [])
+	if not (biomes is Array):
+		biomes = []
+
+	var grid_snapshot = policy_snapshot.get("grid", {})
+	if biomes.is_empty() and grid_snapshot is Dictionary:
+		var raw_biomes = grid_snapshot.get("biomes", [])
+		if raw_biomes is Array:
+			for biome_name in raw_biomes:
+				var b = str(biome_name)
+				if b != "":
+					biomes.append(b)
+
+	var locked_offers: Array = policy_snapshot.get("locked_offers", [])
+	if not (locked_offers is Array):
+		locked_offers = get_locked_offers()
+
+	var lindblad_snapshot = get_lindblad_snapshot("", false)
+	var discovery_forecast: Dictionary = {}
+	if farm and farm.has_method("compute_discovery_forecast"):
+		discovery_forecast = farm.compute_discovery_forecast()
+
+	_annotate_offer_discovery_affinity(offers)
+
+	return {
+		"profile": str(cmd.get("profile", "default")),
+		"resources": resources,
+		"resource_floors": resource_floors,
+		"forbid_actions": forbid_actions,
+		"known_pairs": known_pairs,
+		"offers": offers,
+		"active_quests": active_quests,
+		"biomes": biomes,
+		"lindblad": lindblad_snapshot,
+		"discovery_forecast": discovery_forecast,
+		"locked_offers": locked_offers,
+	}
 
 
 func get_grid_snapshot() -> Dictionary:
@@ -324,6 +386,56 @@ func get_locked_offers() -> Array:
 	if not quest_manager or not quest_manager.has_method("get_locked_offers"):
 		return []
 	return quest_manager.get_locked_offers()
+
+
+func _parse_resource_thresholds(raw) -> Dictionary:
+	var out: Dictionary = {}
+	if not (raw is Dictionary):
+		return out
+	for key in raw.keys():
+		var emoji = str(key)
+		if emoji == "":
+			continue
+		var amount = float(raw.get(key, 0.0))
+		if amount > 0.0:
+			out[emoji] = amount
+	return out
+
+
+func _parse_forbid_actions(raw) -> Array:
+	var forbid_actions: Array = []
+	var seen: Dictionary = {}
+	if not (raw is Array):
+		return forbid_actions
+	for item in raw:
+		var action_name = str(item)
+		if action_name == "" or seen.has(action_name):
+			continue
+		seen[action_name] = true
+		forbid_actions.append(action_name)
+	return forbid_actions
+
+
+func _annotate_offer_discovery_affinity(offers: Array) -> void:
+	if offers.is_empty():
+		return
+	var obs = get_tree().root.get_node_or_null("ObservationFrame")
+	var unexplored: Array = obs.get_unexplored_biomes() if obs and obs.has_method("get_unexplored_biomes") else []
+	for offer in offers:
+		if not (offer is Dictionary):
+			continue
+		var north = str(offer.get("reward_vocab_north", ""))
+		var south = str(offer.get("reward_vocab_south", ""))
+		if north == "" and south == "":
+			offer["discovery_affinity"] = 0.0
+			continue
+		var pair = {"north": north, "south": south}
+		var max_aff = 0.0
+		for biome_name in unexplored:
+			var aff = BiomeAffinityCalc.calculate_affinity_by_name(pair, biome_name)
+			if aff > max_aff:
+				max_aff = aff
+		offer["discovery_affinity"] = max_aff
 
 
 func log_action(action: String, details: Dictionary = {}) -> void:

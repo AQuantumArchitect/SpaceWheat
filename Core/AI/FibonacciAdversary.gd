@@ -211,8 +211,11 @@ func mutate(observed_action_pct: Dictionary, max_mutations: int = 5) -> Array:
 		var target_share: float = target[rank_idx] if rank_idx < target.size() else 0.0
 		var excess: float = observed_share - target_share
 
-		# Dead zone: don't mutate if within 5% of target
-		if absf(excess) < 0.05:
+		# Dead zone: don't mutate if within 15% of target.
+		# We want the system to look ROUGHLY like the φ-cascade,
+		# not chase it exactly. 65% quest is fine — only react
+		# to truly lopsided distributions.
+		if absf(excess) < 0.15:
 			continue
 
 		# Find knobs affiliated with this action

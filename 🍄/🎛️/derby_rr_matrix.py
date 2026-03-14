@@ -20,7 +20,7 @@ from typing import Any, Dict, List
 
 HERE = Path(__file__).resolve().parent
 CONFIG_WS = HERE / "config" / "world_state"
-CONFIG_PW = HERE / "config" / "policy_weights"
+CONFIG_PGRAPH = HERE.parent.parent / "Core" / "Config" / "PolicyGraph" / "ucb"
 LOG_DIR = HERE / "logs" / "milk_batches"
 
 
@@ -122,12 +122,16 @@ def main():
     winner = "SONNET" if sonnet > codex else "CODEX" if codex > sonnet else "TIE"
     print(f"  WINNER: {winner} (+{abs(sonnet - codex):.4f})")
 
-    # Extract tissue learnings
-    top3_pw = []
+    # Extract canonical policy graph profiles when present.
+    top3_policy_graphs = []
     for r in results[:3]:
-        pw_path = CONFIG_PW / f"{r['profile']}.json"
-        if pw_path.exists():
-            top3_pw.append({"profile": r["profile"], "weights": json.loads(pw_path.read_text())})
+        graph_path = CONFIG_PGRAPH / f"{r['profile']}.jsonl"
+        if graph_path.exists():
+            top3_policy_graphs.append({
+                "profile": r["profile"],
+                "graph_path": str(graph_path),
+                "graph_lines": graph_path.read_text(encoding="utf-8").splitlines(),
+            })
 
     # Save matrix summary
     summary = {
@@ -135,7 +139,7 @@ def main():
         "total_elapsed_s": round(total_elapsed, 1),
         "results": [{k: v for k, v in r.items() if k != "report"} for r in results],
         "lane_totals": {"sonnet": round(sonnet, 4), "codex": round(codex, 4), "winner": winner},
-        "top3_tissue": top3_pw,
+        "top3_policy_graphs": top3_policy_graphs,
     }
     summary_path = matrix_dir / "matrix_summary.json"
     summary_path.write_text(json.dumps(summary, indent=2, ensure_ascii=False) + "\n")

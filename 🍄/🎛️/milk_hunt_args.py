@@ -22,7 +22,7 @@ def make_base_parser(description: str = "Milk hunt tool") -> argparse.ArgumentPa
       --profile-save-index  Registry JSON path for profile-save id resolution
       --scenario-id       Scenario id (used when not loading a slot)
       --hunter-profile    Policy profile name passed to runner
-      --hunter-policy     Policy mode (auto / classic / quantum_graph / engine_policy)
+      --hunter-policy     Policy mode (auto / engine_policy / quantum_register)
       --strategy          Strategy JSON path
       --strict-biome-economy / --no-strict-biome-economy
       --reuse-listener / --no-reuse-listener
@@ -74,7 +74,7 @@ def make_base_parser(description: str = "Milk hunt tool") -> argparse.ArgumentPa
     )
     parser.add_argument(
         "--hunter-policy",
-        choices=["auto", "classic", "quantum_graph", "engine_policy", "quantum_register"],
+        choices=["auto", "engine_policy", "quantum_register"],
         default=None,
         help="Policy mode passed to runner",
     )

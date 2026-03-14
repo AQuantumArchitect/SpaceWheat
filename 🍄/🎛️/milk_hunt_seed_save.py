@@ -5,6 +5,7 @@ import sys
 from typing import Any, Dict, List, Optional
 
 from milk_hunt_profiles import get_profile, list_profiles
+from policy_graph_runtime import profile_graph_path
 from milk_hunt_world_state import load_world_state
 from rig_client import RigClient
 
@@ -185,6 +186,12 @@ def main() -> int:
     if active_biome is None and profile:
         active_biome = str(profile.get("active_biome", "") or "")
 
+    policy_graph_path_value = ""
+    if profile:
+        profile_name = str(profile.get("name", "") or args.profile or "")
+        if profile_name:
+            policy_graph_path_value = str(profile_graph_path(profile_name, "ucb"))
+
     scenario_id = args.scenario_id
     if scenario_id is None:
         scenario_id = str(profile.get("scenario_id", "default")) if profile else "default"
@@ -216,7 +223,7 @@ def main() -> int:
         snapshot = run_turn(turn, "resource_snapshot")
         history.append(snapshot)
         turn += 1
-        if unlocked_biomes or unexplored_biomes or known_pairs or active_biome:
+        if unlocked_biomes or unexplored_biomes or known_pairs or active_biome or policy_graph_path_value:
             payload: Dict[str, Any] = {}
             if unlocked_biomes:
                 payload["unlocked_biomes"] = unlocked_biomes
@@ -226,6 +233,8 @@ def main() -> int:
                 payload["known_pairs"] = known_pairs
             if active_biome:
                 payload["active_biome"] = active_biome
+            if policy_graph_path_value:
+                payload["policy_graph_path"] = policy_graph_path_value
             history.append(run_turn(turn, "configure_seed_state", **payload))
             turn += 1
 

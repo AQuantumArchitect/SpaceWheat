@@ -97,7 +97,7 @@ def run_chunk(
         "--max-loops", str(max_loops),
         "--turn-start", str(runner.steps_done),
         "--hunter-profile", runner.profile,
-        "--hunter-policy", "quantum_graph",
+        "--hunter-policy", "engine_policy",
         "--json-only",
         "--reuse-listener",
         "--console-profile", args.console_profile or "quiet",

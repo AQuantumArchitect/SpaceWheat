@@ -188,8 +188,9 @@ class FibonacciAdversary:
             target_share = GOLDEN_TARGET[rank_idx] if rank_idx < len(GOLDEN_TARGET) else 0.0
             excess = observed_share - target_share
 
-            # Dead zone
-            if abs(excess) < 0.05:
+            # Dead zone: only react to truly lopsided distributions.
+            # We want the system to look ROUGHLY like φ-cascade, not exact.
+            if abs(excess) < 0.15:
                 continue
 
             # Find affiliated knobs

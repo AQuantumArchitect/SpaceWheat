@@ -1246,6 +1246,17 @@ func configure_seed_state(cmd: Dictionary) -> Dictionary:
 		_notify_autoload("ActiveBiomeManager", "set_active_biome", [active_biome])
 		out["active_biome"] = active_biome
 
+	var policy_graph_path = str(cmd.get("policy_graph_path", ""))
+	if policy_graph_path != "":
+		gsm.current_state.policy_graph_path = policy_graph_path
+		out["policy_graph_path"] = policy_graph_path
+
+	var policy_graph_jsonl = cmd.get("policy_graph_jsonl", [])
+	if policy_graph_jsonl is Array:
+		gsm.current_state.policy_graph_jsonl = policy_graph_jsonl.duplicate()
+		if not policy_graph_jsonl.is_empty():
+			out["policy_graph_jsonl"] = policy_graph_jsonl
+
 	return out
 
 

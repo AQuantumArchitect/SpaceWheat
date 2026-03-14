@@ -1,0 +1,14 @@
+{"op":"set","path":"profile_id","value":"granary_scout"}
+{"op":"set","path":"action_priors.quest_cycle.base","value":0.55}
+{"op":"set","path":"action_priors.quest_cycle.unknown_vocab","value":1.6}
+{"op":"set","path":"action_priors.probe_cycle.base","value":1.35}
+{"op":"set","path":"action_priors.probe_cycle.resource_pressure","value":1.0}
+{"op":"set","path":"action_priors.lock_offer.base","value":0.8}
+{"op":"set","path":"action_priors.lock_offer.novelty","value":2.0}
+{"op":"set","path":"action_priors.time_skip.base","value":0.3}
+{"op":"set","path":"action_limits.lock_offer.max_per_loop","value":2}
+{"op":"set","path":"action_limits.lock_offer.max_total_locks","value":2}
+{"op":"set","path":"action_limits.lock_offer.pairs_soft_cap","value":18}
+{"op":"set","path":"action_limits.lock_offer.critical_pressure_cap","value":3.0}
+{"op":"set","path":"reward_terms.pair","value":48.0}
+{"op":"set","path":"reward_terms.lock","value":4.0}

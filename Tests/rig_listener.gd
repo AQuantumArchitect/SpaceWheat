@@ -41,7 +41,7 @@ extends SceneTree
 ## - recommend_timescale: {biome: String, top_k?: int}
 ## - auto_timescale: {biome: String, top_k?: int}
 ## - configure_economy: {overrides: {action_costs?, gate_costs?, quest_rewards?, production?}}
-## - configure_seed_state: {known_pairs, unlocked_biomes, unexplored_biomes, active_biome}
+## - configure_seed_state: {known_pairs, unlocked_biomes, unexplored_biomes, active_biome, policy_graph_path?, policy_graph_jsonl?}
 ## - probe_cycle: {biome: String}
 ## - discover_biome (preferred; biome unlock/expansion)
 ## - explore_biome (deprecated alias for discover_biome)
@@ -57,6 +57,9 @@ extends SceneTree
 ## - farm_variable_graph
 ## - farm_variable_graph_apply: {lines: [String], source?: String}
 ## - farm_variable_graph_load: {path: String}
+## - policy_graph
+## - policy_graph_apply: {lines: [String]}
+## - policy_graph_load: {path: String}
 ## - action_cost: {name: String, context?: Dictionary}
 ## - action_preflight: {name: String, context?: Dictionary}
 ## - save_game: {slot: int}
@@ -81,6 +84,7 @@ const QuantumForceGraph = preload("res://Core/Visualization/QuantumForceGraph.gd
 const QuantumInstrumentClass = preload("res://Core/Instrumentation/QuantumInstrument.gd")
 const QuantumFiberPolicyClass = preload("res://Core/AI/QuantumFiberPolicy.gd")
 const PolicyQuantumRegisterClass = preload("res://Core/AI/PolicyQuantumRegister.gd")
+const PolicyGraph = preload("res://Core/AI/PolicyGraph.gd")
 const BiomeAffinityCalc = preload("res://Core/Quantum/BiomeAffinityCalculator.gd")
 const PolicySnapshotBuilder = preload("res://Core/Instrumentation/PolicySnapshotBuilder.gd")
 const PhysicsConfig = preload("res://Core/Config/PhysicsConfig.gd")
@@ -327,6 +331,9 @@ func _requires_quantum_instrument(action: String) -> bool:
 		"farm_variable_graph",
 		"farm_variable_graph_apply",
 		"farm_variable_graph_load",
+		"policy_graph",
+		"policy_graph_apply",
+		"policy_graph_load",
 		"action_cost",
 		"action_preflight",
 		"configure_seed_state",
@@ -829,6 +836,36 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 				result = {"ok": false, "turn": turn_id, "action": action, "error": "missing_graph_path"}
 			else:
 				result["farm_variable_graph"] = _instrument.load_farm_variable_graph_file(graph_path)
+
+		"policy_graph":
+			var policy = _ensure_policy()
+			result["policy_graph"] = policy.get_policy_graph() if policy and policy.has_method("get_policy_graph") else {}
+
+		"policy_graph_apply":
+			var policy = _ensure_policy()
+			var lines = cmd.get("lines", [])
+			if not (lines is Array) or lines.is_empty():
+				result = {"ok": false, "turn": turn_id, "action": action, "error": "empty_graph_lines"}
+			elif not policy or not policy.has_method("apply_policy_graph_lines"):
+				result = {"ok": false, "turn": turn_id, "action": action, "error": "policy_graph_unavailable"}
+			else:
+				result["policy_graph"] = policy.apply_policy_graph_lines(lines)
+				_sync_policy_into_game_state()
+
+		"policy_graph_load":
+			var policy = _ensure_policy()
+			var graph_path = str(cmd.get("path", ""))
+			if graph_path == "":
+				result = {"ok": false, "turn": turn_id, "action": action, "error": "missing_graph_path"}
+			elif not policy or not policy.has_method("apply_policy_graph_lines"):
+				result = {"ok": false, "turn": turn_id, "action": action, "error": "policy_graph_unavailable"}
+			else:
+				var lines = PolicyGraph.load_graph_lines(graph_path)
+				if lines.is_empty():
+					result = {"ok": false, "turn": turn_id, "action": action, "error": "missing_or_empty_graph_file", "path": graph_path}
+				else:
+					result["policy_graph"] = policy.apply_policy_graph_lines(lines)
+					_sync_policy_into_game_state()
 
 		"action_cost":
 			var action_name = str(cmd.get("name", cmd.get("action_name", "")))
@@ -1543,6 +1580,17 @@ func _configure_seed_state(cmd: Dictionary) -> Dictionary:
 			active_biome_manager2.set_active_biome(active_biome)
 		out["active_biome"] = active_biome
 
+	var policy_graph_path = str(cmd.get("policy_graph_path", ""))
+	if policy_graph_path != "":
+		gsm.current_state.policy_graph_path = policy_graph_path
+		out["policy_graph_path"] = policy_graph_path
+
+	var policy_graph_jsonl = cmd.get("policy_graph_jsonl", [])
+	if policy_graph_jsonl is Array:
+		gsm.current_state.policy_graph_jsonl = policy_graph_jsonl.duplicate()
+		if not policy_graph_jsonl.is_empty():
+			out["policy_graph_jsonl"] = policy_graph_jsonl
+
 	return out
 
 
@@ -1684,6 +1732,10 @@ func _sync_policy_into_game_state() -> void:
 		gsm.current_state.policy_state = _policy.export_state()
 	else:
 		gsm.current_state.policy_state = _policy.get_snapshot()
+	if "policy_graph_jsonl" in gsm.current_state and _policy.has_method("get_policy_graph"):
+		var graph_snapshot = _policy.get_policy_graph()
+		if graph_snapshot is Dictionary:
+			gsm.current_state.policy_graph_jsonl = PolicyGraph.snapshot_to_graph_lines(graph_snapshot)
 
 
 func _sync_policy_from_game_state() -> void:
@@ -1700,90 +1752,31 @@ func _sync_policy_from_game_state() -> void:
 		policy.load_state(state)
 	elif policy.has_method("reset"):
 		policy.reset(state)
+	if "policy_graph_jsonl" in gsm.current_state and policy.has_method("apply_policy_graph_lines"):
+		var graph_lines = gsm.current_state.policy_graph_jsonl
+		if (not (graph_lines is Array) or graph_lines.is_empty()) and "policy_graph_path" in gsm.current_state:
+			graph_lines = PolicyGraph.load_graph_lines(str(gsm.current_state.policy_graph_path))
+		if graph_lines is Array and not graph_lines.is_empty():
+			policy.apply_policy_graph_lines(graph_lines)
 
 
 func _build_policy_state(cmd: Dictionary = {}) -> Dictionary:
-	var resource_floors = _parse_wait_threshold(cmd.get("resource_floors", {}))
-	var forbid_actions: Array = []
-	var raw_forbid = cmd.get("forbid_actions", [])
-	if raw_forbid is Array:
-		var seen: Dictionary = {}
-		for item in raw_forbid:
-			var action_name = str(item)
-			if action_name == "" or seen.has(action_name):
-				continue
-			seen[action_name] = true
-			forbid_actions.append(action_name)
-	var policy_snapshot: Dictionary = {}
-	policy_snapshot = _get_policy_snapshot(true, true)
-	var resources = policy_snapshot.get("resources", {}) if policy_snapshot is Dictionary else {}
-	if not (resources is Dictionary):
-		resources = _get_resource_map()
-	var known_pairs: Array = policy_snapshot.get("known_pairs", []) if policy_snapshot is Dictionary else []
-	if not (known_pairs is Array):
-		known_pairs = _instrument.get_known_vocab_pairs() if _instrument else []
-	var offers: Array = policy_snapshot.get("offers", []) if policy_snapshot is Dictionary else []
-	if not (offers is Array):
-		offers = _instrument.get_quest_offers_for_current_biome() if _instrument else []
-	var active_quests: Array = policy_snapshot.get("active_quests", []) if policy_snapshot is Dictionary else []
-	if not (active_quests is Array):
-		active_quests = _instrument.get_active_quests() if _instrument else []
-	var grid_snapshot = policy_snapshot.get("grid", {}) if policy_snapshot is Dictionary else {}
-	if not (grid_snapshot is Dictionary):
-		grid_snapshot = _instrument.get_grid_snapshot() if _instrument else {}
-	var biomes: Array = policy_snapshot.get("biomes", []) if policy_snapshot is Dictionary else []
-	if not (biomes is Array):
-		biomes = []
-	if biomes.is_empty() and grid_snapshot is Dictionary:
-		var raw_biomes = grid_snapshot.get("biomes", [])
-		if raw_biomes is Array:
-			for biome_name in raw_biomes:
-				var b = str(biome_name)
-				if b != "":
-					biomes.append(b)
-	var lindblad_snapshot = _snapshot_service.get_lindblad_snapshot("", false) if _snapshot_service else {}
-
-	# Discovery forecast
-	var discovery_forecast: Dictionary = {}
-	if _farm and _farm.has_method("compute_discovery_forecast"):
-		discovery_forecast = _farm.compute_discovery_forecast()
-
-	# Locked offers
-	var locked_offers: Array = policy_snapshot.get("locked_offers", []) if policy_snapshot is Dictionary else []
-	if not (locked_offers is Array):
-		locked_offers = _instrument.get_locked_offers() if _instrument else []
-
-	# Annotate offers with discovery_affinity
-	var obs = get_root().get_node_or_null("ObservationFrame")
-	var unexplored: Array = obs.get_unexplored_biomes() if obs and obs.has_method("get_unexplored_biomes") else []
-	for offer in offers:
-		if not (offer is Dictionary):
-			continue
-		var north = str(offer.get("reward_vocab_north", ""))
-		var south = str(offer.get("reward_vocab_south", ""))
-		if north == "" and south == "":
-			offer["discovery_affinity"] = 0.0
-			continue
-		var pair = {"north": north, "south": south}
-		var max_aff = 0.0
-		for biome_name in unexplored:
-			var aff = BiomeAffinityCalc.calculate_affinity_by_name(pair, biome_name)
-			if aff > max_aff:
-				max_aff = aff
-		offer["discovery_affinity"] = max_aff
-
+	if _snapshot_service and _snapshot_service.has_method("build_policy_state"):
+		var projected = _snapshot_service.build_policy_state(cmd)
+		if projected is Dictionary:
+			return projected
 	return {
 		"profile": str(cmd.get("profile", "default")),
-		"resources": resources,
-		"resource_floors": resource_floors,
-		"forbid_actions": forbid_actions,
-		"known_pairs": known_pairs,
-		"offers": offers,
-		"active_quests": active_quests,
-		"biomes": biomes,
-		"lindblad": lindblad_snapshot,
-		"discovery_forecast": discovery_forecast,
-		"locked_offers": locked_offers,
+		"resources": _get_resource_map(),
+		"resource_floors": _parse_wait_threshold(cmd.get("resource_floors", {})),
+		"forbid_actions": cmd.get("forbid_actions", []),
+		"known_pairs": _instrument.get_known_vocab_pairs() if _instrument else [],
+		"offers": _instrument.get_quest_offers_for_current_biome() if _instrument else [],
+		"active_quests": _instrument.get_active_quests() if _instrument else [],
+		"biomes": [],
+		"lindblad": _snapshot_service.get_lindblad_snapshot("", false) if _snapshot_service else {},
+		"discovery_forecast": _farm.compute_discovery_forecast() if _farm and _farm.has_method("compute_discovery_forecast") else {},
+		"locked_offers": _instrument.get_locked_offers() if _instrument else [],
 	}
 
 
