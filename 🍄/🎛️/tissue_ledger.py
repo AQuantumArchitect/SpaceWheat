@@ -251,13 +251,196 @@ def load_evolved_defaults(
     return evolved, ledger
 
 
-def format_evolved_diff(evolved: Dict[str, Dict[str, Any]]) -> List[str]:
-    """Show which defaults shifted from seed values."""
+def format_evolved_diff(
+    evolved_ranges: Dict[str, Dict[str, Any]],
+) -> List[str]:
+    """Return human-readable lines for knobs that drifted from seed.
+
+    Only includes knobs where the evolved value differs from the seed default
+    by more than 0.5% of the knob range.
+    """
+    lines: List[str] = []
+    for name, spec in WEIGHT_RANGES.items():
+        seed = spec["default"]
+        lo, hi = spec["range"]
+        rng = hi - lo or 1.0
+        ev_val = evolved_ranges.get(name, spec).get("default", seed)
+        delta = ev_val - seed
+        if abs(delta) > 0.005 * rng:
+            arrow = "↑" if delta > 0 else "↓"
+            lines.append(
+                f"  {arrow} {name}: {seed:.4g} → {ev_val:.4g}  (Δ{delta:+.4g})"
+            )
+    return lines
+
+
+# ── Tissue → PolicyGraph projection ──────────────────────────────────
+# Maps tissue knobs to PolicyGraph paths.  Each entry:
+#   (tissue_knob, policy_path, base_policy_value, scale_mode)
+#
+# scale_mode:
+#   "ratio"   — policy = base * (evolved / seed)   [default: proportional]
+#   "direct"  — policy = evolved                    [knob IS the value]
+#   "inverse" — policy = base * (seed / evolved)    [higher knob → lower policy]
+
+_TISSUE_POLICY_MAP: List[Tuple[str, str, float, str]] = [
+    # ── Offer → quest/lock action_priors + reward_terms ──────────────
+    ("offer_pair",             "reward_terms.pair",                              42.0,  "ratio"),
+    ("offer_novelty",          "action_priors.quest_cycle.unknown_vocab",         1.25, "ratio"),
+    ("offer_reward",           "reward_terms.resource",                           0.08, "ratio"),
+    ("offer_deficit",          "action_priors.quest_cycle.stagnation_scale",      0.45, "ratio"),
+    ("offer_delivery_cost",    "reward_terms.execution_penalty",                 -4.0,  "ratio"),
+    ("offer_critical_any",     "action_priors.lock_offer.discovery_affinity",     5.0,  "ratio"),
+    ("offer_critical_unknown", "action_priors.lock_offer.novelty",               1.5,  "ratio"),
+
+    # ── Probe → probe_cycle action_priors ────────────────────────────
+    ("probe_frontier",         "action_priors.probe_cycle.base",                  1.0,  "ratio"),
+    ("probe_hits",             "action_priors.probe_cycle.resource_pressure",     0.3,  "ratio"),
+    ("probe_novelty",          "action_priors.discover_biome.base",               0.35, "ratio"),
+    ("probe_critical_hits",    "action_priors.probe_cycle.biome_pressure",        0.15, "ratio"),
+
+    # ── Loop → limits + priors ───────────────────────────────────────
+    ("loop_probe_max",         "action_limits.default.max_per_loop",              1,    "direct"),
+    ("vocab_probe_base",       "action_priors.quest_cycle.base",                  0.7,  "ratio"),
+
+    # ── Lindblad → lindblad_drain action_priors ──────────────────────
+    ("lindblad_hits",          "action_priors.lindblad_drain.base",               0.9,  "ratio"),
+    ("lindblad_frontier",      "action_priors.lindblad_drain.inactive_bonus",     0.5,  "ratio"),
+
+    # ── Time → time_skip ─────────────────────────────────────────────
+    ("loop_probe_floor_pressure", "action_priors.time_skip.base",                 0.4,  "inverse"),
+]
+
+
+def project_to_policy(
+    evolved_ranges: Optional[Dict[str, Dict[str, Any]]] = None,
+) -> List[Dict[str, Any]]:
+    """Project evolved tissue defaults to PolicyGraph JSONL overlay ops.
+
+    This is the primary policy projection: the tissue IS the policy.
+    Each evolved knob ratio-scales its mapped PolicyGraph path.
+
+    Returns a list of {"op": "set", "path": ..., "value": ...} dicts
+    ready for policy_graph_runtime.apply_graph_lines().
+    """
+    evolved = evolved_ranges or WEIGHT_RANGES
+    ops: List[Dict[str, Any]] = []
+
+    for knob_name, policy_path, base_value, mode in _TISSUE_POLICY_MAP:
+        knob_spec = evolved.get(knob_name)
+        if knob_spec is None:
+            continue
+        current = float(knob_spec["default"])
+        seed = _SEED_DEFAULTS.get(knob_name, current)
+
+        if mode == "direct":
+            # Knob value IS the policy value (e.g., loop_probe_max → max_per_loop)
+            value = current
+        elif mode == "inverse":
+            # Higher knob → lower policy value
+            if current == 0 or seed == 0:
+                value = base_value
+            else:
+                value = base_value * (seed / current)
+        else:  # "ratio"
+            # Proportional: policy = base * (evolved / seed)
+            if seed == 0:
+                value = base_value
+            else:
+                value = base_value * (current / seed)
+
+        # Round appropriately
+        if isinstance(base_value, int) or (mode == "direct" and current == int(current)):
+            value = max(1, int(round(value)))
+        else:
+            value = round(value, 4)
+
+        ops.append({"op": "set", "path": policy_path, "value": value})
+
+    return ops
+
+
+def format_policy_projection(ops: List[Dict[str, Any]]) -> List[str]:
+    """Human-readable summary of tissue → policy projection."""
     lines = []
-    for k in sorted(evolved):
-        seed = _SEED_DEFAULTS.get(k, 0.0)
-        current = evolved[k]["default"]
-        if abs(current - seed) > 1e-6:
-            delta = current - seed
-            lines.append(f"  {'+' if delta > 0 else ''}{delta:.4f}  {k}: {seed} → {current}")
+    for op in ops:
+        lines.append(f"  {op['path']} = {op['value']}")
+    return lines
+
+
+# ── Tissue → resource emphasis ───────────────────────────────────────
+# Maps tissue knob clusters to resource multipliers.
+# Higher cluster emphasis → more starting resources in that category.
+
+_RESOURCE_KNOB_INFLUENCE: Dict[str, List[Tuple[str, float]]] = {
+    # emoji → [(tissue_knob, influence_weight)]
+    # influence_weight: positive = higher knob → more of this resource
+    "👥": [("offer_critical_any", 0.3), ("probe_village_pressure", 0.2)],
+    "🌾": [("probe_frontier", 0.3), ("vocab_probe_base", 0.2)],
+    "🍞": [("offer_deficit", 0.4), ("offer_critical_pair", 0.15)],
+    "❄️": [("lindblad_hits", 0.3), ("lindblad_floor_hits", 0.2)],
+    "🌱": [("offer_novelty", 0.3), ("probe_novelty", 0.2)],
+    "⚙":  [("lindblad_frontier", 0.25), ("loop_probe_base", 0.2)],
+    "🔥": [("probe_critical_hits", 0.25), ("loop_probe_critical_pressure", 0.2)],
+}
+
+# Base resource amounts (neutral starting position)
+_BASE_RESOURCES: Dict[str, float] = {
+    "👥": 120.0,
+    "🌾": 140.0,
+    "🍞": 180.0,
+    "❄️": 80.0,
+    "🌱": 60.0,
+    "⚙":  70.0,
+    "🔥": 55.0,
+}
+
+
+def project_to_resources(
+    evolved_ranges: Optional[Dict[str, Dict[str, Any]]] = None,
+) -> Dict[str, int]:
+    """Project evolved tissue state to starting resource allocation.
+
+    Returns {emoji: amount} dict suitable for world_state profile resources.
+    Each resource is biased by tissue knobs that semantically relate to it.
+    The bias is gentle: ±20% from base, so critical floors are always met.
+    """
+    evolved = evolved_ranges or WEIGHT_RANGES
+    resources: Dict[str, int] = {}
+
+    for emoji, influences in _RESOURCE_KNOB_INFLUENCE.items():
+        base = _BASE_RESOURCES.get(emoji, 100.0)
+        multiplier = 1.0
+
+        for knob_name, weight in influences:
+            knob_spec = evolved.get(knob_name)
+            if knob_spec is None:
+                continue
+            current = float(knob_spec["default"])
+            seed = _SEED_DEFAULTS.get(knob_name, current)
+            if seed == 0:
+                continue
+            # Deviation from seed → resource emphasis shift
+            # weight=0.3 and 50% knob increase → 15% resource increase
+            ratio = current / seed
+            multiplier += weight * (ratio - 1.0)
+
+        # Clamp multiplier to ±20% to keep resources sane
+        multiplier = max(0.80, min(1.20, multiplier))
+        resources[emoji] = max(1, int(round(base * multiplier)))
+
+    return resources
+
+
+def format_resource_projection(resources: Dict[str, int]) -> List[str]:
+    """Human-readable summary of tissue → resource projection."""
+    lines = []
+    for emoji in sorted(resources):
+        base = int(_BASE_RESOURCES.get(emoji, 100))
+        current = resources[emoji]
+        delta = current - base
+        if delta != 0:
+            lines.append(f"  {emoji} {current} ({'+' if delta > 0 else ''}{delta} from base {base})")
+        else:
+            lines.append(f"  {emoji} {current} (neutral)")
     return lines
