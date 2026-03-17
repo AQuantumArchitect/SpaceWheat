@@ -140,6 +140,12 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--epsilon-jitter", type=float, default=0.12, help="Absolute epsilon mutation radius")
     parser.add_argument("--ucb-octave-jitter", type=float, default=0.45, help="Log2 mutation radius for UCB scale")
     parser.add_argument("--mutation-seed", type=int, default=1337, help="RNG seed for topology mutations")
+    parser.add_argument(
+        "--policy-overlay-path",
+        type=str,
+        default=None,
+        help="JSONL file with tissue/lichen overlay ops to bake into the seed policy graph",
+    )
     parser.set_defaults(strict_biome_economy=True, reuse_listener=True)
     parser.set_defaults(include_offer_reward_resources=False)
     parser.set_defaults(include_offer_market_projection=False)
@@ -392,6 +398,7 @@ def _seed_profile(
     scenario_id: Optional[str],
     resource_mode: Optional[str],
     world_state_path: Optional[str] = None,
+    policy_overlay_path: Optional[str] = None,
 ) -> Dict[str, Any]:
     log_path = batch_dir / "seed_stdout.log"
     cmd = [
@@ -410,6 +417,14 @@ def _seed_profile(
         cmd.extend(["--scenario-id", scenario_id])
     if resource_mode:
         cmd.extend(["--resource-mode", resource_mode])
+    # Forward tissue/lichen overlay ops to seed_save for policy graph injection
+    if policy_overlay_path:
+        overlay_p = Path(policy_overlay_path)
+        if overlay_p.exists():
+            for line in overlay_p.read_text(encoding="utf-8").splitlines():
+                line = line.strip()
+                if line:
+                    cmd.extend(["--policy-graph-line", line])
     proc = subprocess.run(cmd, capture_output=True, text=True, check=False)
     log_path.write_text((proc.stdout or "") + (proc.stderr or ""), encoding="utf-8")
     return {"ok": proc.returncode == 0, "exit_code": proc.returncode, "log_path": str(log_path), "cmd": cmd}
@@ -463,6 +478,7 @@ def main() -> int:
             scenario_id=args.scenario_id,
             resource_mode=args.resource_mode,
             world_state_path=args.world_state,
+            policy_overlay_path=args.policy_overlay_path,
         )
         if not seed_result["ok"]:
             console.log("[batch] profile seeding failed", "error")

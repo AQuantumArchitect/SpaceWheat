@@ -1,0 +1,44 @@
+{
+  "name": "claura_codex_mini",
+  "description": "Claura→SpaceWheat bridge: codex-mini pipeline",
+  "resource_scale": "fibonacci",
+  "scenario_id": "default",
+  "strict_biome_economy": false,
+  "resources": {
+    "👥": 55,
+    "🌾": 89,
+    "🍞": 89,
+    "❄️": 55,
+    "🌱": 34,
+    "⚙": 34,
+    "🔥": 34
+  },
+  "known_pairs": [
+    {
+      "north": "🌾",
+      "south": "🌱"
+    }
+  ],
+  "unlocked_biomes": [
+    "StarterForest",
+    "Village",
+    "PastoralCommons"
+  ],
+  "active_biome": "PastoralCommons",
+  "policies": {
+    "engine_policy": {
+      "policy_kind": "ucb",
+      "template": "core:default"
+    },
+    "quantum_register": {
+      "policy_kind": "quantum_register",
+      "template": "core:default",
+      "graph_jsonl": [
+        "{\"op\": \"set\", \"path\": \"profile_id\", \"value\": \"claura_codex_mini\"}",
+        "{\"op\": \"set\", \"path\": \"action_priors.probe_cycle.base\", \"value\": 1.2}",
+        "{\"op\": \"set\", \"path\": \"action_priors.quest_cycle.unknown_vocab\", \"value\": 1.4}",
+        "{\"op\": \"set\", \"path\": \"action_priors.time_skip.base\", \"value\": 0.4}"
+      ]
+    }
+  }
+}

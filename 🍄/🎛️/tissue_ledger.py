@@ -317,10 +317,12 @@ def project_to_policy(
 ) -> List[Dict[str, Any]]:
     """Project evolved tissue defaults to PolicyGraph JSONL overlay ops.
 
-    This is the primary policy projection: the tissue IS the policy.
-    Each evolved knob ratio-scales its mapped PolicyGraph path.
+    Generates DELTA ops (using "add") rather than absolute "set" ops, so the
+    tissue adjusts relative to each character's natural Godot policy rather
+    than overriding it.  At seed defaults the delta is zero → no ops emitted,
+    leaving character policies untouched.
 
-    Returns a list of {"op": "set", "path": ..., "value": ...} dicts
+    Returns a list of {"op": "add", "path": ..., "value": delta} dicts
     ready for policy_graph_runtime.apply_graph_lines().
     """
     evolved = evolved_ranges or WEIGHT_RANGES
@@ -333,23 +335,105 @@ def project_to_policy(
         current = float(knob_spec["default"])
         seed = _SEED_DEFAULTS.get(knob_name, current)
 
+        # Compute the seed-default policy value and the evolved policy value,
+        # then emit an "add" op for the difference only.
+        def _policy_val(weight_val: float) -> float:
+            if mode == "direct":
+                return weight_val
+            elif mode == "inverse":
+                if weight_val == 0 or seed == 0:
+                    return float(base_value)
+                return float(base_value) * (seed / weight_val)
+            else:  # "ratio"
+                if seed == 0:
+                    return float(base_value)
+                return float(base_value) * (weight_val / seed)
+
+        seed_policy = _policy_val(seed)
+        curr_policy = _policy_val(current)
+        delta = curr_policy - seed_policy
+
+        if isinstance(base_value, int):
+            delta = int(round(delta))
+            if delta == 0:
+                continue
+        else:
+            delta = round(delta, 4)
+            if abs(delta) < 1e-6:
+                continue
+
+        ops.append({"op": "add", "path": policy_path, "value": delta})
+
+    return ops
+
+
+def jitter_weights(
+    evolved_ranges: Optional[Dict[str, Dict[str, Any]]] = None,
+    n_jitters: int = 3,
+    jitter_fraction: float = 0.15,
+    seed: int = 0,
+) -> Dict[str, float]:
+    """Apply random jitter to a subset of tissue weights.
+
+    Selects n_jitters random weights and shifts them within their valid
+    range by up to ±jitter_fraction of the range width.
+
+    Returns {knob_name: jittered_value} for the selected weights.
+    Used by train mode to explore the weight space per-runner.
+    """
+    import random as _rnd
+    rng = _rnd.Random(seed)
+    evolved = evolved_ranges or WEIGHT_RANGES
+
+    # Select random subset of weights to jitter
+    all_names = list(evolved.keys())
+    n = min(n_jitters, len(all_names))
+    selected = rng.sample(all_names, n)
+
+    jittered: Dict[str, float] = {}
+    for name in selected:
+        spec = evolved[name]
+        lo, hi = spec["range"]
+        current = float(spec["default"])
+        range_width = hi - lo
+        delta = rng.uniform(-jitter_fraction, jitter_fraction) * range_width
+        new_val = max(lo, min(hi, current + delta))
+        jittered[name] = round(new_val, 6)
+
+    return jittered
+
+
+def project_jittered_to_policy(
+    jittered_weights: Dict[str, float],
+    evolved_ranges: Optional[Dict[str, Dict[str, Any]]] = None,
+) -> List[Dict[str, Any]]:
+    """Convert jittered tissue weights to PolicyGraph overlay ops.
+
+    Only emits ops for the jittered weights (not all weights).
+    These ops are appended ON TOP of the base tissue overlay.
+    """
+    evolved = evolved_ranges or WEIGHT_RANGES
+    ops: List[Dict[str, Any]] = []
+
+    for knob_name, policy_path, base_value, mode in _TISSUE_POLICY_MAP:
+        if knob_name not in jittered_weights:
+            continue
+        current = jittered_weights[knob_name]
+        seed = _SEED_DEFAULTS.get(knob_name, float(evolved.get(knob_name, {}).get("default", current)))
+
         if mode == "direct":
-            # Knob value IS the policy value (e.g., loop_probe_max → max_per_loop)
             value = current
         elif mode == "inverse":
-            # Higher knob → lower policy value
             if current == 0 or seed == 0:
                 value = base_value
             else:
                 value = base_value * (seed / current)
         else:  # "ratio"
-            # Proportional: policy = base * (evolved / seed)
             if seed == 0:
                 value = base_value
             else:
                 value = base_value * (current / seed)
 
-        # Round appropriately
         if isinstance(base_value, int) or (mode == "direct" and current == int(current)):
             value = max(1, int(round(value)))
         else:
@@ -366,6 +450,61 @@ def format_policy_projection(ops: List[Dict[str, Any]]) -> List[str]:
     for op in ops:
         lines.append(f"  {op['path']} = {op['value']}")
     return lines
+
+
+def reverse_policy_to_weights(policy_jsonl_lines: List[str]) -> Dict[str, float]:
+    """Reverse-map policy graph JSONL ops to implied tissue weight values.
+
+    Given a character's policy_graph_jsonl lines (which set specific policy
+    paths), infer what tissue weight values would produce those policy values.
+    This lets tissue learning extract signals from character-based runs.
+
+    Returns {knob_name: implied_weight_value} for any mapped paths found.
+    """
+    # Build reverse lookup: policy_path → (knob_name, base_value, mode)
+    path_to_knob: Dict[str, Tuple[str, float, str]] = {}
+    for knob_name, policy_path, base_value, mode in _TISSUE_POLICY_MAP:
+        path_to_knob[policy_path] = (knob_name, base_value, mode)
+
+    # Parse JSONL lines
+    import json as _json
+    policy_values: Dict[str, Any] = {}
+    for raw in policy_jsonl_lines:
+        raw = raw.strip()
+        if not raw:
+            continue
+        try:
+            op = _json.loads(raw)
+        except _json.JSONDecodeError:
+            continue
+        if op.get("op") == "set" and "path" in op and "value" in op:
+            policy_values[op["path"]] = op["value"]
+
+    # Reverse-map to tissue weights
+    weights: Dict[str, float] = {}
+    for policy_path, policy_value in policy_values.items():
+        if policy_path not in path_to_knob:
+            continue
+        knob_name, base_value, mode = path_to_knob[policy_path]
+        seed = _SEED_DEFAULTS.get(knob_name, WEIGHT_RANGES[knob_name]["default"])
+
+        if mode == "direct":
+            # policy_value IS the knob value
+            weights[knob_name] = float(policy_value)
+        elif mode == "inverse":
+            # policy = base * (seed / knob) → knob = base * seed / policy
+            if float(policy_value) != 0:
+                weights[knob_name] = base_value * seed / float(policy_value)
+            else:
+                weights[knob_name] = seed
+        else:  # "ratio"
+            # policy = base * (knob / seed) → knob = seed * policy / base
+            if base_value != 0:
+                weights[knob_name] = seed * float(policy_value) / base_value
+            else:
+                weights[knob_name] = seed
+
+    return weights
 
 
 # ── Tissue → resource emphasis ───────────────────────────────────────

@@ -26,6 +26,7 @@ DERBY   = "🏆"   # Multi-lane competition event
 RACE    = "🏁"   # Round-robin interleaved race
 LANE    = "🧬"   # LLM competitor identity (sonnet, codex, ...)
 RUNNER  = "🎽"   # One profile instance in competition
+CHARACTER = "🃏" # Higher-order character spec (world + policy)
 PROFILE = "🎯"   # Starter world-state config
 BATCH   = "📦"   # N independent runs of the same profile
 RUN     = "🧪"   # One complete trial (seed -> play -> result)
@@ -109,5 +110,6 @@ LAYER_RACE   = "race"
 LAYER_DUEL   = "duel"
 LAYER_MATRIX = "matrix"
 LAYER_DESIGN = "design"
+LAYER_TRAIN  = "train"
 
 SCHEMA_VERSION = "v2"

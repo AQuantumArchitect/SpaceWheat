@@ -16,6 +16,14 @@ from typing import Any, Dict, List, Optional, Set
 
 from milk_hunt_runtime_config import load_json_config
 from milk_hunt_paths import APP_NAME, user_dir, xdg_root
+from milk_hunt_characters import (
+    CharacterDict,
+    get_character,
+    list_character_names,
+    resolve_character_policy,
+    resolve_character_seed,
+    resolve_character_world_state,
+)
 
 HERE = Path(__file__).resolve().parent
 WORLD_STATE_DIR = HERE / "config" / "world_state"
@@ -89,6 +97,18 @@ def list_derby_lanes() -> List[str]:
 def exists(name: str) -> bool:
     """Check if a profile exists."""
     return (WORLD_STATE_DIR / f"{name}.json").exists()
+
+
+# ── Character loading (delegates to milk_hunt_characters) ────────
+
+def load_character(name: str) -> CharacterDict:
+    """Load a character spec by name. Raises ValueError if not found."""
+    return get_character(name)
+
+
+def character_exists(name: str) -> bool:
+    """Check if a character spec exists."""
+    return name in list_character_names()
 
 
 # ── Policy weight loading ───────────────────────────────────────────
