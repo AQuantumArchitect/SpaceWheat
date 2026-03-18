@@ -1,0 +1,34 @@
+{
+  "name": "winner_solar_market",
+  "description": "Winner-biased solar market runner with small economic sidebands.",
+  "resource_scale": "fibonacci",
+  "scenario_id": "default",
+  "strict_biome_economy": false,
+  "resources": {
+    "🍞": 34,
+    "❄️": 21,
+    "👥": 13,
+    "☀": 8,
+    "💳": 5,
+    "💰": 3,
+    "🦅": 2
+  },
+  "known_pairs": [
+    {"north": "💳", "south": "💰"},
+    {"north": "🤲", "south": "🍼"}
+  ],
+  "unlocked_biomes": ["StarterForest", "Village", "MarketDistrict"],
+  "active_biome": "MarketDistrict",
+  "policies": {
+    "quantum_register": {
+      "template": "core:default",
+      "graph_jsonl": [
+        "{\"op\":\"set\",\"path\":\"profile_id\",\"value\":\"winner_solar_market\"}",
+        "{\"op\":\"set\",\"path\":\"action_priors.quest_cycle.base\",\"value\":2.4}",
+        "{\"op\":\"set\",\"path\":\"action_priors.discover_biome.base\",\"value\":0.8}",
+        "{\"op\":\"set\",\"path\":\"action_priors.lindblad_drain.base\",\"value\":0.6}",
+        "{\"op\":\"set\",\"path\":\"reward_terms.active_quest\",\"value\":6.8}"
+      ]
+    }
+  }
+}

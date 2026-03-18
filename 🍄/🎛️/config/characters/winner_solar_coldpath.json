@@ -1,0 +1,35 @@
+{
+  "name": "winner_solar_coldpath",
+  "description": "Winner-biased solar-cold runner with tree and wind edges.",
+  "resource_scale": "fibonacci",
+  "scenario_id": "default",
+  "strict_biome_economy": false,
+  "resources": {
+    "🍞": 34,
+    "❄️": 21,
+    "👥": 13,
+    "☀": 8,
+    "🌲": 5,
+    "💨": 3,
+    "🦅": 2
+  },
+  "known_pairs": [
+    {"north": "🌲", "south": "💨"},
+    {"north": "🤲", "south": "🍼"}
+  ],
+  "unlocked_biomes": ["StarterForest", "Village", "ColdLab"],
+  "active_biome": "ColdLab",
+  "policies": {
+    "quantum_register": {
+      "template": "core:default",
+      "graph_jsonl": [
+        "{\"op\":\"set\",\"path\":\"profile_id\",\"value\":\"winner_solar_coldpath\"}",
+        "{\"op\":\"set\",\"path\":\"action_priors.quest_cycle.base\",\"value\":2.1}",
+        "{\"op\":\"set\",\"path\":\"action_priors.discover_biome.base\",\"value\":0.8}",
+        "{\"op\":\"set\",\"path\":\"action_priors.lindblad_drain.base\",\"value\":0.6}",
+        "{\"op\":\"set\",\"path\":\"action_priors.probe_cycle.base\",\"value\":0.8}",
+        "{\"op\":\"set\",\"path\":\"reward_terms.active_quest\",\"value\":6.3}"
+      ]
+    }
+  }
+}

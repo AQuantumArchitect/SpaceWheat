@@ -3122,17 +3122,17 @@ func _evolve_batch(dt: float):
 				if not _ensure_biome_quantum_shapes(biome):
 					skipped_count += 1
 					continue
-					var packets = _collect_stride_evolution_packets(biome, dt)
-					if packets.is_empty():
-						skipped_count += 1
-						continue
-					for packet in packets:
-						_run_direct_biome_cycle(
-							biome,
-							float(packet.get("dt", dt)),
-							float(packet.get("max_dt", _get_base_max_dt(biome)))
-						)
-						evolved_count += 1
+				var packets = _collect_stride_evolution_packets(biome, dt)
+				if packets.is_empty():
+					skipped_count += 1
+					continue
+				for packet in packets:
+					_run_direct_biome_cycle(
+						biome,
+						float(packet.get("dt", dt)),
+						float(packet.get("max_dt", _get_base_max_dt(biome)))
+					)
+					evolved_count += 1
 
 	var batch_end = Time.get_ticks_usec()
 	last_batch_time_ms = (batch_end - batch_start) / 1000.0

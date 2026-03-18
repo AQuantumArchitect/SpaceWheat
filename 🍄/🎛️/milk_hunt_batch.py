@@ -21,6 +21,40 @@ RUNNER = SCRIPT_DIR / "milk_hunt_runner.py"
 SEEDER = SCRIPT_DIR / "milk_hunt_seed_save.py"
 
 
+def _compact_run_summary(summary: Dict[str, Any]) -> Dict[str, Any]:
+    compact: Dict[str, Any] = {
+        "run_name": str(summary.get("run_name", "")),
+        "exit_code": int(summary.get("exit_code", -1) or -1),
+        "found_milk_pair": bool(summary.get("found_milk_pair", False)),
+        "steps": int(summary.get("steps", summary.get("turns_executed", 0) or 0) or 0),
+        "loops_completed": int(summary.get("loops_completed", 0) or 0),
+        "strict_biome_economy": bool(summary.get("strict_biome_economy", False)),
+        "hunter_policy_mode": str(summary.get("hunter_policy_mode", "")),
+        "quest_offers_seen": int(summary.get("quest_offers_seen", 0) or 0),
+        "quest_offers_accepted": int(summary.get("quest_offers_accepted", 0) or 0),
+        "quest_completions": int(summary.get("quest_completions", 0) or 0),
+        "quest_claims": int(summary.get("quest_claims", 0) or 0),
+        "vocab_pairs_final": int(summary.get("vocab_pairs_final", 0) or 0),
+        "vocab_pairs_learned": int(summary.get("vocab_pairs_learned", 0) or 0),
+        "lindblad_drain_actions": int(summary.get("lindblad_drain_actions", 0) or 0),
+        "lindblad_drains_established": int(summary.get("lindblad_drains_established", 0) or 0),
+        "time_skip_actions": int(summary.get("time_skip_actions", 0) or 0),
+        "time_skip_total_phrames": int(summary.get("time_skip_total_phrames", 0) or 0),
+        "time_skip_total_evolved_steps": int(summary.get("time_skip_total_evolved_steps", 0) or 0),
+        "policy_action_counts": summary.get("policy_action_counts", {}),
+        "policy_action_entropy_bits": float(summary.get("policy_action_entropy_bits", 0.0) or 0.0),
+        "biome_discovery_order": list(summary.get("biome_discovery_order", []) or []),
+        "vocab_milestone_count": len(summary.get("vocab_milestones", []) or []),
+        "timeout_action": summary.get("timeout_action"),
+        "run_error": summary.get("run_error"),
+    }
+    if "policy_mutation" in summary:
+        compact["policy_mutation"] = summary.get("policy_mutation", {})
+    if "batcher_metrics_samples" in summary:
+        compact["batcher_metrics_samples"] = len(summary.get("batcher_metrics_samples", []) or [])
+    return compact
+
+
 def _build_parser() -> argparse.ArgumentParser:
     parser = milk_hunt_args.make_base_parser("Batch runner for milk hunt trials")
     parser.add_argument("--runs", type=int, default=5, help="How many independent trials to run")
@@ -271,6 +305,7 @@ def _run_trial(
     run_dir = batch_dir / run_name
     run_dir.mkdir(parents=True, exist_ok=True)
     log_path = run_dir / "stdout.log"
+    summary_path = run_dir / "run_summary.json"
 
     cmd = [
         "python3",
@@ -327,7 +362,6 @@ def _run_trial(
     if no_stop:
         cmd.append("--no-stop")
     proc = subprocess.run(cmd, capture_output=True, text=True, check=False)
-    log_path.write_text((proc.stdout or "") + (proc.stderr or ""), encoding="utf-8")
 
     summary: Dict[str, Any] = {}
     if proc.stdout:
@@ -338,7 +372,15 @@ def _run_trial(
             summary = {"parse_error": "invalid_json_in_stdout"}
     summary["exit_code"] = proc.returncode
     summary["run_name"] = run_name
+    compact_summary = _compact_run_summary(summary)
+    write_json(summary_path, compact_summary)
+    summary["summary_path"] = str(summary_path)
     summary["log_path"] = str(log_path)
+    should_write_log = proc.returncode not in {0, 2} or bool(summary.get("parse_error"))
+    if not should_write_log and console_profile not in {None, "quiet"}:
+        should_write_log = True
+    if should_write_log:
+        log_path.write_text((proc.stdout or "") + (proc.stderr or ""), encoding="utf-8")
     return summary
 
 
@@ -646,7 +688,7 @@ def main() -> int:
         "discovered_biomes_union": all_discovered,
         "first_discovery_counts": first_discovery_counts,
         "batch_dir": str(batch_dir),
-        "run_summaries": run_summaries,
+        "run_summaries": [_compact_run_summary(s) for s in run_summaries],
     }
 
     topology_report = _build_topology_report(

@@ -56,6 +56,7 @@ class RigClient:
         self.queue_script = self.runner_root / "\u270D\ufe0f.sh"
         self.queue_file = rig_queue_file(xdg=self.xdg_root, app_name=self.app_name)
         self.results_file = rig_results_file(xdg=self.xdg_root, app_name=self.app_name)
+        self._queue_writer = None
         self._results_offset: int = 0
         self._results_partial: str = ""
         self._results_by_turn: Dict[int, Dict[str, Any]] = {}
@@ -83,6 +84,12 @@ class RigClient:
         return out
 
     def clear_rig_files(self) -> None:
+        if self._queue_writer is not None:
+            try:
+                self._queue_writer.close()
+            except OSError:
+                pass
+            self._queue_writer = None
         self.queue_file.unlink(missing_ok=True)
         self.results_file.unlink(missing_ok=True)
         # Always clear stale sentinel for this XDG root; a fresh listener writes a new one.
@@ -258,9 +265,11 @@ class RigClient:
     def queue_turn(self, payload: Dict[str, Any]) -> None:
         raw = json.dumps(payload, ensure_ascii=False)
         self.queue_file.parent.mkdir(parents=True, exist_ok=True)
-        with self.queue_file.open("a", encoding="utf-8") as fh:
-            fh.write(raw)
-            fh.write("\n")
+        if self._queue_writer is None or self._queue_writer.closed:
+            self._queue_writer = self.queue_file.open("a", encoding="utf-8")
+        self._queue_writer.write(raw)
+        self._queue_writer.write("\n")
+        self._queue_writer.flush()
 
     def _read_new_result_rows(self) -> List[Dict[str, Any]]:
         if not self.results_file.exists():

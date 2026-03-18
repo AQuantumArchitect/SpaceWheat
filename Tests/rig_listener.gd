@@ -841,6 +841,9 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 			var policy = _ensure_policy()
 			result["policy_graph"] = policy.get_policy_graph() if policy and policy.has_method("get_policy_graph") else {}
 
+		"policy_describe":
+			result["schema"] = PolicyStateProjector.policy_describe()
+
 		"policy_graph_apply":
 			var policy = _ensure_policy()
 			var lines = cmd.get("lines", [])
@@ -1017,6 +1020,7 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 		"policy_step":
 			var policy = _ensure_policy()
 			var include_state = bool(cmd.get("include_state", false))
+			var compact = bool(cmd.get("compact", false))
 			var execute = bool(cmd.get("execute", true))
 			var pre_state = _build_policy_state(cmd)
 			var decision = policy.decide(pre_state)
@@ -1025,6 +1029,20 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 				execution = await _execute_policy_action(decision)
 			var post_state = _build_policy_state(cmd)
 			var learning = policy.observe(pre_state, decision, post_state, execution)
+			if compact:
+				decision = {
+					"action": str(decision.get("action", "")),
+					"mode": str(decision.get("mode", "")),
+					"ok": bool(decision.get("ok", false)),
+					"score": float(decision.get("score", 0.0)),
+					"params": decision.get("params", {}),
+				}
+				learning = {
+					"ok": bool(learning.get("ok", false)),
+					"action": str(learning.get("action", "")),
+					"reward": float(learning.get("reward", 0.0)),
+					"reward_components": learning.get("reward_components", {}),
+				}
 			var out: Dictionary = {
 				"decision": decision,
 				"execution": execution,
@@ -1822,7 +1840,7 @@ func _execute_policy_action(decision: Dictionary) -> Dictionary:
 				"harvested_resource": harvested,
 			}
 		"quest_cycle":
-			return _execute_policy_quest_cycle()
+			return _execute_policy_quest_cycle(params)
 		"lindblad_drain":
 			var biome_name = str(params.get("biome", ""))
 			var positions: Array[Vector2i] = _parse_positions(params.get("positions", []), biome_name)
@@ -1926,7 +1944,7 @@ func _execute_policy_action(decision: Dictionary) -> Dictionary:
 			return {"ok": false, "action": action, "error": "unsupported_policy_action"}
 
 
-func _execute_policy_quest_cycle() -> Dictionary:
+func _execute_policy_quest_cycle(policy_params: Dictionary = {}) -> Dictionary:
 	if not _instrument:
 		return {"ok": false, "action": "quest_cycle", "error": "no_instrument"}
 	var completed_ids: Array = []
@@ -1970,7 +1988,19 @@ func _execute_policy_quest_cycle() -> Dictionary:
 	var accepted_offer: Dictionary = {}
 
 	if offers is Array:
-		accepted_offer_index = _select_best_affordable_offer(offers, resources, known_emojis)
+		# Use pre-ranked offer index from policy if available and still valid
+		var hint_idx = int(policy_params.get("offer_index", -1))
+		if hint_idx >= 0 and hint_idx < offers.size():
+			var hint_offer = offers[hint_idx]
+			if hint_offer is Dictionary:
+				var resource = str(hint_offer.get("resource", ""))
+				var qty = float(hint_offer.get("quantity", 0.0))
+				var have = float(resources.get(resource, 0.0))
+				if resource != "" and qty > 0.0 and have >= qty:
+					accepted_offer_index = hint_idx
+		# Fall back to scoring if hint was stale or missing
+		if accepted_offer_index < 0:
+			accepted_offer_index = _select_best_affordable_offer(offers, resources, known_emojis)
 		if accepted_offer_index >= 0 and accepted_offer_index < offers.size():
 			var offer = offers[accepted_offer_index]
 			if offer is Dictionary:
@@ -2023,8 +2053,19 @@ func _select_best_affordable_offer(offers: Array, resources: Dictionary, known_e
 			novelty += 1.0
 		var discovery_aff = float(offer.get("discovery_affinity", 0.0))
 		var milk_bonus = 420.0 if (north == "🍼" or south == "🍼") else 0.0
+		# Milk proximity: bonus for offers teaching emojis near milk in the graph
+		var milk_prox = 0.0
+		if north != "":
+			var d = PolicyStateProjector.milk_distance(north)
+			if d <= 2:
+				milk_prox = maxf(milk_prox, 25.0 / maxf(1.0, float(d)))
+		if south != "":
+			var d = PolicyStateProjector.milk_distance(south)
+			if d <= 2:
+				milk_prox = maxf(milk_prox, 25.0 / maxf(1.0, float(d)))
 		var pair_frontier_bonus = 20.0 if novelty >= 2.0 else 0.0
-		var score = reward_sum * 0.22 + novelty * 32.0 + pair_frontier_bonus + milk_bonus + discovery_aff * 18.0 - qty * 0.10
+		var surplus = (1.0 - qty / max(1.0, float(resources.get(resource, 0.0)))) * 12.0
+		var score = reward_sum * 0.22 + novelty * 32.0 + pair_frontier_bonus + milk_bonus + milk_prox + discovery_aff * 18.0 + surplus
 		affordable_rows.append({
 			"idx": i,
 			"score": score,

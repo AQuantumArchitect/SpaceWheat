@@ -2317,6 +2317,7 @@ def main() -> int:
                         turn,
                         "policy_step",
                         execute=True,
+                        compact=True,
                         resource_floors=primary_resource_floors,
                         forbid_actions=forbid_actions,
                     )

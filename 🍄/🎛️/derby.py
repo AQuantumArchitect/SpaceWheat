@@ -92,7 +92,7 @@ def _latest_batch_summary(match_dir: Path) -> Dict[str, Any]:
     return {}
 
 
-def _seed_character(character_name: str, policy: str, reuse_listener: bool) -> Dict[str, Any]:
+def _seed_character(character_name: str, policy: str, reuse_listener: bool, timeout_s: int = 180) -> Dict[str, Any]:
     save_uri = _save_uri(character_name, policy)
     cmd = [
         sys.executable,
@@ -108,7 +108,7 @@ def _seed_character(character_name: str, policy: str, reuse_listener: bool) -> D
     ]
     if reuse_listener:
         cmd.append("--reuse-listener")
-    proc = subprocess.run(cmd, capture_output=True, text=True, timeout=180)
+    proc = subprocess.run(cmd, capture_output=True, text=True, timeout=max(1, int(timeout_s)))
     if proc.returncode not in (0, 3):
         raise RuntimeError(
             "seed failed for %s/%s\n%s%s"
@@ -126,13 +126,20 @@ def _run_match(
     console_profile: str,
     output_dir: Path,
     reuse_listener: bool,
+    seed_timeout_s: int = 180,
+    match_timeout_s: int = 200,
 ) -> DerbyResult:
     character = get_character(character_name)
     world_state = resolve_character_world_state(character)
     policy_cfg = resolve_character_policy(character, policy)
     strict = bool(world_state.get("strict_biome_economy", True))
 
-    seed_result = _seed_character(character_name, policy, reuse_listener=reuse_listener)
+    seed_result = _seed_character(
+        character_name,
+        policy,
+        reuse_listener=reuse_listener,
+        timeout_s=int(seed_timeout_s),
+    )
     save_uri = str(seed_result["save_uri"])
 
     match_dir = output_dir / f"{character_name}__{policy}"
@@ -162,7 +169,12 @@ def _run_match(
     cmd.append("--reuse-listener" if reuse_listener else "--no-reuse-listener")
 
     t0 = time.time()
-    proc = subprocess.run(cmd, capture_output=True, text=True, timeout=max(240, max_loops * 30))
+    proc = subprocess.run(
+        cmd,
+        capture_output=True,
+        text=True,
+        timeout=max(1, int(match_timeout_s)),
+    )
     elapsed = round(time.time() - t0, 2)
     batch_summary = _latest_batch_summary(match_dir)
 
@@ -220,6 +232,8 @@ def _build_parser() -> argparse.ArgumentParser:
         default=LOG_ROOT,
         help="Directory for derby reports",
     )
+    parser.add_argument("--seed-timeout", type=int, default=180, help="Per-character seed timeout in seconds")
+    parser.add_argument("--match-timeout", type=int, default=200, help="Per-character match timeout in seconds")
     return parser
 
 
@@ -256,6 +270,8 @@ def main() -> int:
                     console_profile=str(args.console_profile),
                     output_dir=derby_dir,
                     reuse_listener=bool(args.reuse_listener),
+                    seed_timeout_s=int(args.seed_timeout),
+                    match_timeout_s=int(args.match_timeout),
                 )
             except Exception as exc:
                 print(f"  failed: {exc}", flush=True)
