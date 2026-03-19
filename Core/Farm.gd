@@ -1398,11 +1398,14 @@ func _compute_discovery_weights(unexplored: Array) -> Array[float]:
 
 	Weight formula per biome b:
 		weight(b) = FLOOR + QUEST_SCALE * quest_affinity(b) + VOCAB_SCALE * vocab_affinity(b)
+
+	FLOOR is low (0.1) so quest/vocab steering dominates. Locking quests
+	that point at a specific biome makes that biome very likely to appear.
 	"""
 	const BiomeAffinityCalculator = preload("res://Core/Quantum/BiomeAffinityCalculator.gd")
-	const FLOOR = 1.0
-	const QUEST_SCALE = 3.0
-	const VOCAB_SCALE = 0.5
+	const FLOOR = 0.1
+	const QUEST_SCALE = 5.0
+	const VOCAB_SCALE = 2.0
 
 	var weights: Array[float] = []
 

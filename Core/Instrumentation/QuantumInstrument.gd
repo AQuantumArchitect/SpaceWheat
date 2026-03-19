@@ -34,7 +34,7 @@ const DEFAULT_BIOME_POOL: Array[String] = [
 
 const DEFAULT_TIMESCALE_OBJECTIVE: Dictionary = {
 	"focus_emojis": [],
-	"resource_floors": {"🍞": 64.0, "❄️": 32.0, "👥": 64.0},
+	"resource_floors": {"🍞": 13.0, "❄️": 8.0, "👥": 13.0},
 	"top_k": 8,
 	"target_gain_per_wait": 1.0,
 	"horizon_min_phrames": 6,

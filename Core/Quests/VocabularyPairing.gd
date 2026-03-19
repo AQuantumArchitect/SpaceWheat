@@ -83,8 +83,8 @@ static func _roll_south_pole(icon_registry) -> Dictionary:
 		if connections.is_empty():
 			continue
 
-		# Weight = resource bias using raw credit values
-		var weight = 1.0 + log(1.0 + amount) / 3.0
+		# Weight = power-law resource bias (preserves Fibonacci ratios)
+		var weight = pow(amount + 1.0, 0.65)
 		candidates[emoji] = {"weight": weight, "amount": amount, "connections": connections}
 
 	if candidates.is_empty():
@@ -123,7 +123,7 @@ static func _roll_south_pole_from_signature(icon_registry, faction_signature: Ar
 	"""Roll south pole from faction signature, weighted by player inventory
 
 	South pole can be known OR unknown to player.
-	Weights use log formula: weight = 1.0 + log(1.0 + amount) / 3.0
+	Weights use power-law formula: weight = (amount + 1)^0.65
 
 	Args:
 		icon_registry: IconRegistry for connection data
@@ -154,12 +154,12 @@ static func _roll_south_pole_from_signature(icon_registry, faction_signature: Ar
 		if connections.is_empty():
 			continue
 
-		# Weight = inventory bias using log formula (even if amount is 0)
-		# Formula: 1.0 + log(1.0 + amount) / 3.0
+		# Weight = power-law inventory bias (preserves Fibonacci ratios)
+		# Formula: (amount + 1)^0.65
 		#   0 credits → 1.0 (base weight)
-		#   50 credits → ~1.6x
-		#   500 credits → ~2.4x
-		var weight = 1.0 + log(1.0 + amount) / 3.0
+		#   5 credits → 3.4x
+		#   21 credits → 8.6x
+		var weight = pow(amount + 1.0, 0.65)
 		candidates[emoji] = {"weight": weight, "amount": amount, "connections": connections}
 
 	if candidates.is_empty():
@@ -231,8 +231,8 @@ static func _roll_south_pole_constrained(icon_registry, allowed_vocab: Array) ->
 		if connections.is_empty():
 			continue
 
-		# Weight = resource bias using raw credit values
-		var weight = 1.0 + log(1.0 + amount) / 3.0
+		# Weight = power-law resource bias (preserves Fibonacci ratios)
+		var weight = pow(amount + 1.0, 0.65)
 		candidates[emoji] = {"weight": weight, "amount": amount, "connections": connections}
 
 	if candidates.is_empty():

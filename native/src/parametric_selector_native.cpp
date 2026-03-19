@@ -162,7 +162,7 @@ double ParametricSelectorNative::_connection_similarity(
 }
 
 // ============================================================================
-// INTERNAL: LOGARITHMIC WEIGHT
+// INTERNAL: POWER-LAW WEIGHT
 // ============================================================================
 
 double ParametricSelectorNative::_logarithmic_total_weight(const Dictionary &p_vector) {
@@ -174,7 +174,7 @@ double ParametricSelectorNative::_logarithmic_total_weight(const Dictionary &p_v
 		double amount = p_vector[key];
 
 		if (amount > 0.0) {
-			total_weight += 1.0 + std::log(1.0 + amount) / 3.0;
+			total_weight += std::pow(amount + 1.0, 0.65);
 		}
 	}
 
@@ -185,7 +185,7 @@ double ParametricSelectorNative::logarithmic_weight(double p_amount) {
 	if (p_amount <= 0.0) {
 		return 1.0;
 	}
-	return 1.0 + std::log(1.0 + p_amount) / 3.0;
+	return std::pow(p_amount + 1.0, 0.65);
 }
 
 // ============================================================================

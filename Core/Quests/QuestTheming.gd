@@ -105,6 +105,19 @@ static func _generate_delivery_quest(params: FactionStateMatcher.QuestParameters
 			quantity = int(round(weight * q2c))
 			quantity = max(quantity, 1)
 
+	# Scale quantity with inventory using golden ratio exponent.
+	# demand = inv^(1/φ) where φ = golden ratio ≈ 1.618
+	# Strong feedback: small stockpile changes produce visible demand shifts.
+	#   inv  2→1.5,  5→2.9,  8→4.0, 13→5.7, 21→8.1
+	if economy != null and economy.has_method("get_resource") and resource != "":
+		var inv = float(economy.get_resource(resource))
+		if inv > 0.0:
+			const INV_PHI = 0.6180339887  # 1/φ = (√5 - 1) / 2
+			var fib_qty = int(round(pow(inv, INV_PHI)))
+			fib_qty = max(fib_qty, 1)
+			# Only scale UP from base quantity, never down
+			quantity = max(quantity, fib_qty)
+
 	# urgency → time limit
 	var time_limit = _urgency_to_time(params.urgency)
 
@@ -268,7 +281,7 @@ static func _sample_from_allowed_emojis(bath, allowed_emojis: Array, params, eco
 		for emoji in allowed_emojis:
 			var amount = economy.get_resource(emoji)
 			if amount > 0:
-				var weight = 1.0 + log(1.0 + amount) / 3.0
+				var weight = pow(amount + 1.0, 0.65)
 				econ_emojis.append(emoji)
 				econ_weights.append(weight)
 				econ_total += weight
@@ -533,7 +546,8 @@ static func generate_quest(
 		obs,
 		icon_map if icon_map else {},
 		available_emojis,
-		player_vocab
+		player_vocab,
+		economy
 	)
 	var grant_vocab = randf() < resonance.get("p_vocab", 0.0)
 	quest["reward_vocab_resonance"] = resonance
@@ -580,7 +594,8 @@ static func _compute_vocab_resonance_probability(
 	obs,
 	icon_map: Dictionary,
 	available_emojis: Array,
-	player_vocab: Array
+	player_vocab: Array,
+	economy = null
 ) -> Dictionary:
 	"""Compute Resonance Gate probability for vocab rewards.
 
@@ -588,6 +603,7 @@ static func _compute_vocab_resonance_probability(
 	- Faction signature has strong mass in the current IconMap.
 	- Observable coherence/purity are high.
 	- Player has meaningful overlap with faction signature.
+	- Player has accumulated inventory in faction signature emojis.
 	"""
 	var signature = faction.get("sig", faction.get("signature", []))
 	var by_emoji: Dictionary = icon_map.get("by_emoji", {}) if icon_map is Dictionary else {}
@@ -611,6 +627,17 @@ static func _compute_vocab_resonance_probability(
 			unknown_count += 1
 	var unknown_ratio = float(unknown_count) / max(1.0, float(signature.size()))
 
+	# Inventory mass: how much of the faction's signature has the player stockpiled?
+	# Uses power-law scaling so accumulation matters.
+	var inventory_mass = 0.0
+	if economy != null and economy.has_method("get_resource"):
+		var sig_inventory = 0.0
+		for emoji in signature:
+			sig_inventory += float(economy.get_resource(emoji))
+		# Normalize: sig_inventory / (signature_size * 21) puts starting Fibonacci top (21) at ~1.0
+		inventory_mass = sig_inventory / max(1.0, float(signature.size()) * 21.0)
+		inventory_mass = clamp(inventory_mass, 0.0, 3.0)
+
 	# Logistic gate around a moderate threshold.
 	var x = (
 		(2.8 * signature_ratio)
@@ -618,6 +645,7 @@ static func _compute_vocab_resonance_probability(
 		+ (0.9 * purity)
 		+ (1.2 * overlap_ratio)
 		+ (1.0 * unknown_ratio)
+		+ (1.8 * inventory_mass)
 		- 2.4
 	)
 	var logistic = 1.0 / (1.0 + exp(-x))
@@ -629,7 +657,8 @@ static func _compute_vocab_resonance_probability(
 		"overlap_ratio": overlap_ratio,
 		"coherence": coherence,
 		"purity": purity,
-		"unknown_ratio": unknown_ratio
+		"unknown_ratio": unknown_ratio,
+		"inventory_mass": inventory_mass
 	}
 
 

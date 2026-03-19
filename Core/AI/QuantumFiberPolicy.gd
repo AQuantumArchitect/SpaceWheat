@@ -250,7 +250,10 @@ func observe(pre_state: Dictionary, decision: Dictionary, post_state: Dictionary
 	if action_name == "quest_cycle":
 		if delta_pairs <= 0.0:
 			_quest_no_vocab_streak += 1
-			stagnation_penalty = -min(24.0, float(_quest_no_vocab_streak) * 1.5)
+			var quest_cfg = _policy_graph.get("action_priors", {}).get("quest_cycle", {})
+			var stag_scale = float(quest_cfg.get("stagnation_scale", 0.45)) if quest_cfg is Dictionary else 0.45
+			var stag_cap = float(quest_cfg.get("stagnation_cap", 6.0)) if quest_cfg is Dictionary else 6.0
+			stagnation_penalty = -min(stag_cap, float(_quest_no_vocab_streak) * stag_scale)
 		else:
 			_quest_no_vocab_streak = 0
 	else:

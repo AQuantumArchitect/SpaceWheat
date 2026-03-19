@@ -167,22 +167,25 @@ static func _connection_similarity(
 
 
 # ============================================================================
-# INTERNAL: LOGARITHMIC WEIGHT
+# INTERNAL: POWER-LAW WEIGHT
 # ============================================================================
 
-## Logarithmic weight: 1.0 + log(1.0 + amount) / 3.0
+## Power-law weight: (amount + 1)^0.65
 ##
-## Formula designed to avoid overwhelming probabilities from large resource amounts:
-##   amount=0   → weight=1.0  (base)
-##   amount=50  → weight≈2.31 (131% boost)
-##   amount=500 → weight≈3.07 (207% boost)
+## Formula preserves relative ratios between resource amounts (Fibonacci-friendly):
+##   amount=0   → weight=1.0   (base)
+##   amount=2   → weight≈1.9   (1.9x)
+##   amount=5   → weight≈3.4   (3.4x)
+##   amount=13  → weight≈6.4   (6.4x)
+##   amount=21  → weight≈8.6   (8.6x)
+##   amount=100 → weight≈21.1  (21x)
 ##
 ## Used by: VocabularyPairing (quest south pole selection)
 ##
 ## [PERF] Low priority - only called during quest generation (~1-10 calls per quest)
 ##
 ## C++ Port Notes:
-##   - Use std::log() from <cmath>
+##   - Use std::pow() from <cmath>
 ##   - No optimization needed, not a hot path
 static func _logarithmic_total_weight(vector: Dictionary) -> float:
 	var total_weight := 0.0
@@ -190,22 +193,21 @@ static func _logarithmic_total_weight(vector: Dictionary) -> float:
 	for emoji in vector.keys():
 		var amount := float(vector[emoji])
 		if amount > 0.0:
-			# w = 1.0 + log(1.0 + amount) / 3.0
-			total_weight += 1.0 + log(1.0 + amount) / 3.0
+			total_weight += pow(amount + 1.0, 0.65)
 
 	return total_weight
 
 
-## Single value logarithmic weight (convenience function)
+## Single value power-law weight (convenience function)
 ##
 ## Args:
 ##   amount: float - resource amount (>= 0)
 ##
-## Returns: float - weight in [1.0, ~3.0] for reasonable amounts
+## Returns: float - weight via (amount+1)^0.65
 static func logarithmic_weight(amount: float) -> float:
 	if amount <= 0.0:
 		return 1.0
-	return 1.0 + log(1.0 + amount) / 3.0
+	return pow(amount + 1.0, 0.65)
 
 
 # ============================================================================

@@ -11,18 +11,19 @@ const FactionRegistry = preload("res://Core/Factions/FactionRegistry.gd")
 static var _faction_registry_cache = null
 static var _faction_dynamic_cache: Dictionary = {}
 
-const RESOURCE_REWARD_MIN_TOTAL: int = 8
-const RESOURCE_REWARD_MAX_TOTAL: int = 240
-const RESOURCE_REWARD_MIN_PER_EMOJI: int = 4
-const RESOURCE_REWARD_BASE_RATIO: float = 0.4
+const RESOURCE_REWARD_MIN_TOTAL: int = 1
+const RESOURCE_REWARD_MAX_TOTAL: int = 55
+const RESOURCE_REWARD_MIN_PER_EMOJI: int = 1
+const RESOURCE_REWARD_BASE_RATIO: float = 0.25
 const QUEST_REWARD_TUNING_DEFAULTS: Dictionary = {
 	"resource_reward_min_total": RESOURCE_REWARD_MIN_TOTAL,
 	"resource_reward_max_total": RESOURCE_REWARD_MAX_TOTAL,
 	"resource_reward_min_per_emoji": RESOURCE_REWARD_MIN_PER_EMOJI,
 	"resource_reward_base_ratio": RESOURCE_REWARD_BASE_RATIO
 	,
-	"biome_novelty_multiplier": 1.15,
-	"vocab_novelty_multiplier": 1.35
+	"biome_novelty_multiplier": 1.10,
+	"vocab_novelty_multiplier": 1.10,
+	"novelty_multiplier_cap": 1.20
 }
 
 static var _quest_reward_tuning_overrides: Dictionary = {}
@@ -240,12 +241,15 @@ static func _apply_reward_tuning(rewards: Dictionary, quest: Dictionary) -> Dict
 	if rewards.is_empty():
 		return rewards
 	var tuning = get_reward_tuning()
+	# Additive novelty bonuses, capped to prevent runaway generosity.
 	var multiplier = 1.0
 	if bool(quest.get("biome_new", false)):
-		multiplier *= float(tuning.get("biome_novelty_multiplier", 1.0))
+		multiplier += float(tuning.get("biome_novelty_multiplier", 1.10)) - 1.0
 	if bool(quest.get("contains_new_vocab", false)):
-		multiplier *= float(tuning.get("vocab_novelty_multiplier", 1.0))
-	if multiplier == 1.0:
+		multiplier += float(tuning.get("vocab_novelty_multiplier", 1.10)) - 1.0
+	var cap = float(tuning.get("novelty_multiplier_cap", 1.20))
+	multiplier = min(multiplier, cap)
+	if multiplier <= 1.0:
 		return rewards
 	for emoji in rewards.keys():
 		var base = float(rewards[emoji])
@@ -534,7 +538,9 @@ static func _compute_fibonacci_reward_budget(quest: Dictionary, profile: Diction
 
 	var interference = max(0.0, float(profile.get("interference_strength", 0.0)))
 	var signed = tanh(interference * 0.2)  # bounded [0, 1)
-	var mean = q * (0.92 + 0.22 * signed)  # near 1:1 at small volumes, mild upside from interference
+	# Net-negative resource trade: return 55-70% of cost in faction emojis.
+	# The value is diversification and inventory steering, not raw profit.
+	var mean = q * (0.55 + 0.15 * signed)
 	mean = clamp(mean, float(min_reward), float(max_reward))
 
 	var amount = int(round(mean))
@@ -544,10 +550,9 @@ static func _compute_fibonacci_reward_budget(quest: Dictionary, profile: Diction
 		amount = int(round(mean + sigma * z))
 	amount = int(clamp(amount, min_reward, max_reward))
 
-	# Gentle guardrail near q≈10: keep expected trades close to 1:1.
-	if q >= 9.0 and q <= 13.0:
-		amount = int(clamp(amount, int(floor(q * 0.9)), int(ceil(q * 1.1))))
-		amount = int(clamp(amount, min_reward, max_reward))
+	# Guardrail: never exceed 75% of cost (rewards are trades, not profits).
+	var ceiling = max(1, int(ceil(q * 0.75)))
+	amount = min(amount, ceiling)
 
 	# Low-volume quest rewards should be intentionally small.
 	if q <= 3.0:
@@ -601,7 +606,7 @@ static func _fibonacci_bracket_for_quantity(quantity: float) -> Dictionary:
 
 static func _compute_total_resource_budget(quest: Dictionary, dominant_eigenvalue: float) -> int:
 	var quantity = max(0.0, float(quest.get("quantity", 0.0)))
-	var multiplier = clamp(float(quest.get("reward_multiplier", 1.0)), 1.0, 6.0)
+	var multiplier = clamp(float(quest.get("reward_multiplier", 1.0)), 1.0, 2.0)
 	var quest_type = int(quest.get("type", 0))
 
 	var base = max(10.0, quantity * 0.85 + 8.0)

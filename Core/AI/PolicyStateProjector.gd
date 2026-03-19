@@ -3,6 +3,23 @@ extends RefCounted
 
 const MILK_EMOJI := "🍼"
 
+# Milk proximity table: emoji → graph distance to 🍼 through Hamiltonian couplings.
+# Source: Reality Midwives faction — 🍼↔🤲↔{✨,🌠,💫}.
+# Emojis not in this table are distance 3+ (generic background).
+const MILK_NEIGHBORHOOD := {
+	"🍼": 0,
+	"🤲": 1,  # Only direct connection to milk
+	"✨": 2,  # Sparkles → 🤲 → 🍼
+	"🌠": 2,  # Star trail → 🤲 → 🍼
+	"💫": 2,  # Dizzy star → 🤲 → 🍼
+}
+const MILK_DEFAULT_DISTANCE := 4  # Assumed distance for emojis not in the table
+
+
+static func milk_distance(emoji: String) -> int:
+	"""Return graph distance from emoji to 🍼. Lower = closer to win."""
+	return int(MILK_NEIGHBORHOOD.get(emoji, MILK_DEFAULT_DISTANCE))
+
 
 static func build_candidates(state: Dictionary, graph: Dictionary, supported_actions: Array = []) -> Array:
 	var candidates: Array = []
@@ -27,6 +44,12 @@ static func build_candidates(state: Dictionary, graph: Dictionary, supported_act
 
 	if _action_enabled("victory_lap_partial", graph_actions, supported_map) and contains_milk_pair(known_pairs):
 		var victory_params = _action_params(graph, "victory_lap_partial")
+		var victory_prior = _prior_value(graph_actions, "victory_lap_partial", "base", 8.5)
+		# Reduce priority if resources are depleted — don't suicide into victory
+		var total_res = sum_resources(resources)
+		var min_res = _prior_value(graph_actions, "victory_lap_partial", "min_resources", 10.0)
+		if total_res < min_res:
+			victory_prior *= 0.5  # Halve priority when resources are dangerously low
 		candidates.append({
 			"action": "victory_lap_partial",
 			"params": {
@@ -34,18 +57,32 @@ static func build_candidates(state: Dictionary, graph: Dictionary, supported_act
 				"milk_spend": int(victory_params.get("milk_spend", 0)),
 				"phase_window": int(victory_params.get("phase_window", 1)),
 			},
-			"prior": _prior_value(graph_actions, "victory_lap_partial", "base", 8.5),
+			"prior": victory_prior,
 			"tags": ["milk_known"],
 		})
 
 	if _action_enabled("quest_cycle", graph_actions, supported_map):
-		var quest_prior = quest_pressure(resources, offers, active_quests, known_pairs, graph, int(state.get("quest_no_vocab_streak", 0)))
-		candidates.append({
-			"action": "quest_cycle",
-			"params": {},
-			"prior": quest_prior,
-			"tags": ["economy", "vocab"],
-		})
+		var rank_result = rank_offers(resources, offers, known_pairs, graph)
+		var best_idx = int(rank_result.get("best_offer_index", -1))
+		if best_idx >= 0:
+			var quest_prior = quest_pressure(resources, offers, active_quests, known_pairs, graph, int(state.get("quest_no_vocab_streak", 0)))
+			# Sharpen prior with best-offer quality
+			var quest_cfg = _action_config(graph, "quest_cycle")
+			if float(rank_result.get("novelty", 0.0)) >= 2.0:
+				quest_prior += float(quest_cfg.get("frontier_bonus", 1.5))
+			if bool(rank_result.get("is_milk", false)):
+				quest_prior += float(quest_cfg.get("best_offer_milk", 3.0))
+			candidates.append({
+				"action": "quest_cycle",
+				"params": {
+					"offer_index": best_idx,
+					"cost_ratio": rank_result.get("cost_ratio", 0.0),
+					"novelty": rank_result.get("novelty", 0.0),
+					"is_milk": rank_result.get("is_milk", false),
+				},
+				"prior": quest_prior,
+				"tags": ["economy", "vocab"],
+			})
 
 	if _action_enabled("probe_cycle", graph_actions, supported_map):
 		var probe_biome = choose_probe_biome(biomes, lindblad, resources, floors, graph)
@@ -69,7 +106,7 @@ static func build_candidates(state: Dictionary, graph: Dictionary, supported_act
 			})
 
 	if _action_enabled("lock_offer", graph_actions, supported_map):
-		var lock_result = best_lockable_offer(offers, locked_offers, active_quests, known_pairs)
+		var lock_result = best_lockable_offer(offers, locked_offers, active_quests, known_pairs, resources)
 		if lock_result.has("offer_index"):
 			candidates.append({
 				"action": "lock_offer",
@@ -193,14 +230,31 @@ static func compute_reward_components(pre_state: Dictionary, post_state: Diction
 
 
 static func quest_pressure(resources: Dictionary, offers: Array, active_quests: Array, known_pairs: Array, graph: Dictionary, quest_no_vocab_streak: int) -> float:
-	var affordable = 0
+	# Cost-relative scoring: weight each affordable offer by surplus fraction
+	# surplus = 1 - (quantity/have). Cheap quests score high, expensive ones score low.
+	var cost_ratio_sum = 0.0
+	var affordable_count = 0
+	const INV_PHI = 0.6180339887  # 1/φ
+	var demand_awareness = 0.0
 	for offer in offers:
 		if not (offer is Dictionary):
 			continue
 		var resource = str(offer.get("resource", ""))
 		var quantity = float(offer.get("quantity", 0.0))
-		if resource != "" and quantity > 0.0 and float(resources.get(resource, 0.0)) >= quantity:
-			affordable += 1
+		var have = float(resources.get(resource, 0.0))
+		if resource != "" and quantity > 0.0 and have >= quantity:
+			var surplus = 1.0 - (quantity / max(1.0, have))
+			cost_ratio_sum += surplus
+			affordable_count += 1
+			# Demand curve term: inv^(1/φ - 1) = fraction the curve claims
+			# High inventory → small fraction (good deal). Low → large (bad deal).
+			if have > 1.0:
+				demand_awareness += pow(have, INV_PHI - 1.0)
+	if affordable_count > 0:
+		demand_awareness = demand_awareness / float(affordable_count)
+	# Invert: low demand_awareness (high inventory) → bonus to quest_cycle
+	var curve_bonus = (1.0 - demand_awareness) if affordable_count > 0 else 0.0
+
 	var unknown_vocab_reward = 0
 	var known = known_emoji_map(known_pairs)
 	for offer in offers:
@@ -219,8 +273,9 @@ static func quest_pressure(resources: Dictionary, offers: Array, active_quests: 
 	return (
 		float(quest_cfg.get("base", 0.7))
 		+ float(active_quests.size()) * float(quest_cfg.get("active_quest", 0.3))
-		+ float(affordable) * float(quest_cfg.get("affordable", 0.25))
+		+ cost_ratio_sum * float(quest_cfg.get("affordable", 0.25))
 		+ float(unknown_vocab_reward) * float(quest_cfg.get("unknown_vocab", 1.25))
+		+ curve_bonus * float(quest_cfg.get("demand_curve", 0.5))
 		+ float(quest_cfg.get("bonus", 0.0))
 		- stagnation_bias
 	)
@@ -402,7 +457,7 @@ static func known_emoji_map(pairs: Array) -> Dictionary:
 	return out
 
 
-static func best_lockable_offer(offers: Array, locked_offers: Array, active_quests: Array, known_pairs: Array) -> Dictionary:
+static func best_lockable_offer(offers: Array, locked_offers: Array, active_quests: Array, known_pairs: Array, resources: Dictionary = {}) -> Dictionary:
 	if locked_offers.size() >= 3:
 		return {}
 	var locked_ids: Dictionary = {}
@@ -437,13 +492,98 @@ static func best_lockable_offer(offers: Array, locked_offers: Array, active_ques
 		if novelty <= 0.0:
 			continue
 		var discovery_aff = float(offer.get("discovery_affinity", 0.0))
-		var score = discovery_aff + novelty * 0.5
+		# Cost-relative scoring (like rank_offers)
+		var surplus = 0.0
+		var resource = str(offer.get("resource", ""))
+		var qty = float(offer.get("quantity", 0.0))
+		if resource != "" and qty > 0.0 and not resources.is_empty():
+			var have = float(resources.get(resource, 0.0))
+			if have >= qty:
+				surplus = 1.0 - (qty / max(1.0, have))
+		# Milk proximity bonus
+		var milk_prox = 0.0
+		if north != "":
+			var d = milk_distance(north)
+			if d <= 2:
+				milk_prox = max(milk_prox, 2.0 / max(1.0, float(d)))
+		if south != "":
+			var d = milk_distance(south)
+			if d <= 2:
+				milk_prox = max(milk_prox, 2.0 / max(1.0, float(d)))
+		var score = discovery_aff + novelty * 1.5 + surplus * 0.8 + milk_prox
 		if score > best_score:
 			best_score = score
 			best = {
 				"offer_index": i,
 				"discovery_value": discovery_aff,
 				"novelty": novelty,
+			}
+	return best
+
+
+static func rank_offers(resources: Dictionary, offers: Array, known_pairs: Array, graph: Dictionary) -> Dictionary:
+	"""Rank quest offers by value, accounting for cost-to-inventory ratio and vocab novelty.
+
+	Returns: {best_offer_index, best_score, cost_ratio, novelty, is_milk} or empty if none affordable.
+	"""
+	var known = known_emoji_map(known_pairs)
+	var best: Dictionary = {}
+	var best_score = -1e18
+	for i in range(offers.size()):
+		var offer = offers[i]
+		if not (offer is Dictionary):
+			continue
+		var resource = str(offer.get("resource", ""))
+		var qty = float(offer.get("quantity", 0.0))
+		if resource == "" or qty <= 0.0:
+			continue
+		var have = float(resources.get(resource, 0.0))
+		if have < qty:
+			continue
+		var north = str(offer.get("reward_vocab_north", ""))
+		var south = str(offer.get("reward_vocab_south", ""))
+		var novelty = 0.0
+		if north != "" and not known.has(north):
+			novelty += 1.0
+		if south != "" and not known.has(south):
+			novelty += 1.0
+		var is_milk = (north == MILK_EMOJI or south == MILK_EMOJI)
+		var surplus = 1.0 - (qty / max(1.0, have))
+		var discovery_aff = float(offer.get("discovery_affinity", 0.0))
+		var reward_resources = offer.get("reward_resources", {})
+		var reward_sum = 0.0
+		if reward_resources is Dictionary:
+			for emoji in reward_resources.keys():
+				reward_sum += max(0.0, float(reward_resources.get(emoji, 0.0)))
+		# Milk proximity: bonus for offers teaching emojis closer to milk in the graph.
+		# Distance 0 (milk itself) handled by is_milk flag. Distance 1-2 = milk neighborhood.
+		var milk_prox = 0.0
+		if north != "":
+			var d = milk_distance(north)
+			if d <= 2:
+				milk_prox = max(milk_prox, 25.0 / max(1.0, float(d)))  # d=1→25, d=2→12.5
+		if south != "":
+			var d = milk_distance(south)
+			if d <= 2:
+				milk_prox = max(milk_prox, 25.0 / max(1.0, float(d)))
+		# Score: vocab novelty dominates, surplus rewards cheap quests, milk is king
+		var score = (
+			novelty * 32.0
+			+ surplus * 12.0
+			+ reward_sum * 0.22
+			+ discovery_aff * 18.0
+			+ milk_prox
+			+ (420.0 if is_milk else 0.0)
+			+ (20.0 if novelty >= 2.0 else 0.0)
+		)
+		if score > best_score:
+			best_score = score
+			best = {
+				"best_offer_index": i,
+				"best_score": score,
+				"cost_ratio": qty / max(1.0, have),
+				"novelty": novelty,
+				"is_milk": is_milk,
 			}
 	return best
 
@@ -576,3 +716,77 @@ static func _as_resource_map(raw) -> Dictionary:
 		if key != "":
 			out[key] = float(raw.get(emoji, 0.0))
 	return out
+
+
+static func policy_describe() -> Dictionary:
+	"""Return the full policy parameter schema with defaults, ranges, and descriptions.
+
+	Designed for LLM introspection: an LLM can call this to understand what
+	parameters are available, what they do, and what values to try.
+	"""
+	return {
+		"action_priors": {
+			"quest_cycle": {
+				"base": {"default": 0.7, "min": 0.0, "max": 3.0, "description": "Base prior for quest acceptance. Higher = prefer quests over exploration."},
+				"active_quest": {"default": 0.3, "min": 0.0, "max": 2.0, "description": "Prior bonus per active quest (completion attempts)."},
+				"affordable": {"default": 0.25, "min": 0.0, "max": 2.0, "description": "Weight of cost-relative affordability (surplus fraction sum)."},
+				"unknown_vocab": {"default": 1.25, "min": 0.0, "max": 5.0, "description": "Bonus per unknown emoji in current offers. Primary vocab learning driver."},
+				"demand_curve": {"default": 0.5, "min": 0.0, "max": 2.0, "description": "Weight of demand curve awareness. High = prefer quests for high-inventory resources."},
+				"frontier_bonus": {"default": 1.5, "min": 0.0, "max": 5.0, "description": "Extra prior when best offer teaches 2 new emojis (frontier pair)."},
+				"best_offer_milk": {"default": 3.0, "min": 0.0, "max": 10.0, "description": "Extra prior when best offer yields milk vocabulary (win condition)."},
+				"bonus": {"default": 0.0, "min": -5.0, "max": 5.0, "description": "Flat bonus/penalty to quest prior. Use for character personality."},
+				"stagnation_scale": {"default": 0.45, "min": 0.0, "max": 2.0, "description": "Per-streak penalty when quests fail to teach new vocab."},
+				"stagnation_cap": {"default": 6.0, "min": 0.0, "max": 10.0, "description": "Maximum stagnation penalty before capping."},
+			},
+			"probe_cycle": {
+				"base": {"default": 1.0, "min": 0.0, "max": 3.0, "description": "Base prior for quantum measurement/harvest. Higher = farm more."},
+				"resource_pressure": {"default": 0.8, "min": 0.0, "max": 3.0, "description": "How much resource deficit boosts probing priority."},
+				"deficit_flux": {"default": 4.0, "min": 0.0, "max": 10.0, "description": "Weight for biomes producing deficit resources."},
+				"surplus_flux": {"default": 0.5, "min": 0.0, "max": 3.0, "description": "Weight for biomes producing surplus resources."},
+			},
+			"lindblad_drain": {
+				"base": {"default": 0.9, "min": 0.0, "max": 3.0, "description": "Base prior for passive income drain setup."},
+				"inactive_bonus": {"default": 0.0, "min": 0.0, "max": 3.0, "description": "Extra bonus when no drains are currently active."},
+				"active_scale": {"default": 0.0, "min": -1.0, "max": 2.0, "description": "Per-active-drain adjustment to priority."},
+			},
+			"discover_biome": {
+				"base": {"default": 0.7, "min": 0.0, "max": 3.0, "description": "Base prior for biome discovery/expansion."},
+				"min_eagles": {"default": 8.0, "min": 1.0, "max": 50.0, "description": "Minimum eagle resources required to attempt discovery."},
+				"max_biomes": {"default": 6, "min": 2, "max": 10, "description": "Maximum unlocked biomes before stopping expansion."},
+				"eagle_divisor": {"default": 16.0, "min": 1.0, "max": 50.0, "description": "Eagles/divisor added to prior (higher divisor = less eagle influence)."},
+				"eagle_cap": {"default": 2.0, "min": 0.0, "max": 5.0, "description": "Maximum eagle-based prior contribution."},
+				"forecast_scale": {"default": 1.0, "min": 0.0, "max": 3.0, "description": "Weight of discovery forecast bonus (favoring concentrated probability)."},
+			},
+			"lock_offer": {
+				"base": {"default": 0.5, "min": 0.0, "max": 3.0, "description": "Base prior for locking a quest offer for later."},
+				"discovery_affinity": {"default": 6.0, "min": 0.0, "max": 15.0, "description": "Weight of biome discovery affinity when scoring lockable offers."},
+				"novelty": {"default": 1.5, "min": 0.0, "max": 5.0, "description": "Weight of vocab novelty when scoring lockable offers."},
+			},
+			"time_skip": {
+				"base": {"default": 0.4, "min": 0.0, "max": 2.0, "description": "Base prior for waiting (letting passive income accumulate)."},
+				"active_drain_scale": {"default": 0.35, "min": 0.0, "max": 2.0, "description": "Per-active-drain bonus to time_skip priority."},
+			},
+			"victory_lap_partial": {
+				"base": {"default": 8.5, "min": 0.0, "max": 15.0, "description": "Prior when milk is known (triggers victory sequence). Very high = immediate win attempt."},
+			},
+		},
+		"reward_terms": {
+			"resource": {"default": 0.08, "min": -1.0, "max": 2.0, "description": "Reward per unit of net resource change."},
+			"pair": {"default": 42.0, "min": 0.0, "max": 200.0, "description": "Reward per new vocab pair learned. Primary learning incentive."},
+			"active_quest": {"default": 5.0, "min": 0.0, "max": 50.0, "description": "Reward for completing an active quest."},
+			"biome": {"default": 8.0, "min": 0.0, "max": 50.0, "description": "Reward for discovering a new biome."},
+			"drain": {"default": 2.5, "min": 0.0, "max": 20.0, "description": "Reward for setting up a new passive drain."},
+			"lock": {"default": 3.0, "min": 0.0, "max": 20.0, "description": "Reward for locking a quest offer."},
+			"milk_bonus": {"default": 120.0, "min": 0.0, "max": 500.0, "description": "One-time bonus when milk pair is first discovered."},
+			"execution_penalty": {"default": -4.0, "min": -20.0, "max": 0.0, "description": "Penalty when an action fails execution."},
+		},
+		"action_limits": {
+			"min_loop": {"default": 1, "min": 0, "max": 10, "description": "Minimum loop index before action limits engage."},
+			"max_per_loop": {"default": 1, "min": 1, "max": 5, "description": "Max actions per loop iteration."},
+			"max_total_locks": {"default": 2, "min": 0, "max": 5, "description": "Maximum simultaneous locked offers."},
+			"pairs_soft_cap": {"default": 20, "min": 5, "max": 89, "description": "Soft cap on learned pairs before policy adjusts."},
+		},
+		"dynamics": {
+			"apply_stagnation_penalty": {"default": true, "description": "Whether quest stagnation penalty is active."},
+		},
+	}

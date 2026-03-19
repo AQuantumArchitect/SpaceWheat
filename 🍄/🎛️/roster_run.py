@@ -350,6 +350,8 @@ def main() -> None:
             "elapsed_s": round(elapsed, 1),
             "score": score,
             "step_stats": step_stats,
+            "world_state": char_ws if isinstance(char_ws, str) else char_ws.get("name", char_name),
+            "policy_overrides": char_overrides,
         })
 
     # Scorecard
@@ -388,6 +390,8 @@ def main() -> None:
         "milk_count": milk_count,
         "total_characters": len(results),
         "total_elapsed_s": round(total_elapsed, 1),
+        "policy_mode": roster_policy_mode,
+        "max_loops": roster_max_loops,
         "characters": results,
         "roster_path": str(args.roster),
     }
