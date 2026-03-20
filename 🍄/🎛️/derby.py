@@ -111,6 +111,8 @@ def _seed_character(
         policy,
         "--display-mode",
         display_mode,
+        "--ready-timeout",
+        str(max(70, int(timeout_s))),
         "--save-path",
         save_uri,
     ]

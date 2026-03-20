@@ -93,6 +93,12 @@ def _build_parser() -> argparse.ArgumentParser:
         default="headless",
         help="Launch the seeding rig headless or with a visible window",
     )
+    parser.add_argument(
+        "--ready-timeout",
+        type=float,
+        default=None,
+        help="Seconds to wait for the rig bridge to become ready",
+    )
     parser.add_argument("--list-profiles", action="store_true", help="List available profiles and exit")
     parser.add_argument("--load-slot", type=int, default=None, help="Optional existing slot to load before seeding")
     parser.add_argument("--scenario-id", type=str, default=None, help="Scenario id when not loading a slot")
@@ -257,7 +263,8 @@ def main() -> int:
             scenario_id=scenario_id,
             display_mode=str(args.display_mode or "headless"),
         )
-        boot_lines = rig.wait_for_ready(proc, timeout_s=70.0)
+        ready_timeout = float(args.ready_timeout) if args.ready_timeout is not None else (180.0 if args.display_mode == "headed" else 70.0)
+        boot_lines = rig.wait_for_ready(proc, timeout_s=ready_timeout)
         ready = RigClient.ready_seen(boot_lines)
         if proc.poll() is not None or not ready:
             safe_print("seed-save: listener failed to reach ready state")
@@ -346,7 +353,7 @@ def main() -> int:
         saved = bool(summary["save_result"].get("saved", False))
         return 0 if saved else 3
     finally:
-        if proc is not None:
+        if proc is not None and not args.reuse_listener:
             try:
                 run_turn(turn, "stop")
             except Exception:

@@ -30,6 +30,8 @@ def test_runner_batch_and_launcher_thread_display_backend_flags() -> None:
     assert '--display-mode", str(display_mode)' in batch
     assert '--policy-execution-backend", str(policy_execution_backend)' in batch
     assert 'env["RIG_DISPLAY_MODE"] = str(display_mode or "headless")' in client
+    assert "def clear_rig_files(self, preserve_live_sentinel: bool = True) -> None:" in client
+    assert "if not preserve_live_sentinel or not self._bridge_sentinel_is_ready(self.xdg_root):" in client
     assert 'if [ "$RIG_DISPLAY_MODE" = "headed" ]; then' in launcher
     assert "exec godot --audio-driver" in launcher
 
@@ -42,7 +44,10 @@ def test_derby_and_seed_save_accept_headed_player_input_flags() -> None:
     assert "--policy-execution-backend" in derby
     assert 'display_mode=str(args.display_mode)' in derby
     assert 'policy_execution_backend=str(args.policy_execution_backend)' in derby
+    assert '--ready-timeout' in derby
     assert "--display-mode" in wrapper
     assert "--policy-execution-backend" in wrapper
     assert "--display-mode" in seed
+    assert "--ready-timeout" in seed
     assert 'display_mode=str(args.display_mode or "headless")' in seed
+    assert "if proc is not None and not args.reuse_listener:" in seed

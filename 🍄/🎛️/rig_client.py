@@ -83,7 +83,7 @@ class RigClient:
                 out.append({"ok": False, "error": "bad_json_line", "raw": raw})
         return out
 
-    def clear_rig_files(self) -> None:
+    def clear_rig_files(self, preserve_live_sentinel: bool = True) -> None:
         if self._queue_writer is not None:
             try:
                 self._queue_writer.close()
@@ -92,8 +92,9 @@ class RigClient:
             self._queue_writer = None
         self.queue_file.unlink(missing_ok=True)
         self.results_file.unlink(missing_ok=True)
-        # Always clear stale sentinel for this XDG root; a fresh listener writes a new one.
-        self._bridge_sentinel_path(self.xdg_root).unlink(missing_ok=True)
+        sentinel = self._bridge_sentinel_path(self.xdg_root)
+        if not preserve_live_sentinel or not self._bridge_sentinel_is_ready(self.xdg_root):
+            sentinel.unlink(missing_ok=True)
         self._results_offset = 0
         self._results_partial = ""
         self._results_by_turn.clear()
