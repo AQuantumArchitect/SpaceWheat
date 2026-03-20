@@ -19,21 +19,21 @@ _CONFIG_DIR = Path(__file__).resolve().parent / "config" / "strategy"
 # ── Defaults (identical to the old hardcoded values) ─────────────────
 
 _DEFAULT_STRATEGIC_TARGETS: Dict[str, float] = {
-    "\U0001F465": 220.0,   # 👥
-    "\U0001F33E": 220.0,   # 🌾
-    "\U0001F35E": 260.0,   # 🍞
-    "\u2744\uFE0F": 120.0, # ❄️
-    "\U0001F331": 120.0,   # 🌱
+    "\U0001F465": 34.0,    # 👥  (Fibonacci: ~φ × starting 21)
+    "\U0001F33E": 34.0,    # 🌾
+    "\U0001F35E": 34.0,    # 🍞
+    "\u2744\uFE0F": 21.0,  # ❄️  (Fibonacci: ~φ × starting 13)
+    "\U0001F331": 13.0,    # 🌱
 }
 
 _DEFAULT_RESOURCE_FLOORS: Dict[str, float] = {
-    "\U0001F35E": 120.0,   # 🍞
-    "\u2744\uFE0F": 60.0,  # ❄️
-    "\U0001F465": 80.0,    # 👥
+    "\U0001F35E": 13.0,    # 🍞  (Fibonacci: matches starting ❄️ level)
+    "\u2744\uFE0F": 8.0,   # ❄️  (Fibonacci: matches starting 👥 level)
+    "\U0001F465": 13.0,    # 👥
 }
 
 _DEFAULT_SCORING = {
-    "afford_delta": 120.0,
+    "afford_delta": 13.0,
     "deficit_progress": 0.8,
     "vocab_injection_need": 1.2,
     "net_growth_strict": 0.18,
