@@ -295,6 +295,8 @@ def _run_trial(
     console_profile: str | None = None,
     metrics_every: int = 0,
     runtime_profile: str | None = None,
+    display_mode: str | None = None,
+    policy_execution_backend: str | None = None,
     include_offer_reward_resources: bool = False,
     include_offer_market_projection: bool = False,
     policy_restrictions: bool = False,
@@ -328,6 +330,10 @@ def _run_trial(
         cmd.extend(["--metrics-every", str(int(metrics_every))])
     if runtime_profile:
         cmd.extend(["--runtime-profile", str(runtime_profile)])
+    if display_mode:
+        cmd.extend(["--display-mode", str(display_mode)])
+    if policy_execution_backend:
+        cmd.extend(["--policy-execution-backend", str(policy_execution_backend)])
     if policy_epsilon is not None:
         cmd.extend(["--policy-epsilon", str(float(policy_epsilon))])
     if policy_ucb_scale is not None:
@@ -522,6 +528,8 @@ def main() -> int:
             console_profile=console.profile,
             metrics_every=metrics_every,
             runtime_profile=args.runtime_profile,
+            display_mode=args.display_mode,
+            policy_execution_backend=args.policy_execution_backend,
             include_offer_reward_resources=bool(args.include_offer_reward_resources),
             include_offer_market_projection=bool(args.include_offer_market_projection),
             policy_restrictions=bool(args.policy_restrictions),

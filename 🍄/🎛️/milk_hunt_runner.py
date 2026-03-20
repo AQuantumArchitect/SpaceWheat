@@ -78,6 +78,7 @@ def _kill_existing_listeners() -> None:
 def _start_listener(
     load_slot: Optional[int] = None,
     scenario_id: str = "default",
+    display_mode: str = "headless",
     allow_resource_injection: Optional[bool] = None,
     listener_stdout: str = "null",
     listener_log_path: Optional[Path] = None,
@@ -88,6 +89,7 @@ def _start_listener(
     return _RIG.start_listener(
         load_slot=load_slot,
         scenario_id=scenario_id,
+        display_mode=display_mode,
         allow_resource_injection=allow_resource_injection,
         listener_stdout=listener_stdout,
         listener_log_path=listener_log_path,
@@ -1286,6 +1288,18 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Runtime env profile for listener startup and batcher path",
     )
     parser.add_argument(
+        "--display-mode",
+        choices=["headless", "headed"],
+        default=None,
+        help="Launch the rig headless or with a visible window",
+    )
+    parser.add_argument(
+        "--policy-execution-backend",
+        choices=["auto", "direct", "player_input"],
+        default=None,
+        help="Execute policy steps directly or through the player input path",
+    )
+    parser.add_argument(
         "--include-offer-reward-resources",
         dest="include_offer_reward_resources",
         action="store_true",
@@ -1596,6 +1610,8 @@ def main() -> int:
     strict_biome_economy = args.strict_biome_economy
     max_loops = args.max_loops
     wait_progress_seconds = args.wait_progress_seconds
+    display_mode = args.display_mode
+    policy_execution_backend = args.policy_execution_backend
 
     if wait_progress_seconds is None:
         wait_progress_seconds = get_cfg_float(cfg, "wait_progress_seconds")
@@ -1641,6 +1657,20 @@ def main() -> int:
         max_loops = int(os.environ["MILK_HUNT_MAX_LOOPS"])
     if max_loops is None:
         max_loops = 140
+
+    if not display_mode:
+        display_mode = get_cfg_str(cfg, "display_mode")
+    if not display_mode and os.environ.get("MILK_HUNT_DISPLAY_MODE", "") != "":
+        display_mode = os.environ["MILK_HUNT_DISPLAY_MODE"]
+    if not display_mode:
+        display_mode = "headless"
+
+    if not policy_execution_backend:
+        policy_execution_backend = get_cfg_str(cfg, "policy_execution_backend")
+    if not policy_execution_backend and os.environ.get("MILK_HUNT_POLICY_EXECUTION_BACKEND", "") != "":
+        policy_execution_backend = os.environ["MILK_HUNT_POLICY_EXECUTION_BACKEND"]
+    if not policy_execution_backend or policy_execution_backend == "auto":
+        policy_execution_backend = "player_input" if display_mode == "headed" else "direct"
 
     if load_slot is None:
         load_slot = get_cfg_int(cfg, "load_slot")
@@ -1824,6 +1854,7 @@ def main() -> int:
     runtime_env_overrides = _runtime_profile_env_overrides(runtime_profile)
     if hunter_policy_mode == "quantum_register":
         runtime_env_overrides["RIG_POLICY_TYPE"] = "quantum_register"
+    runtime_env_overrides["RIG_POLICY_EXECUTION_BACKEND"] = str(policy_execution_backend)
     include_offer_reward_resources = bool(args.include_offer_reward_resources)
     include_offer_market_projection = bool(args.include_offer_market_projection)
 
@@ -2007,6 +2038,7 @@ def main() -> int:
         proc = _start_listener(
             load_slot=load_slot,
             scenario_id=scenario_id,
+            display_mode=display_mode,
             allow_resource_injection=allow_rig_resource_injection,
             listener_stdout=rig_listener_stdout,
             listener_log_path=listener_log_path,
@@ -2034,6 +2066,7 @@ def main() -> int:
             proc = _start_listener(
                 load_slot=load_slot,
                 scenario_id=scenario_id,
+                display_mode=display_mode,
                 allow_resource_injection=allow_rig_resource_injection,
                 listener_stdout=rig_listener_stdout,
                 listener_log_path=listener_log_path,
@@ -2318,6 +2351,7 @@ def main() -> int:
                         "policy_step",
                         execute=True,
                         compact=True,
+                        execution_backend=policy_execution_backend,
                         resource_floors=primary_resource_floors,
                         forbid_actions=forbid_actions,
                     )
@@ -3050,6 +3084,8 @@ def main() -> int:
             "metrics_every": metrics_every,
             "runtime_profile": runtime_profile,
             "runtime_env_overrides": runtime_env_overrides,
+            "display_mode": display_mode,
+            "policy_execution_backend": policy_execution_backend,
             "reuse_listener": bool(args.reuse_listener),
             "include_offer_reward_resources": include_offer_reward_resources,
             "include_offer_market_projection": include_offer_market_projection,
@@ -3181,6 +3217,8 @@ def main() -> int:
             "scenario_id": scenario_id,
             "console_profile": console_profile,
             "wait_progress_seconds": float(wait_progress_seconds),
+            "display_mode": display_mode,
+            "policy_execution_backend": policy_execution_backend,
             "rig_listener_stdout": rig_listener_stdout,
             "rig_listener_log": str(listener_log_path) if listener_log_path is not None else "",
             "rig_log_profile": rig_log_profile,

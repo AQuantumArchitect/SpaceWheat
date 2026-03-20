@@ -170,6 +170,7 @@ class RigClient:
         *,
         load_slot: Optional[int] = None,
         scenario_id: str = "default",
+        display_mode: str = "headless",
         allow_resource_injection: Optional[bool] = None,
         listener_stdout: str = "file",
         listener_log_path: Optional[Path] = None,
@@ -183,6 +184,7 @@ class RigClient:
         if load_slot is not None:
             env["RIG_LOAD_SLOT"] = str(load_slot)
         env["RIG_SCENARIO"] = scenario_id
+        env["RIG_DISPLAY_MODE"] = str(display_mode or "headless")
         if allow_resource_injection is not None:
             env["RIG_ALLOW_RESOURCE_INJECTION"] = "1" if allow_resource_injection else "0"
         if rig_log_profile:

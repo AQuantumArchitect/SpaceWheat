@@ -23,11 +23,21 @@ export DISABLE_VERBOSE_FILE_LOGGING=1
 # RIG_DISABLE_LOOKAHEAD removed — use C++ MultiBiomeLookaheadEngine when available
 export RIG_DISABLE_MI=1
 export RIG_DISABLE_FORCE=1
-sw_prepare_runtime_env "headless"
+RIG_DISPLAY_MODE="${RIG_DISPLAY_MODE:-headless}"
+if [ "$RIG_DISPLAY_MODE" = "headed" ]; then
+  sw_prepare_runtime_env "interactive"
+else
+  sw_prepare_runtime_env "headless"
+fi
 
 echo "Starting live rig listener..."
 echo "Queue:  user://rig/queue.jsonl"
 echo "Results: user://rig/results.jsonl"
 echo "User dir: $GODOT_USER_DIR"
+echo "Display mode: $RIG_DISPLAY_MODE"
+
+if [ "$RIG_DISPLAY_MODE" = "headed" ]; then
+  exec godot --audio-driver "${SW_GODOT_AUDIO_DRIVER:-Dummy}" --path . --script Tests/rig_listener.gd
+fi
 
 exec godot --audio-driver "${SW_GODOT_AUDIO_DRIVER:-Dummy}" --headless --path . --script Tests/rig_listener.gd

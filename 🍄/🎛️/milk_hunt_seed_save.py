@@ -87,6 +87,12 @@ def _build_parser() -> argparse.ArgumentParser:
         default=[],
         help="Extra JSONL policy graph patch line (repeatable)",
     )
+    parser.add_argument(
+        "--display-mode",
+        choices=["headless", "headed"],
+        default="headless",
+        help="Launch the seeding rig headless or with a visible window",
+    )
     parser.add_argument("--list-profiles", action="store_true", help="List available profiles and exit")
     parser.add_argument("--load-slot", type=int, default=None, help="Optional existing slot to load before seeding")
     parser.add_argument("--scenario-id", type=str, default=None, help="Scenario id when not loading a slot")
@@ -246,7 +252,11 @@ def main() -> int:
         safe_print("seed-save: resetting rig cache and starting listener")
         rig.kill_existing_listeners()
         rig.clear_rig_files()
-        proc = rig.start_listener(load_slot=args.load_slot, scenario_id=scenario_id)
+        proc = rig.start_listener(
+            load_slot=args.load_slot,
+            scenario_id=scenario_id,
+            display_mode=str(args.display_mode or "headless"),
+        )
         boot_lines = rig.wait_for_ready(proc, timeout_s=70.0)
         ready = RigClient.ready_seen(boot_lines)
         if proc.poll() is not None or not ready:

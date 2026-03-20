@@ -73,7 +73,9 @@ extends SceneTree
 ## - full_snapshot — aggregates all widget + HUD + overlay snapshots in one call
 ## - policy_reset: {config?: Dictionary}
 ## - policy_snapshot
-## - policy_step: {execute?: bool, include_state?: bool, resource_floors?: {emoji: amount}}
+## - policy_step: {execute?: bool, include_state?: bool, resource_floors?: {emoji: amount}, execution_backend?: "direct"|"player_input"|"auto"}
+## - press_key: {keycode?: int, key?: String, shift?: bool, settle_frames?: int}
+## - key_sequence: {keys: [{keycode?: int, key?: String, shift?: bool, settle_frames?: int}, ...]}
 ## - stop
 ##
 ## Future actions can be added to the match statement in _execute_command().
@@ -89,6 +91,7 @@ const BiomeAffinityCalc = preload("res://Core/Quantum/BiomeAffinityCalculator.gd
 const PolicySnapshotBuilder = preload("res://Core/Instrumentation/PolicySnapshotBuilder.gd")
 const PhysicsConfig = preload("res://Core/Config/PhysicsConfig.gd")
 const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")
+const ToolConfig = preload("res://Core/GameState/ToolConfig.gd")
 
 signal action_executed(turn_id: int, action: String, result: Dictionary)
 signal bridge_idle()
@@ -114,6 +117,9 @@ var _polling: bool = false  # Re-entrancy guard for async commands (e.g. victory
 var _poll_interval_ms: int = 0
 var _next_poll_at_ms: int = 0
 var _result_writer: FileAccess = null
+
+const _PLOT_KEYCODES: Array[int] = [KEY_J, KEY_K, KEY_L, KEY_SEMICOLON, KEY_APOSTROPHE, KEY_H, KEY_G]
+const _QUEST_SLOT_KEYCODES: Array[int] = [KEY_U, KEY_I, KEY_O, KEY_P]
 
 
 func _phrame_hz() -> float:
@@ -1022,11 +1028,16 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 			var include_state = bool(cmd.get("include_state", false))
 			var compact = bool(cmd.get("compact", false))
 			var execute = bool(cmd.get("execute", true))
+			var execution_backend = _resolve_policy_execution_backend(str(cmd.get("execution_backend", "auto")))
 			var pre_state = _build_policy_state(cmd)
 			var decision = policy.decide(pre_state)
 			var execution: Dictionary = {"ok": false, "error": "execution_skipped"}
 			if execute:
-				execution = await _execute_policy_action(decision)
+				if execution_backend == "player_input":
+					execution = await _execute_policy_action_via_input(decision)
+				else:
+					execution = await _execute_policy_action(decision)
+				execution["backend"] = str(execution.get("backend", execution_backend))
 			var post_state = _build_policy_state(cmd)
 			var learning = policy.observe(pre_state, decision, post_state, execution)
 			if compact:
@@ -1046,6 +1057,7 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 			var out: Dictionary = {
 				"decision": decision,
 				"execution": execution,
+				"execution_backend": execution_backend,
 				"learning": learning,
 				"post_resources": post_state.get("resources", {}),
 				"post_known_pairs_count": int((post_state.get("known_pairs", []) as Array).size()),
@@ -1056,6 +1068,38 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 				out["post_state"] = post_state
 			result["policy_step"] = out
 			_sync_policy_into_game_state()
+
+		"press_key":
+			var keycode = _extract_keycode(cmd)
+			if keycode == KEY_UNKNOWN:
+				result = {"ok": false, "turn": turn_id, "action": action, "error": "unknown_key"}
+			else:
+				result["press_key"] = await _press_key(
+					keycode,
+					bool(cmd.get("shift", false)),
+					int(cmd.get("settle_frames", 2))
+				)
+
+		"key_sequence":
+			var keys = cmd.get("keys", [])
+			if not (keys is Array) or keys.is_empty():
+				result = {"ok": false, "turn": turn_id, "action": action, "error": "empty_keys"}
+			else:
+				var steps: Array = []
+				for item in keys:
+					var key_cmd: Dictionary = item if item is Dictionary else {"key": str(item)}
+					var keycode = _extract_keycode(key_cmd)
+					if keycode == KEY_UNKNOWN:
+						steps.append({"ok": false, "error": "unknown_key", "raw": item})
+						result["ok"] = false
+						result["error"] = "unknown_key"
+						break
+					steps.append(await _press_key(
+						keycode,
+						bool(key_cmd.get("shift", false)),
+						int(key_cmd.get("settle_frames", 2))
+					))
+				result["key_sequence"] = {"count": steps.size(), "steps": steps}
 
 		"stop":
 			result["stopped"] = true
@@ -1815,6 +1859,250 @@ func _policy_state_has_milk(state: Dictionary) -> bool:
 	return false
 
 
+func _resolve_policy_execution_backend(requested: String) -> String:
+	var backend = requested.strip_edges().to_lower()
+	if backend in ["direct", "player_input"]:
+		return backend
+	var env_backend = OS.get_environment("RIG_POLICY_EXECUTION_BACKEND").strip_edges().to_lower()
+	if env_backend in ["direct", "player_input"]:
+		return env_backend
+	return "player_input" if not _is_headless else "direct"
+
+
+func _resolve_quantum_input():
+	if not _shell:
+		return null
+	for node in get_nodes_in_group("quantum_instrument_input"):
+		if node and (_shell == node or _shell.is_ancestor_of(node)):
+			return node
+	var direct = _shell.get_node_or_null("FarmInputHandler")
+	if direct:
+		return direct
+	return _shell.find_child("FarmInputHandler", true, false)
+
+
+func _resolve_overlay_manager():
+	if _shell and "overlay_manager" in _shell:
+		return _shell.overlay_manager
+	return null
+
+
+func _extract_keycode(cmd: Dictionary) -> int:
+	var explicit = int(cmd.get("keycode", KEY_UNKNOWN))
+	if explicit != KEY_UNKNOWN and explicit > 0:
+		return explicit
+	return _keycode_from_name(str(cmd.get("key", "")))
+
+
+func _keycode_from_name(key_name: String) -> int:
+	var raw = key_name.strip_edges()
+	if raw == "":
+		return KEY_UNKNOWN
+	var upper = raw.to_upper()
+	match upper:
+		"ESC", "ESCAPE":
+			return KEY_ESCAPE
+		"TAB":
+			return KEY_TAB
+		"SPACE":
+			return KEY_SPACE
+		"SEMICOLON":
+			return KEY_SEMICOLON
+		"APOSTROPHE", "QUOTE":
+			return KEY_APOSTROPHE
+		"MINUS":
+			return KEY_MINUS
+		"EQUAL", "EQUALS", "PLUS":
+			return KEY_EQUAL
+		"COMMA":
+			return KEY_COMMA
+		"PERIOD", "DOT":
+			return KEY_PERIOD
+		"SLASH":
+			return KEY_SLASH
+		_:
+			return OS.find_keycode_from_string(upper)
+
+
+func _push_key_event(keycode: int, pressed: bool, shift: bool = false) -> bool:
+	if keycode == KEY_UNKNOWN or keycode <= 0:
+		return false
+	var event := InputEventKey.new()
+	event.keycode = keycode
+	event.physical_keycode = keycode
+	event.pressed = pressed
+	event.echo = false
+	event.shift_pressed = shift
+	Input.parse_input_event(event)
+	if _is_headless:
+		if _shell and _shell.has_method("_input"):
+			_shell._input(event)
+		var qinput = _resolve_quantum_input()
+		if qinput and qinput.has_method("_unhandled_key_input"):
+			qinput._unhandled_key_input(event)
+	return true
+
+
+func _wait_settle_frames(count: int = 2) -> void:
+	for _i in range(max(1, count)):
+		await process_frame
+
+
+func _press_key(keycode: int, shift: bool = false, settle_frames: int = 2) -> Dictionary:
+	if not _push_key_event(keycode, true, shift):
+		return {"ok": false, "error": "unknown_keycode", "keycode": keycode}
+	await process_frame
+	_push_key_event(keycode, false, shift)
+	await _wait_settle_frames(settle_frames)
+	return {
+		"ok": true,
+		"keycode": keycode,
+		"shift": shift,
+		"settle_frames": max(1, settle_frames),
+	}
+
+
+func _close_player_overlays_via_input(max_presses: int = 4) -> void:
+	if not _shell or not _shell.has_method("_any_menu_open"):
+		return
+	for _i in range(max_presses):
+		if not _shell._any_menu_open():
+			return
+		await _press_key(KEY_ESCAPE, false, 2)
+
+
+func _tool_group_keycode(group_num: int) -> int:
+	match group_num:
+		1:
+			return KEY_1
+		2:
+			return KEY_2
+		3:
+			return KEY_3
+		4:
+			return KEY_4
+	return KEY_UNKNOWN
+
+
+func _ensure_tool_group_mode(group_num: int, mode_name: String = "") -> Dictionary:
+	var keycode = _tool_group_keycode(group_num)
+	if keycode == KEY_UNKNOWN:
+		return {"ok": false, "error": "unknown_tool_group", "group": group_num}
+	if ToolConfig.get_current_group() != group_num:
+		await _press_key(keycode, false, 2)
+	if mode_name == "" or not ToolConfig.has_f_cycling(group_num):
+		return {"ok": ToolConfig.get_current_group() == group_num, "group": group_num}
+	var guard = 0
+	while ToolConfig.get_group_mode_name(group_num) != mode_name and guard < 8:
+		await _press_key(KEY_F, false, 2)
+		guard += 1
+	return {
+		"ok": ToolConfig.get_current_group() == group_num and ToolConfig.get_group_mode_name(group_num) == mode_name,
+		"group": group_num,
+		"mode": ToolConfig.get_group_mode_name(group_num),
+	}
+
+
+func _sort_vec2i(a: Vector2i, b: Vector2i) -> bool:
+	return a.x < b.x if a.x != b.x else a.y < b.y
+
+
+func _get_sorted_biome_positions(biome_name: String) -> Array[Vector2i]:
+	var positions: Array[Vector2i] = []
+	if _instrument and _instrument.has_method("get_biome_positions"):
+		var raw = _instrument.get_biome_positions(biome_name)
+		if raw is Array:
+			for pos in raw:
+				if pos is Vector2i:
+					positions.append(pos)
+	if positions.size() > 1:
+		positions.sort_custom(_sort_vec2i)
+	return positions
+
+
+func _get_plot_for_position(pos: Vector2i):
+	if not _farm or not ("grid" in _farm) or not _farm.grid or not _farm.grid.has_method("get_plot"):
+		return null
+	return _farm.grid.get_plot(pos)
+
+
+func _find_plot_index_for_state(biome_name: String, desired_state: String) -> int:
+	for pos in _get_sorted_biome_positions(biome_name):
+		var plot = _get_plot_for_position(pos)
+		if not plot:
+			continue
+		var terminal = plot.get("terminal")
+		match desired_state:
+			"measured":
+				if terminal and bool(terminal.is_measured):
+					return int(pos.x)
+			"measurable":
+				if terminal and terminal.has_method("can_measure") and terminal.can_measure():
+					return int(pos.x)
+			"terminal":
+				if terminal:
+					return int(pos.x)
+	return -1
+
+
+func _select_biome_via_input(biome_name: String) -> Dictionary:
+	if biome_name == "":
+		return {"ok": false, "error": "missing_biome"}
+	var active_biome_mgr = get_root().get_node_or_null("/root/ActiveBiomeManager")
+	if not active_biome_mgr:
+		return {"ok": false, "error": "no_active_biome_manager", "biome": biome_name}
+	if str(active_biome_mgr.get_active_biome()) == biome_name:
+		return {"ok": true, "biome": biome_name, "already_active": true}
+	for slot_idx in range(int(active_biome_mgr.get_slot_count())):
+		if str(active_biome_mgr.get_biome_for_slot(slot_idx)) != biome_name:
+			continue
+		var key_name = str(active_biome_mgr.get_slot_key(slot_idx))
+		var keycode = _keycode_from_name(key_name)
+		if keycode == KEY_UNKNOWN:
+			return {"ok": false, "error": "unknown_biome_key", "biome": biome_name, "key": key_name}
+		await _press_key(keycode, false, 2)
+		return {"ok": str(active_biome_mgr.get_active_biome()) == biome_name, "biome": biome_name, "key": key_name}
+	return {"ok": false, "error": "biome_not_on_slot_bar", "biome": biome_name}
+
+
+func _select_plot_via_input(plot_idx: int) -> Dictionary:
+	if plot_idx < 0 or plot_idx >= _PLOT_KEYCODES.size():
+		return {"ok": false, "error": "plot_idx_out_of_range", "plot_idx": plot_idx}
+	await _press_key(_PLOT_KEYCODES[plot_idx], false, 2)
+	return {"ok": true, "plot_idx": plot_idx}
+
+
+func _open_quest_board_via_input() -> Dictionary:
+	await _close_player_overlays_via_input()
+	var overlay_manager = _resolve_overlay_manager()
+	var board = overlay_manager.get_v2_overlay("quests") if overlay_manager and overlay_manager.has_method("get_v2_overlay") else null
+	if board and board.visible:
+		return {"ok": true, "already_open": true}
+	await _press_key(KEY_C, false, 2)
+	board = overlay_manager.get_v2_overlay("quests") if overlay_manager and overlay_manager.has_method("get_v2_overlay") else null
+	return {"ok": board != null and board.visible, "opened": board != null and board.visible}
+
+
+func _navigate_quest_slot_via_input(page_idx: int, slot_idx: int) -> Dictionary:
+	var overlay_manager = _resolve_overlay_manager()
+	var board = overlay_manager.get_v2_overlay("quests") if overlay_manager and overlay_manager.has_method("get_v2_overlay") else null
+	if not board or not board.visible:
+		return {"ok": false, "error": "quest_board_not_open"}
+	var total_pages = max(1, int(board.get_snapshot().get("total_pages", 1))) if board.has_method("get_snapshot") else 1
+	var guard = 0
+	while int(board.get("current_page")) != page_idx and guard < total_pages + 1:
+		await _press_key(KEY_F, false, 2)
+		guard += 1
+	if slot_idx < 0 or slot_idx >= _QUEST_SLOT_KEYCODES.size():
+		return {"ok": false, "error": "slot_idx_out_of_range", "slot_idx": slot_idx}
+	await _press_key(_QUEST_SLOT_KEYCODES[slot_idx], false, 2)
+	return {
+		"ok": int(board.get("current_page")) == page_idx and int(board.get("selected_slot_index")) == slot_idx,
+		"page": int(board.get("current_page")),
+		"slot_idx": int(board.get("selected_slot_index")),
+	}
+
+
 func _execute_policy_action(decision: Dictionary) -> Dictionary:
 	var action = str(decision.get("action", ""))
 	var params = decision.get("params", {})
@@ -1942,6 +2230,171 @@ func _execute_policy_action(decision: Dictionary) -> Dictionary:
 			}
 		_:
 			return {"ok": false, "action": action, "error": "unsupported_policy_action"}
+
+
+func _execute_policy_action_via_input(decision: Dictionary) -> Dictionary:
+	var action = str(decision.get("action", ""))
+	var params = decision.get("params", {})
+	if not (params is Dictionary):
+		params = {}
+
+	match action:
+		"probe_cycle":
+			var biome_name = str(params.get("biome", ""))
+			await _close_player_overlays_via_input()
+			var mode_result = await _ensure_tool_group_mode(3, "probe")
+			if not bool(mode_result.get("ok", false)):
+				return {"ok": false, "action": action, "backend": "player_input", "error": "probe_mode_unavailable"}
+			var biome_result = await _select_biome_via_input(biome_name)
+			if not bool(biome_result.get("ok", false)):
+				return {"ok": false, "action": action, "backend": "player_input", "error": str(biome_result.get("error", "biome_select_failed")), "biome": biome_name}
+			var plot_idx = _find_plot_index_for_state(biome_name, "measured")
+			if plot_idx >= 0:
+				await _select_plot_via_input(plot_idx)
+				await _press_key(KEY_R, false, 3)
+			else:
+				if _find_plot_index_for_state(biome_name, "measurable") < 0:
+					await _press_key(KEY_Q, false, 3)
+				plot_idx = _find_plot_index_for_state(biome_name, "measurable")
+				if plot_idx < 0:
+					plot_idx = _find_plot_index_for_state(biome_name, "terminal")
+				if plot_idx < 0:
+					return {"ok": false, "action": action, "backend": "player_input", "error": "no_terminal_after_explore", "biome": biome_name}
+				await _select_plot_via_input(plot_idx)
+				await _press_key(KEY_E, false, 3)
+				await _press_key(KEY_R, false, 3)
+			return {
+				"ok": true,
+				"action": action,
+				"backend": "player_input",
+				"biome": biome_name,
+				"plot_idx": plot_idx,
+				"resources": _get_resource_map(),
+			}
+
+		"quest_cycle":
+			var open_result = await _open_quest_board_via_input()
+			if not bool(open_result.get("ok", false)):
+				return _execute_policy_quest_cycle(params).merged({"backend": "direct_fallback"}, true)
+			var overlay_manager = _resolve_overlay_manager()
+			var board = overlay_manager.get_v2_overlay("quests") if overlay_manager and overlay_manager.has_method("get_v2_overlay") else null
+			if not board or not board.has_method("get_snapshot"):
+				return _execute_policy_quest_cycle(params).merged({"backend": "direct_fallback"}, true)
+			var snapshot = board.get_snapshot()
+			var target_page = 0
+			var target_slot = -1
+			var target_state = ""
+			var slots = snapshot.get("slots", [])
+			if slots is Array:
+				for slot in slots:
+					if slot is Dictionary and str(slot.get("state", "")) in ["ready", "active"]:
+						target_slot = int(slot.get("index", -1))
+						target_state = str(slot.get("state", ""))
+						break
+			if target_slot < 0:
+				var offer_index = int(params.get("offer_index", -1))
+				if offer_index >= 0:
+					target_page = int(offer_index / 4)
+					target_slot = offer_index % 4
+				else:
+					for slot in slots:
+						if slot is Dictionary and str(slot.get("state", "")) == "offered":
+							target_slot = int(slot.get("index", -1))
+							target_state = "offered"
+							break
+			if target_slot < 0:
+				await _press_key(KEY_ESCAPE, false, 2)
+				return {"ok": false, "action": action, "backend": "player_input", "error": "no_actionable_quest_slot"}
+			var nav = await _navigate_quest_slot_via_input(target_page, target_slot)
+			if not bool(nav.get("ok", false)):
+				await _press_key(KEY_ESCAPE, false, 2)
+				return {"ok": false, "action": action, "backend": "player_input", "error": str(nav.get("error", "quest_nav_failed"))}
+			await _press_key(KEY_Q, false, 3)
+			var post_snapshot = board.get_snapshot()
+			await _press_key(KEY_ESCAPE, false, 2)
+			return {
+				"ok": true,
+				"action": action,
+				"backend": "player_input",
+				"quest_page": target_page,
+				"quest_slot": target_slot,
+				"quest_state": target_state,
+				"quest_board": post_snapshot,
+			}
+
+		"lock_offer":
+			var open_result = await _open_quest_board_via_input()
+			if not bool(open_result.get("ok", false)):
+				return _execute_policy_action(decision).merged({"backend": "direct_fallback"}, true)
+			var offer_index = int(params.get("offer_index", -1))
+			if offer_index < 0:
+				await _press_key(KEY_ESCAPE, false, 2)
+				return {"ok": false, "action": action, "backend": "player_input", "error": "invalid_offer_index"}
+			var nav = await _navigate_quest_slot_via_input(int(offer_index / 4), offer_index % 4)
+			if not bool(nav.get("ok", false)):
+				await _press_key(KEY_ESCAPE, false, 2)
+				return {"ok": false, "action": action, "backend": "player_input", "error": str(nav.get("error", "quest_nav_failed"))}
+			await _press_key(KEY_E, false, 3)
+			await _press_key(KEY_ESCAPE, false, 2)
+			return {
+				"ok": true,
+				"action": action,
+				"backend": "player_input",
+				"offer_index": offer_index,
+			}
+
+		"lindblad_drain":
+			var biome_name = str(params.get("biome", ""))
+			await _close_player_overlays_via_input()
+			var mode_result = await _ensure_tool_group_mode(2)
+			if not bool(mode_result.get("ok", false)):
+				return {"ok": false, "action": action, "backend": "player_input", "error": "lindblad_tool_unavailable"}
+			var biome_result = await _select_biome_via_input(biome_name)
+			if not bool(biome_result.get("ok", false)):
+				return {"ok": false, "action": action, "backend": "player_input", "error": str(biome_result.get("error", "biome_select_failed")), "biome": biome_name}
+			var positions: Array[Vector2i] = _parse_positions(params.get("positions", []), biome_name)
+			var plot_idx = int(positions[0].x) if not positions.is_empty() else _find_plot_index_for_state(biome_name, "terminal")
+			if plot_idx < 0:
+				plot_idx = 0
+			var plot_result = await _select_plot_via_input(plot_idx)
+			if not bool(plot_result.get("ok", false)):
+				return {"ok": false, "action": action, "backend": "player_input", "error": str(plot_result.get("error", "plot_select_failed"))}
+			await _press_key(KEY_Q, false, 3)
+			return {
+				"ok": true,
+				"action": action,
+				"backend": "player_input",
+				"biome": biome_name,
+				"plot_idx": plot_idx,
+			}
+
+		"discover_biome":
+			await _close_player_overlays_via_input()
+			var mode_result = await _ensure_tool_group_mode(4)
+			if not bool(mode_result.get("ok", false)):
+				return {"ok": false, "action": action, "backend": "player_input", "error": "meta_tool_unavailable"}
+			await _press_key(KEY_E, false, 4)
+			return {
+				"ok": true,
+				"action": action,
+				"backend": "player_input",
+				"discovery_forecast": _farm.compute_discovery_forecast() if _farm and _farm.has_method("compute_discovery_forecast") else {},
+			}
+
+		"time_skip":
+			var direct = _execute_policy_action(decision)
+			direct["backend"] = "direct_fallback"
+			return direct
+
+		"victory_lap_partial", "channel_drain":
+			var direct = _execute_policy_action(decision)
+			direct["backend"] = "direct_fallback"
+			return direct
+
+		_:
+			var direct = _execute_policy_action(decision)
+			direct["backend"] = "direct_fallback"
+			return direct
 
 
 func _execute_policy_quest_cycle(policy_params: Dictionary = {}) -> Dictionary:

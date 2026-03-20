@@ -92,7 +92,13 @@ def _latest_batch_summary(match_dir: Path) -> Dict[str, Any]:
     return {}
 
 
-def _seed_character(character_name: str, policy: str, reuse_listener: bool, timeout_s: int = 180) -> Dict[str, Any]:
+def _seed_character(
+    character_name: str,
+    policy: str,
+    reuse_listener: bool,
+    display_mode: str,
+    timeout_s: int = 180,
+) -> Dict[str, Any]:
     save_uri = _save_uri(character_name, policy)
     cmd = [
         sys.executable,
@@ -103,6 +109,8 @@ def _seed_character(character_name: str, policy: str, reuse_listener: bool, time
         character_name,
         "--policy-mode",
         policy,
+        "--display-mode",
+        display_mode,
         "--save-path",
         save_uri,
     ]
@@ -124,6 +132,8 @@ def _run_match(
     max_loops: int,
     runtime_profile: str,
     console_profile: str,
+    display_mode: str,
+    policy_execution_backend: str,
     output_dir: Path,
     reuse_listener: bool,
     seed_timeout_s: int = 180,
@@ -138,6 +148,7 @@ def _run_match(
         character_name,
         policy,
         reuse_listener=reuse_listener,
+        display_mode=display_mode,
         timeout_s=int(seed_timeout_s),
     )
     save_uri = str(seed_result["save_uri"])
@@ -162,6 +173,10 @@ def _run_match(
         runtime_profile,
         "--console-profile",
         console_profile,
+        "--display-mode",
+        display_mode,
+        "--policy-execution-backend",
+        policy_execution_backend,
         "--output-dir",
         str(match_dir),
     ]
@@ -223,6 +238,18 @@ def _build_parser() -> argparse.ArgumentParser:
         choices=["quiet", "normal", "debug", "trace", "test"],
         default="quiet",
     )
+    parser.add_argument(
+        "--display-mode",
+        choices=["headless", "headed"],
+        default="headless",
+        help="Launch derby matches headless or visible",
+    )
+    parser.add_argument(
+        "--policy-execution-backend",
+        choices=["auto", "direct", "player_input"],
+        default="auto",
+        help="How policy steps execute inside the rig",
+    )
     parser.add_argument("--reuse-listener", dest="reuse_listener", action="store_true")
     parser.add_argument("--no-reuse-listener", dest="reuse_listener", action="store_false")
     parser.set_defaults(reuse_listener=True)
@@ -268,6 +295,8 @@ def main() -> int:
                     max_loops=int(args.max_loops),
                     runtime_profile=str(args.runtime_profile),
                     console_profile=str(args.console_profile),
+                    display_mode=str(args.display_mode),
+                    policy_execution_backend=str(args.policy_execution_backend),
                     output_dir=derby_dir,
                     reuse_listener=bool(args.reuse_listener),
                     seed_timeout_s=int(args.seed_timeout),

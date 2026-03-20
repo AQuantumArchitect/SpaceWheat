@@ -79,6 +79,18 @@ def make_base_parser(description: str = "Milk hunt tool") -> argparse.ArgumentPa
         help="Policy mode passed to runner",
     )
     parser.add_argument(
+        "--display-mode",
+        choices=["headless", "headed"],
+        default=None,
+        help="Launch the rig headless or with a visible window",
+    )
+    parser.add_argument(
+        "--policy-execution-backend",
+        choices=["auto", "direct", "player_input"],
+        default=None,
+        help="How policy actions execute inside the rig",
+    )
+    parser.add_argument(
         "--strategy",
         type=str,
         default=None,
