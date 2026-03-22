@@ -497,20 +497,14 @@ static func generate_quest(
 	var faction_bits = faction.get("bits", [0,0,0,0,0,0,0,0,0,0,0,0])
 	var params = FactionStateMatcher.generate_quest_parameters(faction_bits, obs, bath)
 
-	# 6. Apply IconMap constraint (resource vocabulary from lookahead payload)
+	# 6. Apply IconMap constraint (soft filter — prefer emojis in IconMap but don't require it)
 	var icon_map = _get_icon_map_payload(bath)
 	if icon_map and icon_map.has("by_emoji"):
 		var icon_emojis = icon_map["by_emoji"].keys()
-		available_emojis = FactionDatabase.get_vocabulary_overlap(available_emojis, icon_emojis)
-		if available_emojis.is_empty():
-			_log("debug", "quest", "🚫", "%s inaccessible - no IconMap overlap with resource vocabulary" % faction_name)
-			return {
-				"error": "no_iconmap_overlap",
-				"message": "No active resource overlap for %s yet..." % faction.get("name", "Unknown"),
-				"faction": faction.get("name", "Unknown"),
-				"required_emojis": icon_emojis.slice(0, 3),
-				"faction_vocabulary": faction_vocab.signature
-			}
+		var filtered = FactionDatabase.get_vocabulary_overlap(available_emojis, icon_emojis)
+		if not filtered.is_empty():
+			available_emojis = filtered
+		# If IconMap has no overlap, keep the vocab-filtered emojis — don't gate on IconMap
 
 	# 7. Add vocabulary constraint to params
 	params.available_emojis = available_emojis
@@ -555,16 +549,18 @@ static func generate_quest(
 
 	if grant_vocab:
 		var vocab_pair = _roll_vocabulary_reward_pair(signature, player_vocab, bias_emojis)
-		if vocab_pair.get("north", "") == "" or vocab_pair.get("south", "") == "":
-			return {
-				"error": "no_reward_pair",
-				"message": "No valid reward vocabulary pair available",
-				"faction": faction.get("name", "Unknown")
-			}
-		quest["reward_vocab_north"] = vocab_pair.get("north", "")
-		quest["reward_vocab_south"] = vocab_pair.get("south", "")
-		quest["reward_vocab_probability"] = vocab_pair.get("probability", 0.0)
-		quest["reward_vocab_weight"] = vocab_pair.get("weight", 0.0)
+		if vocab_pair.get("north", "") != "" and vocab_pair.get("south", "") != "":
+			quest["reward_vocab_north"] = vocab_pair.get("north", "")
+			quest["reward_vocab_south"] = vocab_pair.get("south", "")
+			quest["reward_vocab_probability"] = vocab_pair.get("probability", 0.0)
+			quest["reward_vocab_weight"] = vocab_pair.get("weight", 0.0)
+		else:
+			# Pair rolling failed (all connections known) — fall back to resource-only
+			grant_vocab = false
+			quest["reward_vocab_north"] = ""
+			quest["reward_vocab_south"] = ""
+			quest["reward_vocab_probability"] = 0.0
+			quest["reward_vocab_weight"] = 0.0
 	else:
 		quest["reward_vocab_north"] = ""
 		quest["reward_vocab_south"] = ""
@@ -638,18 +634,21 @@ static func _compute_vocab_resonance_probability(
 		inventory_mass = sig_inventory / max(1.0, float(signature.size()) * 21.0)
 		inventory_mass = clamp(inventory_mass, 0.0, 3.0)
 
-	# Logistic gate around a moderate threshold.
+	# Logistic gate: vocab rewards are the primary quest value in the Fibonacci economy
+	# (resource rewards are net-negative trades for diversification).
+	# Floor at 0.35 ensures vocab flows even with minimal biome evolution.
+	# Factors that BOOST beyond floor: coherence, purity, overlap, unknown emojis.
 	var x = (
-		(2.8 * signature_ratio)
-		+ (1.4 * coherence)
-		+ (0.9 * purity)
-		+ (1.2 * overlap_ratio)
-		+ (1.0 * unknown_ratio)
+		(1.5 * signature_ratio)
+		+ (1.0 * coherence)
+		+ (0.6 * purity)
+		+ (1.5 * overlap_ratio)
+		+ (1.2 * unknown_ratio)
 		+ (1.8 * inventory_mass)
-		- 2.4
+		- 0.5
 	)
 	var logistic = 1.0 / (1.0 + exp(-x))
-	var p_vocab = clamp(0.08 + 0.74 * logistic, 0.05, 0.9)
+	var p_vocab = clamp(0.35 + 0.50 * logistic, 0.35, 0.9)
 
 	return {
 		"p_vocab": p_vocab,
@@ -749,7 +748,10 @@ static func _roll_vocabulary_reward_pair(
 	var south_connections = south_result.get("connections", {})
 
 	# Step 2: Find NORTH candidates from faction signature
-	# Must be: in faction signature AND connected to South AND unknown to player
+	# Must be: in faction signature AND unknown to player
+	# Connection check: prefer IconRegistry connections, but faction co-membership
+	# is sufficient (all signature emojis are considered reachable from each other).
+	var has_icon_connections = not south_connections.is_empty()
 	var north_candidates: Array = []
 	for emoji in faction_signature:
 		# Skip if player already knows this emoji
@@ -758,8 +760,8 @@ static func _roll_vocabulary_reward_pair(
 		# Skip if same as south
 		if emoji == south:
 			continue
-		# Skip if not connected to South
-		if not south_connections.has(emoji):
+		# Skip if not connected to South (when IconRegistry has data)
+		if has_icon_connections and not south_connections.has(emoji):
 			continue
 
 		# Calculate weight: connectedness to South + player vocab connectivity

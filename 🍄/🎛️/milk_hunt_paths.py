@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 import os
+import time
 from pathlib import Path
 from typing import Optional
 
 
 APP_NAME = os.environ.get("APPLICATION_NAME", "SpaceWheat - Quantum Farm")
+_DEFAULT_XDG_BASE = "/tmp/sw_godot_milk_hunt"
 
 
 def project_root() -> Path:
@@ -24,8 +26,36 @@ def runner_root(from_file: Optional[Path] = None) -> Path:
     return Path(__file__).resolve().parent
 
 
-def xdg_root(default: str = "/tmp/sw_godot_milk_hunt") -> Path:
-    return Path(os.environ.get("XDG_ROOT", default))
+def _lane_token() -> str:
+    token = os.environ.get("SW_RIG_LANE", "").strip()
+    if token:
+        return token
+    token = f"lane_{os.getpid()}_{int(time.time() * 1000)}"
+    os.environ["SW_RIG_LANE"] = token
+    return token
+
+
+def xdg_root(default: Optional[str] = None) -> Path:
+    explicit = os.environ.get("XDG_ROOT", "").strip()
+    if explicit:
+        return Path(explicit)
+    base = Path(default or _DEFAULT_XDG_BASE)
+    private_root = base / _lane_token()
+    os.environ["XDG_ROOT"] = str(private_root)
+    return private_root
+
+
+def lane_env(
+    *,
+    xdg: Optional[Path] = None,
+    env: Optional[dict[str, str]] = None,
+) -> dict[str, str]:
+    out = dict(os.environ if env is None else env)
+    root = Path(xdg) if xdg is not None else xdg_root()
+    out["XDG_ROOT"] = str(root)
+    if "SW_RIG_LANE" not in out or not str(out["SW_RIG_LANE"]).strip():
+        out["SW_RIG_LANE"] = Path(root).name
+    return out
 
 
 def user_dir(xdg: Optional[Path] = None, app_name: str = APP_NAME) -> Path:

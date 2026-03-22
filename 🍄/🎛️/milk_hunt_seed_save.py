@@ -248,15 +248,15 @@ def main() -> int:
 
     resource_mode = _select_resource_mode(args.resource_mode, profile)
 
-    if args.reuse_listener and RigClient.find_listener_pids():
+    if args.reuse_listener and RigClient.find_listener_pids(xdg=rig.xdg_root):
         safe_print("seed-save: phrame bridge detected — visual mode")
-        if RigClient._bridge_sentinel_path().exists():
+        if RigClient._bridge_sentinel_path(rig.xdg_root).exists():
             safe_print("seed-save: bridge active, sending seed actions directly")
         rig.clear_rig_files()  # sentinel-safe — only clears queue + results
         proc = None
     else:
         safe_print("seed-save: resetting rig cache and starting listener")
-        rig.kill_existing_listeners()
+        rig.kill_existing_listeners(xdg=rig.xdg_root)
         rig.clear_rig_files()
         proc = rig.start_listener(
             load_slot=args.load_slot,
@@ -264,7 +264,7 @@ def main() -> int:
             display_mode=str(args.display_mode or "headless"),
         )
         ready_timeout = float(args.ready_timeout) if args.ready_timeout is not None else (180.0 if args.display_mode == "headed" else 70.0)
-        boot_lines = rig.wait_for_ready(proc, timeout_s=ready_timeout)
+        boot_lines = rig.wait_for_ready(proc, timeout_s=ready_timeout, xdg=rig.xdg_root)
         ready = RigClient.ready_seen(boot_lines)
         if proc.poll() is not None or not ready:
             safe_print("seed-save: listener failed to reach ready state")

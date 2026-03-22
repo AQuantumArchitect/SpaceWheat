@@ -1394,18 +1394,23 @@ func explore_biome() -> Dictionary:
 
 
 func _compute_discovery_weights(unexplored: Array) -> Array[float]:
-	"""Compute vocab-weighted discovery probabilities for unexplored biomes.
+	"""Compute discovery probabilities using quest affinity, vocab affinity, AND milk cascade.
 
 	Weight formula per biome b:
-		weight(b) = FLOOR + QUEST_SCALE * quest_affinity(b) + VOCAB_SCALE * vocab_affinity(b)
+		weight(b) = FLOOR
+			+ QUEST_SCALE * quest_affinity(b)
+			+ VOCAB_SCALE * vocab_affinity(b)
+			+ MILK_SCALE * milk_cascade_value(b)
 
-	FLOOR is low (0.1) so quest/vocab steering dominates. Locking quests
-	that point at a specific biome makes that biome very likely to appear.
+	The milk cascade term checks: does this biome contain emojis from factions
+	that are close to milk? This steers discovery toward the Reality Midwives path.
 	"""
 	const BiomeAffinityCalculator = preload("res://Core/Quantum/BiomeAffinityCalculator.gd")
+	const BiomeRegistryClass = preload("res://Core/Biomes/BiomeRegistry.gd")
 	const FLOOR = 0.1
 	const QUEST_SCALE = 5.0
 	const VOCAB_SCALE = 2.0
+	const MILK_SCALE = 3.0
 
 	var weights: Array[float] = []
 
@@ -1429,6 +1434,14 @@ func _compute_discovery_weights(unexplored: Array) -> Array[float]:
 	if player_vocab and player_vocab.has_method("get_all_learned_pairs"):
 		learned_pairs = player_vocab.get_all_learned_pairs()
 
+	# Milk cascade: which factions' signatures have low milk distance?
+	# emoji_to_factions and faction_milk_value are precomputed.
+	var faction_sigs = PolicyStateProjector.get_faction_signatures()
+	var emoji_to_factions = PolicyStateProjector.get_emoji_to_factions()
+
+	# BiomeRegistry for biome emoji lists
+	var biome_registry = BiomeRegistryClass.new()
+
 	for biome_name in unexplored:
 		var w = FLOOR
 
@@ -1440,6 +1453,20 @@ func _compute_discovery_weights(unexplored: Array) -> Array[float]:
 			for pair in learned_pairs:
 				vocab_sum += BiomeAffinityCalculator.calculate_affinity_by_name(pair, biome_name)
 			w += VOCAB_SCALE * vocab_sum / learned_pairs.size()
+
+		# Milk cascade: best faction_milk_value reachable through this biome's emojis
+		var biome_data = biome_registry.get_by_name(biome_name)
+		if biome_data:
+			var best_fmv = PolicyStateProjector._MILK_MAX_DISTANCE
+			for emoji in biome_data.emojis:
+				# This emoji appears in certain factions' signatures
+				for fname in emoji_to_factions.get(emoji, []):
+					var fmv = PolicyStateProjector.faction_milk_value(fname)
+					if fmv < best_fmv:
+						best_fmv = fmv
+			if best_fmv < PolicyStateProjector._MILK_MAX_DISTANCE:
+				# Lower fmv = closer to milk = higher weight
+				w += MILK_SCALE * (float(PolicyStateProjector._MILK_MAX_DISTANCE) / max(1.0, float(best_fmv)))
 
 		weights.append(w)
 	return weights

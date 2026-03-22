@@ -149,16 +149,12 @@ static func _roll_south_pole_from_signature(icon_registry, faction_signature: Ar
 		# Get player's inventory amount for this emoji (0 if none)
 		var amount = all_resources.get(emoji, 0)
 
-		# Check if this emoji has connections (can be paired)
+		# Get IconRegistry connections if available (used for north pole selection)
 		var connections = get_connection_weights(emoji, icon_registry)
-		if connections.is_empty():
-			continue
+		# Don't skip emojis without IconRegistry connections — north pole selection
+		# falls back to faction co-membership when connections are empty.
 
 		# Weight = power-law inventory bias (preserves Fibonacci ratios)
-		# Formula: (amount + 1)^0.65
-		#   0 credits → 1.0 (base weight)
-		#   5 credits → 3.4x
-		#   21 credits → 8.6x
 		var weight = pow(amount + 1.0, 0.65)
 		candidates[emoji] = {"weight": weight, "amount": amount, "connections": connections}
 

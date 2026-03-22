@@ -92,6 +92,7 @@ const PolicySnapshotBuilder = preload("res://Core/Instrumentation/PolicySnapshot
 const PhysicsConfig = preload("res://Core/Config/PhysicsConfig.gd")
 const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")
 const ToolConfig = preload("res://Core/GameState/ToolConfig.gd")
+const PlayerInputMacroRunner = preload("res://UI/Core/PlayerInputMacroRunner.gd")
 
 signal action_executed(turn_id: int, action: String, result: Dictionary)
 signal bridge_idle()
@@ -110,6 +111,7 @@ var _snapshot_service = null
 var _instrument = null  # QuantumInstrument
 var _farm = null
 var _policy = null  # QuantumFiberPolicy
+var _player_input_macro_runner = null
 var _last_offers: Array = []
 var _is_headless: bool = true
 var _turn_log_enabled: bool = true
@@ -183,6 +185,7 @@ func _on_ready() -> void:
 	_instrument = InstrumentLocator.resolve_quantum_instrument(_shell)
 	_ensure_policy()
 	_sync_policy_from_game_state()
+	_ensure_player_input_macro_runner()
 	var turn_log_env = OS.get_environment("RIG_VERBOSE_TURN_LOG").to_lower()
 	if turn_log_env == "":
 		var profile = OS.get_environment("RIG_LOG_PROFILE").to_lower()
@@ -514,11 +517,7 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 			result["claimed"] = bool(claim_result.get("claimed", false))
 
 		"resource_snapshot":
-			var policy_resources = _get_policy_snapshot(false, false)
-			var resource_snapshot = policy_resources.get("resource_snapshot", {})
-			if not (resource_snapshot is Dictionary):
-				resource_snapshot = {}
-			result["resources"] = resource_snapshot
+			result["resources"] = _snapshot_service.get_resource_snapshot() if _snapshot_service else {}
 
 		"policy_snapshot":
 			var include_offers = bool(cmd.get("include_offers", true))
@@ -546,31 +545,22 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 			result["mutations"] = _instrument.get_recent_resource_mutations(limit)
 
 		"grid_snapshot":
-			var policy_grid = _get_policy_snapshot(false, true)
-			var grid_snapshot = policy_grid.get("grid", {})
-			if not (grid_snapshot is Dictionary):
-				grid_snapshot = {}
-			result["grid"] = grid_snapshot
+			result["grid"] = _snapshot_service.get_grid_snapshot() if _snapshot_service else {}
 
 		"biome_positions":
 			var biome_name = str(cmd.get("biome", ""))
 			result["biome"] = biome_name
-			if _snapshot_service and _snapshot_service.has_method("get_biome_positions"):
-				result["positions"] = _snapshot_service.get_biome_positions(biome_name)
-			else:
-				result["positions"] = _instrument.get_biome_positions(biome_name)
+			result["positions"] = _snapshot_service.get_biome_positions(biome_name) if _snapshot_service else []
 
 		"active_quests":
 			var full = bool(cmd.get("full", false))
-			var policy_quests = _get_policy_snapshot(false, false)
-			var active = policy_quests.get("active_quests", [])
+			var active = _snapshot_service.get_active_quests() if _snapshot_service else []
 			if not (active is Array):
 				active = []
 			result["quests"] = active if full else _slim_active_quests(active)
 
 		"known_vocab_pairs":
-			var policy_pairs = _get_policy_snapshot(false, false)
-			var pairs = policy_pairs.get("known_pairs", [])
+			var pairs = _snapshot_service.get_known_vocab_pairs() if _snapshot_service else []
 			result["pairs"] = pairs if pairs is Array else []
 
 		"inject_vocab":
@@ -964,52 +954,27 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 			if overlay_name == "":
 				result = {"ok": false, "turn": turn_id, "action": action, "error": "missing_overlay_name"}
 			else:
-				var overlay_manager = _shell.overlay_manager if _shell and "overlay_manager" in _shell else null
-				var overlay = overlay_manager.get_v2_overlay(overlay_name) if overlay_manager else null
-				if overlay and overlay.has_method("get_snapshot"):
-					result["overlay"] = overlay_name
-					result["snapshot"] = overlay.get_snapshot()
-				else:
-					result = {"ok": false, "turn": turn_id, "action": action,
-						"error": "overlay_not_found", "overlay": overlay_name}
+				var overlay_snapshot = _snapshot_service.get_overlay_snapshot(overlay_name) if _snapshot_service else {"ok": false, "error": "overlay_not_found", "overlay": overlay_name}
+				result.merge(overlay_snapshot, true)
 
 		"widget_snapshot":
 			var widget_name = str(cmd.get("widget", ""))
 			if widget_name == "":
 				result = {"ok": false, "turn": turn_id, "action": action, "error": "missing_widget_name"}
 			else:
-				var widget = _resolve_widget(widget_name)
-				if widget and widget.has_method("get_snapshot"):
-					result["widget"] = widget_name
-					result["snapshot"] = widget.get_snapshot()
-				else:
-					result = {"ok": false, "turn": turn_id, "action": action,
-						"error": "widget_not_found", "widget": widget_name}
+				var widget_snapshot = _snapshot_service.get_widget_snapshot(widget_name) if _snapshot_service else {"ok": false, "error": "widget_not_found", "widget": widget_name}
+				result.merge(widget_snapshot, true)
 
 		"hud_snapshot":
 			var hud_name = str(cmd.get("hud", ""))
 			if hud_name == "":
 				result = {"ok": false, "turn": turn_id, "action": action, "error": "missing_hud_name"}
 			else:
-				var hud = _resolve_hud(hud_name)
-				if hud and hud.has_method("get_snapshot"):
-					result["hud"] = hud_name
-					result["snapshot"] = hud.get_snapshot()
-				else:
-					result = {"ok": false, "turn": turn_id, "action": action,
-						"error": "hud_not_found", "hud": hud_name}
+				var hud_snapshot = _snapshot_service.get_hud_snapshot(hud_name) if _snapshot_service else {"ok": false, "error": "hud_not_found", "hud": hud_name}
+				result.merge(hud_snapshot, true)
 
 		"full_snapshot":
-			var snapshot: Dictionary = {"widgets": {}, "huds": {}}
-			for wname in ["resources", "action_preview", "quantum_mode", "biome_oval", "quest_panel", "faction_browser"]:
-				var w = _resolve_widget(wname)
-				if w and w.has_method("get_snapshot"):
-					snapshot["widgets"][wname] = w.get_snapshot()
-			for hname in ["milk_hunter", "performance"]:
-				var h = _resolve_hud(hname)
-				if h and h.has_method("get_snapshot"):
-					snapshot["huds"][hname] = h.get_snapshot()
-			result["snapshot"] = snapshot
+			result["snapshot"] = _snapshot_service.get_full_ui_snapshot() if _snapshot_service else {}
 
 		"policy_reset":
 			var config = cmd.get("config", {})
@@ -1019,7 +984,7 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 			result["policy"] = policy.reset(config)
 			_sync_policy_into_game_state()
 
-		"policy_snapshot":
+		"policy_debug_snapshot":
 			var policy = _ensure_policy()
 			result["policy"] = policy.get_snapshot()
 
@@ -1038,7 +1003,9 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 				else:
 					execution = await _execute_policy_action(decision)
 				execution["backend"] = str(execution.get("backend", execution_backend))
-			var post_state = _build_policy_state(cmd)
+			# Build post_state WITHOUT regenerating quest offers (expensive).
+			# Only resources, pairs, biomes, and lindblad need to be fresh for reward computation.
+			var post_state = _build_policy_state_lightweight(cmd)
 			var learning = policy.observe(pre_state, decision, post_state, execution)
 			if compact:
 				decision = {
@@ -1691,15 +1658,17 @@ func _parse_wait_threshold(raw) -> Dictionary:
 
 
 func _get_resource_map() -> Dictionary:
+	if _snapshot_service and _snapshot_service.has_method("get_resource_snapshot"):
+		var snap = _snapshot_service.get_resource_snapshot()
+		if snap is Dictionary:
+			var resources = snap.get("resources", {})
+			return resources if resources is Dictionary else {}
 	if not _instrument:
 		return {}
-	var policy_snapshot = _get_policy_snapshot(false, false)
-	var resources = policy_snapshot.get("resources", {})
-	if not (resources is Dictionary):
-		var snap = _instrument.get_resource_snapshot()
-		if not (snap is Dictionary):
-			return {}
-		resources = snap.get("resources", {})
+	var snap = _instrument.get_resource_snapshot()
+	if not (snap is Dictionary):
+		return {}
+	var resources = snap.get("resources", {})
 	return resources if resources is Dictionary else {}
 
 
@@ -1845,6 +1814,37 @@ func _build_policy_state(cmd: Dictionary = {}) -> Dictionary:
 		"discovery_forecast": _farm.compute_discovery_forecast() if _farm and _farm.has_method("compute_discovery_forecast") else {},
 		"locked_offers": _instrument.get_locked_offers() if _instrument else [],
 	}
+
+
+func _build_policy_state_lightweight(cmd: Dictionary = {}) -> Dictionary:
+	"""Build post-action state for reward computation WITHOUT regenerating quest offers.
+	Quest generation (89 factions × generate_quest) is expensive; the reward signal
+	only needs resources, pairs, biomes, and lindblad state — not fresh offers."""
+	if _snapshot_service and _snapshot_service.has_method("build_policy_state_lightweight"):
+		var projected = _snapshot_service.build_policy_state_lightweight(cmd)
+		if projected is Dictionary:
+			return projected
+	return {
+		"profile": str(cmd.get("profile", "default")),
+		"resources": _get_resource_map(),
+		"resource_floors": _parse_wait_threshold(cmd.get("resource_floors", {})),
+		"forbid_actions": cmd.get("forbid_actions", []),
+		"known_pairs": _instrument.get_known_vocab_pairs() if _instrument else [],
+		"offers": [],  # Skip expensive quest generation for post-state
+		"active_quests": _instrument.get_active_quests() if _instrument else [],
+		"biomes": [],
+		"lindblad": _snapshot_service.get_lindblad_snapshot("", false) if _snapshot_service else {},
+		"discovery_forecast": {},  # Skip expensive forecast for post-state
+		"locked_offers": _instrument.get_locked_offers() if _instrument else [],
+	}
+
+
+func _ensure_player_input_macro_runner():
+	if _player_input_macro_runner:
+		return _player_input_macro_runner
+	_player_input_macro_runner = PlayerInputMacroRunner.new()
+	_player_input_macro_runner.setup(self)
+	return _player_input_macro_runner
 
 
 func _policy_state_has_milk(state: Dictionary) -> bool:
@@ -2233,168 +2233,8 @@ func _execute_policy_action(decision: Dictionary) -> Dictionary:
 
 
 func _execute_policy_action_via_input(decision: Dictionary) -> Dictionary:
-	var action = str(decision.get("action", ""))
-	var params = decision.get("params", {})
-	if not (params is Dictionary):
-		params = {}
-
-	match action:
-		"probe_cycle":
-			var biome_name = str(params.get("biome", ""))
-			await _close_player_overlays_via_input()
-			var mode_result = await _ensure_tool_group_mode(3, "probe")
-			if not bool(mode_result.get("ok", false)):
-				return {"ok": false, "action": action, "backend": "player_input", "error": "probe_mode_unavailable"}
-			var biome_result = await _select_biome_via_input(biome_name)
-			if not bool(biome_result.get("ok", false)):
-				return {"ok": false, "action": action, "backend": "player_input", "error": str(biome_result.get("error", "biome_select_failed")), "biome": biome_name}
-			var plot_idx = _find_plot_index_for_state(biome_name, "measured")
-			if plot_idx >= 0:
-				await _select_plot_via_input(plot_idx)
-				await _press_key(KEY_R, false, 3)
-			else:
-				if _find_plot_index_for_state(biome_name, "measurable") < 0:
-					await _press_key(KEY_Q, false, 3)
-				plot_idx = _find_plot_index_for_state(biome_name, "measurable")
-				if plot_idx < 0:
-					plot_idx = _find_plot_index_for_state(biome_name, "terminal")
-				if plot_idx < 0:
-					return {"ok": false, "action": action, "backend": "player_input", "error": "no_terminal_after_explore", "biome": biome_name}
-				await _select_plot_via_input(plot_idx)
-				await _press_key(KEY_E, false, 3)
-				await _press_key(KEY_R, false, 3)
-			return {
-				"ok": true,
-				"action": action,
-				"backend": "player_input",
-				"biome": biome_name,
-				"plot_idx": plot_idx,
-				"resources": _get_resource_map(),
-			}
-
-		"quest_cycle":
-			var open_result = await _open_quest_board_via_input()
-			if not bool(open_result.get("ok", false)):
-				return _execute_policy_quest_cycle(params).merged({"backend": "direct_fallback"}, true)
-			var overlay_manager = _resolve_overlay_manager()
-			var board = overlay_manager.get_v2_overlay("quests") if overlay_manager and overlay_manager.has_method("get_v2_overlay") else null
-			if not board or not board.has_method("get_snapshot"):
-				return _execute_policy_quest_cycle(params).merged({"backend": "direct_fallback"}, true)
-			var snapshot = board.get_snapshot()
-			var target_page = 0
-			var target_slot = -1
-			var target_state = ""
-			var slots = snapshot.get("slots", [])
-			if slots is Array:
-				for slot in slots:
-					if slot is Dictionary and str(slot.get("state", "")) in ["ready", "active"]:
-						target_slot = int(slot.get("index", -1))
-						target_state = str(slot.get("state", ""))
-						break
-			if target_slot < 0:
-				var offer_index = int(params.get("offer_index", -1))
-				if offer_index >= 0:
-					target_page = int(offer_index / 4)
-					target_slot = offer_index % 4
-				else:
-					for slot in slots:
-						if slot is Dictionary and str(slot.get("state", "")) == "offered":
-							target_slot = int(slot.get("index", -1))
-							target_state = "offered"
-							break
-			if target_slot < 0:
-				await _press_key(KEY_ESCAPE, false, 2)
-				return {"ok": false, "action": action, "backend": "player_input", "error": "no_actionable_quest_slot"}
-			var nav = await _navigate_quest_slot_via_input(target_page, target_slot)
-			if not bool(nav.get("ok", false)):
-				await _press_key(KEY_ESCAPE, false, 2)
-				return {"ok": false, "action": action, "backend": "player_input", "error": str(nav.get("error", "quest_nav_failed"))}
-			await _press_key(KEY_Q, false, 3)
-			var post_snapshot = board.get_snapshot()
-			await _press_key(KEY_ESCAPE, false, 2)
-			return {
-				"ok": true,
-				"action": action,
-				"backend": "player_input",
-				"quest_page": target_page,
-				"quest_slot": target_slot,
-				"quest_state": target_state,
-				"quest_board": post_snapshot,
-			}
-
-		"lock_offer":
-			var open_result = await _open_quest_board_via_input()
-			if not bool(open_result.get("ok", false)):
-				return _execute_policy_action(decision).merged({"backend": "direct_fallback"}, true)
-			var offer_index = int(params.get("offer_index", -1))
-			if offer_index < 0:
-				await _press_key(KEY_ESCAPE, false, 2)
-				return {"ok": false, "action": action, "backend": "player_input", "error": "invalid_offer_index"}
-			var nav = await _navigate_quest_slot_via_input(int(offer_index / 4), offer_index % 4)
-			if not bool(nav.get("ok", false)):
-				await _press_key(KEY_ESCAPE, false, 2)
-				return {"ok": false, "action": action, "backend": "player_input", "error": str(nav.get("error", "quest_nav_failed"))}
-			await _press_key(KEY_E, false, 3)
-			await _press_key(KEY_ESCAPE, false, 2)
-			return {
-				"ok": true,
-				"action": action,
-				"backend": "player_input",
-				"offer_index": offer_index,
-			}
-
-		"lindblad_drain":
-			var biome_name = str(params.get("biome", ""))
-			await _close_player_overlays_via_input()
-			var mode_result = await _ensure_tool_group_mode(2)
-			if not bool(mode_result.get("ok", false)):
-				return {"ok": false, "action": action, "backend": "player_input", "error": "lindblad_tool_unavailable"}
-			var biome_result = await _select_biome_via_input(biome_name)
-			if not bool(biome_result.get("ok", false)):
-				return {"ok": false, "action": action, "backend": "player_input", "error": str(biome_result.get("error", "biome_select_failed")), "biome": biome_name}
-			var positions: Array[Vector2i] = _parse_positions(params.get("positions", []), biome_name)
-			var plot_idx = int(positions[0].x) if not positions.is_empty() else _find_plot_index_for_state(biome_name, "terminal")
-			if plot_idx < 0:
-				plot_idx = 0
-			var plot_result = await _select_plot_via_input(plot_idx)
-			if not bool(plot_result.get("ok", false)):
-				return {"ok": false, "action": action, "backend": "player_input", "error": str(plot_result.get("error", "plot_select_failed"))}
-			await _press_key(KEY_Q, false, 3)
-			return {
-				"ok": true,
-				"action": action,
-				"backend": "player_input",
-				"biome": biome_name,
-				"plot_idx": plot_idx,
-			}
-
-		"discover_biome":
-			await _close_player_overlays_via_input()
-			var mode_result = await _ensure_tool_group_mode(4)
-			if not bool(mode_result.get("ok", false)):
-				return {"ok": false, "action": action, "backend": "player_input", "error": "meta_tool_unavailable"}
-			await _press_key(KEY_E, false, 4)
-			return {
-				"ok": true,
-				"action": action,
-				"backend": "player_input",
-				"discovery_forecast": _farm.compute_discovery_forecast() if _farm and _farm.has_method("compute_discovery_forecast") else {},
-			}
-
-		"time_skip":
-			var direct = _execute_policy_action(decision)
-			direct["backend"] = "direct_fallback"
-			return direct
-
-		"victory_lap_partial", "channel_drain":
-			var direct = _execute_policy_action(decision)
-			direct["backend"] = "direct_fallback"
-			return direct
-
-		_:
-			var direct = _execute_policy_action(decision)
-			direct["backend"] = "direct_fallback"
-			return direct
+	var runner = _ensure_player_input_macro_runner()
+	return await runner.execute(decision)
 
 
 func _execute_policy_quest_cycle(policy_params: Dictionary = {}) -> Dictionary:
@@ -2415,11 +2255,14 @@ func _execute_policy_quest_cycle(policy_params: Dictionary = {}) -> Dictionary:
 			if completed_or_claimed:
 				completed_ids.append(qid)
 
-	var offers: Array = []
-	var offer_result = _instrument.quest_offer_all()
-	var offered = offer_result.get("offers", [])
-	if offered is Array:
-		offers = offered
+	# Use cached offers from _build_policy_state instead of regenerating (expensive).
+	# _cached_offers is invalidated when pairs change, so it's always fresh enough.
+	var offers: Array = _cached_offers if not _cached_offers.is_empty() else []
+	if offers.is_empty():
+		var offer_result = _instrument.quest_offer_all()
+		var offered = offer_result.get("offers", [])
+		if offered is Array:
+			offers = offered
 	var resources = _get_resource_map()
 	var known_pairs = _instrument.get_known_vocab_pairs() if _instrument else []
 	var known_emojis: Dictionary = {}
@@ -2506,19 +2349,20 @@ func _select_best_affordable_offer(offers: Array, resources: Dictionary, known_e
 			novelty += 1.0
 		var discovery_aff = float(offer.get("discovery_affinity", 0.0))
 		var milk_bonus = 420.0 if (north == "🍼" or south == "🍼") else 0.0
-		# Milk proximity: bonus for offers teaching emojis near milk in the graph
-		var milk_prox = 0.0
-		if north != "":
-			var d = PolicyStateProjector.milk_distance(north)
-			if d <= 2:
-				milk_prox = maxf(milk_prox, 25.0 / maxf(1.0, float(d)))
-		if south != "":
-			var d = PolicyStateProjector.milk_distance(south)
-			if d <= 2:
-				milk_prox = maxf(milk_prox, 25.0 / maxf(1.0, float(d)))
+		# Milk graph hint (tie-breaker; real learning comes from reward signal)
+		var milk_hint = 0.0
+		for e in [north, south]:
+			if e == "":
+				continue
+			var d = PolicyStateProjector.milk_distance(e)
+			if d < 8:
+				milk_hint = maxf(milk_hint, 8.0 / maxf(1.0, float(d)))
+			var c = PolicyStateProjector.milk_cascade_value(e)
+			if c < 8:
+				milk_hint = maxf(milk_hint, 5.0 / maxf(1.0, float(c)))
 		var pair_frontier_bonus = 20.0 if novelty >= 2.0 else 0.0
 		var surplus = (1.0 - qty / max(1.0, float(resources.get(resource, 0.0)))) * 12.0
-		var score = reward_sum * 0.22 + novelty * 32.0 + pair_frontier_bonus + milk_bonus + milk_prox + discovery_aff * 18.0 + surplus
+		var score = reward_sum * 0.22 + novelty * 32.0 + pair_frontier_bonus + milk_bonus + milk_hint + discovery_aff * 18.0 + surplus
 		affordable_rows.append({
 			"idx": i,
 			"score": score,
@@ -2659,64 +2503,3 @@ func _allow_rig_resource_injection() -> bool:
 	if raw == "":
 		return true
 	return raw in ["1", "true", "yes", "on"]
-
-
-func _resolve_widget(widget_name: String):
-	"""Resolve a widget name to the live Control instance (or null)."""
-	var farm_ui = _shell.get_farm_ui() if _shell and _shell.has_method("get_farm_ui") else null
-	match widget_name:
-		"resources":
-			return farm_ui.resource_panel if farm_ui and "resource_panel" in farm_ui else null
-		"action_preview":
-			if _shell and "action_preview_row" in _shell:
-				return _shell.action_preview_row
-			if _shell and "action_bar_manager" in _shell and _shell.action_bar_manager:
-				return _shell.action_bar_manager.action_preview_row
-			return null
-		"quantum_mode":
-			return _shell.quantum_mode_indicator if _shell and "quantum_mode_indicator" in _shell else null
-		"biome_oval":
-			var overlay_manager = _shell.overlay_manager if _shell and "overlay_manager" in _shell else null
-			var overlay = overlay_manager.get_v2_overlay("biome_inspector") if overlay_manager else null
-			if overlay and "current_biome_panel" in overlay:
-				return overlay.current_biome_panel
-			return null
-		"quest_panel":
-			var overlay_manager = _shell.overlay_manager if _shell and "overlay_manager" in _shell else null
-			var overlay = overlay_manager.get_v2_overlay("quests") if overlay_manager else null
-			if overlay and "quest_panel" in overlay:
-				return overlay.quest_panel
-			return null
-		"faction_browser":
-			var overlay_manager = _shell.overlay_manager if _shell and "overlay_manager" in _shell else null
-			var overlay = overlay_manager.get_v2_overlay("quests") if overlay_manager else null
-			if overlay and "faction_browser" in overlay:
-				return overlay.faction_browser
-			return null
-	return null
-
-
-func _resolve_hud(hud_name: String):
-	"""Resolve a HUD name to the live Control instance (or null)."""
-	var farm_view = get_root().get_node_or_null("FarmView") if get_root() else null
-	match hud_name:
-		"milk_hunter":
-			# MilkHunterHUD is a child of FarmView (if created)
-			if farm_view:
-				for child in farm_view.get_children():
-					if child.has_method("get_snapshot") and child.get_class() == "Control" and "MilkHunter" in child.name:
-						return child
-					if "milk_hunter" in str(child.name).to_lower():
-						return child
-			return null
-		"performance":
-			if farm_view and "performance_hud" in farm_view and farm_view.performance_hud:
-				return farm_view.performance_hud
-			var overlay_manager = _shell.overlay_manager if _shell and "overlay_manager" in _shell else null
-			if overlay_manager:
-				if overlay_manager.has_method("get_v2_overlay"):
-					return overlay_manager.get_v2_overlay("inspector")
-				if "v2_overlays" in overlay_manager:
-					return overlay_manager.v2_overlays.get("inspector")
-				return null
-	return null

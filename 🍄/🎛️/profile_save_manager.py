@@ -10,8 +10,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import subprocess
-import sys
 from pathlib import Path
 from typing import Dict
 
@@ -23,34 +21,26 @@ from profile_save_registry import (
     resolve_user_path,
     to_user_uri,
 )
-
-
-SCRIPT_DIR = Path(__file__).resolve().parent
-SEEDER = SCRIPT_DIR / "milk_hunt_seed_save.py"
+from run_executor import ensure_lane, run_seed
 
 
 def _default_profile_save_path(profile: str) -> Path:
     return resolve_user_path(f"user://saves/profiles/{profile}.tres")
 
 
-def _run_seed(profile: str, slot: int, out_path: Path, reuse_listener: bool) -> None:
-    cmd = [
-        "python3",
-        str(SEEDER),
-        "--slot",
-        str(slot),
-        "--profile",
-        profile,
-        "--save-path",
-        to_user_uri(out_path),
-    ]
-    if reuse_listener:
-        cmd.append("--reuse-listener")
-    proc = subprocess.run(cmd, capture_output=True, text=True, check=False)
-    if proc.returncode != 0:
+def _run_seed(profile: str, slot: int, out_path: Path, reuse_listener: bool, lane) -> None:
+    result = run_seed(
+        lane=lane,
+        timeout_s=180,
+        profile=profile,
+        slot=slot,
+        save_path=to_user_uri(out_path),
+        reuse_listener=reuse_listener,
+    )
+    if int(result.get("exit_code", 1)) != 0:
         raise RuntimeError(
             "seed failed for profile '%s' (slot %d)\n%s%s"
-            % (profile, slot, proc.stdout or "", proc.stderr or "")
+            % (profile, slot, result.get("stdout", "") or "", result.get("stderr", "") or "")
         )
 
 
@@ -60,9 +50,9 @@ def _write_index(entries: Dict[str, str], out_path: Path) -> None:
     write_json(out_path, payload)
 
 
-def _build_one(profile: str, slot: int, output: Path, reuse_listener: bool) -> Path:
+def _build_one(profile: str, slot: int, output: Path, reuse_listener: bool, lane) -> Path:
     output.parent.mkdir(parents=True, exist_ok=True)
-    _run_seed(profile, slot, output, reuse_listener)
+    _run_seed(profile, slot, output, reuse_listener, lane)
     if not output.exists():
         raise RuntimeError(f"expected profile save not found: {output}")
     return output
@@ -104,6 +94,7 @@ def _build_parser() -> argparse.ArgumentParser:
 
 def main() -> int:
     args = _build_parser().parse_args()
+    lane = ensure_lane()
 
     if args.cmd == "list":
         names = list_profile_names()
@@ -116,7 +107,7 @@ def main() -> int:
 
     if args.cmd == "build":
         out_path = resolve_user_path(args.out) if args.out else _default_profile_save_path(args.profile)
-        built = _build_one(args.profile, args.slot, out_path, args.reuse_listener)
+        built = _build_one(args.profile, args.slot, out_path, args.reuse_listener, lane)
         print(json.dumps({"profile": args.profile, "path": to_user_uri(built)}, ensure_ascii=False))
         return 0
 
@@ -127,7 +118,7 @@ def main() -> int:
         entries: Dict[str, str] = {}
         for name in names:
             out_path = out_dir / f"{name}.tres"
-            built = _build_one(name, args.slot, out_path, args.reuse_listener)
+            built = _build_one(name, args.slot, out_path, args.reuse_listener, lane)
             entries[name] = to_user_uri(built)
             print(f"built {name} -> {entries[name]}", flush=True)
         _write_index(entries, index_path)

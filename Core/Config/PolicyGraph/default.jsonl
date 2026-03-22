@@ -23,5 +23,6 @@
 {"op":"set","path":"action_limits.default.cooldown_loops","value":2}
 {"op":"set","path":"reward_terms.resource","value":0.08}
 {"op":"set","path":"reward_terms.pair","value":42.0}
+{"op":"set","path":"reward_terms.milk_progress","value":15.0}
 {"op":"set","path":"reward_terms.execution_penalty","value":-4.0}
 {"op":"set","path":"dynamics.apply_stagnation_penalty","value":true}

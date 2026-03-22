@@ -60,11 +60,10 @@ from profiles import (
     list_names,
     exists as profile_exists,
     load as load_profile,
-    load_policy_weights,
     WORLD_STATE_DIR,
-    POLICY_WEIGHTS_DIR,
 )
 from milk_hunt_io import write_json
+from run_executor import ensure_lane, run_batch, run_runner, run_seed
 
 HERE = Path(__file__).resolve().parent
 LOG_DIR = HERE / "logs" / "derby"
@@ -233,23 +232,6 @@ def _extract_learnings(
             "found_milk": r.found_milk,
         })
 
-    # Tissue signal: winning weight deltas from defaults
-    tissue_deltas: Dict[str, List[float]] = {}
-    for r in winners:
-        pw = load_policy_weights(r.profile)
-        for k, v in pw.items():
-            if k in evolved_ranges:
-                delta = float(v) - float(evolved_ranges[k]["default"])
-                tissue_deltas.setdefault(k, []).append(delta)
-    for k, deltas in tissue_deltas.items():
-        mean_delta = sum(deltas) / len(deltas)
-        if abs(mean_delta) > 0.01:
-            learnings["tissue_signal"][k] = {
-                "mean_delta": round(mean_delta, 4),
-                "direction": "+" if mean_delta > 0 else "-",
-                "n_winners": len(deltas),
-            }
-
     # Resource signal: winner vs loser starting resources
     winner_res: Dict[str, List[float]] = {}
     loser_res: Dict[str, List[float]] = {}
@@ -344,64 +326,55 @@ def _slot_for(profile: str, runner_index: int) -> int:
 
 def _seed_runner(profile: str, slot: int) -> bool:
     """Seed a save slot from a profile."""
-    cmd = [
-        sys.executable, str(SEED_SCRIPT),
-        "--profile", profile,
-        "--slot", str(slot),
-    ]
-    proc = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
-    return proc.returncode in (0, 3)
+    result = run_seed(
+        lane=ensure_lane(),
+        timeout_s=120,
+        profile=profile,
+        slot=slot,
+        reuse_listener=False,
+    )
+    return int(result.get("exit_code", 1)) in (0, 3)
 
 
 def _run_chunk(
     runner: RunnerResult,
     max_cycles: int,
     console_profile: str,
+    lane = None,
     strict: Optional[bool] = None,
 ) -> Dict[str, Any]:
     """Run a chunk of cycles for one runner."""
-    cmd = [
-        sys.executable, str(RUNNER_SCRIPT),
-        "--load-slot", str(runner.slot),
+    extra_args = [
         "--save-slot-at-end", str(runner.slot),
-        "--max-loops", str(max_cycles),
         "--turn-start", str(runner.steps),
-        "--hunter-profile", runner.profile,
-        "--hunter-policy", "engine_policy",
         "--json-only",
         "--reuse-listener",
-        "--console-profile", console_profile,
     ]
     if strict is not None:
-        cmd.append("--strict-biome-economy" if strict else "--no-strict-biome-economy")
+        extra_args.append("--strict-biome-economy" if strict else "--no-strict-biome-economy")
 
-    t0 = time.time()
-    proc = subprocess.run(
-        cmd, capture_output=True, text=True,
-        timeout=max(120, max_cycles * 30),
+    proc = run_runner(
+        lane=lane,
+        timeout_s=max(120, max_cycles * 30),
+        load_slot=runner.slot,
+        max_loops=max_cycles,
+        hunter_profile=runner.profile,
+        hunter_policy="engine_policy",
+        console_profile=console_profile,
+        extra_args=extra_args,
     )
-    elapsed = time.time() - t0
-
-    summary = {}
-    stdout = (proc.stdout or "").strip()
-    if stdout:
-        for line in reversed(stdout.split("\n")):
-            line = line.strip()
-            if line.startswith("{"):
-                try:
-                    summary = json.loads(line)
-                    break
-                except json.JSONDecodeError:
-                    pass
-
-    summary["_chunk_elapsed_s"] = round(elapsed, 2)
+    summary = proc.get("summary", {})
+    if not isinstance(summary, dict):
+        summary = {}
+    summary["_chunk_elapsed_s"] = float(proc.get("elapsed_s", 0.0) or 0.0)
     summary["_chunk_max_loops"] = max_cycles
-    summary["_exit_code"] = proc.returncode
+    summary["_exit_code"] = int(proc.get("exit_code", -1) or -1)
     return summary
 
 
 def cmd_race(args: argparse.Namespace) -> None:
     """🏁 Race mode: N runners, 1 profile, fibonacci interleaved rounds."""
+    lane = ensure_lane()
     n_runners = max(2, min(5, args.runners))
     max_cycles = args.max_cycles
     win_threshold = min(args.win_threshold, n_runners)
@@ -454,7 +427,7 @@ def cmd_race(args: argparse.Namespace) -> None:
                 continue
 
             chunk_cycles = min(step_size, remaining)
-            summary = _run_chunk(r, chunk_cycles, args.console_profile, args.strict)
+            summary = _run_chunk(r, chunk_cycles, args.console_profile, lane, args.strict)
 
             loops_done = summary.get("loops_completed", 0)
             steps = summary.get("steps", 0)
@@ -538,15 +511,15 @@ def _run_lane(
     use_topology_gto: bool = False,
 ) -> List[RunnerResult]:
     """Run all runners for one lane sequentially on one isolated rig."""
-    env = os.environ.copy()
-    env["XDG_ROOT"] = f"/tmp/sw_derby_{lane}"
+    lane_ctx = ensure_lane(Path(f"/tmp/sw_derby_{lane}"))
+    extra_env: Dict[str, str] = {}
 
     if lichen_params:
-        env["MILK_HUNT_POLICY_EPSILON"] = str(lichen_params.get("epsilon", 0.18))
-        env["MILK_HUNT_POLICY_UCB_SCALE"] = str(lichen_params.get("ucb_scale", 1.10))
+        extra_env["MILK_HUNT_POLICY_EPSILON"] = str(lichen_params.get("epsilon", 0.18))
+        extra_env["MILK_HUNT_POLICY_UCB_SCALE"] = str(lichen_params.get("ucb_scale", 1.10))
         overlay = lichen_params.get("overlay_path", "")
         if overlay and Path(overlay).exists():
-            env["MILK_HUNT_POLICY_EXTRA_JSONL"] = overlay
+            extra_env["MILK_HUNT_POLICY_EXTRA_JSONL"] = overlay
 
     results: List[RunnerResult] = []
 
@@ -554,54 +527,46 @@ def _run_lane(
         batch_output = derby_dir / lane / profile
         batch_output.mkdir(parents=True, exist_ok=True)
 
-        cmd = [
-            sys.executable, str(BATCH_SCRIPT),
-            "--profile", profile,
-            "--runs", "1",
-            "--max-loops", str(max_cycles),
-            "--hunter-policy", hunter_policy,
-            "--console-profile", console_profile,
-            "--output-dir", str(batch_output),
-        ]
-
+        extra_args: List[str] = ["--profile", profile]
         if use_topology_gto and lichen_params:
-            cmd.extend([
+            extra_args.extend([
                 "--topology-gto",
                 "--base-policy-epsilon",   str(lichen_params.get("gto_epsilon", 0.18)),
                 "--base-policy-ucb-scale", str(lichen_params.get("gto_ucb_scale", 1.10)),
                 "--epsilon-jitter",        str(lichen_params.get("epsilon_jitter", 0.12)),
                 "--ucb-octave-jitter",     str(lichen_params.get("ucb_octave_jitter", 0.45)),
             ])
-
-        t0 = time.time()
         try:
-            proc = subprocess.run(
-                cmd, capture_output=True, text=True,
-                timeout=max(300, max_cycles * 30), env=env,
+            batch = run_batch(
+                lane=lane_ctx,
+                timeout_s=max(300, max_cycles * 30),
+                runs=1,
+                max_loops=max_cycles,
+                hunter_profile=profile,
+                hunter_policy=hunter_policy,
+                runtime_profile="default",
+                console_profile=console_profile,
+                display_mode="headless",
+                policy_execution_backend="auto",
+                output_dir=batch_output,
+                strict_biome_economy=True,
+                reuse_listener=False,
+                extra_args=extra_args,
+                extra_env=extra_env,
             )
         except subprocess.TimeoutExpired:
-            elapsed = time.time() - t0
             results.append(RunnerResult(
-                profile=profile, lane=lane, elapsed_s=elapsed, exit_code=-1))
-            print(f"  [{LANE} {lane}] {profile}: TIMEOUT ({elapsed:.0f}s)", flush=True)
+                profile=profile, lane=lane, elapsed_s=float(max_cycles), exit_code=-1))
+            print(f"  [{LANE} {lane}] {profile}: TIMEOUT", flush=True)
             continue
-        elapsed = time.time() - t0
-
-        # Find batch_summary.json
-        batch_summary: Dict[str, Any] = {}
-        for summary_file in sorted(batch_output.rglob("batch_summary.json")):
-            try:
-                batch_summary = json.loads(summary_file.read_text())
-                break
-            except (json.JSONDecodeError, OSError):
-                pass
+        batch_summary: Dict[str, Any] = batch.get("batch_summary", {})
 
         result = RunnerResult.from_batch_summary(
             profile=profile,
             batch_summary=batch_summary,
             lane=lane,
-            elapsed_s=round(elapsed, 2),
-            exit_code=proc.returncode,
+            elapsed_s=float(batch.get("elapsed_s", 0.0) or 0.0),
+            exit_code=int(batch.get("exit_code", -1) or -1),
         )
         results.append(result)
 
@@ -743,6 +708,7 @@ def cmd_duel(args: argparse.Namespace) -> None:
 
 def cmd_matrix(args: argparse.Namespace) -> None:
     """📊 Matrix mode: batch comparison across multiple profiles."""
+    lane = ensure_lane()
     # Resolve profile list
     if args.profiles.strip() == "derby_*":
         profile_names = []
@@ -774,35 +740,30 @@ def cmd_matrix(args: argparse.Namespace) -> None:
         batch_output = matrix_dir / profile
         batch_output.mkdir(parents=True, exist_ok=True)
 
-        cmd = [
-            sys.executable, str(BATCH_SCRIPT),
-            "--profile", profile,
-            "--runs", str(args.runs),
-            "--max-loops", str(args.max_cycles),
-            "--console-profile", args.console_profile,
-            "--output-dir", str(batch_output),
-        ]
-
         print(f"\n  [{BATCH}] Running {profile} ({args.runs} runs)...")
-        t0 = time.time()
-        proc = subprocess.run(cmd, capture_output=True, text=True,
-                              timeout=max(600, args.max_cycles * 30 * args.runs))
-        elapsed = time.time() - t0
-
-        # Find batch summary
-        batch_summary: Dict[str, Any] = {}
-        for sf in sorted(batch_output.rglob("batch_summary.json")):
-            try:
-                batch_summary = json.loads(sf.read_text())
-                break
-            except (json.JSONDecodeError, OSError):
-                pass
+        batch = run_batch(
+            lane=lane,
+            timeout_s=max(600, args.max_cycles * 30 * args.runs),
+            runs=args.runs,
+            max_loops=args.max_cycles,
+            hunter_profile=profile,
+            hunter_policy="engine_policy",
+            runtime_profile="default",
+            console_profile=args.console_profile,
+            display_mode="headless",
+            policy_execution_backend="auto",
+            output_dir=batch_output,
+            strict_biome_economy=True,
+            reuse_listener=False,
+            extra_args=["--profile", profile],
+        )
+        batch_summary: Dict[str, Any] = batch.get("batch_summary", {})
 
         runner = RunnerResult.from_batch_summary(
             profile=profile,
             batch_summary=batch_summary,
-            elapsed_s=round(elapsed, 2),
-            exit_code=proc.returncode,
+            elapsed_s=float(batch.get("elapsed_s", 0.0) or 0.0),
+            exit_code=int(batch.get("exit_code", -1) or -1),
         )
         scores = runner.scores_dict()
         results.append({

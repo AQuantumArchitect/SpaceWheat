@@ -38,13 +38,13 @@ from __future__ import annotations
 
 import json
 import subprocess
-import sys
 import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from rig_client import RigClient
 from milk_hunt_paths import xdg_root as _default_xdg
+from run_executor import ensure_lane, run_seed
 from schema import RunnerResult
 
 HERE = Path(__file__).resolve().parent
@@ -80,6 +80,7 @@ class RunSession:
         self.profile = profile
         self.slot = slot
         self.xdg = xdg or _default_xdg()
+        self._lane = ensure_lane(self.xdg)
         self.policy = policy
         self.epsilon = epsilon
         self.ucb_scale = ucb_scale
@@ -101,30 +102,24 @@ class RunSession:
 
     def seed(self) -> Dict[str, Any]:
         """Seed the save slot from the profile. Called automatically by start()."""
-        cmd = [
-            sys.executable, str(SEED_SCRIPT),
-            "--profile", self.profile,
-            "--slot", str(self.slot),
-        ]
-        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
-        if proc.returncode not in (0, 3):
-            raise RuntimeError(f"Seed failed (exit={proc.returncode}): {proc.stderr[:500]}")
-
-        # Parse JSON from stdout
-        for line in reversed((proc.stdout or "").strip().split("\n")):
-            line = line.strip()
-            if line.startswith("{"):
-                try:
-                    return json.loads(line)
-                except json.JSONDecodeError:
-                    pass
-        return {"ok": True, "slot": self.slot}
+        result = run_seed(
+            lane=self._lane,
+            timeout_s=120,
+            profile=self.profile,
+            slot=self.slot,
+            reuse_listener=False,
+        )
+        exit_code = int(result.get("exit_code", 1))
+        if exit_code not in (0, 3):
+            raise RuntimeError(f"Seed failed (exit={exit_code}): {str(result.get('stderr', ''))[:500]}")
+        summary = result.get("summary", {})
+        return summary if isinstance(summary, dict) and summary else {"ok": True, "slot": self.slot}
 
     def start(self) -> "RunSession":
         """Seed + boot the Godot rig. Returns self for chaining."""
         self.seed()
 
-        self._rig = RigClient(xdg=self.xdg)
+        self._rig = RigClient(xdg=self._lane.xdg_root)
         # Kill any stale listeners for this XDG root
         RigClient.kill_existing_listeners(xdg=self.xdg)
         time.sleep(0.5)
@@ -188,8 +183,9 @@ class RunSession:
 
     def resources(self) -> Dict[str, float]:
         """Get current resource amounts: {emoji: amount}."""
-        result = self._run("resource_snapshot")
-        return result.get("resources", result.get("snapshot", {}))
+        result = self._run("policy_snapshot", include_offers=False, include_grid=False)
+        payload = result.get("policy_snapshot", {})
+        return payload.get("resources", {}) if isinstance(payload, dict) else {}
 
     def snapshot(self) -> Dict[str, Any]:
         """Get full game state snapshot."""
@@ -198,15 +194,17 @@ class RunSession:
 
     def known_vocab(self) -> List[Dict[str, str]]:
         """Get known vocabulary pairs: [{north, south}, ...]."""
-        result = self._run("known_vocab_pairs")
-        pairs = result.get("pairs", result.get("known_pairs", []))
+        result = self._run("policy_snapshot", include_offers=False, include_grid=False)
+        payload = result.get("policy_snapshot", {})
+        pairs = payload.get("known_pairs", []) if isinstance(payload, dict) else []
         self._known_pairs = pairs
         return pairs
 
     def active_quests(self) -> List[Dict[str, Any]]:
         """Get currently active quests."""
-        result = self._run("active_quests")
-        return result.get("quests", [])
+        result = self._run("policy_snapshot", include_offers=False, include_grid=False)
+        payload = result.get("policy_snapshot", {})
+        return payload.get("active_quests", []) if isinstance(payload, dict) else []
 
     def biome_positions(self, biome: str) -> List[Any]:
         """Get plot positions in a biome."""

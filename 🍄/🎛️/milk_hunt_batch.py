@@ -4,7 +4,6 @@ import json
 import math
 import random
 import statistics
-import subprocess
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -15,6 +14,7 @@ from milk_hunt_console import Console, resolve_console_profile
 from milk_hunt_io import write_json
 from milk_hunt_profiles import get_profile
 from profile_save_registry import get_profile_name_for_save, get_profile_save, resolve_profile_save_spec
+from run_executor import ensure_lane, run_cli
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 RUNNER = SCRIPT_DIR / "milk_hunt_runner.py"
@@ -302,6 +302,7 @@ def _run_trial(
     policy_restrictions: bool = False,
     policy_epsilon: float | None = None,
     policy_ucb_scale: float | None = None,
+    lane = None,
 ) -> Dict[str, Any]:
     run_name = f"run_{run_idx:03d}"
     run_dir = batch_dir / run_name
@@ -367,7 +368,7 @@ def _run_trial(
         cmd.append("--no-clear-rig")
     if no_stop:
         cmd.append("--no-stop")
-    proc = subprocess.run(cmd, capture_output=True, text=True, check=False)
+    proc = run_cli(cmd, lane=lane, capture_output=True, timeout_s=400)
 
     summary: Dict[str, Any] = {}
     if proc.stdout:
@@ -398,6 +399,7 @@ def _seed_profile(
     scenario_id: Optional[str],
     resource_mode: Optional[str],
     world_state_path: Optional[str] = None,
+    lane = None,
 ) -> Dict[str, Any]:
     log_path = batch_dir / "seed_stdout.log"
     cmd = [
@@ -416,13 +418,14 @@ def _seed_profile(
         cmd.extend(["--scenario-id", scenario_id])
     if resource_mode:
         cmd.extend(["--resource-mode", resource_mode])
-    proc = subprocess.run(cmd, capture_output=True, text=True, check=False)
+    proc = run_cli(cmd, lane=lane, capture_output=True, timeout_s=180)
     log_path.write_text((proc.stdout or "") + (proc.stderr or ""), encoding="utf-8")
     return {"ok": proc.returncode == 0, "exit_code": proc.returncode, "log_path": str(log_path), "cmd": cmd}
 
 
 def main() -> int:
     args = _build_parser().parse_args()
+    lane = ensure_lane()
     console = Console(resolve_console_profile(args.console_profile))
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
     batch_dir = args.output_dir / f"batch_{ts}"
@@ -469,6 +472,7 @@ def main() -> int:
             scenario_id=args.scenario_id,
             resource_mode=args.resource_mode,
             world_state_path=args.world_state,
+            lane=lane,
         )
         if not seed_result["ok"]:
             console.log("[batch] profile seeding failed", "error")
@@ -535,6 +539,7 @@ def main() -> int:
             policy_restrictions=bool(args.policy_restrictions),
             policy_epsilon=float(mutation.get("policy_epsilon", args.base_policy_epsilon)),
             policy_ucb_scale=float(mutation.get("policy_ucb_scale", args.base_policy_ucb_scale)),
+            lane=lane,
         )
         summary["policy_mutation"] = mutation
         run_summaries.append(summary)

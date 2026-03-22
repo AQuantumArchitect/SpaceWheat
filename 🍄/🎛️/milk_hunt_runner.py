@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 import argparse
 import json
-import math
 import os
 import subprocess
 import sys
@@ -23,6 +22,13 @@ from policy_graph_runtime import (
     action_limits_for_action,
     action_limits_for_action_from_graph,
     profile_graph_path as runtime_policy_graph_path,
+)
+from milk_hunt_summary import (
+    add_milk_pair_index,
+    apply_profile_metrics,
+    build_common_summary_fields,
+    policy_action_breakdown,
+    vocab_milestone_fields,
 )
 from milk_hunt_runtime_config import get_cfg_bool, get_cfg_float, get_cfg_int, get_cfg_str, load_json_config
 from milk_hunt_strategy import Strategy, load_strategy
@@ -120,7 +126,7 @@ def _run_turn(turn_id: int, action: str, **kwargs: Any) -> Dict[str, Any]:
         elif action in {"active_quests"}:
             timeout_s = 45.0
         elif action in {"policy_step"}:
-            timeout_s = 45.0
+            timeout_s = 120.0
         elif action in {"policy_snapshot"}:
             timeout_s = 20.0
         elif action in {"offer_quests", "accept_offer", "known_vocab_pairs", "resource_snapshot"}:
@@ -1056,60 +1062,6 @@ def _select_focus_biome(
         ),
     )
     return ranked[0] if ranked else None
-
-
-def _policy_action_counts(policy_decisions: List[Dict[str, Any]]) -> Dict[str, int]:
-    counts: Dict[str, int] = {}
-    for ev in policy_decisions:
-        if not isinstance(ev, dict):
-            continue
-        action = ev.get("executed_action", ev.get("selected_action", ""))
-        if not isinstance(action, str) or not action:
-            continue
-        counts[action] = counts.get(action, 0) + 1
-    return counts
-
-
-def _policy_action_entropy(policy_decisions: List[Dict[str, Any]]) -> float:
-    counts = _policy_action_counts(policy_decisions)
-    total = float(sum(counts.values()))
-    if total <= 0.0:
-        return 0.0
-    h = 0.0
-    for count in counts.values():
-        p = float(count) / total
-        if p > 0.0:
-            h -= p * math.log(p, 2)
-    return h
-
-
-def _lock_offer_gate_summary_fields(
-    action_gate_policies: Dict[str, Dict[str, Any]],
-    lock_offer_gate_override: Optional[bool],
-    *,
-    actions: int,
-    success: int,
-    failed: int,
-    cap_hits: int,
-    cooldown_hits: int,
-    cooldown_until_loop: int,
-    fail_streak_final: int,
-) -> Dict[str, Any]:
-    lock_offer_policy = action_gate_policies.get("lock_offer", {})
-    lock_offer_enabled = bool(lock_offer_policy.get("enabled", True))
-    return {
-        "action_gate_overrides": {"lock_offer": lock_offer_gate_override},
-        "action_gate_lock_offer_enabled": lock_offer_enabled,
-        "action_gate_lock_offer_policy": lock_offer_policy if lock_offer_enabled else {},
-        "action_gate_policies": action_gate_policies,
-        "action_gate_lock_offer_actions": actions,
-        "action_gate_lock_offer_success": success,
-        "action_gate_lock_offer_failed": failed,
-        "action_gate_lock_offer_cap_hits": cap_hits,
-        "action_gate_lock_offer_cooldown_hits": cooldown_hits,
-        "action_gate_lock_offer_cooldown_until_loop": cooldown_until_loop,
-        "action_gate_lock_offer_fail_streak_final": fail_streak_final,
-    }
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -2994,32 +2946,8 @@ def main() -> int:
 
         final_pairs = _extract_pairs(history)
         profile_metrics = _compute_profile_metrics(history, initial_known_pairs_count, len(final_pairs))
-        policy_action_counts = _policy_action_counts(policy_decisions)
-        policy_action_total = int(sum(policy_action_counts.values()))
-        policy_action_pct = {
-            action: (float(count) / float(policy_action_total))
-            for action, count in policy_action_counts.items()
-            if policy_action_total > 0
-        }
-        policy_action_entropy_bits = _policy_action_entropy(policy_decisions)
-        first_vocab_milestone_step = (
-            int(vocab_milestones[0].get("step", 0))
-            if isinstance(vocab_milestones, list) and len(vocab_milestones) > 0
-            else None
-        )
-        first_vocab_milestone_loop = (
-            int(vocab_milestones[0].get("loop", 0))
-            if isinstance(vocab_milestones, list) and len(vocab_milestones) > 0
-            else None
-        )
-        vocab_gain_loops = sorted(
-            {
-                int(ms.get("loop", 0))
-                for ms in vocab_milestones
-                if isinstance(ms, dict) and int(ms.get("loop", 0)) > 0
-            }
-        )
-        vocab_progress_gate_pass = first_vocab_milestone_loop is not None and int(first_vocab_milestone_loop) <= 6
+        policy_breakdown = policy_action_breakdown(policy_decisions)
+        vocab_fields = vocab_milestone_fields(vocab_milestones)
         steps = len(history)
         summary = {
             "found_milk": found_milk,
@@ -3032,63 +2960,8 @@ def main() -> int:
             "turns_executed": steps,
             "loops_completed": loops_completed,
             "errors_seen_during_boot": error_lines,
-            "max_loops": max_loops,
-            "strict_biome_economy": strict_biome_economy,
-            "allow_rig_resource_injection": allow_rig_resource_injection,
-            "load_slot": load_slot,
-            "load_alias": load_alias,
-            "profile_save": profile_save,
-            "profile_save_index": profile_save_index,
-            "resolved_profile_save": resolved_profile_save,
-            "effective_policy_graph_path": effective_policy_graph_path,
-            "scenario_id": scenario_id,
-            "console_profile": console_profile,
-            "wait_progress_seconds": float(wait_progress_seconds),
-            "rig_listener_stdout": rig_listener_stdout,
-            "rig_listener_log": str(listener_log_path) if listener_log_path is not None else "",
-            "rig_log_profile": rig_log_profile,
-            "rig_log_categories": rig_log_categories,
             "boot_log_lines_scanned": len(boot_log_lines),
-            "hunter_profile": hunter_profile,
-            "hunter_policy_mode": hunter_policy_mode,
-            "hunter_policy_active": use_engine_policy,
-            "engine_policy_active": use_engine_policy,
-            "policy_actions_per_loop": policy_actions_per_loop,
-            "policy_restrictions_enabled": bool(policy_restrictions),
-            "policy_epsilon": policy_epsilon,
-            "policy_ucb_scale": policy_ucb_scale,
-            "policy_reset_on_start": bool(policy_reset_on_start),
-            "policy_max_quest_actions_per_loop": policy_max_quest_actions_per_loop,
-            "policy_forbid_actions": policy_forbid_actions,
-            "policy_quest_cap_hits": policy_quest_cap_hits,
-            **_lock_offer_gate_summary_fields(
-                action_gate_policies,
-                lock_offer_gate_override,
-                actions=action_gate_lock_offer_actions,
-                success=action_gate_lock_offer_success,
-                failed=action_gate_lock_offer_failed,
-                cap_hits=action_gate_lock_offer_cap_hits,
-                cooldown_hits=action_gate_lock_offer_cooldown_hits,
-                cooldown_until_loop=action_gate_lock_offer_cooldown_until_loop,
-                fail_streak_final=action_gate_lock_offer_fail_streak,
-            ),
             "policy_trace_limit": policy_trace_limit,
-            "policy_action_counts": policy_action_counts,
-            "policy_action_pct": policy_action_pct,
-            "policy_action_entropy_bits": policy_action_entropy_bits,
-            "first_vocab_milestone_step": first_vocab_milestone_step,
-            "first_vocab_milestone_loop": first_vocab_milestone_loop,
-            "vocab_gain_loops": vocab_gain_loops,
-            "vocab_progress_gate_pass": vocab_progress_gate_pass,
-            "target_turn_hz": args.target_turn_hz,
-            "metrics_every": metrics_every,
-            "runtime_profile": runtime_profile,
-            "runtime_env_overrides": runtime_env_overrides,
-            "display_mode": display_mode,
-            "policy_execution_backend": policy_execution_backend,
-            "reuse_listener": bool(args.reuse_listener),
-            "include_offer_reward_resources": include_offer_reward_resources,
-            "include_offer_market_projection": include_offer_market_projection,
             "biome_discovery_order": newly_discovered_biomes,
             "biome_visit_order": discovered_biomes,
             "initial_unlocked_biomes": initial_biomes,
@@ -3133,42 +3006,84 @@ def main() -> int:
             "lindblad_drain_biomes_activated": sorted(lindblad_biomes_activated),
             "lindblad_drain_events": lindblad_drain_events,
             "lindblad_wait_events": lindblad_wait_events,
-            "advanced_mode": advanced_mode,
-            "timescale_top_k": timescale_top_k,
-            "timescale_objective": timescale_objective_payload if advanced_mode else {},
-            "timescale_events": timescale_events,
-            "profile_metrics": profile_metrics,
-            "quest_offer_cycles": profile_metrics.get("quest_offer_cycles", 0),
-            "quest_offers_seen": profile_metrics.get("quest_offers_seen", 0),
-            "quest_offers_accepted": profile_metrics.get("quest_offers_accepted", 0),
-            "quest_completions": profile_metrics.get("quest_completions", 0),
-            "quest_complete_or_claim": profile_metrics.get("quest_complete_or_claim", 0),
-            "quest_claims": profile_metrics.get("quest_claims", 0),
-            "vocab_pairs_initial": profile_metrics.get("vocab_pairs_initial", 0),
-            "vocab_pairs_final": profile_metrics.get("vocab_pairs_final", len(final_pairs)),
-            "vocab_pairs_learned": profile_metrics.get("vocab_pairs_learned", 0),
-            "lindblad_drain_actions": profile_metrics.get("lindblad_drain_actions", 0),
-            "lindblad_drains_established": profile_metrics.get("lindblad_drains_established", 0),
-            "time_skip_actions": profile_metrics.get("time_skip_actions", 0),
-            "time_skip_total_phrames": profile_metrics.get("time_skip_total_phrames", 0),
-            "time_skip_total_evolved_steps": profile_metrics.get("time_skip_total_evolved_steps", 0),
-            "git_branch": git_meta.get("git_branch", ""),
-            "git_commit": git_meta.get("git_commit", ""),
-            "git_dirty_count": git_meta.get("git_dirty_count", 0),
-            "git_dirty_files": git_meta.get("git_dirty_files", []),
         }
+        summary.update(
+            build_common_summary_fields(
+                max_loops=max_loops,
+                strict_biome_economy=strict_biome_economy,
+                allow_rig_resource_injection=allow_rig_resource_injection,
+                load_slot=load_slot,
+                load_alias=load_alias,
+                profile_save=profile_save,
+                profile_save_index=profile_save_index,
+                resolved_profile_save=resolved_profile_save,
+                effective_policy_graph_path=effective_policy_graph_path,
+                scenario_id=scenario_id,
+                console_profile=console_profile,
+                wait_progress_seconds=wait_progress_seconds,
+                display_mode=display_mode,
+                policy_execution_backend=policy_execution_backend,
+                rig_listener_stdout=rig_listener_stdout,
+                listener_log_path=listener_log_path,
+                rig_log_profile=rig_log_profile,
+                rig_log_categories=rig_log_categories,
+                hunter_profile=hunter_profile,
+                hunter_policy_mode=hunter_policy_mode,
+                use_engine_policy=use_engine_policy,
+                policy_actions_per_loop=policy_actions_per_loop,
+                policy_restrictions=bool(policy_restrictions),
+                policy_epsilon=policy_epsilon,
+                policy_ucb_scale=policy_ucb_scale,
+                policy_reset_on_start=bool(policy_reset_on_start),
+                policy_max_quest_actions_per_loop=policy_max_quest_actions_per_loop,
+                policy_forbid_actions=policy_forbid_actions,
+                policy_quest_cap_hits=policy_quest_cap_hits,
+                action_gate_policies=action_gate_policies,
+                lock_offer_gate_override=lock_offer_gate_override,
+                action_gate_lock_offer_actions=action_gate_lock_offer_actions,
+                action_gate_lock_offer_success=action_gate_lock_offer_success,
+                action_gate_lock_offer_failed=action_gate_lock_offer_failed,
+                action_gate_lock_offer_cap_hits=action_gate_lock_offer_cap_hits,
+                action_gate_lock_offer_cooldown_hits=action_gate_lock_offer_cooldown_hits,
+                action_gate_lock_offer_cooldown_until_loop=action_gate_lock_offer_cooldown_until_loop,
+                action_gate_lock_offer_fail_streak=action_gate_lock_offer_fail_streak,
+                target_turn_hz=args.target_turn_hz,
+                metrics_every=metrics_every,
+                runtime_profile=runtime_profile,
+                runtime_env_overrides=runtime_env_overrides,
+                reuse_listener=bool(args.reuse_listener),
+                include_offer_reward_resources=include_offer_reward_resources,
+                include_offer_market_projection=include_offer_market_projection,
+                lindblad_drain_focus=lindblad_drain_focus,
+                lindblad_drain_every=lindblad_drain_every,
+                lindblad_drain_max_biomes_per_loop=lindblad_drain_max_biomes_per_loop,
+                lindblad_drain_max_plots=lindblad_drain_max_plots,
+                lindblad_drain_slices=lindblad_drain_slices,
+                lindblad_wait_phrames=lindblad_wait_phrames,
+                lindblad_wait_seconds=lindblad_wait_seconds,
+                lindblad_wait_threshold=lindblad_wait_threshold,
+                lindblad_wait_max_phrames=lindblad_wait_max_phrames,
+                lindblad_wait_max_seconds=lindblad_wait_max_seconds,
+                lindblad_wait_poll_phrames=lindblad_wait_poll_phrames,
+                lindblad_wait_poll_seconds=lindblad_wait_poll_seconds,
+                configured_lindblad_biomes=configured_lindblad_biomes,
+                advanced_mode=advanced_mode,
+                timescale_top_k=timescale_top_k,
+                timescale_objective_payload=timescale_objective_payload,
+                timescale_events=timescale_events,
+                git_meta=git_meta,
+            )
+        )
+        summary.update(policy_breakdown)
+        summary.update(vocab_fields)
+        apply_profile_metrics(summary, profile_metrics, len(final_pairs))
         if args.save_slot_at_end is not None:
             save_row = _run_turn(turn, "save_game", slot=args.save_slot_at_end)
             history.append(save_row)
             turn += 1
             summary["saved_slot"] = args.save_slot_at_end
             summary["save_result"] = save_row
-        for idx, pair in enumerate(final_pairs):
-            if pair.get("north") == MILK or pair.get("south") == MILK:
-                summary["milk_pair_index"] = idx + 1
-                break
-        if "milk_pair_index" not in summary:
-            summary["milk_pair_index"] = None
+        add_milk_pair_index(summary, final_pairs, MILK)
         if args.summary_path is not None:
             args.summary_path.parent.mkdir(parents=True, exist_ok=True)
             write_json(args.summary_path, summary)
@@ -3205,106 +3120,6 @@ def main() -> int:
             "steps": len(history),
             "turns_executed": len(history),
             "loops_completed": locals().get("loops_completed", 0),
-            "max_loops": max_loops,
-            "strict_biome_economy": strict_biome_economy,
-            "allow_rig_resource_injection": allow_rig_resource_injection,
-            "load_slot": load_slot,
-            "load_alias": load_alias,
-            "profile_save": profile_save,
-            "profile_save_index": profile_save_index,
-            "resolved_profile_save": resolved_profile_save,
-            "effective_policy_graph_path": effective_policy_graph_path,
-            "scenario_id": scenario_id,
-            "console_profile": console_profile,
-            "wait_progress_seconds": float(wait_progress_seconds),
-            "display_mode": display_mode,
-            "policy_execution_backend": policy_execution_backend,
-            "rig_listener_stdout": rig_listener_stdout,
-            "rig_listener_log": str(listener_log_path) if listener_log_path is not None else "",
-            "rig_log_profile": rig_log_profile,
-            "rig_log_categories": rig_log_categories,
-            "hunter_profile": hunter_profile,
-            "hunter_policy_mode": hunter_policy_mode,
-            "hunter_policy_active": use_engine_policy,
-            "engine_policy_active": use_engine_policy,
-            "policy_actions_per_loop": policy_actions_per_loop,
-            "policy_restrictions_enabled": bool(policy_restrictions),
-            "policy_epsilon": policy_epsilon,
-            "policy_ucb_scale": policy_ucb_scale,
-            "policy_reset_on_start": bool(policy_reset_on_start),
-            "policy_max_quest_actions_per_loop": policy_max_quest_actions_per_loop,
-            "policy_forbid_actions": policy_forbid_actions,
-            "policy_quest_cap_hits": locals().get("policy_quest_cap_hits", 0),
-            **_lock_offer_gate_summary_fields(
-                action_gate_policies,
-                lock_offer_gate_override,
-                actions=locals().get("action_gate_lock_offer_actions", 0),
-                success=locals().get("action_gate_lock_offer_success", 0),
-                failed=locals().get("action_gate_lock_offer_failed", 0),
-                cap_hits=locals().get("action_gate_lock_offer_cap_hits", 0),
-                cooldown_hits=locals().get("action_gate_lock_offer_cooldown_hits", 0),
-                cooldown_until_loop=locals().get("action_gate_lock_offer_cooldown_until_loop", 0),
-                fail_streak_final=locals().get("action_gate_lock_offer_fail_streak", 0),
-            ),
-            "policy_action_counts": _policy_action_counts(locals().get("policy_decisions", [])),
-            "policy_action_entropy_bits": _policy_action_entropy(locals().get("policy_decisions", [])),
-            "first_vocab_milestone_step": (
-                int((locals().get("vocab_milestones", [])[0]).get("step", 0))
-                if isinstance(locals().get("vocab_milestones", []), list)
-                and len(locals().get("vocab_milestones", [])) > 0
-                and isinstance((locals().get("vocab_milestones", [])[0]), dict)
-                else None
-            ),
-            "first_vocab_milestone_loop": (
-                int((locals().get("vocab_milestones", [])[0]).get("loop", 0))
-                if isinstance(locals().get("vocab_milestones", []), list)
-                and len(locals().get("vocab_milestones", [])) > 0
-                and isinstance((locals().get("vocab_milestones", [])[0]), dict)
-                else None
-            ),
-            "target_turn_hz": args.target_turn_hz,
-            "metrics_every": metrics_every,
-            "runtime_profile": runtime_profile,
-            "runtime_env_overrides": runtime_env_overrides,
-            "reuse_listener": bool(args.reuse_listener),
-            "include_offer_reward_resources": include_offer_reward_resources,
-            "include_offer_market_projection": include_offer_market_projection,
-            "lindblad_drain_focus": lindblad_drain_focus,
-            "lindblad_drain_every": lindblad_drain_every,
-            "lindblad_drain_max_biomes_per_loop": lindblad_drain_max_biomes_per_loop,
-            "lindblad_drain_max_plots": lindblad_drain_max_plots,
-            "lindblad_drain_slices": lindblad_drain_slices,
-            "lindblad_wait_phrames": lindblad_wait_phrames,
-            "lindblad_wait_seconds": lindblad_wait_seconds,
-            "lindblad_wait_threshold": lindblad_wait_threshold,
-            "lindblad_wait_max_phrames": lindblad_wait_max_phrames,
-            "lindblad_wait_max_seconds": lindblad_wait_max_seconds,
-            "lindblad_wait_poll_phrames": lindblad_wait_poll_phrames,
-            "lindblad_wait_poll_seconds": lindblad_wait_poll_seconds,
-            "lindblad_drain_configured_biomes": configured_lindblad_biomes,
-            "advanced_mode": advanced_mode,
-            "timescale_top_k": timescale_top_k,
-            "timescale_objective": timescale_objective_payload if advanced_mode else {},
-            "timescale_events": locals().get("timescale_events", []),
-            "profile_metrics": timeout_profile_metrics,
-            "quest_offer_cycles": timeout_profile_metrics.get("quest_offer_cycles", 0),
-            "quest_offers_seen": timeout_profile_metrics.get("quest_offers_seen", 0),
-            "quest_offers_accepted": timeout_profile_metrics.get("quest_offers_accepted", 0),
-            "quest_completions": timeout_profile_metrics.get("quest_completions", 0),
-            "quest_complete_or_claim": timeout_profile_metrics.get("quest_complete_or_claim", 0),
-            "quest_claims": timeout_profile_metrics.get("quest_claims", 0),
-            "vocab_pairs_initial": timeout_profile_metrics.get("vocab_pairs_initial", 0),
-            "vocab_pairs_final": timeout_profile_metrics.get("vocab_pairs_final", len(timeout_pairs)),
-            "vocab_pairs_learned": timeout_profile_metrics.get("vocab_pairs_learned", 0),
-            "lindblad_drain_actions": timeout_profile_metrics.get("lindblad_drain_actions", 0),
-            "lindblad_drains_established": timeout_profile_metrics.get("lindblad_drains_established", 0),
-            "time_skip_actions": timeout_profile_metrics.get("time_skip_actions", 0),
-            "time_skip_total_phrames": timeout_profile_metrics.get("time_skip_total_phrames", 0),
-            "time_skip_total_evolved_steps": timeout_profile_metrics.get("time_skip_total_evolved_steps", 0),
-            "git_branch": git_meta.get("git_branch", ""),
-            "git_commit": git_meta.get("git_commit", ""),
-            "git_dirty_count": git_meta.get("git_dirty_count", 0),
-            "git_dirty_files": git_meta.get("git_dirty_files", []),
             "run_error": "turn_timeout",
             "run_error_detail": str(exc),
             "timeout_turn": exc.turn_id,
@@ -3313,13 +3128,78 @@ def main() -> int:
             "timeout_diagnostics": timeout_diag,
             "batcher_metrics_samples": locals().get("batcher_metrics_samples", []),
         }
-        _timeout_policy_counts = _policy_action_counts(locals().get("policy_decisions", []))
-        _timeout_policy_total = int(sum(_timeout_policy_counts.values()))
-        timeout_summary["policy_action_pct"] = {
-            action: (float(count) / float(_timeout_policy_total))
-            for action, count in _timeout_policy_counts.items()
-            if _timeout_policy_total > 0
-        }
+        timeout_summary.update(
+            build_common_summary_fields(
+                max_loops=max_loops,
+                strict_biome_economy=strict_biome_economy,
+                allow_rig_resource_injection=allow_rig_resource_injection,
+                load_slot=load_slot,
+                load_alias=load_alias,
+                profile_save=profile_save,
+                profile_save_index=profile_save_index,
+                resolved_profile_save=resolved_profile_save,
+                effective_policy_graph_path=effective_policy_graph_path,
+                scenario_id=scenario_id,
+                console_profile=console_profile,
+                wait_progress_seconds=wait_progress_seconds,
+                display_mode=display_mode,
+                policy_execution_backend=policy_execution_backend,
+                rig_listener_stdout=rig_listener_stdout,
+                listener_log_path=listener_log_path,
+                rig_log_profile=rig_log_profile,
+                rig_log_categories=rig_log_categories,
+                hunter_profile=hunter_profile,
+                hunter_policy_mode=hunter_policy_mode,
+                use_engine_policy=use_engine_policy,
+                policy_actions_per_loop=policy_actions_per_loop,
+                policy_restrictions=bool(policy_restrictions),
+                policy_epsilon=policy_epsilon,
+                policy_ucb_scale=policy_ucb_scale,
+                policy_reset_on_start=bool(policy_reset_on_start),
+                policy_max_quest_actions_per_loop=policy_max_quest_actions_per_loop,
+                policy_forbid_actions=policy_forbid_actions,
+                policy_quest_cap_hits=locals().get("policy_quest_cap_hits", 0),
+                action_gate_policies=action_gate_policies,
+                lock_offer_gate_override=lock_offer_gate_override,
+                action_gate_lock_offer_actions=locals().get("action_gate_lock_offer_actions", 0),
+                action_gate_lock_offer_success=locals().get("action_gate_lock_offer_success", 0),
+                action_gate_lock_offer_failed=locals().get("action_gate_lock_offer_failed", 0),
+                action_gate_lock_offer_cap_hits=locals().get("action_gate_lock_offer_cap_hits", 0),
+                action_gate_lock_offer_cooldown_hits=locals().get("action_gate_lock_offer_cooldown_hits", 0),
+                action_gate_lock_offer_cooldown_until_loop=locals().get(
+                    "action_gate_lock_offer_cooldown_until_loop", 0
+                ),
+                action_gate_lock_offer_fail_streak=locals().get("action_gate_lock_offer_fail_streak", 0),
+                target_turn_hz=args.target_turn_hz,
+                metrics_every=metrics_every,
+                runtime_profile=runtime_profile,
+                runtime_env_overrides=runtime_env_overrides,
+                reuse_listener=bool(args.reuse_listener),
+                include_offer_reward_resources=include_offer_reward_resources,
+                include_offer_market_projection=include_offer_market_projection,
+                lindblad_drain_focus=lindblad_drain_focus,
+                lindblad_drain_every=lindblad_drain_every,
+                lindblad_drain_max_biomes_per_loop=lindblad_drain_max_biomes_per_loop,
+                lindblad_drain_max_plots=lindblad_drain_max_plots,
+                lindblad_drain_slices=lindblad_drain_slices,
+                lindblad_wait_phrames=lindblad_wait_phrames,
+                lindblad_wait_seconds=lindblad_wait_seconds,
+                lindblad_wait_threshold=lindblad_wait_threshold,
+                lindblad_wait_max_phrames=lindblad_wait_max_phrames,
+                lindblad_wait_max_seconds=lindblad_wait_max_seconds,
+                lindblad_wait_poll_phrames=lindblad_wait_poll_phrames,
+                lindblad_wait_poll_seconds=lindblad_wait_poll_seconds,
+                configured_lindblad_biomes=configured_lindblad_biomes,
+                advanced_mode=advanced_mode,
+                timescale_top_k=timescale_top_k,
+                timescale_objective_payload=timescale_objective_payload,
+                timescale_events=locals().get("timescale_events", []),
+                git_meta=git_meta,
+            )
+        )
+        timeout_summary.update(policy_action_breakdown(locals().get("policy_decisions", [])))
+        timeout_summary.update(vocab_milestone_fields(locals().get("vocab_milestones", [])))
+        apply_profile_metrics(timeout_summary, timeout_profile_metrics, len(timeout_pairs))
         if args.summary_path is not None:
             args.summary_path.parent.mkdir(parents=True, exist_ok=True)
             write_json(args.summary_path, timeout_summary)

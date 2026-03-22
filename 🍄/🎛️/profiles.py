@@ -19,7 +19,6 @@ from milk_hunt_paths import APP_NAME, user_dir, xdg_root
 
 HERE = Path(__file__).resolve().parent
 WORLD_STATE_DIR = HERE / "config" / "world_state"
-POLICY_WEIGHTS_DIR = HERE / "config" / "policy_weights"
 STRATEGY_DIR = HERE / "config" / "strategy"
 
 
@@ -89,19 +88,6 @@ def list_derby_lanes() -> List[str]:
 def exists(name: str) -> bool:
     """Check if a profile exists."""
     return (WORLD_STATE_DIR / f"{name}.json").exists()
-
-
-# ── Policy weight loading ───────────────────────────────────────────
-
-def load_policy_weights(name: str) -> Dict[str, float]:
-    """Load policy weights override for a profile, or empty dict."""
-    path = POLICY_WEIGHTS_DIR / f"{name}.json"
-    if not path.exists():
-        return {}
-    try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError):
-        return {}
 
 
 # ── Profile save registry ──────────────────────────────────────────

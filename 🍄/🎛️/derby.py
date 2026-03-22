@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import subprocess
 import sys
 import time
 from dataclasses import dataclass
@@ -25,11 +24,10 @@ from milk_hunt_characters import (
     resolve_character_policy,
     resolve_character_world_state,
 )
+from run_executor import ensure_lane, run_batch, run_seed
 
 
 HERE = Path(__file__).resolve().parent
-SEED_SAVE = HERE / "milk_hunt_seed_save.py"
-BATCH = HERE / "milk_hunt_batch.py"
 LOG_ROOT = HERE / "logs" / "derby"
 
 
@@ -82,49 +80,32 @@ def _score(result: DerbyResult) -> Dict[str, float]:
     }
 
 
-def _latest_batch_summary(match_dir: Path) -> Dict[str, Any]:
-    summaries = sorted(match_dir.rglob("batch_summary.json"))
-    for path in reversed(summaries):
-        try:
-            return json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
-            continue
-    return {}
-
-
 def _seed_character(
     character_name: str,
     policy: str,
     reuse_listener: bool,
     display_mode: str,
+    lane,
     timeout_s: int = 180,
 ) -> Dict[str, Any]:
     save_uri = _save_uri(character_name, policy)
-    cmd = [
-        sys.executable,
-        str(SEED_SAVE),
-        "--slot",
-        "2",
-        "--character",
-        character_name,
-        "--policy-mode",
-        policy,
-        "--display-mode",
-        display_mode,
-        "--ready-timeout",
-        str(max(70, int(timeout_s))),
-        "--save-path",
-        save_uri,
-    ]
-    if reuse_listener:
-        cmd.append("--reuse-listener")
-    proc = subprocess.run(cmd, capture_output=True, text=True, timeout=max(1, int(timeout_s)))
-    if proc.returncode not in (0, 3):
+    result = run_seed(
+        lane=lane,
+        timeout_s=max(1, int(timeout_s)),
+        slot=2,
+        character=character_name,
+        policy_mode=policy,
+        display_mode=display_mode,
+        ready_timeout=max(70, int(timeout_s)),
+        reuse_listener=reuse_listener,
+        save_path=save_uri,
+    )
+    if int(result.get("exit_code", 1)) not in (0, 3):
         raise RuntimeError(
             "seed failed for %s/%s\n%s%s"
-            % (character_name, policy, proc.stdout or "", proc.stderr or "")
+            % (character_name, policy, result.get("stdout", "") or "", result.get("stderr", "") or "")
         )
-    return {"save_uri": save_uri, "stdout": proc.stdout, "stderr": proc.stderr}
+    return {"save_uri": save_uri, "stdout": result.get("stdout", ""), "stderr": result.get("stderr", "")}
 
 
 def _run_match(
@@ -138,6 +119,7 @@ def _run_match(
     policy_execution_backend: str,
     output_dir: Path,
     reuse_listener: bool,
+    lane,
     seed_timeout_s: int = 180,
     match_timeout_s: int = 200,
 ) -> DerbyResult:
@@ -151,6 +133,7 @@ def _run_match(
         policy,
         reuse_listener=reuse_listener,
         display_mode=display_mode,
+        lane=lane,
         timeout_s=int(seed_timeout_s),
     )
     save_uri = str(seed_result["save_uri"])
@@ -158,42 +141,23 @@ def _run_match(
     match_dir = output_dir / f"{character_name}__{policy}"
     match_dir.mkdir(parents=True, exist_ok=True)
 
-    cmd = [
-        sys.executable,
-        str(BATCH),
-        "--runs",
-        str(runs),
-        "--max-loops",
-        str(max_loops),
-        "--profile-save",
-        save_uri,
-        "--hunter-profile",
-        character_name,
-        "--hunter-policy",
-        policy,
-        "--runtime-profile",
-        runtime_profile,
-        "--console-profile",
-        console_profile,
-        "--display-mode",
-        display_mode,
-        "--policy-execution-backend",
-        policy_execution_backend,
-        "--output-dir",
-        str(match_dir),
-    ]
-    cmd.append("--strict-biome-economy" if strict else "--no-strict-biome-economy")
-    cmd.append("--reuse-listener" if reuse_listener else "--no-reuse-listener")
-
-    t0 = time.time()
-    proc = subprocess.run(
-        cmd,
-        capture_output=True,
-        text=True,
-        timeout=max(1, int(match_timeout_s)),
+    batch_result = run_batch(
+        lane=lane,
+        timeout_s=max(1, int(match_timeout_s)),
+        runs=runs,
+        max_loops=max_loops,
+        profile_save=save_uri,
+        hunter_profile=character_name,
+        hunter_policy=policy,
+        runtime_profile=runtime_profile,
+        console_profile=console_profile,
+        display_mode=display_mode,
+        policy_execution_backend=policy_execution_backend,
+        output_dir=match_dir,
+        strict_biome_economy=strict,
+        reuse_listener=reuse_listener,
     )
-    elapsed = round(time.time() - t0, 2)
-    batch_summary = _latest_batch_summary(match_dir)
+    batch_summary = batch_result.get("batch_summary", {})
 
     run_rows = batch_summary.get("run_summaries", [])
     first = run_rows[0] if run_rows else {}
@@ -207,8 +171,8 @@ def _run_match(
         found_milk=bool(first.get("found_milk_pair", False)),
         loops_completed=int(first.get("loops_completed", 0) or 0),
         steps=int(first.get("steps", first.get("turns_executed", 0) or 0) or 0),
-        elapsed_s=elapsed,
-        exit_code=int(proc.returncode),
+        elapsed_s=float(batch_result.get("elapsed_s", 0.0) or 0.0),
+        exit_code=int(batch_result.get("exit_code", -1) or -1),
         batch_summary=batch_summary,
     )
 
@@ -268,6 +232,7 @@ def _build_parser() -> argparse.ArgumentParser:
 
 def main() -> int:
     args = _build_parser().parse_args()
+    lane = ensure_lane()
     characters = args.characters or list_character_names()
     if not characters:
         print("no character specs found", file=sys.stderr)
@@ -301,6 +266,7 @@ def main() -> int:
                     policy_execution_backend=str(args.policy_execution_backend),
                     output_dir=derby_dir,
                     reuse_listener=bool(args.reuse_listener),
+                    lane=lane,
                     seed_timeout_s=int(args.seed_timeout),
                     match_timeout_s=int(args.match_timeout),
                 )

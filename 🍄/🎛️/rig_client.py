@@ -415,7 +415,7 @@ class RigClient:
                     % (turn_id, elapsed, self._latest_result_turn, hb_status)
                 )
                 next_report_at = now + max(0.5, progress_interval_s)
-            time.sleep(0.2)
+            time.sleep(0.02)
 
     def run_turn(
         self,
