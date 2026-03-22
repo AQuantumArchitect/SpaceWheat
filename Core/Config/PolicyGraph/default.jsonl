@@ -8,9 +8,16 @@
 {"op":"set","path":"action_priors.quest_cycle.demand_curve","value":0.5}
 {"op":"set","path":"action_priors.quest_cycle.frontier_bonus","value":1.5}
 {"op":"set","path":"action_priors.quest_cycle.best_offer_milk","value":3.0}
+{"op":"set","path":"action_priors.quest_cycle.milk_hint_scale","value":1.0}
+{"op":"set","path":"action_priors.quest_cycle.milk_distance_gain","value":28.0}
+{"op":"set","path":"action_priors.quest_cycle.milk_cascade_gain","value":12.0}
+{"op":"set","path":"action_priors.quest_cycle.prior_milk_distance_gain","value":0.9}
+{"op":"set","path":"action_priors.quest_cycle.prior_milk_cascade_gain","value":0.4}
 {"op":"set","path":"action_priors.probe_cycle.base","value":1.0}
 {"op":"set","path":"action_priors.lindblad_drain.base","value":0.9}
 {"op":"set","path":"action_priors.time_skip.base","value":0.4}
+{"op":"set","path":"action_priors.lock_offer.milk_distance_gain","value":2.5}
+{"op":"set","path":"action_priors.lock_offer.milk_cascade_gain","value":1.2}
 {"op":"set","path":"action_limits.default.enabled","value":true}
 {"op":"set","path":"action_limits.default.min_loop","value":1}
 {"op":"set","path":"action_limits.default.max_per_loop","value":1}

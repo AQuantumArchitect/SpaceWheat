@@ -28,6 +28,9 @@ def test_policy_projector_exists_with_shared_candidate_and_reward_logic() -> Non
     assert "static func compute_reward_components(" in src
     assert "static func quest_pressure(" in src
     assert "static func choose_channel_drain_target(" in src
+    assert "static func _offer_milk_metrics(" in src
+    assert "milk_distance_gain" in src
+    assert "milk_cascade_gain" in src
 
 
 def test_both_policy_engines_use_shared_projector_and_graph() -> None:
@@ -57,6 +60,17 @@ def test_profile_graphs_exist_for_primary_profiles() -> None:
         assert '"path":"profile_id"' in text
 
 
+def test_default_policy_graph_exposes_milk_progress_weights() -> None:
+    text = _read("Core/Config/PolicyGraph/default.jsonl")
+    assert '"path":"action_priors.quest_cycle.milk_hint_scale"' in text
+    assert '"path":"action_priors.quest_cycle.milk_distance_gain"' in text
+    assert '"path":"action_priors.quest_cycle.milk_cascade_gain"' in text
+    assert '"path":"action_priors.quest_cycle.prior_milk_distance_gain"' in text
+    assert '"path":"action_priors.quest_cycle.prior_milk_cascade_gain"' in text
+    assert '"path":"action_priors.lock_offer.milk_distance_gain"' in text
+    assert '"path":"action_priors.lock_offer.milk_cascade_gain"' in text
+
+
 def test_game_state_and_rig_listener_persist_policy_graph() -> None:
     gs = _read("Core/GameState/GameState.gd")
     serializer = _read("Core/GameState/GameStateSerializer.gd")
@@ -76,8 +90,9 @@ def test_snapshot_service_owns_policy_state_projection() -> None:
     snapshot = _read("Core/Instrumentation/SnapshotService.gd")
     listener = _read("Tests/rig_listener.gd")
     assert "func build_policy_state(cmd: Dictionary = {}) -> Dictionary:" in snapshot
+    assert "func build_policy_state_lightweight(cmd: Dictionary = {}) -> Dictionary:" in snapshot
     assert "_annotate_offer_discovery_affinity(offers)" in snapshot
-    assert '_snapshot_service.build_policy_state(cmd)' in listener
+    assert "_snapshot_service.build_policy_state_lightweight(cmd)" in listener
 
 
 def test_seed_path_and_runner_lock_policy_use_canonical_policy_graph() -> None:
