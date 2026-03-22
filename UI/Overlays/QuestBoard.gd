@@ -205,16 +205,16 @@ func handle_input(event: InputEvent) -> bool:
 			return true
 		# Action keys
 		KEY_Q:
-			action_q_on_selected()
+			on_q_pressed()
 			return true
 		KEY_E:
-			action_e_on_selected()
+			on_e_pressed()
 			return true
 		KEY_R:
 			if event.shift_pressed:
 				_refresh_all_unlocked_offers()
 			else:
-				action_r_on_selected()
+				on_r_pressed()
 			return true
 		KEY_F:
 			on_f_pressed()
@@ -528,8 +528,14 @@ func _generate_and_display_page(page_num: int) -> void:
 
 			# Check if this quest is already active
 			if quest_manager and quest_manager.active_quests.has(quest_id):
-				# Quest is already accepted - show as ACTIVE
-				slot.set_quest_active(quest)
+				var live_quest = quest_manager.active_quests.get(quest_id, {})
+				if live_quest is Dictionary and str(live_quest.get("status", "")) == "ready":
+					slot.state = SlotState.READY
+					slot.quest_data = live_quest.duplicate(true)
+					slot._refresh_ui()
+				else:
+					# Quest is already accepted - show as ACTIVE
+					slot.set_quest_active(quest)
 			else:
 				# Quest is offered - preserve lock state if it was already locked
 				var current_slot_id = slot.quest_data.get("id", -1) if slot.quest_data is Dictionary else -1
@@ -1269,10 +1275,15 @@ func _on_quest_ready_to_claim(quest_id: int) -> void:
 		var slot = quest_slots[i]
 		if slot.quest_data.get("id", -1) == quest_id:
 			slot.state = SlotState.READY
+			if quest_manager and quest_manager.active_quests.has(quest_id):
+				var live_quest = quest_manager.active_quests.get(quest_id, {})
+				if live_quest is Dictionary:
+					slot.quest_data = live_quest.duplicate(true)
 			slot._refresh_ui()
 			# Update action labels if this slot is selected
 			if i == selected_slot_index:
 				_emit_selection_update()
+			_save_current_page()
 			break
 
 

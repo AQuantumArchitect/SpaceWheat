@@ -125,6 +125,9 @@ func _handle_shell_action(event: InputEvent) -> bool:
 
 	# Farm overlay keys (C, V, B, N)
 	if FARM_OVERLAY_KEYS.has(keycode):
+		if keycode == KEY_C and overlay_manager and overlay_manager.quest_board and overlay_manager.quest_board.visible:
+			overlay_manager.open_quest_board_faction_browser()
+			return true
 		_toggle_farm_overlay(FARM_OVERLAY_KEYS[keycode])
 		return true
 
