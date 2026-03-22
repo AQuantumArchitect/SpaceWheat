@@ -125,9 +125,9 @@ func capture_state_from_farm(farm: Node, current_state: GameState, scenario_id: 
 		state.reap_count = int(farm.reap_count)
 	_log("debug", "save", "💰", "Captured %d emoji types in economy" % state.all_emoji_credits.size())
 
-	# Player Vocabulary (farm-owned canonical)
+	# Player Vocabulary (farm-owned canonical, reconciled with PlayerVocabulary if needed)
 	if farm and farm.has_method("get_known_pairs"):
-		state.known_pairs = farm.get_known_pairs()
+		state.known_pairs = _resolve_known_pairs_for_capture(farm)
 		state.known_emojis = []
 		for pair in state.known_pairs:
 			var north = pair.get("north", "")
@@ -318,8 +318,9 @@ func apply_state_to_farm(state: GameState, farm: Node) -> void:
 		_log("debug", "save", "⏱️", "Applied timescale: speed=%.4fx stride=%d dt=%.4f to %d biomes" % [state.quantum_time_scale, state.observation_stride, state.max_evolution_dt, biome_count])
 
 	var has_player_vocab_data = state.player_vocab_data and not state.player_vocab_data.is_empty()
+	var restored_known_pairs = _resolve_known_pairs_from_state(state)
 	if farm and farm.has_method("set_known_pairs"):
-		farm.set_known_pairs(state.known_pairs, not has_player_vocab_data, false)
+		farm.set_known_pairs(restored_known_pairs, not has_player_vocab_data, false)
 		if state.icon_map_snapshot and not state.icon_map_snapshot.is_empty():
 			_log("debug", "save", "🗺️", "Loaded IconMap snapshot cache (%s, %d emojis)" % [
 				state.icon_map_snapshot_source,
@@ -449,6 +450,11 @@ func apply_state_to_farm(state: GameState, farm: Node) -> void:
 		if _player_vocab.has_method("deserialize"):
 			_player_vocab.deserialize(state.player_vocab_data)
 			_log("debug", "save", "🔬", "Restored PlayerVocabulary QC data")
+		if farm and farm.has_method("set_known_pairs") and _player_vocab.has_method("get_all_learned_pairs"):
+			var vocab_pairs = _player_vocab.get_all_learned_pairs()
+			if vocab_pairs is Array and not vocab_pairs.is_empty():
+				farm.set_known_pairs(vocab_pairs, false, false)
+				_log("debug", "save", "📖", "Reconciled farm vocabulary from PlayerVocabulary (%d pairs)" % vocab_pairs.size())
 
 	# Restore selection state to QuantumInstrumentInput
 	if state.selected_plot_positions and state.selected_plot_positions.size() > 0:
@@ -460,6 +466,43 @@ func apply_state_to_farm(state: GameState, farm: Node) -> void:
 			_log("debug", "save", "⚠️", "QuantumInstrumentInput not found - selection state not restored")
 
 	_log("info", "save", "✓", "State applied to farm successfully - quantum states will regenerate from biome")
+
+
+func _resolve_known_pairs_from_state(state: GameState) -> Array:
+	"""Merge persisted farm pairs with PlayerVocabulary pairs.
+
+	Canonical gameplay authority is Farm.known_pairs, but older/bad saves may
+	have richer PlayerVocabulary.learned_pairs than state.known_pairs. Prefer the
+	richer union so resumed automation does not regress to starter vocab.
+	"""
+	var merged: Array = []
+	var seen: Dictionary = {}
+
+	var sources: Array = []
+	if state and state.known_pairs is Array:
+		sources.append(state.known_pairs)
+	if state and state.player_vocab_data is Dictionary:
+		var learned = state.player_vocab_data.get("learned_pairs", [])
+		if learned is Array:
+			sources.append(learned)
+
+	for source in sources:
+		for pair in source:
+			if not (pair is Dictionary):
+				continue
+			var north = str(pair.get("north", ""))
+			var south = str(pair.get("south", ""))
+			if north == "" or south == "" or north == south:
+				continue
+			var key = "%s|%s" % [north, south]
+			if seen.has(key):
+				continue
+			seen[key] = true
+			merged.append({"north": north, "south": south})
+
+	if merged.is_empty():
+		return [{"north": "🌾", "south": "👥"}]
+	return merged
 
 
 func _capture_biome_progression_state(state: GameState, current_state: GameState) -> void:
@@ -573,6 +616,43 @@ func _capture_icon_map_snapshot(farm: Node, known_emojis: Array) -> Dictionary:
 		}
 		out["icon_map_snapshot_source"] = "derived_from_pairs"
 	return out
+
+
+func _resolve_known_pairs_for_capture(farm: Node) -> Array:
+	var merged: Array = []
+	var seen: Dictionary = {}
+
+	if farm and farm.has_method("get_known_pairs"):
+		for pair in farm.get_known_pairs():
+			if not (pair is Dictionary):
+				continue
+			var north = str(pair.get("north", ""))
+			var south = str(pair.get("south", ""))
+			if north == "" or south == "" or north == south:
+				continue
+			var key = "%s|%s" % [north, south]
+			if seen.has(key):
+				continue
+			seen[key] = true
+			merged.append({"north": north, "south": south})
+
+	if _player_vocab and _player_vocab.has_method("get_all_learned_pairs"):
+		for pair in _player_vocab.get_all_learned_pairs():
+			if not (pair is Dictionary):
+				continue
+			var north = str(pair.get("north", ""))
+			var south = str(pair.get("south", ""))
+			if north == "" or south == "" or north == south:
+				continue
+			var key = "%s|%s" % [north, south]
+			if seen.has(key):
+				continue
+			seen[key] = true
+			merged.append({"north": north, "south": south})
+
+	if merged.is_empty():
+		return [{"north": "🌾", "south": "👥"}]
+	return merged
 
 
 func _capture_all_biome_states(farm: Node) -> Dictionary:
