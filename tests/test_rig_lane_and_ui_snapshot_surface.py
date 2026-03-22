@@ -65,6 +65,14 @@ def test_runner_summary_surface_is_extracted_into_helper_module() -> None:
     assert "apply_profile_metrics(summary, profile_metrics, len(final_pairs))" in runner
 
 
+def test_headed_rig_launcher_defaults_to_opengl3_on_wsl() -> None:
+    launcher = _read("🍄/🎛️/🟢.sh")
+    assert 'RIG_RENDERING_DRIVER="${RIG_RENDERING_DRIVER:-}"' in launcher
+    assert 'if [ -z "$RIG_RENDERING_DRIVER" ] && sw_is_wsl; then' in launcher
+    assert 'RIG_RENDERING_DRIVER="opengl3"' in launcher
+    assert '--rendering-driver "$RIG_RENDERING_DRIVER"' in launcher
+
+
 def test_policy_weights_terms_are_removed_from_mushroom_layer() -> None:
     profiles = _read("🍄/🎛️/profiles.py")
     arena = _read("🍄/🎛️/arena.py")

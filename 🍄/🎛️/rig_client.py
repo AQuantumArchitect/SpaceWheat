@@ -16,9 +16,28 @@ def _read_heartbeat(xdg: Optional[Path] = None) -> Optional[float]:
     hb_path = user_dir(xdg=xdg) / "rig" / "heartbeat"
     try:
         text = hb_path.read_text().strip()
-        return float(text) if text else None
+        lines = text.split("\n")
+        return float(lines[0]) if lines[0] else None
     except (OSError, ValueError):
         return None
+
+
+def _read_heartbeat_ext(xdg: Optional[Path] = None) -> dict:
+    """Read extended heartbeat: {timestamp, cmd_idle_ms, polling_dur_ms}.
+
+    Returns empty dict on any read error.
+    """
+    hb_path = user_dir(xdg=xdg) / "rig" / "heartbeat"
+    try:
+        lines = hb_path.read_text().strip().split("\n")
+        out: dict = {"timestamp": float(lines[0])}
+        if len(lines) >= 2:
+            out["cmd_idle_ms"] = int(lines[1])
+        if len(lines) >= 3:
+            out["polling_dur_ms"] = int(lines[2])
+        return out
+    except (OSError, ValueError, IndexError):
+        return {}
 
 
 def _pid_alive(pid: int) -> bool:
@@ -392,7 +411,9 @@ class RigClient:
             # Check heartbeat every 2 seconds
             if now - last_heartbeat_check >= 2.0:
                 last_heartbeat_check = now
-                hb_time = _read_heartbeat(xdg=self.xdg_root)
+                hb_ext = _read_heartbeat_ext(xdg=self.xdg_root)
+                hb_time = hb_ext.get("timestamp")
+                polling_dur_ms = hb_ext.get("polling_dur_ms", 0)
                 if hb_time is not None:
                     heartbeat_age = now - hb_time
                     heartbeat_alive = heartbeat_age < heartbeat_stale_s
@@ -405,6 +426,16 @@ class RigClient:
                     self.safe_print(
                         "[rig_wait] heartbeat stale (Godot unresponsive), timing out turn=%d after %.1fs"
                         % (turn_id, elapsed)
+                    )
+                    return None
+
+                # Detect stuck polling: heartbeat is alive (physics runs) but
+                # _poll_queue coroutine has been executing for >90s. This means
+                # Godot is alive but the command handler is hung.
+                if heartbeat_alive and polling_dur_ms > 90_000 and elapsed >= 30.0:
+                    self.safe_print(
+                        "[rig_wait] Godot alive but poll loop stuck (%dms), timing out turn=%d after %.1fs"
+                        % (polling_dur_ms, turn_id, elapsed)
                     )
                     return None
 

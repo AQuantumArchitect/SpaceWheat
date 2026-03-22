@@ -104,6 +104,9 @@ var _bridge_sentinel_path = "user://rig/bridge_ready"
 var _heartbeat_path = "user://rig/heartbeat"
 var _heartbeat_interval_ms: int = 2000
 var _next_heartbeat_at_ms: int = 0
+var _last_command_completed_at_ms: int = 0  # Tracks last successful command for heartbeat liveness
+var _polling_started_at_ms: int = 0  # Watchdog: detect hung _poll_queue coroutine
+const _POLLING_WATCHDOG_MS: int = 120_000  # Force-reset _polling after 120s stuck
 
 var _queue_offset: int = 0
 var _shell = null
@@ -111,6 +114,8 @@ var _snapshot_service = null
 var _instrument = null  # QuantumInstrument
 var _farm = null
 var _policy = null  # QuantumFiberPolicy
+var _cached_offers: Array = []
+var _cached_offers_pairs_count: int = -1  # Invalidate when pairs change
 var _player_input_macro_runner = null
 var _last_offers: Array = []
 var _is_headless: bool = true
@@ -226,11 +231,20 @@ func _ensure_runtime_unpaused_for_rig() -> bool:
 
 
 func _on_physics_frame() -> void:
-	# Heartbeat: write timestamp so runner can distinguish "busy" from "dead"
 	var now = Time.get_ticks_msec()
+
+	# Heartbeat: write timestamp + liveness flag so runner can distinguish
+	# "busy processing a command" from "stuck/dead".
 	if now >= _next_heartbeat_at_ms:
 		_next_heartbeat_at_ms = now + _heartbeat_interval_ms
-		_write_heartbeat()
+		_write_heartbeat(now)
+
+	# Watchdog: if _poll_queue has been running for > _POLLING_WATCHDOG_MS,
+	# the coroutine is likely hung. Force-reset so the queue can drain again.
+	if _polling and _polling_started_at_ms > 0 and (now - _polling_started_at_ms) > _POLLING_WATCHDOG_MS:
+		print("[RIG][WARN] Polling watchdog: _poll_queue stuck for %dms — force-resetting" % (now - _polling_started_at_ms))
+		_polling = false
+		_polling_started_at_ms = 0
 
 	if _polling:
 		return
@@ -238,16 +252,26 @@ func _on_physics_frame() -> void:
 		return
 	_next_poll_at_ms = now + _poll_interval_ms
 	_polling = true
+	_polling_started_at_ms = now
 	_ensure_runtime_unpaused_for_rig()
 	await _poll_queue()
 	_polling = false
+	_polling_started_at_ms = 0
 
 
-func _write_heartbeat() -> void:
+func _write_heartbeat(now_ms: int = -1) -> void:
 	var hb_path = ProjectSettings.globalize_path(_heartbeat_path)
 	var file = FileAccess.open(hb_path, FileAccess.WRITE)
 	if file:
-		file.store_string("%.3f" % Time.get_unix_time_from_system())
+		var unix_time = Time.get_unix_time_from_system()
+		if now_ms < 0:
+			now_ms = Time.get_ticks_msec()
+		# Line 1: unix timestamp (backward compat — runner reads this)
+		# Line 2: command_idle_ms — how long since last command completed
+		#   If this grows while _polling is true, the coroutine is hung.
+		var cmd_idle_ms = now_ms - _last_command_completed_at_ms if _last_command_completed_at_ms > 0 else -1
+		var polling_dur_ms = (now_ms - _polling_started_at_ms) if (_polling and _polling_started_at_ms > 0) else 0
+		file.store_string("%.3f\n%d\n%d" % [unix_time, cmd_idle_ms, polling_dur_ms])
 		file.close()
 
 
@@ -384,6 +408,7 @@ func _handle_line(raw: String) -> void:
 	if request_id != "":
 		result["request_id"] = request_id
 	_write_result(result)
+	_last_command_completed_at_ms = Time.get_ticks_msec()
 	var ok = bool(result.get("ok", false))
 	if ok:
 		_turn_log("END", turn_id, action, "ok=true dur=%sms" % [str(result.get("duration_ms", -1))])
@@ -1001,7 +1026,9 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 				if execution_backend == "player_input":
 					execution = await _execute_policy_action_via_input(decision)
 				else:
-					execution = await _execute_policy_action(decision)
+					# Direct path is fully synchronous — no await needed.
+					# Removing await prevents potential GDScript coroutine hangs.
+					execution = _execute_policy_action(decision)
 				execution["backend"] = str(execution.get("backend", execution_backend))
 			# Build post_state WITHOUT regenerating quest offers (expensive).
 			# Only resources, pairs, biomes, and lindblad need to be fresh for reward computation.
@@ -1071,6 +1098,10 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 		"stop":
 			result["stopped"] = true
 			result["__stop__"] = true
+
+		"ping":
+			result["pong"] = true
+			result["uptime_ms"] = Time.get_ticks_msec()
 
 		_:
 			result = {"ok": false, "turn": turn_id, "action": action, "error": "unknown_action"}
@@ -1797,17 +1828,31 @@ func _sync_policy_from_game_state() -> void:
 
 
 func _build_policy_state(cmd: Dictionary = {}) -> Dictionary:
-	if _snapshot_service and _snapshot_service.has_method("build_policy_state"):
-		var projected = _snapshot_service.build_policy_state(cmd)
+	# Cache quest offers: only regenerate when vocab count changes (89 factions is expensive).
+	# MUST run before SnapshotService path — otherwise the snapshot service
+	# calls quest_offer_all() uncached on every single policy_step.
+	var known_pairs = _instrument.get_known_vocab_pairs() if _instrument else []
+	var pairs_count = known_pairs.size() if known_pairs is Array else 0
+	if pairs_count != _cached_offers_pairs_count:
+		_cached_offers = _instrument.get_quest_offers_for_current_biome() if _instrument else []
+		_cached_offers_pairs_count = pairs_count
+
+	if _snapshot_service and _snapshot_service.has_method("build_policy_state_lightweight"):
+		# Use lightweight path (skips quest_offer_all) and inject our cached offers.
+		# build_policy_state() would call quest_offer_all() again uncached — defeating the cache.
+		var projected = _snapshot_service.build_policy_state_lightweight(cmd)
 		if projected is Dictionary:
+			projected["offers"] = _cached_offers
+			if _farm and _farm.has_method("compute_discovery_forecast"):
+				projected["discovery_forecast"] = _farm.compute_discovery_forecast()
 			return projected
 	return {
 		"profile": str(cmd.get("profile", "default")),
 		"resources": _get_resource_map(),
 		"resource_floors": _parse_wait_threshold(cmd.get("resource_floors", {})),
 		"forbid_actions": cmd.get("forbid_actions", []),
-		"known_pairs": _instrument.get_known_vocab_pairs() if _instrument else [],
-		"offers": _instrument.get_quest_offers_for_current_biome() if _instrument else [],
+		"known_pairs": known_pairs,
+		"offers": _cached_offers,
 		"active_quests": _instrument.get_active_quests() if _instrument else [],
 		"biomes": [],
 		"lindblad": _snapshot_service.get_lindblad_snapshot("", false) if _snapshot_service else {},
@@ -1924,6 +1969,24 @@ func _keycode_from_name(key_name: String) -> int:
 			return OS.find_keycode_from_string(upper)
 
 
+func _route_rig_key_event(event: InputEventKey) -> void:
+	# Synthetic rig input should traverse the same shell/overlay/input stack in
+	# both headed and headless modes. Relying on parse_input_event alone is not
+	# stable for modal overlay navigation in headed WSL sessions.
+	var viewport: Viewport = root
+	if _shell and _shell.has_method("_input"):
+		_shell._input(event)
+		if viewport and viewport.is_input_handled():
+			return
+	var qinput = _resolve_quantum_input()
+	if qinput and qinput.has_method("_unhandled_key_input"):
+		qinput._unhandled_key_input(event)
+		if viewport and viewport.is_input_handled():
+			return
+	if qinput and qinput.has_method("_input"):
+		qinput._input(event)
+
+
 func _push_key_event(keycode: int, pressed: bool, shift: bool = false) -> bool:
 	if keycode == KEY_UNKNOWN or keycode <= 0:
 		return false
@@ -1933,13 +1996,7 @@ func _push_key_event(keycode: int, pressed: bool, shift: bool = false) -> bool:
 	event.pressed = pressed
 	event.echo = false
 	event.shift_pressed = shift
-	Input.parse_input_event(event)
-	if _is_headless:
-		if _shell and _shell.has_method("_input"):
-			_shell._input(event)
-		var qinput = _resolve_quantum_input()
-		if qinput and qinput.has_method("_unhandled_key_input"):
-			qinput._unhandled_key_input(event)
+	_route_rig_key_event(event)
 	return true
 
 
@@ -2213,11 +2270,13 @@ func _execute_policy_action(decision: Dictionary) -> Dictionary:
 			if not _instrument:
 				return {"ok": false, "action": action, "error": "no_quantum_instrument"}
 			var offer_index = int(params.get("offer_index", -1))
-			var lock_offers: Array = []
-			var lock_offer_result = _instrument.quest_offer_all()
-			var offered = lock_offer_result.get("offers", [])
-			if offered is Array:
-				lock_offers = offered
+			# Use cached offers instead of expensive quest_offer_all()
+			var lock_offers: Array = _cached_offers if not _cached_offers.is_empty() else []
+			if lock_offers.is_empty():
+				var lock_offer_result = _instrument.quest_offer_all()
+				var offered = lock_offer_result.get("offers", [])
+				if offered is Array:
+					lock_offers = offered
 			if offer_index < 0 or offer_index >= lock_offers.size():
 				return {"ok": false, "action": action, "error": "invalid_offer_index"}
 			var locked = false

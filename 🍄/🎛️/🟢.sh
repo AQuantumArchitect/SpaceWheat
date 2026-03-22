@@ -24,8 +24,13 @@ export DISABLE_VERBOSE_FILE_LOGGING=1
 export RIG_DISABLE_MI=1
 export RIG_DISABLE_FORCE=1
 RIG_DISPLAY_MODE="${RIG_DISPLAY_MODE:-headless}"
+RIG_RENDERING_DRIVER="${RIG_RENDERING_DRIVER:-}"
 if [ "$RIG_DISPLAY_MODE" = "headed" ]; then
   sw_prepare_runtime_env "interactive"
+  if [ -z "$RIG_RENDERING_DRIVER" ] && sw_is_wsl; then
+    # WSL headed Vulkan currently falls onto llvmpipe and never reaches Rig ready.
+    RIG_RENDERING_DRIVER="opengl3"
+  fi
 else
   sw_prepare_runtime_env "headless"
 fi
@@ -35,8 +40,14 @@ echo "Queue:  user://rig/queue.jsonl"
 echo "Results: user://rig/results.jsonl"
 echo "User dir: $GODOT_USER_DIR"
 echo "Display mode: $RIG_DISPLAY_MODE"
+if [ -n "$RIG_RENDERING_DRIVER" ]; then
+  echo "Rendering driver: $RIG_RENDERING_DRIVER"
+fi
 
 if [ "$RIG_DISPLAY_MODE" = "headed" ]; then
+  if [ -n "$RIG_RENDERING_DRIVER" ]; then
+    exec godot --audio-driver "${SW_GODOT_AUDIO_DRIVER:-Dummy}" --rendering-driver "$RIG_RENDERING_DRIVER" --path . --script Tests/rig_listener.gd
+  fi
   exec godot --audio-driver "${SW_GODOT_AUDIO_DRIVER:-Dummy}" --path . --script Tests/rig_listener.gd
 fi
 

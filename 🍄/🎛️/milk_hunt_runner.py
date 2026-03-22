@@ -126,7 +126,7 @@ def _run_turn(turn_id: int, action: str, **kwargs: Any) -> Dict[str, Any]:
         elif action in {"active_quests"}:
             timeout_s = 45.0
         elif action in {"policy_step"}:
-            timeout_s = 120.0
+            timeout_s = 300.0
         elif action in {"policy_snapshot"}:
             timeout_s = 20.0
         elif action in {"offer_quests", "accept_offer", "known_vocab_pairs", "resource_snapshot"}:
@@ -139,6 +139,8 @@ def _run_turn(turn_id: int, action: str, **kwargs: Any) -> Dict[str, Any]:
             timeout_s = 45.0
         elif action == "victory_lap":
             timeout_s = 180.0
+        elif action in {"load_game", "load_game_alias", "save_game", "save_game_path"}:
+            timeout_s = 30.0
         else:
             timeout_s = 10.0
     row = _RIG.run_turn(
@@ -2061,6 +2063,15 @@ def main() -> int:
     use_engine_policy = hunter_policy_mode in ("engine_policy", "quantum_register")
 
     try:
+        # Health check: verify the rig listener is responsive before sending
+        # real commands. Catches dead/stale Godot processes early (5s timeout).
+        ping_row = _run_turn(turn, "ping", timeout_s=5.0)
+        if not ping_row.get("ok", False):
+            _safe_print("milk-hunt: listener failed health check (ping): %s" % str(ping_row.get("error", "?")), "error")
+            RigClient.terminate_listener(proc, timeout_s=5.0)
+            return 1
+        turn += 1
+
         if load_alias is not None:
             history.append(_run_turn(turn, "load_game_alias", alias=load_alias))
             turn += 1
