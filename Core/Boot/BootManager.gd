@@ -630,6 +630,12 @@ func load_biome(biome_name: String, farm: Node) -> Dictionary:
 			"message": "Could not load biome for '%s'" % biome_name
 		}
 
+	# Registry-built biomes are created off-tree. They still need a real owner so
+	# _exit_tree() runs and the runtime graph is released on session shutdown.
+	if biome.get_parent() == null:
+		farm.add_child(biome)
+		_verbose.debug("boot", "🌱", "Attached '%s' to Farm scene tree" % biome_name)
+
 	# ====== STEP 2: REGISTER WITH GRID ======
 	farm.grid.register_biome(biome_name, biome)
 	biome.grid = farm.grid
