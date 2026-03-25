@@ -5,7 +5,7 @@ import sys
 from typing import Any, Dict, List, Optional
 
 from milk_hunt_characters import get_character, resolve_character_seed
-from milk_hunt_profiles import get_profile, list_profiles
+from profiles import load, list_all
 from policy_graph_runtime import profile_graph_path
 from milk_hunt_world_state import load_world_state
 from rig_client import RigClient
@@ -152,7 +152,7 @@ def main() -> int:
     if args.list_profiles:
         safe_print("seed-save: available profiles")
         rows = []
-        for profile in list_profiles():
+        for profile in list_all():
             rows.append(
                 {
                     "name": profile["name"],
@@ -189,7 +189,7 @@ def main() -> int:
         profile = world_state
     elif args.profile:
         try:
-            profile = get_profile(args.profile)
+            profile = load(args.profile)
         except ValueError as exc:
             safe_print(f"seed-save: {exc}")
             return 2

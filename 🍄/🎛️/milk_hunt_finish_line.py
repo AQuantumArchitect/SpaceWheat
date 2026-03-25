@@ -16,7 +16,7 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List
 
-from run_executor import ensure_lane, run_cli
+from run_executor import cleanup_process_patterns, ensure_lane, run_cli
 
 
 PROFILES: List[str] = [
@@ -61,19 +61,11 @@ def _run_cmd(cmd: List[str], timeout_s: int, lane=None) -> subprocess.CompletedP
 
 
 def _cleanup_stale_processes() -> None:
-    subprocess.run(
-        [
-            "/bin/bash",
-            "-lc",
-            (
-                "pids=$(pgrep -f \"milk_hunt_runner.py|Tests/rig_listener.gd|milk_hunt_batch.py --profile\" || true); "
-                "if [ -n \"$pids\" ]; then kill $pids || true; fi"
-            ),
-        ],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+    cleanup_process_patterns([
+        "milk_hunt_runner.py",
+        "Tests/rig_listener.gd",
+        "milk_hunt_batch.py --profile",
+    ])
 
 
 def _read_summary(path: Path) -> Dict[str, Any]:

@@ -12,8 +12,7 @@ from typing import Any, Dict, List, Optional
 import milk_hunt_args
 from milk_hunt_console import Console, resolve_console_profile
 from milk_hunt_io import write_json
-from milk_hunt_profiles import get_profile
-from profile_save_registry import get_profile_name_for_save, get_profile_save, resolve_profile_save_spec
+from profiles import load, get_profile_name_for_save, get_save_path, resolve_save_spec
 from run_executor import ensure_lane, run_cli
 
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -441,9 +440,9 @@ def main() -> int:
         return 2
 
     if args.profile_save:
-        resolved_profile_save = resolve_profile_save_spec(args.profile_save, args.profile_save_index)
+        resolved_profile_save = resolve_save_spec(args.profile_save, args.profile_save_index)
     elif args.profile and not args.world_state:
-        mapped = get_profile_save(args.profile, args.profile_save_index)
+        mapped = get_save_path(args.profile, args.profile_save_index)
         if mapped:
             resolved_profile_save = mapped
             console.log(
@@ -459,7 +458,7 @@ def main() -> int:
     if seed_source and not resolved_profile_save:
         if args.profile and not args.world_state:
             try:
-                profile = get_profile(args.profile)
+                profile = load(args.profile)
             except ValueError as exc:
                 console.log(f"[batch] {exc}", "error")
                 return 2
@@ -487,7 +486,7 @@ def main() -> int:
         strict_biome_economy = True
     hunter_profile = args.hunter_profile or args.profile
     if hunter_profile is None and args.profile_save:
-        mapped = get_profile_save(args.profile_save, args.profile_save_index)
+        mapped = get_save_path(args.profile_save, args.profile_save_index)
         if mapped:
             hunter_profile = args.profile_save
         else:

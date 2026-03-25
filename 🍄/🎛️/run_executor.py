@@ -6,6 +6,8 @@ Keeps seed/run/batch wrappers on one lane-aware execution surface.
 from __future__ import annotations
 
 import json
+import os
+import signal
 import subprocess
 import sys
 import time
@@ -58,6 +60,38 @@ def run_cli(
         env=env,
         check=False,
     )
+
+
+def cleanup_process_patterns(patterns: Iterable[str]) -> None:
+    """Terminate matching stale processes without shell-script duplication."""
+    seen: set[int] = set()
+    for raw_pattern in patterns:
+        pattern = str(raw_pattern).strip()
+        if not pattern:
+            continue
+        proc = subprocess.run(
+            ["pgrep", "-f", pattern],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if proc.returncode not in (0, 1):
+            continue
+        for line in (proc.stdout or "").splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                pid = int(line)
+            except ValueError:
+                continue
+            if pid <= 0 or pid in seen or pid == os.getpid():
+                continue
+            try:
+                os.kill(pid, signal.SIGTERM)
+                seen.add(pid)
+            except OSError:
+                continue
 
 
 def latest_batch_summary(root: Path) -> Dict[str, Any]:

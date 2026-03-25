@@ -12,11 +12,12 @@ Graph Tissue™ is a trademark of Luke Spooner.
 from __future__ import annotations
 
 import json
-import subprocess
 import sys
 import time
 from pathlib import Path
 from typing import Any, Dict, List
+
+from run_executor import ensure_lane, run_cli
 
 HERE = Path(__file__).resolve().parent
 CONFIG_WS = HERE / "config" / "world_state"
@@ -41,6 +42,7 @@ def score_result(report: Dict[str, Any]) -> Dict[str, float]:
 
 
 def main():
+    lane = ensure_lane()
     profiles = []
     for i in range(1, 6):
         for lane in ("sonnet", "codex"):
@@ -81,7 +83,7 @@ def main():
         ]
 
         t0 = time.time()
-        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=1800)
+        proc = run_cli(cmd, lane=lane, capture_output=True, timeout_s=1800)
         elapsed = time.time() - t0
 
         if out_path.exists():

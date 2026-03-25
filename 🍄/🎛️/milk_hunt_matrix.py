@@ -1,18 +1,12 @@
 #!/usr/bin/env python3
 import argparse
 import json
-import subprocess
-import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List
 
 from milk_hunt_io import write_json
-from milk_hunt_paths import resolve_batch_summary
-
-SCRIPT_DIR = Path(__file__).resolve().parent
-RUNNER = SCRIPT_DIR / "milk_hunt_batch.py"
-
+from run_executor import ensure_lane, run_batch
 
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Run milk hunt batches across multiple profiles")
@@ -50,45 +44,47 @@ def _run_profile(
     runs: int,
     max_loops: int,
     output_dir: Path,
+    lane,
     profile_save_index: str | None = None,
     console_profile: str | None = None,
 ) -> Dict[str, Any]:
-    cmd = [
-        "python3",
-        str(RUNNER),
-        "--profile",
-        profile,
-        "--runs",
-        str(runs),
-        "--max-loops",
-        str(max_loops),
-        "--output-dir",
-        str(output_dir),
-    ]
+    extra_args: List[str] = ["--profile", profile]
     if profile_save_index:
-        cmd.extend(["--profile-save-index", profile_save_index])
-    if console_profile:
-        cmd.extend(["--console-profile", console_profile])
-    proc = subprocess.run(cmd, capture_output=True, text=True, check=False)
+        extra_args.extend(["--profile-save-index", profile_save_index])
+    batch = run_batch(
+        lane=lane,
+        timeout_s=400,
+        runs=runs,
+        max_loops=max_loops,
+        hunter_profile=profile,
+        hunter_policy="engine_policy",
+        runtime_profile="io_min",
+        console_profile=console_profile or "quiet",
+        display_mode="headless",
+        policy_execution_backend="direct",
+        output_dir=output_dir,
+        strict_biome_economy=True,
+        reuse_listener=False,
+        extra_args=extra_args,
+    )
     summary: Dict[str, Any] = {
         "profile": profile,
-        "exit_code": proc.returncode,
-        "stdout_tail": (proc.stdout or "")[-4000:],
-        "stderr_tail": (proc.stderr or "")[-4000:],
+        "exit_code": int(batch.get("exit_code", 1)),
+        "stdout_tail": str(batch.get("stdout", ""))[-4000:],
+        "stderr_tail": str(batch.get("stderr", ""))[-4000:],
+        "batch_summary": batch.get("batch_summary", {}),
     }
-
-    candidate = resolve_batch_summary(output_dir)
-    if candidate is not None and candidate.exists():
-        try:
-            summary["batch_summary"] = json.loads(candidate.read_text(encoding="utf-8"))
-            summary["batch_dir"] = str(candidate.parent)
-        except json.JSONDecodeError:
-            summary["batch_summary"] = {"parse_error": "invalid_summary_json"}
+    batch_summary = summary.get("batch_summary", {})
+    if isinstance(batch_summary, dict) and batch_summary:
+        batch_dir = batch_summary.get("batch_dir")
+        if batch_dir:
+            summary["batch_dir"] = str(batch_dir)
     return summary
 
 
 def main() -> int:
     args = _build_parser().parse_args()
+    lane = ensure_lane()
     profiles = [p.strip() for p in args.profiles.split(",") if p.strip()]
     if not profiles:
         print("[matrix] no profiles provided", flush=True)
@@ -106,6 +102,7 @@ def main() -> int:
             args.runs,
             args.max_loops,
             args.output_dir,
+            lane,
             args.profile_save_index,
             args.console_profile,
         )
@@ -126,4 +123,4 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    raise SystemExit(main())

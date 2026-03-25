@@ -16,13 +16,13 @@ from milk_hunt_console import (
     resolve_console_profile,
 )
 from milk_hunt_paths import project_root
-from profile_save_registry import get_profile_name_for_save, get_profile_save, resolve_profile_save_spec
 from milk_hunt_io import write_json
 from policy_graph_runtime import (
     action_limits_for_action,
     action_limits_for_action_from_graph,
     profile_graph_path as runtime_policy_graph_path,
 )
+from profiles import get_profile_name_for_save, get_save_path, resolve_save_spec
 from milk_hunt_summary import (
     add_milk_pair_index,
     apply_profile_metrics,
@@ -133,7 +133,7 @@ def _run_turn(turn_id: int, action: str, **kwargs: Any) -> Dict[str, Any]:
             timeout_s = 20.0
         elif action in {"grid_snapshot"}:
             timeout_s = 20.0
-        elif action in {"probe_cycle", "discover_biome", "explore_biome"}:
+        elif action in {"probe_cycle", "discover_biome"}:
             timeout_s = 20.0
         elif action in {"time_skip"}:
             timeout_s = 45.0
@@ -1659,13 +1659,13 @@ def main() -> int:
 
     resolved_profile_save: Optional[str] = None
     if profile_save:
-        resolved_profile_save = resolve_profile_save_spec(profile_save, profile_save_index)
+        resolved_profile_save = resolve_save_spec(profile_save, profile_save_index)
         if not load_alias:
             load_alias = resolved_profile_save
             load_slot = None
             _safe_print(f"milk-hunt: using profile-save '{resolved_profile_save}'", "detail")
         if not args.hunter_profile:
-            mapped = get_profile_save(profile_save, profile_save_index)
+            mapped = get_save_path(profile_save, profile_save_index)
             if mapped:
                 hunter_profile = profile_save
             else:
@@ -1673,7 +1673,7 @@ def main() -> int:
                 if mapped_name:
                     hunter_profile = mapped_name
     elif not load_alias and load_slot is None and hunter_profile:
-        mapped_profile_save = get_profile_save(hunter_profile, profile_save_index)
+        mapped_profile_save = get_save_path(hunter_profile, profile_save_index)
         if mapped_profile_save:
             resolved_profile_save = mapped_profile_save
             load_alias = mapped_profile_save
@@ -2537,7 +2537,7 @@ def main() -> int:
                         expansions_attempted += 1
                         expand_result = {}
                         if isinstance(expand_row, dict):
-                            expand_result = expand_row.get("discover_biome", expand_row.get("explore_biome", {}))
+                            expand_result = expand_row.get("discover_biome", {})
                         success = bool(isinstance(expand_result, dict) and expand_result.get("success", False))
                         if success:
                             expansions_succeeded += 1

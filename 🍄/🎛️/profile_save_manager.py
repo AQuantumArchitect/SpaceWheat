@@ -14,8 +14,8 @@ from pathlib import Path
 from typing import Dict
 
 from milk_hunt_io import write_json
-from milk_hunt_profiles import list_profile_names
-from profile_save_registry import (
+from profiles import (
+    list_names,
     default_registry_path,
     default_registry_uri,
     resolve_user_path,
@@ -97,7 +97,7 @@ def main() -> int:
     lane = ensure_lane()
 
     if args.cmd == "list":
-        names = list_profile_names()
+        names = list_names()
         if args.json:
             print(json.dumps(names, ensure_ascii=False, indent=2))
         else:
@@ -112,7 +112,7 @@ def main() -> int:
         return 0
 
     if args.cmd == "build-all":
-        names = list_profile_names()
+        names = list_names()
         out_dir = resolve_user_path(args.out_dir)
         index_path = resolve_user_path(args.index_path) if args.index_path else default_registry_path()
         entries: Dict[str, str] = {}

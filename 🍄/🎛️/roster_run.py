@@ -20,7 +20,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from run_executor import ensure_lane, parse_last_json, run_cli, run_seed
+from run_executor import cleanup_process_patterns, ensure_lane, parse_last_json, run_cli, run_seed
 
 _RUNNER_DIR = Path(__file__).resolve().parent
 
@@ -30,12 +30,7 @@ def _project_root() -> Path:
 
 
 def _cleanup_stale() -> None:
-    subprocess.run(
-        ["/bin/bash", "-lc",
-         'pids=$(pgrep -f "milk_hunt_runner.py|Tests/rig_listener.gd" || true); '
-         'if [ -n "$pids" ]; then kill $pids 2>/dev/null || true; fi'],
-        capture_output=True, text=True, check=False,
-    )
+    cleanup_process_patterns(["milk_hunt_runner.py", "Tests/rig_listener.gd"])
 
 
 def seed_character(
