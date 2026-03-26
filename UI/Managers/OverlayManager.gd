@@ -9,8 +9,6 @@ extends Node
 ## Handles overlay visibility, positioning, and menu actions
 
 # Preload dependencies
-const QuestPanel = preload("res://UI/Widgets/QuestPanel.gd")
-const FactionQuestOffersPanel = preload("res://UI/Widgets/FactionQuestOffersPanel.gd")
 const QuestBoard = preload("res://UI/Overlays/QuestBoard.gd")  # New modal quest board
 const NetworkInfoPanel = preload("res://UI/NetworkInfoPanel.gd")
 # DEPRECATED: ConspiracyNetworkOverlay - tomato conspiracy system removed
@@ -30,8 +28,6 @@ const SemanticMapOverlay = preload("res://UI/Overlays/SemanticMapOverlay.gd")
 const BalanceWorkbenchOverlay = preload("res://UI/Overlays/BalanceWorkbenchOverlay.gd")
 
 # Overlay instances
-var quest_panel: QuestPanel
-var faction_quest_offers_panel: FactionQuestOffersPanel  # Legacy browse-all panel
 var quest_board: QuestBoard  # New modal 4-slot quest board (primary interface)
 var vocabulary_overlay: Control
 var network_info_panel: NetworkInfoPanel
@@ -65,8 +61,6 @@ var farm  # Farm reference for biome inspector
 # Track overlay visibility state
 var overlay_states: Dictionary = {
 	"quests": false,
-	"quest_offers": false,  # Legacy browse-all panel
-	"quest_board": false,  # New modal 4-slot quest board
 	"vocabulary": false,
 	"network": false,
 	"escape_menu": false,
@@ -178,35 +172,6 @@ func create_overlays(parent: Control) -> void:
 		parent.set_size(viewport_size)
 		_verbose.debug("ui", "📏", "OverlayLayer forced to size: %s" % viewport_size)
 
-	# Create Quest Panel
-	quest_panel = QuestPanel.new()
-	if layout_manager:
-		quest_panel.set_layout_manager(layout_manager)
-	if quest_manager:
-		quest_panel.connect_to_quest_manager(quest_manager)
-	quest_panel.visible = false
-	quest_panel.z_index = 1001
-	parent.add_child(quest_panel)
-	_verbose.info("ui", "📜", "Quest panel created (press C to toggle)")
-	_setup_visibility_processing(quest_panel)
-
-	# Create Faction Quest Offers Panel (Legacy - kept for compatibility)
-	faction_quest_offers_panel = FactionQuestOffersPanel.new()
-	if layout_manager:
-		faction_quest_offers_panel.set_layout_manager(layout_manager)
-	if quest_manager:
-		faction_quest_offers_panel.connect_to_quest_manager(quest_manager)
-	faction_quest_offers_panel.visible = false
-	faction_quest_offers_panel.z_index = 1002  # Above quest panel
-	parent.add_child(faction_quest_offers_panel)
-
-	# Connect signals
-	faction_quest_offers_panel.quest_offer_accepted.connect(_on_quest_offer_accepted)
-	faction_quest_offers_panel.panel_closed.connect(_on_quest_offers_panel_closed)
-
-	_verbose.info("ui", "⚛️", "Faction Quest Offers panel created (legacy)")
-	_setup_visibility_processing(faction_quest_offers_panel)
-
 	# Create Quest Board (New Modal 4-Slot System - Primary Interface)
 	quest_board = QuestBoard.new()
 	if layout_manager:
@@ -214,7 +179,7 @@ func create_overlays(parent: Control) -> void:
 	if quest_manager:
 		quest_board.set_quest_manager(quest_manager)
 	quest_board.visible = false
-	quest_board.z_index = 1003  # Above legacy panels
+	quest_board.z_index = 1001
 	parent.add_child(quest_board)
 
 	# Connect signals
@@ -330,11 +295,6 @@ func toggle_overlay(name: String) -> void:
 	"""Toggle visibility of an overlay by name"""
 	match name:
 		"quests":
-			# C key now shows quest board (modal 4-slot system)
-			toggle_quest_board()
-		"quest_offers":
-			toggle_quest_offers_panel()  # Legacy panel
-		"quest_board":
 			toggle_quest_board()
 		"vocabulary":
 			toggle_vocabulary_overlay()
@@ -353,35 +313,16 @@ func show_overlay(name: String) -> void:
 	_verbose.debug("ui", "🔓", "show_overlay('%s') called" % name)
 	match name:
 		"quests":
-			# C key now shows quest offers (emergent system)
-			if faction_quest_offers_panel and farm:
-				_verbose.debug("quest", "→", "Showing faction quest offers with current biome")
+			if quest_board and farm:
 				var biome = _get_current_biome(farm)
 				if biome:
-					faction_quest_offers_panel.show_offers(biome)
-					overlay_states["quest_offers"] = true
-					overlay_toggled.emit("quest_offers", true)
-					_verbose.debug("quest", "✅", "faction_quest_offers_panel shown")
-				else:
-					_verbose.warn("quest", "❌", "No biome available!")
-			elif not faction_quest_offers_panel:
-				_verbose.warn("quest", "❌", "faction_quest_offers_panel is null!")
-			else:
-				_verbose.warn("quest", "❌", "farm reference not set!")
-		"quest_offers":
-			if faction_quest_offers_panel and farm:
-				_verbose.debug("quest", "→", "Showing faction quest offers with current biome")
-				# Get current biome from farm
-				var biome = _get_current_biome(farm)
-				if biome:
-					faction_quest_offers_panel.show_offers(biome)
-					overlay_states["quest_offers"] = true
-					overlay_toggled.emit("quest_offers", true)
-					_verbose.debug("quest", "✅", "faction_quest_offers_panel shown")
-				else:
-					_verbose.warn("quest", "❌", "No biome available!")
-			elif not faction_quest_offers_panel:
-				_verbose.warn("quest", "❌", "faction_quest_offers_panel is null!")
+					quest_board.set_biome(biome)
+				quest_board.open_board()
+				overlay_states["quests"] = true
+				overlay_toggled.emit("quests", true)
+				_verbose.info("quest", "✅", "Quest board opened")
+			elif not quest_board:
+				_verbose.warn("quest", "❌", "quest_board is null!")
 			else:
 				_verbose.warn("quest", "❌", "farm reference not set!")
 		"vocabulary":
@@ -420,24 +361,13 @@ func hide_overlay(name: String) -> void:
 	_verbose.debug("ui", "🔐", "hide_overlay('%s') called" % name)
 	match name:
 		"quests":
-			# C key now hides quest offers (emergent system)
-			if faction_quest_offers_panel:
-				_verbose.debug("quest", "→", "Setting faction_quest_offers_panel.visible = false")
-				faction_quest_offers_panel.visible = false
-				overlay_states["quest_offers"] = false
-				overlay_toggled.emit("quest_offers", false)
-				_verbose.info("quest", "✅", "faction_quest_offers_panel hidden")
+			if quest_board:
+				quest_board.close_board()
+				overlay_states["quests"] = false
+				overlay_toggled.emit("quests", false)
+				_verbose.info("quest", "✅", "Quest board closed")
 			else:
-				_verbose.warn("quest", "❌", "faction_quest_offers_panel is null!")
-		"quest_offers":
-			if faction_quest_offers_panel:
-				_verbose.debug("quest", "→", "Setting faction_quest_offers_panel.visible = false")
-				faction_quest_offers_panel.visible = false
-				overlay_states["quest_offers"] = false
-				overlay_toggled.emit("quest_offers", false)
-				_verbose.info("quest", "✅", "faction_quest_offers_panel hidden")
-			else:
-				_verbose.warn("quest", "❌", "faction_quest_offers_panel is null!")
+				_verbose.warn("quest", "❌", "quest_board is null!")
 		"vocabulary":
 			if vocabulary_overlay:
 				_verbose.debug("ui", "→", "Setting vocabulary_overlay.visible = false")
@@ -480,10 +410,6 @@ func update_positions() -> void:
 	if not layout_manager:
 		return
 
-	# Quest panel - top-left corner with scaled margin
-	if quest_panel:
-		quest_panel.position = layout_manager.anchor_to_corner("top_left", Vector2(10, 10))
-
 	# Vocabulary overlay - position set during creation, can be overridden here if needed
 	# (currently left at creation position for UX consistency)
 
@@ -507,36 +433,6 @@ func is_menu_open() -> bool:
 # PRIVATE METHODS
 # ============================================================================
 
-func toggle_quest_panel() -> void:
-	"""Toggle quest panel visibility"""
-	_verbose.debug("quest", "🔄", "toggle_quest_panel() called")
-	if quest_panel:
-		_verbose.debug("quest", "→", "quest_panel exists, visible = %s" % quest_panel.visible)
-		if quest_panel.visible:
-			_verbose.debug("quest", "→", "Panel is visible, calling hide_overlay()")
-			hide_overlay("quests")
-		else:
-			_verbose.debug("quest", "→", "Panel is hidden, calling show_overlay()")
-			show_overlay("quests")
-	else:
-		_verbose.warn("quest", "❌", "quest_panel is null!")
-
-
-func toggle_quest_offers_panel() -> void:
-	"""Toggle faction quest offers panel visibility (legacy)"""
-	_verbose.debug("quest", "🔄", "toggle_quest_offers_panel() called")
-	if faction_quest_offers_panel:
-		_verbose.debug("quest", "→", "faction_quest_offers_panel exists, visible = %s" % faction_quest_offers_panel.visible)
-		if faction_quest_offers_panel.visible:
-			_verbose.debug("quest", "→", "Panel is visible, calling hide_overlay()")
-			hide_overlay("quest_offers")
-		else:
-			_verbose.debug("quest", "→", "Panel is hidden, calling show_overlay()")
-			show_overlay("quest_offers")
-	else:
-		_verbose.warn("quest", "❌", "faction_quest_offers_panel is null!")
-
-
 func toggle_quest_board() -> void:
 	"""Toggle quest board visibility (modal 4-slot system)"""
 	_verbose.debug("quest", "🔄", "toggle_quest_board() called")
@@ -553,8 +449,8 @@ func toggle_quest_board() -> void:
 				if biome:
 					quest_board.set_biome(biome)
 					quest_board.open_board()
-					overlay_states["quest_board"] = true
-					overlay_toggled.emit("quest_board", true)
+					overlay_states["quests"] = true
+					overlay_toggled.emit("quests", true)
 					_verbose.info("quest", "✅", "Quest board opened")
 				else:
 					_verbose.warn("quest", "❌", "No biome available!")
@@ -1118,50 +1014,25 @@ func _on_save_load_menu_closed() -> void:
 		_verbose.warn("save", "⚠️", "Escape menu not available to return to")
 
 
-func _on_quest_offer_accepted(quest: Dictionary) -> void:
-	"""Handle when player accepts a quest offer from faction panel"""
-	_verbose.info("quest", "⚛️", "Quest offer accepted: %s - %s" % [quest.get("faction", ""), quest.get("body", "")])
-	# Quest is already added to active quests by QuestManager in the panel
-	# Just refresh the active quests panel if it's visible
-	if quest_panel and quest_panel.visible:
-		quest_panel.refresh_display()
-
-
-func _on_quest_offers_panel_closed() -> void:
-	"""Handle when faction quest offers panel is closed"""
-	overlay_states["quest_offers"] = false
-
-
 func _on_quest_board_quest_accepted(quest: Dictionary) -> void:
 	"""Handle when player accepts a quest from quest board"""
 	_verbose.info("quest", "📋", "Quest accepted from board: %s - %s" % [quest.get("faction", ""), quest.get("body", "")])
-	# Quest is already added to active quests by QuestManager
-	# Just refresh the active quests panel if it's visible
-	if quest_panel and quest_panel.visible:
-		quest_panel.refresh_display()
 
 
 func _on_quest_board_quest_completed(quest_id: int, rewards: Dictionary) -> void:
 	"""Handle when player completes a quest from quest board"""
 	_verbose.info("quest", "🎉", "Quest completed from board: ID %d" % quest_id)
-	# Refresh quest panel if visible
-	if quest_panel and quest_panel.visible:
-		quest_panel.refresh_display()
 
 
 func _on_quest_board_quest_abandoned(quest_id: int) -> void:
 	"""Handle when player abandons a quest from quest board"""
 	_verbose.info("quest", "❌", "Quest abandoned from board: ID %d" % quest_id)
-	# Refresh quest panel if visible
-	if quest_panel and quest_panel.visible:
-		quest_panel.refresh_display()
 
 
 func _on_quest_board_closed() -> void:
 	"""Handle when quest board is closed"""
-	overlay_states["quest_board"] = false
-	overlay_toggled.emit("quest_board", false)
-	overlay_toggled.emit("quest_offers", false)
+	overlay_states["quests"] = false
+	overlay_toggled.emit("quests", false)
 
 
 # ============================================================================

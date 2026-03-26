@@ -27,7 +27,8 @@ Core Paths
 - Turn writer: `🍄/🎛️/✍️.sh`
 - Milk hunt entry: `🍄/🎛️/🥛🏃.sh`
 - Runner implementation: `🍄/🎛️/milk_hunt_runner.py`
-- Runner policy: `🍄/🎛️/milk_hunt_quantum_policy.py`
+- Runner policy graphs: `Core/Config/PolicyGraph/`
+- Runner policy projector: `Core/AI/PolicyStateProjector.gd`
 - Save/profile seeding: `🍄/🎛️/milk_hunt_seed_save.py`
 - Shared world-state configs: `🍄/🎛️/config/world_state/`
 - Shared strategy configs: `🍄/🎛️/config/strategy/`
@@ -56,6 +57,7 @@ Do not commit bulk run outputs anywhere else in `🍄`.
 LLM Operating Rules
 -------------------
 - Prefer wrappers in `🍄/🎛️/` over direct ad-hoc commands.
+- Always claim a private rig lane (`XDG_ROOT`) per bot/session; do not share the default lane in a crowded workspace.
 - Keep run outputs in existing log/result paths; do not invent new output roots.
 - For reproducibility, seed saves via `milk_hunt_seed_save.py` before batch runs.
 - Use frame-based waits/time-skip actions (in-game steps), not wall-clock sleep logic.

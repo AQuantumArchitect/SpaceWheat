@@ -34,15 +34,18 @@ func execute(decision: Dictionary) -> Dictionary:
 		"discover_biome":
 			return await _execute_discover_biome()
 		"time_skip", "victory_lap_partial", "channel_drain":
-			return _direct_fallback(decision)
+			return _unsupported_action(action)
 		_:
-			return _direct_fallback(decision)
+			return _unsupported_action(action)
 
 
-func _direct_fallback(decision: Dictionary) -> Dictionary:
-	var direct = host._execute_policy_action(decision)
-	direct["backend"] = "direct_fallback"
-	return direct
+func _unsupported_action(action: String) -> Dictionary:
+	return {
+		"ok": false,
+		"action": action,
+		"backend": "player_input",
+		"error": "not_supported_by_player_input",
+	}
 
 
 func _execute_probe_cycle(params: Dictionary) -> Dictionary:
@@ -82,11 +85,11 @@ func _execute_probe_cycle(params: Dictionary) -> Dictionary:
 func _execute_quest_cycle(decision: Dictionary, params: Dictionary) -> Dictionary:
 	var open_result = await host._open_quest_board_via_input()
 	if not bool(open_result.get("ok", false)):
-		return host._execute_policy_quest_cycle(params).merged({"backend": "direct_fallback"}, true)
+		return {"ok": false, "action": "quest_cycle", "backend": "player_input", "error": str(open_result.get("error", "quest_board_open_failed"))}
 	var overlay_manager = host._resolve_overlay_manager()
 	var board = overlay_manager.get_v2_overlay("quests") if overlay_manager and overlay_manager.has_method("get_v2_overlay") else null
 	if not board or not board.has_method("get_snapshot"):
-		return host._execute_policy_quest_cycle(params).merged({"backend": "direct_fallback"}, true)
+		return {"ok": false, "action": "quest_cycle", "backend": "player_input", "error": "quest_board_unavailable"}
 	var snapshot = board.get_snapshot()
 	var target_page = 0
 	var target_slot = -1
@@ -133,7 +136,7 @@ func _execute_quest_cycle(decision: Dictionary, params: Dictionary) -> Dictionar
 func _execute_lock_offer(decision: Dictionary, params: Dictionary) -> Dictionary:
 	var open_result = await host._open_quest_board_via_input()
 	if not bool(open_result.get("ok", false)):
-		return _direct_fallback(decision)
+		return {"ok": false, "action": "lock_offer", "backend": "player_input", "error": str(open_result.get("error", "quest_board_open_failed"))}
 	var offer_index = int(params.get("offer_index", -1))
 	if offer_index < 0:
 		await host._press_key(KEY_ESCAPE, false, 2)

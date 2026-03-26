@@ -423,7 +423,7 @@ func get_hud_snapshot(hud_name: String) -> Dictionary:
 
 func get_full_ui_snapshot() -> Dictionary:
 	var snapshot: Dictionary = {"widgets": {}, "huds": {}, "overlays": {}}
-	for wname in ["resources", "action_preview", "quantum_mode", "biome_oval", "quest_panel", "faction_browser"]:
+	for wname in ["resources", "action_preview", "quantum_mode", "biome_oval", "quest_board", "faction_browser"]:
 		var row = get_widget_snapshot(wname)
 		if bool(row.get("ok", false)):
 			snapshot["widgets"][wname] = row.get("snapshot", {})
@@ -471,11 +471,9 @@ func _resolve_widget(widget_name: String):
 			if overlay and "current_biome_panel" in overlay:
 				return overlay.current_biome_panel
 			return null
-		"quest_panel":
+		"quest_board":
 			var overlay = _resolve_overlay("quests")
-			if overlay and "quest_panel" in overlay:
-				return overlay.quest_panel
-			return null
+			return overlay
 		"faction_browser":
 			var overlay = _resolve_overlay("quests")
 			if overlay and "faction_browser" in overlay:

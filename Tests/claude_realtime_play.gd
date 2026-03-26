@@ -39,8 +39,9 @@ var farm = null
 var player_shell = null
 var input_handler = null
 var overlay_manager = null
-var plot_pool = null
+var terminal_pool = null
 var economy = null
+var active_biome_manager = null
 
 var frame_count: int = 0
 var scene_loaded: bool = false
@@ -142,18 +143,33 @@ func _find_components():
 		farm = farm_view.farm
 		if farm:
 			economy = farm.economy
-			plot_pool = farm.plot_pool
+			terminal_pool = farm.terminal_pool if "terminal_pool" in farm else null
+	var boot = root.get_node_or_null("/root/BootManager")
+	if not farm and boot and "farm" in boot:
+		farm = boot.farm
+		if farm:
+			economy = farm.economy
+			terminal_pool = farm.terminal_pool if "terminal_pool" in farm else null
 
 	player_shell = _find_node(root, "PlayerShell")
 	if player_shell:
 		overlay_manager = player_shell.get("overlay_manager")
-		for child in player_shell.get_children():
-			if child.get_script() and child.get_script().resource_path.ends_with("FarmInputHandler.gd"):
-				input_handler = child
-				break
+		input_handler = player_shell.get_node_or_null("QuantumInstrumentInput")
+		if not input_handler:
+			for child in player_shell.get_children():
+				if child.name == "QuantumInstrumentInput":
+					input_handler = child
+					break
+	if not farm and input_handler and "farm" in input_handler:
+		farm = input_handler.farm
+		if farm:
+			economy = farm.economy
+			terminal_pool = farm.terminal_pool if "terminal_pool" in farm else null
 
-	print("Components: Farm=%s Shell=%s Input=%s PlotPool=%s" % [
-		farm != null, player_shell != null, input_handler != null, plot_pool != null
+	active_biome_manager = root.get_node_or_null("/root/ActiveBiomeManager")
+
+	print("Components: Farm=%s Shell=%s Input=%s TerminalPool=%s" % [
+		farm != null, player_shell != null, input_handler != null, terminal_pool != null
 	])
 
 
@@ -278,8 +294,10 @@ var sensible_state = {
 	"terminals_explored": 0,
 	"overlay_checked": false,
 	"gates_tried": false,
-	"entangle_tried": false,
-	"navigation_done": false
+	"lindblad_tried": false,
+	"navigation_done": false,
+	"plot_cursor": 0,
+	"biome_cursor": 0
 }
 
 func _play_sensible_action():
@@ -314,44 +332,46 @@ func _play_sensible_action():
 			_sensible_pop()
 			sensible_state.cycle_step = 5
 
-		5:  # Wait/try gates or entanglement
+		5:  # Wait/try gates or lindblad
 			if not sensible_state.gates_tried and randf() < 0.15:
 				_sensible_try_gates()
 				sensible_state.gates_tried = true
-			elif not sensible_state.entangle_tried and randf() < 0.2:
-				_sensible_try_entangle()
-				sensible_state.entangle_tried = true
+			elif not sensible_state.lindblad_tried and randf() < 0.2:
+				_sensible_try_lindblad()
+				sensible_state.lindblad_tried = true
 			else:
 				sensible_state.gates_tried = false
-				sensible_state.entangle_tried = false
+				sensible_state.lindblad_tried = false
 				sensible_state.terminals_explored += 1
 				sensible_state.cycle_step = 0
 
 
 func _sensible_explore():
-	print("[SENSIBLE] Selecting Tool 1 (Probe)")
-	_send_key(KEY_1)
+	print("[SENSIBLE] Selecting Tool 3 (Probe)")
+	_send_key(KEY_3)
+	_select_sensible_plot()
 
-	# Small delay before action (using frame delay instead of timer)
 	print("[SENSIBLE] Q = EXPLORE")
 	_send_key(KEY_Q)
 	stats.explores += 1
 
 
 func _sensible_navigate():
-	var direction = ["W", "A", "S", "D"][randi() % 4]
-	var key = {"W": KEY_W, "A": KEY_A, "S": KEY_S, "D": KEY_D}[direction]
-	print("[SENSIBLE] Navigate: %s" % direction)
-	_send_key(key)
+	if randf() < 0.5:
+		_cycle_sensible_plot()
+	else:
+		_cycle_sensible_biome()
 
 
 func _sensible_measure():
+	_select_sensible_plot()
 	print("[SENSIBLE] E = MEASURE")
 	_send_key(KEY_E)
 	stats.measures += 1
 
 
 func _sensible_pop():
+	_select_sensible_plot()
 	print("[SENSIBLE] R = POP")
 	_send_key(KEY_R)
 	stats.pops += 1
@@ -376,8 +396,9 @@ func _sensible_check_overlay():
 
 
 func _sensible_try_gates():
-	print("[SENSIBLE] Selecting Tool 4 (Unitary/Gates)")
-	_send_key(KEY_4)
+	print("[SENSIBLE] Selecting Tool 1 (Unitary/Gates)")
+	_send_key(KEY_1)
+	_select_sensible_plot()
 
 	var gates = ["Q (Pauli-X)", "E (Hadamard)", "R (Pauli-Z)"]
 	var keys = [KEY_Q, KEY_E, KEY_R]
@@ -388,19 +409,20 @@ func _sensible_try_gates():
 	stats.gates_applied += 1
 
 	# Switch back to probe
-	_send_key(KEY_1)
+	_send_key(KEY_3)
 
 
-func _sensible_try_entangle():
-	print("[SENSIBLE] Selecting Tool 2 (Entangle)")
+func _sensible_try_lindblad():
+	print("[SENSIBLE] Selecting Tool 2 (Lindblad)")
 	_send_key(KEY_2)
+	_select_sensible_plot()
 
-	print("[SENSIBLE] Q = CLUSTER (create entanglement)")
+	print("[SENSIBLE] Q = DRAIN")
 	_send_key(KEY_Q)
-	stats.interesting_events.append("Attempted entanglement cluster")
+	stats.interesting_events.append("Attempted Lindblad drain")
 
 	# Switch back to probe
-	_send_key(KEY_1)
+	_send_key(KEY_3)
 
 
 # ============================================================================
@@ -414,12 +436,12 @@ func _build_chaos_keys():
 		KEY_1, KEY_2, KEY_3, KEY_4,
 		# Actions
 		KEY_Q, KEY_E, KEY_R, KEY_F,
-		# Navigation
-		KEY_W, KEY_A, KEY_S, KEY_D,
-		# Location keys
-		KEY_Y, KEY_U, KEY_I, KEY_O, KEY_P,
+		# Biome keys
+		KEY_T, KEY_Y, KEY_U, KEY_I, KEY_O, KEY_P,
+		# Plot keys
+		KEY_J, KEY_K, KEY_L, KEY_SEMICOLON, KEY_APOSTROPHE,
 		# Overlays
-		KEY_C, KEY_V, KEY_B, KEY_N, KEY_K, KEY_L,
+		KEY_C, KEY_V, KEY_B, KEY_N, KEY_K,
 		# Mode switch
 		KEY_TAB,
 		# ESC (but not too often)
@@ -469,10 +491,10 @@ func _chaos_rapid_tool_qer():
 
 
 func _chaos_navigation_spam():
-	var nav_keys = [KEY_W, KEY_A, KEY_S, KEY_D]
+	var nav_keys = [KEY_J, KEY_K, KEY_L, KEY_SEMICOLON, KEY_APOSTROPHE]
 	var count = randi() % 10 + 3
 
-	print("[CHAOS] Navigation spam x%d" % count)
+	print("[CHAOS] Plot-selection spam x%d" % count)
 
 	for i in range(count):
 		_send_key(nav_keys[randi() % 4])
@@ -507,7 +529,7 @@ func _chaos_mode_switch():
 
 
 func _chaos_location_spam():
-	var loc_keys = [KEY_Y, KEY_U, KEY_I, KEY_O, KEY_P]
+	var loc_keys = [KEY_T, KEY_Y, KEY_U, KEY_I, KEY_O, KEY_P]
 	var count = randi() % 6 + 2
 
 	print("[CHAOS] Location key spam x%d" % count)
@@ -532,24 +554,69 @@ func _key_name(keycode: int) -> String:
 		KEY_E: return "E"
 		KEY_R: return "R"
 		KEY_F: return "F"
-		KEY_W: return "W"
-		KEY_A: return "A"
-		KEY_S: return "S"
-		KEY_D: return "D"
+		KEY_T: return "T"
 		KEY_Y: return "Y"
 		KEY_U: return "U"
 		KEY_I: return "I"
 		KEY_O: return "O"
 		KEY_P: return "P"
+		KEY_J: return "J"
 		KEY_C: return "C"
 		KEY_V: return "V"
 		KEY_B: return "B"
 		KEY_N: return "N"
 		KEY_K: return "K"
 		KEY_L: return "L"
+		KEY_SEMICOLON: return ";"
+		KEY_APOSTROPHE: return "'"
 		KEY_TAB: return "TAB"
 		KEY_ESCAPE: return "ESC"
 	return "Key_%d" % keycode
+
+
+func _get_sensible_plot_keys() -> Array[int]:
+	return [KEY_J, KEY_K, KEY_L, KEY_SEMICOLON, KEY_APOSTROPHE]
+
+
+func _get_available_biome_keycodes() -> Array[int]:
+	if active_biome_manager and active_biome_manager.has_method("get_slot_count") and active_biome_manager.has_method("get_slot_key"):
+		var keys: Array[int] = []
+		for slot_idx in range(int(active_biome_manager.get_slot_count())):
+			var key_name = str(active_biome_manager.get_slot_key(slot_idx))
+			var keycode = OS.find_keycode_from_string(key_name)
+			if keycode != KEY_NONE and keycode != KEY_UNKNOWN:
+				keys.append(keycode)
+		if not keys.is_empty():
+			return keys
+	return [KEY_T, KEY_Y, KEY_U, KEY_I, KEY_O, KEY_P]
+
+
+func _select_sensible_plot() -> void:
+	var plot_keys = _get_sensible_plot_keys()
+	if plot_keys.is_empty():
+		return
+	var idx = int(sensible_state.plot_cursor) % plot_keys.size()
+	var keycode = plot_keys[idx]
+	print("[SENSIBLE] Select plot: %s" % _key_name(keycode))
+	_send_key(keycode)
+
+
+func _cycle_sensible_plot() -> void:
+	var plot_keys = _get_sensible_plot_keys()
+	if plot_keys.is_empty():
+		return
+	sensible_state.plot_cursor = (int(sensible_state.plot_cursor) + 1) % plot_keys.size()
+	_select_sensible_plot()
+
+
+func _cycle_sensible_biome() -> void:
+	var biome_keys = _get_available_biome_keycodes()
+	if biome_keys.is_empty():
+		return
+	sensible_state.biome_cursor = (int(sensible_state.biome_cursor) + 1) % biome_keys.size()
+	var keycode = biome_keys[int(sensible_state.biome_cursor)]
+	print("[SENSIBLE] Switch biome: %s" % _key_name(keycode))
+	_send_key(keycode)
 
 
 # ============================================================================
@@ -559,22 +626,30 @@ func _key_name(keycode: int) -> String:
 func _send_key(keycode: int):
 	var press = InputEventKey.new()
 	press.keycode = keycode
+	press.physical_keycode = keycode
 	press.pressed = true
 	press.echo = false
 
-	# Send through the input system
-	Input.parse_input_event(press)
-
-	# Also try direct handler calls for headless compatibility
-	if player_shell and player_shell.has_method("_unhandled_input"):
-		player_shell._unhandled_input(press)
-
-	if input_handler and input_handler.has_method("_unhandled_input"):
-		input_handler._unhandled_input(press)
+	_route_key_event(press)
 
 	# Release
 	var release = InputEventKey.new()
 	release.keycode = keycode
+	release.physical_keycode = keycode
 	release.pressed = false
 	release.echo = false
-	Input.parse_input_event(release)
+	_route_key_event(release)
+
+
+func _route_key_event(event: InputEventKey) -> void:
+	var viewport: Viewport = root
+	if player_shell and player_shell.has_method("_input"):
+		player_shell._input(event)
+		if viewport and viewport.is_input_handled():
+			return
+	if input_handler and input_handler.has_method("_unhandled_key_input"):
+		input_handler._unhandled_key_input(event)
+		if viewport and viewport.is_input_handled():
+			return
+	if input_handler and input_handler.has_method("_input"):
+		input_handler._input(event)

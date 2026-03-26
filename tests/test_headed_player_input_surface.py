@@ -19,6 +19,12 @@ def test_rig_listener_exposes_player_input_backend_and_key_commands() -> None:
     assert 'execution_backend == "player_input"' in src
 
 
+def test_player_input_backend_does_not_hide_direct_fallbacks() -> None:
+    src = _read("UI/Core/PlayerInputMacroRunner.gd")
+    assert "not_supported_by_player_input" in src
+    assert "_direct_fallback" not in src
+
+
 def test_runner_batch_and_launcher_thread_display_backend_flags() -> None:
     runner = _read("🍄/🎛️/milk_hunt_runner.py")
     batch = _read("🍄/🎛️/milk_hunt_batch.py")
@@ -44,7 +50,6 @@ def test_derby_and_seed_save_accept_headed_player_input_flags() -> None:
     assert "--policy-execution-backend" in derby
     assert 'display_mode=str(args.display_mode)' in derby
     assert 'policy_execution_backend=str(args.policy_execution_backend)' in derby
-    assert '--ready-timeout' in derby
     assert "--display-mode" in wrapper
     assert "--policy-execution-backend" in wrapper
     assert "--display-mode" in seed

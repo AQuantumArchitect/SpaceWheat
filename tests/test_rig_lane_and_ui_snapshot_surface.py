@@ -34,6 +34,8 @@ def test_snapshot_service_owns_ui_snapshot_registry() -> None:
     assert "func get_hud_snapshot(" in src
     assert "func get_full_ui_snapshot(" in src
     assert "func build_policy_state_lightweight(" in src
+    assert '"quest_board"' in src
+    assert '"quest_panel"' not in src
 
 
 def test_rig_listener_is_thinner_and_uses_player_input_macro_runner() -> None:
@@ -49,7 +51,8 @@ def test_player_input_macro_runner_exists_next_to_ui_input_layer() -> None:
     src = _read("UI/Core/PlayerInputMacroRunner.gd")
     assert "class_name PlayerInputMacroRunner" in src
     assert "func execute(decision: Dictionary) -> Dictionary:" in src
-    assert 'return _direct_fallback(decision)' in src
+    assert "not_supported_by_player_input" in src
+    assert "_direct_fallback" not in src
 
 
 def test_runner_summary_surface_is_extracted_into_helper_module() -> None:

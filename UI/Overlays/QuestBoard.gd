@@ -241,21 +241,6 @@ func open_board() -> void:
 	# Restore from GameState
 	var gsm = _get_game_state_manager()
 	if gsm and gsm.current_state:
-		# Migrate old quest_slots format to new quest_pages format (only if has actual quests)
-		if "quest_slots" in gsm.current_state and gsm.current_state.quest_slots.size() == 4:
-			if not ("quest_pages" in gsm.current_state) or gsm.current_state.quest_pages.is_empty():
-				# Check if old slots have any actual quests (not all null)
-				var has_quests = false
-				for slot_data in gsm.current_state.quest_slots:
-					if slot_data != null:
-						has_quests = true
-						break
-
-				# Only migrate if there were actual quests saved
-				if has_quests:
-					gsm.current_state.quest_pages = {0: gsm.current_state.quest_slots.duplicate(true)}
-					gsm.current_state.quest_board_current_page = 0
-
 		# Restore page memory
 		if "quest_pages" in gsm.current_state and not gsm.current_state.quest_pages.is_empty():
 			quest_pages_memory = gsm.current_state.quest_pages.duplicate(true)
@@ -398,14 +383,6 @@ func _get_game_state_manager():
 
 func _resolve_quantum_instrument():
 	return InstrumentLocator.resolve_quantum_instrument(self)
-
-
-func _get_saved_quest_slots() -> Array:
-	"""Safely load quest slots from GameStateManager"""
-	var gsm = _get_game_state_manager()
-	if gsm and gsm.current_state and "quest_slots" in gsm.current_state:
-		return gsm.current_state.quest_slots
-	return []
 
 
 func _save_current_page() -> void:

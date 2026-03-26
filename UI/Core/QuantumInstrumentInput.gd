@@ -1242,15 +1242,10 @@ func _execute_action(action_name: String) -> Dictionary:
 			if result.get("success", false):
 				_refresh_plot_tiles(positions)
 		"explore":
-			var explore_positions = _get_homerow_positions()
-			var explored_count = 0
-			var last_result: Dictionary = {"success": false, "error": "no_positions"}
-			for pos in explore_positions:
-				var r = _instrument.action_explore(biome_name, pos)
-				last_result = r
-				if r.get("success", false):
-					explored_count += 1
-			result = {"success": explored_count > 0, "explored_count": explored_count} if explored_count > 0 else last_result
+			if positions.is_empty():
+				result = {"success": false, "error": "no_positions", "message": "No plot selected"}
+			else:
+				result = _instrument.action_explore(biome_name, positions[0])
 		"measure":
 			result = _instrument.action_measure(grid_pos)
 		"reap":
