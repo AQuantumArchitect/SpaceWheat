@@ -7,6 +7,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List
 
+from constants import MAX_LOOPS, DEFAULT_RUNS_PER_PROFILE
 from milk_hunt_io import write_json
 from milk_hunt_paths import resolve_batch_summary
 
@@ -22,8 +23,8 @@ def _build_parser() -> argparse.ArgumentParser:
         required=True,
         help="Comma-separated profile names",
     )
-    parser.add_argument("--runs", type=int, default=3, help="Runs per profile")
-    parser.add_argument("--max-loops", type=int, default=220, help="Max offer cycles per run")
+    parser.add_argument("--runs", type=int, default=DEFAULT_RUNS_PER_PROFILE, help="Runs per profile")
+    parser.add_argument("--max-loops", type=int, default=MAX_LOOPS, help="Max offer cycles per run")
     parser.add_argument(
         "--console-profile",
         choices=["quiet", "normal", "debug", "trace", "test"],

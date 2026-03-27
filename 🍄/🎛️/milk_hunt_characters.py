@@ -12,6 +12,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
+from constants import POLICY_ENGINE, POLICY_QUANTUM, POLICY_MODES
 from milk_hunt_runtime_config import load_json_config
 
 
@@ -150,10 +151,10 @@ def resolve_character_world_state(character: CharacterDict) -> Dict[str, Any]:
 
 
 def resolve_character_policy(character: CharacterDict, hunter_policy: str) -> Dict[str, Any]:
-    safe_mode = (hunter_policy or "engine_policy").strip() or "engine_policy"
-    if safe_mode not in {"engine_policy", "quantum_register"}:
+    safe_mode = (hunter_policy or POLICY_ENGINE).strip() or POLICY_ENGINE
+    if safe_mode not in POLICY_MODES:
         raise ValueError("unsupported character policy mode '%s'" % safe_mode)
-    policy_kind = "quantum_register" if safe_mode == "quantum_register" else "ucb"
+    policy_kind = POLICY_QUANTUM if safe_mode == POLICY_QUANTUM else "ucb"
     policies = character.get("policies", {})
     policy_cfg = policies.get(safe_mode, {}) if isinstance(policies, dict) else {}
     if not isinstance(policy_cfg, dict):

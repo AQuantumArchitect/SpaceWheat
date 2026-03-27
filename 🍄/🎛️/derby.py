@@ -19,6 +19,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List
 
+from constants import (
+    SEED_TIMEOUT_S, MATCH_TIMEOUT_S,
+    POLICY_ENGINE, POLICY_QUANTUM, POLICY_MODES,
+)
+
 from milk_hunt_characters import (
     get_character,
     list_character_names,
@@ -92,7 +97,7 @@ def _latest_batch_summary(match_dir: Path) -> Dict[str, Any]:
     return {}
 
 
-def _seed_character(character_name: str, policy: str, reuse_listener: bool, timeout_s: int = 180) -> Dict[str, Any]:
+def _seed_character(character_name: str, policy: str, reuse_listener: bool, timeout_s: int = SEED_TIMEOUT_S) -> Dict[str, Any]:
     save_uri = _save_uri(character_name, policy)
     cmd = [
         sys.executable,
@@ -126,8 +131,8 @@ def _run_match(
     console_profile: str,
     output_dir: Path,
     reuse_listener: bool,
-    seed_timeout_s: int = 180,
-    match_timeout_s: int = 200,
+    seed_timeout_s: int = SEED_TIMEOUT_S,
+    match_timeout_s: int = MATCH_TIMEOUT_S,
 ) -> DerbyResult:
     character = get_character(character_name)
     world_state = resolve_character_world_state(character)
@@ -207,8 +212,8 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--policies",
         nargs="+",
-        default=["engine_policy", "quantum_register"],
-        choices=["engine_policy", "quantum_register"],
+        default=POLICY_MODES,
+        choices=POLICY_MODES,
         help="Hunter policies to compare",
     )
     parser.add_argument("--runs", type=int, default=1, help="Runs per character/policy match")
@@ -232,8 +237,8 @@ def _build_parser() -> argparse.ArgumentParser:
         default=LOG_ROOT,
         help="Directory for derby reports",
     )
-    parser.add_argument("--seed-timeout", type=int, default=180, help="Per-character seed timeout in seconds")
-    parser.add_argument("--match-timeout", type=int, default=200, help="Per-character match timeout in seconds")
+    parser.add_argument("--seed-timeout", type=int, default=SEED_TIMEOUT_S, help="Per-character seed timeout in seconds")
+    parser.add_argument("--match-timeout", type=int, default=MATCH_TIMEOUT_S, help="Per-character match timeout in seconds")
     return parser
 
 

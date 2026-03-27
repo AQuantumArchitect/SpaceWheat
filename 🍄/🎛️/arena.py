@@ -32,6 +32,13 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from constants import (
+    MAX_LOOPS, SECS_PER_CYCLE, SEED_TIMEOUT_S, MATCH_TIMEOUT_S, TIMEOUT_FLOOR,
+    run_timeout,
+    POLICY_ENGINE, POLICY_QUANTUM, POLICY_MODES,
+    DEFAULT_LANES, DEFAULT_RUNNERS, DEFAULT_RUNS_PER_PROFILE,
+    TRAIN_MAX_CYCLES_START, TRAIN_CYCLES_STEP, TRAIN_TARGET_WIN_RATE,
+)
 from emoji import (
     DERBY, RACE, LANE, RUNNER, BATCH, TISSUE, LICHEN, CHARACTER, SCORE,
     LAYER_RACE, LAYER_DUEL, LAYER_MATRIX, LAYER_DESIGN,
@@ -42,7 +49,7 @@ from schema import (
     format_scoreboard, format_lane_scores,
 )
 from tissue_ledger import (
-    WEIGHT_RANGES,
+    WEIGHT_RANGES, _EMA_ALPHA,
     append_ledger_entry,
     evolve_defaults,
     format_evolved_diff,
@@ -286,7 +293,7 @@ def _extract_learnings(
             try:
                 char = load_character(r.profile)
                 from milk_hunt_characters import resolve_character_policy
-                policy_cfg = resolve_character_policy(char, "engine_policy")
+                policy_cfg = resolve_character_policy(char, POLICY_ENGINE)
                 jsonl_lines = policy_cfg.get("graph_jsonl", [])
                 if jsonl_lines:
                     pw = reverse_policy_to_weights(jsonl_lines)
@@ -493,14 +500,14 @@ def _seed_runner(
         cmd.extend(["--resource-mode", "set"])
         for emoji, amount in resource_overrides.items():
             cmd.extend(["--resource", f"{emoji}:{amount}"])
-    proc = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+    proc = subprocess.run(cmd, capture_output=True, text=True, timeout=SEED_TIMEOUT_S)
     return proc.returncode in (0, 3)
 
 
 def _seed_character(
     character_name: str,
     slot: int,
-    policy_mode: str = "engine_policy",
+    policy_mode: str = POLICY_ENGINE,
     overlay_lines: Optional[List[str]] = None,
     resource_overrides: Optional[Dict[str, int]] = None,
 ) -> bool:
@@ -519,7 +526,7 @@ def _seed_character(
         cmd.extend(["--resource-mode", "set"])
         for emoji, amount in resource_overrides.items():
             cmd.extend(["--resource", f"{emoji}:{amount}"])
-    proc = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+    proc = subprocess.run(cmd, capture_output=True, text=True, timeout=SEED_TIMEOUT_S)
     return proc.returncode in (0, 3)
 
 
@@ -528,7 +535,7 @@ def _run_chunk(
     max_cycles: int,
     console_profile: str,
     strict: Optional[bool] = None,
-    hunter_policy: str = "engine_policy",
+    hunter_policy: str = POLICY_ENGINE,
 ) -> Dict[str, Any]:
     """Run a chunk of cycles for one runner."""
     cmd = [
@@ -549,7 +556,7 @@ def _run_chunk(
     t0 = time.time()
     proc = subprocess.run(
         cmd, capture_output=True, text=True,
-        timeout=max(120, max_cycles * 30),
+        timeout=run_timeout(max_cycles, floor=TIMEOUT_FLOOR["race"]),
     )
     elapsed = time.time() - t0
 
@@ -583,7 +590,7 @@ def cmd_race(args: argparse.Namespace) -> None:
     if not profile_name:
         print("Must specify --profile or --character")
         sys.exit(1)
-    policy_mode = getattr(args, "hunter_policy", "engine_policy") or "engine_policy"
+    policy_mode = getattr(args, "hunter_policy", POLICY_ENGINE) or POLICY_ENGINE
 
     slots = [_slot_for(profile_name, i) for i in range(n_runners)]
     step_sizes = _fib_steps(max_cycles)
@@ -773,7 +780,7 @@ def _run_lane(
         try:
             proc = subprocess.run(
                 cmd, capture_output=True, text=True,
-                timeout=max(300, max_cycles * 30), env=env,
+                timeout=run_timeout(max_cycles, floor=TIMEOUT_FLOOR["duel"]), env=env,
             )
         except subprocess.TimeoutExpired:
             elapsed = time.time() - t0
@@ -885,7 +892,7 @@ def _run_character_lane(
         try:
             proc = subprocess.run(
                 cmd, capture_output=True, text=True,
-                timeout=max(300, max_cycles * 30), env=env,
+                timeout=run_timeout(max_cycles, floor=TIMEOUT_FLOOR["duel"]), env=env,
             )
         except subprocess.TimeoutExpired:
             elapsed = time.time() - t0
@@ -934,7 +941,7 @@ def cmd_duel(args: argparse.Namespace) -> None:
     if use_characters:
         # Character mode: lanes = policy modes, runners = characters
         char_names = args.characters
-        policies = args.policies or ["engine_policy", "quantum_register"]
+        policies = args.policies or POLICY_MODES
 
         # Validate characters exist
         for name in char_names:
@@ -1145,7 +1152,7 @@ def cmd_matrix(args: argparse.Namespace) -> None:
         print(f"\n  [{BATCH}] Running {profile} ({args.runs} runs)...")
         t0 = time.time()
         proc = subprocess.run(cmd, capture_output=True, text=True,
-                              timeout=max(600, args.max_cycles * 30 * args.runs))
+                              timeout=run_timeout(args.max_cycles, floor=TIMEOUT_FLOOR["matrix"], runs=args.runs))
         elapsed = time.time() - t0
 
         # Find batch summary
@@ -1302,9 +1309,12 @@ def _run_duel_epoch(
 def cmd_train(args: argparse.Namespace) -> None:
     """Continuous adversarial training loop with tissue evolution between epochs."""
     characters = args.characters or list_character_names()
-    policies = args.policies or ["engine_policy", "quantum_register"]
+    policies = args.policies or POLICY_MODES
     epochs = args.epochs
     max_cycles = args.max_cycles
+    target_win_rate = getattr(args, "target_win_rate", TRAIN_TARGET_WIN_RATE)
+    cycles_step = getattr(args, "cycles_step", TRAIN_CYCLES_STEP)
+    _MAX_CYCLES_CAP = MAX_LOOPS
 
     if not characters:
         print("No characters found!")
@@ -1313,8 +1323,8 @@ def cmd_train(args: argparse.Namespace) -> None:
     print(header(DERBY, "TRAIN: Adversarial Learning Loop"))
     print(f"  {CHARACTER} Characters: {', '.join(characters)}")
     print(f"  Policies: {', '.join(policies)}")
-    print(f"  Epochs: {epochs}  |  Max cycles: {max_cycles}")
-    print(f"  Tissue evolution: alpha=0.30, {len(WEIGHT_RANGES)} weights")
+    print(f"  Epochs: {epochs}  |  Max cycles: {max_cycles}  |  Target win rate: {target_win_rate:.0%}")
+    print(f"  Tissue evolution: alpha={_EMA_ALPHA}, {len(WEIGHT_RANGES)} weights")
 
     ts = time.strftime("%Y%m%d_%H%M%S")
     train_dir = LOG_DIR / f"train_{ts}"
@@ -1387,6 +1397,20 @@ def cmd_train(args: argparse.Namespace) -> None:
         }
         epoch_summaries.append(epoch_summary)
 
+        # Auto-scale max_cycles toward target win rate
+        total_milk_so_far = sum(s["milk_count"] for s in epoch_summaries)
+        total_runners_so_far = sum(s["n_runners"] for s in epoch_summaries)
+        running_win_rate = total_milk_so_far / max(1, total_runners_so_far)
+        epoch_summary["running_win_rate"] = round(running_win_rate, 4)
+        epoch_summary["max_cycles"] = max_cycles
+        if running_win_rate < target_win_rate and max_cycles < _MAX_CYCLES_CAP:
+            new_cycles = min(max_cycles + cycles_step, _MAX_CYCLES_CAP)
+            print(f"\n  [{TISSUE}] Win rate {running_win_rate:.1%} < target {target_win_rate:.0%} "
+                  f"→ increasing max_cycles {max_cycles} → {new_cycles}")
+            max_cycles = new_cycles
+        else:
+            print(f"\n  [{TISSUE}] Win rate {running_win_rate:.1%}  max_cycles={max_cycles}")
+
         summary = make_envelope(
             LAYER_TRAIN,
             runners=[r.to_dict() for r in all_runners],
@@ -1421,10 +1445,13 @@ def cmd_train(args: argparse.Namespace) -> None:
     print(f"  {epochs} epochs, {sum(s['n_runners'] for s in epoch_summaries)} total runners")
 
     if epoch_summaries:
-        print(f"\n  {'Epoch':<7} {'Milk':>5} {'Runners':>8} {'AvgComp':>8} {'Winner':<12} {'Time':>6}")
-        print("  " + "-" * 52)
+        print(f"\n  {'Epoch':<7} {'Milk':>5} {'Runners':>8} {'WinRate':>8} {'MaxCyc':>7} {'AvgComp':>8} {'Winner':<12} {'Time':>6}")
+        print("  " + "-" * 68)
         for s in epoch_summaries:
+            wr = s.get("running_win_rate", 0.0)
+            mc = s.get("max_cycles", max_cycles)
             print(f"  {s['epoch']+1:<7} {s['milk_count']:>5} {s['n_runners']:>8} "
+                  f"{wr:>8.1%} {mc:>7} "
                   f"{s['avg_composite']:>8.4f} {(s['winner'] or 'n/a'):<12} "
                   f"{s['elapsed_s']:>5.0f}s")
 
@@ -1444,7 +1471,9 @@ def cmd_train(args: argparse.Namespace) -> None:
             "epochs": epochs,
             "characters": characters,
             "policies": policies,
-            "max_cycles": max_cycles,
+            "max_cycles_initial": args.max_cycles,
+            "max_cycles_final": max_cycles,
+            "target_win_rate": target_win_rate,
             "epoch_summaries": epoch_summaries,
         },
     )
@@ -1494,7 +1523,7 @@ def cmd_design(args: argparse.Namespace) -> None:
     # proposed character was already generated by the caller.
     all_runners, lane_results, ctx = _run_duel_epoch(
         characters=all_characters,
-        policies=["engine_policy"],
+        policies=[POLICY_ENGINE],
         max_cycles=args.max_cycles,
         console_profile=args.console_profile,
         use_topology_gto=False,
@@ -1561,13 +1590,13 @@ Graph Tissue™ is a trademark of Luke Spooner.""",
     p_race_source = p_race.add_mutually_exclusive_group(required=True)
     p_race_source.add_argument("--profile", help="Profile name")
     p_race_source.add_argument("--character", help="Character spec name")
-    p_race.add_argument("--runners", type=int, default=5, help="Number of runners (2-5)")
-    p_race.add_argument("--max-cycles", type=int, default=220,
-                        help="Max cycles per runner (default: 220)")
+    p_race.add_argument("--runners", type=int, default=DEFAULT_RUNNERS, help="Number of runners (2-5)")
+    p_race.add_argument("--max-cycles", type=int, default=MAX_LOOPS,
+                        help=f"Max cycles per runner (default: {MAX_LOOPS})")
     p_race.add_argument("--win-threshold", type=int, default=4,
                         help="Stop after N runners complete (default: 4)")
-    p_race.add_argument("--hunter-policy", default="engine_policy",
-                        choices=["engine_policy", "quantum_register"],
+    p_race.add_argument("--hunter-policy", default=POLICY_ENGINE,
+                        choices=POLICY_MODES,
                         help="Policy mode (for character mode)")
     p_race.add_argument("--console-profile", default="quiet",
                         choices=["quiet", "normal", "debug", "trace", "test"])
@@ -1575,17 +1604,16 @@ Graph Tissue™ is a trademark of Luke Spooner.""",
 
     # ── duel ────────────────────────────────────────────────────────
     p_duel = sub.add_parser("duel", help="Head-to-head lane competition")
-    p_duel.add_argument("--lanes", nargs="+", default=["sonnet", "codex"],
+    p_duel.add_argument("--lanes", nargs="+", default=DEFAULT_LANES,
                         help="Lane names for profile mode (default: sonnet codex)")
     p_duel.add_argument("--characters", nargs="+", default=None,
                         help="Character specs (enables character mode: lanes=policies)")
     p_duel.add_argument("--policies", nargs="+", default=None,
-                        help="Policy modes for character mode (default: engine_policy quantum_register)")
-    p_duel.add_argument("--runners-per-lane", type=int, default=5)
-    p_duel.add_argument("--max-cycles", type=int, default=220)
-    p_duel.add_argument("--hunter-policy", default="engine_policy",
-                        choices=["auto", "classic", "quantum_graph",
-                                 "engine_policy", "quantum_register"])
+                        help=f"Policy modes for character mode (default: {' '.join(POLICY_MODES)})")
+    p_duel.add_argument("--runners-per-lane", type=int, default=DEFAULT_RUNNERS)
+    p_duel.add_argument("--max-cycles", type=int, default=MAX_LOOPS)
+    p_duel.add_argument("--hunter-policy", default=POLICY_ENGINE,
+                        choices=["auto", "classic", "quantum_graph"] + POLICY_MODES)
     p_duel.add_argument("--console-profile", default="quiet",
                         choices=["quiet", "normal", "debug", "trace", "test"])
     p_duel.add_argument("--use-topology-gto", action="store_true")
@@ -1595,8 +1623,8 @@ Graph Tissue™ is a trademark of Luke Spooner.""",
     p_matrix = sub.add_parser("matrix", help="Batch comparison across profiles")
     p_matrix.add_argument("--profiles", required=True,
                           help="Comma-separated or glob pattern (e.g. 'derby_*')")
-    p_matrix.add_argument("--runs", type=int, default=3)
-    p_matrix.add_argument("--max-cycles", type=int, default=220)
+    p_matrix.add_argument("--runs", type=int, default=DEFAULT_RUNS_PER_PROFILE)
+    p_matrix.add_argument("--max-cycles", type=int, default=MAX_LOOPS)
     p_matrix.add_argument("--console-profile", default="quiet",
                           choices=["quiet", "normal", "debug", "trace", "test"])
 
@@ -1606,8 +1634,8 @@ Graph Tissue™ is a trademark of Luke Spooner.""",
                           help="Proposed character name (written by Claura probe)")
     p_design.add_argument("--baselines", nargs="*", default=None,
                           help="Baseline character names (default: all other characters)")
-    p_design.add_argument("--max-cycles", type=int, default=55,
-                          help="Max cycles per runner (default: 55, short for fast eval)")
+    p_design.add_argument("--max-cycles", type=int, default=TRAIN_MAX_CYCLES_START,
+                          help=f"Max cycles per runner (default: {TRAIN_MAX_CYCLES_START}, short for fast eval)")
     p_design.add_argument("--console-profile", default="quiet",
                           choices=["quiet", "normal", "debug", "trace", "test"])
 
@@ -1619,8 +1647,12 @@ Graph Tissue™ is a trademark of Luke Spooner.""",
                          help="Policy modes (default: engine_policy quantum_register)")
     p_train.add_argument("--epochs", type=int, default=10,
                          help="Number of training epochs (default: 10)")
-    p_train.add_argument("--max-cycles", type=int, default=13,
-                         help="Max cycles per runner per epoch (default: 13, short for fast iteration)")
+    p_train.add_argument("--max-cycles", type=int, default=TRAIN_MAX_CYCLES_START,
+                         help=f"Starting max cycles per runner (default: {TRAIN_MAX_CYCLES_START}, auto-scales toward target win rate)")
+    p_train.add_argument("--target-win-rate", type=float, default=TRAIN_TARGET_WIN_RATE,
+                         help=f"Auto-scale max_cycles upward until this win rate is achieved (default: {TRAIN_TARGET_WIN_RATE})")
+    p_train.add_argument("--cycles-step", type=int, default=TRAIN_CYCLES_STEP,
+                         help=f"Cycles increment per epoch when win rate is below target (default: {TRAIN_CYCLES_STEP})")
     p_train.add_argument("--console-profile", default="quiet",
                          choices=["quiet", "normal", "debug", "trace", "test"])
     p_train.add_argument("--use-topology-gto", action="store_true")

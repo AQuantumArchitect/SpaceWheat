@@ -41,6 +41,7 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from constants import MAX_LOOPS, run_timeout, TIMEOUT_FLOOR
 from rig_client import RigClient
 from milk_hunt_paths import xdg_root as _default_xdg
 from schema import RunnerResult
@@ -245,14 +246,14 @@ class RunSession:
         offers = result.get("offers", result.get("quests", []))
         return offers
 
-    def accept(self, quest_id: str) -> Dict[str, Any]:
-        """Accept a quest offer by ID."""
-        result = self._run("accept_quest", quest_id=quest_id)
+    def accept(self, offer_index: int) -> Dict[str, Any]:
+        """Accept a quest offer by index (0-based position in offer list)."""
+        result = self._run("accept_offer", offer_index=offer_index)
         self._steps += 1
         return result
 
-    def complete(self, quest_id: str) -> Dict[str, Any]:
-        """Complete a quest and claim its reward."""
+    def complete(self, quest_id: int) -> Dict[str, Any]:
+        """Complete a quest by quest_id (returned from accept)."""
         result = self._run("complete_or_claim", quest_id=quest_id)
         self._steps += 1
         # Check for milk discovery
@@ -314,19 +315,45 @@ class RunSession:
 
     # ── Cycle helpers ───────────────────────────────────────────────
 
-    def play_cycle(self) -> Dict[str, Any]:
+    def play_cycle(self, offer_index: int = 0) -> Dict[str, Any]:
         """Play one full offer->accept->complete cycle.
 
-        Returns the completion result. Automatically picks the first offer.
+        Returns the completion result. Picks offer at offer_index (default: first).
         """
         offers = self.offer()
         if not offers:
             return {"ok": False, "error": "no_offers"}
-        quest_id = offers[0].get("id", offers[0].get("quest_id", ""))
-        if not quest_id:
-            return {"ok": False, "error": "no_quest_id"}
-        self.accept(quest_id)
-        result = self.complete(quest_id)
+        if offer_index >= len(offers):
+            offer_index = 0
+        selected_offer = offers[offer_index] if isinstance(offers[offer_index], dict) else {}
+        accept_result = self.accept(offer_index)
+        if not accept_result.get("accepted", False):
+            return {"ok": False, "error": "accept_failed", "accept_result": accept_result}
+        quest_id = int(accept_result.get("quest_id", -1))
+        if quest_id < 0:
+            return {"ok": False, "error": "no_quest_id", "accept_result": accept_result}
+
+        # Inject resources if needed (non-strict economy)
+        if self.allow_injection:
+            res = str(selected_offer.get("resource", "") or "")
+            qty = int(float(selected_offer.get("quantity", 0) or 0))
+            if res and qty > 0:
+                self._run("add_resource", emoji=res, amount=max(qty + 50, 100))
+
+        # Use the offer's completion_action or default
+        completion_action = str(selected_offer.get("completion_action", "") or "")
+        if completion_action not in ("complete_quest", "complete_or_claim"):
+            offer_type = int(selected_offer.get("type", -1))
+            completion_action = "complete_quest" if offer_type == 0 else "complete_or_claim"
+
+        result = self._run(completion_action, quest_id=quest_id)
+        self._steps += 1
+        if result.get("found_milk_pair") or result.get("milk_found"):
+            self._found_milk = True
+        new_pairs = result.get("new_vocab_pairs", [])
+        if new_pairs:
+            self._vocab_milestones += len(new_pairs)
+            self._known_pairs.extend(new_pairs)
         self._cycles += 1
         return result
 
@@ -364,7 +391,7 @@ class RunSession:
         t0 = time.time()
         proc = subprocess.run(
             cmd, capture_output=True, text=True,
-            timeout=max(300, max_cycles * 30), env=env,
+            timeout=run_timeout(max_cycles, floor=TIMEOUT_FLOOR["session"]), env=env,
         )
         elapsed = time.time() - t0
 
@@ -504,7 +531,7 @@ Graph Tissue(TM) is a trademark of Luke Spooner.""",
     mode.add_argument("--demo", action="store_true",
                       help="Run a short demo: 3 cycles + probe + status")
 
-    parser.add_argument("--max-cycles", type=int, default=220)
+    parser.add_argument("--max-cycles", type=int, default=MAX_LOOPS)
     return parser
 
 

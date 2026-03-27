@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import milk_hunt_args
+from constants import MAX_LOOPS, DEFAULT_RUNS_BATCH, POLICY_ENGINE, POLICY_MODES
 from milk_hunt_console import Console, resolve_console_profile
 from milk_hunt_io import write_json
 from milk_hunt_profiles import get_profile
@@ -57,8 +58,8 @@ def _compact_run_summary(summary: Dict[str, Any]) -> Dict[str, Any]:
 
 def _build_parser() -> argparse.ArgumentParser:
     parser = milk_hunt_args.make_base_parser("Batch runner for milk hunt trials")
-    parser.add_argument("--runs", type=int, default=5, help="How many independent trials to run")
-    parser.add_argument("--max-loops", type=int, default=220, help="Max offer cycles per trial")
+    parser.add_argument("--runs", type=int, default=DEFAULT_RUNS_BATCH, help="How many independent trials to run")
+    parser.add_argument("--max-loops", type=int, default=MAX_LOOPS, help="Max offer cycles per trial")
     parser.add_argument(
         "--metrics-every",
         type=int,

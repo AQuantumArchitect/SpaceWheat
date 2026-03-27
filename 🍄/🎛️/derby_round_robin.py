@@ -23,6 +23,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from constants import MAX_LOOPS, DEFAULT_RUNNERS, POLICY_ENGINE, run_timeout, TIMEOUT_FLOOR
+
 HERE = Path(__file__).resolve().parent
 
 def _fib_steps(max_loops: int) -> list[int]:
@@ -97,7 +99,7 @@ def run_chunk(
         "--max-loops", str(max_loops),
         "--turn-start", str(runner.steps_done),
         "--hunter-profile", runner.profile,
-        "--hunter-policy", "engine_policy",
+        "--hunter-policy", POLICY_ENGINE,
         "--json-only",
         "--reuse-listener",
         "--console-profile", args.console_profile or "quiet",
@@ -108,7 +110,7 @@ def run_chunk(
     t0 = time.time()
     proc = subprocess.run(
         cmd, capture_output=True, text=True,
-        timeout=max(120, max_loops * 30),  # generous timeout
+        timeout=run_timeout(max_loops, floor=TIMEOUT_FLOOR["race"]),
     )
     elapsed = time.time() - t0
 
@@ -153,8 +155,8 @@ def print_scoreboard(runners: List[RunnerState], round_idx: int, step_size: int)
 def main():
     parser = argparse.ArgumentParser(description="Round-robin derby batch")
     parser.add_argument("--profile", required=True, help="Profile name")
-    parser.add_argument("--runners", type=int, default=5, help="Number of runners (2-5)")
-    parser.add_argument("--max-loops", type=int, default=220, help="Max total loops per runner")
+    parser.add_argument("--runners", type=int, default=DEFAULT_RUNNERS, help="Number of runners (2-5)")
+    parser.add_argument("--max-loops", type=int, default=MAX_LOOPS, help="Max total loops per runner")
     parser.add_argument("--win-threshold", type=int, default=4,
                         help="Stop after this many runners complete (default: 4)")
     parser.add_argument("--console-profile", default="quiet",
