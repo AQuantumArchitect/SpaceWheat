@@ -135,14 +135,6 @@ func get_pair_for_emoji(emoji: String) -> Variant:
 
 @export var quest_board_current_page: int = 0
 
-## DEPRECATED: Old single-page storage (kept for migration)
-@export var quest_slots: Array = [null, null, null, null]
-# Each slot dictionary contains:
-#   quest_id: int - ID of active quest (if active)
-#   offered_quest: Dictionary - Quest data (if offered but not accepted)
-#   is_locked: bool - Locked slot won't auto-refresh
-#   state: int - SlotState enum (EMPTY=0, OFFERED=1, ACTIVE=2, READY=3, LOCKED=4)
-
 ## Plots - Array of serialized plot states (from FarmGrid)
 @export var plots: Array[Dictionary] = []
 # Each plot dictionary contains:

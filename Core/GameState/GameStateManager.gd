@@ -88,20 +88,29 @@ func start_session(load_slot: int = -1, scenario_id: String = "default", reset_f
 	current_scenario_id = state.scenario_id if state else scenario_id
 
 	if reset_farm and active_farm:
-		active_farm.queue_free()
+		var old_farm = active_farm
 		active_farm = null
+		if is_instance_valid(old_farm):
+			old_farm.queue_free()
+			var tree = get_tree()
+			if tree:
+				await tree.process_frame
+				await tree.process_frame
 
 	if not active_farm:
 		active_farm = _create_farm()
 
-	if active_farm:
-		await _await_farm_ready(active_farm)
+	var farm = active_farm
+	if farm:
+		await _await_farm_ready(farm)
+	if farm == null or not is_instance_valid(farm):
+		return null
 
 	if state:
 		apply_state_to_game(state)
 
-	farm_ready.emit(active_farm, state)
-	return active_farm
+	farm_ready.emit(farm, state)
+	return farm
 
 
 func _build_new_session_state(scenario_id: String) -> GameState:
@@ -144,6 +153,53 @@ func _await_farm_ready(farm: Node) -> void:
 	while farm and (farm.get("economy") == null or farm.get("grid") == null) and tries < 10:
 		await get_tree().process_frame
 		tries += 1
+
+
+func shutdown_session(reset_singletons: bool = true) -> void:
+	"""Release the current session and optionally reset runtime singletons."""
+	var farm = active_farm
+	active_farm = null
+
+	if reset_singletons:
+		_reset_runtime_singletons()
+
+	if farm and is_instance_valid(farm):
+		farm.queue_free()
+
+	var tree = get_tree()
+	if tree:
+		await tree.process_frame
+		await tree.process_frame
+
+
+func _reset_runtime_singletons() -> void:
+	"""Reset runtime-only singleton state between sessions."""
+	pending_restart_slot = -1
+	_milk_autosave_done = false
+	last_milk_autosave_path = ""
+
+	var boot_mgr = get_node_or_null("/root/BootManager")
+	if boot_mgr:
+		boot_mgr._core_booted = false
+		boot_mgr._ui_booted = false
+		boot_mgr._booted = false
+		boot_mgr.is_ready = false
+
+	var abm = get_node_or_null("/root/ActiveBiomeManager")
+	if abm and abm.has_method("reset"):
+		abm.reset()
+
+	var obs = get_node_or_null("/root/ObservationFrame")
+	if obs and obs.has_method("reset"):
+		obs.reset()
+
+	var music = get_node_or_null("/root/MusicManager")
+	if music and music.has_method("reset"):
+		music.reset()
+
+	var act = get_node_or_null("/root/ActionChainTracker")
+	if act and act.has_method("reset"):
+		act.reset()
 
 
 ## Player Vocabulary Discovery
@@ -378,10 +434,10 @@ func load_new_game_template() -> GameState:
 	var has_user = FileAccess.file_exists(user_path)
 	var has_project = ResourceLoader.exists(project_path)
 	var state = SaveStore.load_new_game_template()
-	if has_user:
-		_verbose.info("save", "📂", "Loaded new game template from: " + user_path)
-	elif has_project:
+	if has_project:
 		_verbose.info("save", "📂", "Loaded new game template from: " + project_path)
+	elif has_user:
+		_verbose.info("save", "📂", "Loaded new game template from: " + user_path)
 	else:
 		_verbose.warn("save", "⚠", "new_game_easy.tres not found, creating blank state")
 	return _hydrate_state_defaults(state)

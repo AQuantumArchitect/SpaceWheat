@@ -167,17 +167,18 @@ static func load_scenario(scenario_id: String) -> GameState:
 
 
 static func load_new_game_template() -> GameState:
-	# Prefer user override, then project template, then default scenario.
-	var user_path = SAVE_DIR + NEW_GAME_TEMPLATE
-	if FileAccess.file_exists(user_path):
-		var user_state = ResourceLoader.load(user_path, "", ResourceLoader.CACHE_MODE_IGNORE)
-		if user_state:
-			return user_state
+	# Prefer the project template for normal fresh-game boot.
+	# A stale user:// override should not silently replace the shipped default character.
 	var project_path = SCENARIO_DIR + NEW_GAME_TEMPLATE
 	if ResourceLoader.exists(project_path):
 		var project_state = ResourceLoader.load(project_path).duplicate()
 		if project_state:
 			return project_state
+	var user_path = SAVE_DIR + NEW_GAME_TEMPLATE
+	if FileAccess.file_exists(user_path):
+		var user_state = ResourceLoader.load(user_path, "", ResourceLoader.CACHE_MODE_IGNORE)
+		if user_state:
+			return user_state
 	return load_scenario("default")
 
 

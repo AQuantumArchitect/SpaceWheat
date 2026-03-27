@@ -1,371 +1,335 @@
+#!/usr/bin/env -S godot --headless -s
 extends SceneTree
-## Phase 2 Save/Load Test - Tests serialization of Model C plot bindings
+
+## Phase 2 Save/Load Test - current headless serializer coverage
 ## Run with: godot --headless --script res://Tests/test_phase2_saveload.gd
 ##
-## Verifies bound_qubit, parent_biome reference, emojis serialize/deserialize correctly
+## Verifies that explored/measured plot state survives capture/apply using the
+## authoritative headless path:
+##   GameStateManager.start_session() -> ProbeActions -> capture_state_from_game()
+##   -> fresh session -> apply_state_to_game()
 
-const SEPARATOR = "======================================================================"
+const QuantumInstrumentClass = preload("res://Core/Instrumentation/QuantumInstrument.gd")
+
+const SEPARATOR := "======================================================================"
+const TARGET_BIOME := "StarterForest"
+const TARGET_EXPLORES := 3
 
 var test_results: Array = []
-var current_test: String = ""
+var gsm = null
 var farm = null
-var input_handler = null
-var state_manager = null
-var scene_loaded = false
-var tests_done = false
-var frame_count = 0
-var boot_manager = null
+var instrument = null
+var captured_state = null
+var explored_records: Array = []
+var measured_record: Dictionary = {}
 
-func _init():
+
+func _init() -> void:
+	call_deferred("_run")
+
+
+func _run() -> void:
 	print("\n" + SEPARATOR)
 	print("PHASE 2: SAVE/LOAD TEST")
-	print("Testing: Model C plot binding serialization")
+	print("Testing: explored/measured plot serialization on current headless path")
 	print(SEPARATOR + "\n")
-	print("Waiting for autoloads to initialize...")
 
-
-func _process(_delta):
-	frame_count += 1
-
-	# Load scene at frame 5 (after autoloads are ready)
-	if frame_count == 5 and not scene_loaded:
-		print("\nFrame 5: Loading main scene...")
-		var scene = load("res://scenes/FarmView.tscn")
-		if scene:
-			var instance = scene.instantiate()
-			root.add_child(instance)
-			scene_loaded = true
-			print("  Scene instantiated")
-
-			# Connect to BootManager.game_ready signal
-			boot_manager = root.get_node_or_null("/root/BootManager")
-			if boot_manager:
-				boot_manager.game_ready.connect(_on_game_ready)
-				print("  Connected to BootManager.game_ready")
-		else:
-			print("  Failed to load scene")
-			quit(1)
-
-
-func _on_game_ready():
-	"""Called when BootManager signals that the game is ready"""
-	if tests_done:
-		return
-	tests_done = true
-	print("\n  BootManager.game_ready received!")
-
-	_find_components()
-
-	# Disable quantum evolution for faster test execution
-	if farm:
-		print("  Disabling quantum evolution for test speed...")
-		for biome in [farm.biotic_flux_biome, farm.forest_biome, farm.market_biome, farm.kitchen_biome]:
-			if biome:
-				biome.quantum_evolution_enabled = false
-				biome.set_process(false)
-		farm.set_process(false)
-		if farm.grid:
-			farm.grid.set_process(false)
-
-	print("\nFound: Farm=%s, StateManager=%s, InputHandler=%s" % [
-		farm != null, state_manager != null, input_handler != null])
-
-	if farm and state_manager:
-		print("\nRunning Phase 2 Save/Load Tests...\n")
-		_run_all_tests()
-	else:
-		print("\n  Components not found after boot!")
-		if not farm:
-			print("  Missing: Farm")
-		if not state_manager:
-			print("  Missing: GameStateManager")
+	gsm = root.get_node_or_null("/root/GameStateManager")
+	if gsm == null:
+		printerr("❌ GameStateManager autoload not found")
 		quit(1)
+		return
 
+	farm = await gsm.start_session(-1, "default", true)
+	if not await _await_farm_ready():
+		printerr("❌ Farm did not become ready")
+		quit(1)
+		return
+	_attach_instrument()
 
-func _find_components():
-	# Find Farm
-	var farm_view = root.get_node_or_null("FarmView")
-	if farm_view:
-		farm = farm_view.farm if "farm" in farm_view else null
-		if not farm:
-			for child in farm_view.get_children():
-				if child.name == "Farm" or (child.get_script() and child.get_script().resource_path.ends_with("Farm.gd")):
-					farm = child
-					break
-
-	# Find GameStateManager (autoload)
-	state_manager = root.get_node_or_null("/root/GameStateManager")
-
-	# Find PlayerShell and FarmInputHandler
-	var player_shell = _find_node(root, "PlayerShell")
-	if player_shell:
-		for child in player_shell.get_children():
-			var script_name = ""
-			if child.get_script():
-				script_name = child.get_script().resource_path
-			if script_name.ends_with("FarmInputHandler.gd"):
-				input_handler = child
-				break
-
-
-func _find_node(node: Node, name: String) -> Node:
-	if node.name == name:
-		return node
-	for child in node.get_children():
-		var found = _find_node(child, name)
-		if found:
-			return found
-	return null
-
-
-func _run_all_tests():
-	# Setup: Create game state with bound plots
-	_test_setup_game_state()
-
-	# Test serialization captures Model C fields
-	_test_capture_state_contains_bound_qubit()
+	_seed_live_state()
+	_test_capture_state_contains_register_binding()
 	_test_capture_state_contains_emojis()
 	_test_capture_state_contains_measured_outcome()
-
-	# Test deserialization restores Model C fields
-	_test_apply_state_restores_bound_qubit()
-	_test_apply_state_restores_parent_biome()
-	_test_apply_state_restores_emojis()
-
-	# Print results and exit
+	_test_apply_state_restores_binding_identity()
+	_test_apply_state_restores_measured_outcome()
 	_print_results()
 
-	var failed = test_results.filter(func(r): return not r.passed).size()
+	var failed := test_results.filter(func(r): return not r.passed).size()
+	if gsm:
+		var active = gsm.active_farm if "active_farm" in gsm else farm
+		if active and is_instance_valid(active):
+			active.queue_free()
+			await process_frame
+			await process_frame
 	quit(1 if failed > 0 else 0)
 
 
-func _test_setup_game_state():
-	"""Setup: Create a game state with bound plots for testing"""
-	current_test = "Setup Game State"
-	print("TEST: %s" % current_test)
+func _await_farm_ready(max_frames: int = 20) -> bool:
+	var frames := 0
+	while frames < max_frames:
+		if farm and farm.grid and farm.terminal_pool and farm.economy:
+			return true
+		await process_frame
+		frames += 1
+	return false
 
-	if not input_handler:
-		print("  ERROR: No input handler - skipping setup")
-		_record_result(false, "No input handler")
+
+func _get_target_biome():
+	if not farm or not farm.grid or not farm.grid.biomes:
+		return null
+	return farm.grid.biomes.get(TARGET_BIOME, null)
+
+
+func _attach_instrument() -> void:
+	instrument = QuantumInstrumentClass.new()
+	instrument.setup(farm)
+	farm.set_instrument(instrument)
+
+
+func _seed_live_state() -> void:
+	var biome = _get_target_biome()
+	_begin_test("Setup Game State")
+
+	if biome == null:
+		_record_result(false, "Missing biome: %s" % TARGET_BIOME)
 		return
 
-	# Select Tool 1 (PROBE)
-	input_handler.current_tool = 1
+	explored_records.clear()
+	var row: int = int(farm.get_biome_row(TARGET_BIOME)) if farm.has_method("get_biome_row") else 0
 
-	# EXPLORE 3 plots to bind them to qubits
-	var test_positions = [Vector2i(0, 0), Vector2i(1, 0), Vector2i(2, 0)]
+	for i in range(TARGET_EXPLORES):
+		var pos := Vector2i(i, row)
+		var explore = instrument.action_explore(TARGET_BIOME, pos)
+		if not bool(explore.get("success", false)):
+			_record_result(false, "Explore %d failed: %s" % [i + 1, explore.get("error", "unknown")])
+			return
 
-	for pos in test_positions:
-		input_handler.current_selection = pos
-		input_handler._execute_tool_action("Q")  # EXPLORE
+		var plot = farm.grid.get_plot(pos)
+		if plot == null or not plot.is_active() or plot.terminal == null:
+			_record_result(false, "Explore %d did not materialize a live terminal-backed plot" % (i + 1))
+			return
 
-	# Verify at least one plot got bound
-	var plot = farm.grid.get_plot(test_positions[0])
-	if plot and plot.is_planted and plot.bound_qubit >= 0:
-		print("  Created 3 bound plots")
-		print("  Plot 0: bound_qubit=%d, north=%s, south=%s" % [
-			plot.bound_qubit, plot.north_emoji, plot.south_emoji])
-		_record_result(true, "Setup complete: 3 plots bound")
-	else:
-		print("  Failed to bind plots!")
-		_record_result(false, "Plot binding failed")
+		explored_records.append({
+			"pos": pos,
+			"register_id": int(plot.bound_register_id),
+			"biome_name": str(plot.bound_biome_name),
+			"north_emoji": str(plot.north_emoji),
+			"south_emoji": str(plot.south_emoji),
+			"terminal": plot.terminal,
+			"biome": biome
+		})
+
+	var first = explored_records[0]
+	var measure = instrument.action_measure(first["pos"])
+	if not bool(measure.get("success", false)):
+		_record_result(false, "Measure failed: %s" % measure.get("error", "unknown"))
+		return
+
+	var measured_pos: Vector2i = first.get("pos", Vector2i.ZERO)
+	var measured_plot = farm.grid.get_plot(measured_pos)
+	measured_record = {
+		"pos": measured_pos,
+		"register_id": int(measured_plot.bound_register_id),
+		"biome_name": str(measured_plot.bound_biome_name),
+		"north_emoji": str(measured_plot.north_emoji),
+		"south_emoji": str(measured_plot.south_emoji),
+		"measured_outcome": str(measured_plot.measured_outcome),
+		"measured_probability": float(measured_plot.measured_probability)
+	}
+
+	_record_result(true, "Seeded %d explored plots and 1 measured plot" % explored_records.size())
 
 
-func _test_capture_state_contains_bound_qubit():
-	"""Test that capture_state_from_game includes bound_qubit"""
-	current_test = "Capture State - bound_qubit"
-	print("\nTEST: %s" % current_test)
+func _test_capture_state_contains_register_binding() -> void:
+	_begin_test("Capture State - register binding")
+	captured_state = gsm.capture_state_from_game()
 
-	# Capture state
-	var captured = state_manager.capture_state_from_game()
-
-	if not captured or captured.plots.is_empty():
-		print("  ERROR: No plots in captured state!")
+	if captured_state == null or captured_state.plots.is_empty():
 		_record_result(false, "No plots captured")
 		return
 
-	# Check first planted plot for bound_qubit
-	var found_bound_qubit = false
-	for plot_data in captured.plots:
-		if plot_data.get("is_planted", false):
-			if plot_data.has("bound_qubit"):
-				var bq = plot_data.get("bound_qubit", -1)
-				print("  Found plot with bound_qubit=%d" % bq)
-				if bq >= 0:
-					found_bound_qubit = true
-					break
-			else:
-				print("  MISSING: bound_qubit key not in plot_data!")
-			break
-
-	if found_bound_qubit:
-		_record_result(true, "bound_qubit serialized correctly")
-	else:
-		_record_result(false, "bound_qubit NOT serialized")
-
-
-func _test_capture_state_contains_emojis():
-	"""Test that capture_state_from_game includes north/south_emoji"""
-	current_test = "Capture State - emojis"
-	print("\nTEST: %s" % current_test)
-
-	var captured = state_manager.capture_state_from_game()
-
-	var found_emojis = false
-	for plot_data in captured.plots:
-		if plot_data.get("is_planted", false):
-			var has_north = plot_data.has("north_emoji")
-			var has_south = plot_data.has("south_emoji")
-			print("  has north_emoji: %s, has south_emoji: %s" % [has_north, has_south])
-
-			if has_north and has_south:
-				print("  Emojis: %s / %s" % [plot_data["north_emoji"], plot_data["south_emoji"]])
-				found_emojis = true
-			break
-
-	if found_emojis:
-		_record_result(true, "emojis serialized correctly")
-	else:
-		_record_result(false, "emojis NOT serialized")
-
-
-func _test_capture_state_contains_measured_outcome():
-	"""Test that measured_outcome is serialized"""
-	current_test = "Capture State - measured_outcome"
-	print("\nTEST: %s" % current_test)
-
-	# First, measure a plot
-	var test_pos = Vector2i(0, 0)
-	var plot = farm.grid.get_plot(test_pos)
-
-	if plot and plot.is_planted and not plot.is_measured:
-		input_handler.current_selection = test_pos
-		input_handler.current_tool = 1  # PROBE
-		input_handler._execute_tool_action("E")  # MEASURE
-		print("  Measured plot at %s, outcome: %s" % [test_pos, plot.measured_outcome])
-
-	# Now capture state
-	var captured = state_manager.capture_state_from_game()
-
-	var found_measured_outcome = false
-	for plot_data in captured.plots:
-		if plot_data.get("has_been_measured", false):
-			if plot_data.has("measured_outcome"):
-				print("  Found measured_outcome: %s" % plot_data["measured_outcome"])
-				found_measured_outcome = true
-			else:
-				print("  MISSING: measured_outcome key!")
-			break
-
-	if found_measured_outcome:
-		_record_result(true, "measured_outcome serialized correctly")
-	else:
-		_record_result(false, "measured_outcome NOT serialized")
-
-
-func _test_apply_state_restores_bound_qubit():
-	"""Test that apply_state_to_game restores bound_qubit"""
-	current_test = "Restore - bound_qubit"
-	print("\nTEST: %s" % current_test)
-
-	# Capture current state
-	var captured = state_manager.capture_state_from_game()
-
-	# Get original bound_qubit value from a planted plot
-	var test_pos = Vector2i(1, 0)  # Use plot we haven't measured
-	var original_plot = farm.grid.get_plot(test_pos)
-	var original_bound_qubit = original_plot.bound_qubit if original_plot else -1
-	print("  Original bound_qubit: %d" % original_bound_qubit)
-
-	# Reset the plot manually
-	if original_plot:
-		original_plot.bound_qubit = -1
-		original_plot.is_planted = false
-		original_plot.parent_biome = null
-		print("  Cleared plot: bound_qubit=%d" % original_plot.bound_qubit)
-
-	# Apply saved state
-	state_manager.apply_state_to_game(captured)
-
-	# Check if bound_qubit was restored
-	var restored_plot = farm.grid.get_plot(test_pos)
-	var restored_bound_qubit = restored_plot.bound_qubit if restored_plot else -1
-	print("  Restored bound_qubit: %d" % restored_bound_qubit)
-
-	if restored_bound_qubit == original_bound_qubit and restored_bound_qubit >= 0:
-		_record_result(true, "bound_qubit restored: %d" % restored_bound_qubit)
-	else:
-		_record_result(false, "bound_qubit NOT restored (expected %d, got %d)" % [
-			original_bound_qubit, restored_bound_qubit])
-
-
-func _test_apply_state_restores_parent_biome():
-	"""Test that apply_state_to_game restores parent_biome reference"""
-	current_test = "Restore - parent_biome"
-	print("\nTEST: %s" % current_test)
-
-	var test_pos = Vector2i(1, 0)
-	var plot = farm.grid.get_plot(test_pos)
-
-	if not plot:
-		_record_result(false, "No plot to check")
+	var planted := _captured_plots_by_position(captured_state)
+	if planted.size() < TARGET_EXPLORES:
+		_record_result(false, "Expected %d planted plots, got %d" % [TARGET_EXPLORES, planted.size()])
 		return
 
-	var parent = plot.parent_biome
-	print("  parent_biome: %s" % (parent.get_biome_type() if parent else "NULL"))
+	var missing: Array[String] = []
+	for record in explored_records:
+		var key = _pos_key(record["pos"])
+		if not planted.has(key):
+			missing.append(key)
+			continue
+		var plot_data = planted[key]
+		if int(plot_data.get("register_id", -1)) != int(record["register_id"]):
+			missing.append("%s(reg)" % key)
+		elif str(plot_data.get("biome_name", "")) != str(record["biome_name"]):
+			missing.append("%s(biome)" % key)
 
-	if parent != null:
-		_record_result(true, "parent_biome restored: %s" % parent.get_biome_type())
-	else:
-		_record_result(false, "parent_biome NOT restored (is null)")
-
-
-func _test_apply_state_restores_emojis():
-	"""Test that north/south_emoji are restored after load"""
-	current_test = "Restore - emojis"
-	print("\nTEST: %s" % current_test)
-
-	var test_pos = Vector2i(1, 0)
-	var plot = farm.grid.get_plot(test_pos)
-
-	if not plot:
-		_record_result(false, "No plot to check")
+	if not missing.is_empty():
+		_record_result(false, "Missing/restored binding mismatch at: %s" % ", ".join(missing))
 		return
 
-	var north = plot.north_emoji
-	var south = plot.south_emoji
-	print("  north_emoji: %s, south_emoji: %s" % [north, south])
-
-	if not north.is_empty() and not south.is_empty() and north != "?" and south != "?":
-		_record_result(true, "emojis restored: %s / %s" % [north, south])
-	else:
-		_record_result(false, "emojis NOT restored properly")
+	_record_result(true, "register_id + biome_name captured correctly")
 
 
-func _record_result(passed: bool, description: String):
+func _test_capture_state_contains_emojis() -> void:
+	_begin_test("Capture State - emojis")
+
+	if captured_state == null:
+		captured_state = gsm.capture_state_from_game()
+
+	var planted := _captured_plots_by_position(captured_state)
+	var bad: Array[String] = []
+	for record in explored_records:
+		var key = _pos_key(record["pos"])
+		var plot_data = planted.get(key, {})
+		if str(plot_data.get("north_emoji", "")) != str(record["north_emoji"]):
+			bad.append("%s(north)" % key)
+		elif str(plot_data.get("south_emoji", "")) != str(record["south_emoji"]):
+			bad.append("%s(south)" % key)
+
+	if not bad.is_empty():
+		_record_result(false, "Emoji mismatch at: %s" % ", ".join(bad))
+		return
+
+	_record_result(true, "north/south emojis captured correctly")
+
+
+func _test_capture_state_contains_measured_outcome() -> void:
+	_begin_test("Capture State - measured_outcome")
+
+	if captured_state == null:
+		captured_state = gsm.capture_state_from_game()
+
+	var planted := _captured_plots_by_position(captured_state)
+	if measured_record.is_empty():
+		_record_result(false, "No measured record from setup")
+		return
+	var measured_pos: Vector2i = measured_record.get("pos", Vector2i.ZERO)
+	var key = _pos_key(measured_pos)
+	var plot_data = planted.get(key, {})
+	if str(plot_data.get("measured_outcome", "")) != str(measured_record["measured_outcome"]):
+		_record_result(false, "Measured outcome missing or wrong for %s" % key)
+		return
+
+	_record_result(true, "measured_outcome captured correctly")
+
+
+func _test_apply_state_restores_binding_identity() -> void:
+	_begin_test("Apply State - binding identity")
+
+	instrument = null
+	if gsm and gsm.active_farm and is_instance_valid(gsm.active_farm):
+		gsm.active_farm.queue_free()
+		gsm.active_farm = null
+		await process_frame
+		await process_frame
+
+	var restored_farm = gsm._create_farm()
+	gsm.active_farm = restored_farm
+	farm = restored_farm
+	if restored_farm == null or not await _await_farm_ready(40):
+		_record_result(false, "Fresh restore farm did not become ready")
+		return
+	_attach_instrument()
+
+	gsm.current_state = captured_state
+	gsm.apply_state_to_game(captured_state)
+	await process_frame
+
+	var bad: Array[String] = []
+	for record in explored_records:
+		var plot = farm.grid.get_plot(record["pos"])
+		if plot == null or not plot.is_active():
+			bad.append("%s(missing)" % _pos_key(record["pos"]))
+			continue
+		if int(plot.bound_register_id) != int(record["register_id"]):
+			bad.append("%s(reg)" % _pos_key(record["pos"]))
+		elif str(plot.bound_biome_name) != str(record["biome_name"]):
+			bad.append("%s(biome)" % _pos_key(record["pos"]))
+		elif str(plot.north_emoji) != str(record["north_emoji"]):
+			bad.append("%s(north)" % _pos_key(record["pos"]))
+		elif str(plot.south_emoji) != str(record["south_emoji"]):
+			bad.append("%s(south)" % _pos_key(record["pos"]))
+
+	if not bad.is_empty():
+		_record_result(false, "Restore mismatch at: %s" % ", ".join(bad))
+		return
+
+	_record_result(true, "Bound plot identity restored correctly")
+
+
+func _test_apply_state_restores_measured_outcome() -> void:
+	_begin_test("Apply State - measured outcome")
+
+	if measured_record.is_empty():
+		_record_result(false, "No measured record from setup")
+		return
+	var measured_pos: Vector2i = measured_record.get("pos", Vector2i.ZERO)
+	var plot = farm.grid.get_plot(measured_pos)
+	if plot == null:
+		_record_result(false, "Measured plot missing after restore at %s (plot=%s active=%s reg=%s biome=%s measured=%s outcome=%s)" % [
+			_pos_key(measured_pos),
+			str(plot != null),
+			str(plot.is_active() if plot else false),
+			str(plot.bound_register_id if plot else -1),
+			str(plot.bound_biome_name if plot else ""),
+			str(plot.is_measured if plot else false),
+			str(plot.measured_outcome if plot else "")
+		])
+		return
+
+	if not plot.is_measured:
+		_record_result(false, "Measured flag not restored")
+		return
+
+	if str(plot.measured_outcome) != str(measured_record["measured_outcome"]):
+		_record_result(false, "Measured outcome mismatch: got %s expected %s" % [
+			str(plot.measured_outcome),
+			str(measured_record["measured_outcome"])
+		])
+		return
+
+	_record_result(true, "Measured outcome restored correctly")
+
+
+func _captured_plots_by_position(state) -> Dictionary:
+	var out := {}
+	for plot_data in state.plots:
+		if not bool(plot_data.get("is_planted", false)):
+			continue
+		var pos = plot_data.get("position", Vector2i.ZERO)
+		out[_pos_key(pos)] = plot_data
+	return out
+
+
+func _pos_key(pos: Vector2i) -> String:
+	return "%d,%d" % [pos.x, pos.y]
+
+
+func _begin_test(name: String) -> void:
+	print("\nTEST: %s" % name)
+
+
+func _record_result(passed: bool, details: String) -> void:
 	test_results.append({
-		"test": current_test,
 		"passed": passed,
-		"description": description
+		"details": details
 	})
+	print("  %s %s" % ["PASS" if passed else "FAIL", details])
 
 
-func _print_results():
+func _print_results() -> void:
 	print("\n" + SEPARATOR)
-	print("PHASE 2 SAVE/LOAD TEST RESULTS")
+	print("RESULTS")
 	print(SEPARATOR)
 
-	var passed_count = 0
-	var failed_count = 0
+	var passed := test_results.filter(func(r): return r.passed).size()
+	var failed := test_results.size() - passed
+	print("Passed: %d" % passed)
+	print("Failed: %d" % failed)
 
 	for result in test_results:
-		var status = "PASS" if result.passed else "FAIL"
-		print("  [%s] %s: %s" % [status, result.test, result.description])
-		if result.passed:
-			passed_count += 1
-		else:
-			failed_count += 1
-
-	print("")
-	print("  Total: %d passed, %d failed" % [passed_count, failed_count])
-	print(SEPARATOR + "\n")
+		if not result.passed:
+			print("  FAIL: %s" % result.details)

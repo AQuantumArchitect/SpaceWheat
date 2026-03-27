@@ -167,11 +167,14 @@ func capture_state_from_farm(farm: Node, current_state: GameState, scenario_id: 
 			var pos = Vector2i(x, y)
 			var plot = grid.get_plot(pos)
 
+			var has_measurement: bool = bool(plot.get_is_measured())
+			var has_live_register: bool = bool(plot.is_active())
+			var persist_plot: bool = has_live_register or has_measurement
 			var plot_data = {
 				"position": pos,
 				"type_name": plot.plot_type_name,
-				"is_planted": plot.is_active(),
-				"has_been_measured": plot.get_is_measured(),
+				"is_planted": persist_plot,
+				"has_been_measured": has_measurement,
 				"theta_frozen": plot.theta_frozen,
 				"entangled_with": plot.entangled_plots.keys(),
 				"lindblad_pump_active": plot.lindblad_pump_active if "lindblad_pump_active" in plot else false,
@@ -179,15 +182,30 @@ func capture_state_from_farm(farm: Node, current_state: GameState, scenario_id: 
 				"lindblad_pump_rate": plot.lindblad_pump_rate if "lindblad_pump_rate" in plot else 0.0,
 				"lindblad_drain_rate": plot.lindblad_drain_rate if "lindblad_drain_rate" in plot else 0.0
 			}
-			# NEW: Read from BasePlot directly (Register→Plot→Terminal architecture)
-			if plot.is_active():
-				plot_data["register_id"] = plot.bound_register_id
-				plot_data["biome_name"] = plot.bound_biome_name
-				plot_data["north_emoji"] = plot.north_emoji
-				plot_data["south_emoji"] = plot.south_emoji
-				if plot.is_measured:
+
+			# Persist both bound plots and measured terminals. Measured terminals may
+			# release their live register, so their identity must come from the
+			# terminal measurement snapshot rather than the current bound fields.
+			if persist_plot:
+				var register_id: int = int(plot.bound_register_id)
+				var biome_name: String = str(plot.bound_biome_name)
+				var north_emoji: String = str(plot.north_emoji)
+				var south_emoji: String = str(plot.south_emoji)
+
+				if has_measurement and plot.terminal:
+					register_id = int(plot.terminal.measured_register_id)
+					biome_name = str(plot.terminal.measured_biome_name)
+					north_emoji = str(plot.terminal.north_emoji)
+					south_emoji = str(plot.terminal.south_emoji)
+
+				plot_data["register_id"] = register_id
+				plot_data["biome_name"] = biome_name
+				plot_data["north_emoji"] = north_emoji
+				plot_data["south_emoji"] = south_emoji
+				if has_measurement:
 					plot_data["measured_outcome"] = plot.measured_outcome
 					plot_data["measured_probability"] = plot.measured_probability
+
 			if "persistent_gates" in plot:
 				var serialized_gates = []
 				for gate in plot.persistent_gates:
@@ -343,6 +361,16 @@ func apply_state_to_farm(state: GameState, farm: Node) -> void:
 		farm.refresh_grid_for_biomes()
 		grid = farm.grid
 
+	var terminal_pool = farm.terminal_pool if "terminal_pool" in farm else null
+	if terminal_pool and terminal_pool.has_method("reset_all"):
+		terminal_pool.reset_all()
+	if grid:
+		for y in range(grid.grid_height):
+			for x in range(grid.grid_width):
+				var existing_plot = grid.get_plot(Vector2i(x, y))
+				if existing_plot and existing_plot.has_method("unbind_register"):
+					existing_plot.unbind_register()
+
 	var oob_count = 0
 	var oob_first_pos = null
 	for plot_data in state.plots:
@@ -378,20 +406,25 @@ func apply_state_to_farm(state: GameState, farm: Node) -> void:
 					plot.bind_to_register(saved_register, saved_biome, emoji_pair)
 
 					# Attach terminal from pool if available (terminal↔plot link)
-					var tp = farm.terminal_pool if "terminal_pool" in farm else null
+					var tp = terminal_pool
 					if tp and tp.has_method("get_unbound_terminal"):
 						var t = tp.get_unbound_terminal()
 						if t:
 							t.grid_position = pos
-							tp.bind_terminal(t, saved_register, saved_biome, emoji_pair)
-							plot.attach_terminal(t)
+							var terminal_bound := bool(tp.bind_terminal(t, saved_register, saved_biome, emoji_pair))
+							if terminal_bound:
+								plot.attach_terminal(t)
+							else:
+								_log("warn", "save", "⚠️", "Terminal restore bind rejected at %s for register %d in %s" % [
+									str(pos), saved_register, saved_biome
+								])
 
 					# Restore measurement state if present
 					if plot_data.get("has_been_measured", false):
 						var outcome = plot_data.get("measured_outcome", "")
 						var probability = plot_data.get("measured_probability", 0.5)
 						plot.mark_measured(outcome, probability)
-						if plot.terminal:
+						if plot.terminal and plot.terminal.is_bound:
 							plot.terminal.mark_measured(outcome, probability)
 
 					# Emit signal to trigger UI refresh (creates Terminal in UI layer)
