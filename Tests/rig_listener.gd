@@ -43,8 +43,7 @@ extends SceneTree
 ## - configure_economy: {overrides: {action_costs?, gate_costs?, quest_rewards?, production?}}
 ## - configure_seed_state: {known_pairs, unlocked_biomes, unexplored_biomes, active_biome, policy_graph_path?, policy_graph_jsonl?}
 ## - probe_cycle: {biome: String}
-## - discover_biome (preferred; biome unlock/expansion)
-## - explore_biome (deprecated alias for discover_biome)
+## - discover_biome (biome unlock/expansion)
 ## - discovery_forecast — returns vocab-weighted probabilities for each unexplored biome
 ## - victory_lap
 ## - victory_lap_partial: {selected_biomes?: [String], max_registers?: int, milk_spend?: int, phase_window?: int}
@@ -372,7 +371,6 @@ func _requires_quantum_instrument(action: String) -> bool:
 		"configure_seed_state",
 		"probe_cycle",
 		"discover_biome",
-		"explore_biome",
 		"victory_lap",
 		"victory_lap_partial",
 		"policy_step",
@@ -770,11 +768,9 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 			if _snapshot_service and _snapshot_service.has_method("show_probe_cycle_status"):
 				_snapshot_service.show_probe_cycle_status(biome_name, probe_data)
 
-		"discover_biome", "explore_biome":
+		"discover_biome":
 			if _instrument.has_method("action_discover_biome"):
 				result["discover_biome"] = _instrument.action_discover_biome()
-			else:
-				result["discover_biome"] = _instrument.action_explore_biome()
 			# Attach discovery forecast to result
 			if _farm and _farm.has_method("compute_discovery_forecast"):
 				result["discovery_forecast"] = _farm.compute_discovery_forecast()
@@ -2236,8 +2232,6 @@ func _execute_policy_action(decision: Dictionary) -> Dictionary:
 			var discover_result = {}
 			if _instrument.has_method("action_discover_biome"):
 				discover_result = _instrument.action_discover_biome()
-			else:
-				discover_result = _instrument.action_explore_biome()
 			var ok = bool(discover_result.get("success", false)) if discover_result is Dictionary else false
 			var policy_discover_return = {
 				"ok": ok,
@@ -2314,8 +2308,9 @@ func _execute_policy_quest_cycle(policy_params: Dictionary = {}) -> Dictionary:
 			if completed_or_claimed:
 				completed_ids.append(qid)
 
-	# Use cached offers from _build_policy_state instead of regenerating (expensive).
-	# _cached_offers is invalidated when pairs change, so it's always fresh enough.
+	# Use cached offers for this cycle's selection, then invalidate after.
+	# Like a human opening the quest board: you see current offers, act on them,
+	# and next time you open the board you get fresh stochastic rolls.
 	var offers: Array = _cached_offers if not _cached_offers.is_empty() else []
 	if offers.is_empty():
 		var offer_result = _instrument.quest_offer_all()
@@ -2341,6 +2336,7 @@ func _execute_policy_quest_cycle(policy_params: Dictionary = {}) -> Dictionary:
 	var accepted_offer_index = -1
 	var accepted_quest_id = -1
 	var accepted_offer: Dictionary = {}
+	var rerolls_spent: int = 0
 
 	if offers is Array:
 		# Use pre-ranked offer index from policy if available and still valid
@@ -2356,6 +2352,39 @@ func _execute_policy_quest_cycle(policy_params: Dictionary = {}) -> Dictionary:
 		# Fall back to scoring if hint was stale or missing
 		if accepted_offer_index < 0:
 			accepted_offer_index = _select_best_affordable_offer(offers, resources, known_emojis)
+
+		# --- Reroll loop (A): if best offer has no milk progress, spend 🐇 to fish ---
+		# Like a human scanning the quest board and rerolling bad slots.
+		var max_rerolls = int(policy_params.get("max_rerolls", 3))
+		if accepted_offer_index >= 0 and max_rerolls > 0 and _instrument:
+			var best_offer = offers[accepted_offer_index] if accepted_offer_index < offers.size() else {}
+			var best_has_milk_progress = _offer_has_milk_progress(best_offer, known_emojis)
+			var reroll_attempts = 0
+			while not best_has_milk_progress and reroll_attempts < max_rerolls:
+				# Check if we can afford a reroll (costs 🐇)
+				var preflight = _instrument.preflight_action_cost("quest_reroll")
+				if not bool(preflight.get("ok", false)):
+					break  # Can't afford 🐇
+				# Spend 🐇 and regenerate offers
+				var commit = _instrument.commit_action_cost("quest_reroll", {}, "policy_reroll")
+				if not bool(commit.get("ok", false)):
+					break  # Spend failed
+				reroll_attempts += 1
+				rerolls_spent += 1
+				# Regenerate all offers (fresh stochastic rolls)
+				var new_offer_result = _instrument.quest_offer_all()
+				var new_offered = new_offer_result.get("offers", [])
+				if new_offered is Array and not new_offered.is_empty():
+					offers = new_offered
+				resources = _get_resource_map()  # Resources changed (spent 🐇)
+				# Re-score with new offers
+				accepted_offer_index = _select_best_affordable_offer(offers, resources, known_emojis)
+				if accepted_offer_index >= 0 and accepted_offer_index < offers.size():
+					best_offer = offers[accepted_offer_index]
+					best_has_milk_progress = _offer_has_milk_progress(best_offer, known_emojis)
+				else:
+					break  # No affordable offers after reroll
+
 		if accepted_offer_index >= 0 and accepted_offer_index < offers.size():
 			var offer = offers[accepted_offer_index]
 			if offer is Dictionary:
@@ -2366,6 +2395,11 @@ func _execute_policy_quest_cycle(policy_params: Dictionary = {}) -> Dictionary:
 				if accepted and accepted_quest_id >= 0:
 					var complete_after_result = _instrument.quest_complete_or_claim(accepted_quest_id)
 					completed_after_accept = bool(complete_after_result.get("completed_or_claimed", false))
+
+	# Invalidate offer cache after quest interaction — next policy_step gets fresh
+	# stochastic rolls, just like a human re-opening the quest board.
+	# Non-quest actions (probe, drain, skip, discover) keep using cached offers.
+	_cached_offers_pairs_count = -1
 
 	var ok = (completed_ids.size() > 0) or accepted or completed_after_accept
 	return {
@@ -2379,6 +2413,7 @@ func _execute_policy_quest_cycle(policy_params: Dictionary = {}) -> Dictionary:
 		"accepted_offer_reward_vocab_north": str(accepted_offer.get("reward_vocab_north", "")),
 		"accepted_offer_reward_vocab_south": str(accepted_offer.get("reward_vocab_south", "")),
 		"completed_after_accept": completed_after_accept,
+		"rerolls_spent": rerolls_spent,
 	}
 
 
@@ -2444,6 +2479,30 @@ func _select_best_affordable_offer(offers: Array, resources: Dictionary, known_e
 			best_score = score
 			best_idx = int(row.get("idx", -1))
 	return best_idx
+
+
+func _offer_has_milk_progress(offer: Dictionary, known_emojis: Dictionary) -> bool:
+	"""Check if an offer teaches vocab that advances toward milk in the webway.
+	Returns true if the north or south emoji has milk_distance < MAX or
+	unlocks a new faction path via webway_offer_value."""
+	if offer.is_empty():
+		return false
+	var north = str(offer.get("reward_vocab_north", ""))
+	var south = str(offer.get("reward_vocab_south", ""))
+	if north == "" and south == "":
+		return false  # No vocab reward at all
+	for emoji in [north, south]:
+		if emoji == "":
+			continue
+		# Direct milk distance check
+		var d = PolicyStateProjector.milk_distance(emoji)
+		if d < PolicyStateProjector._MILK_MAX_DISTANCE:
+			return true
+		# Webway 2-hop check: does this emoji unlock a faction path toward milk?
+		var w = PolicyStateProjector.webway_offer_value(emoji, known_emojis)
+		if w < PolicyStateProjector._MILK_MAX_DISTANCE:
+			return true
+	return false
 
 
 func _parse_positions(raw_positions, biome_name: String) -> Array[Vector2i]:

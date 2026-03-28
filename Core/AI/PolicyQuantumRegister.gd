@@ -13,6 +13,7 @@ extends RefCounted
 const MILK_EMOJI := "🍼"
 const PolicyGraph = preload("res://Core/AI/PolicyGraph.gd")
 const PolicyStateProjector = preload("res://Core/AI/PolicyStateProjector.gd")
+const ParametricPolicyGraph = preload("res://Core/AI/ParametricPolicyGraph.gd")
 const ACTIONS: Array[String] = [
 	"quest_cycle",        # |000⟩ = 0
 	"probe_cycle",        # |001⟩ = 1
@@ -42,6 +43,11 @@ var _last_reward_components: Dictionary = {}
 var _history: Array = []
 var _max_history: int = 160
 var _policy_graph: Dictionary = {}
+
+# ── Parametric meta-learner ──────────────────────────────────────────
+# Adjusts policy prior scalars via Lindblad feedback from action outcomes.
+# Sits between the JSONL policy graph and the action-selection register.
+var _ppg: ParametricPolicyGraph
 
 # ── Tunable config ──────────────────────────────────────────────────
 var _coupling_strength: float = 0.15  # off-diagonal H scale
@@ -97,6 +103,11 @@ func reset(config: Dictionary = {}) -> Dictionary:
 	_policy_graph = PolicyGraph.load_resolved_graph("quantum_register", _profile, graph_lines)
 	if config.get("policy_graph", null) is Dictionary:
 		_policy_graph = PolicyGraph.apply_patch(_policy_graph, config.get("policy_graph", {}))
+
+	# Parametric meta-learner: learns which policy scalars work for this character.
+	_ppg = ParametricPolicyGraph.new()
+	_ppg.reset(config)
+
 	return get_snapshot()
 
 
@@ -256,6 +267,10 @@ func observe(pre_state: Dictionary, decision: Dictionary, post_state: Dictionary
 	_last_reward_components = reward_components.duplicate(true)
 	_step_count += 1
 
+	# Parametric meta-learner: update parameter priors from this outcome.
+	if _ppg:
+		_ppg.observe_outcome(action_name, reward_components)
+
 	# Decay all pump/drain rates
 	var decay_factor = exp(-_decay_rate)
 	for i in range(DIM):
@@ -322,6 +337,7 @@ func get_snapshot() -> Dictionary:
 		"history_tail": _history.duplicate(true),
 		"policy_graph": _policy_graph.duplicate(true),
 		"policy_graph_jsonl": PolicyGraph.snapshot_to_graph_lines(_policy_graph),
+		"ppg": _ppg.get_snapshot() if _ppg else {},
 	}
 
 
@@ -347,6 +363,7 @@ func export_state() -> Dictionary:
 		"history_tail": _history.duplicate(true),
 		"policy_graph": _policy_graph.duplicate(true),
 		"policy_graph_jsonl": PolicyGraph.snapshot_to_graph_lines(_policy_graph),
+		"ppg_state": _ppg.export_state() if _ppg else {},
 	}
 
 
@@ -418,6 +435,14 @@ func load_state(state: Dictionary) -> Dictionary:
 	var state_graph = state.get("policy_graph", {})
 	if state_graph is Dictionary and not state_graph.is_empty():
 		_policy_graph = PolicyGraph.apply_patch(_policy_graph, state_graph)
+
+	# Restore parametric meta-learner state.
+	# Old saves without ppg_state get a fresh PPG (all multipliers = 1.0).
+	if not _ppg:
+		_ppg = ParametricPolicyGraph.new()
+	var ppg_data = state.get("ppg_state", {})
+	if ppg_data is Dictionary:
+		_ppg.load_state(ppg_data)
 
 	return get_snapshot()
 
@@ -601,7 +626,9 @@ func _compute_coherence() -> float:
 func _build_candidates(state: Dictionary) -> Array:
 	var projected_state = state.duplicate(true)
 	projected_state["quest_no_vocab_streak"] = _quest_no_vocab_streak
-	return PolicyStateProjector.build_candidates(projected_state, _policy_graph, ACTIONS)
+	# Apply PPG-learned multipliers so candidate prior scores reflect what's working.
+	var effective_graph = _ppg.resolve_graph(_policy_graph) if _ppg else _policy_graph
+	return PolicyStateProjector.build_candidates(projected_state, effective_graph, ACTIONS)
 
 
 func _build_availability_mask(candidates: Array) -> Array:

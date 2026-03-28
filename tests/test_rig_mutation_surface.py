@@ -103,6 +103,14 @@ def test_rig_listener_exposes_policy_graph_actions() -> None:
     assert "policy.apply_policy_graph_lines(lines)" in src
 
 
+def test_rig_listener_uses_discover_biome_only_and_exposes_quest_reroll_feedback() -> None:
+    src = RIG_LISTENER.read_text(encoding="utf-8")
+    assert '"discover_biome"' in src
+    assert '"explore_biome"' not in src
+    assert "max_rerolls" in src
+    assert "rerolls_spent" in src
+
+
 def test_policy_snapshot_builder_has_expected_bundle_keys() -> None:
     src = SNAPSHOT_BUILDER.read_text(encoding="utf-8")
     assert '"resources": resources' in src
@@ -115,7 +123,8 @@ def test_policy_snapshot_builder_has_expected_bundle_keys() -> None:
 def test_rig_listener_uses_policy_snapshot_bundle_for_policy_state() -> None:
     listener = RIG_LISTENER.read_text(encoding="utf-8")
     snapshot = SNAPSHOT_SERVICE.read_text(encoding="utf-8")
-    assert "_snapshot_service.build_policy_state(cmd)" in listener
+    assert "func _build_policy_state(cmd: Dictionary = {}) -> Dictionary:" in listener
+    assert "_snapshot_service.build_policy_state_lightweight(cmd)" in listener
     assert "func build_policy_state(cmd: Dictionary = {}) -> Dictionary:" in snapshot
     assert "get_policy_snapshot(true, true)" in snapshot
     assert "_annotate_offer_discovery_affinity(offers)" in snapshot

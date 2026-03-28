@@ -29,8 +29,12 @@ def test_policy_projector_exists_with_shared_candidate_and_reward_logic() -> Non
     assert "static func quest_pressure(" in src
     assert "static func choose_channel_drain_target(" in src
     assert "static func _offer_milk_metrics(" in src
+    assert "static func webway_offer_value(" in src
     assert "milk_distance_gain" in src
     assert "milk_cascade_gain" in src
+    assert "webway_gain" in src
+    assert "max_rerolls" in src
+    assert "milk_corridor_weight" in src
 
 
 def test_both_policy_engines_use_shared_projector_and_graph() -> None:
@@ -116,3 +120,17 @@ def test_seed_path_and_runner_lock_policy_use_canonical_policy_graph() -> None:
     assert "def _heuristic_best_offer_index(" in runner
     assert "fallback_python_policy" not in runner
     assert not (ROOT / "🍄" / "🎛️" / "milk_hunt_fallback_policy.py").exists()
+
+
+def test_quantum_register_policy_uses_parametric_policy_graph() -> None:
+    src = _read("Core/AI/PolicyQuantumRegister.gd")
+    ppg = _read("Core/AI/ParametricPolicyGraph.gd")
+    assert 'const ParametricPolicyGraph = preload("res://Core/AI/ParametricPolicyGraph.gd")' in src
+    assert "_ppg = ParametricPolicyGraph.new()" in src
+    assert "_ppg.observe_outcome(action_name, reward_components)" in src
+    assert "_ppg.resolve_graph(_policy_graph)" in src
+    assert "class_name ParametricPolicyGraph" in ppg
+    assert "func resolve_graph(raw_graph: Dictionary) -> Dictionary:" in ppg
+    assert "func observe_outcome(action_name: String, reward_components: Dictionary) -> void:" in ppg
+    assert "func export_state() -> Dictionary:" in ppg
+    assert "func load_state(state: Dictionary) -> void:" in ppg
