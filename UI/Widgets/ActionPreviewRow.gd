@@ -257,12 +257,6 @@ func restore_normal_mode() -> void:
 	update_for_tool(current_tool)
 
 
-func update_for_quest_board(_slot_state: int, _is_locked: bool = false) -> void:
-	"""Legacy: Re-route to update_for_overlay if possible."""
-	if active_overlay_node:
-		update_for_overlay(active_overlay_node)
-
-
 func set_action_enabled(action_key: String, enabled: bool) -> void:
 	"""Enable or disable a specific action button"""
 	if not action_buttons.has(action_key):

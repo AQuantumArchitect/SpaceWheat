@@ -347,16 +347,6 @@ func _show_mature_state():
 	var base_golden = COLOR_MATURE
 	background.color = base_golden.lightened(_shared_glow_value * 0.2)
 
-
-func update_tomato_visuals(conspiracy_network):
-	"""Update visual state based on conspiracy node data (PROPOSAL B)
-
-	Phase 4: This method is unused in decoupled architecture
-	Keeping for backward compatibility but it's not called
-	"""
-	pass  # Not used with PlotUIData
-
-
 func _get_temperature_color(normalized_theta: float) -> Color:
 	"""Map theta to temperature color (blue → white → red)"""
 	if normalized_theta < 0.5:
