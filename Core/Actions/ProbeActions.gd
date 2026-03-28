@@ -346,10 +346,7 @@ static func action_reap(arg0, arg1 = null, arg2 = null, arg3 = null) -> Dictiona
 
 
 static func _action_reap_terminal(terminal, terminal_pool, economy = null, farm = null) -> Dictionary:
-	var result = action_pop(terminal, terminal_pool, economy, farm)
-	if result.get("success", false):
-		result["legacy_reap_alias"] = true
-	return result
+	return action_pop(terminal, terminal_pool, economy, farm)
 
 
 static func _action_reap_global(farm, economy = null) -> Dictionary:
@@ -579,9 +576,7 @@ static func action_harvest_all(terminal_pool, economy = null, biome = null) -> D
 	if biome and ("grid" in biome) and biome.grid and ("farm" in biome.grid):
 		farm = biome.grid.farm
 	if farm:
-		var result = _action_reap_global(farm, economy)
-		result["legacy_harvest_all_alias"] = true
-		return result
+		return _action_reap_global(farm, economy)
 	return {
 		"success": false,
 		"error": "no_farm_context",
