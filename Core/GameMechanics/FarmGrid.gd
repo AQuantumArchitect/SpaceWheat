@@ -10,7 +10,8 @@ extends Node
 ## - PlantingManager: (removed) legacy planting system
 ## - HarvestMeasurementManager: Harvest and measurement operations
 ##
-## All public methods are preserved for backward compatibility.
+## FarmGrid is now primarily the routing surface where plots, terminals,
+## registers, and biome ownership meet.
 
 # Access autoload safely (avoids compile-time errors)
 @onready var _verbose = get_node("/root/VerboseConfig")
@@ -65,9 +66,6 @@ var faction_territory_manager = null
 var farm_economy = null
 var vocabulary_evolution = null
 var terminal_pool = null
-
-# Legacy biome reference (for backward compatibility)
-var biome = null
 
 # Environmental parameters
 var base_temperature: float = 20.0
@@ -173,16 +171,14 @@ func _ready():
 	# Pre-initialize all plots
 	_plot_manager.initialize_all_plots()
 
-	# Check biome state
-	if _biome_routing.is_biomes_empty() and not biome:
-		_verbose.info("farm", "ℹ️", "No biomes registered - running in simple mode")
+	if _biome_routing.is_biomes_empty():
+		_verbose.info("farm", "ℹ️", "No biomes registered")
 
 	set_process(true)
 
 
 func _process(delta):
-	# Skip processing if no biomes registered
-	if _biome_routing.is_biomes_empty() and not biome:
+	if _biome_routing.is_biomes_empty():
 		return
 
 	# Build icon_network for growth modifiers

@@ -288,7 +288,9 @@ static func _can_execute_submenu_action(
 	if selected_plots.is_empty():
 		return false
 
-	var submenu = cached_submenu if not cached_submenu.is_empty() else ToolConfig.get_submenu(current_submenu)
+	var submenu = cached_submenu
+	if submenu.is_empty():
+		return false
 
 	# Check if entire submenu disabled
 	if submenu.get("_disabled", false):

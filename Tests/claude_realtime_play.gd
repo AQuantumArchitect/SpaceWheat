@@ -13,7 +13,6 @@ extends SceneTree
 ##   godot --script res://Tests/claude_realtime_play.gd [sensible|chaos|both]
 ##   Default: both (sensible first, then chaos)
 
-const ToolConfig = preload("res://Core/GameState/ToolConfig.gd")
 const ProbeActions = preload("res://Core/Actions/ProbeActions.gd")
 
 # ============================================================================
@@ -210,9 +209,6 @@ func _start_phase(phase: String):
 	print("  PHASE: %s" % phase.to_upper())
 	print("-".repeat(70))
 	print("")
-
-	# Ensure we're in play mode at start
-	ToolConfig.set_mode("play")
 
 
 func _play_frame(delta: float):

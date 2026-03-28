@@ -65,7 +65,11 @@ func _create_ui_test_farm() -> Dictionary:
 
 	# Initialize biome (NullBiome - does nothing)
 	state["biome"]._ready()
-	grid.biome = state["biome"]
+	state["biome"].grid = grid
+	grid.register_biome("NullBiome", state["biome"])
+	for y in range(grid.grid_height):
+		for x in range(grid.grid_width):
+			grid.assign_plot_to_biome(Vector2i(x, y), "NullBiome")
 
 	# Initialize plots
 	for y in range(grid.grid_height):

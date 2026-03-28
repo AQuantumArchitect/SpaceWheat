@@ -28,6 +28,7 @@ const BiomeEvolutionBatcherClass = preload("res://Core/Environment/BiomeEvolutio
 var _BiomeScripts: Dictionary = {}  # Populated at runtime in _init_biomes()
 const FarmUIState = preload("res://Core/GameState/FarmUIState.gd")
 const VocabularyEvolution = preload("res://Core/QuantumSubstrate/VocabularyEvolution.gd")
+const BiomeDiscoveryForecastService = preload("res://Core/Gameplay/BiomeDiscoveryForecastService.gd")
 
 # Icon system moved to faction-based IconRegistry (no preload needed)
 
@@ -1358,9 +1359,8 @@ func explore_biome() -> Dictionary:
 		print("❌ All biomes already explored")
 		return {"success": false, "message": "All biomes already explored!"}
 
-	# Pick biome using vocab-weighted discovery
-	var weights = _compute_discovery_weights(unexplored)
-	var new_biome = _weighted_random_pick(unexplored, weights)
+	var weights = BiomeDiscoveryForecastService.compute_weights(self, unexplored)
+	var new_biome = BiomeDiscoveryForecastService.weighted_random_pick(unexplored, weights)
 	print("🗺️ Selected biome: %s (weighted discovery)" % new_biome)
 
 	# Unlock it
@@ -1400,120 +1400,9 @@ func explore_biome() -> Dictionary:
 	return {"success": true, "biome_name": new_biome, "message": "Discovered %s!" % new_biome}
 
 
-func _compute_discovery_weights(unexplored: Array) -> Array[float]:
-	"""Compute discovery probabilities using quest affinity, vocab affinity, AND milk cascade.
-
-	Weight formula per biome b:
-		weight(b) = FLOOR
-			+ QUEST_SCALE * quest_affinity(b)
-			+ VOCAB_SCALE * vocab_affinity(b)
-			+ MILK_SCALE * milk_cascade_value(b)
-
-	The milk cascade term checks: does this biome contain emojis from factions
-	that are close to milk? This steers discovery toward the Reality Midwives path.
-	"""
-	const BiomeAffinityCalculator = preload("res://Core/Quantum/BiomeAffinityCalculator.gd")
-	const BiomeRegistryClass = preload("res://Core/Biomes/BiomeRegistry.gd")
-	const FLOOR = 0.1
-	const QUEST_SCALE = 5.0
-	const VOCAB_SCALE = 2.0
-	const MILK_SCALE = 3.0
-
-	var weights: Array[float] = []
-
-	# Gather active quest vocab pairs
-	var quest_pairs: Array = []
-	var quest_manager = get_node_or_null("/root/QuestManager")
-	if quest_manager:
-		for quest in quest_manager.get_active_quests():
-			var north = quest.get("reward_vocab_north", "")
-			if not north.is_empty():
-				quest_pairs.append({"north": north, "south": quest.get("reward_vocab_south", "")})
-		if quest_manager.has_method("get_locked_offers"):
-			for quest in quest_manager.get_locked_offers():
-				var north = quest.get("reward_vocab_north", "")
-				if not north.is_empty():
-					quest_pairs.append({"north": north, "south": quest.get("reward_vocab_south", "")})
-
-	# Gather learned pairs
-	var learned_pairs: Array = []
-	var player_vocab = get_node_or_null("/root/PlayerVocabulary")
-	if player_vocab and player_vocab.has_method("get_all_learned_pairs"):
-		learned_pairs = player_vocab.get_all_learned_pairs()
-
-	# Milk cascade: which factions' signatures have low milk distance?
-	# emoji_to_factions and faction_milk_value are precomputed.
-	var faction_sigs = PolicyStateProjector.get_faction_signatures()
-	var emoji_to_factions = PolicyStateProjector.get_emoji_to_factions()
-
-	# BiomeRegistry for biome emoji lists
-	var biome_registry = BiomeRegistryClass.new()
-
-	for biome_name in unexplored:
-		var w = FLOOR
-
-		for pair in quest_pairs:
-			w += QUEST_SCALE * BiomeAffinityCalculator.calculate_affinity_by_name(pair, biome_name)
-
-		if not learned_pairs.is_empty():
-			var vocab_sum = 0.0
-			for pair in learned_pairs:
-				vocab_sum += BiomeAffinityCalculator.calculate_affinity_by_name(pair, biome_name)
-			w += VOCAB_SCALE * vocab_sum / learned_pairs.size()
-
-		# Milk cascade: best faction_milk_value reachable through this biome's emojis
-		var biome_data = biome_registry.get_by_name(biome_name)
-		if biome_data:
-			var best_fmv = PolicyStateProjector._MILK_MAX_DISTANCE
-			for emoji in biome_data.emojis:
-				# This emoji appears in certain factions' signatures
-				for fname in emoji_to_factions.get(emoji, []):
-					var fmv = PolicyStateProjector.faction_milk_value(fname)
-					if fmv < best_fmv:
-						best_fmv = fmv
-			if best_fmv < PolicyStateProjector._MILK_MAX_DISTANCE:
-				# Lower fmv = closer to milk = higher weight
-				w += MILK_SCALE * (float(PolicyStateProjector._MILK_MAX_DISTANCE) / max(1.0, float(best_fmv)))
-
-		weights.append(w)
-	return weights
-
-
-static func _weighted_random_pick(items: Array, weights: Array[float]) -> Variant:
-	"""Pick an item using weighted random selection."""
-	var total = 0.0
-	for w in weights:
-		total += w
-	if total <= 0.0:
-		return items[randi() % items.size()]
-	var roll = randf() * total
-	var cumulative = 0.0
-	for i in range(items.size()):
-		cumulative += weights[i]
-		if roll <= cumulative:
-			return items[i]
-	return items[items.size() - 1]
-
-
 func compute_discovery_forecast() -> Dictionary:
-	"""Public API: returns discovery weight forecast for all unexplored biomes."""
-	var observation_frame = get_node_or_null("/root/ObservationFrame")
-	if not observation_frame:
-		return {}
-	var unexplored = observation_frame.get_unexplored_biomes()
-	if unexplored.is_empty():
-		return {}
-	var weights = _compute_discovery_weights(unexplored)
-	var total = 0.0
-	for w in weights:
-		total += w
-	var forecast: Dictionary = {}
-	for i in range(unexplored.size()):
-		forecast[unexplored[i]] = {
-			"weight": weights[i],
-			"probability": weights[i] / total if total > 0.0 else 0.0
-		}
-	return forecast
+	"""Compatibility facade over the discovery forecast service."""
+	return BiomeDiscoveryForecastService.compute_forecast(self)
 
 
 func _load_biome_dynamically(biome_name: String) -> bool:
@@ -1621,10 +1510,6 @@ func measure_plot(pos: Vector2i) -> String:
 		return ""
 
 	var outcome = grid.measure_plot(pos)
-
-	# No biome mode: use random outcome for testing (no quantum evolution happened)
-	if not outcome and not biome_enabled:
-		outcome = "🌾" if randf() > 0.5 else "👥"
 
 	if outcome != "":
 		plot_measured.emit(pos, outcome)
@@ -1832,7 +1717,7 @@ func get_state() -> Dictionary:
 
 func _get_plot_biome(pos: Vector2i):
 	"""Get biome for plot position. Returns null if biomes disabled or not found."""
-	if biome_enabled and grid:
+	if grid:
 		return grid.get_biome_for_plot(pos)
 	return null
 
