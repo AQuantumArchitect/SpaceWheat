@@ -39,3 +39,25 @@ def test_mushroom_callers_use_unified_profiles_module() -> None:
 def test_old_registry_modules_are_deleted() -> None:
     assert not (ROOT / "🍄" / "🎛️" / "milk_hunt_profiles.py").exists()
     assert not (ROOT / "🍄" / "🎛️" / "profile_save_registry.py").exists()
+
+
+def test_active_milk_hunt_surface_no_longer_threads_load_alias() -> None:
+    args_src = _read("🍄/🎛️/milk_hunt_args.py")
+    batch_src = _read("🍄/🎛️/milk_hunt_batch.py")
+    summary_src = _read("🍄/🎛️/milk_hunt_summary.py")
+    runner_src = _read("🍄/🎛️/milk_hunt_runner.py")
+    shell_src = _read("🍄/🎛️/🧭🥛🧪🚜.sh")
+    batch_conf = _read("🍄/🎛️/config/milk_hunt_batch.conf")
+    visual_conf = _read("🍄/🎛️/config/milk_hunt_visual.conf")
+    runner_conf = _read("🍄/🎛️/config/milk_hunt_runner.json")
+    graphics_conf = _read("🍄/🎛️/config/milk_hunt_graphics_waits.json")
+
+    assert "--load-alias" not in args_src
+    assert "load_alias" not in batch_src
+    assert "load_alias" not in summary_src
+    assert "load_alias" not in runner_src
+    assert "LOAD_ALIAS" not in shell_src
+    assert "LOAD_ALIAS" not in batch_conf
+    assert "LOAD_ALIAS" not in visual_conf
+    assert '"load_alias"' not in runner_conf
+    assert '"load_alias"' not in graphics_conf

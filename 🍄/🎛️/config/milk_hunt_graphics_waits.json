@@ -3,7 +3,6 @@
   "scenario_id": "default",
   "strict_biome_economy": false,
   "load_slot": null,
-  "load_alias": null,
   "turn_delay_s": 0.1,
   "probe_delay_s": 0.25,
   "probe_each_loop": true,

@@ -281,7 +281,6 @@ def _run_trial(
     run_idx: int,
     max_loops: int,
     load_slot: int | None,
-    load_alias: str | None,
     profile_save: str | None,
     profile_save_index: str | None,
     strict_biome_economy: Optional[bool],
@@ -348,8 +347,6 @@ def _run_trial(
         cmd.extend(["--profile-save", str(profile_save)])
         if profile_save_index:
             cmd.extend(["--profile-save-index", str(profile_save_index)])
-    elif load_alias is not None:
-        cmd.extend(["--load-alias", str(load_alias)])
     if strict_biome_economy is True:
         cmd.append("--strict-biome-economy")
     elif strict_biome_economy is False:
@@ -432,7 +429,6 @@ def main() -> int:
 
     profile: Optional[Dict[str, Any]] = None
     load_slot = args.load_slot
-    load_alias = args.load_alias
     seed_result: Optional[Dict[str, Any]] = None
     resolved_profile_save: Optional[str] = None
     if args.profile_save and (args.profile or args.world_state):
@@ -450,7 +446,6 @@ def main() -> int:
                 "detail",
             )
     if resolved_profile_save:
-        load_alias = resolved_profile_save
         load_slot = None
         console.log(f"[batch] using profile-save '{resolved_profile_save}'", "info")
 
@@ -478,7 +473,6 @@ def main() -> int:
             console.log(json.dumps(seed_result, ensure_ascii=False, indent=2), "warn")
             return 3
         load_slot = seed_slot
-        load_alias = None
         console.log(f"[batch] '{seed_source}' seeded into slot {seed_slot}", "info")
 
     strict_biome_economy = args.strict_biome_economy
@@ -518,7 +512,6 @@ def main() -> int:
             i,
             args.max_loops,
             load_slot,
-            load_alias,
             resolved_profile_save,
             args.profile_save_index,
             strict_biome_economy,
@@ -637,7 +630,6 @@ def main() -> int:
         "runs": args.runs,
         "max_loops": args.max_loops,
         "load_slot": load_slot,
-        "load_alias": load_alias,
         "strict_biome_economy": effective_strict_biome_economy,
         "profile": profile["name"] if profile else args.profile,
         "profile_description": profile.get("description", "") if profile else "",

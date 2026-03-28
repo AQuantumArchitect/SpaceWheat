@@ -17,7 +17,6 @@ def make_base_parser(description: str = "Milk hunt tool") -> argparse.ArgumentPa
     Shared args:
       --console-profile   Verbosity profile for console output
       --load-slot         Boot from a save slot
-      --load-alias        Boot from an emoji alias save path
       --profile-save      Canonical profile save path/alias
       --profile-save-index  Registry JSON path for profile-save id resolution
       --scenario-id       Scenario id (used when not loading a slot)
@@ -41,12 +40,6 @@ def make_base_parser(description: str = "Milk hunt tool") -> argparse.ArgumentPa
         type=int,
         default=None,
         help="Boot the rig from a save slot",
-    )
-    parser.add_argument(
-        "--load-alias",
-        type=str,
-        default=None,
-        help="Load from an emoji alias save filename/path",
     )
     parser.add_argument(
         "--profile-save",

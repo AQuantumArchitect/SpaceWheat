@@ -1556,7 +1556,6 @@ def main() -> int:
     _set_console_profile(console_profile)
     strategy = load_strategy(args.strategy)
     load_slot = args.load_slot
-    load_alias = args.load_alias
     profile_save = args.profile_save
     profile_save_index = args.profile_save_index
     scenario_id = args.scenario_id
@@ -1634,11 +1633,6 @@ def main() -> int:
     if load_slot is None and os.environ.get("MILK_HUNT_LOAD_SLOT", "") != "":
         load_slot = int(os.environ["MILK_HUNT_LOAD_SLOT"])
 
-    if not load_alias:
-        load_alias = get_cfg_str(cfg, "load_alias")
-    if not load_alias and os.environ.get("MILK_HUNT_LOAD_ALIAS", "") != "":
-        load_alias = os.environ["MILK_HUNT_LOAD_ALIAS"]
-
     if not profile_save:
         profile_save = get_cfg_str(cfg, "profile_save")
     if not profile_save and os.environ.get("MILK_HUNT_PROFILE_SAVE", "") != "":
@@ -1663,10 +1657,8 @@ def main() -> int:
     resolved_profile_save: Optional[str] = None
     if profile_save:
         resolved_profile_save = resolve_save_spec(profile_save, profile_save_index)
-        if not load_alias:
-            load_alias = resolved_profile_save
-            load_slot = None
-            _safe_print(f"milk-hunt: using profile-save '{resolved_profile_save}'", "detail")
+        load_slot = None
+        _safe_print(f"milk-hunt: using profile-save '{resolved_profile_save}'", "detail")
         if not args.hunter_profile:
             mapped = get_save_path(profile_save, profile_save_index)
             if mapped:
@@ -1675,11 +1667,10 @@ def main() -> int:
                 mapped_name = get_profile_name_for_save(resolved_profile_save, profile_save_index)
                 if mapped_name:
                     hunter_profile = mapped_name
-    elif not load_alias and load_slot is None and hunter_profile:
+    elif load_slot is None and hunter_profile:
         mapped_profile_save = get_save_path(hunter_profile, profile_save_index)
         if mapped_profile_save:
             resolved_profile_save = mapped_profile_save
-            load_alias = mapped_profile_save
             _safe_print(
                 f"milk-hunt: hunter-profile '{hunter_profile}' resolved to profile-save '{mapped_profile_save}'",
                 "detail",
@@ -1982,8 +1973,6 @@ def main() -> int:
         _safe_print("milk-hunt: failing due to dirty worktree (--require-clean-worktree)", "error")
         return 5
 
-    if load_alias:
-        load_slot = None
     proc: Optional[subprocess.Popen] = None
     boot_lines: List[str] = []
     listener_log_boot_offset = _file_size(listener_log_path) if rig_listener_stdout == "file" else 0
@@ -2075,8 +2064,8 @@ def main() -> int:
             return 1
         turn += 1
 
-        if load_alias is not None:
-            history.append(_run_turn(turn, "load_game_alias", alias=load_alias))
+        if resolved_profile_save is not None:
+            history.append(_run_turn(turn, "load_game_alias", alias=resolved_profile_save))
             turn += 1
         elif args.reuse_listener and load_slot is not None:
             history.append(_run_turn(turn, "load_game", slot=load_slot))
@@ -3027,7 +3016,6 @@ def main() -> int:
                 strict_biome_economy=strict_biome_economy,
                 allow_rig_resource_injection=allow_rig_resource_injection,
                 load_slot=load_slot,
-                load_alias=load_alias,
                 profile_save=profile_save,
                 profile_save_index=profile_save_index,
                 resolved_profile_save=resolved_profile_save,
@@ -3154,7 +3142,6 @@ def main() -> int:
                 strict_biome_economy=strict_biome_economy,
                 allow_rig_resource_injection=allow_rig_resource_injection,
                 load_slot=load_slot,
-                load_alias=load_alias,
                 profile_save=profile_save,
                 profile_save_index=profile_save_index,
                 resolved_profile_save=resolved_profile_save,
