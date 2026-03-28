@@ -5,7 +5,7 @@
 **Before (WET - Write Everything Twice):**
 - Resources defined in `Scenarios/default.tres` ❌
 - Resources defined in `Scenarios/new_game_easy.tres` ❌
-- Resources defined in `milk_hunt_profiles.py` ❌
+- Resources defined in duplicated 🍄 profile loaders ❌
 - Resources hardcoded in test scripts ❌
 - **Result**: Update resources in 4+ places, easy to get out of sync!
 

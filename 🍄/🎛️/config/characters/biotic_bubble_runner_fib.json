@@ -1,6 +1,6 @@
 {
-  "name": "granary_scout_fib",
-  "description": "Bread-forward fib-scale scout with a light eagle frontier.",
+  "name": "biotic_bubble_runner_fib",
+  "description": "Chaotic popper seeded with planetary energy and mushrooms. Fib-scale.",
   "resource_scale": "fibonacci",
   "scenario_id": "default",
   "strict_biome_economy": true,
@@ -8,39 +8,39 @@
     "🍞": 21,
     "❄️": 13,
     "👥": 8,
-    "🌾": 5,
-    "🌱": 3,
-    "⚙": 2,
+    "🌀": 5,
+    "🍄": 3,
+    "🪐": 2,
     "🦅": 1
   },
   "known_pairs": [
     {
-      "north": "🌾",
-      "south": "🌱"
+      "north": "🌀",
+      "south": "🪐"
     },
     {
       "north": "🍞",
-      "south": "👥"
+      "south": "🍄"
     }
   ],
   "unlocked_biomes": [
     "StarterForest",
     "Village",
-    "PastoralCommons"
+    "FungalNetworks"
   ],
   "active_biome": "Village",
   "policies": {
     "engine_policy": {
       "policy_kind": "ucb",
-      "template": "core:ucb/granary_scout"
+      "template": "core:default"
     },
     "quantum_register": {
       "policy_kind": "quantum_register",
       "template": "core:default",
       "graph_jsonl": [
-        "{\"op\":\"set\",\"path\":\"profile_id\",\"value\":\"granary_scout_fib\"}",
-        "{\"op\":\"set\",\"path\":\"action_priors.quest_cycle.unknown_vocab\",\"value\":1.45}",
-        "{\"op\":\"set\",\"path\":\"action_priors.probe_cycle.resource_pressure\",\"value\":1.1}",
+        "{\"op\":\"set\",\"path\":\"profile_id\",\"value\":\"biotic_bubble_runner_fib\"}",
+        "{\"op\":\"set\",\"path\":\"action_priors.quest_cycle.unknown_vocab\",\"value\":1.35}",
+        "{\"op\":\"set\",\"path\":\"action_priors.discover_biome.forecast\",\"value\":1.2}",
         "{\"op\":\"set\",\"path\":\"reward_terms.pair\",\"value\":46.0}"
       ]
     }

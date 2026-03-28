@@ -23,6 +23,6 @@
             "south": "👥"
         }
     ],
-    "strict_biome_economy": false,
+    "strict_biome_economy": true,
     "economy_overrides": {}
 }

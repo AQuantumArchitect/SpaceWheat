@@ -2,7 +2,7 @@
   "name": "village_diplomat",
   "description": "Labor-first envoy delivering edicts.",
   "scenario_id": "default",
-  "strict_biome_economy": false,
+  "strict_biome_economy": true,
   "resources": {
     "👥": 21,
     "🍞": 13,

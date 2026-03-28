@@ -406,7 +406,7 @@ def _runtime_profile_env_overrides(profile_name: str) -> Dict[str, str]:
         }
     if profile == "io_min":
         return {
-            "RIG_QUEUE_POLL_MS": "160",
+            "RIG_QUEUE_POLL_MS": "16",
             "RIG_LOG_PROFILE": "quiet",
         }
     return {}
@@ -1208,6 +1208,7 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Force-enable rig-side resource injection",
     )
     parser.add_argument("--save-slot-at-end", type=int, default=None, help="Save the run state to this slot before exit")
+    parser.add_argument("--save-path-at-end", type=str, default=None, help="Save the run state to this path/alias before exit")
     parser.add_argument(
         "--reuse-listener",
         dest="reuse_listener",
@@ -3094,6 +3095,12 @@ def main() -> int:
             turn += 1
             summary["saved_slot"] = args.save_slot_at_end
             summary["save_result"] = save_row
+        if args.save_path_at_end is not None:
+            save_row = _run_turn(turn, "save_game_path", path=args.save_path_at_end)
+            history.append(save_row)
+            turn += 1
+            summary["saved_path"] = args.save_path_at_end
+            summary["save_path_result"] = save_row
         add_milk_pair_index(summary, final_pairs, MILK)
         if args.summary_path is not None:
             args.summary_path.parent.mkdir(parents=True, exist_ok=True)

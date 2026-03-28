@@ -3,7 +3,7 @@
   "description": "Bread-heavy fib scout with more civic buffer and a stronger probing slope.",
   "resource_scale": "fibonacci",
   "scenario_id": "default",
-  "strict_biome_economy": false,
+  "strict_biome_economy": true,
   "resources": {
     "🍞": 34,
     "❄️": 21,

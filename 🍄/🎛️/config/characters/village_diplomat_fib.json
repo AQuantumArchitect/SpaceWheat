@@ -3,7 +3,7 @@
   "description": "Quest-facing fib-scale envoy with labor, bread, and market instruments.",
   "resource_scale": "fibonacci",
   "scenario_id": "default",
-  "strict_biome_economy": false,
+  "strict_biome_economy": true,
   "resources": {
     "👥": 21,
     "🍞": 13,

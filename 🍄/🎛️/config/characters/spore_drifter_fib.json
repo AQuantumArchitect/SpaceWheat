@@ -1,0 +1,38 @@
+{
+  "name": "spore_drifter_fib",
+  "description": "FungalNetworks frontier drifter. Chaotic and exploratory — chases unknown vocab and frontier biomes with fungal and cosmic resources.",
+  "resource_scale": "fibonacci",
+  "scenario_id": "default",
+  "strict_biome_economy": true,
+  "resources": {
+    "🍄": 21,
+    "🌀": 13,
+    "🪐": 8,
+    "👥": 5,
+    "🍞": 3,
+    "❄️": 2
+  },
+  "known_pairs": [
+    { "north": "🌀", "south": "🪐" },
+    { "north": "🍞", "south": "🍄" }
+  ],
+  "unlocked_biomes": [
+    "StarterForest",
+    "Village",
+    "FungalNetworks"
+  ],
+  "active_biome": "FungalNetworks",
+  "policies": {
+    "quantum_register": {
+      "policy_kind": "quantum_register",
+      "template": "core:default",
+      "graph_jsonl": [
+        "{\"op\":\"set\",\"path\":\"profile_id\",\"value\":\"spore_drifter_fib\"}",
+        "{\"op\":\"set\",\"path\":\"action_priors.quest_cycle.unknown_vocab\",\"value\":1.55}",
+        "{\"op\":\"set\",\"path\":\"action_priors.quest_cycle.frontier_bonus\",\"value\":2.0}",
+        "{\"op\":\"set\",\"path\":\"action_priors.probe_cycle.base\",\"value\":1.2}",
+        "{\"op\":\"set\",\"path\":\"reward_terms.pair\",\"value\":46.0}"
+      ]
+    }
+  }
+}
