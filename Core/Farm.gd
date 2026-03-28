@@ -1452,54 +1452,6 @@ func _assign_plots_for_biome(biome_name: String) -> void:
 			grid.assign_plot_to_biome(pos, biome_name)
 
 
-func do_action(action: String, params: Dictionary) -> Dictionary:
-	"""Universal action dispatcher - routes to appropriate method
-
-	Supported actions:
-	- entangle: {position_a, position_b} → entangles two plots
-	- measure: {position} → measures plot
-	- harvest: {position} → harvests plot
-
-	Returns: Dictionary with {success: bool, message: String, ...action-specific data}
-	"""
-	match action:
-		"entangle":
-			var pos_a = params.get("position_a", Vector2i.ZERO)
-			var pos_b = params.get("position_b", Vector2i.ZERO)
-			var bell_state = params.get("bell_state", "phi_plus")
-			var success = entangle_plots(pos_a, pos_b, bell_state)
-			return {
-				"success": success,
-				"position_a": pos_a,
-				"position_b": pos_b,
-				"bell_state": bell_state,
-				"message": "Entangle action " + ("succeeded" if success else "failed")
-			}
-
-		"measure":
-			var pos = params.get("position", Vector2i.ZERO)
-			var outcome = measure_plot(pos)
-			return {
-				"success": outcome != "",
-				"position": pos,
-				"outcome": outcome,
-				"message": "Measured: " + outcome if outcome else "Measurement failed"
-			}
-
-		"harvest":
-			var pos = params.get("position", Vector2i.ZERO)
-			var result = harvest_plot(pos)
-			result["message"] = "Harvest " + ("succeeded" if result.get("success", false) else "failed")
-			return result
-
-
-		_:
-			return {
-				"success": false,
-				"message": "Unknown action: %s" % action
-			}
-
-
 func measure_plot(pos: Vector2i) -> String:
 	"""Measure (collapse) quantum state of plot at position
 
@@ -1543,39 +1495,6 @@ func harvest_plot(pos: Vector2i) -> Dictionary:
 		action_result.emit("harvest", false, "Harvest failed")
 
 	return harvest_data
-
-
-func measure_all() -> int:
-	"""Measure all planted but unmeasured plots
-
-	Returns: number of plots measured
-	"""
-	var measured_count = 0
-	if terminal_pool:
-		for terminal in terminal_pool.get_active_terminals():
-			if terminal.grid_position != Vector2i(-1, -1):
-				if measure_plot(terminal.grid_position) != "":
-					measured_count += 1
-
-	action_result.emit("measure_all", true, "Measured %d plots" % measured_count)
-	return measured_count
-
-
-func harvest_all() -> int:
-	"""Harvest all measured plots
-
-	Returns: number of plots harvested
-	"""
-	var harvested_count = 0
-	if terminal_pool:
-		for terminal in terminal_pool.get_measured_terminals():
-			if terminal.grid_position != Vector2i(-1, -1):
-				var result = harvest_plot(terminal.grid_position)
-				if result.get("success", false):
-					harvested_count += 1
-
-	action_result.emit("harvest_all", true, "Harvested %d plots" % harvested_count)
-	return harvested_count
 
 
 func entangle_plots(pos1: Vector2i, pos2: Vector2i, bell_state: String = "phi_plus") -> bool:
