@@ -203,8 +203,8 @@ func _create_hud():
 func _setup_initial_state():
 	# Record initial vocabulary
 	var gsm = root.get_node_or_null("/root/GameStateManager")
-	if gsm and gsm.get("current_state") and gsm.current_state.get("known_emojis"):
-		initial_vocabulary = gsm.current_state.known_emojis.duplicate()
+	if gsm and gsm.get("current_state") and gsm.current_state and gsm.current_state.has_method("get_known_emojis"):
+		initial_vocabulary = gsm.current_state.get_known_emojis().duplicate()
 
 	print("\nInitial vocabulary: %s" % [initial_vocabulary])
 

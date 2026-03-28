@@ -246,7 +246,7 @@ func _phase_2_quest_acceptance():
 	# Get player vocabulary
 	var player_vocab = []
 	if game_state_manager and game_state_manager.current_state:
-		player_vocab = game_state_manager.current_state.known_emojis
+		player_vocab = game_state_manager.current_state.get_known_emojis()
 	print("Player vocabulary: %d emojis" % player_vocab.size())
 
 	# Get accessible factions
@@ -373,7 +373,7 @@ func _phase_4_vocabulary_unlock():
 	# Get current vocabulary
 	var vocab_before = []
 	if game_state_manager and game_state_manager.current_state:
-		vocab_before = game_state_manager.current_state.known_emojis.duplicate()
+		vocab_before = game_state_manager.current_state.get_known_emojis().duplicate()
 	print("\nVocabulary before: %d emojis" % vocab_before.size())
 
 	# Discover new emojis (simulating quest rewards)
@@ -387,7 +387,7 @@ func _phase_4_vocabulary_unlock():
 	# Check vocabulary after
 	var vocab_after = []
 	if game_state_manager and game_state_manager.current_state:
-		vocab_after = game_state_manager.current_state.known_emojis
+		vocab_after = game_state_manager.current_state.get_known_emojis()
 	print("Vocabulary after: %d emojis" % vocab_after.size())
 
 	var new_count = vocab_after.size() - vocab_before.size()

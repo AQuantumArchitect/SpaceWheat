@@ -125,18 +125,13 @@ func capture_state_from_farm(farm: Node, current_state: GameState, scenario_id: 
 		state.reap_count = int(farm.reap_count)
 	_log("debug", "save", "💰", "Captured %d emoji types in economy" % state.all_emoji_credits.size())
 
+	var known_emojis: Array = []
+
 	# Player Vocabulary (farm-owned canonical, reconciled with PlayerVocabulary if needed)
 	if farm and farm.has_method("get_known_pairs"):
 		state.known_pairs = _resolve_known_pairs_for_capture(farm)
-		state.known_emojis = []
-		for pair in state.known_pairs:
-			var north = pair.get("north", "")
-			var south = pair.get("south", "")
-			if north != "" and north not in state.known_emojis:
-				state.known_emojis.append(north)
-			if south != "" and south not in state.known_emojis:
-				state.known_emojis.append(south)
-		_log("debug", "save", "📖", "Captured vocabulary: %d pairs → %d emojis" % [state.known_pairs.size(), state.known_emojis.size()])
+		known_emojis = _derive_known_emojis_from_pairs(state.known_pairs)
+		_log("debug", "save", "📖", "Captured vocabulary: %d pairs → %d emojis" % [state.known_pairs.size(), known_emojis.size()])
 
 	# Locked quest offers
 	var quest_manager_node = _get_autoload("QuestManager")
@@ -149,7 +144,7 @@ func capture_state_from_farm(farm: Node, current_state: GameState, scenario_id: 
 	_capture_biome_progression_state(state, current_state)
 
 	# IconMap snapshot (tooling cache only; known_pairs remain canonical truth)
-	var icon_snapshot = _capture_icon_map_snapshot(farm, state.known_emojis)
+	var icon_snapshot = _capture_icon_map_snapshot(farm, known_emojis)
 	state.icon_map_snapshot = icon_snapshot.get("icon_map_snapshot", {})
 	state.icon_map_snapshot_source = str(icon_snapshot.get("icon_map_snapshot_source", ""))
 	state.icon_map_snapshot_time = int(icon_snapshot.get("icon_map_snapshot_time", 0))
@@ -649,6 +644,20 @@ func _capture_icon_map_snapshot(farm: Node, known_emojis: Array) -> Dictionary:
 		}
 		out["icon_map_snapshot_source"] = "derived_from_pairs"
 	return out
+
+
+func _derive_known_emojis_from_pairs(known_pairs: Array) -> Array:
+	var derived: Array = []
+	for pair in known_pairs:
+		if not (pair is Dictionary):
+			continue
+		var north = str(pair.get("north", ""))
+		var south = str(pair.get("south", ""))
+		if north != "" and north not in derived:
+			derived.append(north)
+		if south != "" and south not in derived:
+			derived.append(south)
+	return derived
 
 
 func _resolve_known_pairs_for_capture(farm: Node) -> Array:

@@ -87,7 +87,7 @@ func _on_game_ready():
 	# Record starting vocabulary
 	var gsm = root.get_node_or_null("/root/GameStateManager")
 	if gsm and gsm.current_state:
-		starting_vocabulary = gsm.current_state.known_emojis.duplicate()
+		starting_vocabulary = gsm.current_state.get_known_emojis().duplicate()
 
 	_log("🎮 SYSTEMS ONLINE", "Farm: %s, Economy: %s, Quests: %s | Starting vocab: %s" % [
 		farm != null, economy != null, quest_manager != null, starting_vocabulary
@@ -192,7 +192,7 @@ func _try_complete_quest() -> bool:
 		# Track vocabulary by faction - only newly learned emojis
 		var gsm = root.get_node_or_null("/root/GameStateManager")
 		if gsm and gsm.current_state:
-			var known = gsm.current_state.known_emojis
+			var known = gsm.current_state.get_known_emojis()
 			if not vocabulary_by_faction.has(faction):
 				vocabulary_by_faction[faction] = []
 			# Add only NEW emojis (not in starting vocabulary)
