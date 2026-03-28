@@ -403,16 +403,6 @@ func _on_action_f() -> void:
 # OVERLAY INTERFACE
 # =============================================================================
 
-func get_overlay_info() -> Dictionary:
-	"""Get overlay metadata for registration."""
-	return {
-		"name": overlay_name,
-		"icon": overlay_icon,
-		"action_labels": action_labels.duplicate(),
-		"tier": overlay_tier
-	}
-
-
 func get_overlay_tier() -> int:
 	"""Get z-index tier for OverlayStackManager."""
 	return overlay_tier
@@ -421,12 +411,6 @@ func get_overlay_tier() -> int:
 func get_action_labels() -> Dictionary:
 	"""Get current QER+F labels."""
 	return action_labels.duplicate()
-
-
-func set_action_label(key: String, label: String) -> void:
-	"""Update a single action label."""
-	if key in ["Q", "E", "R", "F"]:
-		action_labels[key] = label
 
 
 # =============================================================================
@@ -489,26 +473,6 @@ func set_title(text: String) -> void:
 func get_panel() -> PanelContainer:
 	"""Get the main panel for custom styling."""
 	return _panel
-
-
-func get_content_container() -> Control:
-	"""Get the content container for adding content after _ready."""
-	return _content_container
-
-
-func set_selectable_count(count: int) -> void:
-	"""Set number of selectable items for navigation."""
-	selectable_count = count
-	if selected_index >= count:
-		selected_index = max(0, count - 1)
-	if selected_index < 0 and count > 0:
-		selected_index = 0
-
-
-func set_grid_dimensions(columns: int, rows: int) -> void:
-	"""Set grid dimensions for GRID navigation mode."""
-	grid_columns = columns
-	grid_rows = rows
 
 
 # =============================================================================
