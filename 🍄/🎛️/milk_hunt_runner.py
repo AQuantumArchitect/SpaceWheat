@@ -1626,6 +1626,8 @@ def main() -> int:
         policy_execution_backend = os.environ["MILK_HUNT_POLICY_EXECUTION_BACKEND"]
     if not policy_execution_backend or policy_execution_backend == "auto":
         policy_execution_backend = "player_input" if display_mode == "headed" else "direct"
+    elif display_mode == "headed":
+        policy_execution_backend = "player_input"
 
     if load_slot is None:
         load_slot = get_cfg_int(cfg, "load_slot")

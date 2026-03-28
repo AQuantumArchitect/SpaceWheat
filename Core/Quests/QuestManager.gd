@@ -192,7 +192,6 @@ func _grant_vocabulary_rewards(reward, faction_name: String) -> void:
 	"""Grant vocabulary rewards and emit discovery signals."""
 	if reward == null:
 		return
-	var gsm = _get_gsm()
 
 	# Paired vocabulary is preferred (north/south axis)
 	for pair in reward.learned_pairs:
@@ -210,15 +209,6 @@ func _grant_vocabulary_rewards(reward, faction_name: String) -> void:
 		else:
 			if _verbose:
 				_verbose.debug("quest", "📖", "%s tried to teach %s/%s but you already know it" % [faction_name, north, south])
-
-	# Fallback for solo vocabulary rewards
-	if reward.learned_pairs.is_empty():
-		for emoji in reward.learned_vocabulary:
-			if gsm and gsm.has_method("discover_emoji"):
-				gsm.discover_emoji(emoji)
-			vocabulary_learned.emit(emoji, faction_name)
-			if _verbose:
-				_verbose.info("quest", "📖", "%s taught you: %s" % [faction_name, emoji])
 
 
 func _build_reward_payload(reward, granted_resources: Dictionary) -> Dictionary:

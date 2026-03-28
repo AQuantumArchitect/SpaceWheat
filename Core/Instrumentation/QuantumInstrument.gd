@@ -593,20 +593,13 @@ func action_remove_vocabulary(biome_name: String, grid_pos: Vector2i) -> Diction
 	return result
 
 
-func action_explore_biome() -> Dictionary:
+func action_discover_biome() -> Dictionary:
 	if not farm:
 		return {"success": false, "error": "no_farm", "message": "Farm not ready"}
 	if not farm.has_method("explore_biome"):
 		return {"success": false, "error": "no_method", "message": "Farm cannot explore biomes"}
 
 	var result = farm.explore_biome()
-	action_performed.emit("explore_biome", result)
-	return result
-
-
-func action_discover_biome() -> Dictionary:
-	# Terminology alias: biome unlock/discovery (eagle-gated), not terminal explore.
-	var result = action_explore_biome()
 	action_performed.emit("discover_biome", result)
 	return result
 

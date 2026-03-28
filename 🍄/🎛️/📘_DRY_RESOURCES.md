@@ -160,7 +160,7 @@ explore: 1 🍞
 measure: 1 ❄️
 reap: 1 👥
 harvest_all: 1 🍼
-explore_biome: 20 🦅
+discover_biome: 20 🦅
 vocab_injection: 100 [south_emoji] + 10 🌱
 ```
 

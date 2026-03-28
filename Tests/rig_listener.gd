@@ -1901,6 +1901,8 @@ func _policy_state_has_milk(state: Dictionary) -> bool:
 
 func _resolve_policy_execution_backend(requested: String) -> String:
 	var backend = requested.strip_edges().to_lower()
+	if not _is_headless:
+		return "player_input"
 	if backend in ["direct", "player_input"]:
 		return backend
 	var env_backend = OS.get_environment("RIG_POLICY_EXECUTION_BACKEND").strip_edges().to_lower()

@@ -205,7 +205,7 @@ const TOOL_GROUPS = {
 				  "icon": "res://Assets/UI/Biome/BiomeAssign.svg",
 				  "hint": "Inject vocabulary into biome",
 				  "submenu": "vocab_injection"},
-			"E": {"action": "explore_biome", "label": "Explore", "emoji": "?",
+			"E": {"action": "discover_biome", "label": "Explore", "emoji": "?",
 				  "icon": "res://Assets/UI/Science/Explore.svg",
 				  "hint": "Explore and unlock a new biome"},
 			"R": {"action": "remove_vocabulary", "label": "-Vocab", "emoji": "-",

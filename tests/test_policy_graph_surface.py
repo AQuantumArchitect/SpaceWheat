@@ -88,6 +88,7 @@ def test_game_state_and_rig_listener_persist_policy_graph() -> None:
     assert '"policy_graph_jsonl": state.policy_graph_jsonl' in sidecar
     assert 'gsm.current_state.policy_graph_jsonl = PolicyGraph.snapshot_to_graph_lines(graph_snapshot)' in listener
     assert "policy.apply_policy_graph_lines(graph_lines)" in listener
+    assert '"known_emojis": state.get_known_emojis(),' not in sidecar
 
 
 def test_snapshot_service_owns_policy_state_projection() -> None:
@@ -134,3 +135,9 @@ def test_quantum_register_policy_uses_parametric_policy_graph() -> None:
     assert "func observe_outcome(action_name: String, reward_components: Dictionary) -> void:" in ppg
     assert "func export_state() -> Dictionary:" in ppg
     assert "func load_state(state: Dictionary) -> void:" in ppg
+
+
+def test_quest_runtime_no_longer_uses_solo_vocab_discovery_fallback() -> None:
+    src = _read("Core/Quests/QuestManager.gd")
+    assert "discover_emoji" not in src
+    assert "Fallback for solo vocabulary rewards" not in src

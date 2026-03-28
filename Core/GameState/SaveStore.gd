@@ -314,7 +314,6 @@ static func _write_emoji_sidecar(
 		"scenario_id": state.scenario_id,
 		"save_timestamp": int(state.save_timestamp),
 		"known_pairs": state.known_pairs.duplicate(true),
-		"known_emojis": state.get_known_emojis(),
 		"balance_profile_id": state.balance_profile_id,
 		"balance_workbench_config": state.balance_workbench_config,
 		"farm_variable_graph_path": state.farm_variable_graph_path,

@@ -88,7 +88,7 @@ def make_base_parser(description: str = "Milk hunt tool") -> argparse.ArgumentPa
         "--policy-execution-backend",
         choices=["auto", "direct", "player_input"],
         default=None,
-        help="How policy actions execute inside the rig",
+        help="How policy actions execute inside the rig (headed mode always uses player_input)",
     )
     parser.add_argument(
         "--strategy",

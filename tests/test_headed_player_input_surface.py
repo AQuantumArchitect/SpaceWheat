@@ -17,6 +17,8 @@ def test_rig_listener_exposes_player_input_backend_and_key_commands() -> None:
     assert "func _press_key(" in src
     assert "func _execute_policy_action_via_input(" in src
     assert 'execution_backend == "player_input"' in src
+    assert 'if not _is_headless:' in src
+    assert 'return "player_input"' in src
 
 
 def test_player_input_backend_does_not_hide_direct_fallbacks() -> None:
@@ -56,3 +58,8 @@ def test_derby_and_seed_save_accept_headed_player_input_flags() -> None:
     assert "--ready-timeout" in seed
     assert 'display_mode=str(args.display_mode or "headless")' in seed
     assert "if proc is not None and not args.reuse_listener:" in seed
+
+
+def test_obsolete_dev_runner_forks_are_deleted() -> None:
+    assert not (ROOT / "🍄" / "🎛️" / "dev" / "milk_hunt_runner_graphics_waits.py").exists()
+    assert not (ROOT / "🍄" / "🎛️" / "dev" / "milk_hunt_runner_quantum_waits.py").exists()

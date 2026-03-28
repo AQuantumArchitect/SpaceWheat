@@ -1264,8 +1264,8 @@ func _execute_action(action_name: String) -> Dictionary:
 			result = _instrument.action_remove_gates(positions)
 		"inject_vocabulary":
 			result = _instrument.action_inject_vocabulary(biome_name)
-		"explore_biome":
-			result = _instrument.action_explore_biome()
+		"discover_biome":
+			result = _instrument.action_discover_biome()
 			if result.get("success", false):
 				_select_tool_group(3)
 		"cycle_biome", "toggle_view":

@@ -360,7 +360,7 @@ static func inject_vocabulary(farm, positions: Array[Vector2i], vocab_pair: Dict
 ## BIOME EXPLORATION OPERATIONS
 ## ============================================================================
 
-static func explore_biome(farm, _positions: Array[Vector2i]) -> Dictionary:
+static func discover_biome(farm, _positions: Array[Vector2i]) -> Dictionary:
 	"""Explore and unlock a new biome (4E action).
 
 	Randomly selects an unexplored biome and unlocks it.
@@ -369,7 +369,7 @@ static func explore_biome(farm, _positions: Array[Vector2i]) -> Dictionary:
 	Returns:
 		{success: bool, biome_name: String, message: String}
 	"""
-	print("🗺️ BiomeHandler.explore_biome() called")
+	print("🗺️ BiomeHandler.discover_biome() called")
 
 	if not farm:
 		print("❌ Farm not available")

@@ -97,7 +97,7 @@ DEFAULT_KNOBS: List[Tuple[str, int, str, int, int, int]] = [
     ("action_costs.reap.🍼",                 1, "victory_lap_partial", 1, 0, MAX_FIB_INDEX),
     ("action_costs.quest_reroll.🐇",         1, "quest_cycle",         1, 0, MAX_FIB_INDEX),
     ("action_costs.quest_lock.🌲",           1, "lock_offer",          1, 0, MAX_FIB_INDEX),
-    ("action_costs.explore_biome.🦅",        5, "discover_biome",      1, 0, MAX_FIB_INDEX),
+    ("action_costs.discover_biome.🦅",       5, "discover_biome",      1, 0, MAX_FIB_INDEX),
     ("action_costs.remove_vocabulary.🐺",   21, "",                    1, 0, MAX_FIB_INDEX),
     ("action_costs.lindblad_pump.🌱",        8, "lindblad_drain",      1, 0, MAX_FIB_INDEX),
     ("action_costs.lindblad_drain.⚙",       2, "lindblad_drain",      1, 0, MAX_FIB_INDEX),

@@ -36,7 +36,7 @@ const ACTION_COSTS: Dictionary = {
 	"harvest_all": {MIDWIFE_EMOJI: 1},   # Legacy alias for reap
 	"quest_reroll": {"🐇": 1},   # Reroll quest slot
 	"quest_lock": {"🌲": 1},     # Lock quest slot
-	"explore_biome": {"🦅": 4}, # Scout new biome (reduced for 1:1 quantum mass economy)
+	"discover_biome": {"🦅": 4}, # Scout new biome (reduced for 1:1 quantum mass economy)
 	"remove_vocabulary": {"🐺": 20}, # Remove vocabulary: penalize with wolf cost
 	"lindblad_pump": {"🌱": 8},  # Axis-aware dynamic cost adds north emoji
 	"lindblad_drain": {"⚙": 2}  # Axis-aware dynamic cost adds south emoji
@@ -234,7 +234,7 @@ static func get_action_cost(action: String, context: Dictionary = {}) -> Diction
 	"""Get cost dictionary for an action.
 
 	Args:
-		action: Action name (explore, measure, reap, explore_biome, vocab_injection, lindblad_pump, lindblad_drain)
+		action: Action name (explore, measure, reap, discover_biome, inject_vocabulary, lindblad_pump, lindblad_drain)
 		context: Optional context for dynamic costs (e.g., {south_emoji: "🌾"})
 
 	Returns:

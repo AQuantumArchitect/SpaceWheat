@@ -214,7 +214,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "--policy-execution-backend",
         choices=["auto", "direct", "player_input"],
         default="auto",
-        help="How policy steps execute inside the rig",
+        help="How policy steps execute inside the rig (headed mode always uses player_input)",
     )
     parser.add_argument("--reuse-listener", dest="reuse_listener", action="store_true")
     parser.add_argument("--no-reuse-listener", dest="reuse_listener", action="store_false")

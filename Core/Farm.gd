@@ -1322,7 +1322,7 @@ func can_explore_biome() -> Dictionary:
 	if unexplored.is_empty():
 		return {"ok": false, "message": "All biomes already explored!"}
 
-	var cost_gate = ActionCostRuntime.preflight_action(economy, "explore_biome")
+	var cost_gate = ActionCostRuntime.preflight_action(economy, "discover_biome")
 	if not cost_gate.get("ok", true):
 		return {"ok": false, "message": "Insufficient resources"}
 
@@ -1393,7 +1393,7 @@ func explore_biome() -> Dictionary:
 		biome_manager.set_active_biome(new_biome, direction)
 		print("✅ Switched to new biome: %s" % new_biome)
 
-	if economy and not ActionCostRuntime.commit_action(economy, "explore_biome"):
+	if economy and not ActionCostRuntime.commit_action(economy, "discover_biome"):
 		return {"success": false, "biome_name": new_biome, "message": "Explore biome failed: unable to spend cost."}
 
 	print("🗺️ Exploration complete: %s" % new_biome)
