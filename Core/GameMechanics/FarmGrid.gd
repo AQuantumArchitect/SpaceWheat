@@ -230,11 +230,6 @@ func get_biome_for_plot(position: Vector2i):
 	return _biome_routing.get_biome_for_plot(position)
 
 
-func get_entanglement_graph() -> Dictionary:
-	"""Export aggregated entanglement graph from all biomes"""
-	return _biome_routing.get_entanglement_graph()
-
-
 # ═══════════════════════════════════════════════════════════════════════════════
 # PLOT MANAGEMENT (delegates to GridPlotManager)
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -252,11 +247,6 @@ func is_valid_position(position: Vector2i) -> bool:
 func _find_plot_by_id(plot_id: String) -> Vector2i:
 	"""Find grid position of a plot by its ID"""
 	return _plot_manager.find_plot_by_id(plot_id)
-
-
-func _get_plot_by_id(plot_id: String) -> FarmPlot:
-	"""Get plot directly by ID"""
-	return _plot_manager.get_plot_by_id(plot_id)
 
 
 func is_plot_empty(position: Vector2i) -> bool:
