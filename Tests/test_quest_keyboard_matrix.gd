@@ -236,9 +236,9 @@ func _test_deliver_and_claim() -> void:
 		_fail("could not assign delivery quest for deliver coverage")
 	else:
 		await _select_board_slot(0)
-		var delivery_slot = _get_live_slot(0)
-		var delivery_resource = str(delivery_slot.quest_data.get("resource", ""))
-		var delivery_qty = int(delivery_slot.quest_data.get("quantity", 0))
+		var delivery_slot = _slot_dict(0)
+		var delivery_resource = str(delivery_slot.get("resource", ""))
+		var delivery_qty = int(delivery_slot.get("quantity", 0))
 		_action_events.clear()
 		await _press_key(KEY_Q)
 		var active_snapshot = _board_snapshot()
@@ -255,8 +255,8 @@ func _test_deliver_and_claim() -> void:
 		_fail("could not assign non-delivery quest for claim coverage")
 	else:
 		await _select_board_slot(1)
-		var claim_slot = _get_live_slot(1)
-		var claim_quest_id = int(claim_slot.quest_data.get("id", -1))
+		var claim_slot = _slot_dict(1)
+		var claim_quest_id = int(claim_slot.get("quest_id", -1))
 		_action_events.clear()
 		await _press_key(KEY_Q)
 		var accepted_snapshot = _board_snapshot()
@@ -447,12 +447,6 @@ func _resource_amount(emoji: String) -> int:
 	return int(resources.get(emoji, 0))
 
 
-func _get_live_slot(slot_index: int):
-	if not _quest_board or slot_index < 0 or slot_index >= _quest_board.quest_slots.size():
-		return null
-	return _quest_board.quest_slots[slot_index]
-
-
 func _get_browser_quest_index(want_delivery: bool) -> int:
 	var browser = _browser_ref()
 	if not browser:
@@ -493,10 +487,8 @@ func _assign_slot_quest_by_type(slot_index: int, want_delivery: bool) -> bool:
 			_set_browser_selection(target_index)
 			await _press_key(KEY_ENTER)
 			await _await_frames(3)
-			var slot = _get_live_slot(slot_index)
-			if not slot:
-				return false
-			var quest_type = int(slot.quest_data.get("type", 0))
+			var slot = _slot_dict(slot_index)
+			var quest_type = int(slot.get("type", 0))
 			return quest_type == 0 if want_delivery else quest_type != 0
 		browser.close_browser()
 		await _await_frames(2)
@@ -516,6 +508,14 @@ func _slot_state(snapshot: Dictionary, slot_index: int) -> String:
 		if slot is Dictionary and int(slot.get("index", -1)) == slot_index:
 			return str(slot.get("state", ""))
 	return ""
+
+
+func _slot_dict(slot_index: int) -> Dictionary:
+	var slots: Array = _board_snapshot().get("slots", [])
+	for slot in slots:
+		if slot is Dictionary and int(slot.get("index", -1)) == slot_index:
+			return slot
+	return {}
 
 
 func _slot_locked(snapshot: Dictionary, slot_index: int) -> bool:

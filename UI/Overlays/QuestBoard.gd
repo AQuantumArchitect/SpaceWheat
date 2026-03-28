@@ -1600,6 +1600,11 @@ func get_snapshot() -> Dictionary:
 
 		if "quest_data" in slot and slot.quest_data is Dictionary and not slot.quest_data.is_empty():
 			var q = slot.quest_data
+			slot_dict["quest_id"] = int(q.get("id", -1))
+			slot_dict["type"] = int(q.get("type", 0))
+			slot_dict["resource"] = str(q.get("resource", ""))
+			slot_dict["quantity"] = int(q.get("quantity", 0))
+			slot_dict["body"] = str(q.get("body", ""))
 			slot_dict["faction"] = q.get("faction", "")
 			slot_dict["requirement"] = q.get("requirement", {})
 			slot_dict["reward"] = q.get("reward", {})
