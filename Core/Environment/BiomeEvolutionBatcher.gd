@@ -250,6 +250,68 @@ func _cleanup_lookahead_engine() -> void:
 		lookahead_engine = null
 
 
+func cleanup() -> void:
+	"""Explicit teardown for farm/session shutdown."""
+	lookahead_enabled = false
+	_engine_ready = false
+	_lookahead_init_started = false
+
+	if _batch_thread != null:
+		_batch_thread.wait_to_finish()
+		_batch_thread = null
+
+	for biome_name in biome_threads.keys():
+		var thread = biome_threads[biome_name]
+		if thread != null:
+			thread.wait_to_finish()
+		biome_threads[biome_name] = null
+
+	_cleanup_lookahead_engine()
+
+	biomes.clear()
+	_pending_biomes.clear()
+	lookahead_batch_queue.clear()
+	_batches_in_flight.clear()
+	_batch_result_ready.clear()
+	_current_batch_request.clear()
+
+	frame_buffers.clear()
+	buffer_cursors.clear()
+	mi_cache.clear()
+	mi_buffers.clear()
+	bloch_buffers.clear()
+	purity_buffers.clear()
+	position_buffers.clear()
+	velocity_buffers.clear()
+	metadata_payloads.clear()
+	coupling_payloads.clear()
+	icon_map_payloads.clear()
+	_biome_engine_ids.clear()
+	_engine_id_to_biome.clear()
+	_biome_engine_dims.clear()
+	biome_last_good_rho.clear()
+	biome_last_good_bloch.clear()
+	biome_last_good_purity.clear()
+	biome_dirty.clear()
+	biome_pending_reregister.clear()
+	biome_stride_dt_carry.clear()
+
+	biome_buffer_states.clear()
+	biome_fib_indices.clear()
+	biome_emergency_refill.clear()
+	biome_last_escalation_time.clear()
+	biome_packet_queues.clear()
+	biome_threads.clear()
+	biome_pending.clear()
+	biome_in_flight.clear()
+	biome_paused.clear()
+	biome_evolution_counts.clear()
+	active_flags.clear()
+
+	terminal_pool = null
+	farm_ref = null
+
+
 func initialize(biome_array: Array, p_terminal_pool = null, p_farm = null):
 	"""Initialize batcher with all farm biomes.
 

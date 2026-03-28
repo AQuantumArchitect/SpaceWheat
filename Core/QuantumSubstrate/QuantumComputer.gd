@@ -87,6 +87,27 @@ func _init(name: String = ""):
 	biome_name = name
 
 
+func clear() -> void:
+	"""Release runtime state so biome/session teardown can break ref cycles."""
+	if register_map and register_map.has_method("clear"):
+		register_map.clear()
+	register_map = RegisterMap.new()
+	density_matrix = null
+	hamiltonian = null
+	lindblad_operators.clear()
+	sparse_hamiltonian = null
+	sparse_lindblad_operators.clear()
+	gated_lindblad_configs.clear()
+	driven_icons.clear()
+	entanglement_graph.clear()
+	register_infrastructure.clear()
+	sink_flux_per_emoji.clear()
+	_cached_mi_values = PackedFloat64Array()
+	_mi_last_compute_frame = -1
+	phase_lnn = null
+	_purity_cache = -1.0
+
+
 func _ensure_entanglement_node(reg_id: int) -> void:
 	if not entanglement_graph.has(reg_id):
 		entanglement_graph[reg_id] = []

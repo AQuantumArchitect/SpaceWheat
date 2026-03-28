@@ -16,9 +16,6 @@ var terminal_pool = null
 # Plot manager for plot-based register lookups
 var _plot_manager = null
 
-# Legacy biome reference (for backward compatibility)
-var legacy_biome = null
-
 # External references
 var _verbose = null
 
@@ -36,11 +33,6 @@ func set_terminal_pool(pool) -> void:
 func set_plot_manager(pm) -> void:
 	"""Inject GridPlotManager for plot-based register lookups."""
 	_plot_manager = pm
-
-
-func set_legacy_biome(biome) -> void:
-	"""Set legacy biome for backward compatibility."""
-	legacy_biome = biome
 
 
 func register_biome(biome_name: String, biome_instance) -> void:
@@ -92,8 +84,7 @@ func get_biome_for_plot(position: Vector2i):
 	if biomes.has("StarterForest"):
 		return biomes["StarterForest"]
 
-	# Final fallback to legacy biome variable (for backward compatibility)
-	return legacy_biome
+	return null
 
 
 func get_biome_id_for_plot(position: Vector2i) -> String:

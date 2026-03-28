@@ -65,6 +65,15 @@ func invalidate_mushroom_cache() -> void:
 	_mushroom_count_dirty = true
 
 
+func _exit_tree() -> void:
+	"""Release runtime-only refs so session shutdown does not orphan the batcher graph."""
+	if biome_evolution_batcher and biome_evolution_batcher.has_method("cleanup"):
+		biome_evolution_batcher.cleanup()
+	biome_evolution_batcher = null
+	instrument = null
+	_bootstrap_pool = null
+
+
 func set_instrument(inst) -> void:
 	"""Transfer bootstrap terminal pool to instrument and store reference."""
 	instrument = inst

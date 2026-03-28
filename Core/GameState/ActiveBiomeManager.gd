@@ -247,7 +247,13 @@ func get_biome_order() -> Array[String]:
 
 func set_biome_order(new_order: Array) -> void:
 	"""Replace the current unlocked biome order and notify listeners."""
-	BIOME_ORDER = new_order.duplicate()
+	var normalized: Array[String] = []
+	for biome_name in new_order:
+		var biome_text := str(biome_name)
+		if biome_text == "":
+			continue
+		normalized.append(biome_text)
+	BIOME_ORDER = normalized
 	if not active_biome in BIOME_ORDER and BIOME_ORDER.size() > 0:
 		active_biome = BIOME_ORDER[0]
 	_rebuild_slot_assignment()
