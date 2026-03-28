@@ -12,43 +12,44 @@ func _init():
 
 	# Create test state with expanded vocabulary
 	var state = GameState.new()
-	state.known_emojis = ["🍞", "👥", "🌱", "💰", "🧺", "⚙", "🏭"]  # Learned 5 new emojis
+	state.known_pairs = [
+		{"north": "🍞", "south": "👥"},
+		{"north": "🌱", "south": "💰"},
+		{"north": "🧺", "south": "⚙"},
+		{"north": "🏭", "south": "🌾"},
+	]
+	var original_emojis = state.get_known_emojis()
 
-	print("Original vocabulary: %s (%d emojis)\n" % ["".join(state.known_emojis), state.known_emojis.size()])
+	print("Original vocabulary: %s (%d emojis)\n" % ["".join(original_emojis), original_emojis.size()])
 
 	# Serialize to dictionary
 	var save_data = {
-		"known_emojis": state.known_emojis,
-		"wheat_inventory": 10,
-		"credits": 50
+		"known_pairs": state.known_pairs.duplicate(true)
 	}
 
 	print("Serialized data:")
-	print("  known_emojis: %s" % save_data.known_emojis)
-	print("  wheat_inventory: %d" % save_data.wheat_inventory)
-	print("  credits: %d\n" % save_data.credits)
+	print("  known_pairs: %s\n" % str(save_data.known_pairs))
 
 	# Simulate save/load by creating new state and restoring
 	var loaded_state = GameState.new()
-	loaded_state.known_emojis = save_data.known_emojis
-	loaded_state.wheat_inventory = save_data.wheat_inventory
-	loaded_state.credits = save_data.credits
+	loaded_state.known_pairs = save_data.known_pairs.duplicate(true)
+	var loaded_emojis = loaded_state.get_known_emojis()
 
-	print("Loaded vocabulary: %s (%d emojis)\n" % ["".join(loaded_state.known_emojis), loaded_state.known_emojis.size()])
+	print("Loaded vocabulary: %s (%d emojis)\n" % ["".join(loaded_emojis), loaded_emojis.size()])
 
 	# Verify
-	if loaded_state.known_emojis.size() == state.known_emojis.size():
+	if loaded_emojis.size() == original_emojis.size():
 		print("✅ PASS: Vocabulary size preserved")
 	else:
 		print("❌ FAIL: Vocabulary size mismatch!")
 
-	var match = true
-	for i in range(state.known_emojis.size()):
-		if state.known_emojis[i] != loaded_state.known_emojis[i]:
-			match = false
+	var all_match = true
+	for i in range(original_emojis.size()):
+		if original_emojis[i] != loaded_emojis[i]:
+			all_match = false
 			break
 
-	if match:
+	if all_match:
 		print("✅ PASS: Vocabulary content preserved")
 	else:
 		print("❌ FAIL: Vocabulary content mismatch!")

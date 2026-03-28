@@ -577,8 +577,6 @@ func _sync_gsm_vocab_state() -> void:
 	var gsm = get_node_or_null("/root/GameStateManager")
 	if gsm and "current_state" in gsm and gsm.current_state:
 		gsm.current_state.known_pairs = get_known_pairs()
-		if gsm.current_state.has_method("get_known_emojis"):
-			gsm.current_state.known_emojis = get_known_emojis()
 
 
 ## Rebuild quantum operators after biomes have initialized

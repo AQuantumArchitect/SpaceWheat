@@ -49,9 +49,8 @@ extends Resource
 ## Each entry is a full quest_data Dictionary with status="locked"
 @export var locked_quest_offers: Array = []
 
-## DERIVED: known_emojis is computed from known_pairs (for backward compatibility)
-## Use get_known_emojis() to access the derived list
-## This field is still exported for save file compatibility with old saves
+## DERIVED: known_emojis is computed from known_pairs for compatibility with old saves/tools.
+## Live code should not write this field directly. Use get_known_emojis() for reads.
 @export var known_emojis: Array = []
 
 ## Player Vocabulary Quantum Computer data (for biome affinity calculations)

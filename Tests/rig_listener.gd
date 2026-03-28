@@ -1596,7 +1596,6 @@ func _configure_seed_state(cmd: Dictionary) -> Dictionary:
 		if _farm and _farm.has_method("set_known_pairs"):
 			_farm.set_known_pairs(known_pairs, true, true)
 		gsm.current_state.known_pairs = known_pairs.duplicate(true)
-		gsm.current_state.known_emojis = gsm.current_state.get_known_emojis()
 		out["known_pairs"] = known_pairs
 
 	var unlocked_biomes = _sanitize_biomes(cmd.get("unlocked_biomes", []))

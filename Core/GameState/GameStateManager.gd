@@ -250,7 +250,6 @@ func discover_pair(north: String, south: String) -> void:
 	# Keep persisted state in sync (legacy readers)
 	if current_state:
 		current_state.known_pairs = _get_player_vocab_pairs()
-		current_state.known_emojis = _get_player_vocab_emojis()
 
 	# Check if new emojis unlock factions
 	var new_emojis = _get_player_vocab_emojis()
