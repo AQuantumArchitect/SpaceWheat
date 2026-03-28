@@ -94,16 +94,6 @@ func refresh_for_mode(new_mode: String) -> void:
 	print("🛠️  ToolSelectionRow refreshed for %s mode" % new_mode.to_upper())
 
 
-# ============================================================================
-# LEGACY COMPATIBILITY
-# ============================================================================
-
-func _on_tool_button_pressed(tool_num: int) -> void:
-	"""Legacy handler - now handled by _on_tool_button_input."""
-	select_tool(tool_num)
-	tool_selected.emit(tool_num)
-
-
 func _print_corners() -> void:
 	"""DEBUG: Print actual corner positions of toolbar."""
 	var tl = position
