@@ -1,0 +1,44 @@
+{
+  "name": "debt_rebel_fib",
+  "description": "Debt-laden insurgent. Starts in Village with CyberDebtMegacity unlocked, carrying chain-heavy resources. Must discover RevolutionSquare and learn ✊ through the Fencebreakers bridge. Tuned to aggressively discover biomes and quest through criminal/insurgent faction graph.",
+  "resource_scale": "fibonacci",
+  "scenario_id": "default",
+  "strict_biome_economy": true,
+  "resources": {
+    "⛓": 21,
+    "👥": 13,
+    "💸": 8,
+    "🍞": 5,
+    "🦅": 13,
+    "❄️": 3,
+    "💰": 2
+  },
+  "known_pairs": [
+    { "north": "⛓", "south": "💸" },
+    { "north": "👥", "south": "🍞" }
+  ],
+  "unlocked_biomes": [
+    "StarterForest",
+    "Village",
+    "CyberDebtMegacity"
+  ],
+  "active_biome": "CyberDebtMegacity",
+  "policies": {
+    "quantum_register": {
+      "policy_kind": "quantum_register",
+      "template": "core:default",
+      "graph_jsonl": [
+        "{\"op\":\"set\",\"path\":\"profile_id\",\"value\":\"debt_rebel_fib\"}",
+        "{\"op\":\"set\",\"path\":\"action_priors.discover_biome.base\",\"value\":2.5}",
+        "{\"op\":\"set\",\"path\":\"action_priors.discover_biome.min_eagles\",\"value\":8.0}",
+        "{\"op\":\"set\",\"path\":\"action_priors.quest_cycle.frontier_bonus\",\"value\":2.5}",
+        "{\"op\":\"set\",\"path\":\"action_priors.quest_cycle.unknown_vocab\",\"value\":1.8}",
+        "{\"op\":\"set\",\"path\":\"action_priors.quest_cycle.milk_distance_gain\",\"value\":30.0}",
+        "{\"op\":\"set\",\"path\":\"action_priors.probe_cycle.base\",\"value\":1.3}",
+        "{\"op\":\"set\",\"path\":\"action_priors.lindblad_drain.base\",\"value\":0.9}",
+        "{\"op\":\"set\",\"path\":\"reward_terms.pair\",\"value\":44.0}",
+        "{\"op\":\"set\",\"path\":\"reward_terms.discover\",\"value\":8.0}"
+      ]
+    }
+  }
+}

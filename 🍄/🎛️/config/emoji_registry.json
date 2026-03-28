@@ -187,6 +187,12 @@
       "category": "cosmic",
       "role": "trade",
       "starter": false
+    },
+    "✊": {
+      "name": "fist",
+      "category": "political",
+      "role": "trade",
+      "starter": false
     }
   },
   "categories": [

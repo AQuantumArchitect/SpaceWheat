@@ -33,6 +33,7 @@ CHARACTERS = [
     "solar_engine_fib",
     "market_broker_fib",
     "spore_drifter_fib",
+    "debt_rebel_fib",
 ]
 
 FIB_SCHEDULE = [8, 13, 21, 34, 55]
