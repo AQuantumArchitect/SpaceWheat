@@ -13,7 +13,6 @@ const ActionCostRuntime = preload("res://Core/GameMechanics/ActionCostRuntime.gd
 const LindbladHandler = preload("res://UI/Handlers/LindbladHandler.gd")
 const EmojiDisplay = preload("res://UI/Core/EmojiDisplay.gd")
 const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")
-const TOOL_ACTIONS = ToolConfig.TOOL_ACTIONS
 
 # Button texture path (matches ToolSelectionRow)
 const BTN_TEXTURE_PATH = "res://Assets/UI/Chrome/BtnBtmMidl.svg"

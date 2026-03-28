@@ -407,10 +407,7 @@ static func get_all_actions(group_num: int) -> Dictionary:
 
 # Removed: current_mode, tool_mode_indices (never used)
 
-## Alias for backward compatibility
 const TOOL_ACTIONS = TOOL_GROUPS
-const PLAY_TOOLS = TOOL_GROUPS
-const BUILD_TOOLS = TOOL_GROUPS
 
 static func toggle_mode() -> String:
 	"""Legacy: Toggle mode. Now a no-op, returns 'play'."""
