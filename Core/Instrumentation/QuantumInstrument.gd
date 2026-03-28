@@ -328,7 +328,10 @@ func action_explore(biome_name: String, grid_pos: Vector2i = Vector2i(-1, -1)) -
 	var result = ProbeActions.action_explore(terminal_pool, biome, economy)
 	# Attach terminal to its grid plot
 	if result.get("success", false):
-		_attach_terminal_to_plot(result.get("terminal"))
+		var terminal = result.get("terminal", null)
+		if terminal and grid_pos != Vector2i(-1, -1):
+			terminal.grid_position = grid_pos
+		_attach_terminal_to_plot(terminal)
 	_emit_farm_action("explore", result, grid_pos)
 	action_performed.emit("explore", result)
 	return result
