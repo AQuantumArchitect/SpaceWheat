@@ -256,12 +256,16 @@ func _phase_2_quest_acceptance():
 	print("Accessible factions: %d" % accessible.size())
 
 	if accessible.size() == 0:
-		# Seed some vocabulary to access factions
-		print("\nSeeding initial vocabulary...")
-		var seed_emojis = ["🌾", "💰", "🌱", "🍞"]
-		for emoji in seed_emojis:
+		# Seed some vocabulary axes to access factions
+		print("\nSeeding initial vocabulary pairs...")
+		var seed_pairs = [
+			{"north": "🌾", "south": "🌱"},
+			{"north": "🍞", "south": "👥"},
+			{"north": "💰", "south": "⚖"},
+		]
+		for pair in seed_pairs:
 			if game_state_manager:
-				game_state_manager.discover_emoji(emoji)
+				game_state_manager.discover_pair(pair.north, pair.south)
 		accessible = game_state_manager.get_accessible_factions() if game_state_manager else []
 		print("After seeding: %d accessible factions" % accessible.size())
 
@@ -376,13 +380,16 @@ func _phase_4_vocabulary_unlock():
 		vocab_before = game_state_manager.current_state.get_known_emojis().duplicate()
 	print("\nVocabulary before: %d emojis" % vocab_before.size())
 
-	# Discover new emojis (simulating quest rewards)
-	var new_emojis = ["🍄", "🧫", "🔬", "⚙️"]
-	print("Discovering new emojis: %s" % str(new_emojis))
+	# Discover new pairs (simulating quest rewards)
+	var new_pairs = [
+		{"north": "🍄", "south": "🧫"},
+		{"north": "🔬", "south": "⚙️"},
+	]
+	print("Discovering new pairs: %s" % str(new_pairs))
 
-	for emoji in new_emojis:
+	for pair in new_pairs:
 		if game_state_manager:
-			game_state_manager.discover_emoji(emoji)
+			game_state_manager.discover_pair(pair.north, pair.south)
 
 	# Check vocabulary after
 	var vocab_after = []
