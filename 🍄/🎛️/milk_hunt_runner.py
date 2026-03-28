@@ -1096,7 +1096,6 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Emit wait heartbeat every N seconds while turn is pending (0 disables)",
     )
     parser.add_argument("--load-slot", type=int, default=None, help="Boot the rig from a save slot")
-    parser.add_argument("--load-alias", type=str, default=None, help="Load from emoji alias save filename/path")
     parser.add_argument(
         "--profile-save",
         type=str,

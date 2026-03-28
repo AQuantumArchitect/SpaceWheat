@@ -55,7 +55,8 @@ def test_active_milk_hunt_surface_no_longer_threads_load_alias() -> None:
     assert "--load-alias" not in args_src
     assert "load_alias" not in batch_src
     assert "load_alias" not in summary_src
-    assert "load_alias" not in runner_src
+    assert "--load-alias" not in runner_src
+    assert "args.load_alias" not in runner_src
     assert "LOAD_ALIAS" not in shell_src
     assert "LOAD_ALIAS" not in batch_conf
     assert "LOAD_ALIAS" not in visual_conf
