@@ -219,8 +219,8 @@ func _test_data_flow(shell: Node, output: Array):
 	output.append("\n   Farm & Biomes:")
 	if farm:
 		output.append("      ✅ Farm exists")
-		if farm.grid and farm.grid.plots:
-			output.append("      ✅ Farm grid (%d plots)" % farm.grid.plots.size())
+		if farm.grid.grid and farm.grid.grid.get_plot_count() > 0:
+			output.append("      ✅ Farm grid (%d plots)" % farm.grid.get_plot_count())
 		else:
 			output.append("      ❌ Farm grid missing")
 		if farm.biomes:

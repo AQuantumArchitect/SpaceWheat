@@ -25,7 +25,7 @@ func _init():
 
 	farm.economy.add_resource("🌾", 1000, "test")
 
-	var biome = farm.grid.biomes.get("BioticFlux")
+	var biome = farm.grid.get_biome("BioticFlux")
 	if not biome or not biome.bath:
 		print("❌ No biome/bath")
 		quit(1)

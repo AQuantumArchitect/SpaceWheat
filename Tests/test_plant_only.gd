@@ -51,7 +51,7 @@ func _init():
 	print("  Theta from bath: %.4f" % qubit.theta)
 
 	# Get biome (BioticFlux)
-	var biome = farm.grid.biomes.get("BioticFlux")
+	var biome = farm.grid.get_biome("BioticFlux")
 	if not biome or not biome.bath:
 		print("❌ No biome bath")
 		quit(1)

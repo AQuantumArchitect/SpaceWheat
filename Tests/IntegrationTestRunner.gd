@@ -89,15 +89,15 @@ func test_biome_baths_initialized():
 	"""Test that all biomes have initialized their quantum baths"""
 	log_test("\n### TEST 2: Biome Bath Initialization")
 
-	if not farm or not farm.grid or not farm.grid.biomes:
+	if not farm or not farm.grid or farm.grid.get_biome_count() == 0:
 		log_error("Cannot access biomes")
 		return
 
-	log_info("Found %d biomes" % farm.grid.biomes.size())
+	log_info("Found %d biomes" % farm.grid.get_biome_count())
 
 	var all_have_baths = true
-	for biome_name in farm.grid.biomes:
-		var biome = farm.grid.biomes[biome_name]
+	for biome_name in farm.grid.get_biome_names():
+		var biome = farm.grid.get_biome(biome_name)
 
 		if biome.bath:
 			log_pass("%s has bath with %d emojis" % [biome_name, biome.bath.emoji_list.size()])

@@ -58,11 +58,11 @@ func _setup_game():
 		report_fail("Farm failed to initialize")
 		return
 
-	if farm.grid.biomes.is_empty():
+	if farm.grid.get_biome_count() == 0:
 		report_fail("No biomes registered")
 		return
 
-	report_pass("Farm initialized with %d biome(s)" % farm.grid.biomes.size())
+	report_pass("Farm initialized with %d biome(s)" % farm.grid.get_biome_count())
 	print()
 
 

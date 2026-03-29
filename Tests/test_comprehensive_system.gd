@@ -269,7 +269,7 @@ func _verify_data_flow(shell: Node):
 		print("      ✅ Farm exists")
 
 		if farm.grid:
-			print("      ✅ Farm grid exists (%d plots)" % farm.grid.plots.size())
+			print("      ✅ Farm grid exists (%d plots)" % farm.grid.get_plot_count())
 		else:
 			print("      ❌ Farm grid missing")
 

@@ -58,23 +58,23 @@ func _init():
 	var success = true
 
 	# Check farm state
-	if farm.grid and farm.grid.biomes.size() > 0:
-		print("✅ Farm has %d biomes" % farm.grid.biomes.size())
+	if farm.grid and farm.grid.get_biome_count() > 0:
+		print("✅ Farm has %d biomes" % farm.grid.get_biome_count())
 	else:
 		print("❌ Farm grid not initialized")
 		success = false
 
 	# Check biome baths
 	var bath_count = 0
-	for biome_name in farm.grid.biomes.keys():
-		var biome = farm.grid.biomes[biome_name]
+	for biome_name in farm.grid.get_biome_names():
+		var biome = farm.grid.get_biome(biome_name)
 		if biome.bath and biome.bath._hamiltonian and biome.bath._lindblad:
 			bath_count += 1
 
-	if bath_count == farm.grid.biomes.size():
+	if bath_count == farm.grid.get_biome_count():
 		print("✅ All %d biome baths initialized" % bath_count)
 	else:
-		print("❌ Only %d/%d biome baths initialized" % [bath_count, farm.grid.biomes.size()])
+		print("❌ Only %d/%d biome baths initialized" % [bath_count, farm.grid.get_biome_count()])
 		success = false
 
 	# Check visualization
