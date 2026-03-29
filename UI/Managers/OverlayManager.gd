@@ -291,8 +291,8 @@ func create_overlays(parent: Control) -> void:
 	update_positions()
 
 
-func toggle_overlay(name: String) -> void:
-	"""Toggle visibility of an overlay by name"""
+func _toggle_overlay_legacy(name: String) -> void:
+	"""Legacy toggle — superseded by stack-based toggle_overlay() below."""
 	match name:
 		"quests":
 			toggle_quest_board()
