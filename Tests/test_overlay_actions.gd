@@ -76,7 +76,7 @@ func _run_all_tests():
 
 	if overlay_manager:
 		var keys = overlay_manager.overlays.keys() if overlay_manager.get("overlays") else []
-		print("v2 Overlays registered: %s" % [keys])
+		print("Overlays registered: %s" % [keys])
 
 	# Run overlay tests
 	print("\n" + "─".repeat(70))

@@ -157,9 +157,9 @@ func _test_input_routing(shell: Node, output: Array):
 	var input_handler = shell.input_handler
 
 	if overlay_mgr and overlay_mgr.overlays:
-		output.append("      1. ✅ v2 Overlays system present")
+		output.append("      1. ✅ Overlay system present")
 	else:
-		output.append("      1. ❌ v2 Overlays system missing")
+		output.append("      1. ❌ Overlay system missing")
 
 	if input_handler:
 		output.append("      2. ✅ FarmInputHandler present")

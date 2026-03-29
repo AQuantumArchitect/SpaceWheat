@@ -162,7 +162,7 @@ func _connect_signals():
 ## ============================================================================
 
 func test_explore_measure_pop_flow():
-	"""Test the core v2 probe paradigm: EXPLORE → MEASURE → POP"""
+	"""Test the core probe paradigm: EXPLORE → MEASURE → POP"""
 	print("📍 TEST SUITE 1: EXPLORE → MEASURE → POP Flow")
 	print("─".repeat(60))
 

@@ -191,7 +191,7 @@ func _run_tests():
 
 	var quest_board = overlay_manager.quest_board
 	if quest_board and quest_board.has_method("get_action_labels"):
-		print("   ✅ QuestBoard has v2 interface")
+		print("   ✅ QuestBoard has overlay interface")
 
 		# Get labels without opening (should return defaults)
 		var default_labels = quest_board.get_action_labels()
@@ -202,7 +202,7 @@ func _run_tests():
 		else:
 			print("   ❌ QuestBoard labels incomplete")
 	else:
-		print("   ⚠️  QuestBoard v2 interface not available")
+		print("   ⚠️  QuestBoard overlay interface not available")
 
 	# Final summary
 	print("\n" + "="*60)
@@ -221,7 +221,7 @@ func _run_tests():
 	print("   - Test in-game with actual gameplay")
 
 	print("\n⌨️  Manual testing:")
-	print("   1. Press C to open Quest Board (should show v2 interface)")
+	print("   1. Press C to open Quest Board (should show overlay interface)")
 	print("   2. Use WASD to navigate quest slots")
 	print("   3. Press F to browse factions")
 	print("   4. Press ESC to close")

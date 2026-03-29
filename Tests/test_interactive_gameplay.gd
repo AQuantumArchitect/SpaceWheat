@@ -160,7 +160,7 @@ func _test_quest_board_interactive():
 			_log("   ✅ overlay active")
 		else:
 			_log("   ❌ overlay NOT active (opened as modal instead?)")
-			issues.append("not_v2_overlay")
+			issues.append("not_overlay")
 
 		# Try WASD navigation
 		_log("   Testing WASD navigation...")

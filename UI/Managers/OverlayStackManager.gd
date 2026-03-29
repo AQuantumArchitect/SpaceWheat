@@ -3,7 +3,7 @@ extends Node
 
 ## Unified Overlay Stack Manager
 ##
-## Consolidates modal_stack (PlayerShell) and active_v2_overlay (OverlayManager)
+## Consolidates modal_stack (PlayerShell) and active overlay routing (OverlayManager)
 ## into a single overlay management system.
 ##
 ## Features:

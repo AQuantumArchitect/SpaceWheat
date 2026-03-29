@@ -157,7 +157,7 @@ func _verify_tools(shell: Node):
 		print("   ✅ Quest board exists")
 
 		if quest_board.has_method("get_action_labels"):
-			print("   ✅ Quest board has v2 interface")
+			print("   ✅ Quest board has overlay interface")
 		else:
 			print("   ❌ Quest board missing v2 methods")
 	else:
@@ -171,7 +171,7 @@ func _verify_input_routing(shell: Node):
 	var overlay_mgr = shell.overlay_manager
 
 	print("   Checking routing priority:")
-	print("      1. v2 Overlays ......... ", end="")
+	print("      1. Overlays ............ ", end="")
 	if overlay_mgr and overlay_mgr.overlays:
 		print("✅")
 	else:
