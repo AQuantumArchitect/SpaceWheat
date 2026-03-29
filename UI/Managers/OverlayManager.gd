@@ -498,14 +498,6 @@ func toggle_escape_menu() -> void:
 		_verbose.warn("ui", "❌", "escape_menu is null!")
 
 
-func toggle_keyboard_help() -> void:
-	"""Toggle keyboard help panel visibility (K key)
-	DEPRECATED: Use toggle_v2_overlay("controls") instead.
-	"""
-	toggle_v2_overlay("controls")
-	_verbose.info("ui", "⌨️", "Controls overlay toggled via K key")
-
-
 func toggle_biome_inspector() -> void:
 	"""Toggle biome inspector overlay (B key)"""
 	_verbose.debug("ui", "🔄", "toggle_biome_inspector() called")
