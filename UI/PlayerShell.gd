@@ -179,7 +179,7 @@ func _close_all_menus() -> void:
 		if overlay_stack.has_overlay(overlay_manager.escape_menu):
 			overlay_stack.pop_overlay(overlay_manager.escape_menu)
 		elif overlay_manager.escape_menu.visible:
-			overlay_manager.escape_menu.close_menu()
+			overlay_manager.escape_menu.deactivate()
 	# Close all v2 overlays (includes controls + logger + farm overlays)
 	if overlay_manager:
 		overlay_manager.close_all_v2_overlays()

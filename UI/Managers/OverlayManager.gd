@@ -209,7 +209,7 @@ func create_overlays(parent: Control) -> void:
 	if layout_manager and escape_menu.has_method("set_layout_manager"):
 		escape_menu.set_layout_manager(layout_manager)
 	escape_menu.z_index = 4000  # System tier - below SaveLoadMenu
-	escape_menu.hide_menu()
+	escape_menu.deactivate()
 	parent.add_child(escape_menu)
 
 	# Connect escape menu signals
@@ -336,8 +336,8 @@ func show_overlay(name: String) -> void:
 				_verbose.warn("ui", "❌", "vocabulary_overlay is null!")
 		"escape_menu":
 			if escape_menu:
-				_verbose.debug("ui", "→", "Calling escape_menu.show_menu()")
-				escape_menu.show_menu()
+				_verbose.debug("ui", "→", "Calling escape_menu.activate()")
+				escape_menu.activate()
 				overlay_states["escape_menu"] = true
 				overlay_toggled.emit("escape_menu", true)
 				_verbose.info("ui", "✅", "escape_menu shown")
@@ -379,8 +379,8 @@ func hide_overlay(name: String) -> void:
 				_verbose.warn("ui", "❌", "vocabulary_overlay is null!")
 		"escape_menu":
 			if escape_menu:
-				_verbose.debug("ui", "→", "Calling escape_menu.hide_menu()")
-				escape_menu.hide_menu()
+				_verbose.debug("ui", "→", "Calling escape_menu.deactivate()")
+				escape_menu.deactivate()
 				overlay_states["escape_menu"] = false
 				overlay_toggled.emit("escape_menu", false)
 				_verbose.info("ui", "✅", "escape_menu hidden")
@@ -1009,7 +1009,7 @@ func _on_save_load_menu_closed() -> void:
 	_verbose.debug("save", "📋", "Returning from save/load menu to escape menu")
 	# When user presses ESC in save/load menu, return to main escape menu (don't close it)
 	if escape_menu:
-		escape_menu.show_menu()
+		escape_menu.activate()
 	else:
 		_verbose.warn("save", "⚠️", "Escape menu not available to return to")
 
