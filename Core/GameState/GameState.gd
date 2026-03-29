@@ -370,7 +370,6 @@ func _default_balance_workbench_config() -> Dictionary:
 			"measure": "Collapses state and unlocks deterministic harvest paths.",
 			"pop": "Single terminal payoff from measured outcome, driven by icon-map mass and purity.",
 			"reap": "Season change: fast-forward, collect sink flux, and broad harvest across active biomes.",
-			"harvest_all": "Legacy alias path for reap.",
 			"discover_biome": "Long-term expansion unlock; increases future terminal surface area.",
 			"inject_vocabulary": "Converts known pairs into biome terminals and new learning options.",
 			"remove_vocabulary": "Emergency rollback action; expensive by design.",

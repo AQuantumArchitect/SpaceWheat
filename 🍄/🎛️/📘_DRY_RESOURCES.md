@@ -151,15 +151,14 @@ tail -1 .godot/godot/app_userdata/SpaceWheat\ -\ Quantum\ Farm/rig/results.jsonl
 | 🍞 | 60 | 60 explore operations (economy pressure) |
 | 🔥 | 30 | 30 Hadamard gates |
 | 🦅 | 20 | 1 biome unlock (20 eagles per) |
-| 🍼 | 2 | 2 harvest-all operations |
+| 🍼 | 2 | 2 reap operations |
 
 ### **Action Costs (from EconomyConstants.gd)**
 
 ```gdscript
 explore: 1 🍞
 measure: 1 ❄️
-reap: 1 👥
-harvest_all: 1 🍼
+reap: 1 🍼
 discover_biome: 20 🦅
 vocab_injection: 100 [south_emoji] + 10 🌱
 ```

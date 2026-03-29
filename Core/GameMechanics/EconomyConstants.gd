@@ -33,7 +33,6 @@ const ACTION_COSTS: Dictionary = {
 	"measure": {"❄️": 1},       # Measure (3E) - cold/ice
 	"pop": {"👥": 1},           # Targeted terminal extraction
 	"reap": {MIDWIFE_EMOJI: 1}, # Seasonal reap (actual cost resolved by sequence)
-	"harvest_all": {MIDWIFE_EMOJI: 1},   # Legacy alias for reap
 	"quest_reroll": {"🐇": 1},   # Reroll quest slot
 	"quest_lock": {"🌲": 1},     # Lock quest slot
 	"discover_biome": {"🦅": 4}, # Scout new biome (reduced for 1:1 quantum mass economy)

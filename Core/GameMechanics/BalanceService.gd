@@ -17,7 +17,6 @@ const ACTION_CATALOG: Array[String] = [
 	"measure",
 	"pop",
 	"reap",
-	"harvest_all",
 	"discover_biome",
 	"inject_vocabulary",
 	"remove_vocabulary",

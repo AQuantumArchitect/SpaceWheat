@@ -840,7 +840,7 @@ func _perform_shift_key_action(action_key: String) -> void:
 	var original_selection = current_selection.duplicate()
 
 	# Special case: Global shift actions (execute once, not per plot)
-	if action_name == "reap" or action_name == "harvest_all" or action_name == "clear_all":
+	if action_name == "reap" or action_name == "clear_all":
 		_verbose.info("input", symbol, "Executing global %s once" % log_label)
 		_run_action(action_name, symbol, log_label)
 		_restore_selection(original_selection)
@@ -1252,8 +1252,6 @@ func _execute_action(action_name: String) -> Dictionary:
 			result = _instrument.action_reap()
 		"pop":
 			result = _instrument.action_pop(grid_pos)
-		"harvest_all":
-			result = _instrument.action_harvest_all()
 		"clear_all":
 			result = _instrument.action_clear_all()
 		"build_gate":

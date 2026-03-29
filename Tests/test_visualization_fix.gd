@@ -51,7 +51,7 @@ func _on_game_ready():
 	farm = fv.farm
 	grid = farm.grid
 	economy = farm.economy
-	plot_pool = farm.plot_pool
+	plot_pool = farm.terminal_pool
 	biome = grid.biomes.values()[0]
 
 	economy.add_resource("💰", 10000, "test_bootstrap")
@@ -154,13 +154,13 @@ func _find_viz_controller(node):
 func _has_active_terminal_in_biome() -> bool:
 	"""Check if there are active terminals (bound but not measured) in current biome"""
 	for terminal in plot_pool.get_active_terminals():
-		if terminal.bound_biome and terminal.bound_biome.get_biome_type() == biome.get_biome_type():
+		if terminal.bound_biome_name == biome.get_biome_type():
 			return true
 	return false
 
 func _has_measured_terminal_in_biome() -> bool:
 	"""Check if there are measured terminals in current biome"""
 	for terminal in plot_pool.get_measured_terminals():
-		if terminal.bound_biome and terminal.bound_biome.get_biome_type() == biome.get_biome_type():
+		if terminal.bound_biome_name == biome.get_biome_type():
 			return true
 	return false

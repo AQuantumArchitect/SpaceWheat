@@ -51,7 +51,7 @@ func _on_game_ready():
 	farm = fv.farm
 	grid = farm.grid
 	economy = farm.economy
-	plot_pool = farm.plot_pool
+	plot_pool = farm.terminal_pool
 
 	economy.add_resource("💰", 10000, "test_bootstrap")
 
@@ -98,19 +98,19 @@ func _test_biome_identity():
 	var register_id = result["register_id"]
 	print("   ✅ EXPLORE succeeded: Terminal %s → Register %d" % [terminal.terminal_id, register_id])
 
-	# Check if terminal's biome is same as the one we used
-	if terminal.bound_biome == biome_at_explore:
-		print("   ✅ Terminal's bound_biome matches EXPLORE biome (same reference)")
+	# Check if terminal's biome name matches the one we used
+	if terminal.bound_biome_name == biome_at_explore.get_biome_type():
+		print("   ✅ Terminal's bound_biome_name matches EXPLORE biome")
 	else:
-		print("   ❌ Terminal's bound_biome is DIFFERENT from EXPLORE biome!")
+		print("   ❌ Terminal's bound_biome_name is DIFFERENT from EXPLORE biome!")
 		print("      This could prevent proper unbinding!")
 
 	# Now get biome for same position again (like in MEASURE)
 	var biome_at_measure = grid.get_biome_for_plot(test_pos)
 	print("   Biome at MEASURE: %s" % biome_at_measure.get_biome_type())
 
-	if biome_at_measure == terminal.bound_biome:
-		print("   ✅ MEASURE biome matches terminal's bound_biome")
+	if biome_at_measure.get_biome_type() == terminal.bound_biome_name:
+		print("   ✅ MEASURE biome matches terminal's bound_biome_name")
 	else:
 		print("   ❌ MEASURE biome is DIFFERENT! Will cause unbinding issues!")
 

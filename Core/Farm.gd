@@ -232,7 +232,7 @@ func emit_action_signal(action: String, result: Dictionary, grid_pos: Vector2i =
 	Visualization layer observes these signals to update display.
 
 	Args:
-		action: Action name ("explore", "measure", "pop", "reap", "harvest_all", "build")
+		action: Action name ("explore", "measure", "pop", "reap", "build")
 		result: Dictionary returned by ProbeActions (must have "success" key)
 		grid_pos: Grid position for the action (used by most signals)
 	"""
@@ -268,7 +268,7 @@ func emit_action_signal(action: String, result: Dictionary, grid_pos: Vector2i =
 					if h_pos != Vector2i(-1, -1) and tid != "":
 						terminal_released.emit(h_pos, tid, h_credits)
 
-		"harvest_all", "clear_all":
+		"clear_all":
 			# Handle array of harvest/clear results
 			var harvest_results = result.get("harvest_results", result.get("terminals", []))
 			for harvest in harvest_results:

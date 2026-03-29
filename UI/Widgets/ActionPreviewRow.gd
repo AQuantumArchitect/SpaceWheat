@@ -604,7 +604,7 @@ func _get_cost_for_action_name(action_name: String, action_info: Dictionary = {}
 			return _get_runtime_action_cost(normalized, context)
 		_:
 			# Use unified cost system for all standard actions
-			# (explore, measure, reap, harvest_all, discover_biome, etc.)
+			# (explore, measure, reap, discover_biome, etc.)
 			return _get_runtime_action_cost(action_name)
 
 

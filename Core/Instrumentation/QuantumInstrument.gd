@@ -389,22 +389,6 @@ func action_reap() -> Dictionary:
 	return result
 
 
-func action_harvest_all() -> Dictionary:
-	var economy = _get_economy()
-	if not farm or not economy:
-		return {"success": false, "error": "no_farm", "message": "Farm not ready"}
-
-	var result = ProbeActions.action_reap(farm, economy)
-	_emit_farm_action("reap", result)
-	_emit_farm_action("harvest_all", result)
-
-	if result.get("success", false):
-		clear_checked_plots()
-
-	action_performed.emit("harvest_all", result)
-	return result
-
-
 func action_clear_all() -> Dictionary:
 	if not farm or not terminal_pool:
 		return {"success": false, "error": "no_farm", "message": "Farm not ready"}

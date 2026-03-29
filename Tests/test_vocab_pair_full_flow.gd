@@ -116,9 +116,9 @@ func _setup_references() -> void:
 		biome = farm.biotic_flux_biome
 		print("  [OK] BioticFlux biome found")
 
-	if farm.get("plot_pool"):
-		plot_pool = farm.plot_pool
-		print("  [OK] PlotPool found")
+	if farm.get("terminal_pool"):
+		plot_pool = farm.terminal_pool
+		print("  [OK] TerminalPool found")
 
 	if farm.get("economy"):
 		economy = farm.economy

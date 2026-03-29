@@ -127,7 +127,7 @@ func _test_instrument_api():
 
 	var required_methods = [
 		"action_explore", "action_measure", "action_pop",
-		"action_reap", "action_harvest_all", "action_clear_all",
+		"action_reap", "action_clear_all",
 		"action_drain", "action_transfer", "action_pump",
 		"action_rotate", "action_hadamard",
 		"action_build_gate", "action_inspect", "action_remove_gates",
