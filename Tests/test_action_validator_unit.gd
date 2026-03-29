@@ -126,7 +126,7 @@ func test_invalid_action_returns_false():
 
 func test_probe_explore_validation():
 	test_total += 1
-	# EXPLORE requires farm.plot_pool and biome with unbound registers
+	# EXPLORE requires farm.terminal_pool and biome with unbound registers
 	# Without proper setup, should return false
 	var mock_farm = Node.new()
 	var result = ActionValidator._can_execute_explore(mock_farm, Vector2i(0, 0))
@@ -142,7 +142,7 @@ func test_probe_explore_validation():
 
 func test_probe_measure_validation():
 	test_total += 1
-	# MEASURE requires farm.plot_pool with active terminals
+	# MEASURE requires farm.terminal_pool with active terminals
 	var mock_farm = Node.new()
 	var result = ActionValidator._can_execute_measure(mock_farm, [Vector2i(0, 0)])
 	mock_farm.free()
@@ -157,7 +157,7 @@ func test_probe_measure_validation():
 
 func test_probe_pop_validation():
 	test_total += 1
-	# POP requires farm.plot_pool with measured terminals
+	# POP requires farm.terminal_pool with measured terminals
 	var mock_farm = Node.new()
 	var result = ActionValidator._can_execute_pop(mock_farm, [Vector2i(0, 0)])
 	mock_farm.free()

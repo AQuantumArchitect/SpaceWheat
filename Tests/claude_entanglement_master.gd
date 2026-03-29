@@ -69,7 +69,7 @@ func _find_components():
 	var farm_view = root.get_node_or_null("FarmView")
 	if farm_view and "farm" in farm_view:
 		farm = farm_view.farm
-		plot_pool = farm.plot_pool if farm else null
+		plot_pool = farm.terminal_pool if farm else null
 		biotic_flux = farm.biotic_flux_biome if farm else null
 
 	print("📋 Components: Farm=%s Pool=%s Biome=%s" % [

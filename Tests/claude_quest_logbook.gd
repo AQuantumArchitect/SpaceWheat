@@ -71,7 +71,7 @@ func _on_game_ready():
 	if farm_view and "farm" in farm_view:
 		farm = farm_view.farm
 		economy = farm.economy if farm else null
-		plot_pool = farm.plot_pool if farm else null
+		plot_pool = farm.terminal_pool if farm else null
 
 	# Quest manager is on PlayerShell
 	var player_shell = _find_node(root, "PlayerShell")

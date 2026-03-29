@@ -78,10 +78,10 @@ func _run_core_tests():
 	_pass("Farm instance found")
 
 	# Test PlotPool
-	if farm.plot_pool:
-		_pass("PlotPool exists (pool_size=%d)" % farm.plot_pool.pool_size)
+	if farm.terminal_pool:
+		_pass("PlotPool exists (pool_size=%d)" % farm.terminal_pool.pool_size)
 	else:
-		_fail("farm.plot_pool is null")
+		_fail("farm.terminal_pool is null")
 		_finish()
 		return
 
@@ -132,7 +132,7 @@ func _test_probe_cycle():
 		return
 
 	# EXPLORE
-	var explore_result = ProbeActions.action_explore(farm.plot_pool, biome)
+	var explore_result = ProbeActions.action_explore(farm.terminal_pool, biome)
 	if explore_result.get("success", false):
 		_pass("EXPLORE succeeded (reg=%d, emoji=%s)" % [
 			explore_result.register_id,
@@ -150,7 +150,7 @@ func _test_probe_cycle():
 			])
 
 			# POP
-			var pop_result = ProbeActions.action_pop(terminal, farm.plot_pool, farm.economy)
+			var pop_result = ProbeActions.action_pop(terminal, farm.terminal_pool, farm.economy)
 			if pop_result.get("success", false):
 				_pass("POP succeeded (harvested=%s)" % pop_result.resource)
 			else:
@@ -162,7 +162,7 @@ func _test_probe_cycle():
 
 func _test_binding_consistency():
 	"""Verify PlotPool binding tables are consistent"""
-	var pool = farm.plot_pool
+	var pool = farm.terminal_pool
 
 	# Check binding table matches reverse binding
 	var binding_count = pool.binding_table.size()
@@ -176,7 +176,7 @@ func _test_binding_consistency():
 	# Check all bound terminals have valid biome references
 	var orphaned = 0
 	for terminal in pool.get_bound_terminals():
-		if not terminal.bound_biome:
+		if terminal.bound_biome_name == "":
 			orphaned += 1
 
 	if orphaned == 0:

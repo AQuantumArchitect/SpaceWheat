@@ -100,7 +100,7 @@ func _phase_play():
 		0:
 			# Explore
 			print("  → Exploring...")
-			var result = ProbeActions.action_explore(farm.plot_pool, biome)
+			var result = ProbeActions.action_explore(farm.terminal_pool, biome)
 			if result.success:
 				print("  ✓ Explored: terminal created")
 			else:

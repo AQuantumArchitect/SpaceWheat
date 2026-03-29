@@ -240,7 +240,7 @@ func _test_bubble_spawn_on_explore():
 	var test_pos = Vector2i(0, 0)
 	var starter_forest = farm.starter_forest_biome if farm.starter_forest_biome else farm.biotic_flux_biome
 	if starter_forest:
-		var result = ProbeActions.action_explore(farm.plot_pool, starter_forest)
+		var result = ProbeActions.action_explore(farm.terminal_pool, starter_forest)
 		print("  EXPLORE action result: %s" % result)
 
 	# Check if bubble was created

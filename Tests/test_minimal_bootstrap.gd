@@ -60,7 +60,7 @@ func _create_minimal_farm():
 	if farm:
 		grid = farm.grid
 		economy = farm.economy
-		plot_pool = farm.plot_pool
+		plot_pool = farm.terminal_pool
 
 		# Get first available biome
 		if grid.biomes.size() > 0:

@@ -102,7 +102,7 @@ func _bootstrap():
 
 	economy = farm.economy if farm else null
 	biotic_flux = farm.biotic_flux_biome if farm else null
-	plot_pool = farm.plot_pool if farm else null
+	plot_pool = farm.terminal_pool if farm else null
 
 	_initialize_positions()
 
