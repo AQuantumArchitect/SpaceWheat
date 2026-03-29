@@ -26,6 +26,7 @@ from milk_hunt_paths import xdg_root
 
 OUTPUT_ROOT = Path("/tmp/fib_milk_hunt")
 SAVE_DIR = OUTPUT_ROOT / "saves"
+PPG_PRIOR_DIR = OUTPUT_ROOT / "ppg_priors"
 
 CHARACTERS = [
     "pioneer_fib",
@@ -50,6 +51,73 @@ EXTRA_ENV = {
 
 def _safe_print(msg: str) -> None:
     print(msg, flush=True)
+
+
+# ── PPG Persistence ────────────────────────────────────────────────
+# After each run, extract PPG density matrix + rates from the character's
+# save (via policy_debug_snapshot IPC) and store as JSON.  On next seed,
+# inject the stored prior so ρ starts where the last run left off.
+
+def _ppg_prior_path(name: str) -> Path:
+    PPG_PRIOR_DIR.mkdir(parents=True, exist_ok=True)
+    return PPG_PRIOR_DIR / f"{name}.json"
+
+
+def save_ppg_prior(client: RigClient, turn: int, name: str) -> int:
+    """Extract PPG state from currently loaded character and persist it."""
+    result = client.run_turn(turn, "export_ppg_state", timeout_s=10.0)
+    turn += 1
+    if not result.get("ok", False):
+        return turn  # no PPG or error
+
+    ppg = result.get("ppg_state", {})
+    if not ppg or ppg.get("step_count", 0) == 0:
+        return turn  # nothing learned yet
+
+    prior_path = _ppg_prior_path(name)
+    prior_path.write_text(
+        json.dumps(ppg, indent=2, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+    _safe_print(f"  [ppg] saved prior for {name} (steps={ppg.get('step_count', 0)})")
+    return turn
+
+
+def load_ppg_prior(name: str) -> Optional[Dict]:
+    """Load persisted PPG prior if it exists."""
+    prior_path = _ppg_prior_path(name)
+    if not prior_path.exists():
+        return None
+    try:
+        data = json.loads(prior_path.read_text(encoding="utf-8"))
+        if isinstance(data, dict) and data.get("step_count", 0) > 0:
+            return data
+    except (json.JSONDecodeError, OSError):
+        pass
+    return None
+
+
+def inject_ppg_prior(client: RigClient, turn: int, name: str) -> int:
+    """If a PPG prior exists, inject it into the currently loaded game state."""
+    prior = load_ppg_prior(name)
+    if prior is None:
+        return turn
+
+    step_count = prior.get("step_count", 0)
+    _safe_print(f"  [ppg] loading prior for {name} (steps={step_count})")
+
+    # Use policy_debug_snapshot to verify policy is loaded, then
+    # inject PPG state via set_ppg_state IPC action
+    result = client.run_turn(
+        turn, "set_ppg_state", timeout_s=10.0,
+        ppg_state=prior,
+    )
+    turn += 1
+    if result.get("ok", False):
+        _safe_print(f"  [ppg] prior injected OK")
+    else:
+        _safe_print(f"  [ppg] prior injection failed: {result.get('error', '?')}")
+    return turn
 
 
 def _save_path(name: str) -> str:
@@ -133,6 +201,9 @@ def seed_character(client: RigClient, turn: int, name: str) -> int:
     for emoji, amount in resources.items():
         client.run_turn(turn, "set_resource", timeout_s=5.0, emoji=emoji, amount=int(amount))
         turn += 1
+
+    # Inject PPG prior from previous runs (if any)
+    turn = inject_ppg_prior(client, turn, name)
 
     # Save to absolute path
     save = _save_path(name)
@@ -223,6 +294,9 @@ def run_character_round(
     turn += 1
     final_snap_data = final_snap.get("policy_snapshot", final_snap)
     final_pairs = len(final_snap_data.get("known_pairs", []))
+
+    # Extract and persist PPG state before saving
+    turn = save_ppg_prior(client, turn, name)
 
     # Save state back
     result = client.run_turn(turn, "save_game_path", timeout_s=30.0, path=save)

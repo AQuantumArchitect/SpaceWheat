@@ -730,9 +730,11 @@ static func _roll_vocabulary_reward_pair(
 
 	# Step 1: Roll SOUTH pole from faction signature (weighted by player inventory)
 	# South can be known OR unknown to player
+	# bias_emojis = active biome's emojis — boosts south pole toward biome-native resources
 	var south_result = VocabularyPairing._roll_south_pole_from_signature(
 		icon_registry,
-		faction_signature
+		faction_signature,
+		bias_emojis
 	)
 
 	if south_result.get("error"):

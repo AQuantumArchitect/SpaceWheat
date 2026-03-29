@@ -72,11 +72,13 @@ var _qc: QuantumComputer
 var _pump_rates: PackedFloat64Array
 var _drain_rates: PackedFloat64Array
 
-# ── Tunable (meta-learning timescale: slower than action register) ──
-var _pump_scale: float = 0.04        # reward → pump rate increment
-var _drain_scale: float = 0.03       # penalty → drain rate increment
-var _decay_rate: float = 0.04        # per-step exponential rate decay
-var _coupling_strength: float = 0.12 # H off-diagonal scale
+# ── Tunable (meta-learning timescale) ──
+# Tuned for visible divergence within 20-40 steps (one Fibonacci round).
+# Previous values (0.04/0.03/0.04/0.12) required 100+ steps to move ρ.
+var _pump_scale: float = 0.15        # reward → pump rate increment
+var _drain_scale: float = 0.10       # penalty → drain rate increment
+var _decay_rate: float = 0.02        # per-step exponential rate decay (slow forget)
+var _coupling_strength: float = 0.20 # H off-diagonal scale
 
 var _step_count: int = 0
 
@@ -87,10 +89,10 @@ func _init() -> void:
 
 func reset(config: Dictionary = {}) -> void:
 	"""Initialize to maximally mixed state. Reads ppg_* keys from config."""
-	_pump_scale = clamp(float(config.get("ppg_pump_scale", 0.04)), 0.0, 1.0)
-	_drain_scale = clamp(float(config.get("ppg_drain_scale", 0.03)), 0.0, 1.0)
-	_decay_rate = clamp(float(config.get("ppg_decay_rate", 0.04)), 0.0, 1.0)
-	_coupling_strength = clamp(float(config.get("ppg_coupling_strength", 0.12)), 0.0, 2.0)
+	_pump_scale = clamp(float(config.get("ppg_pump_scale", 0.15)), 0.0, 1.0)
+	_drain_scale = clamp(float(config.get("ppg_drain_scale", 0.10)), 0.0, 1.0)
+	_decay_rate = clamp(float(config.get("ppg_decay_rate", 0.02)), 0.0, 1.0)
+	_coupling_strength = clamp(float(config.get("ppg_coupling_strength", 0.20)), 0.0, 2.0)
 	_step_count = 0
 	_pump_rates = PackedFloat64Array()
 	_pump_rates.resize(DIM)

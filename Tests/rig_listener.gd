@@ -1009,6 +1009,26 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 			var policy = _ensure_policy()
 			result["policy"] = policy.get_snapshot()
 
+		"export_ppg_state":
+			var policy = _ensure_policy()
+			if policy.get("_ppg"):
+				result["ok"] = true
+				result["ppg_state"] = policy._ppg.export_state()
+			else:
+				result["ok"] = false
+				result["error"] = "policy has no PPG"
+
+		"set_ppg_state":
+			var policy = _ensure_policy()
+			var ppg_data = cmd.get("ppg_state", {})
+			if ppg_data is Dictionary and policy.get("_ppg"):
+				policy._ppg.load_state(ppg_data)
+				result["ok"] = true
+				result["step_count"] = policy._ppg._step_count
+			else:
+				result["ok"] = false
+				result["error"] = "policy has no PPG or invalid state"
+
 		"policy_step":
 			var policy = _ensure_policy()
 			var include_state = bool(cmd.get("include_state", false))

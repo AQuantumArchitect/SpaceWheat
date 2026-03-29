@@ -119,15 +119,23 @@ static func _roll_south_pole(icon_registry) -> Dictionary:
 
 
 ## Roll SOUTH pole from faction signature (weighted by player inventory)
-static func _roll_south_pole_from_signature(icon_registry, faction_signature: Array) -> Dictionary:
+## biome_emojis: optional Array of emojis native to the active biome.
+## When provided, faction signature emojis that also appear in the biome
+## get a soft weight boost (BIOME_AFFINITY_BOOST), making quests in a
+## biome preferentially spend that biome's resources.
+const BIOME_AFFINITY_BOOST := 3.0
+
+static func _roll_south_pole_from_signature(icon_registry, faction_signature: Array, biome_emojis: Array = []) -> Dictionary:
 	"""Roll south pole from faction signature, weighted by player inventory
 
 	South pole can be known OR unknown to player.
 	Weights use power-law formula: weight = (amount + 1)^0.65
+	Biome-native emojis in the faction signature get a soft boost.
 
 	Args:
 		icon_registry: IconRegistry for connection data
 		faction_signature: Faction's signature emojis
+		biome_emojis: Emojis native to the active biome (soft boost)
 
 	Returns:
 		{south, weight, amount, connections} or {error, message}
@@ -156,6 +164,11 @@ static func _roll_south_pole_from_signature(icon_registry, faction_signature: Ar
 
 		# Weight = power-law inventory bias (preserves Fibonacci ratios)
 		var weight = pow(amount + 1.0, 0.65)
+
+		# Biome affinity: boost emojis native to the active biome
+		if not biome_emojis.is_empty() and emoji in biome_emojis:
+			weight *= BIOME_AFFINITY_BOOST
+
 		candidates[emoji] = {"weight": weight, "amount": amount, "connections": connections}
 
 	if candidates.is_empty():
