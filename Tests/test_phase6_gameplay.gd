@@ -32,7 +32,7 @@ func _run_tests():
 
 	# Test 2: Overlay System
 	output.append("\n─"*100)
-	output.append("TEST 2: V2 OVERLAY SYSTEM")
+	output.append("TEST 2: OVERLAY SYSTEM")
 	output.append("─"*100)
 	_test_overlays(player_shell, output)
 
@@ -89,25 +89,25 @@ func _test_components(shell: Node, output: Array):
 		output.append("\n❌ Some components missing - tests may fail")
 
 func _test_overlays(shell: Node, output: Array):
-	output.append("\n🔍 Checking v2 overlay system...\n")
+	output.append("\n🔍 Checking overlay stack system...\n")
 
 	var overlay_mgr = shell.overlay_manager
 	if not overlay_mgr:
 		output.append("   ❌ OverlayManager is null")
 		return
 
-	if not overlay_mgr.v2_overlays:
-		output.append("   ❌ v2_overlays dictionary missing")
+	if not overlay_mgr.overlays:
+		output.append("   ❌ overlays dictionary missing")
 		return
 
-	var count = overlay_mgr.v2_overlays.size()
+	var count = overlay_mgr.overlays.size()
 	output.append("   ✅ Overlays registered: %d" % count)
 
 	var expected = ["inspector", "controls", "semantic_map", "quests", "biome_detail"]
 	var found_all = true
 	for overlay_name in expected:
-		if overlay_mgr.v2_overlays.has(overlay_name):
-			var overlay = overlay_mgr.v2_overlays[overlay_name]
+		if overlay_mgr.overlays.has(overlay_name):
+			var overlay = overlay_mgr.overlays[overlay_name]
 			var has_methods = true
 			for method in ["handle_input", "activate", "deactivate"]:
 				if not overlay.has_method(method):
@@ -124,7 +124,7 @@ func _test_overlays(shell: Node, output: Array):
 	if found_all:
 		output.append("\n✅ All overlays registered and available")
 	else:
-		output.append("\n⚠️ Some overlays missing - check OverlayManager._create_v2_overlays()")
+		output.append("\n⚠️ Some overlays missing - check OverlayManager._create_overlays()")
 
 func _test_tools(shell: Node, output: Array):
 	output.append("\n🔍 Checking tool selection...\n")
@@ -156,7 +156,7 @@ func _test_input_routing(shell: Node, output: Array):
 	var overlay_mgr = shell.overlay_manager
 	var input_handler = shell.input_handler
 
-	if overlay_mgr and overlay_mgr.v2_overlays:
+	if overlay_mgr and overlay_mgr.overlays:
 		output.append("      1. ✅ v2 Overlays system present")
 	else:
 		output.append("      1. ❌ v2 Overlays system missing")
@@ -181,7 +181,7 @@ func _test_data_flow(shell: Node, output: Array):
 
 	# Inspector data
 	output.append("   Inspector overlay:")
-	var inspector = overlay_mgr.v2_overlays.get("inspector") if overlay_mgr else null
+	var inspector = overlay_mgr.overlays.get("inspector") if overlay_mgr else null
 	if inspector:
 		if inspector.has_meta("quantum_computer") or "quantum_computer" in inspector:
 			output.append("      ⚠️ quantum_computer property exists but may need binding")
@@ -193,7 +193,7 @@ func _test_data_flow(shell: Node, output: Array):
 
 	# Semantic Map data
 	output.append("\n   Semantic Map overlay:")
-	var semantic = overlay_mgr.v2_overlays.get("semantic_map") if overlay_mgr else null
+	var semantic = overlay_mgr.overlays.get("semantic_map") if overlay_mgr else null
 	if semantic:
 		if semantic.has_meta("vocabulary_data") or "vocabulary_data" in semantic:
 			output.append("      ⚠️ vocabulary_data property exists but not loaded")
@@ -219,8 +219,8 @@ func _test_data_flow(shell: Node, output: Array):
 	output.append("\n   Farm & Biomes:")
 	if farm:
 		output.append("      ✅ Farm exists")
-		if farm.grid and farm.grid.plots:
-			output.append("      ✅ Farm grid (%d plots)" % farm.grid.plots.size())
+		if farm.grid.grid and farm.grid.grid.get_plot_count() > 0:
+			output.append("      ✅ Farm grid (%d plots)" % farm.grid.get_plot_count())
 		else:
 			output.append("      ❌ Farm grid missing")
 		if farm.biomes:

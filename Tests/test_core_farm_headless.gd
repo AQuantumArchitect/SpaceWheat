@@ -80,12 +80,12 @@ func _test_create_entanglement():
 	farm.build(Vector2i(1, 0), "wheat")
 
 	# Get biome for the plot
-	var biome_name = farm.grid.plot_biome_assignments.get(Vector2i(0, 0))
+	var biome_name = farm.grid.get_plot_biome_assignment(Vector2i(0, 0))
 	if not biome_name:
 		_fail("Plot has no biome assignment")
 		return
 
-	var biome = farm.grid.biomes.get(biome_name)
+	var biome = farm.grid.get_biome(biome_name)
 	if not biome:
 		_fail("Biome not found: %s" % biome_name)
 		return
@@ -156,8 +156,8 @@ func _test_triplet_entanglement():
 	farm.build(Vector2i(2, 1), "wheat")
 
 	# Get biome
-	var biome_name = farm.grid.plot_biome_assignments.get(Vector2i(0, 1))
-	var biome = farm.grid.biomes.get(biome_name)
+	var biome_name = farm.grid.get_plot_biome_assignment(Vector2i(0, 1))
+	var biome = farm.grid.get_biome(biome_name)
 
 	if not biome:
 		_fail("No biome for triplet entanglement")

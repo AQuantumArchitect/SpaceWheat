@@ -48,7 +48,8 @@ var ui_state: FarmUIState  # UI State abstraction layer
 var grid_config: GridConfig = null  # Single source of truth for grid layout
 var _bootstrap_pool: TerminalPoolClass = null  # Created at boot, transferred to instrument via set_instrument()
 var instrument = null  # QuantumInstrument (set via set_instrument() after boot)
-## terminal_pool: backward-compat getter — returns instrument's pool if available, else bootstrap pool
+## terminal_pool: canonical runtime pool surface. Uses the instrument pool once attached,
+## otherwise the bootstrap pool during early boot.
 var terminal_pool: TerminalPoolClass:
 	get: return instrument.terminal_pool if instrument and instrument.terminal_pool else _bootstrap_pool
 var biome_evolution_batcher: BiomeEvolutionBatcherClass = null  # Batched quantum evolution
@@ -172,14 +173,13 @@ signal biome_removed(biome_name: String)
 signal biome_expanded(biome_name: String, qubit_index: int, emoji_pair: Dictionary)
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# LEGACY SIGNALS (kept for internal use and backwards compatibility)
-# For visualization, use terminal_* signals instead
+# Plot-facing visualization signals
+# These remain intentional because the player-facing UI is plot-oriented even
+# though the simulation/runtime path is terminal-oriented underneath.
 # ═══════════════════════════════════════════════════════════════════════════════
 
-## @deprecated - Use terminal_measured for visualization
 signal plot_measured(position: Vector2i, outcome: String)
 
-## @deprecated - Use terminal_released for visualization
 signal plot_harvested(position: Vector2i, yield_data: Dictionary)
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -256,7 +256,8 @@ func emit_action_signal(action: String, result: Dictionary, grid_pos: Vector2i =
 
 
 func _ready():
-	# Ensure IconRegistry exists (for test mode where autoloads don't exist)
+	# Ensure IconRegistry exists in headless/script harnesses that do not build the
+	# full autoload stack through the normal project boot path.
 	_ensure_iconregistry()
 
 	# Create core systems
@@ -270,8 +271,7 @@ func _ready():
 	grid = FarmGrid.new(grid_config.grid_width, grid_config.grid_height)
 	add_child(grid)
 
-	# v2 Architecture: Create terminal pool for EXPLORE/MEASURE/POP actions
-	# Stored as _bootstrap_pool; transferred to instrument via set_instrument()
+	# Create bootstrap terminal pool; transferred to the instrument once attached.
 	var total_plots = grid_config.grid_width * grid_config.grid_height
 	_bootstrap_pool = TerminalPoolClass.new(total_plots)
 	if grid:
@@ -488,7 +488,7 @@ func set_known_pairs(pairs: Array, sync_player_vocab: bool = true, reset_player_
 	known_pairs = filtered
 	if sync_player_vocab:
 		_sync_player_vocabulary(reset_player_vocab)
-	_sync_gsm_vocab_state()
+	_sync_current_state_vocab()
 
 
 func discover_pair(north: String, south: String) -> bool:
@@ -514,7 +514,7 @@ func discover_pair(north: String, south: String) -> bool:
 	var player_vocab = get_node_or_null("/root/PlayerVocabulary")
 	if player_vocab and player_vocab.has_method("learn_vocab_pair"):
 		player_vocab.learn_vocab_pair(north, south)
-	_sync_gsm_vocab_state()
+	_sync_current_state_vocab()
 	return true
 
 
@@ -541,8 +541,8 @@ func _sync_player_vocabulary(reset_first: bool) -> void:
 				player_vocab.learn_vocab_pair(north, south)
 
 
-func _sync_gsm_vocab_state() -> void:
-	"""Keep GameStateManager.current_state mirrored for legacy readers."""
+func _sync_current_state_vocab() -> void:
+	"""Mirror canonical farm vocabulary into the active GameState when present."""
 	var gsm = get_node_or_null("/root/GameStateManager")
 	if gsm and "current_state" in gsm and gsm.current_state:
 		gsm.current_state.known_pairs = get_known_pairs()
@@ -698,15 +698,14 @@ func _process_lindblad_effects(delta: float) -> void:
 	if not grid:
 		return
 
-	var plots = grid.plots if "plots" in grid else {}
-	if plots.is_empty():
+	if not grid or grid.get_plot_count() == 0:
 		return
 	var rainbow_mode = _is_rainbow_drain_mode()
 	var processed_structural_flux: Dictionary = {}
 	var harvestable_drain_biomes: Dictionary = {}
 
-	for pos in plots.keys():
-		var plot = plots[pos]
+	for pos in grid.get_plot_positions():
+		var plot = grid.get_plot(pos)
 		if not plot:
 			continue
 		if not plot.lindblad_pump_active and not plot.lindblad_drain_active:
@@ -1041,8 +1040,8 @@ func _get_loaded_biomes_in_order() -> Array[String]:
 
 func _is_biome_loaded(biome_name: String) -> bool:
 	"""Check if a biome instance is loaded on this Farm."""
-	if grid and grid.biomes and grid.biomes.has(biome_name):
-		return grid.biomes[biome_name] != null
+	if grid and grid.has_biome(biome_name):
+		return grid.get_biome(biome_name) != null
 	match biome_name:
 		"StarterForest":
 			return starter_forest_biome != null
@@ -1092,8 +1091,8 @@ func _get_max_biome_plot_count(biome_names: Array[String]) -> int:
 
 
 func _get_loaded_biome_ref(biome_name: String):
-	if grid and grid.biomes and grid.biomes.has(biome_name):
-		return grid.biomes[biome_name]
+	if grid and grid.has_biome(biome_name):
+		return grid.get_biome(biome_name)
 	match biome_name:
 		"StarterForest":
 			return starter_forest_biome
@@ -1441,65 +1440,6 @@ func entangle_plots(pos1: Vector2i, pos2: Vector2i, bell_state: String = "phi_pl
 		action_result.emit("entangle", false, "Failed to create entanglement")
 		return false
 
-
-## Batch Operation Methods (Multi-Select Support)
-## De-slopped: Common loop+result pattern extracted to _batch_operation()
-
-func _batch_operation(positions: Array[Vector2i], operation_name: String, operation: Callable) -> Dictionary:
-	"""Execute an operation on multiple positions with unified result structure.
-
-	Args:
-		positions: Array of grid positions to operate on
-		operation_name: Name for message (e.g., "Planted", "Measured")
-		operation: Callable that takes position and returns bool (success)
-
-	Returns: Dictionary with {success: bool, count: int, message: String}
-	"""
-	var result = {"success": false, "count": 0, "message": ""}
-
-	if positions.is_empty():
-		result["message"] = "No positions specified"
-		return result
-
-	var success_count = 0
-	for pos in positions:
-		if operation.call(pos):
-			success_count += 1
-
-	result["success"] = success_count > 0
-	result["count"] = success_count
-	result["message"] = "%s %d/%d plots" % [operation_name, success_count, positions.size()]
-	return result
-
-
-func batch_measure(positions: Array[Vector2i]) -> Dictionary:
-	"""Measure quantum state of multiple plots."""
-	return _batch_operation(positions, "Measured", func(pos): return measure_plot(pos) != "")
-
-
-func batch_harvest(positions: Array[Vector2i]) -> Dictionary:
-	"""Harvest multiple plots (measure then harvest each).
-
-	Returns: Dictionary with {success, count, message, total_yield}
-	"""
-	var total_yield = 0
-
-	# Custom operation that measures first, then harvests
-	var harvest_op = func(pos: Vector2i) -> bool:
-		var plot = grid.get_plot(pos)
-		if plot and plot.is_active() and not plot.get_is_measured():
-			measure_plot(pos)
-		var harvest_result = harvest_plot(pos)
-		if harvest_result.get("success", false):
-			total_yield += harvest_result.get("yield", 0)
-			return true
-		return false
-
-	var result = _batch_operation(positions, "Harvested", harvest_op)
-	result["total_yield"] = total_yield
-	return result
-
-
 func get_plot(position: Vector2i):
 	"""Get plot at given grid position (returns FarmPlot or subclass)"""
 	if grid:
@@ -1542,17 +1482,17 @@ func _get_plot_biome(pos: Vector2i):
 
 
 func _ensure_iconregistry() -> void:
-	"""Ensure IconRegistry exists (for test mode where autoloads don't exist)
+	"""Ensure IconRegistry exists in harnesses that bypass normal autoload boot.
 
 	In normal gameplay: IconRegistry is autoload at /root/IconRegistry
-	In test mode (extends SceneTree): Autoloads don't exist, create fallback
+	In script/headless harnesses: create a local root child if needed
 	"""
 	var icon_registry = get_node_or_null("/root/IconRegistry")
 	if icon_registry:
 		# Already exists (normal game mode)
 		return
 
-	# Test mode: Create IconRegistry
+	# Harness mode: create IconRegistry on demand
 	var IconRegistryScript = load("res://Core/QuantumSubstrate/IconRegistry.gd")
 	if not IconRegistryScript:
 		push_error("Failed to load IconRegistry.gd!")
@@ -1560,7 +1500,7 @@ func _ensure_iconregistry() -> void:
 
 	icon_registry = IconRegistryScript.new()
 	icon_registry.name = "IconRegistry"
-	# Use get_tree() if available (normal mode), otherwise skip autoload simulation
+	# Use get_tree() if available, otherwise just initialize locally
 	var tree = get_tree()
 	if tree and tree.root:
 		tree.root.add_child(icon_registry)
@@ -1642,14 +1582,6 @@ func _on_economy_changed_ui(_value = null) -> void:
 
 func _on_plot_measured_ui(position: Vector2i, outcome: String) -> void:
 	"""Handle measurement - update UIState with measured outcome"""
-	if ui_state and grid:
-		var plot = grid.get_plot(position)
-		if plot:
-			ui_state.update_plot(position, plot)
-
-
-func _on_plot_changed_ui(position: Vector2i, _data = null) -> void:
-	"""Handle plot changes - update UIState"""
 	if ui_state and grid:
 		var plot = grid.get_plot(position)
 		if plot:

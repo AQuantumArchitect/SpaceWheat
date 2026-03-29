@@ -496,7 +496,7 @@ static func _apply_single_qubit_gate(farm, position: Vector2i, gate_name: String
 		if plot and plot.is_active():
 			var biome_name = plot.bound_biome_name
 			if biome_name != "":
-				biome = farm.grid.biomes.get(biome_name, null)
+				biome = farm.grid.get_biome(biome_name)
 			register_id = plot.bound_register_id
 			# Fallback: resolve register via viz_cache if plot binding didn't set it
 			if register_id < 0 and biome and plot.north_emoji:
@@ -574,13 +574,13 @@ static func _apply_two_qubit_gate(farm, position_a: Vector2i, position_b: Vector
 		if plot_a and plot_a.is_active() and not plot_a.is_measured:
 			var biome_name_a = plot_a.bound_biome_name
 			if biome_name_a != "":
-				biome_a = farm.grid.biomes.get(biome_name_a, null)
+				biome_a = farm.grid.get_biome(biome_name_a)
 			reg_a = plot_a.bound_register_id
 
 		if plot_b and plot_b.is_active() and not plot_b.is_measured:
 			var biome_name_b = plot_b.bound_biome_name
 			if biome_name_b != "":
-				biome_b = farm.grid.biomes.get(biome_name_b, null)
+				biome_b = farm.grid.get_biome(biome_name_b)
 			reg_b = plot_b.bound_register_id
 
 	# Fallback: resolve via viz_cache mapping

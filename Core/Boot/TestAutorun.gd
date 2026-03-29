@@ -87,11 +87,11 @@ func _run_tests():
 	if quest_board and quest_board.visible:
 		print("   ✅ Quest board opened!")
 
-		# Check v2 overlay
-		if overlay_mgr.is_v2_overlay_active():
-			print("   ✅ Active as v2 overlay")
+		# Check overlay stack
+		if overlay_mgr.is_overlay_active():
+			print("   ✅ Active in overlay stack")
 		else:
-			print("   ❌ NOT active as v2 overlay (old modal system)")
+			print("   ❌ NOT active in overlay stack")
 
 		# Try WASD
 		print("   → Testing WASD navigation...")
@@ -123,22 +123,22 @@ func _run_tests():
 		print("   ❌ Quest board did NOT open")
 
 	print("\n" + "─".repeat(90))
-	print("PHASE 3: V2 OVERLAYS")
+	print("PHASE 3: OVERLAYS")
 	print("─".repeat(90))
 
 	var overlays_to_test = ["inspector", "controls", "semantic_map"]
 
 	for overlay_name in overlays_to_test:
-		if not overlay_mgr.v2_overlays.has(overlay_name):
+		if not overlay_mgr.has_overlay(overlay_name):
 			print("\n❌ %s not registered" % overlay_name)
 			continue
 
 		print("\n🔶 %s: Testing manual open..." % overlay_name)
 
-		var opened = overlay_mgr.open_v2_overlay(overlay_name)
+		var opened = overlay_mgr.open_overlay(overlay_name)
 		await get_tree().process_frame
 
-		if overlay_mgr.is_v2_overlay_active():
+		if overlay_mgr.is_overlay_active():
 			print("   ✅ Opened successfully")
 
 			# Test WASD
@@ -157,7 +157,7 @@ func _run_tests():
 			_send_input_key(KEY_ESCAPE)
 			await get_tree().process_frame
 
-			if not overlay_mgr.is_v2_overlay_active():
+			if not overlay_mgr.is_overlay_active():
 				print("   ✅ Closed with ESC")
 			else:
 				print("   ❌ ESC did not close")
@@ -182,4 +182,3 @@ func _send_input_key(keycode: int):
 	var root = get_tree().root
 	if root:
 		root._input(event)
-

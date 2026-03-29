@@ -3,7 +3,7 @@ extends RefCounted
 
 ## ActionValidator - Pure validation functions for action availability
 ##
-## Extracts all _can_execute_* logic from legacy input handlers.
+## Extracts all _can_execute_* logic from the live input path.
 ## All methods are static with no side effects.
 ##
 ## Used by:
@@ -99,7 +99,7 @@ static func _can_execute_tool_action(
 	# Route to specific validation based on action type
 	match action:
 		# ═══════════════════════════════════════════════════════════════
-		# v2 PROBE Tool (Tool 1) - Core gameplay loop
+		# PROBE Tool (Tool 1) - Core gameplay loop
 		# ═══════════════════════════════════════════════════════════════
 		"explore":
 			return _can_execute_explore(farm, current_selection)
@@ -109,7 +109,7 @@ static func _can_execute_tool_action(
 			return _can_execute_pop(farm, selected_plots)
 
 		# ═══════════════════════════════════════════════════════════════
-		# v2 GATES Tool (Tool 2) - 1-qubit gates
+		# GATES Tool (Tool 2) - 1-qubit gates
 		# ═══════════════════════════════════════════════════════════════
 		"rotate_down", "rotate_up", "hadamard":
 			return true  # Available if plots selected
@@ -119,7 +119,7 @@ static func _can_execute_tool_action(
 			return true  # Available if plots selected
 
 		# ═══════════════════════════════════════════════════════════════
-		# v2 ENTANGLE Tool (Tool 3) - 2-qubit gates
+		# ENTANGLE Tool (Tool 3) - 2-qubit gates
 		# ═══════════════════════════════════════════════════════════════
 		"build_gate":
 			return selected_plots.size() >= 2  # Need 2+ plots for Bell/cluster
@@ -190,7 +190,7 @@ static func _can_execute_tool_action(
 ## ============================================================================
 
 static func _can_execute_explore(farm, current_selection: Vector2i) -> bool:
-	"""Check if EXPLORE action is available (v2 PROBE Tool 1).
+	"""Check if EXPLORE action is available (PROBE Tool 1).
 
 	EXPLORE binds an unbound terminal to a register in the current biome.
 	Available when: unbound terminals exist AND biome has unbound registers.
@@ -213,7 +213,7 @@ static func _can_execute_explore(farm, current_selection: Vector2i) -> bool:
 		return false
 
 	# Must have unbound registers
-	var available_registers = biome.get_available_registers_v2(terminal_pool) if biome.has_method("get_available_registers_v2") else []
+	var available_registers = biome.get_available_registers(terminal_pool) if biome.has_method("get_available_registers") else []
 	var has_unbound = not available_registers.is_empty()
 
 	# Debug: Log availability
@@ -227,7 +227,7 @@ static func _can_execute_explore(farm, current_selection: Vector2i) -> bool:
 
 
 static func _can_execute_measure(farm, selected_plots: Array[Vector2i]) -> bool:
-	"""Check if MEASURE action is available (v2 PROBE Tool 1).
+	"""Check if MEASURE action is available (PROBE Tool 1).
 
 	MEASURE collapses an active terminal (bound but not measured).
 	Available when: active terminal exists at any selected position.
@@ -251,7 +251,7 @@ static func _can_execute_measure(farm, selected_plots: Array[Vector2i]) -> bool:
 
 
 static func _can_execute_pop(farm, selected_plots: Array[Vector2i]) -> bool:
-	"""Check if POP action is available (v2 PROBE Tool 1).
+	"""Check if POP action is available (PROBE Tool 1).
 
 	POP harvests a measured terminal and unbinds it.
 	Available when: measured terminal exists at any selected position.

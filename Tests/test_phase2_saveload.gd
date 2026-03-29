@@ -76,9 +76,9 @@ func _await_farm_ready(max_frames: int = 20) -> bool:
 
 
 func _get_target_biome():
-	if not farm or not farm.grid or not farm.grid.biomes:
+	if not farm or not farm.grid or not farm.grid.has_biomes():
 		return null
-	return farm.grid.biomes.get(TARGET_BIOME, null)
+	return farm.grid.get_biome(TARGET_BIOME)
 
 
 func _attach_instrument() -> void:

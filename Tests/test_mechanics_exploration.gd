@@ -56,8 +56,8 @@ func _test_farm_setup():
 		_log_error("FarmGrid is null")
 		return
 
-	if farm.grid.plots.size() > 0:
-		_log_pass("Grid has plots: %d" % farm.grid.plots.size())
+	if farm.grid.get_plot_count() > 0:
+		_log_pass("Grid has plots: %d" % farm.grid.get_plot_count())
 	else:
 		_log_error("Grid has no plots")
 

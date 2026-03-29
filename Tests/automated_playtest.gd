@@ -136,7 +136,7 @@ func test_farm_initialization():
 	log_info("Starting wheat: %d" % (wheat / 10))  # Convert to units
 
 	# Check grid size
-	var plot_count = farm.grid.plots.size()
+	var plot_count = farm.grid.get_plot_count()
 	log_info("Grid has %d plots" % plot_count)
 
 	if plot_count == 0:
@@ -348,16 +348,16 @@ func test_biome_mechanics():
 	farm._ready()
 
 	# Check biomes initialized
-	if not farm.grid.biomes or farm.grid.biomes.size() == 0:
+	if not farm.grid or farm.grid.get_biome_count() == 0:
 		log_error("No biomes initialized")
 		farm.queue_free()
 		return
 
-	log_pass("Biomes initialized: %d" % farm.grid.biomes.size())
+	log_pass("Biomes initialized: %d" % farm.grid.get_biome_count())
 
-	for biome_name in farm.grid.biomes:
+	for biome_name in farm.grid.get_biome_names():
 		log_info("  Biome: %s" % biome_name)
-		var biome = farm.grid.biomes[biome_name]
+		var biome = farm.grid.get_biome(biome_name)
 
 		# Check biome has bath
 		if not biome.bath:

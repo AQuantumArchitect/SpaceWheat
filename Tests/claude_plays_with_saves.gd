@@ -276,8 +276,8 @@ func _action_wait(seconds: float):
 	print("   ⏰ Waiting %.0fs..." % seconds)
 
 	# Advance ALL biomes for quantum evolution
-	for biome_name in farm.grid.biomes.keys():
-		var biome = farm.grid.biomes[biome_name]
+	for biome_name in farm.grid.get_biome_names():
+		var biome = farm.grid.get_biome(biome_name)
 		print("   🔄 Advancing %s simulation by %.1fs..." % [biome_name, seconds])
 		biome.advance_simulation(seconds)
 

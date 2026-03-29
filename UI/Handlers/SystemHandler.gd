@@ -248,7 +248,7 @@ static func peek_state(farm, positions: Array[Vector2i]) -> Dictionary:
 
 static func set_biomes_paused(farm, paused: bool) -> Dictionary:
 	"""Pause or resume quantum evolution on all biomes."""
-	if not farm or not farm.grid or not farm.grid.biomes:
+	if not farm or not farm.grid or not farm.grid.has_biomes():
 		return {
 			"success": false,
 			"error": "farm_not_ready",
@@ -257,8 +257,8 @@ static func set_biomes_paused(farm, paused: bool) -> Dictionary:
 
 	var affected_count = 0
 
-	for biome_name in farm.grid.biomes:
-		var biome = farm.grid.biomes[biome_name]
+	for biome_name in farm.grid.get_biome_names():
+		var biome = farm.grid.get_biome(str(biome_name))
 		if biome and biome.has_method("set_evolution_paused"):
 			biome.set_evolution_paused(paused)
 			affected_count += 1
@@ -272,7 +272,7 @@ static func set_biomes_paused(farm, paused: bool) -> Dictionary:
 
 static func get_evolution_status(farm) -> Dictionary:
 	"""Get evolution pause status for all biomes."""
-	if not farm or not farm.grid or not farm.grid.biomes:
+	if not farm or not farm.grid or not farm.grid.has_biomes():
 		return {
 			"success": false,
 			"error": "farm_not_ready",
@@ -281,8 +281,8 @@ static func get_evolution_status(farm) -> Dictionary:
 
 	var statuses: Dictionary = {}
 
-	for biome_name in farm.grid.biomes:
-		var biome = farm.grid.biomes[biome_name]
+	for biome_name in farm.grid.get_biome_names():
+		var biome = farm.grid.get_biome(str(biome_name))
 		if biome and biome.has_method("is_evolution_paused"):
 			statuses[biome_name] = biome.is_evolution_paused()
 		else:

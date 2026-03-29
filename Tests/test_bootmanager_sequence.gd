@@ -89,13 +89,13 @@ func _init():
 	print("\n🌾 FARM STATE:")
 	print("   Farm: %s" % ("✓ OK" if farm else "❌ NULL"))
 	print("   Grid: %s" % ("✓ OK" if farm.grid else "❌ NULL"))
-	print("   Biomes: %s" % ("✓ OK" if farm.grid.biomes.size() > 0 else "❌ EMPTY"))
+	print("   Biomes: %s" % ("✓ OK" if farm.grid.get_biome_count() > 0 else "❌ EMPTY"))
 
 	# Verify biome baths
 	print("\n🛁 BIOME BATHS:")
 	var baths_ok = true
-	for biome_name in farm.grid.biomes.keys():
-		var biome = farm.grid.biomes[biome_name]
+	for biome_name in farm.grid.get_biome_names():
+		var biome = farm.grid.get_biome(biome_name)
 		if biome.bath and biome.bath._hamiltonian and biome.bath._lindblad:
 			print("   %s: ✓ OK" % biome_name)
 		else:

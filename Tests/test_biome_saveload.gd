@@ -77,8 +77,8 @@ func run_test():
 	await self.process_frame
 
 	print("")
-	print("Total registered biomes: %d" % farm.grid.biomes.size())
-	print("Biomes: ", farm.grid.biomes.keys())
+	print("Total registered biomes: %d" % farm.grid.get_biome_count())
+	print("Biomes: ", farm.grid.get_biome_names())
 
 	# Assign some plots to test biomes
 	print("")
@@ -107,7 +107,7 @@ func run_test():
 	]
 
 	for pos in test_plots:
-		var biome_name = farm.grid.plot_biome_assignments[pos]
+		var biome_name = farm.grid.get_plot_biome_assignment(pos)
 		var success = farm.grid.plant(pos, "wheat")
 		if success:
 			print("✅ Planted wheat at %s (%s biome)" % [pos, biome_name])
@@ -190,7 +190,7 @@ func run_test():
 
 	await self.process_frame
 
-	print("✅ Fresh farm created with %d registered biomes" % farm.grid.biomes.size())
+	print("✅ Fresh farm created with %d registered biomes" % farm.grid.get_biome_count())
 
 	# LOAD GAME
 	print("")
@@ -218,7 +218,7 @@ func run_test():
 	var all_passed = true
 
 	for biome_name in ["MinimalTest", "Dual", "Triple", "MergedEcosystem"]:
-		var biome = farm.grid.biomes.get(biome_name, null)
+		var biome = farm.grid.get_biome(biome_name)
 		if not biome:
 			print("  ❌ %s biome not found!" % biome_name)
 			all_passed = false
@@ -236,7 +236,9 @@ func run_test():
 	print("")
 	print("Plot assignment verification:")
 	for pos in test_plots:
-		var assigned_biome = farm.grid.plot_biome_assignments.get(pos, "NONE")
+		var assigned_biome = farm.grid.get_plot_biome_assignment(pos)
+		if assigned_biome == "":
+			assigned_biome = "NONE"
 		var plot = farm.grid.get_plot(pos)
 		var is_planted = plot.is_planted if plot else false
 

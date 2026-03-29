@@ -40,10 +40,10 @@ func _init():
 
 	# Verify biome exists and has bath
 	# Position (0,0) is assigned to Market biome
-	var biome = farm.grid.biomes.get("Market")
+	var biome = farm.grid.get_biome("Market")
 	if not biome:
 		print("❌ FAIL: No Market biome found")
-		print("  Available biomes: %s" % str(farm.grid.biomes.keys()))
+		print("  Available biomes: %s" % str(farm.grid.get_biome_names()))
 		quit(1)
 		return
 

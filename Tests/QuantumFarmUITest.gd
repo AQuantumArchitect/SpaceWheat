@@ -58,10 +58,10 @@ func _ready() -> void:
 		print("   ✗ Quantum visualization controller not found!")
 
 	print("\n📊 Farm state:")
-	if farm and farm.grid and farm.grid.biomes:
-		print("   • Biomes: %d" % farm.grid.biomes.size())
-		for biome_name in farm.grid.biomes.keys():
-			var biome = farm.grid.biomes[biome_name]
+	if farm and farm.grid and farm.grid.get_biome_count() > 0:
+		print("   • Biomes: %d" % farm.grid.get_biome_count())
+		for biome_name in farm.grid.get_biome_names():
+			var biome = farm.grid.get_biome(biome_name)
 			if biome and biome.patches:
 				print("   • %s patches: %d" % [biome_name, biome.patches.size()])
 

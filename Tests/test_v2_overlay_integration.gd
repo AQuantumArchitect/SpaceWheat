@@ -1,6 +1,6 @@
 extends Node
 
-## Test v2 Overlay System Integration
+## Test Overlay System Integration
 ##
 ## Tests:
 ##   1. Overlay registration and retrieval
@@ -11,7 +11,7 @@ extends Node
 
 func _ready():
 	print("\n" + "="*60)
-	print("🧪 Testing v2 Overlay System Integration")
+	print("🧪 Testing Overlay System Integration")
 	print("="*60)
 
 	await get_tree().process_frame
@@ -44,7 +44,7 @@ func _run_tests():
 	print("-"*60)
 
 	var expected_overlays = ["inspector", "controls", "semantic_map", "quests", "biome_detail"]
-	var registered = overlay_manager.v2_overlays.keys()
+	var registered = overlay_manager.overlays.keys()
 
 	print("Expected overlays: %s" % expected_overlays)
 	print("Registered overlays: %s" % registered)
@@ -69,12 +69,12 @@ func _run_tests():
 
 	# Test opening inspector
 	print("Opening 'inspector' overlay...")
-	var opened = overlay_manager.open_v2_overlay("inspector")
+	var opened = overlay_manager.open_overlay("inspector")
 	await get_tree().process_frame
 
-	if opened and overlay_manager.is_v2_overlay_active():
+	if opened and overlay_manager.is_overlay_active():
 		print("   ✅ Overlay opened successfully")
-		var active = overlay_manager.get_active_v2_overlay()
+		var active = overlay_manager.get_active_overlay()
 		if active and active.overlay_name == "inspector":
 			print("   ✅ Active overlay is 'inspector'")
 			if active.is_active and active.visible:
@@ -88,10 +88,10 @@ func _run_tests():
 
 	# Test closing
 	print("Closing overlay...")
-	overlay_manager.close_v2_overlay()
+	overlay_manager.close_overlay()
 	await get_tree().process_frame
 
-	if not overlay_manager.is_v2_overlay_active():
+	if not overlay_manager.is_overlay_active():
 		print("   ✅ Overlay closed successfully")
 	else:
 		print("   ❌ Overlay still active after close")
@@ -104,7 +104,7 @@ func _run_tests():
 	print("-"*60)
 
 	# Open controls overlay and check labels
-	overlay_manager.open_v2_overlay("controls")
+	overlay_manager.open_overlay("controls")
 	await get_tree().process_frame
 
 	var labels = overlay_manager.get_active_overlay_actions()
@@ -119,7 +119,7 @@ func _run_tests():
 	else:
 		print("   ❌ Missing action labels")
 
-	overlay_manager.close_v2_overlay()
+	overlay_manager.close_overlay()
 	await get_tree().process_frame
 
 	# Test 4: Switching between overlays
@@ -128,18 +128,18 @@ func _run_tests():
 	print("-"*60)
 
 	print("Opening 'inspector'...")
-	overlay_manager.open_v2_overlay("inspector")
+	overlay_manager.open_overlay("inspector")
 	await get_tree().process_frame
 
-	var first_active = overlay_manager.get_active_v2_overlay()
+	var first_active = overlay_manager.get_active_overlay()
 	if first_active and first_active.overlay_name == "inspector":
 		print("   ✅ Inspector active")
 
 	print("Opening 'semantic_map' (should close inspector)...")
-	overlay_manager.open_v2_overlay("semantic_map")
+	overlay_manager.open_overlay("semantic_map")
 	await get_tree().process_frame
 
-	var second_active = overlay_manager.get_active_v2_overlay()
+	var second_active = overlay_manager.get_active_overlay()
 	if second_active and second_active.overlay_name == "semantic_map":
 		print("   ✅ Semantic map now active")
 		if not first_active.is_active or not first_active.visible:
@@ -149,7 +149,7 @@ func _run_tests():
 	else:
 		print("   ❌ Failed to switch overlays")
 
-	overlay_manager.close_v2_overlay()
+	overlay_manager.close_overlay()
 	await get_tree().process_frame
 
 	print("✅ Test 4 PASSED: Overlay switching works")
@@ -164,7 +164,7 @@ func _run_tests():
 		print("   ✅ FarmInputHandler found")
 
 		# Open overlay
-		overlay_manager.open_v2_overlay("inspector")
+		overlay_manager.open_overlay("inspector")
 		await get_tree().process_frame
 
 		# Simulate Q key press
@@ -177,7 +177,7 @@ func _run_tests():
 		var handled = input_handler._unhandled_input(key_event)
 		print("   ℹ️  Input handler processed event")
 
-		overlay_manager.close_v2_overlay()
+		overlay_manager.close_overlay()
 		await get_tree().process_frame
 
 		print("✅ Test 5 PASSED: Input routing functional")
@@ -208,7 +208,7 @@ func _run_tests():
 	print("\n" + "="*60)
 	print("🎉 V2 Overlay System Integration Tests Complete")
 	print("="*60)
-	print("\n✅ All v2 overlays are properly integrated:")
+	print("\n✅ All overlays are properly integrated:")
 	print("   - Overlays registered with OverlayManager")
 	print("   - Lifecycle (activate/deactivate) working")
 	print("   - Action labels (QER+F) accessible")

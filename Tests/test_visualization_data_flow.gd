@@ -82,7 +82,7 @@ func plant_and_analyze():
 
 	for biome_info in biomes_to_check:
 		var biome_name = biome_info["name"]
-		var biome = farm.grid.biomes.get(biome_name)
+		var biome = farm.grid.get_biome(biome_name)
 
 		if not biome:
 			print("❌ %s biome not found!" % biome_name)
@@ -132,7 +132,7 @@ func check_biome_state():
 	var biomes_to_check = ["BioticFlux", "Forest", "Market", "Kitchen"]
 
 	for biome_name in biomes_to_check:
-		var biome = farm.grid.biomes.get(biome_name)
+		var biome = farm.grid.get_biome(biome_name)
 		if not biome:
 			continue
 
@@ -187,7 +187,7 @@ func check_bath_evolution():
 	]
 
 	for test in test_cases:
-		var biome = farm.grid.biomes.get(test["name"])
+		var biome = farm.grid.get_biome(test["name"])
 		if not biome or not biome.bath:
 			continue
 

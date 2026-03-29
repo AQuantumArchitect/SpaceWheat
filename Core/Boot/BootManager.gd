@@ -74,10 +74,10 @@ func _should_rebuild_biome_operators(farm: Node) -> bool:
 	var skip_rebuild = OS.get_environment("SW_SKIP_OPERATOR_REBUILD").to_lower() in ["1", "true", "yes", "on"]
 	if skip_rebuild:
 		return false
-	if not farm or not farm.grid or not farm.grid.biomes:
+	if not farm or not farm.grid or not farm.grid.has_biomes():
 		return false
-	for biome_name in farm.grid.biomes.keys():
-		var biome = farm.grid.biomes[biome_name]
+	for biome_name in farm.grid.get_biome_names():
+		var biome = farm.grid.get_biome(biome_name)
 		if not _biome_operators_look_valid(biome):
 			return true
 	return false
@@ -172,7 +172,7 @@ func _stage_core_systems(farm: Node) -> void:
 	assert(farm.grid != null, "Farm.grid is null!")
 
 	# Boot requires at least one real biome runtime.
-	var has_biomes = farm.grid.biomes != null and not farm.grid.biomes.is_empty()
+	var has_biomes = farm.grid.has_biomes()
 	assert(has_biomes, "BootManager: no biomes loaded - boot aborted")
 
 	# Verify IconRegistry is available and fully loaded
@@ -195,8 +195,8 @@ func _stage_core_systems(farm: Node) -> void:
 				farm.rebuild_all_biome_operators()
 			else:
 				# Fallback: rebuild each biome directly
-				for biome_name in farm.grid.biomes.keys():
-					var biome = farm.grid.biomes[biome_name]
+				for biome_name in farm.grid.get_biome_names():
+					var biome = farm.grid.get_biome(biome_name)
 					if biome and biome.has_method("rebuild_quantum_operators"):
 						biome.rebuild_quantum_operators()
 			_verbose.info("boot", "✓", "All biome operators rebuilt")
@@ -204,8 +204,8 @@ func _stage_core_systems(farm: Node) -> void:
 			_verbose.info("boot", "✓", "Biome quantum operators already valid; skipping rebuild")
 
 		# Verify all biomes initialized correctly
-		for biome_name in farm.grid.biomes.keys():
-			var biome = farm.grid.biomes[biome_name]
+		for biome_name in farm.grid.get_biome_names():
+			var biome = farm.grid.get_biome(biome_name)
 			if not biome:
 				_verbose.warn("boot", "⚠️", "Biome '%s' is null - skipping" % biome_name)
 				continue
@@ -425,8 +425,8 @@ func _stage_ui(farm: Node, shell: Node, quantum_viz: Node) -> void:
 			else:
 				_verbose.warn("boot", "⚠️", "No layout_calculator available - tiles will use fallback positioning")
 
-		if farm.grid and farm.grid.biomes and not farm.grid.biomes.is_empty():
-			plot_grid_display.inject_biomes(farm.grid.biomes)
+		if farm.grid and farm.grid.has_biomes():
+			plot_grid_display.inject_biomes(farm.grid.get_all_biomes())
 			_verbose.info("boot", "✓", "PlotGridDisplay dependencies pre-injected")
 		else:
 			_verbose.warn("boot", "⚠️", "No biomes to inject - PlotGridDisplay will have no tiles")
@@ -592,8 +592,8 @@ func load_biome(biome_name: String, farm: Node) -> Dictionary:
 		}
 
 	# ====== CHECK IF ALREADY LOADED ======
-	if farm.grid.biomes.has(biome_name):
-		var existing_biome = farm.grid.biomes[biome_name]
+	if farm.grid.has_biome(biome_name):
+		var existing_biome = farm.grid.get_biome(biome_name)
 		if existing_biome:
 			_verbose.debug("boot", "ℹ️", "Biome '%s' already loaded (idempotent)" % biome_name)
 			return {

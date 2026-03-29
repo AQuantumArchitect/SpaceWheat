@@ -192,9 +192,9 @@ func test_round_3_cross_biome():
 	var biome_b = null
 
 	# Use biomes dictionary instead of grid.width (which doesn't exist)
-	if farm.grid.biomes:
-		for biome_name in farm.grid.biomes:
-			var test_biome = farm.grid.biomes[biome_name]
+	if farm.grid.has_biomes():
+		for biome_name in farm.grid.get_biome_names():
+			var test_biome = farm.grid.get_biome(biome_name)
 			if test_biome and test_biome != biome_a:
 				biome_b = test_biome
 				break

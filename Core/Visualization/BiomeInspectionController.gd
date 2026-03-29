@@ -154,8 +154,8 @@ static func get_active_projections(biome: BiomeBase, farm_grid) -> Array[Diction
 	var biome_name = _get_biome_name(biome)
 
 	# Iterate through all plots
-	for pos in farm_grid.plot_biome_assignments.keys():
-		var assigned_biome = farm_grid.plot_biome_assignments.get(pos, "")
+	for pos in farm_grid.get_plot_biome_assignments().keys():
+		var assigned_biome = farm_grid.get_plot_biome_assignment(pos)
 
 		if assigned_biome == biome_name:
 			var plot = farm_grid.get_plot(pos)

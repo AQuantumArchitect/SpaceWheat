@@ -223,10 +223,10 @@ func _resolve_biome():
 		if abm and abm.has_method("get_biome_by_name"):
 			_cached_biome = abm.get_biome_by_name(bound_biome_name)
 			return _cached_biome
-		# Fallback: try farm.grid.biomes
+		# Fallback: try farm grid lookup
 		var farm = tree.root.get_node_or_null("Farm")
-		if farm and farm.grid and "biomes" in farm.grid:
-			_cached_biome = farm.grid.biomes.get(bound_biome_name)
+		if farm and farm.grid:
+			_cached_biome = farm.grid.get_biome(bound_biome_name)
 			return _cached_biome
 	return null
 

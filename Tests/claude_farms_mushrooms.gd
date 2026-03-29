@@ -201,8 +201,8 @@ func _execute_experiment():
 
 func _advance_all_biomes(seconds: float):
 	"""Advance quantum evolution in all biomes"""
-	for biome_name in farm.grid.biomes.keys():
-		var biome = farm.grid.biomes[biome_name]
+	for biome_name in farm.grid.get_biome_names():
+		var biome = farm.grid.get_biome(biome_name)
 		biome.advance_simulation(seconds)
 	game_time += seconds
 

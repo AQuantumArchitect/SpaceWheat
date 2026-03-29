@@ -143,8 +143,10 @@ func _decide_action():
 	elif unmeasured_count > 0:
 		# Wait for quantum evolution
 		print("   ⏳ Waiting 40s for quantum evolution...")
-		for biome_name in farm.grid.biomes.keys():
-			farm.grid.biomes[biome_name].advance_simulation(40.0)
+		for biome_name in farm.grid.get_biome_names():
+			var biome = farm.grid.get_biome(biome_name)
+			if biome:
+				biome.advance_simulation(40.0)
 		game_time += 40.0
 
 	else:

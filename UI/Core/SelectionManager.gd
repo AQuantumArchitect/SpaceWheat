@@ -6,7 +6,7 @@ extends RefCounted
 ## Manages cursor position and multi-select checkbox state.
 ## Provides a clean API for QuantumInstrumentInput to query selected plots.
 
-# Current cursor position (single-select fallback)
+# Current cursor position when no checkbox multi-selection is active
 var current_selection: Vector2i = Vector2i.ZERO
 
 # Reference to PlotGridDisplay for multi-select
@@ -15,7 +15,7 @@ var plot_grid_display: Node = null
 # Grid configuration for bounds checking
 var grid_config = null
 
-# Grid dimensions (fallback if grid_config is null)
+# Grid dimensions used when no GridConfig has been injected
 var grid_width: int = 0
 var grid_height: int = 0
 
@@ -45,7 +45,7 @@ func inject_grid_config(config) -> void:
 ## ============================================================================
 
 func get_selected_plots() -> Array[Vector2i]:
-	"""Get checkbox-selected plots, fallback to cursor position.
+	"""Get checkbox-selected plots, or the cursor position when none are checked.
 
 	Returns:
 		Array[Vector2i]: Selected plot positions
@@ -55,7 +55,7 @@ func get_selected_plots() -> Array[Vector2i]:
 	if plot_grid_display and plot_grid_display.has_method("get_selected_plots"):
 		selected = plot_grid_display.get_selected_plots()
 
-	# Fallback to cursor if no multi-select
+	# Use the cursor position when no checkbox selections exist.
 	if selected.is_empty() and is_valid_position(current_selection):
 		selected = [current_selection]
 
@@ -173,7 +173,7 @@ func is_valid_position(pos: Vector2i) -> bool:
 	"""Check if position is within grid bounds."""
 	if grid_config:
 		return grid_config.is_position_valid(pos)
-	# Fallback for backward compatibility
+	# Use injected width/height when GridConfig is unavailable.
 	return pos.x >= 0 and pos.x < grid_width and \
 	       pos.y >= 0 and pos.y < grid_height
 

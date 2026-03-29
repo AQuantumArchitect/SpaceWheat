@@ -152,16 +152,16 @@ func _test_quest_board():
 
 	print("   ✅ Quest board exists")
 
-	# Check if it's registered as v2 overlay
-	if overlay_manager.v2_overlays.has("quests"):
-		print("   ✅ Quest board registered as v2 overlay")
+	# Check if it's registered as overlay
+	if overlay_manager.overlays.has("quests"):
+		print("   ✅ Quest board registered as overlay")
 		results["quest_board_v2"] = "PASS"
 	else:
-		print("   ⚠️ Quest board NOT in v2 overlays")
+		print("   ⚠️ Quest board NOT in overlays")
 		results["quest_board_v2"] = "FAIL: Not registered"
 
 	# Try to open it
-	var opened = overlay_manager.open_v2_overlay("quests")
+	var opened = overlay_manager.open_overlay("quests")
 	await get_tree().process_frame
 
 	if opened and quest_board.visible:
@@ -178,7 +178,7 @@ func _test_quest_board():
 		print("   ❌ Quest board failed to open")
 		results["quest_board"] = "FAIL: Won't open"
 
-	overlay_manager.close_v2_overlay()
+	overlay_manager.close_overlay()
 	await get_tree().process_frame
 
 func _print_summary():

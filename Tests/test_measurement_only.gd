@@ -19,7 +19,7 @@ func _init():
 
 	farm.economy.add_resource("🌾", 100, "test")
 
-	var biome = farm.grid.biomes.get("BioticFlux")
+	var biome = farm.grid.get_biome("BioticFlux")
 	var test_pos = Vector2i(2, 0)
 
 	# Plant

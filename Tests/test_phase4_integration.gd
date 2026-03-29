@@ -49,12 +49,12 @@ func _initialize_game():
 		finish_tests()
 		return
 
-	if farm.grid.biomes.is_empty():
+	if not farm.grid.has_biomes():
 		report_fail("No biomes initialized!")
 		finish_tests()
 		return
 
-	report_pass("Farm initialized with %d biome(s)" % farm.grid.biomes.size())
+	report_pass("Farm initialized with %d biome(s)" % farm.grid.get_biome_count())
 
 	# Run tests
 	print("\n" + "─".repeat(80))
@@ -95,15 +95,15 @@ func test_infrastructure_setup() -> void:
 	report_pass("Farm and grid ready")
 
 	# Check at least one biome
-	if farm.grid.biomes.is_empty():
+	if not farm.grid.has_biomes():
 		report_fail("No biomes registered")
 		return
 
-	report_pass("Biomes registered: %d" % farm.grid.biomes.size())
+	report_pass("Biomes registered: %d" % farm.grid.get_biome_count())
 
 	# Check first biome has quantum_computer
-	var first_biome_name = farm.grid.biomes.keys()[0]
-	var first_biome = farm.grid.biomes[first_biome_name]
+	var first_biome_name = farm.grid.get_biome_names()[0]
+	var first_biome = farm.grid.get_biome(first_biome_name)
 
 	if not first_biome:
 		report_fail("First biome is null")

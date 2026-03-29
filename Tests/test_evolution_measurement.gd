@@ -33,7 +33,7 @@ func _init():
 	print("  ✓ Farm ready")
 
 	# Get biome reference
-	var biome = farm.grid.biomes.get("BioticFlux")
+	var biome = farm.grid.get_biome("BioticFlux")
 	if not biome or not biome.bath:
 		print("❌ FAIL: No BioticFlux biome/bath")
 		quit(1)

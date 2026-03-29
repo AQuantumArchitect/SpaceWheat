@@ -140,7 +140,7 @@ static func measure(farm, terminal_pool, positions: Array[Vector2i]) -> Dictiona
 		var biome_name = terminal.bound_biome_name
 		if biome_name == "":
 			continue
-		var biome = farm.grid.biomes.get(biome_name, null) if farm.grid else null
+		var biome = farm.grid.get_biome(biome_name) if farm.grid else null
 		if not biome:
 			continue
 

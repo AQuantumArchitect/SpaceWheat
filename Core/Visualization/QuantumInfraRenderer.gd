@@ -39,8 +39,8 @@ func _draw_persistent_gate_infrastructure(graph: Node2D, ctx: Dictionary) -> voi
 	var max_width = graph_radius * 0.02
 	var corner_radius = graph_radius * 0.025
 
-	for grid_pos in farm_grid.plots:
-		var plot = farm_grid.plots[grid_pos]
+	for grid_pos in farm_grid.get_plot_positions():
+		var plot = farm_grid.get_plot(grid_pos)
 		if not plot:
 			continue
 

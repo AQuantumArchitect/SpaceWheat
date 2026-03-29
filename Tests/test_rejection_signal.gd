@@ -37,8 +37,8 @@ func _initialize():
 
 	# Test 1: Try to plant WHEAT at (0,0) [Market biome - should REJECT]
 	print("\n1. Test: Try to plant WHEAT at (0,0) [Market biome - should REJECT]")
-	if farm.grid.biomes.has("Market"):
-		var market = farm.grid.biomes.get("Market")
+	if (farm.grid.get_biome("Market") != null):
+		var market = farm.grid.get_biome("Market")
 		if market and market.bath:
 			print("   Market biome emojis: %s" % market.bath.emoji_list)
 			print("   Wheat in Market? %s" % ("🌾" in market.bath.emoji_to_index))
@@ -63,8 +63,8 @@ func _initialize():
 
 	# Test 2: Try to plant TOMATO at (2,0) [BioticFlux biome - should REJECT]
 	print("\n2. Test: Try to plant TOMATO at (2,0) [BioticFlux biome - should REJECT]")
-	if farm.grid.biomes.has("BioticFlux"):
-		var biotic = farm.grid.biomes.get("BioticFlux")
+	if (farm.grid.get_biome("BioticFlux") != null):
+		var biotic = farm.grid.get_biome("BioticFlux")
 		if biotic and biotic.bath:
 			print("   BioticFlux biome emojis: %s" % biotic.bath.emoji_list)
 			print("   Tomato in BioticFlux? %s" % ("🍅" in biotic.bath.emoji_to_index))
@@ -89,8 +89,8 @@ func _initialize():
 
 	# Test 3: Plant WHEAT at (2,0) [BioticFlux biome - should ALLOW]
 	print("\n3. Test: Try to plant WHEAT at (2,0) [BioticFlux biome - should ALLOW]")
-	if farm.grid.biomes.has("BioticFlux"):
-		var biotic = farm.grid.biomes.get("BioticFlux")
+	if (farm.grid.get_biome("BioticFlux") != null):
+		var biotic = farm.grid.get_biome("BioticFlux")
 		if biotic and biotic.bath:
 			print("   Wheat in BioticFlux? %s" % ("🌾" in biotic.bath.emoji_to_index))
 

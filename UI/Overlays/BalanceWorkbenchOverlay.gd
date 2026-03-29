@@ -301,8 +301,8 @@ func _refresh_timescale_projection() -> void:
 					var b = str(biome_name)
 					if b != "":
 						_timescale_biomes.append(b)
-	elif _farm and "grid" in _farm and _farm.grid and "biomes" in _farm.grid:
-		_timescale_biomes = _farm.grid.biomes.keys()
+	elif _farm and "grid" in _farm and _farm.grid and _farm.grid.has_biomes():
+		_timescale_biomes = _farm.grid.get_biome_names()
 		_timescale_biomes.sort()
 
 	if _timescale_biomes.is_empty():

@@ -53,7 +53,7 @@ static func action_explore(terminal_pool, biome, economy = null) -> Dictionary:
 		}
 
 	# 2. Check for unbound registers (availability gate)
-	var available_registers = biome.get_available_registers_v2(terminal_pool) if biome.has_method("get_available_registers_v2") else []
+	var available_registers = biome.get_available_registers(terminal_pool) if biome.has_method("get_available_registers") else []
 	if available_registers.is_empty():
 		return {
 			"success": false,
@@ -607,10 +607,10 @@ static func _looks_like_farm(value) -> bool:
 static func _resolve_biome_from_terminal(farm, terminal):
 	if not farm or not terminal:
 		return null
-	if not ("grid" in farm) or not farm.grid or not farm.grid.biomes:
+	if not ("grid" in farm) or not farm.grid or not farm.grid.has_biomes():
 		return null
 	var biome_name = terminal.measured_biome_name if terminal.measured_biome_name != "" else terminal.bound_biome_name
-	return farm.grid.biomes.get(biome_name, null)
+	return farm.grid.get_biome(biome_name)
 
 
 static func _resolve_terminal_purity(terminal, farm = null) -> float:
@@ -668,12 +668,12 @@ static func _resolve_emoji_purity(biome, emoji: String) -> float:
 
 static func _get_active_biomes_for_reap(farm) -> Array:
 	var out: Array = []
-	if not farm or not ("grid" in farm) or not farm.grid or not farm.grid.biomes:
+	if not farm or not ("grid" in farm) or not farm.grid or not farm.grid.has_biomes():
 		return out
 	var terminal_pool = farm.terminal_pool if ("terminal_pool" in farm) else null
 
-	for biome_name in farm.grid.biomes.keys():
-		var biome = farm.grid.biomes[biome_name]
+	for biome_name in farm.grid.get_biome_names():
+		var biome = farm.grid.get_biome(biome_name)
 		if not biome or not biome.quantum_computer:
 			continue
 		if "quantum_evolution_enabled" in biome and not biome.quantum_evolution_enabled:

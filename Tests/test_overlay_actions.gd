@@ -75,7 +75,7 @@ func _run_all_tests():
 	print("QuestBoard: %s" % (quest_board != null))
 
 	if overlay_manager:
-		var keys = overlay_manager.v2_overlays.keys() if overlay_manager.get("v2_overlays") else []
+		var keys = overlay_manager.overlays.keys() if overlay_manager.get("overlays") else []
 		print("v2 Overlays registered: %s" % [keys])
 
 	# Run overlay tests
@@ -150,7 +150,7 @@ func _test_quest_board():
 # ============================================================================
 
 func _test_inspector_overlay():
-	var inspector = _get_v2_overlay("inspector")
+	var inspector = _get_overlay("inspector")
 
 	if not inspector:
 		_fail("Inspector overlay not found")
@@ -164,14 +164,14 @@ func _test_inspector_overlay():
 		_fail("INSPECTOR: action_labels missing")
 
 	# Test QER+F methods
-	_test_v2_overlay_methods(inspector, "INSPECTOR")
+	_test_overlay_methods(inspector, "INSPECTOR")
 
 # ============================================================================
 # SEMANTIC MAP OVERLAY (V key)
 # ============================================================================
 
 func _test_semantic_map_overlay():
-	var semantic_map = _get_v2_overlay("semantic_map")
+	var semantic_map = _get_overlay("semantic_map")
 
 	if not semantic_map:
 		_fail("SemanticMap overlay not found")
@@ -185,14 +185,14 @@ func _test_semantic_map_overlay():
 		_fail("SEMANTIC_MAP: action_labels missing")
 
 	# Test QER+F methods
-	_test_v2_overlay_methods(semantic_map, "SEMANTIC_MAP")
+	_test_overlay_methods(semantic_map, "SEMANTIC_MAP")
 
 # ============================================================================
 # CONTROLS OVERLAY (K key)
 # ============================================================================
 
 func _test_controls_overlay():
-	var controls = _get_v2_overlay("controls")
+	var controls = _get_overlay("controls")
 
 	if not controls:
 		_fail("Controls overlay not found")
@@ -206,24 +206,24 @@ func _test_controls_overlay():
 		_fail("CONTROLS: action_labels missing")
 
 	# Test QER+F methods
-	_test_v2_overlay_methods(controls, "CONTROLS")
+	_test_overlay_methods(controls, "CONTROLS")
 
 # ============================================================================
 # UTILITIES
 # ============================================================================
 
-func _get_v2_overlay(name: String):
-	"""Get v2 overlay by name from OverlayManager"""
+func _get_overlay(name: String):
+	"""Get overlay by name from OverlayManager"""
 	if not overlay_manager:
 		return null
 
-	if overlay_manager.get("v2_overlays"):
-		return overlay_manager.v2_overlays.get(name)
+	if overlay_manager.get("overlays"):
+		return overlay_manager.overlays.get(name)
 
 	return null
 
-func _test_v2_overlay_methods(overlay, prefix: String):
-	"""Test that a v2 overlay has QER+F methods"""
+func _test_overlay_methods(overlay, prefix: String):
+	"""Test that an overlay has QER+F methods"""
 
 	# Test Q
 	print("\n[Q] Testing ON_Q_PRESSED...")

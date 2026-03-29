@@ -325,7 +325,7 @@ func _open_submenu_for_action(action_info: Dictionary) -> void:
 	var context = _build_context_dict()
 	var submenu_data = _instrument.enter_submenu(submenu_name, context)
 
-	# Update legacy state for backward compat
+	# Update local submenu cache for UI signal emission
 	_current_submenu = submenu_data
 	_in_submenu = true
 	_submenu_page = 0
@@ -414,7 +414,7 @@ func _cycle_submenu_page() -> void:
 	var context = _build_context_dict()
 	var result = _instrument.cycle_submenu_page(context)
 
-	# Update legacy state
+	# Update local submenu cache
 	_current_submenu = result.submenu_data
 	_submenu_page = result.page
 
@@ -853,7 +853,7 @@ func _perform_shift_key_action(action_key: String) -> void:
 		_restore_selection(original_selection)
 		return
 
-	# NON-GATE PATH: Loop through positions (old behavior)
+	# NON-GATE PATH: Apply the action across checked positions
 	_verbose.info("input", symbol, "Batch %s on %d checked plots" % [log_label, positions.size()])
 
 	for pos in positions:
@@ -964,7 +964,7 @@ func _get_biome_for_position(pos: Vector2i):
 	var biome_name = farm.get_biome_for_row(pos.y) if farm.has_method("get_biome_for_row") else ""
 	if biome_name == "":
 		return null
-	return farm.grid.biomes.get(biome_name)
+	return farm.grid.get_biome(biome_name)
 
 
 func _get_qubit_for_position(pos: Vector2i, biome) -> int:
@@ -1073,7 +1073,7 @@ func _get_target_biome_for_granularity() -> Dictionary:
 		var last_biome_name = scene_root.get_last_generated_biome_name()
 		if last_biome_name.is_empty():
 			return {"biome": null, "name": "", "reason": "test_no_biomes_generated"}
-		var biome_obj = farm.grid.biomes.get(last_biome_name)
+		var biome_obj = farm.grid.get_biome(last_biome_name)
 		if biome_obj:
 			return {"biome": biome_obj, "name": last_biome_name, "reason": "test_last_generated"}
 		else:
@@ -1084,7 +1084,7 @@ func _get_target_biome_for_granularity() -> Dictionary:
 		var active_biome_name = _active_biome_mgr.get_active_biome()
 		if active_biome_name.is_empty():
 			return {"biome": null, "name": "", "reason": "no_active_biome"}
-		var biome_obj = farm.grid.biomes.get(active_biome_name)
+		var biome_obj = farm.grid.get_biome(active_biome_name)
 		if biome_obj:
 			return {"biome": biome_obj, "name": active_biome_name, "reason": "active_biome"}
 		else:
@@ -1125,9 +1125,9 @@ func _decimate_single_biome_buffer(biome_name: String, decimation_factor: int) -
 		return
 
 	if not batcher.has_method("decimate_biome_buffer"):
-		# Fallback to full invalidation
-		_verbose.warn("input", "⚠️", "Batcher missing decimate_biome_buffer() - falling back to invalidation")
-		_invalidate_single_biome_buffer(biome_name, "granularity_increase_fallback")
+		# Coarser granularity still needs buffer refresh even without decimation support.
+		_verbose.warn("input", "⚠️", "Batcher missing decimate_biome_buffer() - invalidating biome buffer instead")
+		_invalidate_single_biome_buffer(biome_name, "granularity_increase_refresh")
 		return
 
 	var new_depth = batcher.decimate_biome_buffer(biome_name, decimation_factor)
@@ -1171,7 +1171,7 @@ func _invalidate_all_biome_buffers(reason: String) -> void:
 
 	# Invalidate ALL biomes
 	var biome_count = 0
-	for biome_name in farm.grid.biomes.keys():
+	for biome_name in farm.grid.get_biome_names():
 		batcher.invalidate_biome_buffer(biome_name)
 		biome_count += 1
 
@@ -1197,14 +1197,14 @@ func _decimate_all_biome_buffers(decimation_factor: int) -> void:
 		return
 
 	if not batcher.has_method("decimate_biome_buffer"):
-		# Fallback to full invalidation if decimation not available
-		_verbose.warn("input", "⚠️", "Batcher missing decimate_biome_buffer() - falling back to invalidation")
-		_invalidate_all_biome_buffers("granularity_increase_fallback")
+		# Coarser granularity still needs buffer refresh even without decimation support.
+		_verbose.warn("input", "⚠️", "Batcher missing decimate_biome_buffer() - invalidating all biome buffers instead")
+		_invalidate_all_biome_buffers("granularity_increase_refresh")
 		return
 
 	var biome_count = 0
 	var total_preserved = 0
-	for biome_name in farm.grid.biomes.keys():
+	for biome_name in farm.grid.get_biome_names():
 		var new_depth = batcher.decimate_biome_buffer(biome_name, decimation_factor)
 		total_preserved += new_depth
 		biome_count += 1
@@ -1314,7 +1314,7 @@ func _get_current_biome():
 	if biome_name == "":
 		biome_name = _active_biome_mgr.get_active_biome() if _active_biome_mgr else "BioticFlux"
 
-	return farm.grid.biomes.get(biome_name)
+	return farm.grid.get_biome(biome_name)
 
 
 func _get_grid_position() -> Vector2i:
@@ -1335,9 +1335,9 @@ func _get_active_biome_register_count() -> int:
 	var biome_name = _active_biome_mgr.get_active_biome()
 	if biome_name == "":
 		return 0
-	if not farm.grid.biomes.has(biome_name):
+	if not farm.grid.has_biome(biome_name):
 		return 0
-	var biome = farm.grid.biomes[biome_name]
+	var biome = farm.grid.get_biome(biome_name)
 	if biome and biome.quantum_computer and biome.quantum_computer.register_map:
 		return biome.quantum_computer.register_map.num_qubits
 	return 0

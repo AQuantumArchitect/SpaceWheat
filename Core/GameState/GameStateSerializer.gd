@@ -75,8 +75,8 @@ func capture_state_from_farm(farm: Node, current_state: GameState, scenario_id: 
 	state.game_time = current_state.game_time if current_state else 0.0
 
 	# Simulation speed (from first biome)
-	if farm.grid and farm.grid.biomes and not farm.grid.biomes.is_empty():
-		var first_biome = farm.grid.biomes.values()[0]
+	if farm.grid and farm.grid.has_biomes():
+		var first_biome = farm.grid.get_primary_biome()
 		if "quantum_time_scale" in first_biome:
 			state.quantum_time_scale = first_biome.quantum_time_scale
 		if "observation_stride" in first_biome:
@@ -231,8 +231,8 @@ func capture_state_from_farm(farm: Node, current_state: GameState, scenario_id: 
 	# Capture plot→biome assignments
 	state.plot_biome_assignments = {}
 	if farm.grid:
-		for pos_key in farm.grid.plot_biome_assignments.keys():
-			state.plot_biome_assignments[pos_key] = farm.grid.plot_biome_assignments[pos_key]
+		for pos_key in farm.grid.get_plot_biome_assignments().keys():
+			state.plot_biome_assignments[pos_key] = farm.grid.get_plot_biome_assignment(pos_key)
 
 	# Vocabulary Evolution State
 	if _vocabulary_evolution and _vocabulary_evolution.has_method("serialize"):
@@ -318,9 +318,9 @@ func apply_state_to_farm(state: GameState, farm: Node) -> void:
 	elif "reap_count" in farm:
 		farm.reap_count = int(state.reap_count)
 
-	if farm.grid and farm.grid.biomes:
+	if farm.grid and farm.grid.has_biomes():
 		var biome_count = 0
-		for biome in farm.grid.biomes.values():
+		for biome in farm.grid.get_all_biomes().values():
 			if "quantum_time_scale" in biome:
 				biome.quantum_time_scale = state.quantum_time_scale
 				biome_count += 1
@@ -448,7 +448,8 @@ func apply_state_to_farm(state: GameState, farm: Node) -> void:
 		])
 
 	if state.plot_biome_assignments and farm.grid:
-		farm.grid.plot_biome_assignments = state.plot_biome_assignments.duplicate()
+		for pos_key in state.plot_biome_assignments.keys():
+			farm.grid.set_plot_biome_assignment(pos_key, str(state.plot_biome_assignments[pos_key]))
 
 	var has_register_infra = false
 	if state.biome_states:
@@ -684,12 +685,12 @@ func _resolve_known_pairs_for_capture(farm: Node) -> Array:
 
 func _capture_all_biome_states(farm: Node) -> Dictionary:
 	var all_states = {}
-	if not farm.grid or not "biomes" in farm.grid:
+	if not farm.grid or not farm.grid.has_biomes():
 		push_warning("Farm grid has no biomes registry - cannot capture biome states")
 		return all_states
 
-	for biome_name in farm.grid.biomes.keys():
-		var biome = farm.grid.biomes[biome_name]
+	for biome_name in farm.grid.get_biome_names():
+		var biome = farm.grid.get_biome(biome_name)
 		if biome:
 			var state = _capture_single_biome_state(biome, biome_name)
 			state["biome_class"] = biome.get_script().resource_path
@@ -769,7 +770,7 @@ func _restore_all_biome_states(farm: Node, biome_states: Dictionary) -> void:
 
 	for biome_name in biome_states.keys():
 		var biome_state = biome_states[biome_name]
-		var biome = farm.grid.biomes.get(biome_name, null)
+		var biome = farm.grid.get_biome(biome_name)
 		if not biome:
 			push_warning("Biome %s not found in grid registry - skipping restore" % biome_name)
 			continue
@@ -840,7 +841,7 @@ func _migrate_plot_infra_to_register(farm: Node, state: GameState) -> void:
 		if reg_id < 0 or biome_name == "":
 			continue
 
-		var biome = farm.grid.biomes.get(biome_name, null)
+		var biome = farm.grid.get_biome(biome_name)
 		if not biome or not biome.quantum_computer:
 			continue
 
@@ -882,12 +883,11 @@ func _reconnect_plots_to_projections(farm: Node, state: GameState) -> void:
 			continue
 
 		var biome_name = ""
-		if farm.grid.plot_biome_assignments.has(pos):
-			biome_name = farm.grid.plot_biome_assignments[pos]
-		else:
+		biome_name = farm.grid.get_plot_biome_assignment(pos)
+		if biome_name == "":
 			continue
 
-		var biome = farm.grid.biomes.get(biome_name, null)
+		var biome = farm.grid.get_biome(biome_name)
 		if not biome:
 			push_warning("Biome %s not found for plot reconnection" % biome_name)
 			continue

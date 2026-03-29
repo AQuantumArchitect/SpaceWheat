@@ -33,16 +33,16 @@ func _init():
 	await process_frame
 	await process_frame
 
-	if farm.grid and farm.grid.biomes.size() > 0:
-		print("✅ Farm initialized with %d biomes\n" % farm.grid.biomes.size())
+	if farm.grid and farm.grid.get_biome_count() > 0:
+		print("✅ Farm initialized with %d biomes\n" % farm.grid.get_biome_count())
 	else:
 		print("❌ Farm not properly initialized\n")
 		quit(1)
 
 	print("Test 5: Verify biome baths are initialized")
 	var bath_count = 0
-	for biome_name in farm.grid.biomes.keys():
-		var biome = farm.grid.biomes[biome_name]
+	for biome_name in farm.grid.get_biome_names():
+		var biome = farm.grid.get_biome(biome_name)
 		if biome.bath:
 			if biome.bath._hamiltonian and biome.bath._lindblad:
 				bath_count += 1
@@ -52,10 +52,10 @@ func _init():
 		else:
 			print("   ✗ %s: bath is null" % biome_name)
 
-	if bath_count == farm.grid.biomes.size():
+	if bath_count == farm.grid.get_biome_count():
 		print("✅ All biome baths initialized\n")
 	else:
-		print("❌ Only %d/%d baths ready\n" % [bath_count, farm.grid.biomes.size()])
+		print("❌ Only %d/%d baths ready\n" % [bath_count, farm.grid.get_biome_count()])
 
 	# Note: Full BootManager test would require PlayerShell and QuantumViz
 	# which are UI-heavy and take a long time to initialize

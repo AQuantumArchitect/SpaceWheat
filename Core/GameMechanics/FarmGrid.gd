@@ -203,6 +203,29 @@ func get_all_biomes() -> Dictionary:
 	return _biome_routing.get_all_biomes()
 
 
+func get_all_plots() -> Dictionary:
+	return _plot_manager.plots if _plot_manager else {}
+
+
+func get_plot_biome_assignments() -> Dictionary:
+	return _biome_routing.get_plot_biome_assignments()
+
+
+func has_biomes() -> bool:
+	return not _biome_routing.is_biomes_empty()
+
+
+func get_biome_count() -> int:
+	return _biome_routing.biomes.size()
+
+
+func get_primary_biome():
+	var names = get_biome_names()
+	if names.is_empty():
+		return null
+	return get_biome(names[0])
+
+
 func assign_plot_to_biome(position: Vector2i, biome_name: String) -> bool:
 	"""Assign a specific plot to a biome (graceful - skips unregistered biomes)
 
@@ -251,6 +274,14 @@ func clear_plot_biome_assignment(position: Vector2i) -> void:
 func get_plot(position: Vector2i) -> FarmPlot:
 	"""Get or create plot at position"""
 	return _plot_manager.get_plot(position)
+
+
+func get_plot_positions() -> Array:
+	return _plot_manager.plots.keys()
+
+
+func get_plot_count() -> int:
+	return _plot_manager.plots.size()
 
 
 func is_valid_position(position: Vector2i) -> bool:

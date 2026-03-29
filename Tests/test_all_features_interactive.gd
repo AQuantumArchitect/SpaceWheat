@@ -92,16 +92,16 @@ func _test_overlay_system(shell: Node):
 		_add_test("Overlay system accessible", false, "overlay_manager is null")
 		return
 
-	_add_test("v2_overlays dictionary exists", overlay_mgr.v2_overlays != null)
-	_add_test("5 overlays registered", overlay_mgr.v2_overlays.size() == 5)
+	_add_test("overlays dictionary exists", overlay_mgr.overlays != null)
+	_add_test("5 overlays registered", overlay_mgr.overlays.size() == 5)
 
 	var expected = ["inspector", "controls", "semantic_map", "quests", "biome_detail"]
 	for overlay_name in expected:
-		var has_overlay = overlay_mgr.v2_overlays.has(overlay_name)
+		var has_overlay = overlay_mgr.overlays.has(overlay_name)
 		_add_test("  → %s overlay exists" % overlay_name, has_overlay)
 
 		if has_overlay:
-			var overlay = overlay_mgr.v2_overlays[overlay_name]
+			var overlay = overlay_mgr.overlays[overlay_name]
 			var has_methods = (
 				overlay.has_method("handle_input") and
 				overlay.has_method("activate") and
@@ -116,7 +116,7 @@ func _test_inspector_overlay(shell: Node):
 		_add_test("Inspector accessible", false)
 		return
 
-	var inspector = overlay_mgr.v2_overlays.get("inspector")
+	var inspector = overlay_mgr.overlays.get("inspector")
 	if not inspector:
 		_add_test("Inspector overlay exists", false)
 		return
@@ -125,7 +125,7 @@ func _test_inspector_overlay(shell: Node):
 	_add_test("Inspector has set_biome method", inspector.has_method("set_biome"))
 
 	# Try opening it
-	var opened = overlay_mgr.open_v2_overlay("inspector")
+	var opened = overlay_mgr.open_overlay("inspector")
 	_add_test("Inspector overlay opens", opened)
 
 	if opened and inspector.quantum_computer:
@@ -133,7 +133,7 @@ func _test_inspector_overlay(shell: Node):
 	else:
 		_add_test("  → Inspector quantum_computer binding", false, "quantum_computer is null")
 
-	overlay_mgr.close_v2_overlay()
+	overlay_mgr.close_overlay()
 
 func _test_semantic_map_overlay(shell: Node):
 	var overlay_mgr = shell.overlay_manager
@@ -141,7 +141,7 @@ func _test_semantic_map_overlay(shell: Node):
 		_add_test("Semantic Map accessible", false)
 		return
 
-	var semantic = overlay_mgr.v2_overlays.get("semantic_map")
+	var semantic = overlay_mgr.overlays.get("semantic_map")
 	if not semantic:
 		_add_test("Semantic Map overlay exists", false)
 		return
@@ -149,7 +149,7 @@ func _test_semantic_map_overlay(shell: Node):
 	_add_test("Semantic Map overlay exists", true)
 
 	# Try opening it
-	var opened = overlay_mgr.open_v2_overlay("semantic_map")
+	var opened = overlay_mgr.open_overlay("semantic_map")
 	_add_test("Semantic Map opens", opened)
 
 	if opened:
@@ -170,7 +170,7 @@ func _test_semantic_map_overlay(shell: Node):
 		semantic.on_f_pressed()
 		_add_test("  → F key (cycle view) works", true)
 
-	overlay_mgr.close_v2_overlay()
+	overlay_mgr.close_overlay()
 
 func _test_controls_overlay(shell: Node):
 	var overlay_mgr = shell.overlay_manager
@@ -178,7 +178,7 @@ func _test_controls_overlay(shell: Node):
 		_add_test("Controls accessible", false)
 		return
 
-	var controls = overlay_mgr.v2_overlays.get("controls")
+	var controls = overlay_mgr.overlays.get("controls")
 	if not controls:
 		_add_test("Controls overlay exists", false)
 		return
@@ -186,14 +186,14 @@ func _test_controls_overlay(shell: Node):
 	_add_test("Controls overlay exists", true)
 
 	# Try opening it
-	var opened = overlay_mgr.open_v2_overlay("controls")
+	var opened = overlay_mgr.open_overlay("controls")
 	_add_test("Controls overlay opens", opened)
 
 	if opened:
 		# Test controls functionality
 		_add_test("  → Controls displays key reference", controls.visible)
 
-	overlay_mgr.close_v2_overlay()
+	overlay_mgr.close_overlay()
 
 func _test_quests_overlay(shell: Node):
 	var overlay_mgr = shell.overlay_manager
@@ -201,7 +201,7 @@ func _test_quests_overlay(shell: Node):
 		_add_test("Quests accessible", false)
 		return
 
-	var quests = overlay_mgr.v2_overlays.get("quests")
+	var quests = overlay_mgr.overlays.get("quests")
 	if not quests:
 		_add_test("Quests overlay exists", false)
 		return
@@ -209,14 +209,14 @@ func _test_quests_overlay(shell: Node):
 	_add_test("Quests overlay exists", true)
 
 	# Try opening it
-	var opened = overlay_mgr.open_v2_overlay("quests")
+	var opened = overlay_mgr.open_overlay("quests")
 	_add_test("Quests overlay opens", opened)
 
 	if opened:
 		var has_quest_manager = quests.quest_manager != null if quests.has_meta("quest_manager") or "quest_manager" in quests else false
 		_add_test("  → Quest manager accessible", has_quest_manager)
 
-	overlay_mgr.close_v2_overlay()
+	overlay_mgr.close_overlay()
 
 func _test_biome_detail_overlay(shell: Node):
 	var overlay_mgr = shell.overlay_manager
@@ -224,7 +224,7 @@ func _test_biome_detail_overlay(shell: Node):
 		_add_test("Biome Detail accessible", false)
 		return
 
-	var biome_detail = overlay_mgr.v2_overlays.get("biome_detail")
+	var biome_detail = overlay_mgr.overlays.get("biome_detail")
 	if not biome_detail:
 		_add_test("Biome Detail overlay exists", false)
 		return
@@ -232,10 +232,10 @@ func _test_biome_detail_overlay(shell: Node):
 	_add_test("Biome Detail overlay exists", true)
 
 	# Try opening it
-	var opened = overlay_mgr.open_v2_overlay("biome_detail")
+	var opened = overlay_mgr.open_overlay("biome_detail")
 	_add_test("Biome Detail overlay opens", opened)
 
-	overlay_mgr.close_v2_overlay()
+	overlay_mgr.close_overlay()
 
 func _test_tool_selection(shell: Node):
 	var action_bar = shell.action_bar_manager
@@ -267,7 +267,7 @@ func _test_input_routing(shell: Node):
 	var input_handler = shell.input_handler
 
 	# Test routing priority
-	var has_v2_system = overlay_mgr and overlay_mgr.v2_overlays != null
+	var has_v2_system = overlay_mgr and overlay_mgr.overlays != null
 	_add_test("v2 Overlay routing ready", has_v2_system)
 
 	var has_modal_stack = shell.has_method("_handle_shell_action")
@@ -284,14 +284,14 @@ func _test_data_flow(shell: Node):
 	var farm = shell.farm
 
 	# Inspector data
-	var inspector = overlay_mgr.v2_overlays.get("inspector") if overlay_mgr else null
+	var inspector = overlay_mgr.overlays.get("inspector") if overlay_mgr else null
 	if inspector and inspector.has_method("set_biome"):
 		_add_test("Inspector data binding ready", true)
 	else:
 		_add_test("Inspector data binding ready", false)
 
 	# Semantic Map data
-	var semantic = overlay_mgr.v2_overlays.get("semantic_map") if overlay_mgr else null
+	var semantic = overlay_mgr.overlays.get("semantic_map") if overlay_mgr else null
 	if semantic:
 		var has_vocab_loader = semantic.has_method("_load_vocabulary_data")
 		_add_test("Semantic Map vocab loading implemented", has_vocab_loader)

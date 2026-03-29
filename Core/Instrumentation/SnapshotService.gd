@@ -78,7 +78,7 @@ func open_controls_panel() -> bool:
 func _open_overlay(name: String) -> bool:
 	if not overlay_manager:
 		return false
-	return overlay_manager.open_v2_overlay(name)
+	return overlay_manager.open_overlay(name)
 
 
 func get_resource_amount(emoji: String) -> float:
@@ -203,8 +203,8 @@ func get_grid_snapshot() -> Dictionary:
 		snapshot["grid_width"] = grid.grid_width
 	if "grid_height" in grid:
 		snapshot["grid_height"] = grid.grid_height
-	if "biomes" in grid and grid.biomes:
-		var biome_names = grid.biomes.keys()
+	if grid.has_biomes():
+		var biome_names = grid.get_biome_names()
 		biome_names.sort()
 		snapshot["biomes"] = biome_names
 	if snapshot.has("grid_width") and snapshot.has("grid_height"):
@@ -251,7 +251,7 @@ func get_lindblad_snapshot(biome_name: String = "", include_populations: bool = 
 	if not farm or not ("grid" in farm) or not farm.grid:
 		return {"ok": false, "error": "no_grid"}
 	var grid = farm.grid
-	var plots = grid.plots if "plots" in grid else {}
+	var plots = grid.get_all_plots() if grid.has_method("get_all_plots") else {}
 	var plot_channels: Array = []
 	var active_plot_count = 0
 
@@ -289,9 +289,9 @@ func get_lindblad_snapshot(biome_name: String = "", include_populations: bool = 
 		active_plot_count += 1
 
 	var biomes_data: Dictionary = {}
-	if "biomes" in grid and grid.biomes:
-		for bkey in grid.biomes.keys():
-			var biome = grid.biomes[bkey]
+	if grid.has_biomes():
+		for bkey in grid.get_biome_names():
+			var biome = grid.get_biome(str(bkey))
 			if not biome:
 				continue
 			var bname = str(bkey)
@@ -353,8 +353,8 @@ func get_quest_offers_for_current_biome() -> Array:
 	if not quest_manager.has_method("offer_all_faction_quests"):
 		return []
 	var current_biome = farm.get_current_biome() if farm.has_method("get_current_biome") else null
-	if not current_biome and farm.grid and farm.grid.biomes and not farm.grid.biomes.is_empty():
-		current_biome = farm.grid.biomes.values()[0]
+	if not current_biome and farm.grid and farm.grid.has_biomes():
+		current_biome = farm.grid.get_primary_biome()
 	if not current_biome:
 		return []
 	return quest_manager.offer_all_faction_quests(current_biome)
@@ -443,9 +443,9 @@ func _resolve_overlay(overlay_name: String):
 	if overlay_name == "":
 		return null
 	var overlay_manager = _resolve_overlay_manager()
-	if not overlay_manager or not overlay_manager.has_method("get_v2_overlay"):
+	if not overlay_manager or not overlay_manager.has_method("get_overlay"):
 		return null
-	return overlay_manager.get_v2_overlay(overlay_name)
+	return overlay_manager.get_overlay(overlay_name)
 
 
 func _resolve_widget(widget_name: String):

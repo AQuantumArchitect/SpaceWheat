@@ -97,8 +97,8 @@ func setup_farm(farm_ref: Node) -> void:
 	if farm and plot_grid_display:
 		plot_grid_display.inject_farm(farm)
 		plot_grid_display.inject_grid_config(grid_config)
-		if farm.grid and farm.grid.biomes:
-			plot_grid_display.inject_biomes(farm.grid.biomes)
+		if farm.grid and farm.grid.has_biomes():
+			plot_grid_display.inject_biomes(farm.grid.get_all_biomes())
 
 		# Wire rejection visual feedback
 		if farm.has_signal("action_rejected"):

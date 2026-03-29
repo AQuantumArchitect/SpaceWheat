@@ -104,8 +104,8 @@ func _test_tool_1_grower():
 
 	# Test entangle_batch (Bell gate)
 	print("\n[1.4] entangle_batch (Bell φ+)")
-	var biome_name = farm.grid.plot_biome_assignments.get(Vector2i(0, 0))
-	var biome = farm.grid.biomes.get(biome_name)
+	var biome_name = farm.grid.get_plot_biome_assignment(Vector2i(0, 0))
+	var biome = farm.grid.get_biome(biome_name)
 	var gates_before = biome.bell_gates.size() if biome else 0
 
 	farm.grid.create_entanglement(Vector2i(0, 0), Vector2i(1, 0), "phi_plus")
@@ -146,8 +146,8 @@ func _test_tool_2_quantum():
 
 	# Test cluster (3-qubit GHZ gate)
 	print("\n[2.1] cluster (3-qubit GHZ)")
-	var biome_name = farm.grid.plot_biome_assignments.get(Vector2i(3, 0))
-	var biome = farm.grid.biomes.get(biome_name)
+	var biome_name = farm.grid.get_plot_biome_assignment(Vector2i(3, 0))
+	var biome = farm.grid.get_biome(biome_name)
 	var gates_before = biome.bell_gates.size() if biome else 0
 
 	farm.grid.create_triplet_entanglement(Vector2i(3, 0), Vector2i(4, 0), Vector2i(5, 0))
@@ -246,8 +246,8 @@ func _test_tool_4_biome_control():
 	farm.build(Vector2i(3, 1), "wheat")
 	await get_tree().process_frame
 
-	var biome_name = farm.grid.plot_biome_assignments.get(Vector2i(3, 1))
-	var biome = farm.grid.biomes.get(biome_name)
+	var biome_name = farm.grid.get_plot_biome_assignment(Vector2i(3, 1))
+	var biome = farm.grid.get_biome(biome_name)
 
 	if not biome:
 		_fail("No biome found for biome control tests")
@@ -336,8 +336,8 @@ func _test_tool_5_gates():
 	farm.build(Vector2i(5, 1), "wheat")
 	await get_tree().process_frame
 
-	var biome_name = farm.grid.plot_biome_assignments.get(Vector2i(4, 1))
-	var biome = farm.grid.biomes.get(biome_name)
+	var biome_name = farm.grid.get_plot_biome_assignment(Vector2i(4, 1))
+	var biome = farm.grid.get_biome(biome_name)
 
 	if not biome or not biome.bath:
 		_fail("No biome/bath for gate tests")
@@ -429,9 +429,9 @@ func _test_tool_6_biome_management():
 
 	# Test assign_to_biome
 	print("\n[6.1] assign_to_BioticFlux")
-	var old_biome = farm.grid.plot_biome_assignments.get(Vector2i(0, 0), "")
+	var old_biome = farm.grid.get_plot_biome_assignment(Vector2i(0, 0), "")
 	farm.grid.assign_plot_to_biome(Vector2i(0, 0), "BioticFlux")
-	var new_biome = farm.grid.plot_biome_assignments.get(Vector2i(0, 0), "")
+	var new_biome = farm.grid.get_plot_biome_assignment(Vector2i(0, 0), "")
 
 	if new_biome == "BioticFlux":
 		_pass("Plot assigned to BioticFlux (was: %s)" % old_biome)
@@ -441,8 +441,8 @@ func _test_tool_6_biome_management():
 
 	# Test clear_biome_assignment
 	print("\n[6.2] clear_biome_assignment")
-	farm.grid.plot_biome_assignments.erase(Vector2i(0, 0))
-	var cleared = not farm.grid.plot_biome_assignments.has(Vector2i(0, 0))
+	farm.grid.clear_plot_biome_assignment(Vector2i(0, 0))
+	var cleared = farm.grid.get_plot_biome_assignment(Vector2i(0, 0), "") == ""
 
 	if cleared:
 		_pass("Biome assignment cleared")
@@ -454,7 +454,7 @@ func _test_tool_6_biome_management():
 	print("\n[6.3] inspect_plot")
 	# Re-assign for inspection
 	farm.grid.assign_plot_to_biome(Vector2i(0, 0), "Market")
-	var assigned_biome = farm.grid.plot_biome_assignments.get(Vector2i(0, 0))
+	var assigned_biome = farm.grid.get_plot_biome_assignment(Vector2i(0, 0))
 	var plot = farm.grid.get_plot(Vector2i(0, 0))
 
 	if assigned_biome and plot:

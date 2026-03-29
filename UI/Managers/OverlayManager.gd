@@ -20,7 +20,7 @@ const QuantumRigorConfigUI = preload("res://UI/Overlays/QuantumRigorConfigUI.gd"
 const IconDetailPanel = preload("res://UI/Widgets/IconDetailPanel.gd")
 # const SaveDataAdapter = preload("res://UI/SaveDataAdapter.gd")  # Legacy - unused, commented out to fix compilation error
 
-# v2 Overlay System (now uses unified OverlayBase)
+# Unified overlay stack system
 const OverlayBaseClass = preload("res://UI/Core/OverlayBase.gd")
 const InspectorOverlay = preload("res://UI/Overlays/InspectorOverlay.gd")
 const ControlsOverlay = preload("res://UI/Overlays/ControlsOverlay.gd")
@@ -39,9 +39,9 @@ var quantum_config_ui: QuantumRigorConfigUI  # Quantum rigor mode settings panel
 var touch_button_bar: Control  # Touch-friendly panel buttons on LEFT side (C/V/B/N/K)
 var icon_detail_panel  # Icon information detail panel
 
-# v2 Overlay System
-var v2_overlays: Dictionary = {}  # name → OverlayBase instance
-# active_v2_overlay REMOVED - now tracked by OverlayStackManager
+# Unified overlay registry
+var overlays: Dictionary = {}  # name → OverlayBase instance
+# Active overlay is tracked by OverlayStackManager
 var inspector_overlay = null  # Density matrix inspector
 var controls_overlay = null  # Keyboard controls reference
 var semantic_map_overlay = null  # Semantic octant visualization
@@ -79,8 +79,8 @@ signal quit_requested()
 signal menu_resumed()
 signal debug_scenario_requested(name: String)
 
-# v2 Overlay System signals
-signal v2_overlay_changed(overlay_name: String, is_open: bool)
+# Overlay stack signals
+signal overlay_changed(overlay_name: String, is_open: bool)
 
 # HAUNTED UI FIX: Prevent duplicate overlay creation
 var _overlays_created: bool = false
@@ -97,7 +97,7 @@ func setup(layout_mgr, vocab_sys, faction_mgr, conspiracy_net, quest_mgr = null)
 
 
 func set_overlay_stack(stack) -> void:
-	"""Set reference to unified OverlayStackManager for v2 overlay management."""
+	"""Set reference to OverlayStackManager for overlay management."""
 	overlay_stack = stack
 	_verbose.info("ui", "📋", "OverlayManager connected to OverlayStackManager")
 
@@ -114,8 +114,8 @@ func _get_current_biome(farm_ref):
 		current_biome_name = observation.get_neutral_biome()
 
 	# Look up biome object in grid
-	if farm_ref.grid and farm_ref.grid.biomes.has(current_biome_name):
-		return farm_ref.grid.biomes[current_biome_name]
+	if farm_ref.grid and farm_ref.grid.has_biome(current_biome_name):
+		return farm_ref.grid.get_biome(current_biome_name)
 
 	return null
 
@@ -224,7 +224,7 @@ func create_overlays(parent: Control) -> void:
 	_verbose.info("ui", "🎮", "Escape menu created (ESC to toggle)")
 	_setup_visibility_processing(escape_menu)
 
-	# KeyboardHintButton REMOVED - K key now opens ControlsOverlay via v2 overlay system
+	# KeyboardHintButton REMOVED - K key now opens ControlsOverlay via the overlay stack
 
 	# Create Save/Load Menu
 	_verbose.debug("save", "💾", "Creating Save/Load menu...")
@@ -283,8 +283,8 @@ func create_overlays(parent: Control) -> void:
 	_verbose.info("ui", "📖", "Icon detail panel created (click emojis in vocab to view)")
 	_setup_visibility_processing(icon_detail_panel)
 
-	# Create v2 Overlays
-	_create_v2_overlays(parent)
+	# Create unified overlays
+	_create_overlays(parent)
 
 	# Update positions after layout is ready
 	await get_tree().process_frame
@@ -708,14 +708,14 @@ func _create_vocabulary_overlay() -> Control:
 
 
 # _create_keyboard_hint_button REMOVED
-# K key now opens ControlsOverlay via v2 overlay system (toggle_v2_overlay("controls"))
+# K key now opens ControlsOverlay via the overlay stack (toggle_overlay("controls"))
 
 
 func _create_touch_button_bar() -> Control:
 	"""Create touch-friendly button bar for LEFT CENTER of screen
 
 	Buttons: C (Quests), V (Vocabulary), B (Biome), N (Inspector), K (Controls)
-	All use v2 overlay system for consistency.
+	All use the overlay stack for consistency.
 	"""
 	const PanelTouchButton = preload("res://UI/Components/PanelTouchButton.gd")
 
@@ -746,7 +746,7 @@ func _create_touch_button_bar() -> Control:
 	quest_button.set_layout_manager(layout_manager)
 	quest_button.button_emoji = "📋"
 	quest_button.keyboard_hint = "[C]"
-	quest_button.button_activated.connect(func(): toggle_v2_overlay("quests"))
+	quest_button.button_activated.connect(func(): toggle_overlay("quests"))
 	button_bar.add_child(quest_button)
 
 	# V - Vocabulary/Semantic Map
@@ -754,7 +754,7 @@ func _create_touch_button_bar() -> Control:
 	vocab_button.set_layout_manager(layout_manager)
 	vocab_button.button_emoji = "📖"
 	vocab_button.keyboard_hint = "[V]"
-	vocab_button.button_activated.connect(func(): toggle_v2_overlay("semantic_map"))
+	vocab_button.button_activated.connect(func(): toggle_overlay("semantic_map"))
 	button_bar.add_child(vocab_button)
 
 	# B - Biome Detail
@@ -762,7 +762,7 @@ func _create_touch_button_bar() -> Control:
 	biome_button.set_layout_manager(layout_manager)
 	biome_button.button_emoji = "🌍"
 	biome_button.keyboard_hint = "[B]"
-	biome_button.button_activated.connect(func(): toggle_v2_overlay("biome_detail"))
+	biome_button.button_activated.connect(func(): toggle_overlay("biome_detail"))
 	button_bar.add_child(biome_button)
 
 	# N - Inspector (density matrix + quantum state)
@@ -770,7 +770,7 @@ func _create_touch_button_bar() -> Control:
 	inspector_button.set_layout_manager(layout_manager)
 	inspector_button.button_emoji = "🔬"
 	inspector_button.keyboard_hint = "[N]"
-	inspector_button.button_activated.connect(func(): toggle_v2_overlay("inspector"))
+	inspector_button.button_activated.connect(func(): toggle_overlay("inspector"))
 	button_bar.add_child(inspector_button)
 
 	# K - Controls/Keyboard reference
@@ -778,7 +778,7 @@ func _create_touch_button_bar() -> Control:
 	controls_button.set_layout_manager(layout_manager)
 	controls_button.button_emoji = "⌨️"
 	controls_button.keyboard_hint = "[K]"
-	controls_button.button_activated.connect(func(): toggle_v2_overlay("controls"))
+	controls_button.button_activated.connect(func(): toggle_overlay("controls"))
 	button_bar.add_child(controls_button)
 
 	_verbose.info("ui", "📱", "Touch button bar created: C/V/B/N/K on LEFT side")
@@ -1028,14 +1028,14 @@ func _on_quest_board_closed() -> void:
 
 
 # ============================================================================
-# V2 OVERLAY SYSTEM
+# OVERLAY STACK SYSTEM
 # ============================================================================
-# New overlay architecture with QER remapping and unified input handling.
-# v2 overlays extend OverlayBase and are registered here for management.
+# Overlays extend OverlayBase and are registered here for stack-based
+# management and shared keyboard routing.
 
-func _create_v2_overlays(parent: Control) -> void:
-	"""Create and register all v2 overlays."""
-	_verbose.info("ui", "📊", "Creating v2 overlay system...")
+func _create_overlays(parent: Control) -> void:
+	"""Create and register all stack-managed overlays."""
+	_verbose.info("ui", "📊", "Creating overlay stack...")
 
 	# Create Inspector Overlay (density matrix visualization)
 	# Note: Overlay centers its own panel in _build_standard_panel()
@@ -1044,7 +1044,7 @@ func _create_v2_overlays(parent: Control) -> void:
 	if layout_manager:
 		inspector_overlay.set_layout_manager(layout_manager)
 	parent.add_child(inspector_overlay)
-	register_v2_overlay("inspector", inspector_overlay)
+	register_overlay("inspector", inspector_overlay)
 	_setup_visibility_processing(inspector_overlay)
 
 	# Create Controls Overlay (keyboard reference)
@@ -1053,7 +1053,7 @@ func _create_v2_overlays(parent: Control) -> void:
 	if layout_manager:
 		controls_overlay.set_layout_manager(layout_manager)
 	parent.add_child(controls_overlay)
-	register_v2_overlay("controls", controls_overlay)
+	register_overlay("controls", controls_overlay)
 	_setup_visibility_processing(controls_overlay)
 
 	# Create Semantic Map Overlay (vocabulary + octants)
@@ -1062,7 +1062,7 @@ func _create_v2_overlays(parent: Control) -> void:
 	if layout_manager:
 		semantic_map_overlay.set_layout_manager(layout_manager)
 	parent.add_child(semantic_map_overlay)
-	register_v2_overlay("semantic_map", semantic_map_overlay)
+	register_overlay("semantic_map", semantic_map_overlay)
 	_setup_visibility_processing(semantic_map_overlay)
 
 	# Create Balance Workbench Overlay (shared balance tuning projection)
@@ -1071,19 +1071,18 @@ func _create_v2_overlays(parent: Control) -> void:
 	if layout_manager:
 		balance_workbench_overlay.set_layout_manager(layout_manager)
 	parent.add_child(balance_workbench_overlay)
-	register_v2_overlay("balance_workbench", balance_workbench_overlay)
+	register_overlay("balance_workbench", balance_workbench_overlay)
 	_setup_visibility_processing(balance_workbench_overlay)
 
-	# Register existing overlays with v2 interface
-	# QuestBoard already has v2 interface methods
+	# Register existing overlays that already implement OverlayBase methods
 	if quest_board:
-		register_v2_overlay("quests", quest_board)
+		register_overlay("quests", quest_board)
 
-	# BiomeInspectorOverlay has v2 interface methods
+	# BiomeInspectorOverlay already implements OverlayBase methods
 	if biome_inspector:
-		register_v2_overlay("biome_detail", biome_inspector)
+		register_overlay("biome_detail", biome_inspector)
 
-	_verbose.info("ui", "📊", "v2 overlay system created with %d overlays" % v2_overlays.size())
+	_verbose.info("ui", "📊", "Overlay stack created with %d overlays" % overlays.size())
 
 
 func _center_overlay(overlay: Control) -> void:
@@ -1121,38 +1120,38 @@ func _center_overlay(overlay: Control) -> void:
 	overlay.grow_vertical = Control.GROW_DIRECTION_BOTH
 
 
-func register_v2_overlay(name: String, overlay) -> void:
-	"""Register a v2 overlay for management.
+func register_overlay(name: String, overlay) -> void:
+	"""Register an overlay for stack management.
 
 	Args:
 		name: Unique identifier (e.g., "inspector", "quests")
 		overlay: OverlayBase instance
 	"""
-	if v2_overlays.has(name):
-		_verbose.warn("ui", "⚠️", "v2 overlay '%s' already registered, replacing" % name)
+	if overlays.has(name):
+		_verbose.warn("ui", "⚠️", "overlay '%s' already registered, replacing" % name)
 
-	v2_overlays[name] = overlay
-	_verbose.info("ui", "📋", "Registered v2 overlay: %s" % name)
-
-
-func unregister_v2_overlay(name: String) -> void:
-	"""Unregister a v2 overlay."""
-	if v2_overlays.has(name):
-		v2_overlays.erase(name)
-		_verbose.info("ui", "📋", "Unregistered v2 overlay: %s" % name)
+	overlays[name] = overlay
+	_verbose.info("ui", "📋", "Registered overlay: %s" % name)
 
 
-func open_v2_overlay(name: String) -> bool:
-	"""Open a v2 overlay by name.
+func unregister_overlay(name: String) -> void:
+	"""Unregister an overlay."""
+	if overlays.has(name):
+		overlays.erase(name)
+		_verbose.info("ui", "📋", "Unregistered overlay: %s" % name)
+
+
+func open_overlay(name: String) -> bool:
+	"""Open an overlay by name.
 
 	Uses OverlayStackManager for unified overlay management.
 	Returns true if overlay was opened successfully.
 	"""
-	if not v2_overlays.has(name):
-		_verbose.warn("ui", "❌", "v2 overlay '%s' not registered" % name)
+	if not overlays.has(name):
+		_verbose.warn("ui", "❌", "overlay '%s' not registered" % name)
 		return false
 
-	var overlay = v2_overlays[name]
+	var overlay = overlays[name]
 
 	# Bind data to overlays that need it
 	# Try multiple paths to find Farm node (scene structure varies)
@@ -1202,12 +1201,12 @@ func open_v2_overlay(name: String) -> bool:
 	if overlay_stack:
 		overlay_stack.push(overlay)
 	else:
-		# Fallback: activate directly (legacy path)
+		# Fallback: activate directly when no stack manager is available
 		overlay.activate()
 
-	_verbose.info("ui", "📖", "Opened v2 overlay: %s" % name)
+	_verbose.info("ui", "📖", "Opened overlay: %s" % name)
 	_log_overlay_open_next_frame(name, overlay)
-	v2_overlay_changed.emit(name, true)
+	overlay_changed.emit(name, true)
 	return true
 
 
@@ -1249,8 +1248,8 @@ func _log_overlay_open_next_frame(name: String, overlay: Control) -> void:
 	, CONNECT_ONE_SHOT)
 
 
-func close_v2_overlay() -> void:
-	"""Close the top v2 overlay on the stack."""
+func close_overlay() -> void:
+	"""Close the top overlay on the stack."""
 	if not overlay_stack:
 		return
 
@@ -1261,65 +1260,65 @@ func close_v2_overlay() -> void:
 	var overlay_name = top.overlay_name if top.get("overlay_name") else top.name
 	overlay_stack.pop()
 
-	_verbose.info("ui", "📕", "Closed v2 overlay: %s" % overlay_name)
-	v2_overlay_changed.emit(overlay_name, false)
+	_verbose.info("ui", "📕", "Closed overlay: %s" % overlay_name)
+	overlay_changed.emit(overlay_name, false)
 
 
-func close_all_v2_overlays() -> void:
-	"""Close all v2 overlays (used by logger config for mutual exclusion)."""
+func close_all_overlays() -> void:
+	"""Close all registered overlays (used by logger config for mutual exclusion)."""
 	if not overlay_stack:
 		return
 
-	for name in v2_overlays.keys():
-		var overlay = v2_overlays[name]
+	for name in overlays.keys():
+		var overlay = overlays[name]
 		if overlay_stack.has_overlay(overlay):
 			overlay_stack.pop_overlay(overlay)
-			v2_overlay_changed.emit(name, false)
+			overlay_changed.emit(name, false)
 
 
-func toggle_v2_overlay(name: String) -> void:
-	"""Toggle a v2 overlay open/closed.
+func toggle_overlay(name: String) -> void:
+	"""Toggle an overlay open/closed.
 
 	Behavior:
 	- If this overlay is already open → close it
-	- If another v2 overlay is open → close it, then open this one
+	- If another overlay is open → close it, then open this one
 	- If no overlay is open → open this one
 
 	This gives "radio button" behavior for ZXCVBN keys.
 	"""
-	if not v2_overlays.has(name):
-		_verbose.warn("ui", "❌", "v2 overlay '%s' not registered" % name)
+	if not overlays.has(name):
+		_verbose.warn("ui", "❌", "overlay '%s' not registered" % name)
 		return
 
-	var overlay = v2_overlays[name]
+	var overlay = overlays[name]
 
 	# Check if this specific overlay is already open
 	if overlay_stack and overlay_stack.has_overlay(overlay):
 		# Same key pressed twice → close it
 		overlay_stack.pop_overlay(overlay)
-		v2_overlay_changed.emit(name, false)
+		overlay_changed.emit(name, false)
 		return
 
-	# Close any other v2 overlay that's currently open (radio button behavior)
+	# Close any other registered overlay that's currently open (radio button behavior)
 	if overlay_stack:
-		for other_name in v2_overlays.keys():
-			var other_overlay = v2_overlays[other_name]
+		for other_name in overlays.keys():
+			var other_overlay = overlays[other_name]
 			if overlay_stack.has_overlay(other_overlay):
 				overlay_stack.pop_overlay(other_overlay)
-				v2_overlay_changed.emit(other_name, false)
+				overlay_changed.emit(other_name, false)
 
 	# Open the requested overlay
-	open_v2_overlay(name)
+	open_overlay(name)
 
 
-func is_v2_overlay_active() -> bool:
+func is_overlay_active() -> bool:
 	"""Check if any overlay is currently on the stack."""
 	if overlay_stack:
 		return not overlay_stack.is_empty()
 	return false
 
 
-func get_active_v2_overlay():
+func get_active_overlay():
 	"""Get the top overlay from the stack, or null."""
 	if overlay_stack:
 		return overlay_stack.get_top()
@@ -1331,17 +1330,22 @@ func get_active_overlay_actions() -> Dictionary:
 
 	Returns empty dict if no overlay active.
 	"""
-	var top = get_active_v2_overlay()
+	var top = get_active_overlay()
 	if top and top.has_method("get_action_labels"):
 		return top.get_action_labels()
 	return {}
 
 
-func get_v2_overlay(name: String):
-	"""Get a registered v2 overlay by name, or null."""
-	return v2_overlays.get(name, null)
+func get_overlay(name: String):
+	"""Get a registered overlay by name, or null."""
+	return overlays.get(name, null)
 
 
-func get_registered_v2_overlays() -> Array:
-	"""Get list of all registered v2 overlay names."""
-	return v2_overlays.keys()
+func has_overlay(name: String) -> bool:
+	"""Check whether an overlay name is registered."""
+	return overlays.has(name)
+
+
+func get_registered_overlays() -> Array:
+	"""Get list of all registered overlay names."""
+	return overlays.keys()
