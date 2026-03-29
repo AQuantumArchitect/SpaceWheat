@@ -392,7 +392,19 @@ func offer_all_faction_quests(biome) -> Array:
 	var biome_name = biome.biome_name if biome and biome.get("biome_name") else "Unknown"
 	var now_ms = Time.get_ticks_msec()
 
+	# Biome-native factions get vocabulary boost — makes "where you quest" matter
+	var native_faction_names: Array = []
+	if biome and biome.get("_biome_data") and biome._biome_data.get("native_factions"):
+		native_faction_names = biome._biome_data.native_factions
+
 	for faction in FactionDatabase.ALL_FACTIONS:
+		# Tag native factions so resonance gate and scoring can boost them.
+		# Only tag when biome has native factions — biomes without (StarterForest,
+		# Village) leave all factions at equal resonance.
+		if not native_faction_names.is_empty():
+			faction["_is_biome_native"] = str(faction.get("name", "")) in native_faction_names
+		else:
+			faction.erase("_is_biome_native")
 		var quest = QuestTheming.generate_quest(
 			faction, biome, player_vocab, bias_emojis, self.economy,
 			cached_obs, cached_icon_map)
@@ -407,6 +419,10 @@ func offer_all_faction_quests(biome) -> Array:
 		quest["biome"] = biome_name
 		quest["status"] = "offered"
 		quest["offered_at"] = now_ms
+
+		# Tag native-biome factions for scoring boost
+		var faction_name = str(quest.get("faction", ""))
+		quest["is_biome_native"] = faction_name in native_faction_names
 
 		quest["body"] = QuestTheming.generate_display_text(quest)
 		quest = _annotate_quest_context_with_vocab(quest, biome_name, player_vocab)

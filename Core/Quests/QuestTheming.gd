@@ -645,6 +645,13 @@ static func _compute_vocab_resonance_probability(
 	var logistic = 1.0 / (1.0 + exp(-x))
 	var p_vocab = clamp(0.35 + 0.50 * logistic, 0.35, 0.9)
 
+	# Biome-native faction boost: factions native to the active biome get full
+	# resonance; non-native factions get reduced vocab probability.
+	# Only applies when the biome HAS native factions (StarterForest/Village have
+	# none, so _is_biome_native tag is absent and all factions stay at full resonance).
+	if faction.has("_is_biome_native") and not faction.get("_is_biome_native", false):
+		p_vocab *= 0.5  # half vocab chance for non-native factions
+
 	return {
 		"p_vocab": p_vocab,
 		"signature_ratio": signature_ratio,
