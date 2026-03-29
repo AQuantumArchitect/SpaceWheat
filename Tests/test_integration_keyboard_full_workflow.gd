@@ -94,9 +94,9 @@ func _run_all_tests():
 	print("✅ QuantumInstrument created (farm=%s)" % farm.name)
 
 	# Disable evolution for speed
-	if farm.get("grid") and farm.grid.biomes:
-		for biome_name in farm.grid.biomes:
-			var biome_node = farm.grid.biomes[biome_name]
+	if farm.get("grid") and farm.grid.has_biomes():
+		for biome_name in farm.grid.get_biome_names():
+			var biome_node = farm.grid.get_biome(biome_name)
 			if biome_node and biome_node.has_method("set_process"):
 				biome_node.set_process(false)
 			if biome_node and "quantum_evolution_enabled" in biome_node:
@@ -157,8 +157,10 @@ func _test_selection_state():
 
 	# Get a biome name from the farm grid
 	var biome_name = ""
-	if farm.grid and farm.grid.biomes and not farm.grid.biomes.is_empty():
-		biome_name = farm.grid.biomes.keys()[0]
+	if farm.grid and farm.grid.has_biomes():
+		var biome_names = farm.grid.get_biome_names()
+		if not biome_names.is_empty():
+			biome_name = biome_names[0]
 
 	if biome_name == "":
 		_fail("No biomes in farm grid (can't test selection state)")
@@ -191,11 +193,11 @@ func _test_probe_cycle():
 	if not farm.terminal_pool:
 		_fail("No terminal_pool on farm - cannot run probe_cycle")
 		return
-	if not farm.grid or farm.grid.biomes.is_empty():
+	if not farm.grid or not farm.grid.has_biomes():
 		_fail("No biomes in grid - cannot run probe_cycle")
 		return
 
-	var biome_name = farm.grid.biomes.keys()[0]
+	var biome_name = farm.grid.get_biome_names()[0]
 	print("  Using biome: %s" % biome_name)
 
 	# Ensure economy has some credits
@@ -230,7 +232,7 @@ func _test_victory_lap():
 	if not farm.terminal_pool:
 		_fail("No terminal_pool - cannot run victory_lap")
 		return
-	if not farm.grid or farm.grid.biomes.is_empty():
+	if not farm.grid or not farm.grid.has_biomes():
 		_fail("No biomes in grid - cannot run victory_lap")
 		return
 

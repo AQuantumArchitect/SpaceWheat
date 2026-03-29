@@ -1280,9 +1280,9 @@ func _slim_probe_result(probe: Dictionary) -> Dictionary:
 func _probe_cycle(biome_name: String) -> Dictionary:
 	if not _farm or not ("terminal_pool" in _farm) or not _farm.terminal_pool:
 		return {"success": false, "error": "no_terminal_pool"}
-	if not _farm.grid or not _farm.grid.biomes:
+	if not _farm.grid or not _farm.grid.has_biomes():
 		return {"success": false, "error": "no_biomes"}
-	var biome = _farm.grid.biomes.get(biome_name, null)
+	var biome = _farm.grid.get_biome(biome_name)
 	if not biome:
 		return {"success": false, "error": "unknown_biome"}
 
@@ -1318,14 +1318,14 @@ func _probe_cycle(biome_name: String) -> Dictionary:
 ## When _instrument is set (standard case), _instrument.victory_lap() is called instead.
 ## Canonical implementation lives in QuantumInstrument.victory_lap().
 func _run_victory_lap() -> Dictionary:
-	if not _farm or not _farm.grid or not _farm.grid.biomes:
+	if not _farm or not _farm.grid or not _farm.grid.has_biomes():
 		return {"success": false, "error": "no_farm_or_biomes"}
 	if not ("terminal_pool" in _farm) or not _farm.terminal_pool:
 		return {"success": false, "error": "no_terminal_pool"}
 
 	var selection_result = _select_all_plots_for_ui()
 	var biomes: Array[String] = []
-	for biome_name in _farm.grid.biomes.keys():
+	for biome_name in _farm.grid.get_biome_names():
 		if biome_name is String and str(biome_name) != "":
 			biomes.append(str(biome_name))
 	biomes.sort()
@@ -1335,7 +1335,7 @@ func _run_victory_lap() -> Dictionary:
 	var terminal_pool = _farm.terminal_pool
 
 	for biome_name in biomes:
-		var biome = _farm.grid.biomes.get(biome_name, null)
+		var biome = _farm.grid.get_biome(biome_name)
 		if not biome:
 			continue
 		while true:
@@ -1362,7 +1362,7 @@ func _run_victory_lap() -> Dictionary:
 		if not terminal or not terminal.is_bound:
 			continue
 		var biome_name = str(terminal.bound_biome_name)
-		var biome = _farm.grid.biomes.get(biome_name, null)
+		var biome = _farm.grid.get_biome(biome_name)
 		if not biome:
 			measure_failures.append({"terminal": terminal.terminal_id, "error": "unknown_biome", "biome": biome_name})
 			continue
@@ -1423,7 +1423,7 @@ func _run_victory_lap_partial(
 	milk_spend: int,
 	phase_window: int
 ) -> Dictionary:
-	if not _farm or not _farm.grid or not _farm.grid.biomes:
+	if not _farm or not _farm.grid or not _farm.grid.has_biomes():
 		return {"success": false, "error": "no_farm_or_biomes"}
 	if not ("terminal_pool" in _farm) or not _farm.terminal_pool:
 		return {"success": false, "error": "no_terminal_pool"}
@@ -1434,7 +1434,7 @@ func _run_victory_lap_partial(
 	var biomes: Array[String] = []
 	var seen: Dictionary = {}
 	if selected_biomes.is_empty():
-		for biome_name in _farm.grid.biomes.keys():
+		for biome_name in _farm.grid.get_biome_names():
 			if biome_name is String and str(biome_name) != "":
 				var b = str(biome_name)
 				if not seen.has(b):
@@ -1444,7 +1444,7 @@ func _run_victory_lap_partial(
 		for biome_name in selected_biomes:
 			if biome_name == "" or seen.has(biome_name):
 				continue
-			if not _farm.grid.biomes.has(biome_name):
+			if not _farm.grid.has_biome(biome_name):
 				continue
 			biomes.append(biome_name)
 			seen[biome_name] = true
@@ -1464,7 +1464,7 @@ func _run_victory_lap_partial(
 	for biome_name in biomes:
 		if explore_total >= target_registers:
 			break
-		var biome = _farm.grid.biomes.get(biome_name, null)
+		var biome = _farm.grid.get_biome(biome_name)
 		if not biome:
 			continue
 		while explore_total < target_registers:
@@ -1486,7 +1486,7 @@ func _run_victory_lap_partial(
 		if not terminal or not terminal.is_bound:
 			continue
 		var t_biome_name = str(terminal.bound_biome_name)
-		var biome = _farm.grid.biomes.get(t_biome_name, null)
+		var biome = _farm.grid.get_biome(t_biome_name)
 		if not biome:
 			measure_failures.append({"terminal": terminal.terminal_id, "error": "unknown_biome", "biome": t_biome_name})
 			continue
