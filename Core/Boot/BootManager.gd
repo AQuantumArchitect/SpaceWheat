@@ -640,7 +640,10 @@ func load_biome(biome_name: String, farm: Node) -> Dictionary:
 		_verbose.debug("boot", "📐", "Grid refreshed for loaded biomes")
 
 	# ====== STEP 3: ASSIGN PLOTS FROM GridConfig ======
-	farm._assign_plots_for_biome(biome_name)
+	if farm.grid and farm.grid_config and farm.grid.has_method("assign_plot_to_biome"):
+		for pos in farm.grid_config.biome_assignments:
+			if farm.grid_config.biome_assignments[pos] == biome_name:
+				farm.grid.assign_plot_to_biome(pos, biome_name)
 	_verbose.debug("boot", "✓", "Assigned plots for '%s'" % biome_name)
 
 	# ====== STEP 4: STORE METADATA ======

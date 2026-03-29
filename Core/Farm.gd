@@ -23,10 +23,8 @@ const EconomyConstants = preload("res://Core/GameMechanics/EconomyConstants.gd")
 const ActionCostRuntime = preload("res://Core/GameMechanics/ActionCostRuntime.gd")
 const TerminalPoolClass = preload("res://Core/GameMechanics/TerminalPool.gd")
 const BiomeEvolutionBatcherClass = preload("res://Core/Environment/BiomeEvolutionBatcher.gd")
-# GRACEFUL BIOME LOADING: Use load() instead of preload() so script errors
-# in individual biomes don't break the entire Farm. Failed biomes are skipped.
-var _BiomeScripts: Dictionary = {}  # Populated at runtime in _init_biomes()
 const FarmUIState = preload("res://Core/GameState/FarmUIState.gd")
+const GameState = preload("res://Core/GameState/GameState.gd")
 const VocabularyEvolution = preload("res://Core/QuantumSubstrate/VocabularyEvolution.gd")
 const BiomeDiscoveryForecastService = preload("res://Core/Gameplay/BiomeDiscoveryForecastService.gd")
 
@@ -79,31 +77,6 @@ func set_instrument(inst) -> void:
 	"""Transfer bootstrap terminal pool to instrument and store reference."""
 	instrument = inst
 	inst.terminal_pool = _bootstrap_pool
-
-
-func _safe_load_biome(script_path: String, biome_name: String):
-	"""Gracefully load and instantiate a biome. Returns null if loading fails.
-
-	This allows the game to continue with partial biome availability
-	when individual biome scripts have compile errors.
-	"""
-	var script = load(script_path)
-	if script == null:
-		push_warning("Farm: Failed to load biome script '%s' - biome '%s' disabled" % [script_path, biome_name])
-		return null
-
-	var biome = script.new()
-	if biome == null:
-		push_warning("Farm: Failed to instantiate biome '%s' - disabled" % biome_name)
-		return null
-
-	biome.name = biome_name
-	add_child(biome)
-	_loaded_biome_count += 1
-	print("Farm: Loaded biome '%s'" % biome_name)
-	return biome
-
-
 
 
 func _finalize_biome_evolution_batcher() -> void:
@@ -486,15 +459,7 @@ func set_reap_count(value: int) -> void:
 
 func get_known_emojis() -> Array:
 	"""Return unique emojis from known vocab pairs."""
-	var emojis: Array = []
-	for pair in known_pairs:
-		var north = pair.get("north", "")
-		var south = pair.get("south", "")
-		if north != "" and north not in emojis:
-			emojis.append(north)
-		if south != "" and south not in emojis:
-			emojis.append(south)
-	return emojis
+	return GameState.derive_known_emojis_from_pairs(known_pairs)
 
 
 func set_known_pairs(pairs: Array, sync_player_vocab: bool = true, reset_player_vocab: bool = false) -> void:
@@ -685,8 +650,7 @@ func time_skip_phrames(phrames: int, delta: float = PhysicsConfig.PHRAME_DT) -> 
 
 	var evolved_steps = 0
 	var skipped_steps = 0
-	var force_legacy = OS.get_environment("RIG_TIME_SKIP_LEGACY").to_lower() in ["1", "true", "yes", "on"]
-	if biome_evolution_batcher and biome_evolution_batcher.has_method("run_time_skip_cycles") and not force_legacy:
+	if biome_evolution_batcher and biome_evolution_batcher.has_method("run_time_skip_cycles"):
 		var direct_result = biome_evolution_batcher.run_time_skip_cycles(steps, dt)
 		evolved_steps = int(direct_result.get("evolved_steps", 0))
 		skipped_steps = int(direct_result.get("skipped_biomes", 0))
@@ -1439,18 +1403,6 @@ func _load_biome_dynamically(biome_name: String) -> bool:
 
 
 	return true
-
-
-func _assign_plots_for_biome(biome_name: String) -> void:
-	"""Assign grid plots to a newly loaded biome based on GridConfig."""
-	if not grid or not grid_config:
-		return
-	if not grid.has_method("assign_plot_to_biome"):
-		return
-	for pos in grid_config.biome_assignments:
-		if grid_config.biome_assignments[pos] == biome_name:
-			grid.assign_plot_to_biome(pos, biome_name)
-
 
 func measure_plot(pos: Vector2i) -> String:
 	"""Measure (collapse) quantum state of plot at position
