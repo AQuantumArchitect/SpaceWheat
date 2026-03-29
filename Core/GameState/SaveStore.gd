@@ -108,13 +108,13 @@ static func load_state(slot: int) -> GameState:
 	return state
 
 
-static func load_state_by_emoji_alias(alias_filename: String) -> GameState:
-	"""Load a save directly via emoji alias file name or full user:// path."""
-	var path = alias_filename.strip_edges()
+static func load_state_by_path(save_path: String) -> GameState:
+	"""Load a save directly via full path or save filename under user://saves."""
+	var path = save_path.strip_edges()
 	if path == "":
 		return null
 	if not path.begins_with("user://") and not path.begins_with("res://") and not _is_absolute_path(path):
-		path = SAVE_DIR + alias_filename
+		path = SAVE_DIR + save_path
 	if not FileAccess.file_exists(path):
 		return null
 	return ResourceLoader.load(path, "", ResourceLoader.CACHE_MODE_IGNORE) as GameState

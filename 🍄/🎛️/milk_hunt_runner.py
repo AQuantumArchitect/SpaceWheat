@@ -139,7 +139,7 @@ def _run_turn(turn_id: int, action: str, **kwargs: Any) -> Dict[str, Any]:
             timeout_s = 45.0
         elif action == "victory_lap":
             timeout_s = 180.0
-        elif action in {"load_game", "load_game_alias", "save_game", "save_game_path"}:
+        elif action in {"load_game", "load_game_path", "save_game", "save_game_path"}:
             timeout_s = 30.0
         else:
             timeout_s = 10.0
@@ -2064,7 +2064,7 @@ def main() -> int:
         turn += 1
 
         if resolved_profile_save is not None:
-            history.append(_run_turn(turn, "load_game_alias", alias=resolved_profile_save))
+            history.append(_run_turn(turn, "load_game_path", path=resolved_profile_save))
             turn += 1
         elif args.reuse_listener and load_slot is not None:
             history.append(_run_turn(turn, "load_game", slot=load_slot))

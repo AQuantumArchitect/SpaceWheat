@@ -225,7 +225,7 @@ def run_character_round(
     save = _save_path(name)
 
     # Load from save
-    result = client.run_turn(turn, "load_game_alias", timeout_s=30.0, alias=save)
+    result = client.run_turn(turn, "load_game_path", timeout_s=30.0, path=save)
     turn += 1
     if not result.get("loaded", False):
         _safe_print(f"  [{name}] load FAILED: {result.get('error', '?')}")

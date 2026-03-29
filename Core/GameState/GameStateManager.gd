@@ -461,14 +461,14 @@ func load_game_state(slot: int) -> GameState:
 	return null
 
 
-func load_game_state_by_alias(alias_filename: String) -> GameState:
-	"""Load game state from emoji alias filename/path (returns state, doesn't apply it)."""
-	var state = SaveStore.load_state_by_emoji_alias(alias_filename)
+func load_game_state_by_path(save_path: String) -> GameState:
+	"""Load game state from a save path or save filename (returns state, doesn't apply it)."""
+	var state = SaveStore.load_state_by_path(save_path)
 	if state:
 		state = _hydrate_state_defaults(state)
-		_verbose.info("save", "📂", "Loaded save alias: " + alias_filename)
+		_verbose.info("save", "📂", "Loaded save path: " + save_path)
 		return state
-	_verbose.info("save", "⚠", "No save found for alias: " + alias_filename)
+	_verbose.info("save", "⚠", "No save found for path: " + save_path)
 	return null
 
 
@@ -494,9 +494,9 @@ func load_and_apply(slot: int) -> bool:
 	return true
 
 
-func load_and_apply_emoji_alias(alias_filename: String) -> bool:
-	"""Load game state from emoji alias filename/path and apply it to active game."""
-	var state = load_game_state_by_alias(alias_filename)
+func load_and_apply_path(save_path: String) -> bool:
+	"""Load game state from a save path or save filename and apply it to the active game."""
+	var state = load_game_state_by_path(save_path)
 	if not state:
 		return false
 

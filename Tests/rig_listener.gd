@@ -64,7 +64,7 @@ extends SceneTree
 ## - save_game: {slot: int}
 ## - save_game_path: {path: String}
 ## - load_game: {slot: int}
-## - load_game_alias: {alias: String}
+## - load_game_path: {path: String}
 ## - save_info: {slot: int}
 ## - overlay_snapshot: {overlay: String} — returns structured dict from overlay.get_snapshot()
 ## - widget_snapshot: {widget: String} — returns structured dict from widget.get_snapshot()
@@ -948,16 +948,16 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 				if bool(result.get("loaded", false)):
 					_sync_policy_from_game_state()
 
-		"load_game_alias":
-			var alias = str(cmd.get("alias", ""))
+		"load_game_path":
+			var path = str(cmd.get("path", ""))
 			var gsm = get_root().get_node_or_null("GameStateManager")
 			if not gsm:
 				result = {"ok": false, "turn": turn_id, "action": action, "error": "no_game_state_manager"}
-			elif alias == "":
-				result = {"ok": false, "turn": turn_id, "action": action, "error": "missing_alias"}
+			elif path == "":
+				result = {"ok": false, "turn": turn_id, "action": action, "error": "missing_path"}
 			else:
-				result["alias"] = alias
-				result["loaded"] = gsm.load_and_apply_emoji_alias(alias)
+				result["path"] = path
+				result["loaded"] = gsm.load_and_apply_path(path)
 				if bool(result.get("loaded", false)):
 					_sync_policy_from_game_state()
 
