@@ -1440,65 +1440,6 @@ func entangle_plots(pos1: Vector2i, pos2: Vector2i, bell_state: String = "phi_pl
 		action_result.emit("entangle", false, "Failed to create entanglement")
 		return false
 
-
-## Batch Operation Methods (Multi-Select Support)
-## De-slopped: Common loop+result pattern extracted to _batch_operation()
-
-func _batch_operation(positions: Array[Vector2i], operation_name: String, operation: Callable) -> Dictionary:
-	"""Execute an operation on multiple positions with unified result structure.
-
-	Args:
-		positions: Array of grid positions to operate on
-		operation_name: Name for message (e.g., "Planted", "Measured")
-		operation: Callable that takes position and returns bool (success)
-
-	Returns: Dictionary with {success: bool, count: int, message: String}
-	"""
-	var result = {"success": false, "count": 0, "message": ""}
-
-	if positions.is_empty():
-		result["message"] = "No positions specified"
-		return result
-
-	var success_count = 0
-	for pos in positions:
-		if operation.call(pos):
-			success_count += 1
-
-	result["success"] = success_count > 0
-	result["count"] = success_count
-	result["message"] = "%s %d/%d plots" % [operation_name, success_count, positions.size()]
-	return result
-
-
-func batch_measure(positions: Array[Vector2i]) -> Dictionary:
-	"""Measure quantum state of multiple plots."""
-	return _batch_operation(positions, "Measured", func(pos): return measure_plot(pos) != "")
-
-
-func batch_harvest(positions: Array[Vector2i]) -> Dictionary:
-	"""Harvest multiple plots (measure then harvest each).
-
-	Returns: Dictionary with {success, count, message, total_yield}
-	"""
-	var total_yield = 0
-
-	# Custom operation that measures first, then harvests
-	var harvest_op = func(pos: Vector2i) -> bool:
-		var plot = grid.get_plot(pos)
-		if plot and plot.is_active() and not plot.get_is_measured():
-			measure_plot(pos)
-		var harvest_result = harvest_plot(pos)
-		if harvest_result.get("success", false):
-			total_yield += harvest_result.get("yield", 0)
-			return true
-		return false
-
-	var result = _batch_operation(positions, "Harvested", harvest_op)
-	result["total_yield"] = total_yield
-	return result
-
-
 func get_plot(position: Vector2i):
 	"""Get plot at given grid position (returns FarmPlot or subclass)"""
 	if grid:
@@ -1641,14 +1582,6 @@ func _on_economy_changed_ui(_value = null) -> void:
 
 func _on_plot_measured_ui(position: Vector2i, outcome: String) -> void:
 	"""Handle measurement - update UIState with measured outcome"""
-	if ui_state and grid:
-		var plot = grid.get_plot(position)
-		if plot:
-			ui_state.update_plot(position, plot)
-
-
-func _on_plot_changed_ui(position: Vector2i, _data = null) -> void:
-	"""Handle plot changes - update UIState"""
 	if ui_state and grid:
 		var plot = grid.get_plot(position)
 		if plot:
