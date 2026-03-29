@@ -325,7 +325,7 @@ func _open_submenu_for_action(action_info: Dictionary) -> void:
 	var context = _build_context_dict()
 	var submenu_data = _instrument.enter_submenu(submenu_name, context)
 
-	# Update legacy state for backward compat
+	# Update local submenu cache for UI signal emission
 	_current_submenu = submenu_data
 	_in_submenu = true
 	_submenu_page = 0
@@ -414,7 +414,7 @@ func _cycle_submenu_page() -> void:
 	var context = _build_context_dict()
 	var result = _instrument.cycle_submenu_page(context)
 
-	# Update legacy state
+	# Update local submenu cache
 	_current_submenu = result.submenu_data
 	_submenu_page = result.page
 
@@ -853,7 +853,7 @@ func _perform_shift_key_action(action_key: String) -> void:
 		_restore_selection(original_selection)
 		return
 
-	# NON-GATE PATH: Loop through positions (old behavior)
+	# NON-GATE PATH: Apply the action across checked positions
 	_verbose.info("input", symbol, "Batch %s on %d checked plots" % [log_label, positions.size()])
 
 	for pos in positions:
@@ -1125,9 +1125,9 @@ func _decimate_single_biome_buffer(biome_name: String, decimation_factor: int) -
 		return
 
 	if not batcher.has_method("decimate_biome_buffer"):
-		# Fallback to full invalidation
-		_verbose.warn("input", "⚠️", "Batcher missing decimate_biome_buffer() - falling back to invalidation")
-		_invalidate_single_biome_buffer(biome_name, "granularity_increase_fallback")
+		# Coarser granularity still needs buffer refresh even without decimation support.
+		_verbose.warn("input", "⚠️", "Batcher missing decimate_biome_buffer() - invalidating biome buffer instead")
+		_invalidate_single_biome_buffer(biome_name, "granularity_increase_refresh")
 		return
 
 	var new_depth = batcher.decimate_biome_buffer(biome_name, decimation_factor)
@@ -1197,9 +1197,9 @@ func _decimate_all_biome_buffers(decimation_factor: int) -> void:
 		return
 
 	if not batcher.has_method("decimate_biome_buffer"):
-		# Fallback to full invalidation if decimation not available
-		_verbose.warn("input", "⚠️", "Batcher missing decimate_biome_buffer() - falling back to invalidation")
-		_invalidate_all_biome_buffers("granularity_increase_fallback")
+		# Coarser granularity still needs buffer refresh even without decimation support.
+		_verbose.warn("input", "⚠️", "Batcher missing decimate_biome_buffer() - invalidating all biome buffers instead")
+		_invalidate_all_biome_buffers("granularity_increase_refresh")
 		return
 
 	var biome_count = 0

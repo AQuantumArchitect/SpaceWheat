@@ -123,7 +123,7 @@ func _run_tests():
 		print("   ❌ Quest board did NOT open")
 
 	print("\n" + "─".repeat(90))
-	print("PHASE 3: V2 OVERLAYS")
+	print("PHASE 3: OVERLAYS")
 	print("─".repeat(90))
 
 	var overlays_to_test = ["inspector", "controls", "semantic_map"]
