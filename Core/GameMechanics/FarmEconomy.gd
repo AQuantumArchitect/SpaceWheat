@@ -82,9 +82,9 @@ func _get_vocabulary_purity_multiplier(emoji: String) -> float:
 
 	var is_in_vocabulary = false
 
-	# Prefer farm-owned vocabulary when available
-	if "active_farm" in gsm and gsm.active_farm and gsm.active_farm.has_method("get_known_emojis"):
-		var known_emojis = gsm.active_farm.get_known_emojis()
+	# Prefer centralized vocabulary resolution when available
+	if gsm.has_method("get_player_vocab_emojis"):
+		var known_emojis = gsm.get_player_vocab_emojis()
 		is_in_vocabulary = emoji in known_emojis
 	# Fallback to saved state (legacy)
 	elif gsm.current_state and gsm.current_state.has_method("get_known_emojis"):

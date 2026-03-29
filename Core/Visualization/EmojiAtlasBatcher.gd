@@ -783,7 +783,7 @@ func flush_text_fallbacks(graph: Node2D) -> void:
 	# Log batched info for all missing emojis at end of frame (verbose debugging only)
 	# Gated behind VerboseConfig to avoid cluttering main game logs
 	if _missing_emojis_this_frame.size() > 0:
-		var should_log = _verbose_config and _verbose_config.is_verbose("viz")
+		var should_log = _verbose_config and _verbose_config.allows("viz", _verbose_config.LogLevel.DEBUG)
 		if should_log:
 			var emoji_list = _missing_emojis_this_frame.values()
 			var count = emoji_list.size()

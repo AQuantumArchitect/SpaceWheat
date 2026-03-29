@@ -161,20 +161,20 @@ func _on_action_r() -> void:
 
 func _on_resume_pressed():
 	print("[INFO][UI] Resume pressed")
-	close_menu()
+	deactivate()
 	resume_pressed.emit()
 
 
 func _on_restart_pressed():
 	print("[INFO][UI] Restart pressed")
 	restart_pressed.emit()
-	close_menu()
+	deactivate()
 
 
 func _on_dev_restart_pressed():
 	print("[INFO][UI] DEV RESTART pressed (Shift+R) - Hard reset autoloads")
 	dev_restart_pressed.emit()
-	close_menu()
+	deactivate()
 
 
 func _on_quit_pressed():
@@ -196,7 +196,7 @@ func _on_load_pressed():
 func _on_quantum_settings_pressed():
 	print("[INFO][UI] Quantum settings pressed")
 	quantum_settings_pressed.emit()
-	close_menu()
+	deactivate()
 
 
 # =============================================================================
@@ -267,6 +267,5 @@ func _on_deactivated() -> void:
 	print("[INFO][UI] Menu closed - Game RESUMED")
 
 
-# Legacy compatibility aliases
 func hide_menu():
-	close_menu()
+	deactivate()

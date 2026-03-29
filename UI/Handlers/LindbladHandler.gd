@@ -76,23 +76,7 @@ static func _sorted_biome_positions(farm, biome_name: String) -> Array[Vector2i]
 	var out: Array[Vector2i] = []
 	if not farm or not farm.grid:
 		return out
-	if not ("plot_biome_assignments" in farm.grid):
-		return out
-
-	for key in farm.grid.plot_biome_assignments.keys():
-		var assigned = str(farm.grid.plot_biome_assignments.get(key, ""))
-		if assigned != biome_name:
-			continue
-		if key is Vector2i:
-			out.append(key)
-		elif key is Vector2:
-			out.append(Vector2i(int((key as Vector2).x), int((key as Vector2).y)))
-	out.sort_custom(func(a, b) -> bool:
-		if a.y == b.y:
-			return a.x < b.x
-		return a.y < b.y
-	)
-	return out
+	return farm.grid.get_plot_positions_for_biome(biome_name)
 
 
 static func _project_register_for_position(farm, biome, pos: Vector2i) -> int:

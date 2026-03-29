@@ -23,6 +23,7 @@ var _probe_status_label: Label = null
 var _probe_status_hide_at_ms: int = 0
 
 const PROBE_STATUS_DURATION_MS: int = 900
+const GameState = preload("res://Core/GameState/GameState.gd")
 const QuantumInstrumentClass = preload("res://Core/Instrumentation/QuantumInstrument.gd")
 const PolicySnapshotBuilder = preload("res://Core/Instrumentation/PolicySnapshotBuilder.gd")
 const BiomeAffinityCalc = preload("res://Core/Quantum/BiomeAffinityCalculator.gd")
@@ -369,8 +370,8 @@ func get_known_vocab_pairs() -> Array:
 
 
 func get_known_vocab_emojis() -> Array:
-	if farm and farm.has_method("get_known_emojis"):
-		return farm.get_known_emojis()
+	var pairs = get_known_vocab_pairs()
+	return GameState.derive_known_emojis_from_pairs(pairs)
 	return []
 
 
@@ -381,13 +382,7 @@ func get_biome_positions(biome_name: String) -> Array:
 		return positions if positions is Array else []
 	if not farm or not ("grid" in farm) or not farm.grid:
 		return []
-	if not ("plot_biome_assignments" in farm.grid):
-		return []
-	var positions: Array = []
-	for pos in farm.grid.plot_biome_assignments:
-		if farm.grid.plot_biome_assignments[pos] == biome_name:
-			positions.append(pos)
-	return positions
+	return farm.grid.get_plot_positions_for_biome(biome_name)
 
 
 func get_locked_offers() -> Array:

@@ -471,12 +471,12 @@ func inspect_plot_biome(plot_pos: Vector2i, farm_node: Node) -> void:
 	if not farm_node or not farm_node.grid:
 		return
 
-	var biome_name = farm_node.grid.plot_biome_assignments.get(plot_pos, "")
+	var biome_name = farm_node.grid.get_plot_biome_assignment(plot_pos)
 	if biome_name.is_empty():
 		print("Plot %s has no biome assignment" % plot_pos)
 		return
 
-	var biome = farm_node.grid.biomes.get(biome_name)
+	var biome = farm_node.grid.get_biome(biome_name)
 	if not biome:
 		print("Biome '%s' not found" % biome_name)
 		return

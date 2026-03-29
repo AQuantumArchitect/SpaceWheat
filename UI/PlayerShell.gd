@@ -179,7 +179,7 @@ func _close_all_menus() -> void:
 		if overlay_stack.has_overlay(overlay_manager.escape_menu):
 			overlay_stack.pop_overlay(overlay_manager.escape_menu)
 		elif overlay_manager.escape_menu.visible:
-			overlay_manager.escape_menu.close_menu()
+			overlay_manager.escape_menu.deactivate()
 	# Close all v2 overlays (includes controls + logger + farm overlays)
 	if overlay_manager:
 		overlay_manager.close_all_v2_overlays()
@@ -268,8 +268,10 @@ func _toggle_build_play_mode() -> void:
 	"""
 	const ToolConfig = preload("res://Core/GameState/ToolConfig.gd")
 
-	var new_mode = ToolConfig.toggle_mode()
-	_verbose.info("input", "🔧" if new_mode == "build" else "🎮",
+	var group = ToolConfig.get_current_group()
+	var new_mode_idx = ToolConfig.cycle_group_mode(group)
+	var new_mode = ToolConfig.get_group_mode_name(group)
+	_verbose.info("input", "🔧" if new_mode_idx > 0 else "🎮",
 		"Switched to %s MODE (Tab to toggle)" % new_mode.to_upper())
 
 	# Update ToolSelectionRow UI

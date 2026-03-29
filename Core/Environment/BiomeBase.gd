@@ -547,7 +547,7 @@ func initialize_phase_lnn() -> void:
 	# Share LNN reference with QuantumComputer (will be used during evolve())
 	quantum_computer.phase_lnn = phase_lnn
 
-	if _verbose and _verbose.is_verbose("biome"):
+	if _verbose and _verbose.allows("biome", _verbose.LogLevel.DEBUG):
 		_verbose.info("biome", "🌀", "Phasic shadow: GDScript LNN initialized (native disabled)")
 
 	phase_lnn_enabled = true

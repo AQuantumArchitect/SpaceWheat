@@ -130,7 +130,7 @@ func capture_state_from_farm(farm: Node, current_state: GameState, scenario_id: 
 	# Player Vocabulary (farm-owned canonical, reconciled with PlayerVocabulary if needed)
 	if farm and farm.has_method("get_known_pairs"):
 		state.known_pairs = _resolve_known_pairs_for_capture(farm)
-		known_emojis = _derive_known_emojis_from_pairs(state.known_pairs)
+		known_emojis = GameState.derive_known_emojis_from_pairs(state.known_pairs)
 		_log("debug", "save", "📖", "Captured vocabulary: %d pairs → %d emojis" % [state.known_pairs.size(), known_emojis.size()])
 
 	# Locked quest offers
@@ -230,7 +230,7 @@ func capture_state_from_farm(farm: Node, current_state: GameState, scenario_id: 
 
 	# Capture plot→biome assignments
 	state.plot_biome_assignments = {}
-	if farm.grid and "plot_biome_assignments" in farm.grid:
+	if farm.grid:
 		for pos_key in farm.grid.plot_biome_assignments.keys():
 			state.plot_biome_assignments[pos_key] = farm.grid.plot_biome_assignments[pos_key]
 
@@ -448,8 +448,7 @@ func apply_state_to_farm(state: GameState, farm: Node) -> void:
 		])
 
 	if state.plot_biome_assignments and farm.grid:
-		if "plot_biome_assignments" in farm.grid:
-			farm.grid.plot_biome_assignments = state.plot_biome_assignments.duplicate()
+		farm.grid.plot_biome_assignments = state.plot_biome_assignments.duplicate()
 
 	var has_register_infra = false
 	if state.biome_states:
@@ -644,20 +643,6 @@ func _capture_icon_map_snapshot(farm: Node, known_emojis: Array) -> Dictionary:
 		}
 		out["icon_map_snapshot_source"] = "derived_from_pairs"
 	return out
-
-
-func _derive_known_emojis_from_pairs(known_pairs: Array) -> Array:
-	var derived: Array = []
-	for pair in known_pairs:
-		if not (pair is Dictionary):
-			continue
-		var north = str(pair.get("north", ""))
-		var south = str(pair.get("south", ""))
-		if north != "" and north not in derived:
-			derived.append(north)
-		if south != "" and south not in derived:
-			derived.append(south)
-	return derived
 
 
 func _resolve_known_pairs_for_capture(farm: Node) -> Array:

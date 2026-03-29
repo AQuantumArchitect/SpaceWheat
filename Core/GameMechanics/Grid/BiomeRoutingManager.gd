@@ -92,6 +92,55 @@ func get_biome_id_for_plot(position: Vector2i) -> String:
 	return plot_biome_assignments.get(position, "")
 
 
+func has_biome(biome_name: String) -> bool:
+	return biomes.has(biome_name)
+
+
+func get_biome(biome_name: String):
+	return biomes.get(biome_name, null)
+
+
+func get_biome_names() -> Array:
+	var names = biomes.keys()
+	names.sort()
+	return names
+
+
+func get_plot_biome_assignments() -> Dictionary:
+	return plot_biome_assignments
+
+
+func set_plot_biome_assignment(position: Vector2i, biome_name: String) -> bool:
+	if biome_name == "":
+		clear_plot_biome_assignment(position)
+		return true
+	if not biomes.has(biome_name):
+		return false
+	plot_biome_assignments[position] = biome_name
+	return true
+
+
+func clear_plot_biome_assignment(position: Vector2i) -> void:
+	plot_biome_assignments.erase(position)
+
+
+func get_plot_positions_for_biome(biome_name: String) -> Array[Vector2i]:
+	var positions: Array[Vector2i] = []
+	for key in plot_biome_assignments.keys():
+		if str(plot_biome_assignments.get(key, "")) != biome_name:
+			continue
+		if key is Vector2i:
+			positions.append(key)
+		elif key is Vector2:
+			positions.append(Vector2i(int((key as Vector2).x), int((key as Vector2).y)))
+	positions.sort_custom(func(a, b) -> bool:
+		if a.y == b.y:
+			return a.x < b.x
+		return a.y < b.y
+	)
+	return positions
+
+
 func get_register_for_plot(position: Vector2i) -> int:
 	"""Get the RegisterId for a plot.
 

@@ -531,20 +531,3 @@ func _activate_selected() -> void:
 	if selected_index >= 0 and selected_index < _menu_buttons.size():
 		_menu_buttons[selected_index].emit_signal("pressed")
 
-
-# =============================================================================
-# MENU ALIASES (for MenuPanelBase compatibility)
-# =============================================================================
-
-func show_menu() -> void:
-	"""Show the menu (alias for activate with game pause)."""
-	activate()
-	if is_inside_tree():
-		get_tree().paused = true
-
-
-func close_menu() -> void:
-	"""Close the menu (alias for deactivate with game unpause)."""
-	if is_inside_tree():
-		get_tree().paused = false
-	deactivate()

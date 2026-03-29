@@ -35,7 +35,7 @@ static func assign_plots_to_biome(farm, positions: Array[Vector2i], biome_name: 
 		}
 
 	# Validate biome exists
-	if not farm.grid.biomes.has(biome_name):
+	if not farm.grid.has_biome(biome_name):
 		return {
 			"success": false,
 			"error": "biome_not_found",
@@ -51,10 +51,10 @@ static func assign_plots_to_biome(farm, positions: Array[Vector2i], biome_name: 
 			continue
 
 		# Get previous assignment
-		var prev_biome = farm.grid.plot_biome_assignments.get(pos, "")
+		var prev_biome = farm.grid.get_plot_biome_assignment(pos)
 
 		# Assign to new biome
-		farm.grid.plot_biome_assignments[pos] = biome_name
+		farm.grid.set_plot_biome_assignment(pos, biome_name)
 
 		# Update plot if it exists
 		var plot = farm.grid.get_plot(pos)
@@ -104,11 +104,11 @@ static func clear_biome_assignment(farm, positions: Array[Vector2i]) -> Dictiona
 
 	for pos in positions:
 		# Get current assignment
-		var current_biome = farm.grid.plot_biome_assignments.get(pos, "")
+		var current_biome = farm.grid.get_plot_biome_assignment(pos)
 
 		if current_biome != "":
 			# Remove from assignment dictionary
-			farm.grid.plot_biome_assignments.erase(pos)
+			farm.grid.clear_plot_biome_assignment(pos)
 
 			# Unbind terminal
 			var plot = farm.grid.get_plot(pos)
@@ -173,7 +173,9 @@ static func inspect_plot(farm, positions: Array[Vector2i]) -> Dictionary:
 		info.south_emoji = plot.south_emoji if plot.south_emoji else ""
 
 		# Get biome info
-		var biome_name = farm.grid.plot_biome_assignments.get(pos, "unassigned")
+		var biome_name = farm.grid.get_plot_biome_assignment(pos)
+		if biome_name == "":
+			biome_name = "unassigned"
 		info.biome_name = biome_name
 
 		var biome = farm.grid.get_biome_for_plot(pos)
@@ -230,8 +232,8 @@ static func get_biome_list(farm) -> Dictionary:
 
 	var biomes: Array = []
 
-	for biome_name in farm.grid.biomes:
-		var biome = farm.grid.biomes[biome_name]
+	for biome_name in farm.grid.get_biome_names():
+		var biome = farm.grid.get_biome(biome_name)
 		var info: Dictionary = {
 			"name": biome_name,
 			"type": biome.get_biome_type() if biome.has_method("get_biome_type") else biome_name
@@ -264,9 +266,8 @@ static func get_plots_for_biome(farm, biome_name: String) -> Dictionary:
 
 	var plots: Array[Vector2i] = []
 
-	for pos in farm.grid.plot_biome_assignments:
-		if farm.grid.plot_biome_assignments[pos] == biome_name:
-			plots.append(pos)
+	for pos in farm.grid.get_plot_positions_for_biome(biome_name):
+		plots.append(pos)
 
 	return {
 		"success": true,

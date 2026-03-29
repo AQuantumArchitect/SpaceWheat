@@ -23,10 +23,8 @@ const EconomyConstants = preload("res://Core/GameMechanics/EconomyConstants.gd")
 const ActionCostRuntime = preload("res://Core/GameMechanics/ActionCostRuntime.gd")
 const TerminalPoolClass = preload("res://Core/GameMechanics/TerminalPool.gd")
 const BiomeEvolutionBatcherClass = preload("res://Core/Environment/BiomeEvolutionBatcher.gd")
-# GRACEFUL BIOME LOADING: Use load() instead of preload() so script errors
-# in individual biomes don't break the entire Farm. Failed biomes are skipped.
-var _BiomeScripts: Dictionary = {}  # Populated at runtime in _init_biomes()
 const FarmUIState = preload("res://Core/GameState/FarmUIState.gd")
+const GameState = preload("res://Core/GameState/GameState.gd")
 const VocabularyEvolution = preload("res://Core/QuantumSubstrate/VocabularyEvolution.gd")
 const BiomeDiscoveryForecastService = preload("res://Core/Gameplay/BiomeDiscoveryForecastService.gd")
 
@@ -79,31 +77,6 @@ func set_instrument(inst) -> void:
 	"""Transfer bootstrap terminal pool to instrument and store reference."""
 	instrument = inst
 	inst.terminal_pool = _bootstrap_pool
-
-
-func _safe_load_biome(script_path: String, biome_name: String):
-	"""Gracefully load and instantiate a biome. Returns null if loading fails.
-
-	This allows the game to continue with partial biome availability
-	when individual biome scripts have compile errors.
-	"""
-	var script = load(script_path)
-	if script == null:
-		push_warning("Farm: Failed to load biome script '%s' - biome '%s' disabled" % [script_path, biome_name])
-		return null
-
-	var biome = script.new()
-	if biome == null:
-		push_warning("Farm: Failed to instantiate biome '%s' - disabled" % biome_name)
-		return null
-
-	biome.name = biome_name
-	add_child(biome)
-	_loaded_biome_count += 1
-	print("Farm: Loaded biome '%s'" % biome_name)
-	return biome
-
-
 
 
 func _finalize_biome_evolution_batcher() -> void:
@@ -290,8 +263,10 @@ func _ready():
 	economy = FarmEconomy.new()
 	add_child(economy)
 
-	# Start with empty grid (0x0) and expand as biomes load
-	grid_config = _create_empty_grid_config()
+	# Start with a zero-size bootstrap grid and expand once real biomes load.
+	grid_config = GridConfig.new()
+	grid_config.grid_width = 0
+	grid_config.grid_height = 0
 	grid = FarmGrid.new(grid_config.grid_width, grid_config.grid_height)
 	add_child(grid)
 
@@ -351,7 +326,8 @@ func _ready():
 		print("Farm: %d biomes loaded successfully (via unified BootManager.load_biome)" % _loaded_biome_count)
 	else:
 		biome_enabled = false
-		_verbose.warn("boot", "⚠️", "No biomes loaded - operating in simple mode (fallback 4×1 grid)")
+		push_error("Farm: no biomes loaded - aborting boot")
+		return
 
 	# NOTE: Operator rebuild now handled by BootManager in Stage 3A
 	# This ensures deterministic ordering: IconRegistry ready → rebuild operators → verify biomes
@@ -486,15 +462,7 @@ func set_reap_count(value: int) -> void:
 
 func get_known_emojis() -> Array:
 	"""Return unique emojis from known vocab pairs."""
-	var emojis: Array = []
-	for pair in known_pairs:
-		var north = pair.get("north", "")
-		var south = pair.get("south", "")
-		if north != "" and north not in emojis:
-			emojis.append(north)
-		if south != "" and south not in emojis:
-			emojis.append(south)
-	return emojis
+	return GameState.derive_known_emojis_from_pairs(known_pairs)
 
 
 func set_known_pairs(pairs: Array, sync_player_vocab: bool = true, reset_player_vocab: bool = false) -> void:
@@ -685,8 +653,7 @@ func time_skip_phrames(phrames: int, delta: float = PhysicsConfig.PHRAME_DT) -> 
 
 	var evolved_steps = 0
 	var skipped_steps = 0
-	var force_legacy = OS.get_environment("RIG_TIME_SKIP_LEGACY").to_lower() in ["1", "true", "yes", "on"]
-	if biome_evolution_batcher and biome_evolution_batcher.has_method("run_time_skip_cycles") and not force_legacy:
+	if biome_evolution_batcher and biome_evolution_batcher.has_method("run_time_skip_cycles"):
 		var direct_result = biome_evolution_batcher.run_time_skip_cycles(steps, dt)
 		evolved_steps = int(direct_result.get("evolved_steps", 0))
 		skipped_steps = int(direct_result.get("skipped_biomes", 0))
@@ -1001,7 +968,7 @@ func _create_grid_config() -> GridConfig:
 	var config = GridConfig.new()
 	var explored_biomes = _get_loaded_biomes_in_order()
 	if explored_biomes.is_empty():
-		return _create_empty_grid_config()
+		return null
 	var grid_width = _get_max_biome_plot_count(explored_biomes)
 	var grid_height = explored_biomes.size()
 	config.grid_width = grid_width
@@ -1045,52 +1012,6 @@ func _create_grid_config() -> GridConfig:
 
 			# Set up biome assignment
 			config.biome_assignments[Vector2i(i, biome_row)] = biome_name
-
-	return config
-
-
-func _create_empty_grid_config() -> GridConfig:
-	"""Create a fallback grid config (4x1) when no biomes load.
-
-	This ensures a fully functioning farm even with zero working biomes.
-	The farm operates in "simple mode" without quantum evolution, but plots
-	remain usable for basic operations and economy continues to function.
-
-	Returns: GridConfig with 4×1 grid (4 usable plots, no biome assignments)
-	"""
-	var config = GridConfig.new()
-
-	# Fallback: 4×1 grid (minimum viable farm)
-	# Provides 4 plots for basic farming even if all biomes fail
-	config.grid_width = 4
-	config.grid_height = 1
-
-	# Create keyboard layout with homerow mapping
-	var keyboard = KeyboardLayoutConfig.new()
-	var neutral_keys = ["J", "K", "L", ";"]
-	for i in range(4):
-		var pos = Vector2i(i, 0)
-		keyboard.action_to_position["plot_neutral_" + str(i)] = pos
-		keyboard.position_to_label[pos] = neutral_keys[i].to_upper()
-	config.keyboard_layout = keyboard
-
-	# Create plot configs for each grid position (unassigned to any biome)
-	var plots: Array[PlotConfig] = []
-	for x in range(4):
-		var plot = PlotConfig.new()
-		plot.position = Vector2i(x, 0)
-		plot.is_active = true
-		plot.keyboard_label = neutral_keys[x].to_upper()
-		plot.input_action = "plot_neutral_" + str(x)
-		plot.biome_name = ""  # No biome assignment (simple mode)
-		plots.append(plot)
-
-	config.plots = plots
-	config.biome_assignments.clear()  # No biome assignments in simple mode
-
-	_verbose.info("boot", "⚠️", "Fallback grid created: %dx%d (%d plots, zero biomes, simple mode)" % [
-		config.grid_width, config.grid_height, config.grid_width * config.grid_height
-	])
 
 	return config
 
@@ -1201,20 +1122,11 @@ func _rebuild_biome_row_maps(biome_list: Array[String]) -> void:
 
 
 func refresh_grid_for_biomes() -> bool:
-	"""Rebuild grid_config and resize grid/terminal_pool if dimensions changed.
-
-	Always produces a valid grid configuration:
-	- If biomes loaded: grid sized to match biome layout
-	- If no biomes loaded: fallback 4×1 grid for simple mode farming
-	"""
+	"""Rebuild grid_config and resize grid/terminal_pool when real biomes are loaded."""
 	var new_config = _create_grid_config()
 	if not new_config:
+		push_error("Farm.refresh_grid_for_biomes(): no loaded biomes available")
 		return false
-
-	# NOTE: Grid can be valid even with width/height = 0 from _create_grid_config()
-	# In that case, we fall back to minimum viable grid
-	if new_config.grid_width == 0 or new_config.grid_height == 0:
-		new_config = _create_empty_grid_config()  # Fallback: 4×1 grid
 
 	var resized = false
 	if not grid_config or new_config.grid_width != grid_config.grid_width or new_config.grid_height != grid_config.grid_height:
@@ -1439,18 +1351,6 @@ func _load_biome_dynamically(biome_name: String) -> bool:
 
 
 	return true
-
-
-func _assign_plots_for_biome(biome_name: String) -> void:
-	"""Assign grid plots to a newly loaded biome based on GridConfig."""
-	if not grid or not grid_config:
-		return
-	if not grid.has_method("assign_plot_to_biome"):
-		return
-	for pos in grid_config.biome_assignments:
-		if grid_config.biome_assignments[pos] == biome_name:
-			grid.assign_plot_to_biome(pos, biome_name)
-
 
 func measure_plot(pos: Vector2i) -> String:
 	"""Measure (collapse) quantum state of plot at position

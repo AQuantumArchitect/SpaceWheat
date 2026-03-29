@@ -209,7 +209,7 @@ func create_overlays(parent: Control) -> void:
 	if layout_manager and escape_menu.has_method("set_layout_manager"):
 		escape_menu.set_layout_manager(layout_manager)
 	escape_menu.z_index = 4000  # System tier - below SaveLoadMenu
-	escape_menu.hide_menu()
+	escape_menu.deactivate()
 	parent.add_child(escape_menu)
 
 	# Connect escape menu signals
@@ -336,8 +336,8 @@ func show_overlay(name: String) -> void:
 				_verbose.warn("ui", "❌", "vocabulary_overlay is null!")
 		"escape_menu":
 			if escape_menu:
-				_verbose.debug("ui", "→", "Calling escape_menu.show_menu()")
-				escape_menu.show_menu()
+				_verbose.debug("ui", "→", "Calling escape_menu.activate()")
+				escape_menu.activate()
 				overlay_states["escape_menu"] = true
 				overlay_toggled.emit("escape_menu", true)
 				_verbose.info("ui", "✅", "escape_menu shown")
@@ -379,8 +379,8 @@ func hide_overlay(name: String) -> void:
 				_verbose.warn("ui", "❌", "vocabulary_overlay is null!")
 		"escape_menu":
 			if escape_menu:
-				_verbose.debug("ui", "→", "Calling escape_menu.hide_menu()")
-				escape_menu.hide_menu()
+				_verbose.debug("ui", "→", "Calling escape_menu.deactivate()")
+				escape_menu.deactivate()
 				overlay_states["escape_menu"] = false
 				overlay_toggled.emit("escape_menu", false)
 				_verbose.info("ui", "✅", "escape_menu hidden")
@@ -498,14 +498,6 @@ func toggle_escape_menu() -> void:
 		_verbose.warn("ui", "❌", "escape_menu is null!")
 
 
-func toggle_keyboard_help() -> void:
-	"""Toggle keyboard help panel visibility (K key)
-	DEPRECATED: Use toggle_v2_overlay("controls") instead.
-	"""
-	toggle_v2_overlay("controls")
-	_verbose.info("ui", "⌨️", "Controls overlay toggled via K key")
-
-
 func toggle_biome_inspector() -> void:
 	"""Toggle biome inspector overlay (B key)"""
 	_verbose.debug("ui", "🔄", "toggle_biome_inspector() called")
@@ -570,8 +562,8 @@ func _refresh_vocabulary_overlay() -> void:
 	# Get player's known emojis (derived from known_pairs)
 	var gsm = get_node_or_null("/root/GameStateManager")
 	var known_emojis: Array = []
-	if gsm and "active_farm" in gsm and gsm.active_farm and gsm.active_farm.has_method("get_known_emojis"):
-		known_emojis = gsm.active_farm.get_known_emojis()
+	if gsm and gsm.has_method("get_player_vocab_emojis"):
+		known_emojis = gsm.get_player_vocab_emojis()
 	elif gsm and gsm.current_state:
 		known_emojis = gsm.current_state.get_known_emojis()
 
@@ -1009,7 +1001,7 @@ func _on_save_load_menu_closed() -> void:
 	_verbose.debug("save", "📋", "Returning from save/load menu to escape menu")
 	# When user presses ESC in save/load menu, return to main escape menu (don't close it)
 	if escape_menu:
-		escape_menu.show_menu()
+		escape_menu.activate()
 	else:
 		_verbose.warn("save", "⚠️", "Escape menu not available to return to")
 

@@ -320,7 +320,7 @@ func _check_newly_accessible_factions(new_emoji: String, old_emojis: Array, new_
 func get_accessible_factions() -> Array:
 	"""Get all factions that have vocabulary overlap with player (can receive quests)"""
 	var accessible = []
-	var known_emojis = _get_player_vocab_emojis()
+	var known_emojis = get_player_vocab_emojis()
 
 	for faction in FactionDatabase.ALL_FACTIONS:
 		var faction_vocab = FactionDatabase.get_faction_vocabulary(faction)
@@ -332,7 +332,7 @@ func get_accessible_factions() -> Array:
 	return accessible
 
 
-func _get_player_vocab_pairs() -> Array:
+func get_player_vocab_pairs() -> Array:
 	"""Return canonical player vocab pairs (farm-owned preferred)."""
 	if "active_farm" in self and active_farm and active_farm.has_method("get_known_pairs"):
 		return active_farm.get_known_pairs()
@@ -341,13 +341,21 @@ func _get_player_vocab_pairs() -> Array:
 	return []
 
 
-func _get_player_vocab_emojis() -> Array:
+func get_player_vocab_emojis() -> Array:
 	"""Return canonical player vocab emojis (farm-owned preferred)."""
-	if "active_farm" in self and active_farm and active_farm.has_method("get_known_emojis"):
-		return active_farm.get_known_emojis()
+	if "active_farm" in self and active_farm and active_farm.has_method("get_known_pairs"):
+		return GameState.derive_known_emojis_from_pairs(active_farm.get_known_pairs())
 	if current_state and current_state.has_method("get_known_emojis"):
 		return current_state.get_known_emojis()
 	return []
+
+
+func _get_player_vocab_pairs() -> Array:
+	return get_player_vocab_pairs()
+
+
+func _get_player_vocab_emojis() -> Array:
+	return get_player_vocab_emojis()
 
 
 ## New Game / Scenarios

@@ -171,10 +171,9 @@ func _stage_core_systems(farm: Node) -> void:
 	assert(farm != null, "Farm is null!")
 	assert(farm.grid != null, "Farm.grid is null!")
 
-	# Check biomes gracefully - allow boot to continue without them
+	# Boot requires at least one real biome runtime.
 	var has_biomes = farm.grid.biomes != null and not farm.grid.biomes.is_empty()
-	if not has_biomes:
-		_verbose.warn("boot", "⚠️", "No biomes loaded - boot will continue with limited functionality")
+	assert(has_biomes, "BootManager: no biomes loaded - boot aborted")
 
 	# Verify IconRegistry is available and fully loaded
 	var icon_registry = get_node_or_null("/root/IconRegistry")
@@ -640,7 +639,10 @@ func load_biome(biome_name: String, farm: Node) -> Dictionary:
 		_verbose.debug("boot", "📐", "Grid refreshed for loaded biomes")
 
 	# ====== STEP 3: ASSIGN PLOTS FROM GridConfig ======
-	farm._assign_plots_for_biome(biome_name)
+	if farm.grid and farm.grid_config and farm.grid.has_method("assign_plot_to_biome"):
+		for pos in farm.grid_config.biome_assignments:
+			if farm.grid_config.biome_assignments[pos] == biome_name:
+				farm.grid.assign_plot_to_biome(pos, biome_name)
 	_verbose.debug("boot", "✓", "Assigned plots for '%s'" % biome_name)
 
 	# ====== STEP 4: STORE METADATA ======

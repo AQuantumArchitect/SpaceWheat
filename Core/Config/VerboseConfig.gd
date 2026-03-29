@@ -10,10 +10,6 @@ extends Node
 ##   VerboseConfig.debug("quantum", "🔬", "State evolution complete")
 ##   VerboseConfig.error("save", "❌", "Failed to save game!")
 ##
-## Legacy API (backwards compatible):
-##   if VerboseConfig.is_verbose("quantum"):
-##       print("Detailed quantum info")
-##
 ## Configuration:
 ##   --verbose flag enables ALL categories at TRACE level
 ##   Runtime config via LoggerConfigPanel (press L key)
@@ -94,18 +90,6 @@ var _log_file: FileAccess = null
 var _log_buffer: PackedStringArray = []
 const LOG_BUFFER_SIZE = 10  # Flush every N messages
 
-# ============================================================================
-# LEGACY FLAGS (backwards compatibility)
-# ============================================================================
-
-var verbose_logging: bool = false
-var verbose_forest: bool = false      # Maps to "biome"
-var verbose_quantum: bool = false     # Maps to "quantum"
-var verbose_biome: bool = false       # Maps to "biome"
-var verbose_vocabulary: bool = false  # Maps to "quest"
-var verbose_farm: bool = false        # Maps to "farm"
-var verbose_network: bool = false     # Maps to "network"
-
 # Baseline profile snapshot for runtime resets
 var _baseline_category_levels: Dictionary = {}
 var _baseline_category_enabled: Dictionary = {}
@@ -128,7 +112,6 @@ func _ready():
 	# Check for --verbose flag or VERBOSE_LOGGING env var
 	var args = OS.get_cmdline_args()
 	if "--verbose" in args or OS.get_environment("VERBOSE_LOGGING") == "1":
-		verbose_logging = true
 		_enable_all_verbose()
 		print("🔍 VERBOSE LOGGING ENABLED (ALL CATEGORIES AT TRACE LEVEL)")
 
@@ -144,7 +127,6 @@ func _ready():
 
 	# Legacy: Check for subsystem-specific flags
 	if OS.get_environment("VERBOSE_FOREST") == "1":
-		verbose_forest = true
 		set_category_level("biome", LogLevel.DEBUG)
 		print("🌲 VERBOSE FOREST LOGGING ENABLED")
 
@@ -197,14 +179,6 @@ func _enable_all_verbose():
 	"""Enable all categories at TRACE level (for --verbose flag)"""
 	for category in category_levels.keys():
 		category_levels[category] = LogLevel.TRACE
-
-	# Legacy flags
-	verbose_forest = true
-	verbose_quantum = true
-	verbose_biome = true
-	verbose_vocabulary = true
-	verbose_farm = true
-	verbose_network = true
 
 
 func _notification(what: int):
@@ -395,12 +369,8 @@ func _parse_runtime_log_level(level_name: String) -> int:
 		_:
 			return -1
 
-# ============================================================================
-# LEGACY API (backwards compatibility)
-# ============================================================================
-
 static func safe_is_verbose(subsystem: String = "") -> bool:
-	"""Safe check that works even if VerboseConfig isn't initialized"""
+	"""Safe category-level check that works even if VerboseConfig isn't initialized."""
 	var config = Engine.get_main_loop().root.get_node_or_null("/root/VerboseConfig") if Engine.get_main_loop() else null
 	if not is_instance_valid(config):
 		return false
@@ -411,44 +381,27 @@ static func safe_is_verbose(subsystem: String = "") -> bool:
 	return config.is_verbose(subsystem)
 
 
-func is_verbose(subsystem: String = "") -> bool:
-	"""Check if we should show verbose output for a subsystem
+static func safe_allows(category: String, level: int) -> bool:
+	var config = Engine.get_main_loop().root.get_node_or_null("/root/VerboseConfig") if Engine.get_main_loop() else null
+	if not is_instance_valid(config):
+		return false
+	if not config.is_node_ready():
+		return false
+	return config.allows(category, level)
 
-	Legacy API - returns true if category level is DEBUG or TRACE
-	Maps old subsystem names to new categories
-	"""
+
+func is_verbose(subsystem: String = "") -> bool:
+	"""Return true when a category is configured for DEBUG or TRACE output."""
+	return allows(subsystem, LogLevel.DEBUG)
+
+
+func allows(category: String, level: int) -> bool:
 	if not is_node_ready():
 		return false
-
-	# Global verbose flag
-	if verbose_logging:
-		return true
-
-	# Map legacy subsystem names to new categories
-	var category = _map_legacy_subsystem(subsystem)
-
-	# Check if category is at DEBUG or TRACE level
-	var level = category_levels.get(category, LogLevel.INFO)
-	return level >= LogLevel.DEBUG
-
-
-func _map_legacy_subsystem(subsystem: String) -> String:
-	"""Map legacy subsystem names to new categories"""
-	match subsystem:
-		"forest":
-			return "biome"
-		"quantum":
-			return "quantum"
-		"biome":
-			return "biome"
-		"vocabulary":
-			return "quest"
-		"farm":
-			return "farm"
-		"network":
-			return "network"
-		_:
-			return subsystem  # Pass through unknown names
+	var normalized = category.strip_edges().to_lower()
+	if normalized == "":
+		return false
+	return _should_log(normalized, level)
 
 # ============================================================================
 # INTERNAL LOGGING IMPLEMENTATION

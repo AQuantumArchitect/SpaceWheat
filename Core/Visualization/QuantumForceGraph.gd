@@ -279,7 +279,7 @@ func _process(delta: float):
 			_perf_samples[key].pop_front()
 
 	# Report every N frames
-	if frame_count % _perf_report_interval == 0 and _verbose and _verbose.is_verbose("perf_hud"):
+	if frame_count % _perf_report_interval == 0 and _verbose and _verbose.allows("perf_hud", _verbose.LogLevel.DEBUG):
 		_print_perf_report()
 
 
@@ -574,7 +574,7 @@ func _on_terminal_bound(position: Vector2i, terminal_id: String, emoji_pair: Dic
 	if not farm_ref or not farm_ref.grid:
 		return
 
-	var biome_name = farm_ref.grid.plot_biome_assignments.get(position, "")
+	var biome_name = farm_ref.grid.get_plot_biome_assignment(position)
 	if biome_name.is_empty():
 		# Fallback: Try to get biome from terminal's bound_biome_name
 		var terminal_temp = farm_ref.terminal_pool.get_terminal(terminal_id) if farm_ref.terminal_pool else null
