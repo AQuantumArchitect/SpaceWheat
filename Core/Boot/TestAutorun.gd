@@ -87,11 +87,11 @@ func _run_tests():
 	if quest_board and quest_board.visible:
 		print("   ✅ Quest board opened!")
 
-		# Check v2 overlay
+		# Check overlay stack
 		if overlay_mgr.is_v2_overlay_active():
-			print("   ✅ Active as v2 overlay")
+			print("   ✅ Active in overlay stack")
 		else:
-			print("   ❌ NOT active as v2 overlay (old modal system)")
+			print("   ❌ NOT active in overlay stack")
 
 		# Try WASD
 		print("   → Testing WASD navigation...")
@@ -129,7 +129,7 @@ func _run_tests():
 	var overlays_to_test = ["inspector", "controls", "semantic_map"]
 
 	for overlay_name in overlays_to_test:
-		if not overlay_mgr.v2_overlays.has(overlay_name):
+		if not overlay_mgr.has_v2_overlay(overlay_name):
 			print("\n❌ %s not registered" % overlay_name)
 			continue
 
@@ -182,4 +182,3 @@ func _send_input_key(keycode: int):
 	var root = get_tree().root
 	if root:
 		root._input(event)
-

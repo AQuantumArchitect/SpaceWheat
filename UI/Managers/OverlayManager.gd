@@ -1341,6 +1341,11 @@ func get_v2_overlay(name: String):
 	return v2_overlays.get(name, null)
 
 
+func has_v2_overlay(name: String) -> bool:
+	"""Check whether an overlay name is registered."""
+	return v2_overlays.has(name)
+
+
 func get_registered_v2_overlays() -> Array:
 	"""Get list of all registered overlay names."""
 	return v2_overlays.keys()

@@ -179,8 +179,6 @@ func _bind_overlay_hud_proxies() -> void:
 	var overlay_manager = shell.overlay_manager
 	if overlay_manager.has_method("get_v2_overlay"):
 		performance_hud = overlay_manager.get_v2_overlay("inspector")
-	elif "v2_overlays" in overlay_manager:
-		performance_hud = overlay_manager.v2_overlays.get("inspector")
 
 
 func _on_quit_requested() -> void:

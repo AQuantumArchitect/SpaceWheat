@@ -158,15 +158,15 @@ func _any_menu_open() -> bool:
 		elif overlay_manager.escape_menu.visible:
 			return true
 	# Check controls overlay (shell menu, but in v2 system)
-	if overlay_manager and overlay_manager.v2_overlays.has("controls"):
-		var controls = overlay_manager.v2_overlays["controls"]
+	if overlay_manager and overlay_manager.has_v2_overlay("controls"):
+		var controls = overlay_manager.get_v2_overlay("controls")
 		if controls.visible:
 			return true
 	# Check farm overlays
 	if overlay_manager:
 		for name in FARM_OVERLAY_KEYS.values():
-			if overlay_manager.v2_overlays.has(name):
-				var overlay = overlay_manager.v2_overlays[name]
+			if overlay_manager.has_v2_overlay(name):
+				var overlay = overlay_manager.get_v2_overlay(name)
 				if overlay.visible:
 					return true
 	return false
@@ -200,8 +200,8 @@ func _toggle_shell_menu(menu_name: String) -> void:
 	match menu_name:
 		"balance_workbench":
 			advanced_mode_enabled = _resolve_advanced_mode()
-			if overlay_manager and overlay_manager.v2_overlays.has("balance_workbench"):
-				var wb = overlay_manager.v2_overlays["balance_workbench"]
+			if overlay_manager and overlay_manager.has_v2_overlay("balance_workbench"):
+				var wb = overlay_manager.get_v2_overlay("balance_workbench")
 				if wb and wb.has_method("set_advanced_mode"):
 					wb.set_advanced_mode(advanced_mode_enabled)
 				if wb and wb.has_method("set_snapshot_service"):
@@ -217,8 +217,8 @@ func _toggle_shell_menu(menu_name: String) -> void:
 
 		"controls":
 			# Check if controls is already open
-			if overlay_manager and overlay_manager.v2_overlays.has("controls"):
-				var controls = overlay_manager.v2_overlays["controls"]
+			if overlay_manager and overlay_manager.has_v2_overlay("controls"):
+				var controls = overlay_manager.get_v2_overlay("controls")
 				if controls.visible:
 					controls.deactivate()
 					return
@@ -242,8 +242,8 @@ func _toggle_farm_overlay(overlay_name: String) -> void:
 		return
 
 	# Check if this overlay is already open
-	if overlay_manager.v2_overlays.has(overlay_name):
-		var overlay = overlay_manager.v2_overlays[overlay_name]
+	if overlay_manager.has_v2_overlay(overlay_name):
+		var overlay = overlay_manager.get_v2_overlay(overlay_name)
 		if overlay.visible:
 			var opened_frame = int(_overlay_open_frame.get(overlay_name, -999999))
 			var frame_delta = Engine.get_process_frames() - opened_frame
