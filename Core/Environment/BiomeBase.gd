@@ -812,7 +812,7 @@ func get_total_register_count() -> int:
 	return viz_cache.get_num_qubits()
 
 ## Get registers not currently bound to any terminal (V2 Architecture)
-func get_available_registers_v2(terminal_pool) -> Array[int]:
+func get_available_registers(terminal_pool) -> Array[int]:
 	"""Get unbound registers for EXPLORE action."""
 	return get_unbound_registers(terminal_pool)
 

@@ -304,7 +304,7 @@ func _on_unhandled_key(keycode: int, _event: InputEvent) -> bool:
 
 
 # ============================================================================
-# V2 OVERLAY INTERFACE OVERRIDES
+# OVERLAY INTERFACE OVERRIDES
 # ============================================================================
 
 func _on_activated() -> void:

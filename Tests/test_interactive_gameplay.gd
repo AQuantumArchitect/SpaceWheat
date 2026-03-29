@@ -155,11 +155,11 @@ func _test_quest_board_interactive():
 	if quest_board and quest_board.visible:
 		_log("   ✅ Quest board opened")
 
-		# Check if v2 overlay is active
-		if overlay_manager.is_v2_overlay_active():
-			_log("   ✅ v2 overlay active")
+		# Check if overlay is active
+		if overlay_manager.is_overlay_active():
+			_log("   ✅ overlay active")
 		else:
-			_log("   ❌ v2 overlay NOT active (opened as modal instead?)")
+			_log("   ❌ overlay NOT active (opened as modal instead?)")
 			issues.append("not_v2_overlay")
 
 		# Try WASD navigation
@@ -224,13 +224,13 @@ func _test_overlays_interactive():
 		_log("\n   Testing %s %s..." % [emoji, name])
 
 		# Open overlay
-		var opened = overlay_manager.open_v2_overlay(name)
+		var opened = overlay_manager.open_overlay(name)
 		await get_tree().process_frame
 
-		if overlay_manager.is_v2_overlay_active():
+		if overlay_manager.is_overlay_active():
 			_log("      ✅ Opened successfully")
 
-			var overlay = overlay_manager.get_active_v2_overlay()
+			var overlay = overlay_manager.get_active_overlay()
 			if overlay:
 				# Test WASD
 				_simulate_key(KEY_W, "W")
@@ -248,7 +248,7 @@ func _test_overlays_interactive():
 				_simulate_key(KEY_ESCAPE, "ESC")
 				await get_tree().process_frame
 
-				if not overlay_manager.is_v2_overlay_active():
+				if not overlay_manager.is_overlay_active():
 					_log("      ✅ Closed with ESC")
 					test_results["overlay_%s" % name] = "FUNCTIONAL"
 				else:

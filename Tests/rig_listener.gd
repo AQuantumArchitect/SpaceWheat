@@ -2149,17 +2149,17 @@ func _select_plot_via_input(plot_idx: int) -> Dictionary:
 func _open_quest_board_via_input() -> Dictionary:
 	await _close_player_overlays_via_input()
 	var overlay_manager = _resolve_overlay_manager()
-	var board = overlay_manager.get_v2_overlay("quests") if overlay_manager and overlay_manager.has_method("get_v2_overlay") else null
+	var board = overlay_manager.get_overlay("quests") if overlay_manager and overlay_manager.has_method("get_overlay") else null
 	if board and board.visible:
 		return {"ok": true, "already_open": true}
 	await _press_key(KEY_C, false, 2)
-	board = overlay_manager.get_v2_overlay("quests") if overlay_manager and overlay_manager.has_method("get_v2_overlay") else null
+	board = overlay_manager.get_overlay("quests") if overlay_manager and overlay_manager.has_method("get_overlay") else null
 	return {"ok": board != null and board.visible, "opened": board != null and board.visible}
 
 
 func _navigate_quest_slot_via_input(page_idx: int, slot_idx: int) -> Dictionary:
 	var overlay_manager = _resolve_overlay_manager()
-	var board = overlay_manager.get_v2_overlay("quests") if overlay_manager and overlay_manager.has_method("get_v2_overlay") else null
+	var board = overlay_manager.get_overlay("quests") if overlay_manager and overlay_manager.has_method("get_overlay") else null
 	if not board or not board.visible:
 		return {"ok": false, "error": "quest_board_not_open"}
 	var total_pages = max(1, int(board.get_snapshot().get("total_pages", 1))) if board.has_method("get_snapshot") else 1

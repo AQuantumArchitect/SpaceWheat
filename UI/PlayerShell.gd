@@ -158,15 +158,15 @@ func _any_menu_open() -> bool:
 		elif overlay_manager.escape_menu.visible:
 			return true
 	# Check controls overlay (shell menu, but in v2 system)
-	if overlay_manager and overlay_manager.has_v2_overlay("controls"):
-		var controls = overlay_manager.get_v2_overlay("controls")
+	if overlay_manager and overlay_manager.has_overlay("controls"):
+		var controls = overlay_manager.get_overlay("controls")
 		if controls.visible:
 			return true
 	# Check farm overlays
 	if overlay_manager:
 		for name in FARM_OVERLAY_KEYS.values():
-			if overlay_manager.has_v2_overlay(name):
-				var overlay = overlay_manager.get_v2_overlay(name)
+			if overlay_manager.has_overlay(name):
+				var overlay = overlay_manager.get_overlay(name)
 				if overlay.visible:
 					return true
 	return false
@@ -180,9 +180,9 @@ func _close_all_menus() -> void:
 			overlay_stack.pop_overlay(overlay_manager.escape_menu)
 		elif overlay_manager.escape_menu.visible:
 			overlay_manager.escape_menu.deactivate()
-	# Close all v2 overlays (includes controls + logger + farm overlays)
+	# Close all overlays (includes controls + logger + farm overlays)
 	if overlay_manager:
-		overlay_manager.close_all_v2_overlays()
+		overlay_manager.close_all_overlays()
 
 
 func _open_escape_menu() -> void:
@@ -200,8 +200,8 @@ func _toggle_shell_menu(menu_name: String) -> void:
 	match menu_name:
 		"balance_workbench":
 			advanced_mode_enabled = _resolve_advanced_mode()
-			if overlay_manager and overlay_manager.has_v2_overlay("balance_workbench"):
-				var wb = overlay_manager.get_v2_overlay("balance_workbench")
+			if overlay_manager and overlay_manager.has_overlay("balance_workbench"):
+				var wb = overlay_manager.get_overlay("balance_workbench")
 				if wb and wb.has_method("set_advanced_mode"):
 					wb.set_advanced_mode(advanced_mode_enabled)
 				if wb and wb.has_method("set_snapshot_service"):
@@ -213,24 +213,24 @@ func _toggle_shell_menu(menu_name: String) -> void:
 					return
 			_close_all_menus()
 			if overlay_manager:
-				overlay_manager.open_v2_overlay("balance_workbench")
+				overlay_manager.open_overlay("balance_workbench")
 
 		"controls":
 			# Check if controls is already open
-			if overlay_manager and overlay_manager.has_v2_overlay("controls"):
-				var controls = overlay_manager.get_v2_overlay("controls")
+			if overlay_manager and overlay_manager.has_overlay("controls"):
+				var controls = overlay_manager.get_overlay("controls")
 				if controls.visible:
 					controls.deactivate()
 					return
 			# Close everything and open controls
 			_close_all_menus()
 			if overlay_manager:
-				overlay_manager.open_v2_overlay("controls")
+				overlay_manager.open_overlay("controls")
 
 		"logger":
-			# Logger is registered as a v2 overlay — toggle via OverlayManager
+			# Logger is registered as a overlay — toggle via OverlayManager
 			if overlay_manager:
-				overlay_manager.toggle_v2_overlay("logger")
+				overlay_manager.toggle_overlay("logger")
 
 
 func _toggle_farm_overlay(overlay_name: String) -> void:
@@ -242,8 +242,8 @@ func _toggle_farm_overlay(overlay_name: String) -> void:
 		return
 
 	# Check if this overlay is already open
-	if overlay_manager.has_v2_overlay(overlay_name):
-		var overlay = overlay_manager.get_v2_overlay(overlay_name)
+	if overlay_manager.has_overlay(overlay_name):
+		var overlay = overlay_manager.get_overlay(overlay_name)
 		if overlay.visible:
 			var opened_frame = int(_overlay_open_frame.get(overlay_name, -999999))
 			var frame_delta = Engine.get_process_frames() - opened_frame
@@ -257,7 +257,7 @@ func _toggle_farm_overlay(overlay_name: String) -> void:
 
 	# Close everything and open the requested overlay
 	_close_all_menus()
-	if overlay_manager.open_v2_overlay(overlay_name):
+	if overlay_manager.open_overlay(overlay_name):
 		_overlay_open_frame[overlay_name] = Engine.get_process_frames()
 
 func _toggle_build_play_mode() -> void:
@@ -407,10 +407,10 @@ func _ready() -> void:
 	# Initialize overlays (C/V/N/Z/ESC menus - K moved to Z, freeing K/L for homerow)
 	overlay_manager.create_overlays(overlay_layer)
 
-	# Create logger config panel (debug tool, press X to toggle) — registered as v2 overlay
+	# Create logger config panel (debug tool, press X to toggle) — registered as overlay
 	logger_config_panel = LoggerConfigPanel.new()
 	overlay_layer.add_child(logger_config_panel)
-	overlay_manager.register_v2_overlay("logger", logger_config_panel)
+	overlay_manager.register_overlay("logger", logger_config_panel)
 	_verbose.info("ui", "✅", "Logger config panel created (press X to toggle)")
 
 	# QuantumHUDPanel REMOVED - content merged into InspectorOverlay (N key)

@@ -1432,33 +1432,33 @@ func _is_quest_invalidated(quest_data: Dictionary) -> bool:
 
 
 # =============================================================================
-# V2 OVERLAY INTERFACE OVERRIDES
+# OVERLAY INTERFACE OVERRIDES
 # =============================================================================
 
 func activate() -> void:
-	"""v2 overlay lifecycle: Called when overlay opens."""
+	"""overlay lifecycle: Called when overlay opens."""
 	open_board()
 
 
 func deactivate() -> void:
-	"""v2 overlay lifecycle: Called when overlay closes."""
+	"""overlay lifecycle: Called when overlay closes."""
 	close_board()
 
 
 func on_q_pressed() -> void:
-	"""v2 overlay action: Q key handler."""
+	"""overlay action: Q key handler."""
 	action_q_on_selected()
 	action_performed.emit("quest_action_q", {"slot": selected_slot_index})
 
 
 func on_e_pressed() -> void:
-	"""v2 overlay action: E key handler."""
+	"""overlay action: E key handler."""
 	action_e_on_selected()
 	action_performed.emit("quest_action_e", {"slot": selected_slot_index})
 
 
 func on_r_pressed() -> void:
-	"""v2 overlay action: R key handler (refresh selected)."""
+	"""overlay action: R key handler (refresh selected)."""
 	action_r_on_selected()
 	action_performed.emit("quest_action_r", {"slot": selected_slot_index})
 
@@ -1560,7 +1560,7 @@ func get_action_info(key: String) -> Dictionary:
 
 
 func get_action_labels() -> Dictionary:
-	"""v2 overlay interface: Get current labels with cost display"""
+	"""overlay interface: Get current labels with cost display"""
 	var labels = {}
 	for key in ["Q", "E", "R", "F"]:
 		var info = get_action_info(key)

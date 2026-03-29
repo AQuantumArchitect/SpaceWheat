@@ -87,7 +87,7 @@ func _execute_quest_cycle(decision: Dictionary, params: Dictionary) -> Dictionar
 	if not bool(open_result.get("ok", false)):
 		return {"ok": false, "action": "quest_cycle", "backend": "player_input", "error": str(open_result.get("error", "quest_board_open_failed"))}
 	var overlay_manager = host._resolve_overlay_manager()
-	var board = overlay_manager.get_v2_overlay("quests") if overlay_manager and overlay_manager.has_method("get_v2_overlay") else null
+	var board = overlay_manager.get_overlay("quests") if overlay_manager and overlay_manager.has_method("get_overlay") else null
 	if not board or not board.has_method("get_snapshot"):
 		return {"ok": false, "action": "quest_cycle", "backend": "player_input", "error": "quest_board_unavailable"}
 	var snapshot = board.get_snapshot()

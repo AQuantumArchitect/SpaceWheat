@@ -78,7 +78,7 @@ func open_controls_panel() -> bool:
 func _open_overlay(name: String) -> bool:
 	if not overlay_manager:
 		return false
-	return overlay_manager.open_v2_overlay(name)
+	return overlay_manager.open_overlay(name)
 
 
 func get_resource_amount(emoji: String) -> float:
@@ -443,9 +443,9 @@ func _resolve_overlay(overlay_name: String):
 	if overlay_name == "":
 		return null
 	var overlay_manager = _resolve_overlay_manager()
-	if not overlay_manager or not overlay_manager.has_method("get_v2_overlay"):
+	if not overlay_manager or not overlay_manager.has_method("get_overlay"):
 		return null
-	return overlay_manager.get_v2_overlay(overlay_name)
+	return overlay_manager.get_overlay(overlay_name)
 
 
 func _resolve_widget(widget_name: String):

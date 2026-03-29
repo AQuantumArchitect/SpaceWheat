@@ -93,7 +93,7 @@ func _build_test_queue():
 	# =======================================================================
 	_queue_section("TEST 1: Basic Overlay Open/Close")
 
-	# Test each v2 overlay: C, V, B, N, K
+	# Test each overlay: C, V, B, N, K
 	var overlays = [
 		{"key": KEY_C, "name": "Quests (C)"},
 		{"key": KEY_V, "name": "Semantic Map (V)"},

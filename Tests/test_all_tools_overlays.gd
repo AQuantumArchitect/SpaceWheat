@@ -58,7 +58,7 @@ func _run_all_tests():
 	_print_results()
 
 func _test_overlays():
-	"""Test all 5 v2 overlays"""
+	"""Test all 5 overlays"""
 	print("\n1️⃣ INSPECTOR OVERLAY (📊)")
 	_test_overlay("inspector", "InspectorOverlay")
 
@@ -76,12 +76,12 @@ func _test_overlays():
 
 func _test_overlay(name: String, class_name: String):
 	"""Test a single overlay"""
-	if not overlay_manager.v2_overlays.has(name):
+	if not overlay_manager.overlays.has(name):
 		print("   ❌ Not registered")
 		test_results["overlay_%s" % name] = "NOT_REGISTERED"
 		return
 
-	var overlay = overlay_manager.v2_overlays[name]
+	var overlay = overlay_manager.overlays[name]
 	var issues = []
 
 	# Test properties
@@ -99,13 +99,13 @@ func _test_overlay(name: String, class_name: String):
 			issues.append("Missing method: %s" % method)
 
 	# Test opening
-	var opened = overlay_manager.open_v2_overlay(name)
+	var opened = overlay_manager.open_overlay(name)
 	if not opened:
 		issues.append("Failed to open")
 	elif not overlay.is_active or not overlay.visible:
 		issues.append("Opened but not active/visible")
 
-	overlay_manager.close_v2_overlay()
+	overlay_manager.close_overlay()
 
 	if issues.is_empty():
 		print("   ✅ All checks passed")

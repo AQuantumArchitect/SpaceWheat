@@ -82,16 +82,16 @@ func _verify_overlays(shell: Node):
 		print("   ❌ OverlayManager is null")
 		return
 
-	if not overlay_mgr.v2_overlays:
-		print("   ❌ v2_overlays dictionary missing")
+	if not overlay_mgr.overlays:
+		print("   ❌ overlays dictionary missing")
 		return
 
-	print("   ✅ Overlays registered: %d" % overlay_mgr.v2_overlays.size())
+	print("   ✅ Overlays registered: %d" % overlay_mgr.overlays.size())
 
 	var expected = ["inspector", "controls", "semantic_map", "quests", "biome_detail"]
 	for overlay_name in expected:
-		if overlay_mgr.v2_overlays.has(overlay_name):
-			var overlay = overlay_mgr.v2_overlays[overlay_name]
+		if overlay_mgr.overlays.has(overlay_name):
+			var overlay = overlay_mgr.overlays[overlay_name]
 			var methods_ok = true
 			var missing_methods = []
 
@@ -109,16 +109,16 @@ func _verify_overlays(shell: Node):
 
 	# Test opening/closing
 	print("\n   Testing open/close mechanism:")
-	if overlay_mgr.has_method("open_v2_overlay"):
-		var test_opened = overlay_mgr.open_v2_overlay("controls")
+	if overlay_mgr.has_method("open_overlay"):
+		var test_opened = overlay_mgr.open_overlay("controls")
 		if test_opened:
 			print("      ✅ Can open overlays")
-			overlay_mgr.close_v2_overlay()
+			overlay_mgr.close_overlay()
 			print("      ✅ Can close overlays")
 		else:
 			print("      ❌ Failed to open overlay")
 	else:
-		print("      ❌ open_v2_overlay() method missing")
+		print("      ❌ open_overlay() method missing")
 
 func _verify_tools(shell: Node):
 	"""Check tool system"""
@@ -172,7 +172,7 @@ func _verify_input_routing(shell: Node):
 
 	print("   Checking routing priority:")
 	print("      1. v2 Overlays ......... ", end="")
-	if overlay_mgr and overlay_mgr.v2_overlays:
+	if overlay_mgr and overlay_mgr.overlays:
 		print("✅")
 	else:
 		print("❌")
@@ -191,8 +191,8 @@ func _verify_input_routing(shell: Node):
 
 	# Check if overlays have input handlers
 	print("\n   Checking overlay input methods:")
-	for overlay_name in overlay_mgr.v2_overlays.keys():
-		var overlay = overlay_mgr.v2_overlays[overlay_name]
+	for overlay_name in overlay_mgr.overlays.keys():
+		var overlay = overlay_mgr.overlays[overlay_name]
 		if overlay.has_method("handle_input"):
 			print("      ✅ %s: handle_input() exists" % overlay_name)
 		else:
@@ -233,7 +233,7 @@ func _verify_data_flow(shell: Node):
 
 	# Check inspector data
 	print("\n   Inspector Overlay data:")
-	var inspector = overlay_mgr.v2_overlays.get("inspector")
+	var inspector = overlay_mgr.overlays.get("inspector")
 	if inspector:
 		print("      ✅ Inspector overlay exists")
 
@@ -249,7 +249,7 @@ func _verify_data_flow(shell: Node):
 
 	# Check semantic map data
 	print("\n   Semantic Map data:")
-	var semantic = overlay_mgr.v2_overlays.get("semantic_map")
+	var semantic = overlay_mgr.overlays.get("semantic_map")
 	if semantic:
 		print("      ✅ Semantic map exists")
 

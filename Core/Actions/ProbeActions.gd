@@ -53,7 +53,7 @@ static func action_explore(terminal_pool, biome, economy = null) -> Dictionary:
 		}
 
 	# 2. Check for unbound registers (availability gate)
-	var available_registers = biome.get_available_registers_v2(terminal_pool) if biome.has_method("get_available_registers_v2") else []
+	var available_registers = biome.get_available_registers(terminal_pool) if biome.has_method("get_available_registers") else []
 	if available_registers.is_empty():
 		return {
 			"success": false,

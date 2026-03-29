@@ -213,7 +213,7 @@ static func _can_execute_explore(farm, current_selection: Vector2i) -> bool:
 		return false
 
 	# Must have unbound registers
-	var available_registers = biome.get_available_registers_v2(terminal_pool) if biome.has_method("get_available_registers_v2") else []
+	var available_registers = biome.get_available_registers(terminal_pool) if biome.has_method("get_available_registers") else []
 	var has_unbound = not available_registers.is_empty()
 
 	# Debug: Log availability

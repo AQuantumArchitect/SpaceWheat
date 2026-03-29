@@ -1,8 +1,8 @@
 extends SceneTree
-## Phase 3 Overlay Test - Tests v2 overlay system integration
+## Phase 3 Overlay Test - Tests overlay integration
 ## Run with: godot --headless --script res://Tests/test_phase3_overlays.gd
 ##
-## Verifies CVBN keyboard shortcuts and v2 overlay lifecycle
+## Verifies CVBN keyboard shortcuts and overlay lifecycle
 
 const SEPARATOR = "======================================================================"
 
@@ -19,7 +19,7 @@ var boot_manager = null
 func _init():
 	print("\n" + SEPARATOR)
 	print("PHASE 3: OVERLAY INTEGRATION TEST")
-	print("Testing: v2 overlays, CVBN shortcuts, left-side buttons")
+	print("Testing: overlays, CVBN shortcuts, left-side buttons")
 	print(SEPARATOR + "\n")
 	print("Waiting for autoloads to initialize...")
 
@@ -112,8 +112,8 @@ func _find_node(node: Node, name: String) -> Node:
 
 
 func _run_all_tests():
-	# Test v2 overlay system
-	_test_v2_overlays_registered()
+	# Test overlay system
+	_test_overlays_registered()
 	_test_inspector_overlay_exists()
 	_test_controls_overlay_exists()
 	_test_semantic_map_overlay_exists()
@@ -137,7 +137,7 @@ func _run_all_tests():
 	quit(1 if failed > 0 else 0)
 
 
-func _test_v2_overlays_registered():
+func _test_overlays_registered():
 	current_test = "V2 Overlays Registered"
 	print("TEST: %s" % current_test)
 
@@ -145,8 +145,8 @@ func _test_v2_overlays_registered():
 		_record_result(false, "OverlayManager is null")
 		return
 
-	var registered = overlay_manager.get_registered_v2_overlays()
-	print("  Registered v2 overlays: %s" % str(registered))
+	var registered = overlay_manager.get_registered_overlays()
+	print("  Registered overlays: %s" % str(registered))
 
 	var expected = ["inspector", "controls", "semantic_map", "quests", "biome_detail"]
 	var all_found = true
@@ -156,16 +156,16 @@ func _test_v2_overlays_registered():
 			all_found = false
 
 	if all_found:
-		_record_result(true, "All expected v2 overlays registered")
+		_record_result(true, "All expected overlays registered")
 	else:
-		_record_result(false, "Some v2 overlays missing")
+		_record_result(false, "Some overlays missing")
 
 
 func _test_inspector_overlay_exists():
 	current_test = "Inspector Overlay Exists"
 	print("\nTEST: %s" % current_test)
 
-	var overlay = overlay_manager.get_v2_overlay("inspector")
+	var overlay = overlay_manager.get_overlay("inspector")
 	if overlay:
 		print("  InspectorOverlay found")
 		print("  overlay_name: %s" % overlay.overlay_name)
@@ -178,7 +178,7 @@ func _test_controls_overlay_exists():
 	current_test = "Controls Overlay Exists"
 	print("\nTEST: %s" % current_test)
 
-	var overlay = overlay_manager.get_v2_overlay("controls")
+	var overlay = overlay_manager.get_overlay("controls")
 	if overlay:
 		print("  ControlsOverlay found")
 		_record_result(true, "ControlsOverlay exists")
@@ -190,7 +190,7 @@ func _test_semantic_map_overlay_exists():
 	current_test = "Semantic Map Overlay Exists"
 	print("\nTEST: %s" % current_test)
 
-	var overlay = overlay_manager.get_v2_overlay("semantic_map")
+	var overlay = overlay_manager.get_overlay("semantic_map")
 	if overlay:
 		print("  SemanticMapOverlay found")
 		_record_result(true, "SemanticMapOverlay exists")
@@ -202,7 +202,7 @@ func _test_biome_detail_overlay_exists():
 	current_test = "Biome Detail Overlay Exists"
 	print("\nTEST: %s" % current_test)
 
-	var overlay = overlay_manager.get_v2_overlay("biome_detail")
+	var overlay = overlay_manager.get_overlay("biome_detail")
 	if overlay:
 		print("  BiomeInspectorOverlay (biome_detail) found")
 		_record_result(true, "BiomeInspectorOverlay exists")
@@ -215,10 +215,10 @@ func _test_open_close_inspector():
 	print("\nTEST: %s" % current_test)
 
 	# Open inspector
-	overlay_manager.open_v2_overlay("inspector")
+	overlay_manager.open_overlay("inspector")
 
-	var is_active = overlay_manager.is_v2_overlay_active()
-	var active_overlay = overlay_manager.get_active_v2_overlay()
+	var is_active = overlay_manager.is_overlay_active()
+	var active_overlay = overlay_manager.get_active_overlay()
 
 	print("  After open: is_active=%s" % is_active)
 	if active_overlay:
@@ -229,9 +229,9 @@ func _test_open_close_inspector():
 		return
 
 	# Close it
-	overlay_manager.close_v2_overlay()
+	overlay_manager.close_overlay()
 
-	is_active = overlay_manager.is_v2_overlay_active()
+	is_active = overlay_manager.is_overlay_active()
 	print("  After close: is_active=%s" % is_active)
 
 	if is_active:
@@ -244,15 +244,15 @@ func _test_open_close_semantic_map():
 	current_test = "Open/Close Semantic Map Overlay"
 	print("\nTEST: %s" % current_test)
 
-	overlay_manager.open_v2_overlay("semantic_map")
-	var is_active = overlay_manager.is_v2_overlay_active()
+	overlay_manager.open_overlay("semantic_map")
+	var is_active = overlay_manager.is_overlay_active()
 
 	if not is_active:
 		_record_result(false, "Failed to open semantic_map overlay")
 		return
 
-	overlay_manager.close_v2_overlay()
-	is_active = overlay_manager.is_v2_overlay_active()
+	overlay_manager.close_overlay()
+	is_active = overlay_manager.is_overlay_active()
 
 	if is_active:
 		_record_result(false, "Failed to close semantic_map overlay")
@@ -264,15 +264,15 @@ func _test_open_close_controls():
 	current_test = "Open/Close Controls Overlay"
 	print("\nTEST: %s" % current_test)
 
-	overlay_manager.open_v2_overlay("controls")
-	var is_active = overlay_manager.is_v2_overlay_active()
+	overlay_manager.open_overlay("controls")
+	var is_active = overlay_manager.is_overlay_active()
 
 	if not is_active:
 		_record_result(false, "Failed to open controls overlay")
 		return
 
-	overlay_manager.close_v2_overlay()
-	is_active = overlay_manager.is_v2_overlay_active()
+	overlay_manager.close_overlay()
+	is_active = overlay_manager.is_overlay_active()
 
 	if is_active:
 		_record_result(false, "Failed to close controls overlay")

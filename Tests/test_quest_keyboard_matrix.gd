@@ -75,7 +75,7 @@ func _boot_game() -> bool:
 		_fail("OverlayManager missing on PlayerShell")
 		return false
 
-	_quest_board = _overlay_manager.get_v2_overlay("quests") if _overlay_manager.has_method("get_v2_overlay") else _overlay_manager.get("quest_board")
+	_quest_board = _overlay_manager.get_overlay("quests") if _overlay_manager.has_method("get_overlay") else _overlay_manager.get("quest_board")
 	if not _quest_board:
 		_fail("QuestBoard overlay not found")
 		return false
