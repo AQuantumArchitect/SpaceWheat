@@ -11,7 +11,7 @@ const SAVE_DIR = "user://saves/"
 const NUM_SAVE_SLOTS = 3
 const SCENARIO_DIR = "res://Scenarios/"
 const NEW_GAME_TEMPLATE = "new_game_easy.tres"
-const EMOJI_INDEX_FILE = "emoji_save_index.json"
+const SAVE_ARTIFACT_INDEX_FILE = "emoji_save_index.json"
 const EMOJI_SIDECAR_SUFFIX = ".json"
 
 
@@ -25,8 +25,8 @@ static func get_save_path(slot: int) -> String:
 	return SAVE_DIR + "save_slot_" + str(slot) + ".tres"
 
 
-static func get_emoji_index_path() -> String:
-	return SAVE_DIR + EMOJI_INDEX_FILE
+static func get_save_artifact_index_path() -> String:
+	return SAVE_DIR + SAVE_ARTIFACT_INDEX_FILE
 
 
 static func save_exists(slot: int) -> bool:
@@ -48,7 +48,7 @@ static func save_state(state: GameState, slot: int) -> int:
 	var path = get_save_path(slot)
 	var result = _atomic_save(state, path)
 	if result == OK:
-		_write_emoji_alias(state, slot, path)
+		_write_save_artifacts(state, slot, path)
 	return result
 
 
@@ -143,7 +143,7 @@ static func get_save_info(slot: int) -> Dictionary:
 	if not state:
 		return {"exists": false, "slot": slot}
 	var money = state.all_emoji_credits.get("💰", 0) if state.all_emoji_credits else 0
-	var alias_meta = _get_slot_alias_meta(slot)
+	var artifact_meta = _get_slot_artifact_meta(slot)
 	return {
 		"exists": true,
 		"slot": slot,
@@ -152,8 +152,8 @@ static func get_save_info(slot: int) -> Dictionary:
 		"credits": money,
 		"playtime": state.game_time,
 		"grid_size": "%dx%d" % [state.grid_width, state.grid_height],
-		"emoji_alias": alias_meta.get("alias_file", ""),
-		"emoji": alias_meta.get("emoji", "")
+		"save_file": artifact_meta.get("save_file", artifact_meta.get("alias_file", "")),
+		"marker_emoji": artifact_meta.get("marker_emoji", artifact_meta.get("emoji", ""))
 	}
 
 
@@ -182,31 +182,31 @@ static func load_new_game_template() -> GameState:
 	return load_scenario("default")
 
 
-static func _write_emoji_alias(state: GameState, slot: int, canonical_path: String) -> void:
-	var emoji = _choose_alias_emoji(state, slot)
-	if emoji == "":
+static func _write_save_artifacts(state: GameState, slot: int, canonical_path: String) -> void:
+	var marker_emoji = _choose_marker_emoji(state, slot)
+	if marker_emoji == "":
 		return
 
 	var stamp = str(int(Time.get_unix_time_from_system()))
-	var alias_file = "save_slot_%d_%s_%s.tres" % [slot, emoji, stamp]
-	var alias_path = SAVE_DIR + alias_file
-	var alias_save_result = ResourceSaver.save(state, alias_path)
-	if alias_save_result != OK:
-		push_warning("SaveStore: failed to write emoji alias save '%s'" % alias_path)
+	var save_file = "save_slot_%d_%s_%s.tres" % [slot, marker_emoji, stamp]
+	var save_path = SAVE_DIR + save_file
+	var save_result = ResourceSaver.save(state, save_path)
+	if save_result != OK:
+		push_warning("SaveStore: failed to write save artifact '%s'" % save_path)
 		return
-	var sidecar_file = alias_file + EMOJI_SIDECAR_SUFFIX
+	var sidecar_file = save_file + EMOJI_SIDECAR_SUFFIX
 	var sidecar_path = SAVE_DIR + sidecar_file
-	_write_emoji_sidecar(state, slot, emoji, alias_file, alias_path, canonical_path, sidecar_path)
+	_write_save_sidecar(state, slot, marker_emoji, save_file, save_path, canonical_path, sidecar_path)
 
-	var index = _read_emoji_index()
+	var index = _read_save_artifact_index()
 	var slots = index.get("slots", {})
 	if not (slots is Dictionary):
 		slots = {}
 	slots[str(slot)] = {
 		"slot": slot,
-		"emoji": emoji,
-		"alias_file": alias_file,
-		"alias_path": alias_path,
+		"marker_emoji": marker_emoji,
+		"save_file": save_file,
+		"save_path": save_path,
 		"sidecar_file": sidecar_file,
 		"sidecar_path": sidecar_path,
 		"canonical_path": canonical_path,
@@ -215,10 +215,10 @@ static func _write_emoji_alias(state: GameState, slot: int, canonical_path: Stri
 	index["version"] = 1
 	index["slots"] = slots
 	index["updated_at"] = int(Time.get_unix_time_from_system())
-	_write_emoji_index(index)
+	_write_save_artifact_index(index)
 
 
-static func _choose_alias_emoji(state: GameState, slot: int) -> String:
+static func _choose_marker_emoji(state: GameState, slot: int) -> String:
 	var candidates: Array[String] = []
 
 	if state:
@@ -250,8 +250,8 @@ static func _choose_alias_emoji(state: GameState, slot: int) -> String:
 	return candidates[idx]
 
 
-static func _read_emoji_index() -> Dictionary:
-	var path = get_emoji_index_path()
+static func _read_save_artifact_index() -> Dictionary:
+	var path = get_save_artifact_index_path()
 	if not FileAccess.file_exists(path):
 		return {}
 	var file = FileAccess.open(path, FileAccess.READ)
@@ -263,30 +263,36 @@ static func _read_emoji_index() -> Dictionary:
 	return {}
 
 
-static func _write_emoji_index(index: Dictionary) -> void:
-	var file = FileAccess.open(get_emoji_index_path(), FileAccess.WRITE)
+static func _write_save_artifact_index(index: Dictionary) -> void:
+	var file = FileAccess.open(get_save_artifact_index_path(), FileAccess.WRITE)
 	if not file:
-		push_warning("SaveStore: failed to open emoji index for writing")
+		push_warning("SaveStore: failed to open save artifact index for writing")
 		return
 	file.store_string(JSON.stringify(index, "\t"))
 
 
-static func _get_slot_alias_meta(slot: int) -> Dictionary:
-	var index = _read_emoji_index()
+static func _get_slot_artifact_meta(slot: int) -> Dictionary:
+	var index = _read_save_artifact_index()
 	var slots = index.get("slots", {})
 	if slots is Dictionary and slots.has(str(slot)):
 		var slot_meta = slots[str(slot)]
 		if slot_meta is Dictionary:
+			if not slot_meta.has("save_file") and slot_meta.has("alias_file"):
+				slot_meta["save_file"] = slot_meta.get("alias_file", "")
+			if not slot_meta.has("save_path") and slot_meta.has("alias_path"):
+				slot_meta["save_path"] = slot_meta.get("alias_path", "")
+			if not slot_meta.has("marker_emoji") and slot_meta.has("emoji"):
+				slot_meta["marker_emoji"] = slot_meta.get("emoji", "")
 			return slot_meta
 	return {}
 
 
-static func _write_emoji_sidecar(
+static func _write_save_sidecar(
 	state: GameState,
 	slot: int,
-	emoji: String,
-	alias_file: String,
-	alias_path: String,
+	marker_emoji: String,
+	save_file: String,
+	save_path: String,
 	canonical_path: String,
 	sidecar_path: String
 ) -> void:
@@ -307,9 +313,9 @@ static func _write_emoji_sidecar(
 	var payload = {
 		"version": 1,
 		"slot": slot,
-		"emoji": emoji,
-		"alias_file": alias_file,
-		"alias_path": alias_path,
+		"marker_emoji": marker_emoji,
+		"save_file": save_file,
+		"save_path": save_path,
 		"canonical_path": canonical_path,
 		"scenario_id": state.scenario_id,
 		"save_timestamp": int(state.save_timestamp),
