@@ -21,6 +21,7 @@ const EconomyConstants = preload("res://Core/GameMechanics/EconomyConstants.gd")
 const ActionCostRuntime = preload("res://Core/GameMechanics/ActionCostRuntime.gd")
 const VerboseHelper = preload("res://Core/Config/VerboseHelper.gd")
 const BalanceService = preload("res://Core/GameMechanics/BalanceService.gd")
+const GameState = preload("res://Core/GameState/GameState.gd")
 
 
 ## ============================================================================
@@ -397,7 +398,8 @@ static func _action_reap_global(farm, economy = null) -> Dictionary:
 
 	var flux_to_credits = float(BalanceService.get_tuning_value(farm, "flux_to_credits", 1.0))
 	var reap_base_yield = float(BalanceService.get_tuning_value(farm, "reap_base_yield", 50.0))
-	var known_emojis: Array = farm.get_known_emojis() if farm.has_method("get_known_emojis") else []
+	var known_pairs: Array = farm.get_known_pairs() if farm and farm.has_method("get_known_pairs") else []
+	var known_emojis: Array = GameState.derive_known_emojis_from_pairs(known_pairs)
 
 	var flux_totals: Dictionary = {}
 	var icon_totals: Dictionary = {}
@@ -514,8 +516,8 @@ static func _prepare_pop_result(terminal, terminal_pool, economy = null, farm = 
 
 	# Check if emoji is in known vocabulary (known gets a big multiplier, unknown is penalized)
 	var is_known_vocab = false
-	if farm and farm.has_method("get_known_emojis"):
-		var known_emojis = farm.get_known_emojis()
+	if farm and farm.has_method("get_known_pairs"):
+		var known_emojis = GameState.derive_known_emojis_from_pairs(farm.get_known_pairs())
 		is_known_vocab = resource in known_emojis
 
 	var biome = _resolve_biome_from_terminal(farm, terminal)

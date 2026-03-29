@@ -86,10 +86,6 @@ func _get_vocabulary_purity_multiplier(emoji: String) -> float:
 	if gsm.has_method("get_player_vocab_emojis"):
 		var known_emojis = gsm.get_player_vocab_emojis()
 		is_in_vocabulary = emoji in known_emojis
-	# Fallback to saved state (legacy)
-	elif gsm.current_state and gsm.current_state.has_method("get_known_emojis"):
-		var known = gsm.current_state.get_known_emojis()
-		is_in_vocabulary = emoji in known
 
 	# Purity bonus: 2x before squaring = 4x total
 	if is_in_vocabulary:
