@@ -291,15 +291,3 @@ func get_snapshot() -> Dictionary:
 		"file_enabled": _verbose.enable_file_logging,
 		"timestamps_enabled": _verbose.show_timestamps
 	}
-
-
-# ============================================================================
-# LEGACY COMPATIBILITY
-# ============================================================================
-
-## Keep show_panel/hide_panel as thin aliases for callers not yet updated
-func show_panel() -> void:
-	activate()
-
-func hide_panel() -> void:
-	deactivate()

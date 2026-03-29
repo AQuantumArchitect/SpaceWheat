@@ -171,10 +171,9 @@ func _stage_core_systems(farm: Node) -> void:
 	assert(farm != null, "Farm is null!")
 	assert(farm.grid != null, "Farm.grid is null!")
 
-	# Check biomes gracefully - allow boot to continue without them
+	# Boot requires at least one real biome runtime.
 	var has_biomes = farm.grid.biomes != null and not farm.grid.biomes.is_empty()
-	if not has_biomes:
-		_verbose.warn("boot", "⚠️", "No biomes loaded - boot will continue with limited functionality")
+	assert(has_biomes, "BootManager: no biomes loaded - boot aborted")
 
 	# Verify IconRegistry is available and fully loaded
 	var icon_registry = get_node_or_null("/root/IconRegistry")
