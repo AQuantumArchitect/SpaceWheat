@@ -373,9 +373,9 @@ func _populate_vocab_list() -> void:
 	# Get player's known pairs (the core vocabulary unit)
 	var known_pairs: Array = []
 	var known_emojis: Array = []
-	if "active_farm" in gsm and gsm.active_farm and gsm.active_farm.has_method("get_known_pairs"):
-		known_pairs = gsm.active_farm.get_known_pairs()
-		known_emojis = gsm.active_farm.get_known_emojis()
+	if gsm.has_method("get_player_vocab_pairs"):
+		known_pairs = gsm.get_player_vocab_pairs()
+		known_emojis = gsm.get_player_vocab_emojis()
 	elif gsm.current_state:
 		known_pairs = gsm.current_state.known_pairs
 		known_emojis = gsm.current_state.get_known_emojis()

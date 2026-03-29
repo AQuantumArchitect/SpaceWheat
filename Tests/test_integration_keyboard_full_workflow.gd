@@ -132,7 +132,7 @@ func _test_instrument_api():
 		"action_rotate", "action_hadamard",
 		"action_build_gate", "action_inspect", "action_remove_gates",
 		"action_inject_vocabulary", "action_remove_vocabulary",
-		"action_explore_biome", "action_cycle_biome",
+		"action_discover_biome", "action_cycle_biome",
 		"gate_inject", "lindblad_pump", "lindblad_drain",
 		"probe_cycle", "victory_lap",
 		"select_plot", "toggle_plot_check", "get_checked_plots", "set_checked_plots",

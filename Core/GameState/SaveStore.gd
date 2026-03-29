@@ -221,8 +221,8 @@ static func _write_emoji_alias(state: GameState, slot: int, canonical_path: Stri
 static func _choose_alias_emoji(state: GameState, slot: int) -> String:
 	var candidates: Array[String] = []
 
-	if state and state.has_method("get_known_emojis"):
-		for emoji in state.get_known_emojis():
+	if state:
+		for emoji in GameState.derive_known_emojis_from_pairs(state.known_pairs):
 			var s = str(emoji)
 			if s != "" and s not in candidates:
 				candidates.append(s)
@@ -295,7 +295,7 @@ static func _write_emoji_sidecar(
 	var sidecar_icon_time = int(state.icon_map_snapshot_time)
 	if sidecar_icon_map.is_empty():
 		var by_emoji = {}
-		for e in state.get_known_emojis():
+		for e in GameState.derive_known_emojis_from_pairs(state.known_pairs):
 			var s = str(e)
 			if s != "":
 				by_emoji[s] = 1.0

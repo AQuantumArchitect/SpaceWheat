@@ -102,18 +102,24 @@ extends Resource
 @export var selected_plot_positions: Array = []  # Array of Vector2i
 
 
-## Get known emojis (derived from known_pairs)
-## This is the canonical way to get the player's vocabulary
-func get_known_emojis() -> Array:
-	var emojis = []
-	for pair in known_pairs:
-		var north = pair.get("north", "")
-		var south = pair.get("south", "")
-		if north and north not in emojis:
+static func derive_known_emojis_from_pairs(pairs: Array) -> Array:
+	var emojis: Array = []
+	for pair in pairs:
+		if not (pair is Dictionary):
+			continue
+		var north = str(pair.get("north", ""))
+		var south = str(pair.get("south", ""))
+		if north != "" and north not in emojis:
 			emojis.append(north)
-		if south and south not in emojis:
+		if south != "" and south not in emojis:
 			emojis.append(south)
 	return emojis
+
+
+## Get known emojis (derived from known_pairs)
+## This is the canonical compatibility read for the player's vocabulary.
+func get_known_emojis() -> Array:
+	return derive_known_emojis_from_pairs(known_pairs)
 
 
 ## Get the pair containing a given emoji (returns null if not found)

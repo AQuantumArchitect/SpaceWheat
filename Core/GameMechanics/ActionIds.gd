@@ -14,7 +14,6 @@ const ACTION_ALIASES: Dictionary = {
 	"drain": LINDBLAD_DRAIN,
 	"lindblad_drive": LINDBLAD_PUMP,
 	"lindblad_decay": LINDBLAD_DRAIN,
-	"explore_biome": DISCOVER_BIOME,
 }
 
 

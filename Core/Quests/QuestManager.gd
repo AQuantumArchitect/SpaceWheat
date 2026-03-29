@@ -145,10 +145,8 @@ func _get_gsm():
 func _get_player_vocab_emojis() -> Array:
 	"""Get player-known emojis (farm-owned preferred)."""
 	var gsm = _get_gsm()
-	if gsm and "active_farm" in gsm and gsm.active_farm and gsm.active_farm.has_method("get_known_emojis"):
-		return gsm.active_farm.get_known_emojis()
-	if gsm and gsm.current_state and gsm.current_state.has_method("get_known_emojis"):
-		return gsm.current_state.get_known_emojis()
+	if gsm and gsm.has_method("get_player_vocab_emojis"):
+		return gsm.get_player_vocab_emojis()
 	return []
 
 

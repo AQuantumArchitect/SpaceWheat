@@ -570,8 +570,8 @@ func _refresh_vocabulary_overlay() -> void:
 	# Get player's known emojis (derived from known_pairs)
 	var gsm = get_node_or_null("/root/GameStateManager")
 	var known_emojis: Array = []
-	if gsm and "active_farm" in gsm and gsm.active_farm and gsm.active_farm.has_method("get_known_emojis"):
-		known_emojis = gsm.active_farm.get_known_emojis()
+	if gsm and gsm.has_method("get_player_vocab_emojis"):
+		known_emojis = gsm.get_player_vocab_emojis()
 	elif gsm and gsm.current_state:
 		known_emojis = gsm.current_state.get_known_emojis()
 
