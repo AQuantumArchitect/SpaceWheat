@@ -380,9 +380,9 @@ static func discover_biome(farm, _positions: Array[Vector2i]) -> Dictionary:
 			"message": "Farm not loaded"
 		}
 
-	print("✅ Farm found, calling farm.explore_biome()")
-	# Call Farm's explore_biome method
-	var result = farm.explore_biome()
+	print("✅ Farm found, calling farm.discover_biome()")
+	# Call Farm's discover_biome method
+	var result = farm.discover_biome()
 	print("🗺️ BiomeHandler result: %s" % str(result))
 	return result
 

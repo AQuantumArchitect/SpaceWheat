@@ -421,8 +421,8 @@ static func _can_execute_discover_biome(farm) -> bool:
 	if not farm or not farm.economy:
 		return false
 
-	if farm.has_method("can_explore_biome"):
-		var gate = farm.can_explore_biome()
+	if farm.has_method("can_discover_biome"):
+		var gate = farm.can_discover_biome()
 		return gate.get("ok", false)
 
 	var gate = ActionCostRuntime.preflight_action(farm, "discover_biome")

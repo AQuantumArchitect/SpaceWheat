@@ -580,10 +580,10 @@ func action_remove_vocabulary(biome_name: String, grid_pos: Vector2i) -> Diction
 func action_discover_biome() -> Dictionary:
 	if not farm:
 		return {"success": false, "error": "no_farm", "message": "Farm not ready"}
-	if not farm.has_method("explore_biome"):
-		return {"success": false, "error": "no_method", "message": "Farm cannot explore biomes"}
+	if not farm.has_method("discover_biome"):
+		return {"success": false, "error": "no_method", "message": "Farm cannot discover biomes"}
 
-	var result = farm.explore_biome()
+	var result = farm.discover_biome()
 	action_performed.emit("discover_biome", result)
 	return result
 

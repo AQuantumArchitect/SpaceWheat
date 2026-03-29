@@ -1218,7 +1218,7 @@ func get_plot_position_for_active_biome(plot_index: int) -> Vector2i:
 
 ## Public API - Game Operations
 
-func can_explore_biome() -> Dictionary:
+func can_discover_biome() -> Dictionary:
 	"""Check if a new biome can be explored (slots + availability)."""
 	var observation_frame = get_node_or_null("/root/ObservationFrame")
 	if not observation_frame:
@@ -1240,7 +1240,7 @@ func can_explore_biome() -> Dictionary:
 
 	return {"ok": true, "unexplored": unexplored}
 
-func explore_biome() -> Dictionary:
+func discover_biome() -> Dictionary:
 	"""Explore and unlock a random new biome (4E action)
 
 	Returns:
@@ -1249,9 +1249,9 @@ func explore_biome() -> Dictionary:
 			- biome_name: String (if successful)
 			- message: String (error or success message)
 	"""
-	print("🗺️ explore_biome() called!")
+	print("🗺️ discover_biome() called!")
 
-	var gate = can_explore_biome()
+	var gate = can_discover_biome()
 	if not gate.get("ok", false):
 		var msg = gate.get("message", "Biome exploration blocked")
 		print("❌ %s" % msg)

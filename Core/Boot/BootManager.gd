@@ -546,7 +546,7 @@ func load_biome(biome_name: String, farm: Node) -> Dictionary:
 
 	Called by:
 	- Farm._ready() during boot (for all unlocked biomes)
-	- Farm.explore_biome() at runtime (discover_biome action)
+	- Farm.discover_biome() at runtime (discover_biome action)
 
 	Ensures consistent order:
 	1. Load script & instantiate
