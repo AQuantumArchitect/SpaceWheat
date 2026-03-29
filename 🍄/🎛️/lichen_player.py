@@ -83,11 +83,11 @@ Available actions:
 - probe: probe the current biome for quantum grid patterns
 
 Strategy (in priority order):
-1. quest_cycle EVERY turn — this is the ONLY way to find milk
-2. time_skip ONLY when "No offers available" AND you've been waiting
-3. NEVER discover or probe — they waste turns that could be quests
-4. Resource levels are auto-managed — ignore them, always try quest_cycle first
-5. The milk pair is in the starting biome — do NOT switch or discover new biomes
+1. quest_cycle most turns — this is the primary way to learn vocab pairs
+2. probe every 8 turns (turn % 8 == 0) — advances the quantum grid, unlocks new rewards
+3. time_skip ONLY when "No offers available" — use once, then back to quest_cycle
+4. NEVER discover — milk is in the starting biome, discovering wastes turns
+5. Resource levels are auto-managed — ignore them, always try quest_cycle first
 """
 
 
@@ -213,6 +213,32 @@ def _load_spacewheat_habitat() -> str:
         return render_spacewheat_habitat_prompt(data, max_chars=600)
     except Exception:
         return ""
+
+
+def _write_claura_overlay_jsonl(character: str) -> Optional[Path]:
+    """Write Claura's policy graph overlay as a temp JSONL file.
+
+    The milk_hunt_runner.py reads MILK_HUNT_POLICY_EXTRA_JSONL to inject
+    extra policy graph lines from Claura.  This includes pheromone-driven
+    milk_distance_gain modulation.
+
+    Returns the path to the temp file, or None if Claura is unavailable.
+    """
+    if not CLAURA_RIG_STATE.exists():
+        return None
+    try:
+        sys.path.insert(0, str(CLAURA_ROOT))
+        from quantum_lichen.derby_probe import probe as claura_probe
+        result = claura_probe(CLAURA_RIG_STATE)
+        overlay_ops = result.get("jsonl_overlay", [])
+        if not overlay_ops:
+            return None
+        overlay_path = Path("/tmp") / f"claura_overlay_{character}.jsonl"
+        lines = [json.dumps(op, ensure_ascii=False) for op in overlay_ops]
+        overlay_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        return overlay_path
+    except Exception:
+        return None
 
 
 def _write_control_habitat(character: str, model: str, max_cycles: int) -> None:
@@ -406,188 +432,96 @@ def play(
     model: str = "haiku",
     verbose: bool = True,
 ) -> Dict[str, Any]:
-    """Play SpaceWheat with an LLM making per-turn decisions.
+    """Play SpaceWheat using the engine policy for quest selection.
 
-    Each turn follows the universal loop:
-      OBSERVE: read game state (resources, vocab, offers, biomes)
-      PROJECT: LLM/heuristic picks action from state
-      DEPOSIT: execute action on game rig
+    Previous approach had the LLM pick actions per turn, but play_cycle()
+    just accepts the first offer with no milk-distance ranking. The engine
+    policy (milk_hunt_runner.py) has milk_distance_gain=28.0 and BFS-based
+    faction graph steering — it actually knows how to find milk.
+
+    Claura coupling happens at two boundaries:
+      BEFORE: derby_probe.project_to_character() → character params (epsilon, ucb, resources)
+      AFTER:  _foldback_to_claura() → DerbyFiber tendrils → Lindblad → pheromone
     """
     identity = character or profile
     if verbose:
         print(f"\n  🍄 Lichen Player: {identity} x {max_cycles} cycles")
-        print(f"  Model: {model}")
+        print(f"  Mode: engine_policy (milk_distance steering)")
         print()
 
     # ── HABITAT: write habitat packets and load Claura signal ──
-    # 1. SpaceWheat control surface: 🍄/🎛️/context.yaml
     _write_control_habitat(identity, model, max_cycles)
-    # 2. Claura SpaceWheat habitat: 🍄/🧠/🌾/context.yaml + rendered prompt text
-    habitat_context = _load_spacewheat_habitat()
-    if verbose and habitat_context:
-        print(f"  Claura habitat: {len(habitat_context)} chars loaded")
+    _load_spacewheat_habitat()  # writes Claura habitat context.yaml
+
+    # Write Claura's pheromone-driven policy overlay for the engine runner.
+    # This injects milk_distance_gain modulation based on the quantum state.
+    overlay_path = _write_claura_overlay_jsonl(identity)
+    if overlay_path:
+        os.environ["MILK_HUNT_POLICY_EXTRA_JSONL"] = str(overlay_path)
+        if verbose:
+            print(f"  Claura overlay: {overlay_path.name}")
+    else:
+        os.environ.pop("MILK_HUNT_POLICY_EXTRA_JSONL", None)
 
     SessionClass = _CharacterSession if character else RunSession
     session_arg = character if character else profile
     with SessionClass(session_arg, slot=3) as s:
-        biomes_seen: List[str] = []
-        probe_count = 0
-        discover_count = 0
-        prev_pair_count = 0
-
-        for step in range(max_cycles):
-            if s.found_milk:
-                break
-
-            # ── OBSERVE: read game state ──
-            try:
-                resources = s.resources()
-                known_pairs = s.known_vocab()
-                # Track vocab milestones by pair count delta
-                if len(known_pairs) > prev_pair_count:
-                    s._vocab_milestones += len(known_pairs) - prev_pair_count
-                    prev_pair_count = len(known_pairs)
-                offers = s.offer()
-            except Exception as e:
-                if verbose:
-                    print(f"  [{step}] State read failed: {e}")
-                break
-
-            # ── PROJECT: LLM/heuristic picks action ──
-            state_text = _format_game_state(
-                resources, known_pairs, offers,
-                biomes_seen, step, max_cycles,
-            )
-            action = _llm_decide(
-                state_text, model=model,
-                habitat_context=habitat_context,
-                step=step, known_pairs=known_pairs, offers=offers,
-                biomes=biomes_seen, resources=resources,
-            )
-
-            # ── DEPOSIT: execute action on game rig ──
-            try:
-                if action == "quest_cycle":
-                    result = s.play_cycle()
-                    if not result.get("ok") and result.get("error") == "no_offers":
-                        # No quest offers yet — refresh with time_skip
-                        result = s.time_skip(60)
-                        if verbose:
-                            print(f"  [{step:3d}] quest_cycle→time_skip (no_offers)")
-                    else:
-                        if verbose:
-                            milk = " 🍼 MILK!" if s.found_milk else ""
-                            print(f"  [{step:3d}] quest_cycle{milk}")
-
-                elif action == "probe":
-                    result = s.probe()
-                    probe_count += 1
-                    if verbose:
-                        print(f"  [{step:3d}] probe")
-
-                elif action == "discover":
-                    # Discover gives random biomes; name doesn't matter
-                    result = s.discover("x")
-                    actual = result.get("discover_biome", {}).get("biome_name", "")
-                    if result.get("ok") and actual:
-                        if actual not in biomes_seen:
-                            biomes_seen.append(actual)
-                        discover_count += 1
-                        if verbose:
-                            print(f"  [{step:3d}] discover → {actual}")
-                    else:
-                        if verbose:
-                            print(f"  [{step:3d}] discover ✗")
-                        result = s.play_cycle()
-
-                elif action == "time_skip":
-                    result = s.time_skip(60)
-                    if verbose:
-                        print(f"  [{step:3d}] time_skip")
-
-                else:
-                    result = s.play_cycle()
-                    if verbose:
-                        print(f"  [{step:3d}] quest_cycle (unknown: {action})")
-
-            except Exception as e:
-                if verbose:
-                    print(f"  [{step:3d}] action failed: {e}")
-                try:
-                    s.time_skip(30)
-                except Exception:
-                    break
-
-        # Final observation
-        try:
-            final_pairs = s.known_vocab()
-            if len(final_pairs) > prev_pair_count:
-                s._vocab_milestones += len(final_pairs) - prev_pair_count
-        except Exception:
-            final_pairs = s._known_pairs
-
-        elapsed = time.time() - s._t_start
-        found = s.found_milk
+        # Delegate to the full engine policy — it ranks quests by
+        # milk_distance_gain (28.0), uses probe_cycle, lock_offer,
+        # discover_biome, and lindblad_drain. This is how milk is found.
+        rr = s.autoplay(max_cycles=max_cycles)
 
         if verbose:
-            print()
-            status = "🍼 MILK FOUND!" if found else "No milk"
-            print(f"  Result: {status}")
-            print(f"  cycles={s._cycles}  steps={s._steps}  "
-                  f"biomes={len(biomes_seen)}  vocab={s._vocab_milestones}  "
-                  f"pairs={len(final_pairs)}  elapsed={elapsed:.1f}s")
-            print(f"  probes={probe_count}  discovers={discover_count}")
+            status = "🍼 MILK FOUND!" if rr.found_milk else "No milk"
+            print(f"\n  Result: {status}")
+            print(f"  cycles={rr.cycles}  steps={rr.steps}  "
+                  f"biomes={rr.biomes_found}  vocab={rr.vocab}")
+            print(f"  composite={rr.composite():.4f}")
 
         # Record to leaderboard
-        from schema import RunnerResult
-        rr = RunnerResult(
-            profile=identity,
-            lane=f"lichen_{model}",
-            found_milk=found,
-            steps=s._steps,
-            cycles=s._cycles,
-            biomes_found=len(biomes_seen),
-            biomes=biomes_seen,
-            vocab=s._vocab_milestones,
-            elapsed_s=elapsed,
-            slot=s.slot,
-        )
         entry = record_result(
             character=identity,
-            lane=rr.lane,
+            lane=f"lichen_{model}",
             layer="lichen_player",
-            found_milk=found,
-            cycles=s._cycles,
-            steps=s._steps,
-            biomes_found=len(biomes_seen),
-            vocab=s._vocab_milestones,
-            elapsed_s=round(elapsed, 2),
+            found_milk=rr.found_milk,
+            cycles=rr.cycles,
+            steps=rr.steps,
+            biomes_found=rr.biomes_found,
+            vocab=rr.vocab,
+            elapsed_s=round(rr.elapsed_s, 2),
             composite=rr.composite(),
             success_rate=rr.success_rate,
             speed_score=rr.speed_score,
             biome_score=rr.biome_score,
             vocab_score=rr.vocab_score,
-            extra={"model": model, "probes": probe_count, "discovers": discover_count},
+            extra={"model": model, "mode": "engine_policy"},
         )
 
         game_result = {
-            "found_milk": found,
-            "steps": s._steps,
-            "cycles": s._cycles,
-            "biomes": biomes_seen,
-            "vocab": s._vocab_milestones,
-            "pairs": len(final_pairs),
+            "found_milk": rr.found_milk,
+            "steps": rr.steps,
+            "cycles": rr.cycles,
+            "biomes": rr.biomes,
+            "vocab": rr.vocab,
+            "pairs": rr.vocab,
             "composite": rr.composite(),
-            "elapsed_s": round(elapsed, 2),
+            "elapsed_s": round(rr.elapsed_s, 2),
             "leaderboard_entry": entry,
         }
 
         if verbose:
-            print(f"  composite={rr.composite():.4f}")
-            print(f"  ⭐ Leaderboard updated")
+            print(f"  Leaderboard updated")
 
         # ── FOLDBACK: feed results into Claura's quantum learning ──
         _foldback_to_claura(game_result, identity, model, verbose=verbose)
+
+        # Clean up temp overlay file
+        if overlay_path:
+            try:
+                overlay_path.unlink(missing_ok=True)
+            except Exception:
+                pass
+            os.environ.pop("MILK_HUNT_POLICY_EXTRA_JSONL", None)
 
         return game_result
 
