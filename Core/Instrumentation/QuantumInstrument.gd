@@ -965,13 +965,7 @@ func get_locked_offers() -> Array:
 func get_biome_positions(biome_name: String) -> Array:
 	if not farm or not ("grid" in farm) or not farm.grid:
 		return []
-	if not ("plot_biome_assignments" in farm.grid):
-		return []
-	var positions: Array = []
-	for pos in farm.grid.plot_biome_assignments:
-		if farm.grid.plot_biome_assignments[pos] == biome_name:
-			positions.append(pos)
-	return positions
+	return farm.grid.get_plot_positions_for_biome(biome_name)
 
 
 func get_grid_snapshot() -> Dictionary:

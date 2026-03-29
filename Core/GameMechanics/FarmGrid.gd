@@ -1,17 +1,13 @@
 class_name FarmGrid
 extends Node
 
-## FarmGrid - Orchestrator for farm grid management (Decomposed)
+## FarmGrid - Routing surface for plots, terminals, registers, and biome ownership
 ##
-## This is a FACADE that delegates to focused components:
+## This delegates to focused components:
 ## - GridPlotManager: Plot lifecycle and queries
 ## - BiomeRoutingManager: Multi-biome registry and routing
 ## - EntanglementManager: Quantum entanglement operations
-## - PlantingManager: (removed) legacy planting system
 ## - HarvestMeasurementManager: Harvest and measurement operations
-##
-## FarmGrid is now primarily the routing surface where plots, terminals,
-## registers, and biome ownership meet.
 
 # Access autoload safely (avoids compile-time errors)
 @onready var _verbose = get_node("/root/VerboseConfig")
@@ -53,7 +49,7 @@ var _entanglement: EntanglementManager
 var _harvest: HarvestMeasurementManager
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# CONFIGURATION & STATE (preserved for backward compatibility)
+# CONFIGURATION & STATE
 # ═══════════════════════════════════════════════════════════════════════════════
 
 # Grid configuration
@@ -69,34 +65,27 @@ var terminal_pool = null
 
 # Environmental parameters
 var base_temperature: float = 20.0
-var active_icons: Array = []
-var icon_scopes: Dictionary = {}  # Icon → Array[String]
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# FACADE ACCESSORS (for direct access when needed)
+# FACADE ACCESSORS
 # ═══════════════════════════════════════════════════════════════════════════════
 
-## Direct access to plots dictionary (for backward compatibility)
 var plots: Dictionary:
 	get:
 		return _plot_manager.plots if _plot_manager else {}
 
-## Direct access to biomes dictionary
 var biomes: Dictionary:
 	get:
 		return _biome_routing.biomes if _biome_routing else {}
 
-## Direct access to plot_biome_assignments
 var plot_biome_assignments: Dictionary:
 	get:
 		return _biome_routing.plot_biome_assignments if _biome_routing else {}
 
-## Direct access to entangled_pairs
 var entangled_pairs: Array:
 	get:
 		return _entanglement.entangled_pairs if _entanglement else []
 
-## Direct access to entangled_clusters
 var entangled_clusters: Array:
 	get:
 		return _entanglement.entangled_clusters if _entanglement else []
@@ -181,15 +170,12 @@ func _process(delta):
 	if _biome_routing.is_biomes_empty():
 		return
 
-	# Build icon_network for growth modifiers
-	var icon_network = _build_icon_network()
-
 	# Grow all planted plots
 	for position in _plot_manager.plots.keys():
 		var plot = _plot_manager.plots[position]
 		if plot.is_active():
 			var plot_biome = _biome_routing.get_biome_for_plot(position)
-			plot.grow(delta, plot_biome, faction_territory_manager, icon_network, conspiracy_network)
+			plot.grow(delta, plot_biome, faction_territory_manager, {}, conspiracy_network)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -199,6 +185,22 @@ func _process(delta):
 func register_biome(biome_name: String, biome_instance) -> void:
 	"""Register a biome in the grid's biome registry"""
 	_biome_routing.register_biome(biome_name, biome_instance)
+
+
+func has_biome(biome_name: String) -> bool:
+	return _biome_routing.has_biome(biome_name)
+
+
+func get_biome(biome_name: String):
+	return _biome_routing.get_biome(biome_name)
+
+
+func get_biome_names() -> Array:
+	return _biome_routing.get_biome_names()
+
+
+func get_all_biomes() -> Dictionary:
+	return _biome_routing.get_all_biomes()
 
 
 func assign_plot_to_biome(position: Vector2i, biome_name: String) -> bool:
@@ -224,6 +226,22 @@ func set_terminal_pool(pool) -> void:
 func get_biome_for_plot(position: Vector2i):
 	"""Get the biome responsible for a specific plot"""
 	return _biome_routing.get_biome_for_plot(position)
+
+
+func get_plot_biome_assignment(position: Vector2i) -> String:
+	return _biome_routing.get_biome_id_for_plot(position)
+
+
+func get_plot_positions_for_biome(biome_name: String) -> Array[Vector2i]:
+	return _biome_routing.get_plot_positions_for_biome(biome_name)
+
+
+func set_plot_biome_assignment(position: Vector2i, biome_name: String) -> bool:
+	return _biome_routing.set_plot_biome_assignment(position, biome_name)
+
+
+func clear_plot_biome_assignment(position: Vector2i) -> void:
+	_biome_routing.clear_plot_biome_assignment(position)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -326,25 +344,6 @@ func remove_entanglement(pos_a: Vector2i, pos_b: Vector2i):
 func are_plots_entangled(pos_a: Vector2i, pos_b: Vector2i) -> bool:
 	"""Check if two plots are entangled"""
 	return _entanglement.are_plots_entangled(pos_a, pos_b)
-
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# ICON MANAGEMENT (kept in FarmGrid)
-# ═══════════════════════════════════════════════════════════════════════════════
-
-func _build_icon_network() -> Dictionary:
-	"""Build icon_network dictionary from active_icons array"""
-	var icon_network = {}
-
-	for icon in active_icons:
-		if icon.icon_emoji == "🌾":  # Biotic Flux
-			icon_network["biotic"] = icon
-		elif icon.icon_emoji == "🍅":  # Chaos Vortex
-			icon_network["chaos"] = icon
-		elif icon.icon_emoji == "🏰":  # Imperium/Carrion Throne
-			icon_network["imperium"] = icon
-
-	return icon_network
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

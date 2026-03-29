@@ -14,7 +14,7 @@ func _ready() -> void:
 
 
 func _perf_debug_enabled() -> bool:
-	return VerboseConfig.safe_is_verbose("perf_hud")
+	return VerboseConfig.safe_allows("perf_hud", VerboseConfig.LogLevel.DEBUG)
 
 func record_time(component_name: String, time_us: float) -> void:
 	"""Record timing for a component (in microseconds)."""

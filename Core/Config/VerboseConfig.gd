@@ -381,18 +381,27 @@ static func safe_is_verbose(subsystem: String = "") -> bool:
 	return config.is_verbose(subsystem)
 
 
+static func safe_allows(category: String, level: int) -> bool:
+	var config = Engine.get_main_loop().root.get_node_or_null("/root/VerboseConfig") if Engine.get_main_loop() else null
+	if not is_instance_valid(config):
+		return false
+	if not config.is_node_ready():
+		return false
+	return config.allows(category, level)
+
+
 func is_verbose(subsystem: String = "") -> bool:
 	"""Return true when a category is configured for DEBUG or TRACE output."""
+	return allows(subsystem, LogLevel.DEBUG)
+
+
+func allows(category: String, level: int) -> bool:
 	if not is_node_ready():
 		return false
-
-	var category = subsystem.strip_edges().to_lower()
-	if category == "":
+	var normalized = category.strip_edges().to_lower()
+	if normalized == "":
 		return false
-
-	# Check if category is at DEBUG or TRACE level
-	var level = category_levels.get(category, LogLevel.INFO)
-	return level >= LogLevel.DEBUG
+	return _should_log(normalized, level)
 
 # ============================================================================
 # INTERNAL LOGGING IMPLEMENTATION

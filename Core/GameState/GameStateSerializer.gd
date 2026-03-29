@@ -230,7 +230,7 @@ func capture_state_from_farm(farm: Node, current_state: GameState, scenario_id: 
 
 	# Capture plot→biome assignments
 	state.plot_biome_assignments = {}
-	if farm.grid and "plot_biome_assignments" in farm.grid:
+	if farm.grid:
 		for pos_key in farm.grid.plot_biome_assignments.keys():
 			state.plot_biome_assignments[pos_key] = farm.grid.plot_biome_assignments[pos_key]
 
@@ -448,8 +448,7 @@ func apply_state_to_farm(state: GameState, farm: Node) -> void:
 		])
 
 	if state.plot_biome_assignments and farm.grid:
-		if "plot_biome_assignments" in farm.grid:
-			farm.grid.plot_biome_assignments = state.plot_biome_assignments.duplicate()
+		farm.grid.plot_biome_assignments = state.plot_biome_assignments.duplicate()
 
 	var has_register_infra = false
 	if state.biome_states:
