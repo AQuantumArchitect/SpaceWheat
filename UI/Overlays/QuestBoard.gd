@@ -1410,11 +1410,14 @@ func _is_quest_invalidated(quest_data: Dictionary) -> bool:
 	if not quest_manager:
 		return false
 
-	# Get player's known vocabulary
-	var known_emojis = []
+	# Get player's known vocabulary from canonical pair state.
+	var known_pairs: Array = []
 	var gsm = get_tree().root.get_node_or_null("/root/GameStateManager")
-	if gsm and gsm.current_state:
-		known_emojis = gsm.current_state.get_known_emojis()
+	if gsm and gsm.has_method("get_player_vocab_pairs"):
+		known_pairs = gsm.get_player_vocab_pairs()
+	elif gsm and gsm.current_state:
+		known_pairs = gsm.current_state.known_pairs
+	var known_emojis = GameState.derive_known_emojis_from_pairs(known_pairs)
 
 	if known_emojis.is_empty():
 		return false

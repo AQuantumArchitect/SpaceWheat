@@ -206,7 +206,7 @@ func _run_tests():
 
 	# Final summary
 	print("\n" + "="*60)
-	print("🎉 V2 Overlay System Integration Tests Complete")
+	print("🎉 Overlay System Integration Tests Complete")
 	print("="*60)
 	print("\n✅ All overlays are properly integrated:")
 	print("   - Overlays registered with OverlayManager")

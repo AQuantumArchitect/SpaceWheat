@@ -345,8 +345,8 @@ func get_player_vocab_emojis() -> Array:
 	"""Return canonical player vocab emojis (farm-owned preferred)."""
 	if "active_farm" in self and active_farm and active_farm.has_method("get_known_pairs"):
 		return GameState.derive_known_emojis_from_pairs(active_farm.get_known_pairs())
-	if current_state and current_state.has_method("get_known_emojis"):
-		return current_state.get_known_emojis()
+	if current_state:
+		return GameState.derive_known_emojis_from_pairs(current_state.known_pairs)
 	return []
 
 

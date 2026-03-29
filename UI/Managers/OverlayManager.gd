@@ -559,13 +559,14 @@ func _refresh_vocabulary_overlay() -> void:
 
 	const FactionDatabase = preload("res://Core/Quests/FactionDatabaseV2.gd")
 
-	# Get player's known emojis (derived from known_pairs)
+	# Get player's known emojis from the canonical pair state.
 	var gsm = get_node_or_null("/root/GameStateManager")
-	var known_emojis: Array = []
-	if gsm and gsm.has_method("get_player_vocab_emojis"):
-		known_emojis = gsm.get_player_vocab_emojis()
+	var known_pairs: Array = []
+	if gsm and gsm.has_method("get_player_vocab_pairs"):
+		known_pairs = gsm.get_player_vocab_pairs()
 	elif gsm and gsm.current_state:
-		known_emojis = gsm.current_state.get_known_emojis()
+		known_pairs = gsm.current_state.known_pairs
+	var known_emojis: Array = GameState.derive_known_emojis_from_pairs(known_pairs)
 
 	# Get stats label and emoji grid
 	var stats_label = vocabulary_overlay.find_child("StatsLabel", true, false)

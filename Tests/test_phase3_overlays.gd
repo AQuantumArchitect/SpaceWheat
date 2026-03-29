@@ -138,7 +138,7 @@ func _run_all_tests():
 
 
 func _test_overlays_registered():
-	current_test = "V2 Overlays Registered"
+	current_test = "Overlays Registered"
 	print("TEST: %s" % current_test)
 
 	if not overlay_manager:
