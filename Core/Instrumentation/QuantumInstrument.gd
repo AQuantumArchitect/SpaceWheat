@@ -328,7 +328,10 @@ func action_explore(biome_name: String, grid_pos: Vector2i = Vector2i(-1, -1)) -
 	var result = ProbeActions.action_explore(terminal_pool, biome, economy)
 	# Attach terminal to its grid plot
 	if result.get("success", false):
-		_attach_terminal_to_plot(result.get("terminal"))
+		var terminal = result.get("terminal", null)
+		if terminal and grid_pos != Vector2i(-1, -1):
+			terminal.grid_position = grid_pos
+		_attach_terminal_to_plot(terminal)
 	_emit_farm_action("explore", result, grid_pos)
 	action_performed.emit("explore", result)
 	return result
@@ -383,22 +386,6 @@ func action_reap() -> Dictionary:
 	var result = ProbeActions.action_reap(farm, economy)
 	_emit_farm_action("reap", result)
 	action_performed.emit("reap", result)
-	return result
-
-
-func action_harvest_all() -> Dictionary:
-	var economy = _get_economy()
-	if not farm or not economy:
-		return {"success": false, "error": "no_farm", "message": "Farm not ready"}
-
-	var result = ProbeActions.action_reap(farm, economy)
-	_emit_farm_action("reap", result)
-	_emit_farm_action("harvest_all", result)
-
-	if result.get("success", false):
-		clear_checked_plots()
-
-	action_performed.emit("harvest_all", result)
 	return result
 
 
@@ -590,20 +577,13 @@ func action_remove_vocabulary(biome_name: String, grid_pos: Vector2i) -> Diction
 	return result
 
 
-func action_explore_biome() -> Dictionary:
+func action_discover_biome() -> Dictionary:
 	if not farm:
 		return {"success": false, "error": "no_farm", "message": "Farm not ready"}
 	if not farm.has_method("explore_biome"):
 		return {"success": false, "error": "no_method", "message": "Farm cannot explore biomes"}
 
 	var result = farm.explore_biome()
-	action_performed.emit("explore_biome", result)
-	return result
-
-
-func action_discover_biome() -> Dictionary:
-	# Terminology alias: biome unlock/discovery (eagle-gated), not terminal explore.
-	var result = action_explore_biome()
 	action_performed.emit("discover_biome", result)
 	return result
 
@@ -1212,7 +1192,6 @@ func configure_seed_state(cmd: Dictionary) -> Dictionary:
 		if farm and farm.has_method("set_known_pairs"):
 			farm.set_known_pairs(known_pairs, true, true)
 		gsm.current_state.known_pairs = known_pairs.duplicate(true)
-		gsm.current_state.known_emojis = gsm.current_state.get_known_emojis()
 		out["known_pairs"] = known_pairs
 
 	var unlocked_biomes = _sanitize_biomes(cmd.get("unlocked_biomes", []))

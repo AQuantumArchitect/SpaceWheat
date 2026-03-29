@@ -81,7 +81,7 @@ func test_round_1_probe_basics():
 
 	# Test: EXPLORE -> MEASURE -> POP
 	print("\n[TEST 1a] Single cycle: EXPLORE -> MEASURE -> POP")
-	var e_res = ProbeActions.action_explore(farm.plot_pool, biome)
+	var e_res = ProbeActions.action_explore(farm.terminal_pool, biome)
 	if not e_res.success:
 		log_issue("ROUND 1: EXPLORE failed - %s" % e_res.get('message', 'unknown'))
 		return
@@ -99,7 +99,7 @@ func test_round_1_probe_basics():
 	if not terminal.is_measured:
 		log_issue("ROUND 1: Terminal not marked measured after MEASURE")
 
-	var p_res = ProbeActions.action_pop(terminal, farm.plot_pool, farm.economy)
+	var p_res = ProbeActions.action_pop(terminal, farm.terminal_pool, farm.economy)
 	if not p_res.success:
 		log_issue("ROUND 1: POP failed - %s" % p_res.get('message', 'unknown'))
 		return
@@ -112,7 +112,7 @@ func test_round_1_probe_basics():
 	# Test: Multiple cycles
 	print("\n[TEST 1b] Three more cycles")
 	for cycle in range(3):
-		var e = ProbeActions.action_explore(farm.plot_pool, biome)
+		var e = ProbeActions.action_explore(farm.terminal_pool, biome)
 		if not e.success:
 			log_issue("ROUND 1: Cycle %d EXPLORE failed" % (cycle+2))
 			break
@@ -122,7 +122,7 @@ func test_round_1_probe_basics():
 			log_issue("ROUND 1: Cycle %d MEASURE failed" % (cycle+2))
 			break
 
-		var p = ProbeActions.action_pop(e.terminal, farm.plot_pool, farm.economy)
+		var p = ProbeActions.action_pop(e.terminal, farm.terminal_pool, farm.economy)
 		if not p.success:
 			log_issue("ROUND 1: Cycle %d POP failed" % (cycle+2))
 			break
@@ -145,12 +145,12 @@ func test_round_2_probe_advanced():
 
 	# Test: Exhaust all terminals
 	print("\n[TEST 2a] Terminal exhaustion")
-	var unbound_count = farm.plot_pool.get_unbound_count()
+	var unbound_count = farm.terminal_pool.get_unbound_count()
 	print("Starting unbound terminals: %d" % unbound_count)
 
 	var exhausted = 0
 	for i in range(unbound_count + 2):
-		var e = ProbeActions.action_explore(farm.plot_pool, biome)
+		var e = ProbeActions.action_explore(farm.terminal_pool, biome)
 		if e.success:
 			exhausted += 1
 		else:
@@ -170,9 +170,9 @@ func test_round_2_probe_advanced():
 
 	# Test: Can't POP without measure
 	print("\n[TEST 2c] POP without MEASURE")
-	var fresh_e = ProbeActions.action_explore(farm.plot_pool, biome)
+	var fresh_e = ProbeActions.action_explore(farm.terminal_pool, biome)
 	if fresh_e.success:
-		var p = ProbeActions.action_pop(fresh_e.terminal, farm.plot_pool, farm.economy)
+		var p = ProbeActions.action_pop(fresh_e.terminal, farm.terminal_pool, farm.economy)
 		if p.success:
 			log_issue("ROUND 2: POP without MEASURE should fail")
 		else:
@@ -215,15 +215,15 @@ func test_round_3_cross_biome():
 	if biome_b and biome_b_type != biome_a_type:
 		print("\n[TEST 3a] Explore in two different biomes")
 
-		var e_a = ProbeActions.action_explore(farm.plot_pool, biome_a)
-		var e_b = ProbeActions.action_explore(farm.plot_pool, biome_b)
+		var e_a = ProbeActions.action_explore(farm.terminal_pool, biome_a)
+		var e_b = ProbeActions.action_explore(farm.terminal_pool, biome_b)
 
 		if e_a.success and e_b.success:
 			print("✅ Both biomes explored successfully")
 			ProbeActions.action_measure(e_a.terminal, biome_a)
 			ProbeActions.action_measure(e_b.terminal, biome_b)
-			ProbeActions.action_pop(e_a.terminal, farm.plot_pool, farm.economy)
-			ProbeActions.action_pop(e_b.terminal, farm.plot_pool, farm.economy)
+			ProbeActions.action_pop(e_a.terminal, farm.terminal_pool, farm.economy)
+			ProbeActions.action_pop(e_b.terminal, farm.terminal_pool, farm.economy)
 		else:
 			# Note: May fail if Market is exhausted from Round 2 (terminals still bound)
 			# This is expected behavior - terminals must be POPped to free terminals for new EXPLOREs

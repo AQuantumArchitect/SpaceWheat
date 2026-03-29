@@ -72,8 +72,8 @@ static func can_execute_action_name(
 			return _can_execute_inject_vocabulary(farm, current_selection)
 		"remove_vocabulary":
 			return _can_execute_remove_vocabulary(farm, current_selection)
-		"explore_biome":
-			return _can_execute_explore_biome(farm)
+		"discover_biome":
+			return _can_execute_discover_biome(farm)
 		_:
 			return true
 
@@ -171,8 +171,8 @@ static func _can_execute_tool_action(
 			return _can_execute_inject_vocabulary(farm, current_selection)
 		"remove_vocabulary":
 			return _can_execute_remove_vocabulary(farm, current_selection)
-		"explore_biome":
-			return _can_execute_explore_biome(farm)
+		"discover_biome":
+			return _can_execute_discover_biome(farm)
 		"toggle_view", "cycle_biome":
 			return true  # Available if plots selected
 		"system_reset", "system_snapshot", "system_debug":
@@ -288,7 +288,9 @@ static func _can_execute_submenu_action(
 	if selected_plots.is_empty():
 		return false
 
-	var submenu = cached_submenu if not cached_submenu.is_empty() else ToolConfig.get_submenu(current_submenu)
+	var submenu = cached_submenu
+	if submenu.is_empty():
+		return false
 
 	# Check if entire submenu disabled
 	if submenu.get("_disabled", false):
@@ -414,7 +416,7 @@ static func _can_execute_remove_vocabulary(farm, current_selection: Vector2i) ->
 	return bool(gate.get("ok", false))
 
 
-static func _can_execute_explore_biome(farm) -> bool:
+static func _can_execute_discover_biome(farm) -> bool:
 	"""Check if player can afford to explore a new biome."""
 	if not farm or not farm.economy:
 		return false
@@ -423,7 +425,7 @@ static func _can_execute_explore_biome(farm) -> bool:
 		var gate = farm.can_explore_biome()
 		return gate.get("ok", false)
 
-	var gate = ActionCostRuntime.preflight_action(farm, "explore_biome")
+	var gate = ActionCostRuntime.preflight_action(farm, "discover_biome")
 	return bool(gate.get("ok", false))
 
 
@@ -435,4 +437,3 @@ static func _get_qubit_count(biome) -> int:
 		if count > 0:
 			return count
 	return 0
-

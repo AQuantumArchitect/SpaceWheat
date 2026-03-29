@@ -4,48 +4,48 @@
 Wraps the Godot rig IPC into a clean Python class that can be used
 interactively (by an LLM) or programmatically (for balancing).
 
-Usage (interactive / LLM — profile mode):
+Usage (interactive / LLM):
 
     from session import RunSession
 
-    with RunSession("balanced_survival") as s:
-        print(s.resources())       # {👥: 300, 🌾: 300, 🍞: 160, ...}
-        quests = s.offer()         # [{id, pair, reward, ...}, ...]
-        s.accept(quests[0]["id"])
-        s.complete(quests[0]["id"])
-        s.probe()                  # {hits: 3, frontier: [...]}
-        s.discover("FungalNetworks")
-        print(s.found_milk, s.steps, s.cycles)
+    s = RunSession("balanced_survival")
+    s.start()
 
-Usage (character mode — richer: world state + policy graph):
+    print(s.resources())       # {👥: 300, 🌾: 300, 🍞: 160, ...}
+    quests = s.offer()         # [{id, pair, reward, ...}, ...]
+    s.accept(quests[0]["id"])
+    s.complete(quests[0]["id"])
+    s.probe()                  # {hits: 3, frontier: [...]}
+    s.discover("FungalNetworks")
 
-    with RunSession(character="granary_scout_fib", policy="quantum_register") as s:
-        result = s.autoplay(max_cycles=220)
-        print(result.found_milk, result.composite())
+    print(s.found_milk)        # True/False
+    print(s.steps)             # 42
+    print(s.cycles)            # 7
 
-CLI modes:
+    s.stop()
 
-    python3 session.py --profile balanced_survival --autoplay --max-cycles 50
-    python3 session.py --character granary_scout_fib --demo
-    python3 session.py --character village_diplomat_fib --interactive
-    python3 session.py --profile balanced_survival --snapshot
+Usage (batch / balancing):
 
-Graph Tissue(TM) is a trademark of Luke Spooner.
+    s = RunSession("balanced_survival")
+    s.start()
+    result = s.autoplay(max_cycles=220)
+    # result = RunnerResult with all stats
+    s.stop()
+
+Graph Tissue™ is a trademark of Luke Spooner.
 """
 from __future__ import annotations
 
 import json
 import subprocess
-import sys
 import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from constants import MAX_LOOPS, run_timeout, TIMEOUT_FLOOR
 from rig_client import RigClient
 from milk_hunt_paths import xdg_root as _default_xdg
+from run_executor import ensure_lane, run_seed
 from schema import RunnerResult
-from leaderboard import record_from_runner_result as _record_leaderboard
 
 HERE = Path(__file__).resolve().parent
 SEED_SCRIPT = HERE / "milk_hunt_seed_save.py"
@@ -56,7 +56,7 @@ class RunSession:
     """One game session: boot a rig, play turns, get results.
 
     The session manages the full lifecycle:
-      1. Seed a save slot from a profile or character
+      1. Seed a save slot from a profile
       2. Start a Godot rig (headless)
       3. Play turns via the IPC protocol
       4. Stop the rig
@@ -64,17 +64,12 @@ class RunSession:
     The public API is designed for two audiences:
       - LLMs: call offer(), accept(), complete(), probe(), discover()
       - Balancers: call autoplay() for hands-off batch execution
-
-    Two identity modes:
-      - profile: world-state config only (simple)
-      - character: world-state + policy graph template (richer)
     """
 
     def __init__(
         self,
-        profile: str = "",
+        profile: str,
         *,
-        character: str = "",
         slot: int = 2,
         xdg: Optional[Path] = None,
         policy: str = "engine_policy",
@@ -82,12 +77,10 @@ class RunSession:
         ucb_scale: float = 1.10,
         allow_injection: bool = True,
     ):
-        if not profile and not character:
-            raise ValueError("Must provide either profile= or character=")
-        self.profile = profile or character
-        self.character = character
+        self.profile = profile
         self.slot = slot
         self.xdg = xdg or _default_xdg()
+        self._lane = ensure_lane(self.xdg)
         self.policy = policy
         self.epsilon = epsilon
         self.ucb_scale = ucb_scale
@@ -107,44 +100,26 @@ class RunSession:
 
     # ── Lifecycle ───────────────────────────────────────────────────
 
-    @property
-    def is_character(self) -> bool:
-        return bool(self.character)
-
     def seed(self) -> Dict[str, Any]:
-        """Seed the save slot from the profile/character. Called automatically by start()."""
-        if self.is_character:
-            cmd = [
-                sys.executable, str(SEED_SCRIPT),
-                "--character", self.character,
-                "--slot", str(self.slot),
-                "--policy-mode", self.policy,
-            ]
-        else:
-            cmd = [
-                sys.executable, str(SEED_SCRIPT),
-                "--profile", self.profile,
-                "--slot", str(self.slot),
-            ]
-        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
-        if proc.returncode not in (0, 3):
-            raise RuntimeError(f"Seed failed (exit={proc.returncode}): {proc.stderr[:500]}")
-
-        # Parse JSON from stdout
-        for line in reversed((proc.stdout or "").strip().split("\n")):
-            line = line.strip()
-            if line.startswith("{"):
-                try:
-                    return json.loads(line)
-                except json.JSONDecodeError:
-                    pass
-        return {"ok": True, "slot": self.slot}
+        """Seed the save slot from the profile. Called automatically by start()."""
+        result = run_seed(
+            lane=self._lane,
+            timeout_s=120,
+            profile=self.profile,
+            slot=self.slot,
+            reuse_listener=False,
+        )
+        exit_code = int(result.get("exit_code", 1))
+        if exit_code not in (0, 3):
+            raise RuntimeError(f"Seed failed (exit={exit_code}): {str(result.get('stderr', ''))[:500]}")
+        summary = result.get("summary", {})
+        return summary if isinstance(summary, dict) and summary else {"ok": True, "slot": self.slot}
 
     def start(self) -> "RunSession":
         """Seed + boot the Godot rig. Returns self for chaining."""
         self.seed()
 
-        self._rig = RigClient(xdg=self.xdg)
+        self._rig = RigClient(xdg=self._lane.xdg_root)
         # Kill any stale listeners for this XDG root
         RigClient.kill_existing_listeners(xdg=self.xdg)
         time.sleep(0.5)
@@ -208,8 +183,9 @@ class RunSession:
 
     def resources(self) -> Dict[str, float]:
         """Get current resource amounts: {emoji: amount}."""
-        result = self._run("resource_snapshot")
-        return result.get("resources", result.get("snapshot", {}))
+        result = self._run("policy_snapshot", include_offers=False, include_grid=False)
+        payload = result.get("policy_snapshot", {})
+        return payload.get("resources", {}) if isinstance(payload, dict) else {}
 
     def snapshot(self) -> Dict[str, Any]:
         """Get full game state snapshot."""
@@ -218,15 +194,17 @@ class RunSession:
 
     def known_vocab(self) -> List[Dict[str, str]]:
         """Get known vocabulary pairs: [{north, south}, ...]."""
-        result = self._run("known_vocab_pairs")
-        pairs = result.get("pairs", result.get("known_pairs", []))
+        result = self._run("policy_snapshot", include_offers=False, include_grid=False)
+        payload = result.get("policy_snapshot", {})
+        pairs = payload.get("known_pairs", []) if isinstance(payload, dict) else []
         self._known_pairs = pairs
         return pairs
 
     def active_quests(self) -> List[Dict[str, Any]]:
         """Get currently active quests."""
-        result = self._run("active_quests")
-        return result.get("quests", [])
+        result = self._run("policy_snapshot", include_offers=False, include_grid=False)
+        payload = result.get("policy_snapshot", {})
+        return payload.get("active_quests", []) if isinstance(payload, dict) else []
 
     def biome_positions(self, biome: str) -> List[Any]:
         """Get plot positions in a biome."""
@@ -246,14 +224,14 @@ class RunSession:
         offers = result.get("offers", result.get("quests", []))
         return offers
 
-    def accept(self, offer_index: int) -> Dict[str, Any]:
-        """Accept a quest offer by index (0-based position in offer list)."""
-        result = self._run("accept_offer", offer_index=offer_index)
+    def accept(self, quest_id: str) -> Dict[str, Any]:
+        """Accept a quest offer by ID."""
+        result = self._run("accept_quest", quest_id=quest_id)
         self._steps += 1
         return result
 
-    def complete(self, quest_id: int) -> Dict[str, Any]:
-        """Complete a quest by quest_id (returned from accept)."""
+    def complete(self, quest_id: str) -> Dict[str, Any]:
+        """Complete a quest and claim its reward."""
         result = self._run("complete_or_claim", quest_id=quest_id)
         self._steps += 1
         # Check for milk discovery
@@ -315,45 +293,19 @@ class RunSession:
 
     # ── Cycle helpers ───────────────────────────────────────────────
 
-    def play_cycle(self, offer_index: int = 0) -> Dict[str, Any]:
+    def play_cycle(self) -> Dict[str, Any]:
         """Play one full offer->accept->complete cycle.
 
-        Returns the completion result. Picks offer at offer_index (default: first).
+        Returns the completion result. Automatically picks the first offer.
         """
         offers = self.offer()
         if not offers:
             return {"ok": False, "error": "no_offers"}
-        if offer_index >= len(offers):
-            offer_index = 0
-        selected_offer = offers[offer_index] if isinstance(offers[offer_index], dict) else {}
-        accept_result = self.accept(offer_index)
-        if not accept_result.get("accepted", False):
-            return {"ok": False, "error": "accept_failed", "accept_result": accept_result}
-        quest_id = int(accept_result.get("quest_id", -1))
-        if quest_id < 0:
-            return {"ok": False, "error": "no_quest_id", "accept_result": accept_result}
-
-        # Inject resources if needed (non-strict economy)
-        if self.allow_injection:
-            res = str(selected_offer.get("resource", "") or "")
-            qty = int(float(selected_offer.get("quantity", 0) or 0))
-            if res and qty > 0:
-                self._run("add_resource", emoji=res, amount=max(qty + 50, 100))
-
-        # Use the offer's completion_action or default
-        completion_action = str(selected_offer.get("completion_action", "") or "")
-        if completion_action not in ("complete_quest", "complete_or_claim"):
-            offer_type = int(selected_offer.get("type", -1))
-            completion_action = "complete_quest" if offer_type == 0 else "complete_or_claim"
-
-        result = self._run(completion_action, quest_id=quest_id)
-        self._steps += 1
-        if result.get("found_milk_pair") or result.get("milk_found"):
-            self._found_milk = True
-        new_pairs = result.get("new_vocab_pairs", [])
-        if new_pairs:
-            self._vocab_milestones += len(new_pairs)
-            self._known_pairs.extend(new_pairs)
+        quest_id = offers[0].get("id", offers[0].get("quest_id", ""))
+        if not quest_id:
+            return {"ok": False, "error": "no_quest_id"}
+        self.accept(quest_id)
+        result = self.complete(quest_id)
         self._cycles += 1
         return result
 
@@ -391,7 +343,7 @@ class RunSession:
         t0 = time.time()
         proc = subprocess.run(
             cmd, capture_output=True, text=True,
-            timeout=run_timeout(max_cycles, floor=TIMEOUT_FLOOR["session"]), env=env,
+            timeout=max(300, max_cycles * 30), env=env,
         )
         elapsed = time.time() - t0
 
@@ -421,7 +373,7 @@ class RunSession:
         self._biomes = biomes
         self._vocab_milestones = vocab
 
-        result = RunnerResult(
+        return RunnerResult(
             profile=self.profile,
             found_milk=found_milk,
             steps=steps,
@@ -434,12 +386,6 @@ class RunSession:
             exit_code=proc.returncode,
             batch_summary=summary,
         )
-
-        # Record to persistent leaderboard
-        _record_leaderboard(result, layer="session",
-                            default_lane=self.character or self.profile)
-
-        return result
 
     # ── Properties ──────────────────────────────────────────────────
 
@@ -484,234 +430,6 @@ class RunSession:
 
     def __repr__(self) -> str:
         milk = "MILK!" if self._found_milk else "hunting"
-        identity = f"character={self.character}" if self.is_character else self.profile
-        return (f"<RunSession {identity} [{milk}] "
+        return (f"<RunSession {self.profile} [{milk}] "
                 f"steps={self._steps} cycles={self._cycles} "
                 f"biomes={len(self._biomes)}>")
-
-
-# ═══════════════════════════════════════════════════════════════════
-# CLI entry point — interactive demo and autoplay
-# ═══════════════════════════════════════════════════════════════════
-
-def _build_parser():
-    import argparse
-    parser = argparse.ArgumentParser(
-        description="RunSession: LLM-playable SpaceWheat game interface",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""examples:
-  # Autoplay a profile for 50 cycles
-  python3 session.py --profile balanced_survival --autoplay --max-cycles 50
-
-  # Autoplay a character with quantum policy
-  python3 session.py --character granary_scout_fib --policy quantum_register --autoplay
-
-  # Interactive REPL (for LLM tool-use or human exploration)
-  python3 session.py --profile balanced_survival --interactive
-
-  # Quick status check: seed + snapshot + stop
-  python3 session.py --character village_diplomat_fib --snapshot
-
-Graph Tissue(TM) is a trademark of Luke Spooner.""",
-    )
-    source = parser.add_mutually_exclusive_group(required=True)
-    source.add_argument("--profile", help="Profile name (world state config)")
-    source.add_argument("--character", help="Character spec (world state + policy)")
-    parser.add_argument("--policy", default="engine_policy",
-                        choices=["engine_policy", "quantum_register"])
-    parser.add_argument("--slot", type=int, default=2)
-
-    mode = parser.add_mutually_exclusive_group()
-    mode.add_argument("--autoplay", action="store_true",
-                      help="Auto-play to completion via milk_hunt_runner")
-    mode.add_argument("--interactive", action="store_true",
-                      help="Start interactive REPL")
-    mode.add_argument("--snapshot", action="store_true",
-                      help="Seed, boot, print snapshot, stop")
-    mode.add_argument("--demo", action="store_true",
-                      help="Run a short demo: 3 cycles + probe + status")
-
-    parser.add_argument("--max-cycles", type=int, default=MAX_LOOPS)
-    return parser
-
-
-def _cmd_autoplay(session: RunSession, max_cycles: int) -> None:
-    """Run the full autoplay pipeline and print results."""
-    print(f"  Autoplaying {session.profile} for up to {max_cycles} cycles...")
-    result = session.autoplay(max_cycles=max_cycles)
-    milk_str = "MILK FOUND!" if result.found_milk else "no milk"
-    print(f"\n  Result: {milk_str}")
-    print(f"  cycles={result.cycles}  steps={result.steps}  "
-          f"biomes={result.biomes_found}  vocab={result.vocab}  "
-          f"elapsed={result.elapsed_s:.1f}s")
-    scores = result.scores_dict()
-    print(f"  Scores: SR={scores['success_rate']:.0%}  "
-          f"speed={scores['speed_score']:.2f}  "
-          f"biome={scores['biome_score']:.2f}  "
-          f"vocab={scores['vocab_score']:.2f}  "
-          f"composite={scores['composite']:.4f}")
-    print(f"\n  {json.dumps(result.to_dict(), indent=2)}")
-
-
-def _cmd_snapshot(session: RunSession) -> None:
-    """Boot, take a snapshot, print it, and stop."""
-    res = session.resources()
-    pairs = session.known_vocab()
-    print(f"\n  Resources: {json.dumps(res, ensure_ascii=False)}")
-    print(f"  Known pairs: {len(pairs)}")
-    for p in pairs[:10]:
-        print(f"    {p.get('north', '?')} <-> {p.get('south', '?')}")
-    if len(pairs) > 10:
-        print(f"    ... and {len(pairs) - 10} more")
-    print(f"\n  Status: {json.dumps(session.status(), ensure_ascii=False)}")
-
-
-def _cmd_demo(session: RunSession) -> None:
-    """Run a short demo: 3 quest cycles + probe + status."""
-    for i in range(3):
-        print(f"\n  --- Cycle {i+1} ---")
-        result = session.play_cycle()
-        ok = result.get("ok", True)
-        milk = result.get("found_milk_pair", False)
-        print(f"  ok={ok}  milk={milk}")
-        if milk:
-            print("  MILK FOUND! Stopping demo.")
-            break
-
-    print(f"\n  --- Probe ---")
-    probe_result = session.probe()
-    print(f"  Probe: {json.dumps(probe_result, indent=2, ensure_ascii=False)[:500]}")
-
-    res = session.resources()
-    print(f"\n  Resources after demo: {json.dumps(res, ensure_ascii=False)}")
-    print(f"  {session}")
-
-
-def _cmd_interactive(session: RunSession) -> None:
-    """Interactive REPL for LLM or human exploration."""
-    print(f"\n  Interactive session started. Type commands:")
-    print(f"  Commands: offer, accept <id>, complete <id>, probe, discover <biome>,")
-    print(f"            resources, vocab, quests, status, save, load, skip <N>, quit")
-    print()
-
-    while session.alive:
-        try:
-            line = input("  > ").strip()
-        except (EOFError, KeyboardInterrupt):
-            print()
-            break
-        if not line:
-            continue
-
-        parts = line.split(None, 1)
-        cmd = parts[0].lower()
-        arg = parts[1].strip() if len(parts) > 1 else ""
-
-        try:
-            if cmd == "quit" or cmd == "exit":
-                break
-            elif cmd == "offer":
-                offers = session.offer()
-                for o in offers:
-                    qid = o.get("id", o.get("quest_id", "?"))
-                    pair = o.get("pair", o.get("emoji_pair", "?"))
-                    print(f"    [{qid}] {pair}")
-            elif cmd == "accept":
-                r = session.accept(arg)
-                print(f"    {json.dumps(r, ensure_ascii=False)[:300]}")
-            elif cmd == "complete":
-                r = session.complete(arg)
-                milk = r.get("found_milk_pair", False)
-                print(f"    ok={r.get('ok', True)}  milk={milk}")
-            elif cmd == "cycle":
-                r = session.play_cycle()
-                milk = r.get("found_milk_pair", False)
-                print(f"    ok={r.get('ok', True)}  milk={milk}")
-            elif cmd == "probe":
-                r = session.probe()
-                print(f"    {json.dumps(r, ensure_ascii=False)[:500]}")
-            elif cmd == "discover":
-                r = session.discover(arg)
-                print(f"    {json.dumps(r, ensure_ascii=False)[:300]}")
-            elif cmd == "resources" or cmd == "res":
-                res = session.resources()
-                print(f"    {json.dumps(res, ensure_ascii=False)}")
-            elif cmd == "vocab":
-                pairs = session.known_vocab()
-                for p in pairs:
-                    print(f"    {p.get('north', '?')} <-> {p.get('south', '?')}")
-            elif cmd == "quests":
-                qs = session.active_quests()
-                for q in qs:
-                    print(f"    {json.dumps(q, ensure_ascii=False)[:200]}")
-            elif cmd == "status":
-                print(f"    {json.dumps(session.status(), ensure_ascii=False)}")
-            elif cmd == "save":
-                r = session.save()
-                print(f"    saved: {r.get('ok', True)}")
-            elif cmd == "load":
-                r = session.load()
-                print(f"    loaded: {r.get('ok', True)}")
-            elif cmd == "skip":
-                n = int(arg) if arg.isdigit() else 60
-                r = session.time_skip(n)
-                print(f"    skipped {n} phrames")
-            elif cmd == "drain":
-                r = session.lindblad_drain()
-                print(f"    {json.dumps(r, ensure_ascii=False)[:300]}")
-            else:
-                print(f"    unknown command: {cmd}")
-        except Exception as exc:
-            print(f"    error: {exc}")
-
-    print(f"\n  Final: {session}")
-
-
-def main() -> int:
-    args = _build_parser().parse_args()
-
-    kwargs: Dict[str, Any] = {
-        "slot": args.slot,
-        "policy": args.policy,
-    }
-    if args.character:
-        kwargs["character"] = args.character
-    else:
-        kwargs["profile"] = args.profile
-
-    session = RunSession(**kwargs)
-
-    identity = args.character or args.profile
-    mode = "character" if args.character else "profile"
-    print(f"  RunSession: {mode}={identity}  policy={args.policy}  slot={args.slot}")
-
-    if args.autoplay:
-        # Autoplay uses its own rig via milk_hunt_runner subprocess
-        session.seed()
-        _cmd_autoplay(session, args.max_cycles)
-        return 0
-
-    # All other modes need a live rig
-    try:
-        print(f"  Booting Godot rig...")
-        session.start()
-        print(f"  Rig ready.\n")
-
-        if args.snapshot:
-            _cmd_snapshot(session)
-        elif args.demo:
-            _cmd_demo(session)
-        elif args.interactive:
-            _cmd_interactive(session)
-        else:
-            # Default: snapshot
-            _cmd_snapshot(session)
-    finally:
-        session.stop()
-        print(f"\n  Session stopped. {session}")
-
-    return 0
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())

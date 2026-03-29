@@ -52,7 +52,7 @@ func _on_game_ready():
 	farm = fv.farm
 	grid = farm.grid
 	economy = farm.economy
-	plot_pool = farm.plot_pool
+	plot_pool = farm.terminal_pool
 	biome = grid.biomes.values()[0]
 
 	# Find the visualization controller

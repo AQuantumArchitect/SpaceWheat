@@ -219,14 +219,14 @@ func _test_measure_harvest_flow():
 		_record_result(false, "Biome missing")
 		return
 
-	if not farm.plot_pool:
+	if not farm.terminal_pool:
 		print("  ✗ No plot_pool available")
 		_record_result(false, "plot_pool missing")
 		return
 
 	# Step 1: EXPLORE
 	print("  Step 1: EXPLORE...")
-	var explore_result = ProbeActions.action_explore(farm.plot_pool, biome)
+	var explore_result = ProbeActions.action_explore(farm.terminal_pool, biome)
 	await process_frame
 
 	if not explore_result.success:
@@ -261,7 +261,7 @@ func _test_measure_harvest_flow():
 
 	# Step 3: POP (harvest)
 	print("  Step 3: POP (harvest)...")
-	var pop_result = ProbeActions.action_pop(terminal, farm.plot_pool, farm.economy)
+	var pop_result = ProbeActions.action_pop(terminal, farm.terminal_pool, farm.economy)
 	await process_frame
 
 	if not pop_result.success:
@@ -288,14 +288,14 @@ func _test_multiple_plots_quantum():
 		_record_result(false, "Biome not available")
 		return
 
-	if not farm.plot_pool:
+	if not farm.terminal_pool:
 		_record_result(false, "plot_pool not available")
 		return
 
 	# Create multiple terminals
 	var terminals = []
 	for i in range(2):
-		var result = ProbeActions.action_explore(farm.plot_pool, biome)
+		var result = ProbeActions.action_explore(farm.terminal_pool, biome)
 		if result.success:
 			terminals.append(result.terminal)
 			print("  Created terminal %d: reg=%d" % [i+1, result.terminal.bound_register_id])
@@ -316,7 +316,7 @@ func _test_multiple_plots_quantum():
 			continue
 		ProbeActions.action_measure(t, biome)
 		await process_frame
-		ProbeActions.action_pop(t, farm.plot_pool, farm.economy)
+		ProbeActions.action_pop(t, farm.terminal_pool, farm.economy)
 		await process_frame
 
 	_record_result(true, "Multiple terminals can coexist")
@@ -423,13 +423,13 @@ func _test_register_release():
 	print("\n📋 TEST: %s" % current_test)
 
 	var biome = farm.biotic_flux_biome
-	if not biome or not farm.plot_pool:
+	if not biome or not farm.terminal_pool:
 		_record_result(false, "Biome or plot_pool missing")
 		return
 
 	# First cycle: EXPLORE → MEASURE → POP
 	print("  Cycle 1: EXPLORE → MEASURE → POP")
-	var result1 = ProbeActions.action_explore(farm.plot_pool, biome)
+	var result1 = ProbeActions.action_explore(farm.terminal_pool, biome)
 	await process_frame
 
 	if not result1.success:
@@ -443,13 +443,13 @@ func _test_register_release():
 
 	ProbeActions.action_measure(terminal1, biome)
 	await process_frame
-	ProbeActions.action_pop(terminal1, farm.plot_pool, farm.economy)
+	ProbeActions.action_pop(terminal1, farm.terminal_pool, farm.economy)
 	await process_frame
 	print("    Popped!")
 
 	# Second cycle: EXPLORE should work again
 	print("  Cycle 2: EXPLORE again...")
-	var result2 = ProbeActions.action_explore(farm.plot_pool, biome)
+	var result2 = ProbeActions.action_explore(farm.terminal_pool, biome)
 	await process_frame
 
 	if result2.success:
@@ -460,7 +460,7 @@ func _test_register_release():
 		# Clean up
 		ProbeActions.action_measure(result2.terminal, biome)
 		await process_frame
-		ProbeActions.action_pop(result2.terminal, farm.plot_pool, farm.economy)
+		ProbeActions.action_pop(result2.terminal, farm.terminal_pool, farm.economy)
 
 		_record_result(true, "Registers released and reusable")
 	else:
@@ -517,7 +517,7 @@ func _test_concurrent_actions():
 	var biome_a = farm.biotic_flux_biome
 	var biome_b = farm.forest_biome if farm.forest_biome else biome_a
 
-	if not biome_a or not farm.plot_pool:
+	if not biome_a or not farm.terminal_pool:
 		_record_result(false, "Biomes or plot_pool missing")
 		return
 
@@ -527,8 +527,8 @@ func _test_concurrent_actions():
 	print("  Biome B: %s" % biome_b_type)
 
 	# EXPLORE on both biomes
-	var result_a = ProbeActions.action_explore(farm.plot_pool, biome_a)
-	var result_b = ProbeActions.action_explore(farm.plot_pool, biome_b)
+	var result_a = ProbeActions.action_explore(farm.terminal_pool, biome_a)
+	var result_b = ProbeActions.action_explore(farm.terminal_pool, biome_b)
 	await process_frame
 
 	if not result_a.success or not result_b.success:
@@ -552,11 +552,11 @@ func _test_concurrent_actions():
 	print("  B measured: %s" % str(b_measured))
 
 	# Clean up
-	ProbeActions.action_pop(term_a, farm.plot_pool, farm.economy)
+	ProbeActions.action_pop(term_a, farm.terminal_pool, farm.economy)
 	await process_frame
 	ProbeActions.action_measure(term_b, biome_b)
 	await process_frame
-	ProbeActions.action_pop(term_b, farm.plot_pool, farm.economy)
+	ProbeActions.action_pop(term_b, farm.terminal_pool, farm.economy)
 
 	if a_measured and not b_measured:
 		print("  ✓ Actions are independent")
@@ -577,7 +577,7 @@ func _test_build_explore_integration():
 	print("\n📋 TEST: %s" % current_test)
 
 	var biome = farm.biotic_flux_biome
-	if not biome or not farm.plot_pool:
+	if not biome or not farm.terminal_pool:
 		_record_result(false, "Biome or plot_pool missing")
 		return
 
@@ -585,7 +585,7 @@ func _test_build_explore_integration():
 	print("  Running complete cycle: EXPLORE → MEASURE → POP")
 
 	# EXPLORE
-	var explore_result = ProbeActions.action_explore(farm.plot_pool, biome)
+	var explore_result = ProbeActions.action_explore(farm.terminal_pool, biome)
 	if not explore_result.success:
 		print("    ✗ EXPLORE failed: %s" % explore_result.get("message", "unknown"))
 		_record_result(false, "EXPLORE failed")
@@ -606,7 +606,7 @@ func _test_build_explore_integration():
 	await process_frame
 
 	# POP
-	var pop_result = ProbeActions.action_pop(terminal, farm.plot_pool, farm.economy)
+	var pop_result = ProbeActions.action_pop(terminal, farm.terminal_pool, farm.economy)
 	if not pop_result.success:
 		print("    ✗ POP failed")
 		_record_result(false, "POP failed")

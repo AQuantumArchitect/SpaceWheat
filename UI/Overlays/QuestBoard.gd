@@ -205,16 +205,16 @@ func handle_input(event: InputEvent) -> bool:
 			return true
 		# Action keys
 		KEY_Q:
-			action_q_on_selected()
+			on_q_pressed()
 			return true
 		KEY_E:
-			action_e_on_selected()
+			on_e_pressed()
 			return true
 		KEY_R:
 			if event.shift_pressed:
 				_refresh_all_unlocked_offers()
 			else:
-				action_r_on_selected()
+				on_r_pressed()
 			return true
 		KEY_F:
 			on_f_pressed()
@@ -241,21 +241,6 @@ func open_board() -> void:
 	# Restore from GameState
 	var gsm = _get_game_state_manager()
 	if gsm and gsm.current_state:
-		# Migrate old quest_slots format to new quest_pages format (only if has actual quests)
-		if "quest_slots" in gsm.current_state and gsm.current_state.quest_slots.size() == 4:
-			if not ("quest_pages" in gsm.current_state) or gsm.current_state.quest_pages.is_empty():
-				# Check if old slots have any actual quests (not all null)
-				var has_quests = false
-				for slot_data in gsm.current_state.quest_slots:
-					if slot_data != null:
-						has_quests = true
-						break
-
-				# Only migrate if there were actual quests saved
-				if has_quests:
-					gsm.current_state.quest_pages = {0: gsm.current_state.quest_slots.duplicate(true)}
-					gsm.current_state.quest_board_current_page = 0
-
 		# Restore page memory
 		if "quest_pages" in gsm.current_state and not gsm.current_state.quest_pages.is_empty():
 			quest_pages_memory = gsm.current_state.quest_pages.duplicate(true)
@@ -400,14 +385,6 @@ func _resolve_quantum_instrument():
 	return InstrumentLocator.resolve_quantum_instrument(self)
 
 
-func _get_saved_quest_slots() -> Array:
-	"""Safely load quest slots from GameStateManager"""
-	var gsm = _get_game_state_manager()
-	if gsm and gsm.current_state and "quest_slots" in gsm.current_state:
-		return gsm.current_state.quest_slots
-	return []
-
-
 func _save_current_page() -> void:
 	"""Capture current slot configuration to page memory."""
 	var page_slots = []
@@ -528,8 +505,14 @@ func _generate_and_display_page(page_num: int) -> void:
 
 			# Check if this quest is already active
 			if quest_manager and quest_manager.active_quests.has(quest_id):
-				# Quest is already accepted - show as ACTIVE
-				slot.set_quest_active(quest)
+				var live_quest = quest_manager.active_quests.get(quest_id, {})
+				if live_quest is Dictionary and str(live_quest.get("status", "")) == "ready":
+					slot.state = SlotState.READY
+					slot.quest_data = live_quest.duplicate(true)
+					slot._refresh_ui()
+				else:
+					# Quest is already accepted - show as ACTIVE
+					slot.set_quest_active(quest)
 			else:
 				# Quest is offered - preserve lock state if it was already locked
 				var current_slot_id = slot.quest_data.get("id", -1) if slot.quest_data is Dictionary else -1
@@ -1269,10 +1252,15 @@ func _on_quest_ready_to_claim(quest_id: int) -> void:
 		var slot = quest_slots[i]
 		if slot.quest_data.get("id", -1) == quest_id:
 			slot.state = SlotState.READY
+			if quest_manager and quest_manager.active_quests.has(quest_id):
+				var live_quest = quest_manager.active_quests.get(quest_id, {})
+				if live_quest is Dictionary:
+					slot.quest_data = live_quest.duplicate(true)
 			slot._refresh_ui()
 			# Update action labels if this slot is selected
 			if i == selected_slot_index:
 				_emit_selection_update()
+			_save_current_page()
 			break
 
 
@@ -1612,6 +1600,11 @@ func get_snapshot() -> Dictionary:
 
 		if "quest_data" in slot and slot.quest_data is Dictionary and not slot.quest_data.is_empty():
 			var q = slot.quest_data
+			slot_dict["quest_id"] = int(q.get("id", -1))
+			slot_dict["type"] = int(q.get("type", 0))
+			slot_dict["resource"] = str(q.get("resource", ""))
+			slot_dict["quantity"] = int(q.get("quantity", 0))
+			slot_dict["body"] = str(q.get("body", ""))
 			slot_dict["faction"] = q.get("faction", "")
 			slot_dict["requirement"] = q.get("requirement", {})
 			slot_dict["reward"] = q.get("reward", {})

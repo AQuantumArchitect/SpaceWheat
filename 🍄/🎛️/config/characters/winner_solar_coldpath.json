@@ -3,7 +3,7 @@
   "description": "Winner-biased solar-cold runner with tree and wind edges.",
   "resource_scale": "fibonacci",
   "scenario_id": "default",
-  "strict_biome_economy": false,
+  "strict_biome_economy": true,
   "resources": {
     "🍞": 34,
     "❄️": 21,

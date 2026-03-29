@@ -28,6 +28,7 @@ const BiomeEvolutionBatcherClass = preload("res://Core/Environment/BiomeEvolutio
 var _BiomeScripts: Dictionary = {}  # Populated at runtime in _init_biomes()
 const FarmUIState = preload("res://Core/GameState/FarmUIState.gd")
 const VocabularyEvolution = preload("res://Core/QuantumSubstrate/VocabularyEvolution.gd")
+const BiomeDiscoveryForecastService = preload("res://Core/Gameplay/BiomeDiscoveryForecastService.gd")
 
 # Icon system moved to faction-based IconRegistry (no preload needed)
 
@@ -63,6 +64,15 @@ var _mushroom_count_dirty: bool = true  # Set true when plots change
 func invalidate_mushroom_cache() -> void:
 	"""Call when plots are planted/harvested to recalculate mushroom count on next frame"""
 	_mushroom_count_dirty = true
+
+
+func _exit_tree() -> void:
+	"""Release runtime-only refs so session shutdown does not orphan the batcher graph."""
+	if biome_evolution_batcher and biome_evolution_batcher.has_method("cleanup"):
+		biome_evolution_batcher.cleanup()
+	biome_evolution_batcher = null
+	instrument = null
+	_bootstrap_pool = null
 
 
 func set_instrument(inst) -> void:
@@ -222,7 +232,7 @@ func emit_action_signal(action: String, result: Dictionary, grid_pos: Vector2i =
 	Visualization layer observes these signals to update display.
 
 	Args:
-		action: Action name ("explore", "measure", "pop", "reap", "harvest_all", "build")
+		action: Action name ("explore", "measure", "pop", "reap", "build")
 		result: Dictionary returned by ProbeActions (must have "success" key)
 		grid_pos: Grid position for the action (used by most signals)
 	"""
@@ -258,7 +268,7 @@ func emit_action_signal(action: String, result: Dictionary, grid_pos: Vector2i =
 					if h_pos != Vector2i(-1, -1) and tid != "":
 						terminal_released.emit(h_pos, tid, h_credits)
 
-		"harvest_all", "clear_all":
+		"clear_all":
 			# Handle array of harvest/clear results
 			var harvest_results = result.get("harvest_results", result.get("terminals", []))
 			for harvest in harvest_results:
@@ -568,8 +578,6 @@ func _sync_gsm_vocab_state() -> void:
 	var gsm = get_node_or_null("/root/GameStateManager")
 	if gsm and "current_state" in gsm and gsm.current_state:
 		gsm.current_state.known_pairs = get_known_pairs()
-		if gsm.current_state.has_method("get_known_emojis"):
-			gsm.current_state.known_emojis = get_known_emojis()
 
 
 ## Rebuild quantum operators after biomes have initialized
@@ -1315,7 +1323,7 @@ func can_explore_biome() -> Dictionary:
 	if unexplored.is_empty():
 		return {"ok": false, "message": "All biomes already explored!"}
 
-	var cost_gate = ActionCostRuntime.preflight_action(economy, "explore_biome")
+	var cost_gate = ActionCostRuntime.preflight_action(economy, "discover_biome")
 	if not cost_gate.get("ok", true):
 		return {"ok": false, "message": "Insufficient resources"}
 
@@ -1351,9 +1359,8 @@ func explore_biome() -> Dictionary:
 		print("❌ All biomes already explored")
 		return {"success": false, "message": "All biomes already explored!"}
 
-	# Pick biome using vocab-weighted discovery
-	var weights = _compute_discovery_weights(unexplored)
-	var new_biome = _weighted_random_pick(unexplored, weights)
+	var weights = BiomeDiscoveryForecastService.compute_weights(self, unexplored)
+	var new_biome = BiomeDiscoveryForecastService.weighted_random_pick(unexplored, weights)
 	print("🗺️ Selected biome: %s (weighted discovery)" % new_biome)
 
 	# Unlock it
@@ -1386,100 +1393,16 @@ func explore_biome() -> Dictionary:
 		biome_manager.set_active_biome(new_biome, direction)
 		print("✅ Switched to new biome: %s" % new_biome)
 
-	if economy and not ActionCostRuntime.commit_action(economy, "explore_biome"):
+	if economy and not ActionCostRuntime.commit_action(economy, "discover_biome"):
 		return {"success": false, "biome_name": new_biome, "message": "Explore biome failed: unable to spend cost."}
 
 	print("🗺️ Exploration complete: %s" % new_biome)
 	return {"success": true, "biome_name": new_biome, "message": "Discovered %s!" % new_biome}
 
 
-func _compute_discovery_weights(unexplored: Array) -> Array[float]:
-	"""Compute vocab-weighted discovery probabilities for unexplored biomes.
-
-	Weight formula per biome b:
-		weight(b) = FLOOR + QUEST_SCALE * quest_affinity(b) + VOCAB_SCALE * vocab_affinity(b)
-
-	FLOOR is low (0.1) so quest/vocab steering dominates. Locking quests
-	that point at a specific biome makes that biome very likely to appear.
-	"""
-	const BiomeAffinityCalculator = preload("res://Core/Quantum/BiomeAffinityCalculator.gd")
-	const FLOOR = 0.1
-	const QUEST_SCALE = 5.0
-	const VOCAB_SCALE = 2.0
-
-	var weights: Array[float] = []
-
-	# Gather active quest vocab pairs
-	var quest_pairs: Array = []
-	var quest_manager = get_node_or_null("/root/QuestManager")
-	if quest_manager:
-		for quest in quest_manager.get_active_quests():
-			var north = quest.get("reward_vocab_north", "")
-			if not north.is_empty():
-				quest_pairs.append({"north": north, "south": quest.get("reward_vocab_south", "")})
-		if quest_manager.has_method("get_locked_offers"):
-			for quest in quest_manager.get_locked_offers():
-				var north = quest.get("reward_vocab_north", "")
-				if not north.is_empty():
-					quest_pairs.append({"north": north, "south": quest.get("reward_vocab_south", "")})
-
-	# Gather learned pairs
-	var learned_pairs: Array = []
-	var player_vocab = get_node_or_null("/root/PlayerVocabulary")
-	if player_vocab and player_vocab.has_method("get_all_learned_pairs"):
-		learned_pairs = player_vocab.get_all_learned_pairs()
-
-	for biome_name in unexplored:
-		var w = FLOOR
-
-		for pair in quest_pairs:
-			w += QUEST_SCALE * BiomeAffinityCalculator.calculate_affinity_by_name(pair, biome_name)
-
-		if not learned_pairs.is_empty():
-			var vocab_sum = 0.0
-			for pair in learned_pairs:
-				vocab_sum += BiomeAffinityCalculator.calculate_affinity_by_name(pair, biome_name)
-			w += VOCAB_SCALE * vocab_sum / learned_pairs.size()
-
-		weights.append(w)
-	return weights
-
-
-static func _weighted_random_pick(items: Array, weights: Array[float]) -> Variant:
-	"""Pick an item using weighted random selection."""
-	var total = 0.0
-	for w in weights:
-		total += w
-	if total <= 0.0:
-		return items[randi() % items.size()]
-	var roll = randf() * total
-	var cumulative = 0.0
-	for i in range(items.size()):
-		cumulative += weights[i]
-		if roll <= cumulative:
-			return items[i]
-	return items[items.size() - 1]
-
-
 func compute_discovery_forecast() -> Dictionary:
-	"""Public API: returns discovery weight forecast for all unexplored biomes."""
-	var observation_frame = get_node_or_null("/root/ObservationFrame")
-	if not observation_frame:
-		return {}
-	var unexplored = observation_frame.get_unexplored_biomes()
-	if unexplored.is_empty():
-		return {}
-	var weights = _compute_discovery_weights(unexplored)
-	var total = 0.0
-	for w in weights:
-		total += w
-	var forecast: Dictionary = {}
-	for i in range(unexplored.size()):
-		forecast[unexplored[i]] = {
-			"weight": weights[i],
-			"probability": weights[i] / total if total > 0.0 else 0.0
-		}
-	return forecast
+	"""Compatibility facade over the discovery forecast service."""
+	return BiomeDiscoveryForecastService.compute_forecast(self)
 
 
 func _load_biome_dynamically(biome_name: String) -> bool:
@@ -1529,54 +1452,6 @@ func _assign_plots_for_biome(biome_name: String) -> void:
 			grid.assign_plot_to_biome(pos, biome_name)
 
 
-func do_action(action: String, params: Dictionary) -> Dictionary:
-	"""Universal action dispatcher - routes to appropriate method
-
-	Supported actions:
-	- entangle: {position_a, position_b} → entangles two plots
-	- measure: {position} → measures plot
-	- harvest: {position} → harvests plot
-
-	Returns: Dictionary with {success: bool, message: String, ...action-specific data}
-	"""
-	match action:
-		"entangle":
-			var pos_a = params.get("position_a", Vector2i.ZERO)
-			var pos_b = params.get("position_b", Vector2i.ZERO)
-			var bell_state = params.get("bell_state", "phi_plus")
-			var success = entangle_plots(pos_a, pos_b, bell_state)
-			return {
-				"success": success,
-				"position_a": pos_a,
-				"position_b": pos_b,
-				"bell_state": bell_state,
-				"message": "Entangle action " + ("succeeded" if success else "failed")
-			}
-
-		"measure":
-			var pos = params.get("position", Vector2i.ZERO)
-			var outcome = measure_plot(pos)
-			return {
-				"success": outcome != "",
-				"position": pos,
-				"outcome": outcome,
-				"message": "Measured: " + outcome if outcome else "Measurement failed"
-			}
-
-		"harvest":
-			var pos = params.get("position", Vector2i.ZERO)
-			var result = harvest_plot(pos)
-			result["message"] = "Harvest " + ("succeeded" if result.get("success", false) else "failed")
-			return result
-
-
-		_:
-			return {
-				"success": false,
-				"message": "Unknown action: %s" % action
-			}
-
-
 func measure_plot(pos: Vector2i) -> String:
 	"""Measure (collapse) quantum state of plot at position
 
@@ -1587,10 +1462,6 @@ func measure_plot(pos: Vector2i) -> String:
 		return ""
 
 	var outcome = grid.measure_plot(pos)
-
-	# No biome mode: use random outcome for testing (no quantum evolution happened)
-	if not outcome and not biome_enabled:
-		outcome = "🌾" if randf() > 0.5 else "👥"
 
 	if outcome != "":
 		plot_measured.emit(pos, outcome)
@@ -1624,39 +1495,6 @@ func harvest_plot(pos: Vector2i) -> Dictionary:
 		action_result.emit("harvest", false, "Harvest failed")
 
 	return harvest_data
-
-
-func measure_all() -> int:
-	"""Measure all planted but unmeasured plots
-
-	Returns: number of plots measured
-	"""
-	var measured_count = 0
-	if terminal_pool:
-		for terminal in terminal_pool.get_active_terminals():
-			if terminal.grid_position != Vector2i(-1, -1):
-				if measure_plot(terminal.grid_position) != "":
-					measured_count += 1
-
-	action_result.emit("measure_all", true, "Measured %d plots" % measured_count)
-	return measured_count
-
-
-func harvest_all() -> int:
-	"""Harvest all measured plots
-
-	Returns: number of plots harvested
-	"""
-	var harvested_count = 0
-	if terminal_pool:
-		for terminal in terminal_pool.get_measured_terminals():
-			if terminal.grid_position != Vector2i(-1, -1):
-				var result = harvest_plot(terminal.grid_position)
-				if result.get("success", false):
-					harvested_count += 1
-
-	action_result.emit("harvest_all", true, "Harvested %d plots" % harvested_count)
-	return harvested_count
 
 
 func entangle_plots(pos1: Vector2i, pos2: Vector2i, bell_state: String = "phi_plus") -> bool:
@@ -1798,7 +1636,7 @@ func get_state() -> Dictionary:
 
 func _get_plot_biome(pos: Vector2i):
 	"""Get biome for plot position. Returns null if biomes disabled or not found."""
-	if biome_enabled and grid:
+	if grid:
 		return grid.get_biome_for_plot(pos)
 	return null
 

@@ -211,11 +211,13 @@ func _verify_data_flow(shell: Node):
 	if quest_board:
 		print("      ✅ Quest board exists")
 
-		if quest_board.quest_slots and quest_board.quest_slots.size() > 0:
-			print("      ✅ Quest slots created (%d slots)" % quest_board.quest_slots.size())
+		var snapshot = quest_board.get_snapshot() if quest_board and quest_board.has_method("get_snapshot") else {}
+		var slots = snapshot.get("slots", [])
+		if slots is Array and slots.size() > 0:
+			print("      ✅ Quest slots created (%d slots)" % slots.size())
 
-			var slot = quest_board.quest_slots[0]
-			if slot and slot.state >= 0:
+			var slot = slots[0]
+			if slot is Dictionary and str(slot.get("state", "")) != "":
 				print("      ✅ Quest slot state accessible")
 			else:
 				print("      ❌ Quest slot state invalid")
@@ -277,4 +279,3 @@ func _verify_data_flow(shell: Node):
 			print("      ❌ No biomes found")
 	else:
 		print("      ❌ Farm not found")
-

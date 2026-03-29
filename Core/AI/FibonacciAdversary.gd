@@ -101,7 +101,7 @@ func _register_default_knobs() -> void:
 	_reg("action_costs.reap.🍼",                 1, "victory_lap_partial")
 	_reg("action_costs.quest_reroll.🐇",         1, "quest_cycle")
 	_reg("action_costs.quest_lock.🌲",           1, "lock_offer")
-	_reg("action_costs.explore_biome.🦅",        5, "discover_biome")
+	_reg("action_costs.discover_biome.🦅",       5, "discover_biome")
 	_reg("action_costs.remove_vocabulary.🐺",   21, "")
 	_reg("action_costs.lindblad_pump.🌱",        8, "lindblad_drain")
 	_reg("action_costs.lindblad_drain.⚙",       2, "lindblad_drain")

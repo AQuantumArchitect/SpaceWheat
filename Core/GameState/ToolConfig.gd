@@ -1,5 +1,4 @@
 extends RefCounted
-## Note: No class_name - accessed via preload for backward compatibility
 
 ## ToolConfig - Time Scale Ratchet Tool Architecture
 ##
@@ -205,7 +204,7 @@ const TOOL_GROUPS = {
 				  "icon": "res://Assets/UI/Biome/BiomeAssign.svg",
 				  "hint": "Inject vocabulary into biome",
 				  "submenu": "vocab_injection"},
-			"E": {"action": "explore_biome", "label": "Explore", "emoji": "?",
+			"E": {"action": "discover_biome", "label": "Explore", "emoji": "?",
 				  "icon": "res://Assets/UI/Science/Explore.svg",
 				  "hint": "Explore and unlock a new biome"},
 			"R": {"action": "remove_vocabulary", "label": "-Vocab", "emoji": "-",
@@ -400,94 +399,3 @@ static func get_all_actions(group_num: int) -> Dictionary:
 		"R": get_action(group_num, "R")
 	}
 
-
-# ============================================================================
-# BACKWARD COMPATIBILITY - Legacy v2 API
-# ============================================================================
-
-# Removed: current_mode, tool_mode_indices (never used)
-
-## Alias for backward compatibility
-const TOOL_ACTIONS = TOOL_GROUPS
-const PLAY_TOOLS = TOOL_GROUPS
-const BUILD_TOOLS = TOOL_GROUPS
-
-static func toggle_mode() -> String:
-	"""Legacy: Toggle mode. Now a no-op, returns 'play'."""
-	return "play"
-
-
-static func get_mode() -> String:
-	"""Legacy: Get current mode. Returns 'play'."""
-	return "play"
-
-
-static func set_mode(_mode: String) -> void:
-	"""Legacy: Set mode. No-op."""
-	pass
-
-
-static func get_current_tools() -> Dictionary:
-	"""Legacy: Get tools. Returns TOOL_GROUPS."""
-	return TOOL_GROUPS
-
-
-static func get_tool(tool_num: int) -> Dictionary:
-	"""Legacy: Get tool by number. Maps to get_group."""
-	return get_group(tool_num)
-
-
-static func get_tool_name(tool_num: int) -> String:
-	"""Legacy: Get tool name."""
-	return get_group_name(tool_num)
-
-
-static func get_tool_emoji(tool_num: int) -> String:
-	"""Legacy: Get tool emoji."""
-	return get_group_emoji(tool_num)
-
-
-static func get_tool_icon_path(tool_num: int) -> String:
-	"""Legacy: Get tool icon path."""
-	return get_group_icon_path(tool_num)
-
-
-static func cycle_tool_mode(tool_num: int) -> int:
-	"""Legacy: Cycle tool mode."""
-	return cycle_group_mode(tool_num)
-
-
-static func get_tool_mode_index(tool_num: int) -> int:
-	"""Legacy: Get tool mode index."""
-	return get_group_mode_index(tool_num)
-
-
-static func get_tool_mode_name(tool_num: int) -> String:
-	"""Legacy: Get tool mode name."""
-	return get_group_mode_name(tool_num)
-
-
-static func get_tool_mode_label(tool_num: int) -> String:
-	"""Legacy: Get tool mode label."""
-	return get_group_mode_label(tool_num)
-
-
-static func reset_tool_modes() -> void:
-	"""Legacy: Reset tool modes."""
-	reset_group_modes()
-
-
-static func get_tool_count() -> int:
-	"""Legacy: Get tool count."""
-	return 4
-
-
-# Removed: SUBMENUS constant - submenus now handled by UI components
-# Note: get_submenu() kept as stub for ActionValidator backward compatibility
-
-static func get_submenu(submenu_name: String) -> Dictionary:
-	"""Stub function for ActionValidator compatibility.
-	Submenus are now handled by GateSelectionSubmenu and VocabSelectionSubmenu.
-	Returns empty dict - validator should use cached_submenu parameter instead.
-	"""
-	return {}

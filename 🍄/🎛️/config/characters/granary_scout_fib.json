@@ -3,7 +3,7 @@
   "description": "Bread-forward fib-scale scout with a light eagle frontier.",
   "resource_scale": "fibonacci",
   "scenario_id": "default",
-  "strict_biome_economy": false,
+  "strict_biome_economy": true,
   "resources": {
     "🍞": 21,
     "❄️": 13,

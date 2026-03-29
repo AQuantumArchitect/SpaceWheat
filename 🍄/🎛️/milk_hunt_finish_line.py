@@ -16,6 +16,8 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List
 
+from run_executor import cleanup_process_patterns, ensure_lane, run_cli
+
 
 PROFILES: List[str] = [
     "granary_scout",
@@ -54,24 +56,16 @@ def _collect_batch_status(batch_root: Path) -> Dict[str, Dict[str, Any]]:
     return status
 
 
-def _run_cmd(cmd: List[str], timeout_s: int) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(cmd, capture_output=True, text=True, check=False, timeout=timeout_s)
+def _run_cmd(cmd: List[str], timeout_s: int, lane=None) -> subprocess.CompletedProcess[str]:
+    return run_cli(cmd, lane=lane, capture_output=True, timeout_s=timeout_s)
 
 
 def _cleanup_stale_processes() -> None:
-    subprocess.run(
-        [
-            "/bin/bash",
-            "-lc",
-            (
-                "pids=$(pgrep -f \"milk_hunt_runner.py|Tests/rig_listener.gd|milk_hunt_batch.py --profile\" || true); "
-                "if [ -n \"$pids\" ]; then kill $pids || true; fi"
-            ),
-        ],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+    cleanup_process_patterns([
+        "milk_hunt_runner.py",
+        "Tests/rig_listener.gd",
+        "milk_hunt_batch.py --profile",
+    ])
 
 
 def _read_summary(path: Path) -> Dict[str, Any]:
@@ -113,6 +107,7 @@ def main() -> int:
         help="Ignore prior status and run all profiles through continuation flow",
     )
     args = parser.parse_args()
+    lane = ensure_lane()
 
     root = Path(__file__).resolve().parent
     runner = root / "milk_hunt_runner.py"
@@ -150,7 +145,7 @@ def main() -> int:
             "--slot",
             str(args.slot),
         ]
-        seed_proc = _run_cmd(seed_cmd, timeout_s=max(90, args.timeout_seconds))
+        seed_proc = _run_cmd(seed_cmd, timeout_s=max(90, args.timeout_seconds), lane=lane)
         seed_log.write_text((seed_proc.stdout or "") + (seed_proc.stderr or ""), encoding="utf-8")
 
         profile_entry: Dict[str, Any] = {
@@ -195,7 +190,7 @@ def main() -> int:
 
                 timeout_hit = False
                 try:
-                    proc = _run_cmd(cmd, timeout_s=int(args.timeout_seconds))
+                    proc = _run_cmd(cmd, timeout_s=int(args.timeout_seconds), lane=lane)
                 except subprocess.TimeoutExpired:
                     timeout_hit = True
                     _cleanup_stale_processes()

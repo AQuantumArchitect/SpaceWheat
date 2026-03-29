@@ -113,8 +113,6 @@ static func default_graph(policy_kind: String = "ucb", profile_id: String = "def
 		},
 		"dynamics": {
 			"apply_stagnation_penalty": true,
-			"stagnation_penalty_scale": 1.5,
-			"stagnation_penalty_cap": 24.0,
 		},
 	}
 	if policy_kind == "quantum_register":

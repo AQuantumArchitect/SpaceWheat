@@ -157,8 +157,12 @@ static func create_grid_from_state(
 
 	# Link biome if provided
 	if biome:
-		grid.biome = biome
 		biome.grid = grid
+		var biome_name = str(biome.name) if biome.name != "" else "DisplayBiome"
+		grid.register_biome(biome_name, biome)
+		for y in range(height):
+			for x in range(width):
+				grid.assign_plot_to_biome(Vector2i(x, y), biome_name)
 
 	print("✅ FarmGrid reconstructed from saved state (%dx%d)" % [width, height])
 	return grid

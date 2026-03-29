@@ -38,6 +38,12 @@ var num_qubits: int = 0
 var _verbose: bool = OS.get_environment("REGISTERMAP_VERBOSE") == "1"
 
 
+func clear() -> void:
+	coordinates.clear()
+	axes.clear()
+	num_qubits = 0
+
+
 func register_axis(qubit_index: int, north_emoji: String, south_emoji: String) -> void:
 	"""Register a qubit axis with its pole labels.
 

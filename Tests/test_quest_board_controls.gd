@@ -185,7 +185,7 @@ func _test_vocabulary_filtering():
 		print("   ⚠️  No game state (skipping)")
 		return
 
-	var known_emojis = game_state.known_emojis
+	var known_emojis = game_state.get_known_emojis()
 	print("   Player knows %d emojis: %s" % [known_emojis.size(), str(known_emojis)])
 
 	# Get all factions offered

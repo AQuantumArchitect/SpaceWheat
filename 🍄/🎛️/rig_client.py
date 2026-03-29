@@ -16,9 +16,28 @@ def _read_heartbeat(xdg: Optional[Path] = None) -> Optional[float]:
     hb_path = user_dir(xdg=xdg) / "rig" / "heartbeat"
     try:
         text = hb_path.read_text().strip()
-        return float(text) if text else None
+        lines = text.split("\n")
+        return float(lines[0]) if lines[0] else None
     except (OSError, ValueError):
         return None
+
+
+def _read_heartbeat_ext(xdg: Optional[Path] = None) -> dict:
+    """Read extended heartbeat: {timestamp, cmd_idle_ms, polling_dur_ms}.
+
+    Returns empty dict on any read error.
+    """
+    hb_path = user_dir(xdg=xdg) / "rig" / "heartbeat"
+    try:
+        lines = hb_path.read_text().strip().split("\n")
+        out: dict = {"timestamp": float(lines[0])}
+        if len(lines) >= 2:
+            out["cmd_idle_ms"] = int(lines[1])
+        if len(lines) >= 3:
+            out["polling_dur_ms"] = int(lines[2])
+        return out
+    except (OSError, ValueError, IndexError):
+        return {}
 
 
 def _pid_alive(pid: int) -> bool:
@@ -83,7 +102,7 @@ class RigClient:
                 out.append({"ok": False, "error": "bad_json_line", "raw": raw})
         return out
 
-    def clear_rig_files(self) -> None:
+    def clear_rig_files(self, preserve_live_sentinel: bool = True) -> None:
         if self._queue_writer is not None:
             try:
                 self._queue_writer.close()
@@ -92,8 +111,9 @@ class RigClient:
             self._queue_writer = None
         self.queue_file.unlink(missing_ok=True)
         self.results_file.unlink(missing_ok=True)
-        # Always clear stale sentinel for this XDG root; a fresh listener writes a new one.
-        self._bridge_sentinel_path(self.xdg_root).unlink(missing_ok=True)
+        sentinel = self._bridge_sentinel_path(self.xdg_root)
+        if not preserve_live_sentinel or not self._bridge_sentinel_is_ready(self.xdg_root):
+            sentinel.unlink(missing_ok=True)
         self._results_offset = 0
         self._results_partial = ""
         self._results_by_turn.clear()
@@ -170,6 +190,7 @@ class RigClient:
         *,
         load_slot: Optional[int] = None,
         scenario_id: str = "default",
+        display_mode: str = "headless",
         allow_resource_injection: Optional[bool] = None,
         listener_stdout: str = "file",
         listener_log_path: Optional[Path] = None,
@@ -183,6 +204,7 @@ class RigClient:
         if load_slot is not None:
             env["RIG_LOAD_SLOT"] = str(load_slot)
         env["RIG_SCENARIO"] = scenario_id
+        env["RIG_DISPLAY_MODE"] = str(display_mode or "headless")
         if allow_resource_injection is not None:
             env["RIG_ALLOW_RESOURCE_INJECTION"] = "1" if allow_resource_injection else "0"
         if rig_log_profile:
@@ -389,7 +411,9 @@ class RigClient:
             # Check heartbeat every 2 seconds
             if now - last_heartbeat_check >= 2.0:
                 last_heartbeat_check = now
-                hb_time = _read_heartbeat(xdg=self.xdg_root)
+                hb_ext = _read_heartbeat_ext(xdg=self.xdg_root)
+                hb_time = hb_ext.get("timestamp")
+                polling_dur_ms = hb_ext.get("polling_dur_ms", 0)
                 if hb_time is not None:
                     heartbeat_age = now - hb_time
                     heartbeat_alive = heartbeat_age < heartbeat_stale_s
@@ -405,6 +429,16 @@ class RigClient:
                     )
                     return None
 
+                # Detect stuck polling: heartbeat is alive (physics runs) but
+                # _poll_queue coroutine has been executing for >90s. This means
+                # Godot is alive but the command handler is hung.
+                if heartbeat_alive and polling_dur_ms > 90_000 and elapsed >= 30.0:
+                    self.safe_print(
+                        "[rig_wait] Godot alive but poll loop stuck (%dms), timing out turn=%d after %.1fs"
+                        % (polling_dur_ms, turn_id, elapsed)
+                    )
+                    return None
+
             if progress_interval_s > 0 and now >= next_report_at:
                 hb_status = "alive" if heartbeat_alive else "STALE"
                 self.safe_print(
@@ -412,7 +446,7 @@ class RigClient:
                     % (turn_id, elapsed, self._latest_result_turn, hb_status)
                 )
                 next_report_at = now + max(0.5, progress_interval_s)
-            time.sleep(0.2)
+            time.sleep(0.02)
 
     def run_turn(
         self,

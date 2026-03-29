@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
-"""Unified profile management for SpaceWheat.
+"""Unified profile and save-registry management for SpaceWheat.
 
-Merges the functionality of:
-  - milk_hunt_profiles.py (load profiles by name)
-  - profile_save_registry.py (profile-save path mapping)
-  - milk_hunt_world_state.py (world state loading)
-
-Single import for all profile operations.
+This module is the single public surface for:
+  - loading world-state profiles by name
+  - listing derby/profile lanes
+  - resolving canonical profile-save mappings
+  - converting between user:// URIs and filesystem paths
 """
 from __future__ import annotations
 
@@ -16,18 +15,9 @@ from typing import Any, Dict, List, Optional, Set
 
 from milk_hunt_runtime_config import load_json_config
 from milk_hunt_paths import APP_NAME, user_dir, xdg_root
-from milk_hunt_characters import (
-    CharacterDict,
-    get_character,
-    list_character_names,
-    resolve_character_policy,
-    resolve_character_seed,
-    resolve_character_world_state,
-)
 
 HERE = Path(__file__).resolve().parent
 WORLD_STATE_DIR = HERE / "config" / "world_state"
-POLICY_WEIGHTS_DIR = HERE / "config" / "policy_weights"
 STRATEGY_DIR = HERE / "config" / "strategy"
 
 
@@ -99,44 +89,41 @@ def exists(name: str) -> bool:
     return (WORLD_STATE_DIR / f"{name}.json").exists()
 
 
-# ── Character loading (delegates to milk_hunt_characters) ────────
-
-def load_character(name: str) -> CharacterDict:
-    """Load a character spec by name. Raises ValueError if not found."""
-    return get_character(name)
-
-
-def character_exists(name: str) -> bool:
-    """Check if a character spec exists."""
-    return name in list_character_names()
-
-
-# ── Policy weight loading ───────────────────────────────────────────
-
-def load_policy_weights(name: str) -> Dict[str, float]:
-    """Load policy weights override for a profile, or empty dict."""
-    path = POLICY_WEIGHTS_DIR / f"{name}.json"
-    if not path.exists():
-        return {}
-    try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError):
-        return {}
-
-
 # ── Profile save registry ──────────────────────────────────────────
 
-def _user_root() -> Path:
+def user_root_path() -> Path:
     return user_dir(xdg=xdg_root(), app_name=APP_NAME)
+
+
+def resolve_user_path(path: str) -> Path:
+    if path.startswith("user://"):
+        suffix = path[len("user://") :]
+        return user_root_path() / suffix
+    return Path(path).expanduser().resolve()
+
+
+def to_user_uri(path: Path) -> str:
+    base = user_root_path().resolve()
+    resolved = path.resolve()
+    try:
+        rel = resolved.relative_to(base)
+        return "user://%s" % rel.as_posix()
+    except ValueError:
+        return str(resolved)
+
+
+def default_registry_uri() -> str:
+    return "user://saves/profiles/index.json"
+
+
+def default_registry_path() -> Path:
+    return resolve_user_path(default_registry_uri())
 
 
 def _registry_path(index_path: Optional[str] = None) -> Path:
     if index_path:
-        p = index_path.strip()
-        if p.startswith("user://"):
-            return _user_root() / p[len("user://"):]
-        return Path(p).expanduser().resolve()
-    return _user_root() / "saves" / "profiles" / "index.json"
+        return resolve_user_path(index_path.strip())
+    return default_registry_path()
 
 
 def load_registry(index_path: Optional[str] = None) -> Dict[str, str]:
@@ -160,6 +147,17 @@ def get_save_path(profile_name: str, index_path: Optional[str] = None) -> Option
     return load_registry(index_path).get(profile_name)
 
 
+def get_profile_name_for_save(save_spec: str, index_path: Optional[str] = None) -> Optional[str]:
+    """Return the registry profile name for a saved path/URI, if mapped."""
+    target = (save_spec or "").strip()
+    if not target:
+        return None
+    for name, mapped in load_registry(index_path).items():
+        if mapped == target:
+            return name
+    return None
+
+
 def resolve_save_spec(spec: str, index_path: Optional[str] = None) -> str:
     """Resolve a profile-save spec: try as profile name first, fall back to raw path."""
     s = (spec or "").strip()
@@ -167,3 +165,4 @@ def resolve_save_spec(spec: str, index_path: Optional[str] = None) -> str:
         return s
     mapped = get_save_path(s, index_path)
     return mapped if mapped else s
+

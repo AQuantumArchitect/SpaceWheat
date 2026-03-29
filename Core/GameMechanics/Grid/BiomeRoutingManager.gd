@@ -16,9 +16,6 @@ var terminal_pool = null
 # Plot manager for plot-based register lookups
 var _plot_manager = null
 
-# Legacy biome reference (for backward compatibility)
-var legacy_biome = null
-
 # External references
 var _verbose = null
 
@@ -36,11 +33,6 @@ func set_terminal_pool(pool) -> void:
 func set_plot_manager(pm) -> void:
 	"""Inject GridPlotManager for plot-based register lookups."""
 	_plot_manager = pm
-
-
-func set_legacy_biome(biome) -> void:
-	"""Set legacy biome for backward compatibility."""
-	legacy_biome = biome
 
 
 func register_biome(biome_name: String, biome_instance) -> void:
@@ -92,43 +84,12 @@ func get_biome_for_plot(position: Vector2i):
 	if biomes.has("StarterForest"):
 		return biomes["StarterForest"]
 
-	# Final fallback to legacy biome variable (for backward compatibility)
-	return legacy_biome
+	return null
 
 
 func get_biome_id_for_plot(position: Vector2i) -> String:
 	"""Get the biome ID (name) for a plot position."""
 	return plot_biome_assignments.get(position, "")
-
-
-func get_entanglement_graph() -> Dictionary:
-	"""Export aggregated entanglement graph from all biomes
-
-	Returns a consolidated entanglement_graph showing which registers are entangled across all biomes.
-	Format: {register_id → Array[register_id]} (adjacency list)
-
-	Used by visualization team to render entanglement relationships.
-	"""
-	var consolidated_graph: Dictionary = {}
-
-	# Collect entanglement graphs from all biomes
-	for biome_name in biomes.keys():
-		var biome = biomes[biome_name]
-		if biome and biome.quantum_computer:
-			var quantum_comp = biome.quantum_computer
-			if quantum_comp.entanglement_graph:
-				# Merge this biome's graph into consolidated graph
-				for reg_id in quantum_comp.entanglement_graph.keys():
-					var entangled_with = quantum_comp.entanglement_graph[reg_id]
-					if not consolidated_graph.has(reg_id):
-						consolidated_graph[reg_id] = []
-
-					# Add unique entanglements
-					for partner_id in entangled_with:
-						if not consolidated_graph[reg_id].has(partner_id):
-							consolidated_graph[reg_id].append(partner_id)
-
-	return consolidated_graph
 
 
 func get_register_for_plot(position: Vector2i) -> int:

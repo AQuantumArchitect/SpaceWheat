@@ -6,6 +6,7 @@ extends RefCounted
 const INJECT_VOCAB := "inject_vocabulary"
 const LINDBLAD_PUMP := "lindblad_pump"
 const LINDBLAD_DRAIN := "lindblad_drain"
+const DISCOVER_BIOME := "discover_biome"
 
 const ACTION_ALIASES: Dictionary = {
 	"vocab_injection": INJECT_VOCAB,
@@ -13,6 +14,7 @@ const ACTION_ALIASES: Dictionary = {
 	"drain": LINDBLAD_DRAIN,
 	"lindblad_drive": LINDBLAD_PUMP,
 	"lindblad_decay": LINDBLAD_DRAIN,
+	"explore_biome": DISCOVER_BIOME,
 }
 
 

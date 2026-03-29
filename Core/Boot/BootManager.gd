@@ -547,7 +547,7 @@ func load_biome(biome_name: String, farm: Node) -> Dictionary:
 
 	Called by:
 	- Farm._ready() during boot (for all unlocked biomes)
-	- Farm.explore_biome() at runtime (for new biomes)
+	- Farm.explore_biome() at runtime (discover_biome action)
 
 	Ensures consistent order:
 	1. Load script & instantiate
@@ -604,23 +604,16 @@ func load_biome(biome_name: String, farm: Node) -> Dictionary:
 				"already_loaded": true
 			}
 
-	# ====== STEP 1: LOAD SCRIPT & INSTANTIATE ======
-	var script_path = _get_biome_script_path(biome_name)
+	# ====== STEP 1: LOAD & INSTANTIATE FROM REGISTRY ======
+	const BiomeBuilder = preload("res://Core/Biomes/BiomeBuilder.gd")
 	var biome = null
+	var result = BiomeBuilder.build_from_registry(biome_name, farm.grid, {"skip_tree_add": true})
 
-	if script_path != "":
-		# Hand-crafted script biome
-		biome = farm._safe_load_biome(script_path, biome_name)
+	if result.success:
+		biome = result.biome_node
+		_verbose.debug("boot", "🔧", "Built '%s' from BiomeRegistry" % biome_name)
 	else:
-		# JSON-driven biome from BiomeRegistry
-		const BiomeBuilder = preload("res://Core/Biomes/BiomeBuilder.gd")
-		var result = BiomeBuilder.build_from_registry(biome_name, farm.grid, {"skip_tree_add": true})
-
-		if result.success:
-			biome = result.biome_node
-			_verbose.debug("boot", "🔧", "Built '%s' from BiomeRegistry" % biome_name)
-		else:
-			_verbose.error("boot", "❌", "BiomeBuilder failed: %s" % result.error)
+		_verbose.error("boot", "❌", "BiomeBuilder failed: %s" % result.error)
 
 	if not biome:
 		_verbose.error("boot", "❌", "Failed to load biome: %s" % biome_name)
@@ -629,6 +622,12 @@ func load_biome(biome_name: String, farm: Node) -> Dictionary:
 			"error": "load_failed",
 			"message": "Could not load biome for '%s'" % biome_name
 		}
+
+	# Registry-built biomes are created off-tree. They still need a real owner so
+	# _exit_tree() runs and the runtime graph is released on session shutdown.
+	if biome.get_parent() == null:
+		farm.add_child(biome)
+		_verbose.debug("boot", "🌱", "Attached '%s' to Farm scene tree" % biome_name)
 
 	# ====== STEP 2: REGISTER WITH GRID ======
 	farm.grid.register_biome(biome_name, biome)
@@ -679,36 +678,6 @@ func load_biome(biome_name: String, farm: Node) -> Dictionary:
 		"biome_ref": biome,
 		"already_loaded": false
 	}
-
-
-## Helper: Get script path for a biome name
-func _get_biome_script_path(biome_name: String) -> String:
-	"""Get biome script path (empty string = use BiomeBuilder).
-
-	Returns:
-		- Script path for hand-crafted biomes
-		- Empty string for JSON biomes (signals load_biome to use BiomeBuilder)
-	"""
-	# Check BiomeRegistry first - prefer JSON-driven builds
-	if _biome_registry and _biome_registry.get_by_name(biome_name):
-		return ""  # Signal to use BiomeBuilder.build_from_registry()
-
-	# Fallback: hand-crafted script biomes (legacy support)
-	match biome_name:
-		"StarterForest":
-			return "res://Core/Environment/StarterForestBiome.gd"
-		"Village":
-			return "res://Core/Environment/VillageBiome.gd"
-		"BioticFlux":
-			return "res://Core/Environment/BioticFluxBiome.gd"
-		"StellarForges":
-			return "res://Core/Environment/StellarForgesBiome.gd"
-		"FungalNetworks":
-			return "res://Core/Environment/FungalNetworksBiome.gd"
-		"VolcanicWorlds":
-			return "res://Core/Environment/VolcanicWorldsBiome.gd"
-		_:
-			return ""  # Not found
 
 
 ## Helper: Collect all unique emojis from all sources

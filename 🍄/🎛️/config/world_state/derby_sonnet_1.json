@@ -7,5 +7,5 @@
   "unlocked_biomes": ["StarterForest", "Village", "WildHill", "FungalNetworks", "SolarPlains", "VolcanicRidge", "ArcticShelf", "CoralReef"],
   "active_biome": "StarterForest",
   "known_pairs": [{"north": "🌾", "south": "👥"}],
-  "strict_biome_economy": false
+  "strict_biome_economy": true
 }

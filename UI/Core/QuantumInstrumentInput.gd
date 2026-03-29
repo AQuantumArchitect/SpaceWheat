@@ -840,7 +840,7 @@ func _perform_shift_key_action(action_key: String) -> void:
 	var original_selection = current_selection.duplicate()
 
 	# Special case: Global shift actions (execute once, not per plot)
-	if action_name == "reap" or action_name == "harvest_all" or action_name == "clear_all":
+	if action_name == "reap" or action_name == "clear_all":
 		_verbose.info("input", symbol, "Executing global %s once" % log_label)
 		_run_action(action_name, symbol, log_label)
 		_restore_selection(original_selection)
@@ -1242,23 +1242,16 @@ func _execute_action(action_name: String) -> Dictionary:
 			if result.get("success", false):
 				_refresh_plot_tiles(positions)
 		"explore":
-			var explore_positions = _get_homerow_positions()
-			var explored_count = 0
-			var last_result: Dictionary = {"success": false, "error": "no_positions"}
-			for pos in explore_positions:
-				var r = _instrument.action_explore(biome_name, pos)
-				last_result = r
-				if r.get("success", false):
-					explored_count += 1
-			result = {"success": explored_count > 0, "explored_count": explored_count} if explored_count > 0 else last_result
+			if positions.is_empty():
+				result = {"success": false, "error": "no_positions", "message": "No plot selected"}
+			else:
+				result = _instrument.action_explore(biome_name, positions[0])
 		"measure":
 			result = _instrument.action_measure(grid_pos)
 		"reap":
 			result = _instrument.action_reap()
 		"pop":
 			result = _instrument.action_pop(grid_pos)
-		"harvest_all":
-			result = _instrument.action_harvest_all()
 		"clear_all":
 			result = _instrument.action_clear_all()
 		"build_gate":
@@ -1269,8 +1262,8 @@ func _execute_action(action_name: String) -> Dictionary:
 			result = _instrument.action_remove_gates(positions)
 		"inject_vocabulary":
 			result = _instrument.action_inject_vocabulary(biome_name)
-		"explore_biome":
-			result = _instrument.action_explore_biome()
+		"discover_biome":
+			result = _instrument.action_discover_biome()
 			if result.get("success", false):
 				_select_tool_group(3)
 		"cycle_biome", "toggle_view":

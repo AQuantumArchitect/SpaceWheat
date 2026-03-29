@@ -116,11 +116,9 @@ func get_policy_snapshot(include_offers: bool = true, include_grid: bool = true)
 	return PolicySnapshotBuilder.build(self, include_offers, include_grid)
 
 
-func build_policy_state(cmd: Dictionary = {}) -> Dictionary:
-	"""Build canonical policy input state for engine-side automation."""
+func _build_policy_state_from_snapshot(policy_snapshot: Dictionary, cmd: Dictionary = {}, include_discovery_forecast: bool = true) -> Dictionary:
 	var resource_floors = _parse_resource_thresholds(cmd.get("resource_floors", {}))
 	var forbid_actions = _parse_forbid_actions(cmd.get("forbid_actions", []))
-	var policy_snapshot = get_policy_snapshot(true, true)
 
 	var resources = policy_snapshot.get("resources", {})
 	if not (resources is Dictionary):
@@ -157,7 +155,7 @@ func build_policy_state(cmd: Dictionary = {}) -> Dictionary:
 
 	var lindblad_snapshot = get_lindblad_snapshot("", false)
 	var discovery_forecast: Dictionary = {}
-	if farm and farm.has_method("compute_discovery_forecast"):
+	if include_discovery_forecast and farm and farm.has_method("compute_discovery_forecast"):
 		discovery_forecast = farm.compute_discovery_forecast()
 
 	_annotate_offer_discovery_affinity(offers)
@@ -175,6 +173,20 @@ func build_policy_state(cmd: Dictionary = {}) -> Dictionary:
 		"discovery_forecast": discovery_forecast,
 		"locked_offers": locked_offers,
 	}
+
+
+func build_policy_state(cmd: Dictionary = {}) -> Dictionary:
+	"""Build canonical policy input state for engine-side automation."""
+	return _build_policy_state_from_snapshot(get_policy_snapshot(true, true), cmd, true)
+
+
+func build_policy_state_lightweight(cmd: Dictionary = {}) -> Dictionary:
+	"""Build post-action reward state without expensive offer regeneration."""
+	var policy_snapshot = get_policy_snapshot(false, true)
+	var out = _build_policy_state_from_snapshot(policy_snapshot, cmd, false)
+	out["offers"] = []
+	out["discovery_forecast"] = {}
+	return out
 
 
 func get_grid_snapshot() -> Dictionary:
@@ -386,6 +398,107 @@ func get_locked_offers() -> Array:
 	if not quest_manager or not quest_manager.has_method("get_locked_offers"):
 		return []
 	return quest_manager.get_locked_offers()
+
+
+func get_overlay_snapshot(overlay_name: String) -> Dictionary:
+	var overlay = _resolve_overlay(overlay_name)
+	if overlay and overlay.has_method("get_snapshot"):
+		return {"ok": true, "overlay": overlay_name, "snapshot": overlay.get_snapshot()}
+	return {"ok": false, "error": "overlay_not_found", "overlay": overlay_name}
+
+
+func get_widget_snapshot(widget_name: String) -> Dictionary:
+	var widget = _resolve_widget(widget_name)
+	if widget and widget.has_method("get_snapshot"):
+		return {"ok": true, "widget": widget_name, "snapshot": widget.get_snapshot()}
+	return {"ok": false, "error": "widget_not_found", "widget": widget_name}
+
+
+func get_hud_snapshot(hud_name: String) -> Dictionary:
+	var hud = _resolve_hud(hud_name)
+	if hud and hud.has_method("get_snapshot"):
+		return {"ok": true, "hud": hud_name, "snapshot": hud.get_snapshot()}
+	return {"ok": false, "error": "hud_not_found", "hud": hud_name}
+
+
+func get_full_ui_snapshot() -> Dictionary:
+	var snapshot: Dictionary = {"widgets": {}, "huds": {}, "overlays": {}}
+	for wname in ["resources", "action_preview", "quantum_mode", "biome_oval", "quest_board", "faction_browser"]:
+		var row = get_widget_snapshot(wname)
+		if bool(row.get("ok", false)):
+			snapshot["widgets"][wname] = row.get("snapshot", {})
+	for hname in ["milk_hunter", "performance"]:
+		var row = get_hud_snapshot(hname)
+		if bool(row.get("ok", false)):
+			snapshot["huds"][hname] = row.get("snapshot", {})
+	for oname in ["quests", "controls", "semantic_map", "logger_config", "inspector"]:
+		var row = get_overlay_snapshot(oname)
+		if bool(row.get("ok", false)):
+			snapshot["overlays"][oname] = row.get("snapshot", {})
+	return snapshot
+
+
+func _resolve_overlay_manager():
+	if player_shell and "overlay_manager" in player_shell:
+		return player_shell.overlay_manager
+	return null
+
+
+func _resolve_overlay(overlay_name: String):
+	if overlay_name == "":
+		return null
+	var overlay_manager = _resolve_overlay_manager()
+	if not overlay_manager or not overlay_manager.has_method("get_v2_overlay"):
+		return null
+	return overlay_manager.get_v2_overlay(overlay_name)
+
+
+func _resolve_widget(widget_name: String):
+	var farm_ui = player_shell.get_farm_ui() if player_shell and player_shell.has_method("get_farm_ui") else null
+	match widget_name:
+		"resources":
+			return farm_ui.resource_panel if farm_ui and "resource_panel" in farm_ui else null
+		"action_preview":
+			if player_shell and "action_preview_row" in player_shell:
+				return player_shell.action_preview_row
+			if player_shell and "action_bar_manager" in player_shell and player_shell.action_bar_manager:
+				return player_shell.action_bar_manager.action_preview_row
+			return null
+		"quantum_mode":
+			return player_shell.quantum_mode_indicator if player_shell and "quantum_mode_indicator" in player_shell else null
+		"biome_oval":
+			var overlay = _resolve_overlay("biome_inspector")
+			if overlay and "current_biome_panel" in overlay:
+				return overlay.current_biome_panel
+			return null
+		"quest_board":
+			var overlay = _resolve_overlay("quests")
+			return overlay
+		"faction_browser":
+			var overlay = _resolve_overlay("quests")
+			if overlay and "faction_browser" in overlay:
+				return overlay.faction_browser
+			return null
+	return null
+
+
+func _resolve_hud(hud_name: String):
+	var root = get_tree().root if get_tree() else null
+	var farm_view = root.get_node_or_null("FarmView") if root else null
+	match hud_name:
+		"milk_hunter":
+			if farm_view:
+				for child in farm_view.get_children():
+					if child.has_method("get_snapshot") and child.get_class() == "Control" and "MilkHunter" in child.name:
+						return child
+					if "milk_hunter" in str(child.name).to_lower():
+						return child
+			return null
+		"performance":
+			if farm_view and "performance_hud" in farm_view and farm_view.performance_hud:
+				return farm_view.performance_hud
+			return _resolve_overlay("inspector")
+	return null
 
 
 func _parse_resource_thresholds(raw) -> Dictionary:

@@ -17,7 +17,6 @@ def make_base_parser(description: str = "Milk hunt tool") -> argparse.ArgumentPa
     Shared args:
       --console-profile   Verbosity profile for console output
       --load-slot         Boot from a save slot
-      --load-alias        Boot from an emoji alias save path
       --profile-save      Canonical profile save path/alias
       --profile-save-index  Registry JSON path for profile-save id resolution
       --scenario-id       Scenario id (used when not loading a slot)
@@ -41,12 +40,6 @@ def make_base_parser(description: str = "Milk hunt tool") -> argparse.ArgumentPa
         type=int,
         default=None,
         help="Boot the rig from a save slot",
-    )
-    parser.add_argument(
-        "--load-alias",
-        type=str,
-        default=None,
-        help="Load from an emoji alias save filename/path",
     )
     parser.add_argument(
         "--profile-save",
@@ -77,6 +70,18 @@ def make_base_parser(description: str = "Milk hunt tool") -> argparse.ArgumentPa
         choices=["auto", "engine_policy", "quantum_register"],
         default=None,
         help="Policy mode passed to runner",
+    )
+    parser.add_argument(
+        "--display-mode",
+        choices=["headless", "headed"],
+        default=None,
+        help="Launch the rig headless or with a visible window",
+    )
+    parser.add_argument(
+        "--policy-execution-backend",
+        choices=["auto", "direct", "player_input"],
+        default=None,
+        help="How policy actions execute inside the rig (headed mode always uses player_input)",
     )
     parser.add_argument(
         "--strategy",

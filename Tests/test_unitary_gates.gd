@@ -136,7 +136,7 @@ func _run_tests():
 	# Test 2: Test via GateActionHandler (full stack)
 	print("\n--- Test 2: Full Stack via GateActionHandler ---")
 
-	var plot_pool = farm.plot_pool
+	var plot_pool = farm.terminal_pool
 	if not plot_pool:
 		print("SKIP: No plot pool")
 		return

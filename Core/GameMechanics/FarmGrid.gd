@@ -10,7 +10,8 @@ extends Node
 ## - PlantingManager: (removed) legacy planting system
 ## - HarvestMeasurementManager: Harvest and measurement operations
 ##
-## All public methods are preserved for backward compatibility.
+## FarmGrid is now primarily the routing surface where plots, terminals,
+## registers, and biome ownership meet.
 
 # Access autoload safely (avoids compile-time errors)
 @onready var _verbose = get_node("/root/VerboseConfig")
@@ -65,9 +66,6 @@ var faction_territory_manager = null
 var farm_economy = null
 var vocabulary_evolution = null
 var terminal_pool = null
-
-# Legacy biome reference (for backward compatibility)
-var biome = null
 
 # Environmental parameters
 var base_temperature: float = 20.0
@@ -173,16 +171,14 @@ func _ready():
 	# Pre-initialize all plots
 	_plot_manager.initialize_all_plots()
 
-	# Check biome state
-	if _biome_routing.is_biomes_empty() and not biome:
-		_verbose.info("farm", "ℹ️", "No biomes registered - running in simple mode")
+	if _biome_routing.is_biomes_empty():
+		_verbose.info("farm", "ℹ️", "No biomes registered")
 
 	set_process(true)
 
 
 func _process(delta):
-	# Skip processing if no biomes registered
-	if _biome_routing.is_biomes_empty() and not biome:
+	if _biome_routing.is_biomes_empty():
 		return
 
 	# Build icon_network for growth modifiers
@@ -230,11 +226,6 @@ func get_biome_for_plot(position: Vector2i):
 	return _biome_routing.get_biome_for_plot(position)
 
 
-func get_entanglement_graph() -> Dictionary:
-	"""Export aggregated entanglement graph from all biomes"""
-	return _biome_routing.get_entanglement_graph()
-
-
 # ═══════════════════════════════════════════════════════════════════════════════
 # PLOT MANAGEMENT (delegates to GridPlotManager)
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -252,11 +243,6 @@ func is_valid_position(position: Vector2i) -> bool:
 func _find_plot_by_id(plot_id: String) -> Vector2i:
 	"""Find grid position of a plot by its ID"""
 	return _plot_manager.find_plot_by_id(plot_id)
-
-
-func _get_plot_by_id(plot_id: String) -> FarmPlot:
-	"""Get plot directly by ID"""
-	return _plot_manager.get_plot_by_id(plot_id)
 
 
 func is_plot_empty(position: Vector2i) -> bool:

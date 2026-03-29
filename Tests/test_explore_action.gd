@@ -42,7 +42,7 @@ func _run_tests():
 		return
 
 	print("Farm found")
-	print("Plot pool: %s" % (farm.plot_pool != null))
+	print("Terminal pool: %s" % (farm.terminal_pool != null))
 
 	# Get biome
 	var biome = farm.biotic_flux_biome
@@ -84,12 +84,12 @@ func _run_tests():
 	print("\n--- TEST 3: EXPLORE action ---")
 	var ProbeActions = load("res://Core/Actions/ProbeActions.gd")
 
-	if not farm.plot_pool:
+	if not farm.terminal_pool:
 		print("FAIL: PlotPool not available")
 		quit(1)
 		return
 
-	var result = ProbeActions.action_explore(farm.plot_pool, biome)
+	var result = ProbeActions.action_explore(farm.terminal_pool, biome)
 	print("EXPLORE result: %s" % result)
 
 	if result.success:

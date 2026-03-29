@@ -4,18 +4,16 @@ import json
 import math
 import random
 import statistics
-import subprocess
 import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import milk_hunt_args
-from constants import MAX_LOOPS, DEFAULT_RUNS_BATCH, POLICY_ENGINE, POLICY_MODES
 from milk_hunt_console import Console, resolve_console_profile
 from milk_hunt_io import write_json
-from milk_hunt_profiles import get_profile
-from profile_save_registry import get_profile_name_for_save, get_profile_save, resolve_profile_save_spec
+from profiles import load, get_profile_name_for_save, get_save_path, resolve_save_spec
+from run_executor import ensure_lane, run_cli
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 RUNNER = SCRIPT_DIR / "milk_hunt_runner.py"
@@ -58,8 +56,8 @@ def _compact_run_summary(summary: Dict[str, Any]) -> Dict[str, Any]:
 
 def _build_parser() -> argparse.ArgumentParser:
     parser = milk_hunt_args.make_base_parser("Batch runner for milk hunt trials")
-    parser.add_argument("--runs", type=int, default=DEFAULT_RUNS_BATCH, help="How many independent trials to run")
-    parser.add_argument("--max-loops", type=int, default=MAX_LOOPS, help="Max offer cycles per trial")
+    parser.add_argument("--runs", type=int, default=5, help="How many independent trials to run")
+    parser.add_argument("--max-loops", type=int, default=220, help="Max offer cycles per trial")
     parser.add_argument(
         "--metrics-every",
         type=int,
@@ -141,12 +139,6 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--epsilon-jitter", type=float, default=0.12, help="Absolute epsilon mutation radius")
     parser.add_argument("--ucb-octave-jitter", type=float, default=0.45, help="Log2 mutation radius for UCB scale")
     parser.add_argument("--mutation-seed", type=int, default=1337, help="RNG seed for topology mutations")
-    parser.add_argument(
-        "--policy-overlay-path",
-        type=str,
-        default=None,
-        help="JSONL file with tissue/lichen overlay ops to bake into the seed policy graph",
-    )
     parser.set_defaults(strict_biome_economy=True, reuse_listener=True)
     parser.set_defaults(include_offer_reward_resources=False)
     parser.set_defaults(include_offer_market_projection=False)
@@ -289,7 +281,6 @@ def _run_trial(
     run_idx: int,
     max_loops: int,
     load_slot: int | None,
-    load_alias: str | None,
     profile_save: str | None,
     profile_save_index: str | None,
     strict_biome_economy: Optional[bool],
@@ -302,11 +293,14 @@ def _run_trial(
     console_profile: str | None = None,
     metrics_every: int = 0,
     runtime_profile: str | None = None,
+    display_mode: str | None = None,
+    policy_execution_backend: str | None = None,
     include_offer_reward_resources: bool = False,
     include_offer_market_projection: bool = False,
     policy_restrictions: bool = False,
     policy_epsilon: float | None = None,
     policy_ucb_scale: float | None = None,
+    lane = None,
 ) -> Dict[str, Any]:
     run_name = f"run_{run_idx:03d}"
     run_dir = batch_dir / run_name
@@ -335,6 +329,10 @@ def _run_trial(
         cmd.extend(["--metrics-every", str(int(metrics_every))])
     if runtime_profile:
         cmd.extend(["--runtime-profile", str(runtime_profile)])
+    if display_mode:
+        cmd.extend(["--display-mode", str(display_mode)])
+    if policy_execution_backend:
+        cmd.extend(["--policy-execution-backend", str(policy_execution_backend)])
     if policy_epsilon is not None:
         cmd.extend(["--policy-epsilon", str(float(policy_epsilon))])
     if policy_ucb_scale is not None:
@@ -349,8 +347,6 @@ def _run_trial(
         cmd.extend(["--profile-save", str(profile_save)])
         if profile_save_index:
             cmd.extend(["--profile-save-index", str(profile_save_index)])
-    elif load_alias is not None:
-        cmd.extend(["--load-alias", str(load_alias)])
     if strict_biome_economy is True:
         cmd.append("--strict-biome-economy")
     elif strict_biome_economy is False:
@@ -368,7 +364,7 @@ def _run_trial(
         cmd.append("--no-clear-rig")
     if no_stop:
         cmd.append("--no-stop")
-    proc = subprocess.run(cmd, capture_output=True, text=True, check=False)
+    proc = run_cli(cmd, lane=lane, capture_output=True, timeout_s=400)
 
     summary: Dict[str, Any] = {}
     if proc.stdout:
@@ -399,7 +395,7 @@ def _seed_profile(
     scenario_id: Optional[str],
     resource_mode: Optional[str],
     world_state_path: Optional[str] = None,
-    policy_overlay_path: Optional[str] = None,
+    lane = None,
 ) -> Dict[str, Any]:
     log_path = batch_dir / "seed_stdout.log"
     cmd = [
@@ -418,21 +414,14 @@ def _seed_profile(
         cmd.extend(["--scenario-id", scenario_id])
     if resource_mode:
         cmd.extend(["--resource-mode", resource_mode])
-    # Forward tissue/lichen overlay ops to seed_save for policy graph injection
-    if policy_overlay_path:
-        overlay_p = Path(policy_overlay_path)
-        if overlay_p.exists():
-            for line in overlay_p.read_text(encoding="utf-8").splitlines():
-                line = line.strip()
-                if line:
-                    cmd.extend(["--policy-graph-line", line])
-    proc = subprocess.run(cmd, capture_output=True, text=True, check=False)
+    proc = run_cli(cmd, lane=lane, capture_output=True, timeout_s=180)
     log_path.write_text((proc.stdout or "") + (proc.stderr or ""), encoding="utf-8")
     return {"ok": proc.returncode == 0, "exit_code": proc.returncode, "log_path": str(log_path), "cmd": cmd}
 
 
 def main() -> int:
     args = _build_parser().parse_args()
+    lane = ensure_lane()
     console = Console(resolve_console_profile(args.console_profile))
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
     batch_dir = args.output_dir / f"batch_{ts}"
@@ -440,7 +429,6 @@ def main() -> int:
 
     profile: Optional[Dict[str, Any]] = None
     load_slot = args.load_slot
-    load_alias = args.load_alias
     seed_result: Optional[Dict[str, Any]] = None
     resolved_profile_save: Optional[str] = None
     if args.profile_save and (args.profile or args.world_state):
@@ -448,9 +436,9 @@ def main() -> int:
         return 2
 
     if args.profile_save:
-        resolved_profile_save = resolve_profile_save_spec(args.profile_save, args.profile_save_index)
+        resolved_profile_save = resolve_save_spec(args.profile_save, args.profile_save_index)
     elif args.profile and not args.world_state:
-        mapped = get_profile_save(args.profile, args.profile_save_index)
+        mapped = get_save_path(args.profile, args.profile_save_index)
         if mapped:
             resolved_profile_save = mapped
             console.log(
@@ -458,7 +446,6 @@ def main() -> int:
                 "detail",
             )
     if resolved_profile_save:
-        load_alias = resolved_profile_save
         load_slot = None
         console.log(f"[batch] using profile-save '{resolved_profile_save}'", "info")
 
@@ -466,7 +453,7 @@ def main() -> int:
     if seed_source and not resolved_profile_save:
         if args.profile and not args.world_state:
             try:
-                profile = get_profile(args.profile)
+                profile = load(args.profile)
             except ValueError as exc:
                 console.log(f"[batch] {exc}", "error")
                 return 2
@@ -479,14 +466,13 @@ def main() -> int:
             scenario_id=args.scenario_id,
             resource_mode=args.resource_mode,
             world_state_path=args.world_state,
-            policy_overlay_path=args.policy_overlay_path,
+            lane=lane,
         )
         if not seed_result["ok"]:
             console.log("[batch] profile seeding failed", "error")
             console.log(json.dumps(seed_result, ensure_ascii=False, indent=2), "warn")
             return 3
         load_slot = seed_slot
-        load_alias = None
         console.log(f"[batch] '{seed_source}' seeded into slot {seed_slot}", "info")
 
     strict_biome_economy = args.strict_biome_economy
@@ -494,7 +480,7 @@ def main() -> int:
         strict_biome_economy = True
     hunter_profile = args.hunter_profile or args.profile
     if hunter_profile is None and args.profile_save:
-        mapped = get_profile_save(args.profile_save, args.profile_save_index)
+        mapped = get_save_path(args.profile_save, args.profile_save_index)
         if mapped:
             hunter_profile = args.profile_save
         else:
@@ -526,7 +512,6 @@ def main() -> int:
             i,
             args.max_loops,
             load_slot,
-            load_alias,
             resolved_profile_save,
             args.profile_save_index,
             strict_biome_economy,
@@ -539,11 +524,14 @@ def main() -> int:
             console_profile=console.profile,
             metrics_every=metrics_every,
             runtime_profile=args.runtime_profile,
+            display_mode=args.display_mode,
+            policy_execution_backend=args.policy_execution_backend,
             include_offer_reward_resources=bool(args.include_offer_reward_resources),
             include_offer_market_projection=bool(args.include_offer_market_projection),
             policy_restrictions=bool(args.policy_restrictions),
             policy_epsilon=float(mutation.get("policy_epsilon", args.base_policy_epsilon)),
             policy_ucb_scale=float(mutation.get("policy_ucb_scale", args.base_policy_ucb_scale)),
+            lane=lane,
         )
         summary["policy_mutation"] = mutation
         run_summaries.append(summary)
@@ -642,7 +630,6 @@ def main() -> int:
         "runs": args.runs,
         "max_loops": args.max_loops,
         "load_slot": load_slot,
-        "load_alias": load_alias,
         "strict_biome_economy": effective_strict_biome_economy,
         "profile": profile["name"] if profile else args.profile,
         "profile_description": profile.get("description", "") if profile else "",

@@ -31,22 +31,19 @@ ls -lh native/bin/libquantummatrix.linux.template_debug.x86_64.so
 
 ### 2. Verify Native Engines
 
-Once build completes, run the verification script:
+Once build completes, run the current headless verification path:
 
 ```bash
 cd /home/tehcr33d/ws/SpaceWheat
-godot --headless -s legacy_tests/verify_native_engines.gd
+godot --headless --script Tests/test_phase2_saveload.gd
 ```
 
 **Expected output:**
 ```
-✓ QuantumMatrixNative
-✓ QuantumEvolutionEngine
-✓ MultiBiomeLookaheadEngine
-✓ ForceGraphEngine  # This one needs to be verified after rebuild
-
-RESULT: 4/4 classes registered
-✅ All native engines available!
+PHASE 2: SAVE/LOAD TEST
+Testing: explored/measured plot serialization on current headless path
+...
+Passed: 5, Failed: 0
 ```
 
 ### 3. Test Native Evolution (Already Working)

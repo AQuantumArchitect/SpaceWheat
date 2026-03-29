@@ -5,7 +5,7 @@ import sys
 from typing import Any, Dict, List, Optional
 
 from milk_hunt_characters import get_character, resolve_character_seed
-from milk_hunt_profiles import get_profile, list_profiles
+from profiles import load, list_all
 from policy_graph_runtime import profile_graph_path
 from milk_hunt_world_state import load_world_state
 from rig_client import RigClient
@@ -87,6 +87,18 @@ def _build_parser() -> argparse.ArgumentParser:
         default=[],
         help="Extra JSONL policy graph patch line (repeatable)",
     )
+    parser.add_argument(
+        "--display-mode",
+        choices=["headless", "headed"],
+        default="headless",
+        help="Launch the seeding rig headless or with a visible window",
+    )
+    parser.add_argument(
+        "--ready-timeout",
+        type=float,
+        default=None,
+        help="Seconds to wait for the rig bridge to become ready",
+    )
     parser.add_argument("--list-profiles", action="store_true", help="List available profiles and exit")
     parser.add_argument("--load-slot", type=int, default=None, help="Optional existing slot to load before seeding")
     parser.add_argument("--scenario-id", type=str, default=None, help="Scenario id when not loading a slot")
@@ -140,7 +152,7 @@ def main() -> int:
     if args.list_profiles:
         safe_print("seed-save: available profiles")
         rows = []
-        for profile in list_profiles():
+        for profile in list_all():
             rows.append(
                 {
                     "name": profile["name"],
@@ -177,7 +189,7 @@ def main() -> int:
         profile = world_state
     elif args.profile:
         try:
-            profile = get_profile(args.profile)
+            profile = load(args.profile)
         except ValueError as exc:
             safe_print(f"seed-save: {exc}")
             return 2
@@ -236,18 +248,23 @@ def main() -> int:
 
     resource_mode = _select_resource_mode(args.resource_mode, profile)
 
-    if args.reuse_listener and RigClient.find_listener_pids():
+    if args.reuse_listener and RigClient.find_listener_pids(xdg=rig.xdg_root):
         safe_print("seed-save: phrame bridge detected — visual mode")
-        if RigClient._bridge_sentinel_path().exists():
+        if RigClient._bridge_sentinel_path(rig.xdg_root).exists():
             safe_print("seed-save: bridge active, sending seed actions directly")
         rig.clear_rig_files()  # sentinel-safe — only clears queue + results
         proc = None
     else:
         safe_print("seed-save: resetting rig cache and starting listener")
-        rig.kill_existing_listeners()
+        rig.kill_existing_listeners(xdg=rig.xdg_root)
         rig.clear_rig_files()
-        proc = rig.start_listener(load_slot=args.load_slot, scenario_id=scenario_id)
-        boot_lines = rig.wait_for_ready(proc, timeout_s=70.0)
+        proc = rig.start_listener(
+            load_slot=args.load_slot,
+            scenario_id=scenario_id,
+            display_mode=str(args.display_mode or "headless"),
+        )
+        ready_timeout = float(args.ready_timeout) if args.ready_timeout is not None else (180.0 if args.display_mode == "headed" else 70.0)
+        boot_lines = rig.wait_for_ready(proc, timeout_s=ready_timeout, xdg=rig.xdg_root)
         ready = RigClient.ready_seen(boot_lines)
         if proc.poll() is not None or not ready:
             safe_print("seed-save: listener failed to reach ready state")
@@ -336,7 +353,7 @@ def main() -> int:
         saved = bool(summary["save_result"].get("saved", False))
         return 0 if saved else 3
     finally:
-        if proc is not None:
+        if proc is not None and not args.reuse_listener:
             try:
                 run_turn(turn, "stop")
             except Exception:

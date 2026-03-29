@@ -111,19 +111,6 @@ class RunnerResult:
             "exit_code": self.exit_code,
         }
 
-    def to_legacy_hunter_dict(self) -> Dict[str, Any]:
-        """Backwards-compatible dict matching old derby.py HunterResult output."""
-        return {
-            "profile": self.profile,
-            "lane": self.lane,
-            "found_milk": self.found_milk,
-            "found_milk_pair": self.found_milk,  # old key
-            "loops_completed": self.cycles,       # old key
-            "steps": self.steps,
-            "elapsed_s": round(self.elapsed_s, 2),
-            "exit_code": self.exit_code,
-        }
-
     @classmethod
     def from_batch_summary(
         cls,

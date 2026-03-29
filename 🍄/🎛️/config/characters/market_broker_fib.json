@@ -1,0 +1,39 @@
+{
+  "name": "market_broker_fib",
+  "description": "MarketDistrict lock-offer specialist. Social-heavy resources, hunts milk-proximal offers to lock and exploit vocabulary edges.",
+  "resource_scale": "fibonacci",
+  "scenario_id": "default",
+  "strict_biome_economy": true,
+  "resources": {
+    "👥": 21,
+    "📜": 13,
+    "🌹": 8,
+    "🍞": 5,
+    "❄️": 3,
+    "🪷": 2
+  },
+  "known_pairs": [
+    { "north": "📜", "south": "👥" },
+    { "north": "🌹", "south": "🪷" }
+  ],
+  "unlocked_biomes": [
+    "StarterForest",
+    "Village",
+    "MarketDistrict"
+  ],
+  "active_biome": "MarketDistrict",
+  "policies": {
+    "quantum_register": {
+      "policy_kind": "quantum_register",
+      "template": "core:default",
+      "graph_jsonl": [
+        "{\"op\":\"set\",\"path\":\"profile_id\",\"value\":\"market_broker_fib\"}",
+        "{\"op\":\"set\",\"path\":\"action_priors.lock_offer.milk_distance_gain\",\"value\":5.0}",
+        "{\"op\":\"set\",\"path\":\"action_priors.lock_offer.milk_cascade_gain\",\"value\":2.0}",
+        "{\"op\":\"set\",\"path\":\"action_priors.quest_cycle.unknown_vocab\",\"value\":1.6}",
+        "{\"op\":\"set\",\"path\":\"action_limits.default.max_total_locks\",\"value\":4}",
+        "{\"op\":\"set\",\"path\":\"reward_terms.pair\",\"value\":44.0}"
+      ]
+    }
+  }
+}

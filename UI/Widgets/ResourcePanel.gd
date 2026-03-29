@@ -279,20 +279,3 @@ func get_snapshot() -> Dictionary:
 		if data["units"] > 0:
 			resources[emoji] = data["units"]
 	return {"resources": resources}
-
-
-# Legacy compatibility methods (for code that still uses them)
-
-func update_sun_moon(is_sun: bool, time_remaining: float):
-	"""Legacy - sun/moon display moved to BiomeInfoDisplay"""
-	pass
-
-
-func update_biome_info(temperature: float, energy_strength: float = -1.0):
-	"""Legacy - biome info display moved to BiomeInfoDisplay"""
-	pass
-
-
-func update_tribute_timer(seconds: float, warn_level: int = 0):
-	"""Legacy - tribute timer moved to dedicated UI"""
-	pass

@@ -76,7 +76,7 @@ func verify_basic_cycle():
 	print("Testing biome: %s" % biome.get_biome_type())
 
 	# Step 1: EXPLORE
-	var e_res = ProbeActions.action_explore(farm.plot_pool, biome)
+	var e_res = ProbeActions.action_explore(farm.terminal_pool, biome)
 	if not e_res.success:
 		log_issue("Tool 1: EXPLORE failed - %s" % e_res.get('message', 'unknown'))
 		return
@@ -96,7 +96,7 @@ func verify_basic_cycle():
 		log_issue("Tool 1: Terminal not marked measured after MEASURE")
 
 	# Step 3: POP
-	var p_res = ProbeActions.action_pop(terminal, farm.plot_pool, farm.economy)
+	var p_res = ProbeActions.action_pop(terminal, farm.terminal_pool, farm.economy)
 	if not p_res.success:
 		log_issue("Tool 1: POP failed - %s" % p_res.get('message', 'unknown'))
 		return
@@ -123,14 +123,14 @@ func verify_null_safety():
 		print("✅ MEASURE(null) correctly rejected: %s" % m_null.get('message', 'unknown'))
 
 	# Test 2: POP with null terminal
-	var p_null = ProbeActions.action_pop(null, farm.plot_pool, farm.economy)
+	var p_null = ProbeActions.action_pop(null, farm.terminal_pool, farm.economy)
 	if p_null.success:
 		log_issue("Tool 1: POP(null) should fail but succeeded")
 	else:
 		print("✅ POP(null) correctly rejected: %s" % p_null.get('message', 'unknown'))
 
 	# Test 3: EXPLORE with null biome
-	var e_null = ProbeActions.action_explore(farm.plot_pool, null)
+	var e_null = ProbeActions.action_explore(farm.terminal_pool, null)
 	if e_null.success:
 		log_issue("Tool 1: EXPLORE(null) should fail but succeeded")
 	else:
@@ -146,7 +146,7 @@ func verify_state_validation():
 	var biome = farm.grid.get_biome_for_plot(Vector2i(0, 0))
 
 	# Create a fresh terminal
-	var e_res = ProbeActions.action_explore(farm.plot_pool, biome)
+	var e_res = ProbeActions.action_explore(farm.terminal_pool, biome)
 	if not e_res.success:
 		log_issue("Tool 1: Could not create terminal for state validation test")
 		return
@@ -174,7 +174,7 @@ func verify_state_validation():
 		print("✅ Terminal MEASURED state validated")
 
 	# POP it
-	var p_res = ProbeActions.action_pop(terminal, farm.plot_pool, farm.economy)
+	var p_res = ProbeActions.action_pop(terminal, farm.terminal_pool, farm.economy)
 	if not p_res.success:
 		log_issue("Tool 1: Could not pop terminal")
 		return

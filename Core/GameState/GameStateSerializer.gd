@@ -125,18 +125,13 @@ func capture_state_from_farm(farm: Node, current_state: GameState, scenario_id: 
 		state.reap_count = int(farm.reap_count)
 	_log("debug", "save", "💰", "Captured %d emoji types in economy" % state.all_emoji_credits.size())
 
-	# Player Vocabulary (farm-owned canonical)
+	var known_emojis: Array = []
+
+	# Player Vocabulary (farm-owned canonical, reconciled with PlayerVocabulary if needed)
 	if farm and farm.has_method("get_known_pairs"):
-		state.known_pairs = farm.get_known_pairs()
-		state.known_emojis = []
-		for pair in state.known_pairs:
-			var north = pair.get("north", "")
-			var south = pair.get("south", "")
-			if north != "" and north not in state.known_emojis:
-				state.known_emojis.append(north)
-			if south != "" and south not in state.known_emojis:
-				state.known_emojis.append(south)
-		_log("debug", "save", "📖", "Captured vocabulary: %d pairs → %d emojis" % [state.known_pairs.size(), state.known_emojis.size()])
+		state.known_pairs = _resolve_known_pairs_for_capture(farm)
+		known_emojis = _derive_known_emojis_from_pairs(state.known_pairs)
+		_log("debug", "save", "📖", "Captured vocabulary: %d pairs → %d emojis" % [state.known_pairs.size(), known_emojis.size()])
 
 	# Locked quest offers
 	var quest_manager_node = _get_autoload("QuestManager")
@@ -149,7 +144,7 @@ func capture_state_from_farm(farm: Node, current_state: GameState, scenario_id: 
 	_capture_biome_progression_state(state, current_state)
 
 	# IconMap snapshot (tooling cache only; known_pairs remain canonical truth)
-	var icon_snapshot = _capture_icon_map_snapshot(farm, state.known_emojis)
+	var icon_snapshot = _capture_icon_map_snapshot(farm, known_emojis)
 	state.icon_map_snapshot = icon_snapshot.get("icon_map_snapshot", {})
 	state.icon_map_snapshot_source = str(icon_snapshot.get("icon_map_snapshot_source", ""))
 	state.icon_map_snapshot_time = int(icon_snapshot.get("icon_map_snapshot_time", 0))
@@ -167,11 +162,14 @@ func capture_state_from_farm(farm: Node, current_state: GameState, scenario_id: 
 			var pos = Vector2i(x, y)
 			var plot = grid.get_plot(pos)
 
+			var has_measurement: bool = bool(plot.get_is_measured())
+			var has_live_register: bool = bool(plot.is_active())
+			var persist_plot: bool = has_live_register or has_measurement
 			var plot_data = {
 				"position": pos,
 				"type_name": plot.plot_type_name,
-				"is_planted": plot.is_active(),
-				"has_been_measured": plot.get_is_measured(),
+				"is_planted": persist_plot,
+				"has_been_measured": has_measurement,
 				"theta_frozen": plot.theta_frozen,
 				"entangled_with": plot.entangled_plots.keys(),
 				"lindblad_pump_active": plot.lindblad_pump_active if "lindblad_pump_active" in plot else false,
@@ -179,15 +177,30 @@ func capture_state_from_farm(farm: Node, current_state: GameState, scenario_id: 
 				"lindblad_pump_rate": plot.lindblad_pump_rate if "lindblad_pump_rate" in plot else 0.0,
 				"lindblad_drain_rate": plot.lindblad_drain_rate if "lindblad_drain_rate" in plot else 0.0
 			}
-			# NEW: Read from BasePlot directly (Register→Plot→Terminal architecture)
-			if plot.is_active():
-				plot_data["register_id"] = plot.bound_register_id
-				plot_data["biome_name"] = plot.bound_biome_name
-				plot_data["north_emoji"] = plot.north_emoji
-				plot_data["south_emoji"] = plot.south_emoji
-				if plot.is_measured:
+
+			# Persist both bound plots and measured terminals. Measured terminals may
+			# release their live register, so their identity must come from the
+			# terminal measurement snapshot rather than the current bound fields.
+			if persist_plot:
+				var register_id: int = int(plot.bound_register_id)
+				var biome_name: String = str(plot.bound_biome_name)
+				var north_emoji: String = str(plot.north_emoji)
+				var south_emoji: String = str(plot.south_emoji)
+
+				if has_measurement and plot.terminal:
+					register_id = int(plot.terminal.measured_register_id)
+					biome_name = str(plot.terminal.measured_biome_name)
+					north_emoji = str(plot.terminal.north_emoji)
+					south_emoji = str(plot.terminal.south_emoji)
+
+				plot_data["register_id"] = register_id
+				plot_data["biome_name"] = biome_name
+				plot_data["north_emoji"] = north_emoji
+				plot_data["south_emoji"] = south_emoji
+				if has_measurement:
 					plot_data["measured_outcome"] = plot.measured_outcome
 					plot_data["measured_probability"] = plot.measured_probability
+
 			if "persistent_gates" in plot:
 				var serialized_gates = []
 				for gate in plot.persistent_gates:
@@ -318,8 +331,9 @@ func apply_state_to_farm(state: GameState, farm: Node) -> void:
 		_log("debug", "save", "⏱️", "Applied timescale: speed=%.4fx stride=%d dt=%.4f to %d biomes" % [state.quantum_time_scale, state.observation_stride, state.max_evolution_dt, biome_count])
 
 	var has_player_vocab_data = state.player_vocab_data and not state.player_vocab_data.is_empty()
+	var restored_known_pairs = _resolve_known_pairs_from_state(state)
 	if farm and farm.has_method("set_known_pairs"):
-		farm.set_known_pairs(state.known_pairs, not has_player_vocab_data, false)
+		farm.set_known_pairs(restored_known_pairs, not has_player_vocab_data, false)
 		if state.icon_map_snapshot and not state.icon_map_snapshot.is_empty():
 			_log("debug", "save", "🗺️", "Loaded IconMap snapshot cache (%s, %d emojis)" % [
 				state.icon_map_snapshot_source,
@@ -341,6 +355,16 @@ func apply_state_to_farm(state: GameState, farm: Node) -> void:
 	if farm.has_method("refresh_grid_for_biomes"):
 		farm.refresh_grid_for_biomes()
 		grid = farm.grid
+
+	var terminal_pool = farm.terminal_pool if "terminal_pool" in farm else null
+	if terminal_pool and terminal_pool.has_method("reset_all"):
+		terminal_pool.reset_all()
+	if grid:
+		for y in range(grid.grid_height):
+			for x in range(grid.grid_width):
+				var existing_plot = grid.get_plot(Vector2i(x, y))
+				if existing_plot and existing_plot.has_method("unbind_register"):
+					existing_plot.unbind_register()
 
 	var oob_count = 0
 	var oob_first_pos = null
@@ -377,20 +401,25 @@ func apply_state_to_farm(state: GameState, farm: Node) -> void:
 					plot.bind_to_register(saved_register, saved_biome, emoji_pair)
 
 					# Attach terminal from pool if available (terminal↔plot link)
-					var tp = farm.terminal_pool if "terminal_pool" in farm else null
+					var tp = terminal_pool
 					if tp and tp.has_method("get_unbound_terminal"):
 						var t = tp.get_unbound_terminal()
 						if t:
 							t.grid_position = pos
-							tp.bind_terminal(t, saved_register, saved_biome, emoji_pair)
-							plot.attach_terminal(t)
+							var terminal_bound := bool(tp.bind_terminal(t, saved_register, saved_biome, emoji_pair))
+							if terminal_bound:
+								plot.attach_terminal(t)
+							else:
+								_log("warn", "save", "⚠️", "Terminal restore bind rejected at %s for register %d in %s" % [
+									str(pos), saved_register, saved_biome
+								])
 
 					# Restore measurement state if present
 					if plot_data.get("has_been_measured", false):
 						var outcome = plot_data.get("measured_outcome", "")
 						var probability = plot_data.get("measured_probability", 0.5)
 						plot.mark_measured(outcome, probability)
-						if plot.terminal:
+						if plot.terminal and plot.terminal.is_bound:
 							plot.terminal.mark_measured(outcome, probability)
 
 					# Emit signal to trigger UI refresh (creates Terminal in UI layer)
@@ -449,6 +478,11 @@ func apply_state_to_farm(state: GameState, farm: Node) -> void:
 		if _player_vocab.has_method("deserialize"):
 			_player_vocab.deserialize(state.player_vocab_data)
 			_log("debug", "save", "🔬", "Restored PlayerVocabulary QC data")
+		if farm and farm.has_method("set_known_pairs") and _player_vocab.has_method("get_all_learned_pairs"):
+			var vocab_pairs = _player_vocab.get_all_learned_pairs()
+			if vocab_pairs is Array and not vocab_pairs.is_empty():
+				farm.set_known_pairs(vocab_pairs, false, false)
+				_log("debug", "save", "📖", "Reconciled farm vocabulary from PlayerVocabulary (%d pairs)" % vocab_pairs.size())
 
 	# Restore selection state to QuantumInstrumentInput
 	if state.selected_plot_positions and state.selected_plot_positions.size() > 0:
@@ -460,6 +494,43 @@ func apply_state_to_farm(state: GameState, farm: Node) -> void:
 			_log("debug", "save", "⚠️", "QuantumInstrumentInput not found - selection state not restored")
 
 	_log("info", "save", "✓", "State applied to farm successfully - quantum states will regenerate from biome")
+
+
+func _resolve_known_pairs_from_state(state: GameState) -> Array:
+	"""Merge persisted farm pairs with PlayerVocabulary pairs.
+
+	Canonical gameplay authority is Farm.known_pairs, but older/bad saves may
+	have richer PlayerVocabulary.learned_pairs than state.known_pairs. Prefer the
+	richer union so resumed automation does not regress to starter vocab.
+	"""
+	var merged: Array = []
+	var seen: Dictionary = {}
+
+	var sources: Array = []
+	if state and state.known_pairs is Array:
+		sources.append(state.known_pairs)
+	if state and state.player_vocab_data is Dictionary:
+		var learned = state.player_vocab_data.get("learned_pairs", [])
+		if learned is Array:
+			sources.append(learned)
+
+	for source in sources:
+		for pair in source:
+			if not (pair is Dictionary):
+				continue
+			var north = str(pair.get("north", ""))
+			var south = str(pair.get("south", ""))
+			if north == "" or south == "" or north == south:
+				continue
+			var key = "%s|%s" % [north, south]
+			if seen.has(key):
+				continue
+			seen[key] = true
+			merged.append({"north": north, "south": south})
+
+	if merged.is_empty():
+		return [{"north": "🌾", "south": "👥"}]
+	return merged
 
 
 func _capture_biome_progression_state(state: GameState, current_state: GameState) -> void:
@@ -573,6 +644,57 @@ func _capture_icon_map_snapshot(farm: Node, known_emojis: Array) -> Dictionary:
 		}
 		out["icon_map_snapshot_source"] = "derived_from_pairs"
 	return out
+
+
+func _derive_known_emojis_from_pairs(known_pairs: Array) -> Array:
+	var derived: Array = []
+	for pair in known_pairs:
+		if not (pair is Dictionary):
+			continue
+		var north = str(pair.get("north", ""))
+		var south = str(pair.get("south", ""))
+		if north != "" and north not in derived:
+			derived.append(north)
+		if south != "" and south not in derived:
+			derived.append(south)
+	return derived
+
+
+func _resolve_known_pairs_for_capture(farm: Node) -> Array:
+	var merged: Array = []
+	var seen: Dictionary = {}
+
+	if farm and farm.has_method("get_known_pairs"):
+		for pair in farm.get_known_pairs():
+			if not (pair is Dictionary):
+				continue
+			var north = str(pair.get("north", ""))
+			var south = str(pair.get("south", ""))
+			if north == "" or south == "" or north == south:
+				continue
+			var key = "%s|%s" % [north, south]
+			if seen.has(key):
+				continue
+			seen[key] = true
+			merged.append({"north": north, "south": south})
+
+	if _player_vocab and _player_vocab.has_method("get_all_learned_pairs"):
+		for pair in _player_vocab.get_all_learned_pairs():
+			if not (pair is Dictionary):
+				continue
+			var north = str(pair.get("north", ""))
+			var south = str(pair.get("south", ""))
+			if north == "" or south == "" or north == south:
+				continue
+			var key = "%s|%s" % [north, south]
+			if seen.has(key):
+				continue
+			seen[key] = true
+			merged.append({"north": north, "south": south})
+
+	if merged.is_empty():
+		return [{"north": "🌾", "south": "👥"}]
+	return merged
 
 
 func _capture_all_biome_states(farm: Node) -> Dictionary:

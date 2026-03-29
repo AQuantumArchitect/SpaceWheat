@@ -10,29 +10,37 @@ game_time = 0.0
 grid_width = 6
 grid_height = 1
 all_emoji_credits = {
-"🌾": 10,
-"👥": 120,
+"🌾": 5,
+"👥": 8,
 "🍄": 0,
 "🍂": 0,
 "🍅": 0,
 "🌌": 0,
 "💨": 0,
-"🍞": 1000,
+"🍞": 21,
 "🔥": 0,
 "💧": 0,
-"❄️": 0,
+"❄️": 13,
 "🏜️": 0,
 "🌿": 0,
 "🐇": 0,
-"🦅": 40,
-"⚙": 20,
+"🦅": 0,
+"⚙": 2,
 "👑": 0,
 "💰": 0,
-"🍼": 6
+"🍼": 0,
+"🌱": 3
 }
 tributes_paid = 0
 tributes_failed = 0
-known_emojis = ["🌾", "👥"]
+known_pairs = [{
+"north": "🌾",
+"south": "🌱"
+}, {
+"north": "🍞",
+"south": "👥"
+}]
+known_emojis = ["🌾", "🌱", "🍞", "👥"]
 plots = [{ "position": Vector2i(0, 0), "type": 0, "is_planted": true, "has_been_measured": false, "theta_frozen": false, "entangled_with": [], "register_id": 3, "biome_name": "StarterForest", "north_emoji": "🌲", "south_emoji": "🍂" }, { "position": Vector2i(1, 0), "type": 0, "is_planted": false, "has_been_measured": false, "theta_frozen": false, "entangled_with": [] }, { "position": Vector2i(2, 0), "type": 0, "is_planted": false, "has_been_measured": false, "theta_frozen": false, "entangled_with": [] }, { "position": Vector2i(3, 0), "type": 0, "is_planted": false, "has_been_measured": false, "theta_frozen": false, "entangled_with": [] }, { "position": Vector2i(4, 0), "type": 0, "is_planted": false, "has_been_measured": false, "theta_frozen": false, "entangled_with": [] }, { "position": Vector2i(5, 0), "type": 0, "is_planted": false, "has_been_measured": false, "theta_frozen": false, "entangled_with": [] }]
 biotic_activation = 0.0
 chaos_activation = 0.0

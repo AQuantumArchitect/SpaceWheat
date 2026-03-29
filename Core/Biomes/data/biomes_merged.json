@@ -73,12 +73,14 @@
       "🩸",
       "🚀",
       "💰",
-      "⚙️"
+      "⚙️",
+      "✊"
     ],
     "native_factions": [
       "Debt Wardens",
       "Umbra Exchange",
       "Station Lords",
+      "Fencebreakers",
       "Chop Docs"
     ],
     "tags": [
@@ -246,6 +248,31 @@
         "lindblad_outgoing": {
           "🔧": 0.02
         }
+      },
+      "✊": {
+        "self_energy": 0.25,
+        "lindblad_incoming": {
+          "⛓": 0.05,
+          "👥": 0.03
+        },
+        "lindblad_outgoing": {
+          "🚩": 0.06
+        },
+        "gated_lindblad_source": [
+          {
+            "target": "🚩",
+            "gate": "💸",
+            "rate": 0.04,
+            "power": 1.2,
+            "inverse": false,
+            "comment": "Debt fuels revolution — fists rise when bills pile up"
+          }
+        ],
+        "decay": {
+          "rate": 0.03,
+          "target": "🗑",
+          "comment": "Revolutions cool without sustained pressure"
+        }
       }
     },
     "cross_biome_flows": {
@@ -255,12 +282,19 @@
         ],
         "BureaucraticAbyss": [
           "📜"
+        ],
+        "RevolutionSquare": [
+          "✊"
         ]
       },
       "outgoing": {
         "BureaucraticAbyss": [
           "💸",
           "👥"
+        ],
+        "RevolutionSquare": [
+          "⛓",
+          "✊"
         ]
       }
     }

@@ -12,7 +12,6 @@ Usage:
 import argparse
 import json
 import math
-import os
 import subprocess
 import sys
 import tempfile
@@ -20,6 +19,8 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+
+from run_executor import cleanup_process_patterns, ensure_lane, parse_last_json, run_cli, run_seed
 
 _RUNNER_DIR = Path(__file__).resolve().parent
 
@@ -29,45 +30,34 @@ def _project_root() -> Path:
 
 
 def _cleanup_stale() -> None:
-    subprocess.run(
-        ["/bin/bash", "-lc",
-         'pids=$(pgrep -f "milk_hunt_runner.py|Tests/rig_listener.gd" || true); '
-         'if [ -n "$pids" ]; then kill $pids 2>/dev/null || true; fi'],
-        capture_output=True, text=True, check=False,
-    )
+    cleanup_process_patterns(["milk_hunt_runner.py", "Tests/rig_listener.gd"])
 
 
 def seed_character(
     *,
     world_state: str,
+    lane,
     slot: int = 2,
     timeout: int = 90,
 ) -> bool:
     """Seed a save slot from a world state profile or JSON path."""
-    seeder = _RUNNER_DIR / "milk_hunt_seed_save.py"
-    cmd = [sys.executable, str(seeder), "--slot", str(slot)]
-
-    # world_state is either a profile name or a path to a JSON file
     ws_path = Path(world_state)
-    if ws_path.exists():
-        cmd += ["--world-state", str(ws_path)]
-    else:
-        cmd += ["--profile", world_state]
-
-    try:
-        proc = subprocess.run(
-            cmd, capture_output=True, text=True, check=False,
-            timeout=timeout, cwd=str(_project_root()),
-        )
-        return proc.returncode == 0
-    except subprocess.TimeoutExpired:
-        return False
+    result = run_seed(
+        lane=lane,
+        timeout_s=timeout,
+        slot=slot,
+        world_state=str(ws_path) if ws_path.exists() else None,
+        profile=None if ws_path.exists() else world_state,
+        reuse_listener=False,
+    )
+    return int(result.get("exit_code", 1)) == 0
 
 
 def run_character(
     *,
     name: str,
     world_state: str,
+    lane,
     policy_mode: str = "quantum_register",
     policy_profile: str = "",
     policy_overrides_path: Optional[str] = None,
@@ -81,35 +71,29 @@ def run_character(
         sys.executable, str(runner),
         "--hunter-policy", policy_mode,
         "--hunter-profile", policy_profile or name,
-        "--profile-save", policy_profile or name,
+        "--load-slot", str(slot),
         "--max-loops", str(max_loops),
         "--console-profile", "quiet",
         "--json-only",
     ]
 
-    env = os.environ.copy()
-    env["RIG_DISABLE_LOOKAHEAD"] = "1"
-    env["PYTHONUNBUFFERED"] = "1"
-
     try:
-        proc = subprocess.run(
-            cmd, capture_output=True, text=True,
-            timeout=timeout, cwd=str(_project_root()), env=env,
+        proc = run_cli(
+            cmd,
+            lane=lane,
+            timeout_s=timeout,
+            cwd=_project_root(),
+            extra_env={
+                "RIG_DISABLE_LOOKAHEAD": "1",
+                "PYTHONUNBUFFERED": "1",
+            },
         )
     except subprocess.TimeoutExpired:
         _cleanup_stale()
         return None
 
-    # Parse last JSON line
-    all_output = (proc.stdout or "") + "\n" + (proc.stderr or "")
-    for line in reversed(all_output.strip().splitlines()):
-        line = line.strip()
-        if line.startswith("{"):
-            try:
-                return json.loads(line)
-            except json.JSONDecodeError:
-                continue
-    return None
+    payload = parse_last_json(proc.stdout or "", proc.stderr or "")
+    return payload or None
 
 
 def write_policy_overrides(overrides: List[Dict[str, Any]], name: str) -> Optional[str]:
@@ -233,6 +217,7 @@ def main() -> None:
                         help="Leaderboard JSONL path (default: output-dir/leaderboard.jsonl)")
     parser.add_argument("--slot", type=int, default=2, help="Save slot to use")
     args = parser.parse_args()
+    lane = ensure_lane()
 
     roster = load_roster(args.roster)
     roster_id = roster.get("roster_id", args.roster.stem)
@@ -275,7 +260,7 @@ def main() -> None:
         overrides_path = write_policy_overrides(char_overrides, char_name)
 
         # Seed
-        seed_ok = seed_character(world_state=ws_ref, slot=args.slot)
+        seed_ok = seed_character(world_state=ws_ref, lane=lane, slot=args.slot)
         if not seed_ok:
             print(f"[{char_name}] Seed failed, skipping", flush=True)
             results.append({
@@ -291,6 +276,7 @@ def main() -> None:
         summary = run_character(
             name=char_name,
             world_state=ws_ref,
+            lane=lane,
             policy_mode=char_policy,
             policy_profile=char_name,
             policy_overrides_path=overrides_path,

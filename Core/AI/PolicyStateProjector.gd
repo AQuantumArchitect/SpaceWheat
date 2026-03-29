@@ -3,22 +3,141 @@ extends RefCounted
 
 const MILK_EMOJI := "🍼"
 
-# Milk proximity table: emoji → graph distance to 🍼 through Hamiltonian couplings.
-# Source: Reality Midwives faction — 🍼↔🤲↔{✨,🌠,💫}.
-# Emojis not in this table are distance 3+ (generic background).
-const MILK_NEIGHBORHOOD := {
-	"🍼": 0,
-	"🤲": 1,  # Only direct connection to milk
-	"✨": 2,  # Sparkles → 🤲 → 🍼
-	"🌠": 2,  # Star trail → 🤲 → 🍼
-	"💫": 2,  # Dizzy star → 🤲 → 🍼
-}
-const MILK_DEFAULT_DISTANCE := 4  # Assumed distance for emojis not in the table
+# Milk navigation cache: computed once from the full faction graph.
+# Three layers of distance:
+#   _milk_distances: emoji → BFS hops through Hamiltonian couplings to 🍼
+#   _faction_milk_values: faction_name → best milk distance of any signature emoji
+#   _emoji_cascade_values: emoji → "if I learn this, what's the best faction I unlock?"
+#     cascade = min(faction_milk_value for factions whose signature contains this emoji)
+# These power the full steering loop:
+#   stockpile resource → attract faction quests → learn vocab → steer discovery → reach milk
+static var _milk_distances: Dictionary = {}
+static var _faction_milk_values: Dictionary = {}  # faction_name → int
+static var _emoji_cascade_values: Dictionary = {}  # emoji → int
+static var _emoji_to_factions: Dictionary = {}  # emoji → Array[faction_name]
+static var _faction_signatures: Dictionary = {}  # faction_name → Array[emoji]
+static var _milk_graph_ready: bool = false
+const _MILK_MAX_DISTANCE := 8
 
 
 static func milk_distance(emoji: String) -> int:
-	"""Return graph distance from emoji to 🍼. Lower = closer to win."""
-	return int(MILK_NEIGHBORHOOD.get(emoji, MILK_DEFAULT_DISTANCE))
+	"""BFS distance from emoji to 🍼 through Hamiltonian couplings."""
+	if not _milk_graph_ready:
+		_build_milk_graph()
+	return int(_milk_distances.get(emoji, _MILK_MAX_DISTANCE))
+
+
+static func milk_cascade_value(emoji: String) -> int:
+	"""Strategic distance: if I learn this emoji, what's the closest-to-milk faction I unlock?
+	Lower = learning this emoji opens a path closer to milk."""
+	if not _milk_graph_ready:
+		_build_milk_graph()
+	return int(_emoji_cascade_values.get(emoji, _MILK_MAX_DISTANCE))
+
+
+static func faction_milk_value(faction_name: String) -> int:
+	"""How close is this faction's signature to milk? min(milk_distance) over signature."""
+	if not _milk_graph_ready:
+		_build_milk_graph()
+	return int(_faction_milk_values.get(faction_name, _MILK_MAX_DISTANCE))
+
+
+static func get_faction_signatures() -> Dictionary:
+	"""Return faction_name → Array[emoji] map for all factions."""
+	if not _milk_graph_ready:
+		_build_milk_graph()
+	return _faction_signatures
+
+
+static func get_emoji_to_factions() -> Dictionary:
+	"""Return emoji → Array[faction_name] map."""
+	if not _milk_graph_ready:
+		_build_milk_graph()
+	return _emoji_to_factions
+
+
+static func _build_milk_graph() -> void:
+	"""Build the full milk navigation graph from faction data. Runs once."""
+	_milk_graph_ready = true
+	var factions_path = "res://Core/Factions/data/factions_merged.json"
+	var file = FileAccess.open(factions_path, FileAccess.READ)
+	if not file:
+		push_warning("PolicyStateProjector: can't open %s for milk graph" % factions_path)
+		_milk_distances[MILK_EMOJI] = 0
+		return
+	var json = JSON.new()
+	var err = json.parse(file.get_as_text())
+	file.close()
+	if err != OK or not (json.data is Array):
+		push_warning("PolicyStateProjector: failed to parse factions for milk graph")
+		_milk_distances[MILK_EMOJI] = 0
+		return
+
+	# Pass 1: Build Hamiltonian coupling graph + faction membership maps
+	var ham_graph: Dictionary = {}  # emoji → Array[emoji]
+	for faction in json.data:
+		if not (faction is Dictionary):
+			continue
+		var fname: String = str(faction.get("name", ""))
+		var sig: Array = faction.get("sig", [])
+		if fname == "" or sig.is_empty():
+			continue
+		_faction_signatures[fname] = sig.duplicate()
+		for emoji in sig:
+			if not _emoji_to_factions.has(emoji):
+				_emoji_to_factions[emoji] = []
+			if fname not in _emoji_to_factions[emoji]:
+				_emoji_to_factions[emoji].append(fname)
+		var ham = faction.get("hamiltonian", {})
+		if not (ham is Dictionary):
+			continue
+		for source in ham.keys():
+			var targets = ham[source]
+			if not (targets is Dictionary):
+				continue
+			if not ham_graph.has(source):
+				ham_graph[source] = []
+			for target in targets.keys():
+				if not ham_graph.has(target):
+					ham_graph[target] = []
+				if target not in ham_graph[source]:
+					ham_graph[source].append(target)
+				if source not in ham_graph[target]:
+					ham_graph[target].append(source)
+
+	# Pass 2: BFS from milk through Hamiltonian couplings
+	_milk_distances[MILK_EMOJI] = 0
+	var queue: Array = [MILK_EMOJI]
+	var head := 0
+	while head < queue.size():
+		var current: String = queue[head]
+		head += 1
+		var d: int = _milk_distances[current]
+		for neighbor in ham_graph.get(current, []):
+			if not _milk_distances.has(neighbor):
+				_milk_distances[neighbor] = d + 1
+				queue.append(neighbor)
+
+	# Pass 3: Faction milk values (min milk_distance over signature)
+	for fname in _faction_signatures:
+		var best = _MILK_MAX_DISTANCE
+		for emoji in _faction_signatures[fname]:
+			var d = int(_milk_distances.get(emoji, _MILK_MAX_DISTANCE))
+			if d < best:
+				best = d
+		_faction_milk_values[fname] = best
+
+	# Pass 4: Emoji cascade values
+	# "If I learn emoji X, I now overlap with factions containing X.
+	#  Those factions can teach me all their signature emojis.
+	#  The cascade value = best faction_milk_value among factions containing X."
+	for emoji in _emoji_to_factions:
+		var best = _MILK_MAX_DISTANCE
+		for fname in _emoji_to_factions[emoji]:
+			var fmv = int(_faction_milk_values.get(fname, _MILK_MAX_DISTANCE))
+			if fmv < best:
+				best = fmv
+		_emoji_cascade_values[emoji] = best
 
 
 static func build_candidates(state: Dictionary, graph: Dictionary, supported_actions: Array = []) -> Array:
@@ -64,25 +183,35 @@ static func build_candidates(state: Dictionary, graph: Dictionary, supported_act
 	if _action_enabled("quest_cycle", graph_actions, supported_map):
 		var rank_result = rank_offers(resources, offers, known_pairs, graph)
 		var best_idx = int(rank_result.get("best_offer_index", -1))
+		var quest_cfg = _action_config(graph, "quest_cycle")
+		var max_rerolls = int(quest_cfg.get("max_rerolls", 3))
+		var quest_prior = quest_pressure(resources, offers, active_quests, known_pairs, graph, int(state.get("quest_no_vocab_streak", 0)))
 		if best_idx >= 0:
-			var quest_prior = quest_pressure(resources, offers, active_quests, known_pairs, graph, int(state.get("quest_no_vocab_streak", 0)))
 			# Sharpen prior with best-offer quality
-			var quest_cfg = _action_config(graph, "quest_cycle")
 			if float(rank_result.get("novelty", 0.0)) >= 2.0:
 				quest_prior += float(quest_cfg.get("frontier_bonus", 1.5))
 			if bool(rank_result.get("is_milk", false)):
 				quest_prior += float(quest_cfg.get("best_offer_milk", 3.0))
-			candidates.append({
-				"action": "quest_cycle",
-				"params": {
-					"offer_index": best_idx,
-					"cost_ratio": rank_result.get("cost_ratio", 0.0),
-					"novelty": rank_result.get("novelty", 0.0),
-					"is_milk": rank_result.get("is_milk", false),
-				},
-				"prior": quest_prior,
-				"tags": ["economy", "vocab"],
-			})
+			quest_prior += float(rank_result.get("milk_distance_gain", 0.0)) * float(quest_cfg.get("prior_milk_distance_gain", 0.9))
+			quest_prior += float(rank_result.get("milk_cascade_gain", 0.0)) * float(quest_cfg.get("prior_milk_cascade_gain", 0.4))
+			quest_prior += float(rank_result.get("webway_gain", 0.0)) * float(quest_cfg.get("prior_webway_gain", 0.6))
+		else:
+			# No affordable offers — still emit quest_cycle at reduced prior
+			# (quest_cycle also completes/claims active quests and refreshes offers)
+			quest_prior = max(0.1, quest_prior * 0.3)
+			max_rerolls = 0
+		candidates.append({
+			"action": "quest_cycle",
+			"params": ({
+				"offer_index": best_idx,
+				"max_rerolls": max_rerolls,
+				"cost_ratio": rank_result.get("cost_ratio", 0.0) if best_idx >= 0 else 0.0,
+				"novelty": rank_result.get("novelty", 0.0) if best_idx >= 0 else 0.0,
+				"is_milk": rank_result.get("is_milk", false) if best_idx >= 0 else false,
+			}).merged(rank_result if best_idx >= 0 else {}, true),
+			"prior": quest_prior,
+			"tags": ["economy", "vocab"],
+		})
 
 	if _action_enabled("probe_cycle", graph_actions, supported_map):
 		var probe_biome = choose_probe_biome(biomes, lindblad, resources, floors, graph)
@@ -110,7 +239,7 @@ static func build_candidates(state: Dictionary, graph: Dictionary, supported_act
 		if lock_result.has("offer_index"):
 			candidates.append({
 				"action": "lock_offer",
-				"params": {"offer_index": lock_result.get("offer_index", 0)},
+				"params": {"offer_index": lock_result.get("offer_index", 0)}.merged(lock_result, true),
 				"prior": lock_offer_prior(graph, lock_result),
 				"tags": ["planning", "lock"],
 			})
@@ -193,13 +322,21 @@ static func compute_reward_components(pre_state: Dictionary, post_state: Diction
 	if not contains_milk_pair(pre_pairs) and contains_milk_pair(post_pairs):
 		milk_bonus = _reward_value(reward_terms, "milk_bonus", 120.0)
 
+	# Milk proximity progress: did the player get closer to milk?
+	# Computed from the BFS distance of the player's closest known emoji to 🍼.
+	# This is the key signal that lets the quantum policy LEARN to seek milk.
+	var pre_milk_dist = _closest_milk_distance_from_pairs(pre_pairs)
+	var post_milk_dist = _closest_milk_distance_from_pairs(post_pairs)
+	var delta_milk_distance = float(pre_milk_dist - post_milk_dist)  # Positive = got closer
+
 	var resource_term = delta_resources * _reward_value(reward_terms, "resource", 0.08)
 	var pair_term = delta_pairs * _reward_value(reward_terms, "pair", 42.0)
 	var active_quest_term = delta_active * _reward_value(reward_terms, "active_quest", 5.0)
 	var biome_term = delta_biomes * _reward_value(reward_terms, "biome", 8.0)
 	var drain_term = delta_drains * _reward_value(reward_terms, "drain", 2.5)
 	var lock_term = delta_locked * _reward_value(reward_terms, "lock", 3.0)
-	var reward = resource_term + pair_term + active_quest_term + biome_term + drain_term + lock_term + milk_bonus
+	var milk_progress_term = delta_milk_distance * _reward_value(reward_terms, "milk_progress", 15.0)
+	var reward = resource_term + pair_term + active_quest_term + biome_term + drain_term + lock_term + milk_progress_term + milk_bonus
 	var execution_penalty = 0.0
 	if execution is Dictionary and not bool(execution.get("ok", false)):
 		execution_penalty = _reward_value(reward_terms, "execution_penalty", -4.0)
@@ -216,12 +353,16 @@ static func compute_reward_components(pre_state: Dictionary, post_state: Diction
 		"delta_biomes": delta_biomes,
 		"delta_drains": delta_drains,
 		"delta_locked": delta_locked,
+		"delta_milk_distance": delta_milk_distance,
+		"pre_milk_distance": pre_milk_dist,
+		"post_milk_distance": post_milk_dist,
 		"resource_term": resource_term,
 		"pair_term": pair_term,
 		"active_quest_term": active_quest_term,
 		"biome_term": biome_term,
 		"drain_term": drain_term,
 		"lock_term": lock_term,
+		"milk_progress_term": milk_progress_term,
 		"milk_bonus": milk_bonus,
 		"execution_penalty": execution_penalty,
 		"reward_raw": reward,
@@ -300,6 +441,8 @@ static func lock_offer_prior(graph: Dictionary, lock_result: Dictionary) -> floa
 		float(cfg.get("base", 0.5))
 		+ float(lock_result.get("discovery_value", 0.0)) * float(cfg.get("discovery_affinity", 6.0))
 		+ float(lock_result.get("novelty", 0.0)) * float(cfg.get("novelty", 1.5))
+		+ float(lock_result.get("milk_distance_gain", 0.0)) * float(cfg.get("milk_distance_gain", 2.5))
+		+ float(lock_result.get("milk_cascade_gain", 0.0)) * float(cfg.get("milk_cascade_gain", 1.2))
 	)
 
 
@@ -327,9 +470,11 @@ static func choose_probe_biome(biomes: Array, lindblad: Dictionary, resources: D
 	if not (biome_data is Dictionary):
 		biome_data = {}
 	var pressure = resource_pressure(resources, floors)
+	var corridor_weight = float(cfg.get("milk_corridor_weight", 1.5))
 	for biome in biomes:
 		var bname = str(biome)
 		var score = float(cfg.get("base", 1.0))
+		var corridor_bonus = 0.0
 		var sink = biome_sink_flux(biome_data, bname)
 		for emoji in sink.keys():
 			var flux = float(sink.get(emoji, 0.0))
@@ -338,7 +483,17 @@ static func choose_probe_biome(biomes: Array, lindblad: Dictionary, resources: D
 				score += flux * float(cfg.get("deficit_flux", 4.0))
 			else:
 				score += flux * float(cfg.get("surplus_flux", 0.5))
+			# Milk cascade: prefer biomes producing emojis from milk-valuable factions.
+			# Stockpiling these emojis attracts quests from factions closer to milk.
+			var cv = milk_cascade_value(str(emoji))
+			if cv < _MILK_MAX_DISTANCE:
+				score += flux * (2.0 / max(1.0, float(cv)))
+				# Corridor bonus: multiplicative boost for biomes on the milk path
+				corridor_bonus += flux * (float(_MILK_MAX_DISTANCE) - float(cv)) / float(_MILK_MAX_DISTANCE)
 		score += pressure * float(cfg.get("biome_pressure", 0.25))
+		# Multiplicative corridor: biomes producing milk-path resources get amplified
+		if corridor_bonus > 0.0:
+			score *= (1.0 + corridor_bonus * corridor_weight)
 		if score > best_score:
 			best_score = score
 			best_biome = bname
@@ -354,10 +509,12 @@ static func choose_drain_biome(biomes: Array, lindblad: Dictionary, resources: D
 	var biome_data = lindblad.get("biomes", {})
 	if not (biome_data is Dictionary):
 		biome_data = {}
+	var drain_corridor_weight = float(cfg.get("milk_corridor_weight", 1.0))
 	for biome in biomes:
 		var bname = str(biome)
 		var sink = biome_sink_flux(biome_data, bname)
 		var score = 0.0
+		var corridor_bonus = 0.0
 		for emoji in sink.keys():
 			var flux = float(sink.get(emoji, 0.0))
 			var floor = float(floors.get(emoji, 0.0))
@@ -365,6 +522,11 @@ static func choose_drain_biome(biomes: Array, lindblad: Dictionary, resources: D
 				score += flux * float(cfg.get("deficit_flux", 5.0))
 			else:
 				score += flux * float(cfg.get("surplus_flux", 1.0))
+			var cv = milk_cascade_value(str(emoji))
+			if cv < _MILK_MAX_DISTANCE:
+				corridor_bonus += flux * (float(_MILK_MAX_DISTANCE) - float(cv)) / float(_MILK_MAX_DISTANCE)
+		if corridor_bonus > 0.0:
+			score *= (1.0 + corridor_bonus * drain_corridor_weight)
 		if score > best_score:
 			best_score = score
 			best_biome = bname
@@ -443,6 +605,128 @@ static func contains_milk_pair(pairs: Array) -> bool:
 	return false
 
 
+static func _closest_milk_distance_from_pairs(pairs: Array) -> int:
+	"""Compute the closest milk distance from all emojis the player knows.
+	This is the player's 'progress toward milk' metric."""
+	var best = _MILK_MAX_DISTANCE
+	for pair in pairs:
+		if not (pair is Dictionary):
+			continue
+		var north = str(pair.get("north", ""))
+		var south = str(pair.get("south", ""))
+		if north != "":
+			var d = milk_distance(north)
+			if d < best:
+				best = d
+		if south != "":
+			var d = milk_distance(south)
+			if d < best:
+				best = d
+	return best
+
+
+static func _closest_milk_cascade_from_pairs(pairs: Array) -> int:
+	var best = _MILK_MAX_DISTANCE
+	for pair in pairs:
+		if not (pair is Dictionary):
+			continue
+		for emoji in [str(pair.get("north", "")), str(pair.get("south", ""))]:
+			if emoji == "":
+				continue
+			var c = milk_cascade_value(emoji)
+			if c < best:
+				best = c
+	return best
+
+
+static func webway_offer_value(emoji: String, known_emojis: Dictionary) -> int:
+	"""Personalized 2-hop lookahead: if I learn this emoji, what new factions do I
+	overlap with (given my CURRENT vocab), and what's the best milk_distance among
+	all emojis those newly-accessible factions could teach me?
+
+	Unlike milk_cascade_value (static, precomputed), this is dynamic — it considers
+	the player's current vocab to find factions they'd newly overlap with.
+
+	Returns: best milk_distance reachable in 2 hops, or _MILK_MAX_DISTANCE if none."""
+	if not _milk_graph_ready:
+		_build_milk_graph()
+	var best = _MILK_MAX_DISTANCE
+	# Factions that contain the new emoji
+	var emoji_factions = _emoji_to_factions.get(emoji, [])
+	for fname in emoji_factions:
+		var sig = _faction_signatures.get(fname, [])
+		# Check if the player ALREADY overlaps with this faction (has any other sig emoji)
+		var already_accessible = false
+		for e in sig:
+			if e != emoji and known_emojis.has(e):
+				already_accessible = true
+				break
+		if already_accessible:
+			# Player already has access — learning this emoji doesn't unlock a NEW faction
+			continue
+		# NEW faction unlocked! Check if player knows any OTHER emoji to create overlap
+		# (they will once they learn `emoji` — that's the overlap)
+		# What can this faction teach? All sig emojis the player doesn't know.
+		for e in sig:
+			if e == emoji:
+				continue
+			if known_emojis.has(e):
+				continue
+			var d = int(_milk_distances.get(e, _MILK_MAX_DISTANCE))
+			if d < best:
+				best = d
+	return best
+
+
+static func _offer_milk_metrics(offer: Dictionary, current_best_dist: int, current_best_cascade: int, known_emojis: Dictionary = {}) -> Dictionary:
+	var north = str(offer.get("reward_vocab_north", ""))
+	var south = str(offer.get("reward_vocab_south", ""))
+	var best_offer_dist = _MILK_MAX_DISTANCE
+	var best_offer_cascade = _MILK_MAX_DISTANCE
+	var best_webway = _MILK_MAX_DISTANCE
+	var milk_hint = 0.0
+	var corridor_emojis: Array = []
+	for emoji in [north, south]:
+		if emoji == "":
+			continue
+		var d = milk_distance(emoji)
+		var c = milk_cascade_value(emoji)
+		if d < best_offer_dist:
+			best_offer_dist = d
+		if c < best_offer_cascade:
+			best_offer_cascade = c
+		if d < _MILK_MAX_DISTANCE:
+			milk_hint = max(milk_hint, 8.0 / max(1.0, float(d)))
+			if d <= max(1, current_best_dist):
+				corridor_emojis.append(emoji)
+		if c < _MILK_MAX_DISTANCE:
+			milk_hint = max(milk_hint, 5.0 / max(1.0, float(c)))
+		# Webway 2-hop lookahead (personalized to player's current vocab)
+		if not known_emojis.is_empty():
+			var w = webway_offer_value(emoji, known_emojis)
+			if w < best_webway:
+				best_webway = w
+	var milk_distance_gain = max(0, current_best_dist - best_offer_dist) if best_offer_dist < _MILK_MAX_DISTANCE else 0
+	var milk_cascade_gain = max(0, current_best_cascade - best_offer_cascade) if best_offer_cascade < _MILK_MAX_DISTANCE else 0
+	var webway_gain = max(0, current_best_dist - best_webway) if best_webway < _MILK_MAX_DISTANCE else 0
+	return {
+		"reward_vocab_north": north,
+		"reward_vocab_south": south,
+		"best_offer_milk_distance": best_offer_dist,
+		"best_offer_milk_cascade": best_offer_cascade,
+		"best_webway_distance": best_webway,
+		"current_milk_distance": current_best_dist,
+		"current_milk_cascade": current_best_cascade,
+		"milk_distance_gain": milk_distance_gain,
+		"milk_cascade_gain": milk_cascade_gain,
+		"webway_gain": webway_gain,
+		"milk_hint": milk_hint,
+		"corridor_emojis": corridor_emojis,
+		"offer_faction": str(offer.get("faction", "")),
+		"offer_id": int(offer.get("id", -1)),
+	}
+
+
 static func known_emoji_map(pairs: Array) -> Dictionary:
 	var out: Dictionary = {}
 	for pair in pairs:
@@ -473,6 +757,8 @@ static func best_lockable_offer(offers: Array, locked_offers: Array, active_ques
 			if aid != "":
 				active_ids[aid] = true
 	var known = known_emoji_map(known_pairs)
+	var current_best_dist = _closest_milk_distance_from_pairs(known_pairs)
+	var current_best_cascade = _closest_milk_cascade_from_pairs(known_pairs)
 	var best: Dictionary = {}
 	var best_score = -1.0
 	for i in range(offers.size()):
@@ -500,24 +786,25 @@ static func best_lockable_offer(offers: Array, locked_offers: Array, active_ques
 			var have = float(resources.get(resource, 0.0))
 			if have >= qty:
 				surplus = 1.0 - (qty / max(1.0, have))
-		# Milk proximity bonus
-		var milk_prox = 0.0
-		if north != "":
-			var d = milk_distance(north)
-			if d <= 2:
-				milk_prox = max(milk_prox, 2.0 / max(1.0, float(d)))
-		if south != "":
-			var d = milk_distance(south)
-			if d <= 2:
-				milk_prox = max(milk_prox, 2.0 / max(1.0, float(d)))
-		var score = discovery_aff + novelty * 1.5 + surplus * 0.8 + milk_prox
+		var milk_metrics = _offer_milk_metrics(offer, current_best_dist, current_best_cascade, known)
+		var score = (
+			discovery_aff
+			+ novelty * 1.5
+			+ surplus * 0.8
+			+ float(milk_metrics.get("milk_hint", 0.0))
+			+ float(milk_metrics.get("milk_distance_gain", 0.0)) * 6.0
+			+ float(milk_metrics.get("milk_cascade_gain", 0.0)) * 3.0
+			+ float(milk_metrics.get("webway_gain", 0.0)) * 4.0
+		)
 		if score > best_score:
 			best_score = score
 			best = {
 				"offer_index": i,
 				"discovery_value": discovery_aff,
 				"novelty": novelty,
+				"score": score,
 			}
+			best.merge(milk_metrics, true)
 	return best
 
 
@@ -527,6 +814,9 @@ static func rank_offers(resources: Dictionary, offers: Array, known_pairs: Array
 	Returns: {best_offer_index, best_score, cost_ratio, novelty, is_milk} or empty if none affordable.
 	"""
 	var known = known_emoji_map(known_pairs)
+	var current_best_dist = _closest_milk_distance_from_pairs(known_pairs)
+	var current_best_cascade = _closest_milk_cascade_from_pairs(known_pairs)
+	var cfg = _action_config(graph, "quest_cycle")
 	var best: Dictionary = {}
 	var best_score = -1e18
 	for i in range(offers.size()):
@@ -555,24 +845,17 @@ static func rank_offers(resources: Dictionary, offers: Array, known_pairs: Array
 		if reward_resources is Dictionary:
 			for emoji in reward_resources.keys():
 				reward_sum += max(0.0, float(reward_resources.get(emoji, 0.0)))
-		# Milk proximity: bonus for offers teaching emojis closer to milk in the graph.
-		# Distance 0 (milk itself) handled by is_milk flag. Distance 1-2 = milk neighborhood.
-		var milk_prox = 0.0
-		if north != "":
-			var d = milk_distance(north)
-			if d <= 2:
-				milk_prox = max(milk_prox, 25.0 / max(1.0, float(d)))  # d=1→25, d=2→12.5
-		if south != "":
-			var d = milk_distance(south)
-			if d <= 2:
-				milk_prox = max(milk_prox, 25.0 / max(1.0, float(d)))
+		var milk_metrics = _offer_milk_metrics(offer, current_best_dist, current_best_cascade, known)
 		# Score: vocab novelty dominates, surplus rewards cheap quests, milk is king
 		var score = (
 			novelty * 32.0
 			+ surplus * 12.0
 			+ reward_sum * 0.22
 			+ discovery_aff * 18.0
-			+ milk_prox
+			+ float(milk_metrics.get("milk_hint", 0.0)) * float(cfg.get("milk_hint_scale", 1.0))
+			+ float(milk_metrics.get("milk_distance_gain", 0.0)) * float(cfg.get("milk_distance_gain", 28.0))
+			+ float(milk_metrics.get("milk_cascade_gain", 0.0)) * float(cfg.get("milk_cascade_gain", 12.0))
+			+ float(milk_metrics.get("webway_gain", 0.0)) * float(cfg.get("webway_gain", 20.0))
 			+ (420.0 if is_milk else 0.0)
 			+ (20.0 if novelty >= 2.0 else 0.0)
 		)
@@ -584,7 +867,10 @@ static func rank_offers(resources: Dictionary, offers: Array, known_pairs: Array
 				"cost_ratio": qty / max(1.0, have),
 				"novelty": novelty,
 				"is_milk": is_milk,
+				"offer_faction": str(offer.get("faction", "")),
+				"offer_id": int(offer.get("id", -1)),
 			}
+			best.merge(milk_metrics, true)
 	return best
 
 
@@ -734,6 +1020,13 @@ static func policy_describe() -> Dictionary:
 				"demand_curve": {"default": 0.5, "min": 0.0, "max": 2.0, "description": "Weight of demand curve awareness. High = prefer quests for high-inventory resources."},
 				"frontier_bonus": {"default": 1.5, "min": 0.0, "max": 5.0, "description": "Extra prior when best offer teaches 2 new emojis (frontier pair)."},
 				"best_offer_milk": {"default": 3.0, "min": 0.0, "max": 10.0, "description": "Extra prior when best offer yields milk vocabulary (win condition)."},
+				"milk_hint_scale": {"default": 1.0, "min": 0.0, "max": 5.0, "description": "Tie-break weight for static milk/cascade proximity when ranking quest offers."},
+				"milk_distance_gain": {"default": 28.0, "min": 0.0, "max": 100.0, "description": "Quest-offer score bonus per step of direct milk-distance improvement over current known vocab."},
+				"milk_cascade_gain": {"default": 12.0, "min": 0.0, "max": 50.0, "description": "Quest-offer score bonus per step of milk-cascade improvement over current known vocab."},
+				"webway_gain": {"default": 20.0, "min": 0.0, "max": 80.0, "description": "Quest-offer score bonus per step of webway (personalized 2-hop) milk improvement. Unlike cascade (static), webway considers the player's current vocab to find faction paths they'd newly unlock."},
+				"prior_milk_distance_gain": {"default": 0.9, "min": 0.0, "max": 5.0, "description": "Extra quest_cycle prior per step of direct milk-distance improvement in the best affordable offer."},
+				"prior_milk_cascade_gain": {"default": 0.4, "min": 0.0, "max": 3.0, "description": "Extra quest_cycle prior per step of milk-cascade improvement in the best affordable offer."},
+				"prior_webway_gain": {"default": 0.6, "min": 0.0, "max": 3.0, "description": "Extra quest_cycle prior per step of webway improvement in the best affordable offer."},
 				"bonus": {"default": 0.0, "min": -5.0, "max": 5.0, "description": "Flat bonus/penalty to quest prior. Use for character personality."},
 				"stagnation_scale": {"default": 0.45, "min": 0.0, "max": 2.0, "description": "Per-streak penalty when quests fail to teach new vocab."},
 				"stagnation_cap": {"default": 6.0, "min": 0.0, "max": 10.0, "description": "Maximum stagnation penalty before capping."},
@@ -743,6 +1036,7 @@ static func policy_describe() -> Dictionary:
 				"resource_pressure": {"default": 0.8, "min": 0.0, "max": 3.0, "description": "How much resource deficit boosts probing priority."},
 				"deficit_flux": {"default": 4.0, "min": 0.0, "max": 10.0, "description": "Weight for biomes producing deficit resources."},
 				"surplus_flux": {"default": 0.5, "min": 0.0, "max": 3.0, "description": "Weight for biomes producing surplus resources."},
+				"milk_corridor_weight": {"default": 1.5, "min": 0.0, "max": 5.0, "description": "Multiplicative boost for biomes producing emojis on the milk corridor. Higher = stronger steering of farming toward milk-path factions."},
 			},
 			"lindblad_drain": {
 				"base": {"default": 0.9, "min": 0.0, "max": 3.0, "description": "Base prior for passive income drain setup."},
@@ -761,6 +1055,8 @@ static func policy_describe() -> Dictionary:
 				"base": {"default": 0.5, "min": 0.0, "max": 3.0, "description": "Base prior for locking a quest offer for later."},
 				"discovery_affinity": {"default": 6.0, "min": 0.0, "max": 15.0, "description": "Weight of biome discovery affinity when scoring lockable offers."},
 				"novelty": {"default": 1.5, "min": 0.0, "max": 5.0, "description": "Weight of vocab novelty when scoring lockable offers."},
+				"milk_distance_gain": {"default": 2.5, "min": 0.0, "max": 15.0, "description": "Extra lock-offer prior per step of direct milk-distance improvement held by the offer."},
+				"milk_cascade_gain": {"default": 1.2, "min": 0.0, "max": 10.0, "description": "Extra lock-offer prior per step of milk-cascade improvement held by the offer."},
 			},
 			"time_skip": {
 				"base": {"default": 0.4, "min": 0.0, "max": 2.0, "description": "Base prior for waiting (letting passive income accumulate)."},
@@ -777,6 +1073,7 @@ static func policy_describe() -> Dictionary:
 			"biome": {"default": 8.0, "min": 0.0, "max": 50.0, "description": "Reward for discovering a new biome."},
 			"drain": {"default": 2.5, "min": 0.0, "max": 20.0, "description": "Reward for setting up a new passive drain."},
 			"lock": {"default": 3.0, "min": 0.0, "max": 20.0, "description": "Reward for locking a quest offer."},
+			"milk_progress": {"default": 15.0, "min": 0.0, "max": 50.0, "description": "Reward per step closer to milk in the vocab graph. The key signal that teaches the quantum policy to seek milk."},
 			"milk_bonus": {"default": 120.0, "min": 0.0, "max": 500.0, "description": "One-time bonus when milk pair is first discovered."},
 			"execution_penalty": {"default": -4.0, "min": -20.0, "max": 0.0, "description": "Penalty when an action fails execution."},
 		},

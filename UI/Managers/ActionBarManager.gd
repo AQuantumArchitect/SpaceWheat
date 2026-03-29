@@ -215,12 +215,6 @@ func update_for_overlay(overlay: Control) -> void:
 		action_preview_row.update_for_overlay(overlay)
 
 
-func update_for_quest_board(slot_state: int, is_locked: bool = false) -> void:
-	"""Update action row for quest board mode (Legacy wrapper)"""
-	if action_preview_row and action_preview_row.has_method("update_for_quest_board"):
-		action_preview_row.update_for_quest_board(slot_state, is_locked)
-
-
 func restore_normal_mode() -> void:
 	"""Restore normal tool mode display"""
 	if action_preview_row and action_preview_row.has_method("restore_normal_mode"):

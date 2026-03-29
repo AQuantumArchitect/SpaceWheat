@@ -3,15 +3,12 @@ extends "res://UI/Widgets/SelectionButtonRow.gd"
 
 ## Physical keyboard layout UI - Bottom row with tool selection buttons [1-4]
 ## Each button shows the keyboard shortcut and highlights when selected
-## v2 Architecture: 4 tools per mode (PLAY/BUILD), Tab toggles mode
+## Current architecture: 4 tool groups driven directly by ToolConfig.
 ## Uses BtnBtmMidl.svg from Assets/UI/Chrome for sci-fi aesthetic
 
 # Tool definitions from shared config (single source of truth)
 const ToolConfig = preload("res://Core/GameState/ToolConfig.gd")
 
-
-# Current mode ("play" or "build")
-var current_mode: String = "play"
 
 var current_tool: int = 3  # Default to tool 3 (matches ToolConfig.current_group)
 
@@ -32,10 +29,9 @@ func _ready():
 	print("🛠️  ToolSelectionRow initialized with BtnBtmMidl textures (4 tools, starting at %d)" % initial_tool)
 
 func _rebuild_buttons() -> void:
-	var tools = ToolConfig.get_current_tools()
 	var button_specs: Array[Dictionary] = []
 	for tool_num in range(1, 5):
-		var tool_info = tools.get(tool_num, {})
+		var tool_info = ToolConfig.get_group(tool_num)
 		var tool_name = tool_info.get("name", "Unknown")
 		var tool_emoji = tool_info.get("emoji", "")
 		var icon_path = tool_info.get("icon", "")
@@ -58,8 +54,7 @@ func _rebuild_buttons() -> void:
 func _on_button_selected(tool_num: int) -> void:
 	select_tool(tool_num)
 	tool_selected.emit(tool_num)
-	var tools = ToolConfig.get_current_tools()
-	var tool_info = tools.get(tool_num, {})
+	var tool_info = ToolConfig.get_group(tool_num)
 	print("⌨️  Tool %d selected [%s button]" % [tool_num, tool_info.get("name", "Unknown")])
 
 
@@ -77,31 +72,10 @@ func set_tool_enabled(tool_num: int, enabled: bool) -> void:
 	set_button_enabled(tool_num, enabled)
 
 
-func refresh_for_mode(new_mode: String) -> void:
-	"""Update button labels when mode changes between PLAY and BUILD.
-
-	Called by PlayerShell when Tab is pressed.
-	"""
-	if new_mode not in ["play", "build"]:
-		return
-
-	current_mode = new_mode
+func refresh_for_mode(_new_mode: String) -> void:
+	"""Retained for PlayerShell compatibility; tool groups are mode-agnostic now."""
 	_rebuild_buttons()
-
-	# Reset to tool 1 on mode change
-	select_tool(1)
-
-	print("🛠️  ToolSelectionRow refreshed for %s mode" % new_mode.to_upper())
-
-
-# ============================================================================
-# LEGACY COMPATIBILITY
-# ============================================================================
-
-func _on_tool_button_pressed(tool_num: int) -> void:
-	"""Legacy handler - now handled by _on_tool_button_input."""
-	select_tool(tool_num)
-	tool_selected.emit(tool_num)
+	select_tool(current_tool)
 
 
 func _print_corners() -> void:

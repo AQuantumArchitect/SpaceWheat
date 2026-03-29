@@ -76,7 +76,7 @@ const DISPATCH_TABLE = {
 	"clear_biome_assignment": ["BiomeHandler", "clear_biome_assignment", "Cleared {cleared_count} plots"],
 	"inspect_plot": ["BiomeHandler", "inspect_plot", "Inspected {count} plots"],
 	"inject_vocabulary": ["BiomeHandler", "inject_vocabulary", "Injected {north_emoji}/{south_emoji} into {biome}"],
-	"explore_biome": ["BiomeHandler", "explore_biome", "Discovered {biome_name}!"],
+	"discover_biome": ["BiomeHandler", "discover_biome", "Discovered {biome_name}!"],
 
 	# ═══════════════════════════════════════════════════════════════════════════
 	# ICON ACTIONS (BUILD Tool 2)
@@ -258,8 +258,8 @@ func _call_biome_handler(method_name: String, farm, positions: Array[Vector2i], 
 		"inject_vocabulary":
 			var vocab_pair = extra.get("vocab_pair", {})
 			return BiomeHandler.inject_vocabulary(farm, positions, vocab_pair)
-		"explore_biome":
-			return BiomeHandler.explore_biome(farm, positions)
+		"discover_biome":
+			return BiomeHandler.discover_biome(farm, positions)
 		_:
 			return {"success": false, "error": "unknown_method"}
 

@@ -109,7 +109,7 @@ func test_tool1_explore_measure_pop():
 
 	# Step 1: EXPLORE - bind a terminal
 	print("Step 1: EXPLORE - binding terminal to register...")
-	var explore_result = ProbeActions.action_explore(farm.plot_pool, biome)
+	var explore_result = ProbeActions.action_explore(farm.terminal_pool, biome)
 
 	if not explore_result.success:
 		log_issue("EXPLORE failed: %s" % explore_result.get("message", "unknown"))
@@ -131,7 +131,7 @@ func test_tool1_explore_measure_pop():
 
 	# Step 3: POP - harvest the resource
 	print("Step 3: POP - harvesting resource...")
-	var pop_result = ProbeActions.action_pop(terminal, farm.plot_pool, farm.economy)
+	var pop_result = ProbeActions.action_pop(terminal, farm.terminal_pool, farm.economy)
 
 	if not pop_result.success:
 		log_issue("POP failed: %s" % pop_result.get("message", "unknown"))
@@ -276,7 +276,7 @@ func test_complex_workflow():
 		return
 
 	# Step 1: Extract resource via Tool 1
-	var explore = ProbeActions.action_explore(farm.plot_pool, biome)
+	var explore = ProbeActions.action_explore(farm.terminal_pool, biome)
 	if not explore.success:
 		log_issue("Workflow step 1 (EXPLORE) failed")
 		return
@@ -286,7 +286,7 @@ func test_complex_workflow():
 		log_issue("Workflow step 2 (MEASURE) failed")
 		return
 
-	var pop = ProbeActions.action_pop(explore.terminal, farm.plot_pool, farm.economy)
+	var pop = ProbeActions.action_pop(explore.terminal, farm.terminal_pool, farm.economy)
 	if not pop.success:
 		log_issue("Workflow step 3 (POP) failed")
 		return

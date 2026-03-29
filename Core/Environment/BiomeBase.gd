@@ -206,6 +206,50 @@ func _ready() -> void:
 	set_process(false)
 
 
+func _exit_tree() -> void:
+	"""Break RefCounted cycles when biome is removed from the farm."""
+	set_process(false)
+	active_projections.clear()
+	icons.clear()
+	icon_overrides.clear()
+	grid = null
+
+	if dynamics_tracker:
+		dynamics_tracker.clear_history()
+	dynamics_tracker = null
+	attractor_analyzer = null
+	phase_lnn = null
+
+	if _bell_gate_tracker:
+		_bell_gate_tracker.clear()
+	if _resource_registry and _resource_registry.has_method("clear"):
+		_resource_registry.clear()
+	if _quantum_observer and _quantum_observer.has_method("set_quantum_computer"):
+		_quantum_observer.set_quantum_computer(null)
+	if _density_mutator and _density_mutator.has_method("set_quantum_computer"):
+		_density_mutator.set_quantum_computer(null)
+	if _gate_operations and _gate_operations.has_method("set_dependencies"):
+		_gate_operations.set_dependencies(null, null, null, null)
+	if _system_builder and _system_builder.has_method("set_dependencies"):
+		_system_builder.set_dependencies(null, null, null, {})
+	if viz_cache:
+		viz_cache.clear()
+		viz_cache.clear_metadata()
+
+	if quantum_computer and quantum_computer.has_method("clear"):
+		quantum_computer.clear()
+	quantum_computer = null
+
+	_resource_registry = null
+	_bell_gate_tracker = null
+	_quantum_observer = null
+	_gate_operations = null
+	_system_builder = null
+	_density_mutator = null
+	viz_cache = null
+	time_tracker = null
+
+
 func _wire_component_dependencies() -> void:
 	"""Wire dependencies for components that need IconRegistry (call after _ready)"""
 	_system_builder.set_dependencies(quantum_computer, _resource_registry, _get_icon_registry(), icon_overrides)

@@ -41,10 +41,10 @@ func _run_tests():
 	print("Farm found")
 	
 	# Test 1: PlotPool exists
-	if not farm.plot_pool:
-		_fail("farm.plot_pool is null")
+	if not farm.terminal_pool:
+		_fail("farm.terminal_pool is null")
 	else:
-		print("PlotPool exists with %d terminals" % farm.plot_pool.pool_size)
+		print("PlotPool exists with %d terminals" % farm.terminal_pool.pool_size)
 		_pass("PlotPool created")
 	
 	# Test 2: Get biome
@@ -59,7 +59,7 @@ func _run_tests():
 	const ProbeActions = preload("res://Core/Actions/ProbeActions.gd")
 	
 	print("\nTesting EXPLORE...")
-	var explore_result = ProbeActions.action_explore(farm.plot_pool, biome)
+	var explore_result = ProbeActions.action_explore(farm.terminal_pool, biome)
 	
 	if explore_result.success:
 		print("  EXPLORE succeeded!")
@@ -82,7 +82,7 @@ func _run_tests():
 			
 			# Test 5: POP action
 			print("\nTesting POP...")
-			var pop_result = ProbeActions.action_pop(terminal, farm.plot_pool, farm.economy)
+			var pop_result = ProbeActions.action_pop(terminal, farm.terminal_pool, farm.economy)
 			
 			if pop_result.success:
 				print("  POP succeeded!")

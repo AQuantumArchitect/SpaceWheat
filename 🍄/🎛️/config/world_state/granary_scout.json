@@ -2,7 +2,7 @@
   "name": "granary_scout",
   "description": "Bread-first survivor with controlled starter crop stocks.",
   "scenario_id": "default",
-  "strict_biome_economy": false,
+  "strict_biome_economy": true,
   "resources": {
     "🍞": 21,
     "❄️": 13,

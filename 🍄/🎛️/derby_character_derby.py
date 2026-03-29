@@ -6,9 +6,10 @@ Runs three fib-scale characters against both current engine policies.
 from __future__ import annotations
 
 import argparse
-import subprocess
 import sys
 from pathlib import Path
+
+from run_executor import ensure_lane, run_cli
 
 
 HERE = Path(__file__).resolve().parent
@@ -34,6 +35,16 @@ def _build_parser() -> argparse.ArgumentParser:
         choices=["quiet", "normal", "debug", "trace", "test"],
         default="quiet",
     )
+    parser.add_argument(
+        "--display-mode",
+        choices=["headless", "headed"],
+        default="headless",
+    )
+    parser.add_argument(
+        "--policy-execution-backend",
+        choices=["auto", "direct", "player_input"],
+        default="auto",
+    )
     parser.add_argument("--reuse-listener", dest="reuse_listener", action="store_true")
     parser.add_argument("--no-reuse-listener", dest="reuse_listener", action="store_false")
     parser.set_defaults(reuse_listener=True)
@@ -42,6 +53,7 @@ def _build_parser() -> argparse.ArgumentParser:
 
 def main() -> int:
     args = _build_parser().parse_args()
+    lane = ensure_lane()
     cmd = [
         sys.executable,
         str(DERBY),
@@ -58,9 +70,13 @@ def main() -> int:
         str(args.runtime_profile),
         "--console-profile",
         str(args.console_profile),
+        "--display-mode",
+        str(args.display_mode),
+        "--policy-execution-backend",
+        str(args.policy_execution_backend),
     ]
     cmd.append("--reuse-listener" if args.reuse_listener else "--no-reuse-listener")
-    proc = subprocess.run(cmd)
+    proc = run_cli(cmd, lane=lane, timeout_s=1800, capture_output=False)
     return int(proc.returncode)
 
 

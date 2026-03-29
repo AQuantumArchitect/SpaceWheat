@@ -7,5 +7,5 @@
   "unlocked_biomes": ["StarterForest", "Village", "FungalNetworks", "CoralReef", "WildHill"],
   "active_biome": "FungalNetworks",
   "known_pairs": [{"north": "🌾", "south": "👥"}, {"north": "🍄", "south": "🌾"}, {"north": "🌱", "south": "🍞"}],
-  "strict_biome_economy": false
+  "strict_biome_economy": true
 }

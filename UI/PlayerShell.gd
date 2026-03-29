@@ -125,6 +125,9 @@ func _handle_shell_action(event: InputEvent) -> bool:
 
 	# Farm overlay keys (C, V, B, N)
 	if FARM_OVERLAY_KEYS.has(keycode):
+		if keycode == KEY_C and overlay_manager and overlay_manager.quest_board and overlay_manager.quest_board.visible:
+			overlay_manager.open_quest_board_faction_browser()
+			return true
 		_toggle_farm_overlay(FARM_OVERLAY_KEYS[keycode])
 		return true
 
@@ -256,20 +259,6 @@ func _toggle_farm_overlay(overlay_name: String) -> void:
 	_close_all_menus()
 	if overlay_manager.open_v2_overlay(overlay_name):
 		_overlay_open_frame[overlay_name] = Engine.get_process_frames()
-
-
-# Legacy function - keeping for compatibility
-func _toggle_escape_menu() -> void:
-	"""Toggle escape menu"""
-	if not overlay_manager or not overlay_manager.escape_menu:
-		return
-	var menu = overlay_manager.escape_menu
-	if menu.visible:
-		menu.close_menu()
-	else:
-		_close_all_menus()
-		menu.show_menu()
-
 
 func _toggle_build_play_mode() -> void:
 	"""Toggle between BUILD and PLAY modes (TAB key)
@@ -744,16 +733,6 @@ func _update_action_toolbar_for_overlay(overlay: Control) -> void:
 	"""Update action toolbar to show context-specific actions from an overlay"""
 	if action_bar_manager:
 		action_bar_manager.update_for_overlay(overlay)
-
-
-func _update_action_toolbar_for_quest(_slot_state: int = 1, _is_locked: bool = false) -> void:
-	"""Legacy: Just triggers refresh if quest board is the active overlay"""
-	if not overlay_manager:
-		return
-	var quest_board = overlay_manager.get("quest_board")
-	if quest_board:
-		_update_action_toolbar_for_overlay(quest_board)
-
 
 func _restore_action_toolbar() -> void:
 	"""Restore action toolbar to normal tool mode"""

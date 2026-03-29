@@ -42,7 +42,7 @@
     "🍞_60": "60 explore operations",
     "🔥_30": "30 Hadamard gates for quantum ops",
     "🦅_20": "5 biome unlocks (4 eagles per biome) - scaled for 1:1 economy",
-    "🍼_2": "2 harvest-all operations (Reality Midwife tokens)"
+    "🍼_2": "2 reap operations (Reality Midwife tokens)"
   },
 
   "vocab_injection_cost_formula": "4 [south_emoji] + 10 🌱 (1:1 quantum mass economy)",
@@ -50,9 +50,8 @@
   "action_costs": {
     "explore": "1 🍞",
     "measure": "1 ❄️",
-    "reap": "1 👥",
-    "harvest_all": "1 🍼",
-    "explore_biome": "4 🦅",
+    "reap": "1 🍼",
+    "discover_biome": "4 🦅",
     "lindblad_pump": "8 ⚡",
     "lindblad_drain": "8 ⚡"
   }

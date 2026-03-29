@@ -3,7 +3,7 @@
   "description": "Winner-biased solar gate runner with classic bread/cold/labor ladder.",
   "resource_scale": "fibonacci",
   "scenario_id": "default",
-  "strict_biome_economy": false,
+  "strict_biome_economy": true,
   "resources": {
     "🍞": 34,
     "❄️": 21,

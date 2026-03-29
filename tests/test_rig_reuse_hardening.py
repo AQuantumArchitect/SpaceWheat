@@ -27,9 +27,9 @@ def test_rig_client_turn_roundtrip_uses_request_id() -> None:
 
 def test_rig_listener_routes_read_actions_through_policy_snapshot() -> None:
     src = RIG_LISTENER.read_text(encoding="utf-8")
-    assert 'var policy_resources = _get_policy_snapshot(false, false)' in src
-    assert 'var policy_grid = _get_policy_snapshot(false, true)' in src
-    assert 'var policy_quests = _get_policy_snapshot(false, false)' in src
-    assert 'var policy_pairs = _get_policy_snapshot(false, false)' in src
+    assert '_snapshot_service.get_resource_snapshot()' in src
+    assert '_snapshot_service.get_grid_snapshot()' in src
+    assert '_snapshot_service.get_active_quests()' in src
+    assert '_snapshot_service.get_known_vocab_pairs()' in src
     assert 'result["resources"] = _instrument.get_resource_snapshot()' not in src
     assert 'result["grid"] = _instrument.get_grid_snapshot()' not in src

@@ -43,8 +43,7 @@ extends SceneTree
 ## - configure_economy: {overrides: {action_costs?, gate_costs?, quest_rewards?, production?}}
 ## - configure_seed_state: {known_pairs, unlocked_biomes, unexplored_biomes, active_biome, policy_graph_path?, policy_graph_jsonl?}
 ## - probe_cycle: {biome: String}
-## - discover_biome (preferred; biome unlock/expansion)
-## - explore_biome (deprecated alias for discover_biome)
+## - discover_biome (biome unlock/expansion)
 ## - discovery_forecast — returns vocab-weighted probabilities for each unexplored biome
 ## - victory_lap
 ## - victory_lap_partial: {selected_biomes?: [String], max_registers?: int, milk_spend?: int, phase_window?: int}
@@ -73,7 +72,9 @@ extends SceneTree
 ## - full_snapshot — aggregates all widget + HUD + overlay snapshots in one call
 ## - policy_reset: {config?: Dictionary}
 ## - policy_snapshot
-## - policy_step: {execute?: bool, include_state?: bool, resource_floors?: {emoji: amount}}
+## - policy_step: {execute?: bool, include_state?: bool, resource_floors?: {emoji: amount}, execution_backend?: "direct"|"player_input"|"auto"}
+## - press_key: {keycode?: int, key?: String, shift?: bool, settle_frames?: int}
+## - key_sequence: {keys: [{keycode?: int, key?: String, shift?: bool, settle_frames?: int}, ...]}
 ## - stop
 ##
 ## Future actions can be added to the match statement in _execute_command().
@@ -89,6 +90,8 @@ const BiomeAffinityCalc = preload("res://Core/Quantum/BiomeAffinityCalculator.gd
 const PolicySnapshotBuilder = preload("res://Core/Instrumentation/PolicySnapshotBuilder.gd")
 const PhysicsConfig = preload("res://Core/Config/PhysicsConfig.gd")
 const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")
+const ToolConfig = preload("res://Core/GameState/ToolConfig.gd")
+const PlayerInputMacroRunner = preload("res://UI/Core/PlayerInputMacroRunner.gd")
 
 signal action_executed(turn_id: int, action: String, result: Dictionary)
 signal bridge_idle()
@@ -100,6 +103,9 @@ var _bridge_sentinel_path = "user://rig/bridge_ready"
 var _heartbeat_path = "user://rig/heartbeat"
 var _heartbeat_interval_ms: int = 2000
 var _next_heartbeat_at_ms: int = 0
+var _last_command_completed_at_ms: int = 0  # Tracks last successful command for heartbeat liveness
+var _polling_started_at_ms: int = 0  # Watchdog: detect hung _poll_queue coroutine
+const _POLLING_WATCHDOG_MS: int = 120_000  # Force-reset _polling after 120s stuck
 
 var _queue_offset: int = 0
 var _shell = null
@@ -107,6 +113,9 @@ var _snapshot_service = null
 var _instrument = null  # QuantumInstrument
 var _farm = null
 var _policy = null  # QuantumFiberPolicy
+var _cached_offers: Array = []
+var _cached_offers_pairs_count: int = -1  # Invalidate when pairs change
+var _player_input_macro_runner = null
 var _last_offers: Array = []
 var _is_headless: bool = true
 var _turn_log_enabled: bool = true
@@ -114,6 +123,9 @@ var _polling: bool = false  # Re-entrancy guard for async commands (e.g. victory
 var _poll_interval_ms: int = 0
 var _next_poll_at_ms: int = 0
 var _result_writer: FileAccess = null
+
+const _PLOT_KEYCODES: Array[int] = [KEY_J, KEY_K, KEY_L, KEY_SEMICOLON, KEY_APOSTROPHE, KEY_H, KEY_G]
+const _QUEST_SLOT_KEYCODES: Array[int] = [KEY_U, KEY_I, KEY_O, KEY_P]
 
 
 func _phrame_hz() -> float:
@@ -177,6 +189,7 @@ func _on_ready() -> void:
 	_instrument = InstrumentLocator.resolve_quantum_instrument(_shell)
 	_ensure_policy()
 	_sync_policy_from_game_state()
+	_ensure_player_input_macro_runner()
 	var turn_log_env = OS.get_environment("RIG_VERBOSE_TURN_LOG").to_lower()
 	if turn_log_env == "":
 		var profile = OS.get_environment("RIG_LOG_PROFILE").to_lower()
@@ -217,11 +230,20 @@ func _ensure_runtime_unpaused_for_rig() -> bool:
 
 
 func _on_physics_frame() -> void:
-	# Heartbeat: write timestamp so runner can distinguish "busy" from "dead"
 	var now = Time.get_ticks_msec()
+
+	# Heartbeat: write timestamp + liveness flag so runner can distinguish
+	# "busy processing a command" from "stuck/dead".
 	if now >= _next_heartbeat_at_ms:
 		_next_heartbeat_at_ms = now + _heartbeat_interval_ms
-		_write_heartbeat()
+		_write_heartbeat(now)
+
+	# Watchdog: if _poll_queue has been running for > _POLLING_WATCHDOG_MS,
+	# the coroutine is likely hung. Force-reset so the queue can drain again.
+	if _polling and _polling_started_at_ms > 0 and (now - _polling_started_at_ms) > _POLLING_WATCHDOG_MS:
+		print("[RIG][WARN] Polling watchdog: _poll_queue stuck for %dms — force-resetting" % (now - _polling_started_at_ms))
+		_polling = false
+		_polling_started_at_ms = 0
 
 	if _polling:
 		return
@@ -229,16 +251,26 @@ func _on_physics_frame() -> void:
 		return
 	_next_poll_at_ms = now + _poll_interval_ms
 	_polling = true
+	_polling_started_at_ms = now
 	_ensure_runtime_unpaused_for_rig()
 	await _poll_queue()
 	_polling = false
+	_polling_started_at_ms = 0
 
 
-func _write_heartbeat() -> void:
+func _write_heartbeat(now_ms: int = -1) -> void:
 	var hb_path = ProjectSettings.globalize_path(_heartbeat_path)
 	var file = FileAccess.open(hb_path, FileAccess.WRITE)
 	if file:
-		file.store_string("%.3f" % Time.get_unix_time_from_system())
+		var unix_time = Time.get_unix_time_from_system()
+		if now_ms < 0:
+			now_ms = Time.get_ticks_msec()
+		# Line 1: unix timestamp (backward compat — runner reads this)
+		# Line 2: command_idle_ms — how long since last command completed
+		#   If this grows while _polling is true, the coroutine is hung.
+		var cmd_idle_ms = now_ms - _last_command_completed_at_ms if _last_command_completed_at_ms > 0 else -1
+		var polling_dur_ms = (now_ms - _polling_started_at_ms) if (_polling and _polling_started_at_ms > 0) else 0
+		file.store_string("%.3f\n%d\n%d" % [unix_time, cmd_idle_ms, polling_dur_ms])
 		file.close()
 
 
@@ -339,7 +371,6 @@ func _requires_quantum_instrument(action: String) -> bool:
 		"configure_seed_state",
 		"probe_cycle",
 		"discover_biome",
-		"explore_biome",
 		"victory_lap",
 		"victory_lap_partial",
 		"policy_step",
@@ -375,6 +406,7 @@ func _handle_line(raw: String) -> void:
 	if request_id != "":
 		result["request_id"] = request_id
 	_write_result(result)
+	_last_command_completed_at_ms = Time.get_ticks_msec()
 	var ok = bool(result.get("ok", false))
 	if ok:
 		_turn_log("END", turn_id, action, "ok=true dur=%sms" % [str(result.get("duration_ms", -1))])
@@ -508,11 +540,7 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 			result["claimed"] = bool(claim_result.get("claimed", false))
 
 		"resource_snapshot":
-			var policy_resources = _get_policy_snapshot(false, false)
-			var resource_snapshot = policy_resources.get("resource_snapshot", {})
-			if not (resource_snapshot is Dictionary):
-				resource_snapshot = {}
-			result["resources"] = resource_snapshot
+			result["resources"] = _snapshot_service.get_resource_snapshot() if _snapshot_service else {}
 
 		"policy_snapshot":
 			var include_offers = bool(cmd.get("include_offers", true))
@@ -540,31 +568,22 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 			result["mutations"] = _instrument.get_recent_resource_mutations(limit)
 
 		"grid_snapshot":
-			var policy_grid = _get_policy_snapshot(false, true)
-			var grid_snapshot = policy_grid.get("grid", {})
-			if not (grid_snapshot is Dictionary):
-				grid_snapshot = {}
-			result["grid"] = grid_snapshot
+			result["grid"] = _snapshot_service.get_grid_snapshot() if _snapshot_service else {}
 
 		"biome_positions":
 			var biome_name = str(cmd.get("biome", ""))
 			result["biome"] = biome_name
-			if _snapshot_service and _snapshot_service.has_method("get_biome_positions"):
-				result["positions"] = _snapshot_service.get_biome_positions(biome_name)
-			else:
-				result["positions"] = _instrument.get_biome_positions(biome_name)
+			result["positions"] = _snapshot_service.get_biome_positions(biome_name) if _snapshot_service else []
 
 		"active_quests":
 			var full = bool(cmd.get("full", false))
-			var policy_quests = _get_policy_snapshot(false, false)
-			var active = policy_quests.get("active_quests", [])
+			var active = _snapshot_service.get_active_quests() if _snapshot_service else []
 			if not (active is Array):
 				active = []
 			result["quests"] = active if full else _slim_active_quests(active)
 
 		"known_vocab_pairs":
-			var policy_pairs = _get_policy_snapshot(false, false)
-			var pairs = policy_pairs.get("known_pairs", [])
+			var pairs = _snapshot_service.get_known_vocab_pairs() if _snapshot_service else []
 			result["pairs"] = pairs if pairs is Array else []
 
 		"inject_vocab":
@@ -749,11 +768,9 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 			if _snapshot_service and _snapshot_service.has_method("show_probe_cycle_status"):
 				_snapshot_service.show_probe_cycle_status(biome_name, probe_data)
 
-		"discover_biome", "explore_biome":
+		"discover_biome":
 			if _instrument.has_method("action_discover_biome"):
 				result["discover_biome"] = _instrument.action_discover_biome()
-			else:
-				result["discover_biome"] = _instrument.action_explore_biome()
 			# Attach discovery forecast to result
 			if _farm and _farm.has_method("compute_discovery_forecast"):
 				result["discovery_forecast"] = _farm.compute_discovery_forecast()
@@ -958,52 +975,27 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 			if overlay_name == "":
 				result = {"ok": false, "turn": turn_id, "action": action, "error": "missing_overlay_name"}
 			else:
-				var overlay_manager = _shell.overlay_manager if _shell and "overlay_manager" in _shell else null
-				var overlay = overlay_manager.get_v2_overlay(overlay_name) if overlay_manager else null
-				if overlay and overlay.has_method("get_snapshot"):
-					result["overlay"] = overlay_name
-					result["snapshot"] = overlay.get_snapshot()
-				else:
-					result = {"ok": false, "turn": turn_id, "action": action,
-						"error": "overlay_not_found", "overlay": overlay_name}
+				var overlay_snapshot = _snapshot_service.get_overlay_snapshot(overlay_name) if _snapshot_service else {"ok": false, "error": "overlay_not_found", "overlay": overlay_name}
+				result.merge(overlay_snapshot, true)
 
 		"widget_snapshot":
 			var widget_name = str(cmd.get("widget", ""))
 			if widget_name == "":
 				result = {"ok": false, "turn": turn_id, "action": action, "error": "missing_widget_name"}
 			else:
-				var widget = _resolve_widget(widget_name)
-				if widget and widget.has_method("get_snapshot"):
-					result["widget"] = widget_name
-					result["snapshot"] = widget.get_snapshot()
-				else:
-					result = {"ok": false, "turn": turn_id, "action": action,
-						"error": "widget_not_found", "widget": widget_name}
+				var widget_snapshot = _snapshot_service.get_widget_snapshot(widget_name) if _snapshot_service else {"ok": false, "error": "widget_not_found", "widget": widget_name}
+				result.merge(widget_snapshot, true)
 
 		"hud_snapshot":
 			var hud_name = str(cmd.get("hud", ""))
 			if hud_name == "":
 				result = {"ok": false, "turn": turn_id, "action": action, "error": "missing_hud_name"}
 			else:
-				var hud = _resolve_hud(hud_name)
-				if hud and hud.has_method("get_snapshot"):
-					result["hud"] = hud_name
-					result["snapshot"] = hud.get_snapshot()
-				else:
-					result = {"ok": false, "turn": turn_id, "action": action,
-						"error": "hud_not_found", "hud": hud_name}
+				var hud_snapshot = _snapshot_service.get_hud_snapshot(hud_name) if _snapshot_service else {"ok": false, "error": "hud_not_found", "hud": hud_name}
+				result.merge(hud_snapshot, true)
 
 		"full_snapshot":
-			var snapshot: Dictionary = {"widgets": {}, "huds": {}}
-			for wname in ["resources", "action_preview", "quantum_mode", "biome_oval", "quest_panel", "faction_browser"]:
-				var w = _resolve_widget(wname)
-				if w and w.has_method("get_snapshot"):
-					snapshot["widgets"][wname] = w.get_snapshot()
-			for hname in ["milk_hunter", "performance"]:
-				var h = _resolve_hud(hname)
-				if h and h.has_method("get_snapshot"):
-					snapshot["huds"][hname] = h.get_snapshot()
-			result["snapshot"] = snapshot
+			result["snapshot"] = _snapshot_service.get_full_ui_snapshot() if _snapshot_service else {}
 
 		"policy_reset":
 			var config = cmd.get("config", {})
@@ -1013,21 +1005,50 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 			result["policy"] = policy.reset(config)
 			_sync_policy_into_game_state()
 
-		"policy_snapshot":
+		"policy_debug_snapshot":
 			var policy = _ensure_policy()
 			result["policy"] = policy.get_snapshot()
+
+		"export_ppg_state":
+			var policy = _ensure_policy()
+			if policy.get("_ppg"):
+				result["ok"] = true
+				result["ppg_state"] = policy._ppg.export_state()
+			else:
+				result["ok"] = false
+				result["error"] = "policy has no PPG"
+
+		"set_ppg_state":
+			var policy = _ensure_policy()
+			var ppg_data = cmd.get("ppg_state", {})
+			if ppg_data is Dictionary and policy.get("_ppg"):
+				policy._ppg.load_state(ppg_data)
+				result["ok"] = true
+				result["step_count"] = policy._ppg._step_count
+			else:
+				result["ok"] = false
+				result["error"] = "policy has no PPG or invalid state"
 
 		"policy_step":
 			var policy = _ensure_policy()
 			var include_state = bool(cmd.get("include_state", false))
 			var compact = bool(cmd.get("compact", false))
 			var execute = bool(cmd.get("execute", true))
+			var execution_backend = _resolve_policy_execution_backend(str(cmd.get("execution_backend", "auto")))
 			var pre_state = _build_policy_state(cmd)
 			var decision = policy.decide(pre_state)
 			var execution: Dictionary = {"ok": false, "error": "execution_skipped"}
 			if execute:
-				execution = await _execute_policy_action(decision)
-			var post_state = _build_policy_state(cmd)
+				if execution_backend == "player_input":
+					execution = await _execute_policy_action_via_input(decision)
+				else:
+					# Direct path is fully synchronous — no await needed.
+					# Removing await prevents potential GDScript coroutine hangs.
+					execution = _execute_policy_action(decision)
+				execution["backend"] = str(execution.get("backend", execution_backend))
+			# Build post_state WITHOUT regenerating quest offers (expensive).
+			# Only resources, pairs, biomes, and lindblad need to be fresh for reward computation.
+			var post_state = _build_policy_state_lightweight(cmd)
 			var learning = policy.observe(pre_state, decision, post_state, execution)
 			if compact:
 				decision = {
@@ -1046,6 +1067,7 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 			var out: Dictionary = {
 				"decision": decision,
 				"execution": execution,
+				"execution_backend": execution_backend,
 				"learning": learning,
 				"post_resources": post_state.get("resources", {}),
 				"post_known_pairs_count": int((post_state.get("known_pairs", []) as Array).size()),
@@ -1057,9 +1079,45 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 			result["policy_step"] = out
 			_sync_policy_into_game_state()
 
+		"press_key":
+			var keycode = _extract_keycode(cmd)
+			if keycode == KEY_UNKNOWN:
+				result = {"ok": false, "turn": turn_id, "action": action, "error": "unknown_key"}
+			else:
+				result["press_key"] = await _press_key(
+					keycode,
+					bool(cmd.get("shift", false)),
+					int(cmd.get("settle_frames", 2))
+				)
+
+		"key_sequence":
+			var keys = cmd.get("keys", [])
+			if not (keys is Array) or keys.is_empty():
+				result = {"ok": false, "turn": turn_id, "action": action, "error": "empty_keys"}
+			else:
+				var steps: Array = []
+				for item in keys:
+					var key_cmd: Dictionary = item if item is Dictionary else {"key": str(item)}
+					var keycode = _extract_keycode(key_cmd)
+					if keycode == KEY_UNKNOWN:
+						steps.append({"ok": false, "error": "unknown_key", "raw": item})
+						result["ok"] = false
+						result["error"] = "unknown_key"
+						break
+					steps.append(await _press_key(
+						keycode,
+						bool(key_cmd.get("shift", false)),
+						int(key_cmd.get("settle_frames", 2))
+					))
+				result["key_sequence"] = {"count": steps.size(), "steps": steps}
+
 		"stop":
 			result["stopped"] = true
 			result["__stop__"] = true
+
+		"ping":
+			result["pong"] = true
+			result["uptime_ms"] = Time.get_ticks_msec()
 
 		_:
 			result = {"ok": false, "turn": turn_id, "action": action, "error": "unknown_action"}
@@ -1558,7 +1616,6 @@ func _configure_seed_state(cmd: Dictionary) -> Dictionary:
 		if _farm and _farm.has_method("set_known_pairs"):
 			_farm.set_known_pairs(known_pairs, true, true)
 		gsm.current_state.known_pairs = known_pairs.duplicate(true)
-		gsm.current_state.known_emojis = gsm.current_state.get_known_emojis()
 		out["known_pairs"] = known_pairs
 
 	var unlocked_biomes = _sanitize_biomes(cmd.get("unlocked_biomes", []))
@@ -1647,15 +1704,17 @@ func _parse_wait_threshold(raw) -> Dictionary:
 
 
 func _get_resource_map() -> Dictionary:
+	if _snapshot_service and _snapshot_service.has_method("get_resource_snapshot"):
+		var snap = _snapshot_service.get_resource_snapshot()
+		if snap is Dictionary:
+			var resources = snap.get("resources", {})
+			return resources if resources is Dictionary else {}
 	if not _instrument:
 		return {}
-	var policy_snapshot = _get_policy_snapshot(false, false)
-	var resources = policy_snapshot.get("resources", {})
-	if not (resources is Dictionary):
-		var snap = _instrument.get_resource_snapshot()
-		if not (snap is Dictionary):
-			return {}
-		resources = snap.get("resources", {})
+	var snap = _instrument.get_resource_snapshot()
+	if not (snap is Dictionary):
+		return {}
+	var resources = snap.get("resources", {})
 	return resources if resources is Dictionary else {}
 
 
@@ -1784,8 +1843,45 @@ func _sync_policy_from_game_state() -> void:
 
 
 func _build_policy_state(cmd: Dictionary = {}) -> Dictionary:
-	if _snapshot_service and _snapshot_service.has_method("build_policy_state"):
-		var projected = _snapshot_service.build_policy_state(cmd)
+	# Cache quest offers: only regenerate when vocab count changes (89 factions is expensive).
+	# MUST run before SnapshotService path — otherwise the snapshot service
+	# calls quest_offer_all() uncached on every single policy_step.
+	var known_pairs = _instrument.get_known_vocab_pairs() if _instrument else []
+	var pairs_count = known_pairs.size() if known_pairs is Array else 0
+	if pairs_count != _cached_offers_pairs_count:
+		_cached_offers = _instrument.get_quest_offers_for_current_biome() if _instrument else []
+		_cached_offers_pairs_count = pairs_count
+
+	if _snapshot_service and _snapshot_service.has_method("build_policy_state_lightweight"):
+		# Use lightweight path (skips quest_offer_all) and inject our cached offers.
+		# build_policy_state() would call quest_offer_all() again uncached — defeating the cache.
+		var projected = _snapshot_service.build_policy_state_lightweight(cmd)
+		if projected is Dictionary:
+			projected["offers"] = _cached_offers
+			if _farm and _farm.has_method("compute_discovery_forecast"):
+				projected["discovery_forecast"] = _farm.compute_discovery_forecast()
+			return projected
+	return {
+		"profile": str(cmd.get("profile", "default")),
+		"resources": _get_resource_map(),
+		"resource_floors": _parse_wait_threshold(cmd.get("resource_floors", {})),
+		"forbid_actions": cmd.get("forbid_actions", []),
+		"known_pairs": known_pairs,
+		"offers": _cached_offers,
+		"active_quests": _instrument.get_active_quests() if _instrument else [],
+		"biomes": [],
+		"lindblad": _snapshot_service.get_lindblad_snapshot("", false) if _snapshot_service else {},
+		"discovery_forecast": _farm.compute_discovery_forecast() if _farm and _farm.has_method("compute_discovery_forecast") else {},
+		"locked_offers": _instrument.get_locked_offers() if _instrument else [],
+	}
+
+
+func _build_policy_state_lightweight(cmd: Dictionary = {}) -> Dictionary:
+	"""Build post-action state for reward computation WITHOUT regenerating quest offers.
+	Quest generation (89 factions × generate_quest) is expensive; the reward signal
+	only needs resources, pairs, biomes, and lindblad state — not fresh offers."""
+	if _snapshot_service and _snapshot_service.has_method("build_policy_state_lightweight"):
+		var projected = _snapshot_service.build_policy_state_lightweight(cmd)
 		if projected is Dictionary:
 			return projected
 	return {
@@ -1794,13 +1890,21 @@ func _build_policy_state(cmd: Dictionary = {}) -> Dictionary:
 		"resource_floors": _parse_wait_threshold(cmd.get("resource_floors", {})),
 		"forbid_actions": cmd.get("forbid_actions", []),
 		"known_pairs": _instrument.get_known_vocab_pairs() if _instrument else [],
-		"offers": _instrument.get_quest_offers_for_current_biome() if _instrument else [],
+		"offers": [],  # Skip expensive quest generation for post-state
 		"active_quests": _instrument.get_active_quests() if _instrument else [],
 		"biomes": [],
 		"lindblad": _snapshot_service.get_lindblad_snapshot("", false) if _snapshot_service else {},
-		"discovery_forecast": _farm.compute_discovery_forecast() if _farm and _farm.has_method("compute_discovery_forecast") else {},
+		"discovery_forecast": {},  # Skip expensive forecast for post-state
 		"locked_offers": _instrument.get_locked_offers() if _instrument else [],
 	}
+
+
+func _ensure_player_input_macro_runner():
+	if _player_input_macro_runner:
+		return _player_input_macro_runner
+	_player_input_macro_runner = PlayerInputMacroRunner.new()
+	_player_input_macro_runner.setup(self)
+	return _player_input_macro_runner
 
 
 func _policy_state_has_milk(state: Dictionary) -> bool:
@@ -1813,6 +1917,264 @@ func _policy_state_has_milk(state: Dictionary) -> bool:
 		if str(pair.get("north", "")) == "🍼" or str(pair.get("south", "")) == "🍼":
 			return true
 	return false
+
+
+func _resolve_policy_execution_backend(requested: String) -> String:
+	var backend = requested.strip_edges().to_lower()
+	if not _is_headless:
+		return "player_input"
+	if backend in ["direct", "player_input"]:
+		return backend
+	var env_backend = OS.get_environment("RIG_POLICY_EXECUTION_BACKEND").strip_edges().to_lower()
+	if env_backend in ["direct", "player_input"]:
+		return env_backend
+	return "player_input" if not _is_headless else "direct"
+
+
+func _resolve_quantum_input():
+	if not _shell:
+		return null
+	for node in get_nodes_in_group("quantum_instrument_input"):
+		if node and (_shell == node or _shell.is_ancestor_of(node)):
+			return node
+	var direct = _shell.get_node_or_null("FarmInputHandler")
+	if direct:
+		return direct
+	return _shell.find_child("FarmInputHandler", true, false)
+
+
+func _resolve_overlay_manager():
+	if _shell and "overlay_manager" in _shell:
+		return _shell.overlay_manager
+	return null
+
+
+func _extract_keycode(cmd: Dictionary) -> int:
+	var explicit = int(cmd.get("keycode", KEY_UNKNOWN))
+	if explicit != KEY_UNKNOWN and explicit > 0:
+		return explicit
+	return _keycode_from_name(str(cmd.get("key", "")))
+
+
+func _keycode_from_name(key_name: String) -> int:
+	var raw = key_name.strip_edges()
+	if raw == "":
+		return KEY_UNKNOWN
+	var upper = raw.to_upper()
+	match upper:
+		"ESC", "ESCAPE":
+			return KEY_ESCAPE
+		"TAB":
+			return KEY_TAB
+		"SPACE":
+			return KEY_SPACE
+		"SEMICOLON":
+			return KEY_SEMICOLON
+		"APOSTROPHE", "QUOTE":
+			return KEY_APOSTROPHE
+		"MINUS":
+			return KEY_MINUS
+		"EQUAL", "EQUALS", "PLUS":
+			return KEY_EQUAL
+		"COMMA":
+			return KEY_COMMA
+		"PERIOD", "DOT":
+			return KEY_PERIOD
+		"SLASH":
+			return KEY_SLASH
+		_:
+			return OS.find_keycode_from_string(upper)
+
+
+func _route_rig_key_event(event: InputEventKey) -> void:
+	# Synthetic rig input should traverse the same shell/overlay/input stack in
+	# both headed and headless modes. Relying on parse_input_event alone is not
+	# stable for modal overlay navigation in headed WSL sessions.
+	var viewport: Viewport = root
+	if _shell and _shell.has_method("_input"):
+		_shell._input(event)
+		if viewport and viewport.is_input_handled():
+			return
+	var qinput = _resolve_quantum_input()
+	if qinput and qinput.has_method("_unhandled_key_input"):
+		qinput._unhandled_key_input(event)
+		if viewport and viewport.is_input_handled():
+			return
+	if qinput and qinput.has_method("_input"):
+		qinput._input(event)
+
+
+func _push_key_event(keycode: int, pressed: bool, shift: bool = false) -> bool:
+	if keycode == KEY_UNKNOWN or keycode <= 0:
+		return false
+	var event := InputEventKey.new()
+	event.keycode = keycode
+	event.physical_keycode = keycode
+	event.pressed = pressed
+	event.echo = false
+	event.shift_pressed = shift
+	_route_rig_key_event(event)
+	return true
+
+
+func _wait_settle_frames(count: int = 2) -> void:
+	for _i in range(max(1, count)):
+		await process_frame
+
+
+func _press_key(keycode: int, shift: bool = false, settle_frames: int = 2) -> Dictionary:
+	if not _push_key_event(keycode, true, shift):
+		return {"ok": false, "error": "unknown_keycode", "keycode": keycode}
+	await process_frame
+	_push_key_event(keycode, false, shift)
+	await _wait_settle_frames(settle_frames)
+	return {
+		"ok": true,
+		"keycode": keycode,
+		"shift": shift,
+		"settle_frames": max(1, settle_frames),
+	}
+
+
+func _close_player_overlays_via_input(max_presses: int = 4) -> void:
+	if not _shell or not _shell.has_method("_any_menu_open"):
+		return
+	for _i in range(max_presses):
+		if not _shell._any_menu_open():
+			return
+		await _press_key(KEY_ESCAPE, false, 2)
+
+
+func _tool_group_keycode(group_num: int) -> int:
+	match group_num:
+		1:
+			return KEY_1
+		2:
+			return KEY_2
+		3:
+			return KEY_3
+		4:
+			return KEY_4
+	return KEY_UNKNOWN
+
+
+func _ensure_tool_group_mode(group_num: int, mode_name: String = "") -> Dictionary:
+	var keycode = _tool_group_keycode(group_num)
+	if keycode == KEY_UNKNOWN:
+		return {"ok": false, "error": "unknown_tool_group", "group": group_num}
+	if ToolConfig.get_current_group() != group_num:
+		await _press_key(keycode, false, 2)
+	if mode_name == "" or not ToolConfig.has_f_cycling(group_num):
+		return {"ok": ToolConfig.get_current_group() == group_num, "group": group_num}
+	var guard = 0
+	while ToolConfig.get_group_mode_name(group_num) != mode_name and guard < 8:
+		await _press_key(KEY_F, false, 2)
+		guard += 1
+	return {
+		"ok": ToolConfig.get_current_group() == group_num and ToolConfig.get_group_mode_name(group_num) == mode_name,
+		"group": group_num,
+		"mode": ToolConfig.get_group_mode_name(group_num),
+	}
+
+
+func _sort_vec2i(a: Vector2i, b: Vector2i) -> bool:
+	return a.x < b.x if a.x != b.x else a.y < b.y
+
+
+func _get_sorted_biome_positions(biome_name: String) -> Array[Vector2i]:
+	var positions: Array[Vector2i] = []
+	if _instrument and _instrument.has_method("get_biome_positions"):
+		var raw = _instrument.get_biome_positions(biome_name)
+		if raw is Array:
+			for pos in raw:
+				if pos is Vector2i:
+					positions.append(pos)
+	if positions.size() > 1:
+		positions.sort_custom(_sort_vec2i)
+	return positions
+
+
+func _get_plot_for_position(pos: Vector2i):
+	if not _farm or not ("grid" in _farm) or not _farm.grid or not _farm.grid.has_method("get_plot"):
+		return null
+	return _farm.grid.get_plot(pos)
+
+
+func _find_plot_index_for_state(biome_name: String, desired_state: String) -> int:
+	for pos in _get_sorted_biome_positions(biome_name):
+		var plot = _get_plot_for_position(pos)
+		if not plot:
+			continue
+		var terminal = plot.get("terminal")
+		match desired_state:
+			"measured":
+				if terminal and bool(terminal.is_measured):
+					return int(pos.x)
+			"measurable":
+				if terminal and terminal.has_method("can_measure") and terminal.can_measure():
+					return int(pos.x)
+			"terminal":
+				if terminal:
+					return int(pos.x)
+	return -1
+
+
+func _select_biome_via_input(biome_name: String) -> Dictionary:
+	if biome_name == "":
+		return {"ok": false, "error": "missing_biome"}
+	var active_biome_mgr = get_root().get_node_or_null("/root/ActiveBiomeManager")
+	if not active_biome_mgr:
+		return {"ok": false, "error": "no_active_biome_manager", "biome": biome_name}
+	if str(active_biome_mgr.get_active_biome()) == biome_name:
+		return {"ok": true, "biome": biome_name, "already_active": true}
+	for slot_idx in range(int(active_biome_mgr.get_slot_count())):
+		if str(active_biome_mgr.get_biome_for_slot(slot_idx)) != biome_name:
+			continue
+		var key_name = str(active_biome_mgr.get_slot_key(slot_idx))
+		var keycode = _keycode_from_name(key_name)
+		if keycode == KEY_UNKNOWN:
+			return {"ok": false, "error": "unknown_biome_key", "biome": biome_name, "key": key_name}
+		await _press_key(keycode, false, 2)
+		return {"ok": str(active_biome_mgr.get_active_biome()) == biome_name, "biome": biome_name, "key": key_name}
+	return {"ok": false, "error": "biome_not_on_slot_bar", "biome": biome_name}
+
+
+func _select_plot_via_input(plot_idx: int) -> Dictionary:
+	if plot_idx < 0 or plot_idx >= _PLOT_KEYCODES.size():
+		return {"ok": false, "error": "plot_idx_out_of_range", "plot_idx": plot_idx}
+	await _press_key(_PLOT_KEYCODES[plot_idx], false, 2)
+	return {"ok": true, "plot_idx": plot_idx}
+
+
+func _open_quest_board_via_input() -> Dictionary:
+	await _close_player_overlays_via_input()
+	var overlay_manager = _resolve_overlay_manager()
+	var board = overlay_manager.get_v2_overlay("quests") if overlay_manager and overlay_manager.has_method("get_v2_overlay") else null
+	if board and board.visible:
+		return {"ok": true, "already_open": true}
+	await _press_key(KEY_C, false, 2)
+	board = overlay_manager.get_v2_overlay("quests") if overlay_manager and overlay_manager.has_method("get_v2_overlay") else null
+	return {"ok": board != null and board.visible, "opened": board != null and board.visible}
+
+
+func _navigate_quest_slot_via_input(page_idx: int, slot_idx: int) -> Dictionary:
+	var overlay_manager = _resolve_overlay_manager()
+	var board = overlay_manager.get_v2_overlay("quests") if overlay_manager and overlay_manager.has_method("get_v2_overlay") else null
+	if not board or not board.visible:
+		return {"ok": false, "error": "quest_board_not_open"}
+	var total_pages = max(1, int(board.get_snapshot().get("total_pages", 1))) if board.has_method("get_snapshot") else 1
+	var guard = 0
+	while int(board.get("current_page")) != page_idx and guard < total_pages + 1:
+		await _press_key(KEY_F, false, 2)
+		guard += 1
+	if slot_idx < 0 or slot_idx >= _QUEST_SLOT_KEYCODES.size():
+		return {"ok": false, "error": "slot_idx_out_of_range", "slot_idx": slot_idx}
+	await _press_key(_QUEST_SLOT_KEYCODES[slot_idx], false, 2)
+	return {
+		"ok": int(board.get("current_page")) == page_idx and int(board.get("selected_slot_index")) == slot_idx,
+		"page": int(board.get("current_page")),
+		"slot_idx": int(board.get("selected_slot_index")),
+	}
 
 
 func _execute_policy_action(decision: Dictionary) -> Dictionary:
@@ -1891,8 +2253,6 @@ func _execute_policy_action(decision: Dictionary) -> Dictionary:
 			var discover_result = {}
 			if _instrument.has_method("action_discover_biome"):
 				discover_result = _instrument.action_discover_biome()
-			else:
-				discover_result = _instrument.action_explore_biome()
 			var ok = bool(discover_result.get("success", false)) if discover_result is Dictionary else false
 			var policy_discover_return = {
 				"ok": ok,
@@ -1925,11 +2285,13 @@ func _execute_policy_action(decision: Dictionary) -> Dictionary:
 			if not _instrument:
 				return {"ok": false, "action": action, "error": "no_quantum_instrument"}
 			var offer_index = int(params.get("offer_index", -1))
-			var lock_offers: Array = []
-			var lock_offer_result = _instrument.quest_offer_all()
-			var offered = lock_offer_result.get("offers", [])
-			if offered is Array:
-				lock_offers = offered
+			# Use cached offers instead of expensive quest_offer_all()
+			var lock_offers: Array = _cached_offers if not _cached_offers.is_empty() else []
+			if lock_offers.is_empty():
+				var lock_offer_result = _instrument.quest_offer_all()
+				var offered = lock_offer_result.get("offers", [])
+				if offered is Array:
+					lock_offers = offered
 			if offer_index < 0 or offer_index >= lock_offers.size():
 				return {"ok": false, "action": action, "error": "invalid_offer_index"}
 			var locked = false
@@ -1942,6 +2304,11 @@ func _execute_policy_action(decision: Dictionary) -> Dictionary:
 			}
 		_:
 			return {"ok": false, "action": action, "error": "unsupported_policy_action"}
+
+
+func _execute_policy_action_via_input(decision: Dictionary) -> Dictionary:
+	var runner = _ensure_player_input_macro_runner()
+	return await runner.execute(decision)
 
 
 func _execute_policy_quest_cycle(policy_params: Dictionary = {}) -> Dictionary:
@@ -1962,11 +2329,15 @@ func _execute_policy_quest_cycle(policy_params: Dictionary = {}) -> Dictionary:
 			if completed_or_claimed:
 				completed_ids.append(qid)
 
-	var offers: Array = []
-	var offer_result = _instrument.quest_offer_all()
-	var offered = offer_result.get("offers", [])
-	if offered is Array:
-		offers = offered
+	# Use cached offers for this cycle's selection, then invalidate after.
+	# Like a human opening the quest board: you see current offers, act on them,
+	# and next time you open the board you get fresh stochastic rolls.
+	var offers: Array = _cached_offers if not _cached_offers.is_empty() else []
+	if offers.is_empty():
+		var offer_result = _instrument.quest_offer_all()
+		var offered = offer_result.get("offers", [])
+		if offered is Array:
+			offers = offered
 	var resources = _get_resource_map()
 	var known_pairs = _instrument.get_known_vocab_pairs() if _instrument else []
 	var known_emojis: Dictionary = {}
@@ -1986,6 +2357,7 @@ func _execute_policy_quest_cycle(policy_params: Dictionary = {}) -> Dictionary:
 	var accepted_offer_index = -1
 	var accepted_quest_id = -1
 	var accepted_offer: Dictionary = {}
+	var rerolls_spent: int = 0
 
 	if offers is Array:
 		# Use pre-ranked offer index from policy if available and still valid
@@ -2001,6 +2373,39 @@ func _execute_policy_quest_cycle(policy_params: Dictionary = {}) -> Dictionary:
 		# Fall back to scoring if hint was stale or missing
 		if accepted_offer_index < 0:
 			accepted_offer_index = _select_best_affordable_offer(offers, resources, known_emojis)
+
+		# --- Reroll loop (A): if best offer has no milk progress, spend 🐇 to fish ---
+		# Like a human scanning the quest board and rerolling bad slots.
+		var max_rerolls = int(policy_params.get("max_rerolls", 3))
+		if accepted_offer_index >= 0 and max_rerolls > 0 and _instrument:
+			var best_offer = offers[accepted_offer_index] if accepted_offer_index < offers.size() else {}
+			var best_has_milk_progress = _offer_has_milk_progress(best_offer, known_emojis)
+			var reroll_attempts = 0
+			while not best_has_milk_progress and reroll_attempts < max_rerolls:
+				# Check if we can afford a reroll (costs 🐇)
+				var preflight = _instrument.preflight_action_cost("quest_reroll")
+				if not bool(preflight.get("ok", false)):
+					break  # Can't afford 🐇
+				# Spend 🐇 and regenerate offers
+				var commit = _instrument.commit_action_cost("quest_reroll", {}, "policy_reroll")
+				if not bool(commit.get("ok", false)):
+					break  # Spend failed
+				reroll_attempts += 1
+				rerolls_spent += 1
+				# Regenerate all offers (fresh stochastic rolls)
+				var new_offer_result = _instrument.quest_offer_all()
+				var new_offered = new_offer_result.get("offers", [])
+				if new_offered is Array and not new_offered.is_empty():
+					offers = new_offered
+				resources = _get_resource_map()  # Resources changed (spent 🐇)
+				# Re-score with new offers
+				accepted_offer_index = _select_best_affordable_offer(offers, resources, known_emojis)
+				if accepted_offer_index >= 0 and accepted_offer_index < offers.size():
+					best_offer = offers[accepted_offer_index]
+					best_has_milk_progress = _offer_has_milk_progress(best_offer, known_emojis)
+				else:
+					break  # No affordable offers after reroll
+
 		if accepted_offer_index >= 0 and accepted_offer_index < offers.size():
 			var offer = offers[accepted_offer_index]
 			if offer is Dictionary:
@@ -2011,6 +2416,11 @@ func _execute_policy_quest_cycle(policy_params: Dictionary = {}) -> Dictionary:
 				if accepted and accepted_quest_id >= 0:
 					var complete_after_result = _instrument.quest_complete_or_claim(accepted_quest_id)
 					completed_after_accept = bool(complete_after_result.get("completed_or_claimed", false))
+
+	# Invalidate offer cache after quest interaction — next policy_step gets fresh
+	# stochastic rolls, just like a human re-opening the quest board.
+	# Non-quest actions (probe, drain, skip, discover) keep using cached offers.
+	_cached_offers_pairs_count = -1
 
 	var ok = (completed_ids.size() > 0) or accepted or completed_after_accept
 	return {
@@ -2024,6 +2434,7 @@ func _execute_policy_quest_cycle(policy_params: Dictionary = {}) -> Dictionary:
 		"accepted_offer_reward_vocab_north": str(accepted_offer.get("reward_vocab_north", "")),
 		"accepted_offer_reward_vocab_south": str(accepted_offer.get("reward_vocab_south", "")),
 		"completed_after_accept": completed_after_accept,
+		"rerolls_spent": rerolls_spent,
 	}
 
 
@@ -2053,19 +2464,20 @@ func _select_best_affordable_offer(offers: Array, resources: Dictionary, known_e
 			novelty += 1.0
 		var discovery_aff = float(offer.get("discovery_affinity", 0.0))
 		var milk_bonus = 420.0 if (north == "🍼" or south == "🍼") else 0.0
-		# Milk proximity: bonus for offers teaching emojis near milk in the graph
-		var milk_prox = 0.0
-		if north != "":
-			var d = PolicyStateProjector.milk_distance(north)
-			if d <= 2:
-				milk_prox = maxf(milk_prox, 25.0 / maxf(1.0, float(d)))
-		if south != "":
-			var d = PolicyStateProjector.milk_distance(south)
-			if d <= 2:
-				milk_prox = maxf(milk_prox, 25.0 / maxf(1.0, float(d)))
+		# Milk graph hint (tie-breaker; real learning comes from reward signal)
+		var milk_hint = 0.0
+		for e in [north, south]:
+			if e == "":
+				continue
+			var d = PolicyStateProjector.milk_distance(e)
+			if d < 8:
+				milk_hint = maxf(milk_hint, 8.0 / maxf(1.0, float(d)))
+			var c = PolicyStateProjector.milk_cascade_value(e)
+			if c < 8:
+				milk_hint = maxf(milk_hint, 5.0 / maxf(1.0, float(c)))
 		var pair_frontier_bonus = 20.0 if novelty >= 2.0 else 0.0
 		var surplus = (1.0 - qty / max(1.0, float(resources.get(resource, 0.0)))) * 12.0
-		var score = reward_sum * 0.22 + novelty * 32.0 + pair_frontier_bonus + milk_bonus + milk_prox + discovery_aff * 18.0 + surplus
+		var score = reward_sum * 0.22 + novelty * 32.0 + pair_frontier_bonus + milk_bonus + milk_hint + discovery_aff * 18.0 + surplus
 		affordable_rows.append({
 			"idx": i,
 			"score": score,
@@ -2088,6 +2500,30 @@ func _select_best_affordable_offer(offers: Array, resources: Dictionary, known_e
 			best_score = score
 			best_idx = int(row.get("idx", -1))
 	return best_idx
+
+
+func _offer_has_milk_progress(offer: Dictionary, known_emojis: Dictionary) -> bool:
+	"""Check if an offer teaches vocab that advances toward milk in the webway.
+	Returns true if the north or south emoji has milk_distance < MAX or
+	unlocks a new faction path via webway_offer_value."""
+	if offer.is_empty():
+		return false
+	var north = str(offer.get("reward_vocab_north", ""))
+	var south = str(offer.get("reward_vocab_south", ""))
+	if north == "" and south == "":
+		return false  # No vocab reward at all
+	for emoji in [north, south]:
+		if emoji == "":
+			continue
+		# Direct milk distance check
+		var d = PolicyStateProjector.milk_distance(emoji)
+		if d < PolicyStateProjector._MILK_MAX_DISTANCE:
+			return true
+		# Webway 2-hop check: does this emoji unlock a faction path toward milk?
+		var w = PolicyStateProjector.webway_offer_value(emoji, known_emojis)
+		if w < PolicyStateProjector._MILK_MAX_DISTANCE:
+			return true
+	return false
 
 
 func _parse_positions(raw_positions, biome_name: String) -> Array[Vector2i]:
@@ -2206,64 +2642,3 @@ func _allow_rig_resource_injection() -> bool:
 	if raw == "":
 		return true
 	return raw in ["1", "true", "yes", "on"]
-
-
-func _resolve_widget(widget_name: String):
-	"""Resolve a widget name to the live Control instance (or null)."""
-	var farm_ui = _shell.get_farm_ui() if _shell and _shell.has_method("get_farm_ui") else null
-	match widget_name:
-		"resources":
-			return farm_ui.resource_panel if farm_ui and "resource_panel" in farm_ui else null
-		"action_preview":
-			if _shell and "action_preview_row" in _shell:
-				return _shell.action_preview_row
-			if _shell and "action_bar_manager" in _shell and _shell.action_bar_manager:
-				return _shell.action_bar_manager.action_preview_row
-			return null
-		"quantum_mode":
-			return _shell.quantum_mode_indicator if _shell and "quantum_mode_indicator" in _shell else null
-		"biome_oval":
-			var overlay_manager = _shell.overlay_manager if _shell and "overlay_manager" in _shell else null
-			var overlay = overlay_manager.get_v2_overlay("biome_inspector") if overlay_manager else null
-			if overlay and "current_biome_panel" in overlay:
-				return overlay.current_biome_panel
-			return null
-		"quest_panel":
-			var overlay_manager = _shell.overlay_manager if _shell and "overlay_manager" in _shell else null
-			var overlay = overlay_manager.get_v2_overlay("quests") if overlay_manager else null
-			if overlay and "quest_panel" in overlay:
-				return overlay.quest_panel
-			return null
-		"faction_browser":
-			var overlay_manager = _shell.overlay_manager if _shell and "overlay_manager" in _shell else null
-			var overlay = overlay_manager.get_v2_overlay("quests") if overlay_manager else null
-			if overlay and "faction_browser" in overlay:
-				return overlay.faction_browser
-			return null
-	return null
-
-
-func _resolve_hud(hud_name: String):
-	"""Resolve a HUD name to the live Control instance (or null)."""
-	var farm_view = get_root().get_node_or_null("FarmView") if get_root() else null
-	match hud_name:
-		"milk_hunter":
-			# MilkHunterHUD is a child of FarmView (if created)
-			if farm_view:
-				for child in farm_view.get_children():
-					if child.has_method("get_snapshot") and child.get_class() == "Control" and "MilkHunter" in child.name:
-						return child
-					if "milk_hunter" in str(child.name).to_lower():
-						return child
-			return null
-		"performance":
-			if farm_view and "performance_hud" in farm_view and farm_view.performance_hud:
-				return farm_view.performance_hud
-			var overlay_manager = _shell.overlay_manager if _shell and "overlay_manager" in _shell else null
-			if overlay_manager:
-				if overlay_manager.has_method("get_v2_overlay"):
-					return overlay_manager.get_v2_overlay("inspector")
-				if "v2_overlays" in overlay_manager:
-					return overlay_manager.v2_overlays.get("inspector")
-				return null
-	return null

@@ -1,0 +1,38 @@
+{
+  "name": "solar_engine_fib",
+  "description": "StellarForges drain specialist. Sun-heavy resources, prefers to plant Lindblad drains and time-skip while solar flux does the work.",
+  "resource_scale": "fibonacci",
+  "scenario_id": "default",
+  "strict_biome_economy": true,
+  "resources": {
+    "☀": 21,
+    "🔥": 13,
+    "⚡": 8,
+    "👥": 5,
+    "🍞": 3,
+    "❄️": 2
+  },
+  "known_pairs": [
+    { "north": "☀", "south": "🔥" },
+    { "north": "⚡", "south": "🌙" }
+  ],
+  "unlocked_biomes": [
+    "StarterForest",
+    "Village",
+    "StellarForges"
+  ],
+  "active_biome": "StellarForges",
+  "policies": {
+    "quantum_register": {
+      "policy_kind": "quantum_register",
+      "template": "core:default",
+      "graph_jsonl": [
+        "{\"op\":\"set\",\"path\":\"profile_id\",\"value\":\"solar_engine_fib\"}",
+        "{\"op\":\"set\",\"path\":\"action_priors.lindblad_drain.base\",\"value\":1.2}",
+        "{\"op\":\"set\",\"path\":\"action_priors.time_skip.base\",\"value\":0.8}",
+        "{\"op\":\"set\",\"path\":\"action_priors.probe_cycle.base\",\"value\":1.1}",
+        "{\"op\":\"set\",\"path\":\"reward_terms.drain\",\"value\":3.5}"
+      ]
+    }
+  }
+}

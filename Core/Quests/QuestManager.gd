@@ -192,7 +192,6 @@ func _grant_vocabulary_rewards(reward, faction_name: String) -> void:
 	"""Grant vocabulary rewards and emit discovery signals."""
 	if reward == null:
 		return
-	var gsm = _get_gsm()
 
 	# Paired vocabulary is preferred (north/south axis)
 	for pair in reward.learned_pairs:
@@ -210,15 +209,6 @@ func _grant_vocabulary_rewards(reward, faction_name: String) -> void:
 		else:
 			if _verbose:
 				_verbose.debug("quest", "📖", "%s tried to teach %s/%s but you already know it" % [faction_name, north, south])
-
-	# Fallback for solo vocabulary rewards
-	if reward.learned_pairs.is_empty():
-		for emoji in reward.learned_vocabulary:
-			if gsm and gsm.has_method("discover_emoji"):
-				gsm.discover_emoji(emoji)
-			vocabulary_learned.emit(emoji, faction_name)
-			if _verbose:
-				_verbose.info("quest", "📖", "%s taught you: %s" % [faction_name, emoji])
 
 
 func _build_reward_payload(reward, granted_resources: Dictionary) -> Dictionary:
@@ -354,11 +344,14 @@ func offer_quest_emergent(faction: Dictionary, biome) -> Dictionary:
 
 
 func _annotate_quest_context(quest: Dictionary, biome_name: String) -> Dictionary:
+	return _annotate_quest_context_with_vocab(quest, biome_name, _get_player_vocab_emojis())
+
+
+func _annotate_quest_context_with_vocab(quest: Dictionary, biome_name: String, known: Array) -> Dictionary:
 	if not quest:
 		return quest
 	var biome_new = _track_biome_offer(biome_name)
 	quest["biome_new"] = biome_new
-	var known = _get_player_vocab_emojis()
 	var north = quest.get("reward_vocab_north", "")
 	var south = quest.get("reward_vocab_south", "")
 	quest["contains_new_vocab"] = not (north in known and south in known)
@@ -390,34 +383,39 @@ func offer_all_faction_quests(biome) -> Array:
 	for quest in locked_offers.values():
 		quests.append(quest)
 
-	# Get player vocabulary for filtering
+	# Pre-compute shared data ONCE for all 89 factions:
+	# - player_vocab: was fetched 3× per faction (generate, validate, annotate) = 267 GSM walks
+	# - observables: O(dim²) coherence calc, same bath for every faction
+	# - icon_map: GSM→farm→batcher tree walk, same result every time
 	var player_vocab = _get_player_vocab_emojis()
 	var bias_emojis = _get_simulated_vocab_emojis(biome)
+	var cached_obs = FactionStateMatcher.extract_observables(biome)
+	var cached_icon_map = QuestTheming._get_icon_map_payload(biome)
+	var biome_name = biome.biome_name if biome and biome.get("biome_name") else "Unknown"
+	var now_ms = Time.get_ticks_msec()
 
 	for faction in FactionDatabase.ALL_FACTIONS:
-		# Use full generate_quest pipeline (handles vocabulary filtering!)
-		var quest = QuestTheming.generate_quest(faction, biome, player_vocab, bias_emojis, self.economy)
+		var quest = QuestTheming.generate_quest(
+			faction, biome, player_vocab, bias_emojis, self.economy,
+			cached_obs, cached_icon_map)
 
-		# Skip factions with no vocabulary overlap
 		if quest.is_empty() or quest.has("error"):
 			continue
-		if not _is_valid_offer(quest):
+		if not _is_valid_offer_with_vocab(quest, player_vocab):
 			continue
 
-		# Add metadata
 		quest["id"] = next_quest_id
 		next_quest_id += 1
-		quest["biome"] = biome.biome_name if biome and biome.get("biome_name") else "Unknown"
+		quest["biome"] = biome_name
 		quest["status"] = "offered"
-		quest["offered_at"] = Time.get_ticks_msec()
+		quest["offered_at"] = now_ms
 
-		# Generate display text
 		quest["body"] = QuestTheming.generate_display_text(quest)
-		quest = _annotate_quest_context(quest, quest["biome"])
+		quest = _annotate_quest_context_with_vocab(quest, biome_name, player_vocab)
 
 		quests.append(quest)
 
-	return quests  # Return all accessible quests for player to browse
+	return quests
 
 
 func record_quantum_action(action_name: String, payload: Dictionary = {}) -> void:
@@ -434,6 +432,11 @@ func get_state_projection_snapshot() -> Dictionary:
 
 func _is_valid_offer(quest: Dictionary) -> bool:
 	"""Reject broken offers (delivery with no resource/qty, north duplicate)."""
+	return _is_valid_offer_with_vocab(quest, _get_player_vocab_emojis())
+
+
+func _is_valid_offer_with_vocab(quest: Dictionary, player_vocab: Array) -> bool:
+	"""Reject broken offers using pre-fetched player vocab (avoids GSM walk)."""
 	if quest.is_empty():
 		return false
 	var quest_type = quest.get("type", QuestTypes.Type.DELIVERY)
@@ -443,8 +446,6 @@ func _is_valid_offer(quest: Dictionary) -> bool:
 		if resource == "" or quantity <= 0:
 			return false
 
-	# Vocab reward is now resonance-gated and optional for delivery quests.
-	var player_vocab = _get_player_vocab_emojis()
 	var north = quest.get("reward_vocab_north", "")
 	var south = quest.get("reward_vocab_south", "")
 	var has_vocab_pair = (north != "" and south != "")

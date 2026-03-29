@@ -284,11 +284,9 @@ static func action_measure(terminal, biome, economy = null) -> Dictionary:
 	return {
 		"success": true,
 		"outcome": outcome,
-		"probability": recorded_probability,  # Primary key (consistent with action_explore)
-		"recorded_probability": recorded_probability,  # Alias for backward compatibility
+		"probability": recorded_probability,
+		"recorded_probability": recorded_probability,
 		"was_entangled": was_entangled,
-		"was_drained": false, # Backward compatibility field
-		"drain_factor": 0.0, # Backward compatibility field
 		"was_projected": projection_success,
 		"projective_collapse": true,
 		"register_id": register_id
@@ -346,10 +344,7 @@ static func action_reap(arg0, arg1 = null, arg2 = null, arg3 = null) -> Dictiona
 
 
 static func _action_reap_terminal(terminal, terminal_pool, economy = null, farm = null) -> Dictionary:
-	var result = action_pop(terminal, terminal_pool, economy, farm)
-	if result.get("success", false):
-		result["legacy_reap_alias"] = true
-	return result
+	return action_pop(terminal, terminal_pool, economy, farm)
 
 
 static func _action_reap_global(farm, economy = null) -> Dictionary:
@@ -572,22 +567,6 @@ static func _prepare_pop_result(terminal, terminal_pool, economy = null, farm = 
 ## ============================================================================
 ## HARVEST ALL ACTION - End of Turn (3R)
 ## ============================================================================
-
-static func action_harvest_all(terminal_pool, economy = null, biome = null) -> Dictionary:
-	# Legacy alias retained for older tests and rig payloads.
-	var farm = null
-	if biome and ("grid" in biome) and biome.grid and ("farm" in biome.grid):
-		farm = biome.grid.farm
-	if farm:
-		var result = _action_reap_global(farm, economy)
-		result["legacy_harvest_all_alias"] = true
-		return result
-	return {
-		"success": false,
-		"error": "no_farm_context",
-		"message": "harvest_all is deprecated; call reap with farm context."
-	}
-
 
 static func action_clear_all(terminal_pool) -> Dictionary:
 	if not terminal_pool:

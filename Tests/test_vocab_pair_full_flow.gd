@@ -116,9 +116,9 @@ func _setup_references() -> void:
 		biome = farm.biotic_flux_biome
 		print("  [OK] BioticFlux biome found")
 
-	if farm.get("plot_pool"):
-		plot_pool = farm.plot_pool
-		print("  [OK] PlotPool found")
+	if farm.get("terminal_pool"):
+		plot_pool = farm.terminal_pool
+		print("  [OK] TerminalPool found")
 
 	if farm.get("economy"):
 		economy = farm.economy
@@ -139,7 +139,8 @@ func _test_initial_vocabulary() -> void:
 		print("  ❌ No game state available")
 		return
 
-	print("  Known emojis: %s" % str(state.known_emojis))
+	var known_emojis = state.get_known_emojis()
+	print("  Known emojis: %s" % str(known_emojis))
 	print("  Known pairs: %d" % state.known_pairs.size())
 
 	for pair in state.known_pairs:
@@ -149,7 +150,7 @@ func _test_initial_vocabulary() -> void:
 	var expected_emojis = ["🌾", "🍂", "👥", "💸"]
 	var has_all = true
 	for e in expected_emojis:
-		if e not in state.known_emojis:
+		if e not in known_emojis:
 			has_all = false
 			print("  ⚠ Missing expected emoji: %s" % e)
 
@@ -191,11 +192,12 @@ func _test_pair_rolling() -> void:
 	GameStateManager.discover_pair(test_north, test_south)
 
 	var state = GameStateManager.current_state
+	var known_emojis = state.get_known_emojis()
 	print("\n  After discovery:")
-	print("    Known emojis: %d" % state.known_emojis.size())
+	print("    Known emojis: %d" % known_emojis.size())
 	print("    Known pairs: %d" % state.known_pairs.size())
 
-	if test_north in state.known_emojis and test_south in state.known_emojis:
+	if test_north in known_emojis and test_south in known_emojis:
 		print("  ✓ Pair added to vocabulary")
 		results["pair_roll"] = true
 	else:

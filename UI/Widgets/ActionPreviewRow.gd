@@ -13,7 +13,6 @@ const ActionCostRuntime = preload("res://Core/GameMechanics/ActionCostRuntime.gd
 const LindbladHandler = preload("res://UI/Handlers/LindbladHandler.gd")
 const EmojiDisplay = preload("res://UI/Core/EmojiDisplay.gd")
 const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")
-const TOOL_ACTIONS = ToolConfig.TOOL_ACTIONS
 
 # Button texture path (matches ToolSelectionRow)
 const BTN_TEXTURE_PATH = "res://Assets/UI/Chrome/BtnBtmMidl.svg"
@@ -255,12 +254,6 @@ func restore_normal_mode() -> void:
 	active_overlay_node = null
 	current_submenu = ""
 	update_for_tool(current_tool)
-
-
-func update_for_quest_board(_slot_state: int, _is_locked: bool = false) -> void:
-	"""Legacy: Re-route to update_for_overlay if possible."""
-	if active_overlay_node:
-		update_for_overlay(active_overlay_node)
 
 
 func set_action_enabled(action_key: String, enabled: bool) -> void:
@@ -611,7 +604,7 @@ func _get_cost_for_action_name(action_name: String, action_info: Dictionary = {}
 			return _get_runtime_action_cost(normalized, context)
 		_:
 			# Use unified cost system for all standard actions
-			# (explore, measure, reap, harvest_all, explore_biome, etc.)
+			# (explore, measure, reap, discover_biome, etc.)
 			return _get_runtime_action_cost(action_name)
 
 

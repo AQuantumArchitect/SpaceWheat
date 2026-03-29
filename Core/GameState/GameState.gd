@@ -49,9 +49,8 @@ extends Resource
 ## Each entry is a full quest_data Dictionary with status="locked"
 @export var locked_quest_offers: Array = []
 
-## DERIVED: known_emojis is computed from known_pairs (for backward compatibility)
-## Use get_known_emojis() to access the derived list
-## This field is still exported for save file compatibility with old saves
+## DERIVED: known_emojis is computed from known_pairs for compatibility with old saves/tools.
+## Live code should not write this field directly. Use get_known_emojis() for reads.
 @export var known_emojis: Array = []
 
 ## Player Vocabulary Quantum Computer data (for biome affinity calculations)
@@ -134,14 +133,6 @@ func get_pair_for_emoji(emoji: String) -> Variant:
 # Each slot_dict: {quest_id, offered_quest, faction, is_locked, state}
 
 @export var quest_board_current_page: int = 0
-
-## DEPRECATED: Old single-page storage (kept for migration)
-@export var quest_slots: Array = [null, null, null, null]
-# Each slot dictionary contains:
-#   quest_id: int - ID of active quest (if active)
-#   offered_quest: Dictionary - Quest data (if offered but not accepted)
-#   is_locked: bool - Locked slot won't auto-refresh
-#   state: int - SlotState enum (EMPTY=0, OFFERED=1, ACTIVE=2, READY=3, LOCKED=4)
 
 ## Plots - Array of serialized plot states (from FarmGrid)
 @export var plots: Array[Dictionary] = []
@@ -379,8 +370,7 @@ func _default_balance_workbench_config() -> Dictionary:
 			"measure": "Collapses state and unlocks deterministic harvest paths.",
 			"pop": "Single terminal payoff from measured outcome, driven by icon-map mass and purity.",
 			"reap": "Season change: fast-forward, collect sink flux, and broad harvest across active biomes.",
-			"harvest_all": "Legacy alias path for reap.",
-			"explore_biome": "Long-term expansion unlock; increases future terminal surface area.",
+			"discover_biome": "Long-term expansion unlock; increases future terminal surface area.",
 			"inject_vocabulary": "Converts known pairs into biome terminals and new learning options.",
 			"remove_vocabulary": "Emergency rollback action; expensive by design.",
 			"lindblad_pump": "Raises local population/energy; setup cost for stronger harvest curves.",

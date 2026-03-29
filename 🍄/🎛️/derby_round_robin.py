@@ -16,14 +16,13 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-import subprocess
 import sys
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from constants import MAX_LOOPS, DEFAULT_RUNNERS, POLICY_ENGINE, run_timeout, TIMEOUT_FLOOR
+from run_executor import ensure_lane, run_runner, run_seed
 
 HERE = Path(__file__).resolve().parent
 
@@ -70,19 +69,20 @@ class RunnerState:
     total_elapsed_s: float = 0.0
 
 
-def seed_runner(profile: str, slot: int) -> bool:
+def seed_runner(profile: str, slot: int, lane) -> bool:
     """Seed a save slot from a profile.
 
     Note: milk_hunt_seed_save.py does NOT accept --console-profile.
     """
-    cmd = [
-        sys.executable, str(HERE / "milk_hunt_seed_save.py"),
-        "--profile", profile,
-        "--slot", str(slot),
-    ]
-    proc = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+    result = run_seed(
+        lane=lane,
+        timeout_s=120,
+        profile=profile,
+        slot=slot,
+        reuse_listener=False,
+    )
     # Exit 0 = saved, 3 = seeded (no prior save existed) — both are success
-    return proc.returncode in (0, 3)
+    return int(result.get("exit_code", 1)) in (0, 3)
 
 
 def run_chunk(
@@ -90,47 +90,37 @@ def run_chunk(
     max_loops: int,
     total_max_loops: int,
     args: argparse.Namespace,
+    lane,
 ) -> Dict[str, Any]:
     """Run a chunk of loops for one runner, save state back to its slot."""
-    cmd = [
-        sys.executable, str(HERE / "milk_hunt_runner.py"),
-        "--load-slot", str(runner.slot),
+    extra_args = [
         "--save-slot-at-end", str(runner.slot),
-        "--max-loops", str(max_loops),
         "--turn-start", str(runner.steps_done),
-        "--hunter-profile", runner.profile,
-        "--hunter-policy", POLICY_ENGINE,
         "--json-only",
         "--reuse-listener",
-        "--console-profile", args.console_profile or "quiet",
     ]
     if args.strict is not None:
-        cmd.append("--strict-biome-economy" if args.strict else "--no-strict-biome-economy")
+        extra_args.append("--strict-biome-economy" if args.strict else "--no-strict-biome-economy")
 
     t0 = time.time()
-    proc = subprocess.run(
-        cmd, capture_output=True, text=True,
-        timeout=run_timeout(max_loops, floor=TIMEOUT_FLOOR["race"]),
+    result = run_runner(
+        lane=lane,
+        timeout_s=max(120, max_loops * 30),
+        max_loops=max_loops,
+        load_slot=runner.slot,
+        hunter_profile=runner.profile,
+        hunter_policy="engine_policy",
+        console_profile=args.console_profile or "quiet",
+        extra_args=extra_args,
     )
     elapsed = time.time() - t0
 
     # Parse JSON summary from stdout
-    summary = {}
-    stdout = (proc.stdout or "").strip()
-    if stdout:
-        # Find last JSON object in output
-        for line in reversed(stdout.split("\n")):
-            line = line.strip()
-            if line.startswith("{"):
-                try:
-                    summary = json.loads(line)
-                    break
-                except json.JSONDecodeError:
-                    pass
+    summary = result.get("summary", {}) or {}
 
     summary["_chunk_elapsed_s"] = round(elapsed, 2)
     summary["_chunk_max_loops"] = max_loops
-    summary["_exit_code"] = proc.returncode
+    summary["_exit_code"] = int(result.get("exit_code", 1))
     return summary
 
 
@@ -155,8 +145,8 @@ def print_scoreboard(runners: List[RunnerState], round_idx: int, step_size: int)
 def main():
     parser = argparse.ArgumentParser(description="Round-robin derby batch")
     parser.add_argument("--profile", required=True, help="Profile name")
-    parser.add_argument("--runners", type=int, default=DEFAULT_RUNNERS, help="Number of runners (2-5)")
-    parser.add_argument("--max-loops", type=int, default=MAX_LOOPS, help="Max total loops per runner")
+    parser.add_argument("--runners", type=int, default=5, help="Number of runners (2-5)")
+    parser.add_argument("--max-loops", type=int, default=220, help="Max total loops per runner")
     parser.add_argument("--win-threshold", type=int, default=4,
                         help="Stop after this many runners complete (default: 4)")
     parser.add_argument("--console-profile", default="quiet",
@@ -165,6 +155,7 @@ def main():
     parser.add_argument("--output", type=str, default=None,
                         help="Output JSON path (default: auto)")
     args = parser.parse_args()
+    lane = ensure_lane()
 
     n_runners = max(2, min(5, args.runners))
     win_threshold = min(args.win_threshold, n_runners)
@@ -194,7 +185,7 @@ def main():
     print(f"\n[seed] Seeding {n_runners} save slots...")
     runners: List[RunnerState] = []
     for i, slot in enumerate(slots):
-        ok = seed_runner(args.profile, slot)
+        ok = seed_runner(args.profile, slot, lane)
         if not ok:
             print(f"  FAILED to seed slot {slot}!")
             sys.exit(1)
@@ -226,7 +217,7 @@ def main():
                 continue
 
             chunk_loops = min(step_size, remaining)
-            summary = run_chunk(r, chunk_loops, args.max_loops, args)
+            summary = run_chunk(r, chunk_loops, args.max_loops, args, lane)
 
             # Update runner state from summary
             loops_completed = summary.get("loops_completed", 0)
