@@ -3237,8 +3237,8 @@ func _biome_has_persistent_lindblad_channels(biome) -> bool:
 		return false
 
 	var biome_name = _get_biome_name(biome)
-	for pos in farm_ref.grid.plot_biome_assignments:
-		if str(farm_ref.grid.plot_biome_assignments[pos]) != str(biome_name):
+	for pos in farm_ref.grid.get_plot_biome_assignments().keys():
+		if str(farm_ref.grid.get_plot_biome_assignment(pos)) != str(biome_name):
 			continue
 		var plot = farm_ref.grid.get_plot(pos)
 		if not plot:

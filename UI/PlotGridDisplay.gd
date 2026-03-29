@@ -630,13 +630,13 @@ func inject_farm(farm_ref: Node) -> void:
 
 func _on_grid_resized(new_config: GridConfig) -> void:
 	"""Handle dynamic grid resize (new biome discovered)."""
-	apply_grid_config_update(new_config, farm.grid.biomes if farm and farm.grid else {})
+	apply_grid_config_update(new_config, farm.grid.get_all_biomes() if farm and farm.grid else {})
 
 
 func _on_biome_loaded(_biome_name: String, _biome_ref) -> void:
 	"""Update injected biome map after dynamic load."""
 	if farm and farm.grid:
-		biomes = farm.grid.biomes
+		biomes = farm.grid.get_all_biomes()
 		if active_biome_manager:
 			var active_biome = active_biome_manager.get_active_biome()
 			_update_layout_for_active_biome(active_biome)
@@ -1386,8 +1386,8 @@ func _has_visual_connections() -> bool:
 		return false
 
 	# Check for any persistent gates (plot-level infrastructure)
-	for pos in farm.grid.plots:
-		var plot = farm.grid.plots[pos]
+	for pos in farm.grid.get_plot_positions():
+		var plot = farm.grid.get_plot(pos)
 		if plot and plot.has_method("get_active_gates"):
 			var gates = plot.get_active_gates()
 			if not gates.is_empty():
@@ -1486,8 +1486,8 @@ func _draw_entanglement_lines() -> void:
 		# Draw lines to all entangled partners
 		for partner_id in plot.entangled_plots.keys():
 			# Find partner plot position
-			for other_pos in farm.grid.plots:
-				var other_plot = farm.grid.plots[other_pos]
+			for other_pos in farm.grid.get_plot_positions():
+				var other_plot = farm.grid.get_plot(other_pos)
 				if other_plot and other_plot.plot_id == partner_id:
 					# Create unique key to avoid drawing twice
 					var key = str(min(pos.x * 100 + pos.y, other_pos.x * 100 + other_pos.y)) + "_" + str(max(pos.x * 100 + pos.y, other_pos.x * 100 + other_pos.y))
@@ -1529,8 +1529,8 @@ func _draw_persistent_gate_infrastructure() -> void:
 
 	var drawn_gates: Dictionary = {}  # Track drawn gates to avoid duplicates
 
-	for pos in farm.grid.plots:
-		var plot = farm.grid.plots[pos]
+	for pos in farm.grid.get_plot_positions():
+		var plot = farm.grid.get_plot(pos)
 		if not plot:
 			continue
 

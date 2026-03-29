@@ -977,8 +977,8 @@ func get_grid_snapshot() -> Dictionary:
 		snapshot["grid_width"] = grid.grid_width
 	if "grid_height" in grid:
 		snapshot["grid_height"] = grid.grid_height
-	if "biomes" in grid and grid.biomes:
-		var biome_names = grid.biomes.keys()
+	if grid.has_biomes():
+		var biome_names = grid.get_biome_names()
 		biome_names.sort()
 		snapshot["biomes"] = biome_names
 	if snapshot.has("grid_width") and snapshot.has("grid_height"):
@@ -1045,9 +1045,9 @@ func probe_cycle(biome_name: String) -> Dictionary:
 	if not farm or not terminal_pool:
 		return {"success": false, "error": "no_terminal_pool"}
 	var economy = _get_economy()
-	if not farm.grid or not farm.grid.biomes:
+	if not farm.grid or not farm.grid.has_biomes():
 		return {"success": false, "error": "no_biomes"}
-	var biome = farm.grid.biomes.get(biome_name, null)
+	var biome = farm.grid.get_biome(biome_name)
 	if not biome:
 		return {"success": false, "error": "unknown_biome"}
 
@@ -1079,14 +1079,14 @@ func probe_cycle(biome_name: String) -> Dictionary:
 
 
 func victory_lap() -> Dictionary:
-	if not farm or not farm.grid or not farm.grid.biomes:
+	if not farm or not farm.grid or not farm.grid.has_biomes():
 		return {"success": false, "error": "no_farm_or_biomes"}
 	if not terminal_pool:
 		return {"success": false, "error": "no_terminal_pool"}
 	var economy = _get_economy()
 
 	var biomes: Array[String] = []
-	for biome_name in farm.grid.biomes.keys():
+	for biome_name in farm.grid.get_biome_names():
 		if biome_name is String and str(biome_name) != "":
 			biomes.append(str(biome_name))
 	biomes.sort()
@@ -1095,7 +1095,7 @@ func victory_lap() -> Dictionary:
 	var explore_failures: Array = []
 
 	for biome_name in biomes:
-		var biome = farm.grid.biomes.get(biome_name, null)
+		var biome = farm.grid.get_biome(biome_name)
 		if not biome:
 			continue
 		while true:
@@ -1122,7 +1122,7 @@ func victory_lap() -> Dictionary:
 		if not terminal or not terminal.is_bound:
 			continue
 		var t_biome_name = str(terminal.bound_biome_name)
-		var biome = farm.grid.biomes.get(t_biome_name, null)
+		var biome = farm.grid.get_biome(t_biome_name)
 		if not biome:
 			measure_failures.append({"terminal": terminal.terminal_id, "error": "unknown_biome", "biome": t_biome_name})
 			continue
@@ -1308,11 +1308,10 @@ func _resolve_current_biome_for_quests():
 		var obs = _get_autoload("ObservationFrame")
 		if obs and obs.has_method("get_neutral_biome"):
 			biome_name = str(obs.get_neutral_biome())
-	if farm and farm.grid and farm.grid.biomes:
-		if biome_name != "" and farm.grid.biomes.has(biome_name):
-			return farm.grid.biomes[biome_name]
-		if not farm.grid.biomes.is_empty():
-			return farm.grid.biomes.values()[0]
+	if farm and farm.grid and farm.grid.has_biomes():
+		if biome_name != "" and farm.grid.has_biome(biome_name):
+			return farm.grid.get_biome(biome_name)
+		return farm.grid.get_primary_biome()
 	return null
 
 
@@ -1540,7 +1539,7 @@ func _get_economy():
 func _resolve_biome(biome_name: String):
 	if not farm or not farm.grid:
 		return null
-	return farm.grid.biomes.get(biome_name)
+	return farm.grid.get_biome(biome_name)
 
 
 func _resolve_terminal_for_harvest(grid_pos: Vector2i) -> RefCounted:

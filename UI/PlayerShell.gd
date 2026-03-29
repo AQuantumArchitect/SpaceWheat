@@ -722,10 +722,10 @@ func _connect_quest_manager_to_biomes(farm_ui: Control) -> void:
 
 
 func _handle_active_biome_change(biome_name: String, _old_biome: String, farm_ref: Node) -> void:
-	if not quest_manager or not farm_ref or not farm_ref.grid or not farm_ref.grid.biomes or biome_name == "":
+	if not quest_manager or not farm_ref or not farm_ref.grid or not farm_ref.grid.has_biomes() or biome_name == "":
 		return
 
-	var biome = farm_ref.grid.biomes.get(biome_name, null)
+	var biome = farm_ref.grid.get_biome(biome_name)
 	if biome:
 		quest_manager.connect_to_biome(biome)
 

@@ -698,15 +698,14 @@ func _process_lindblad_effects(delta: float) -> void:
 	if not grid:
 		return
 
-	var plots = grid.plots if "plots" in grid else {}
-	if plots.is_empty():
+	if not grid or grid.get_plot_count() == 0:
 		return
 	var rainbow_mode = _is_rainbow_drain_mode()
 	var processed_structural_flux: Dictionary = {}
 	var harvestable_drain_biomes: Dictionary = {}
 
-	for pos in plots.keys():
-		var plot = plots[pos]
+	for pos in grid.get_plot_positions():
+		var plot = grid.get_plot(pos)
 		if not plot:
 			continue
 		if not plot.lindblad_pump_active and not plot.lindblad_drain_active:
@@ -1041,8 +1040,8 @@ func _get_loaded_biomes_in_order() -> Array[String]:
 
 func _is_biome_loaded(biome_name: String) -> bool:
 	"""Check if a biome instance is loaded on this Farm."""
-	if grid and grid.biomes and grid.biomes.has(biome_name):
-		return grid.biomes[biome_name] != null
+	if grid and grid.has_biome(biome_name):
+		return grid.get_biome(biome_name) != null
 	match biome_name:
 		"StarterForest":
 			return starter_forest_biome != null
@@ -1092,8 +1091,8 @@ func _get_max_biome_plot_count(biome_names: Array[String]) -> int:
 
 
 func _get_loaded_biome_ref(biome_name: String):
-	if grid and grid.biomes and grid.biomes.has(biome_name):
-		return grid.biomes[biome_name]
+	if grid and grid.has_biome(biome_name):
+		return grid.get_biome(biome_name)
 	match biome_name:
 		"StarterForest":
 			return starter_forest_biome

@@ -429,7 +429,7 @@ static func get_physics_fps_from_farm(farm_node) -> float:
 static func get_simulation_speed(farm_node) -> float:
 	"""Get quantum time scale from the first available biome."""
 	if farm_node and "grid" in farm_node and farm_node.grid:
-		for biome in farm_node.grid.biomes.values():
+		for biome in farm_node.grid.get_all_biomes().values():
 			if not biome:
 				continue
 			if "quantum_time_scale" in biome:

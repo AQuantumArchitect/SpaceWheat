@@ -114,8 +114,8 @@ func _get_current_biome(farm_ref):
 		current_biome_name = observation.get_neutral_biome()
 
 	# Look up biome object in grid
-	if farm_ref.grid and farm_ref.grid.biomes.has(current_biome_name):
-		return farm_ref.grid.biomes[current_biome_name]
+	if farm_ref.grid and farm_ref.grid.has_biome(current_biome_name):
+		return farm_ref.grid.get_biome(current_biome_name)
 
 	return null
 

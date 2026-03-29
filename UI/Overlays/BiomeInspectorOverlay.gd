@@ -86,9 +86,9 @@ func _build_content(container: Control) -> void:
 
 func _get_biome_by_name(biome_name: String) -> Node:
 	"""Get biome node by name from farm grid."""
-	if not farm or not farm.grid or not farm.grid.biomes:
+	if not farm or not farm.grid or not farm.grid.has_biomes():
 		return null
-	return farm.grid.biomes.get(biome_name)
+	return farm.grid.get_biome(biome_name)
 
 
 func _select_biome_by_index(index: int) -> void:
@@ -133,7 +133,7 @@ func show_biome(biome: Node, farm_node: Node) -> void:
 ## Populate all biomes content (internal helper, doesn't call activate)
 func _populate_all_biomes() -> void:
 	"""Set up content for all biomes without activating."""
-	if not farm or not farm.grid or not farm.grid.biomes or not biome_list:
+	if not farm or not farm.grid or not farm.grid.has_biomes() or not biome_list:
 		return
 
 	_clear_panels()
@@ -141,9 +141,9 @@ func _populate_all_biomes() -> void:
 
 	# Create panels in consistent order
 	for biome_name in BIOME_ORDER:
-		if not farm.grid.biomes.has(biome_name):
+		if not farm.grid.has_biome(biome_name):
 			continue
-		var biome = farm.grid.biomes[biome_name]
+		var biome = farm.grid.get_biome(biome_name)
 
 		var panel = BiomeOvalPanel.new()
 		panel.close_requested.connect(_on_close_requested)
@@ -161,7 +161,7 @@ func _populate_all_biomes() -> void:
 ## Show all biomes
 func show_all_biomes(farm_node: Node) -> void:
 	"""Display inspectors for all registered biomes in scrollable list."""
-	if not farm_node or not farm_node.grid or not farm_node.grid.biomes:
+	if not farm_node or not farm_node.grid or not farm_node.grid.has_biomes():
 		return
 
 	farm = farm_node
@@ -260,10 +260,10 @@ func _on_active_biome_changed(new_biome: String, _old_biome: String) -> void:
 	if current_mode != DisplayMode.SINGLE_BIOME:
 		return  # Only update in single biome mode
 
-	if not farm or not farm.grid or not farm.grid.biomes:
+	if not farm or not farm.grid or not farm.grid.has_biomes():
 		return
 
-	var biome = farm.grid.biomes.get(new_biome)
+	var biome = farm.grid.get_biome(new_biome)
 	if not biome:
 		return
 
@@ -328,10 +328,10 @@ func _on_activated() -> void:
 				_populate_single_biome(biome)
 				return
 		# Fallback: show first biome if no active biome manager
-		if farm.grid and farm.grid.biomes:
+		if farm.grid and farm.grid.has_biomes():
 			for biome_name in BIOME_ORDER:
-				if farm.grid.biomes.has(biome_name):
-					_populate_single_biome(farm.grid.biomes[biome_name])
+				if farm.grid.has_biome(biome_name):
+					_populate_single_biome(farm.grid.get_biome(biome_name))
 					return
 
 

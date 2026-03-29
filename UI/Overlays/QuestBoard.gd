@@ -276,18 +276,18 @@ func _ensure_biome_context_for_open() -> void:
 		return
 
 	var farm_ref = _resolve_farm_for_open()
-	if not farm_ref or not farm_ref.grid or not farm_ref.grid.biomes:
+	if not farm_ref or not farm_ref.grid or not farm_ref.grid.has_biomes():
 		return
 
 	var abm = get_node_or_null("/root/ActiveBiomeManager")
 	if abm and abm.has_method("get_active_biome"):
 		var active_biome_name = abm.get_active_biome()
-		var active_biome = farm_ref.grid.biomes.get(active_biome_name)
+		var active_biome = farm_ref.grid.get_biome(active_biome_name)
 		if active_biome:
 			current_biome = active_biome
 			return
 
-	var village_biome = farm_ref.grid.biomes.get("Village")
+	var village_biome = farm_ref.grid.get_biome("Village")
 	if village_biome:
 		current_biome = village_biome
 		return
