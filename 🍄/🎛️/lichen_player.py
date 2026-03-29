@@ -34,6 +34,27 @@ from typing import Any, Dict, List, Optional
 
 from session import RunSession
 from leaderboard import record_result
+from run_executor import run_seed
+
+
+class _CharacterSession(RunSession):
+    """RunSession subclass that seeds from a character JSON (not a profile).
+
+    The upstream session.py simplified to profile-only seeding; this
+    thin override restores character-mode seeding for lichen_player.
+    """
+    def __init__(self, character: str, **kwargs: Any) -> None:
+        super().__init__(character, **kwargs)  # character name used as profile key
+        self._character_name = character
+
+    def seed(self) -> Dict[str, Any]:
+        result = run_seed(character=self._character_name, slot=self.slot)
+        if result.get("exit_code", 0) not in (0, 3):
+            raise RuntimeError(
+                f"Character seed failed (exit={result['exit_code']}): "
+                f"{result.get('stderr', '')[:300]}"
+            )
+        return result.get("summary", {"ok": True})
 
 HERE = Path(__file__).resolve().parent
 CLAURA_ROOT = HERE.parent.parent.parent / "Claura"
@@ -49,24 +70,24 @@ _CONTROL_HABITAT_PATH = HERE / "context.yaml"
 
 SYSTEM_PROMPT = """\
 You are playing SpaceWheat, a resource-management game. Your goal is to find \
-the milk emoji pair (🍼). You do this by completing quests to learn vocabulary \
-pairs, discovering biomes to expand your search space, and probing for patterns.
+the milk emoji pair (🍼) by completing quests that teach vocabulary pairs. \
+The milk pair is hidden among vocab pairs — you find it by doing quests.
 
 Each turn you must choose ONE action. Reply with ONLY a JSON object:
 {"action": "<name>", "reason": "<one sentence>"}
 
 Available actions:
-- quest_cycle: accept and complete the best available quest (earns resources AND vocab pairs)
-- discover: unlock a new biome (more biomes = more vocab sources)
+- quest_cycle: accept and complete the best available quest (earns vocab pairs)
+- time_skip: wait 60 physics frames (only use when quest_cycle has no offers)
+- discover: unlock a new biome (rarely useful — milk is in the starting biome)
 - probe: probe the current biome for quantum grid patterns
-- time_skip: wait 60 physics frames (refreshes offers, advances economy)
 
-Strategy:
-- quest_cycle is your primary action — it teaches vocabulary pairs over time
-- discover early (first 3-5 turns) to expand your biome pool
-- probe periodically to advance the quantum grid
-- time_skip when offers are stale or resources are low
-- The milk pair hides among vocab pairs — maximize your known pairs count
+Strategy (in priority order):
+1. quest_cycle EVERY turn — this is the ONLY way to find milk
+2. time_skip ONLY when "No offers available" AND you've been waiting
+3. NEVER discover or probe — they waste turns that could be quests
+4. Resource levels are auto-managed — ignore them, always try quest_cycle first
+5. The milk pair is in the starting biome — do NOT switch or discover new biomes
 """
 
 
@@ -95,7 +116,7 @@ def _format_game_state(
             vocab_info = f" vocab={vocab_n}/{vocab_s}" if (vocab_n or vocab_s) else ""
             lines.append(f"  {i+1}. [{faction}] reward={reward}{vocab_info}")
     else:
-        lines.append("No offers available (try time_skip to refresh)")
+        lines.append("No offers available — do time_skip once, then immediately return to quest_cycle")
     return "\n".join(lines)
 
 
@@ -406,11 +427,9 @@ def play(
     if verbose and habitat_context:
         print(f"  Claura habitat: {len(habitat_context)} chars loaded")
 
-    with RunSession(
-        profile=profile,
-        character=character,
-        slot=3,  # dedicated slot for lichen player
-    ) as s:
+    SessionClass = _CharacterSession if character else RunSession
+    session_arg = character if character else profile
+    with SessionClass(session_arg, slot=3) as s:
         biomes_seen: List[str] = []
         probe_count = 0
         discover_count = 0
@@ -450,9 +469,15 @@ def play(
             try:
                 if action == "quest_cycle":
                     result = s.play_cycle()
-                    if verbose:
-                        milk = " 🍼 MILK!" if s.found_milk else ""
-                        print(f"  [{step:3d}] quest_cycle{milk}")
+                    if not result.get("ok") and result.get("error") == "no_offers":
+                        # No quest offers yet — refresh with time_skip
+                        result = s.time_skip(60)
+                        if verbose:
+                            print(f"  [{step:3d}] quest_cycle→time_skip (no_offers)")
+                    else:
+                        if verbose:
+                            milk = " 🍼 MILK!" if s.found_milk else ""
+                            print(f"  [{step:3d}] quest_cycle{milk}")
 
                 elif action == "probe":
                     result = s.probe()
