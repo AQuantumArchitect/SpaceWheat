@@ -48,7 +48,8 @@ var ui_state: FarmUIState  # UI State abstraction layer
 var grid_config: GridConfig = null  # Single source of truth for grid layout
 var _bootstrap_pool: TerminalPoolClass = null  # Created at boot, transferred to instrument via set_instrument()
 var instrument = null  # QuantumInstrument (set via set_instrument() after boot)
-## terminal_pool: backward-compat getter — returns instrument's pool if available, else bootstrap pool
+## terminal_pool: canonical runtime pool surface. Uses the instrument pool once attached,
+## otherwise the bootstrap pool during early boot.
 var terminal_pool: TerminalPoolClass:
 	get: return instrument.terminal_pool if instrument and instrument.terminal_pool else _bootstrap_pool
 var biome_evolution_batcher: BiomeEvolutionBatcherClass = null  # Batched quantum evolution
@@ -172,14 +173,13 @@ signal biome_removed(biome_name: String)
 signal biome_expanded(biome_name: String, qubit_index: int, emoji_pair: Dictionary)
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# LEGACY SIGNALS (kept for internal use and backwards compatibility)
-# For visualization, use terminal_* signals instead
+# Plot-facing visualization signals
+# These remain intentional because the player-facing UI is plot-oriented even
+# though the simulation/runtime path is terminal-oriented underneath.
 # ═══════════════════════════════════════════════════════════════════════════════
 
-## @deprecated - Use terminal_measured for visualization
 signal plot_measured(position: Vector2i, outcome: String)
 
-## @deprecated - Use terminal_released for visualization
 signal plot_harvested(position: Vector2i, yield_data: Dictionary)
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -256,7 +256,8 @@ func emit_action_signal(action: String, result: Dictionary, grid_pos: Vector2i =
 
 
 func _ready():
-	# Ensure IconRegistry exists (for test mode where autoloads don't exist)
+	# Ensure IconRegistry exists in headless/script harnesses that do not build the
+	# full autoload stack through the normal project boot path.
 	_ensure_iconregistry()
 
 	# Create core systems
@@ -270,8 +271,7 @@ func _ready():
 	grid = FarmGrid.new(grid_config.grid_width, grid_config.grid_height)
 	add_child(grid)
 
-	# v2 Architecture: Create terminal pool for EXPLORE/MEASURE/POP actions
-	# Stored as _bootstrap_pool; transferred to instrument via set_instrument()
+	# Create bootstrap terminal pool; transferred to the instrument once attached.
 	var total_plots = grid_config.grid_width * grid_config.grid_height
 	_bootstrap_pool = TerminalPoolClass.new(total_plots)
 	if grid:
@@ -488,7 +488,7 @@ func set_known_pairs(pairs: Array, sync_player_vocab: bool = true, reset_player_
 	known_pairs = filtered
 	if sync_player_vocab:
 		_sync_player_vocabulary(reset_player_vocab)
-	_sync_gsm_vocab_state()
+	_sync_current_state_vocab()
 
 
 func discover_pair(north: String, south: String) -> bool:
@@ -514,7 +514,7 @@ func discover_pair(north: String, south: String) -> bool:
 	var player_vocab = get_node_or_null("/root/PlayerVocabulary")
 	if player_vocab and player_vocab.has_method("learn_vocab_pair"):
 		player_vocab.learn_vocab_pair(north, south)
-	_sync_gsm_vocab_state()
+	_sync_current_state_vocab()
 	return true
 
 
@@ -541,8 +541,8 @@ func _sync_player_vocabulary(reset_first: bool) -> void:
 				player_vocab.learn_vocab_pair(north, south)
 
 
-func _sync_gsm_vocab_state() -> void:
-	"""Keep GameStateManager.current_state mirrored for legacy readers."""
+func _sync_current_state_vocab() -> void:
+	"""Mirror canonical farm vocabulary into the active GameState when present."""
 	var gsm = get_node_or_null("/root/GameStateManager")
 	if gsm and "current_state" in gsm and gsm.current_state:
 		gsm.current_state.known_pairs = get_known_pairs()
@@ -1541,17 +1541,17 @@ func _get_plot_biome(pos: Vector2i):
 
 
 func _ensure_iconregistry() -> void:
-	"""Ensure IconRegistry exists (for test mode where autoloads don't exist)
+	"""Ensure IconRegistry exists in harnesses that bypass normal autoload boot.
 
 	In normal gameplay: IconRegistry is autoload at /root/IconRegistry
-	In test mode (extends SceneTree): Autoloads don't exist, create fallback
+	In script/headless harnesses: create a local root child if needed
 	"""
 	var icon_registry = get_node_or_null("/root/IconRegistry")
 	if icon_registry:
 		# Already exists (normal game mode)
 		return
 
-	# Test mode: Create IconRegistry
+	# Harness mode: create IconRegistry on demand
 	var IconRegistryScript = load("res://Core/QuantumSubstrate/IconRegistry.gd")
 	if not IconRegistryScript:
 		push_error("Failed to load IconRegistry.gd!")
@@ -1559,7 +1559,7 @@ func _ensure_iconregistry() -> void:
 
 	icon_registry = IconRegistryScript.new()
 	icon_registry.name = "IconRegistry"
-	# Use get_tree() if available (normal mode), otherwise skip autoload simulation
+	# Use get_tree() if available, otherwise just initialize locally
 	var tree = get_tree()
 	if tree and tree.root:
 		tree.root.add_child(icon_registry)
