@@ -278,7 +278,7 @@ def main() -> int:
         snapshot = run_turn(turn, "resource_snapshot")
         history.append(snapshot)
         turn += 1
-        if unlocked_biomes or unexplored_biomes or known_pairs or active_biome or policy_graph_path_value or policy_graph_jsonl_value:
+        if unlocked_biomes or unexplored_biomes or known_pairs or active_biome or policy_graph_path_value or policy_graph_jsonl_value or args.character:
             payload: Dict[str, Any] = {}
             if unlocked_biomes:
                 payload["unlocked_biomes"] = unlocked_biomes
@@ -292,6 +292,10 @@ def main() -> int:
                 payload["policy_graph_path"] = policy_graph_path_value
             if policy_graph_jsonl_value:
                 payload["policy_graph_jsonl"] = policy_graph_jsonl_value
+            # Character seeds always clear quests — prevents locked offers from
+            # a previous run's save slot from bleeding into the fresh character.
+            if args.character:
+                payload["clear_quests"] = True
             history.append(run_turn(turn, "configure_seed_state", **payload))
             turn += 1
 

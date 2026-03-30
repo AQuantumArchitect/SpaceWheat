@@ -1181,6 +1181,14 @@ func configure_seed_state(cmd: Dictionary) -> Dictionary:
 	if not gsm or not gsm.current_state:
 		return {"ok": false, "error": "no_game_state"}
 
+	# Clear all quests before applying seed state — prevents locked offers from
+	# previous runs (loaded via save slot) from polluting a fresh character seed.
+	if cmd.get("clear_quests", false):
+		var qm = _resolve_quest_manager()
+		if qm and qm.has_method("clear_all_quests"):
+			qm.clear_all_quests()
+			out["quests_cleared"] = true
+
 	var known_pairs = _sanitize_known_pairs(cmd.get("known_pairs", []))
 	if not known_pairs.is_empty():
 		if farm and farm.has_method("set_known_pairs"):
