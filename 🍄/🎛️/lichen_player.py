@@ -41,27 +41,19 @@ def _write_claura_overlay_jsonl(character: str) -> Optional[Path]:
     """Write Claura's policy graph overlay as a temp JSONL file.
 
     The milk_hunt_runner.py reads MILK_HUNT_POLICY_EXTRA_JSONL and applies
-    the overlay to Godot via policy_graph_apply at startup.  Always includes
-    lock_offer.enabled=false because lock_offer picks milk pairs but then
-    fails to lock them (ok=false), permanently losing the offer.
+    the overlay to Godot via policy_graph_apply at startup.  Claura's
+    quantum state (derby_probe.probe()) drives the overlay; if unavailable,
+    no overlay is written (empty file).
 
     Returns the path to the temp file, or None if Claura is unavailable.
     """
-    # Baseline: disable lock_offer unconditionally
-    base_ops: List[Dict[str, Any]] = [
-        {"op": "set", "path": "action_limits.lock_offer.enabled", "value": False},
-    ]
-    overlay_ops = list(base_ops)
+    overlay_ops: List[Dict[str, Any]] = []
     if CLAURA_RIG_STATE.exists():
         try:
             sys.path.insert(0, str(CLAURA_ROOT))
             from quantum_lichen.derby_probe import probe as claura_probe
             result = claura_probe(CLAURA_RIG_STATE)
-            quantum_ops = result.get("jsonl_overlay", [])
-            # Deduplicate: drop lock_offer.enabled if already in quantum_ops
-            quantum_ops = [op for op in quantum_ops
-                           if op.get("path") != "action_limits.lock_offer.enabled"]
-            overlay_ops = base_ops + quantum_ops
+            overlay_ops = result.get("jsonl_overlay", [])
         except Exception:
             pass
     overlay_path = Path("/tmp") / f"claura_overlay_{character}.jsonl"
