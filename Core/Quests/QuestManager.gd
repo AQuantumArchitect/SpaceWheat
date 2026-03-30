@@ -397,14 +397,14 @@ func offer_all_faction_quests(biome) -> Array:
 	if biome and biome.get("_biome_data") and biome._biome_data.get("native_factions"):
 		native_faction_names = biome._biome_data.native_factions
 
-	for faction in FactionDatabase.ALL_FACTIONS:
+	for faction_const in FactionDatabase.ALL_FACTIONS:
+		# Work with a mutable copy — ALL_FACTIONS is a const array of read-only dicts.
+		var faction: Dictionary = faction_const.duplicate()
 		# Tag native factions so resonance gate and scoring can boost them.
 		# Only tag when biome has native factions — biomes without (StarterForest,
 		# Village) leave all factions at equal resonance.
 		if not native_faction_names.is_empty():
 			faction["_is_biome_native"] = str(faction.get("name", "")) in native_faction_names
-		else:
-			faction.erase("_is_biome_native")
 		var quest = QuestTheming.generate_quest(
 			faction, biome, player_vocab, bias_emojis, self.economy,
 			cached_obs, cached_icon_map)

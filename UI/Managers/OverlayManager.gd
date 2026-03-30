@@ -810,7 +810,7 @@ func _on_restart_pressed() -> void:
 	# Reset music completely before reloading
 	if has_node("/root/MusicManager"):
 		get_node("/root/MusicManager").reset()
-	get_tree().reload_current_scene()
+	get_tree().change_scene_to_file("res://scenes/FarmView.tscn")
 	emit_signal("restart_requested")
 
 
@@ -867,7 +867,7 @@ func _on_dev_restart_pressed() -> void:
 		_verbose.info("ui", "✓", "ObservationFrame reset")
 
 	_verbose.info("ui", "🔄", "Reloading scene with fresh boot...")
-	get_tree().reload_current_scene()
+	get_tree().change_scene_to_file("res://scenes/FarmView.tscn")
 	emit_signal("restart_requested")
 
 

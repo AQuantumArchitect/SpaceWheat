@@ -2368,7 +2368,9 @@ func _execute_policy_quest_cycle(policy_params: Dictionary = {}) -> Dictionary:
 				var resource = str(hint_offer.get("resource", ""))
 				var qty = float(hint_offer.get("quantity", 0.0))
 				var have = float(resources.get(resource, 0.0))
-				if resource != "" and qty > 0.0 and have >= qty:
+				# Accept hint if: delivery and affordable, OR non-delivery (no resource cost)
+				var hint_ok = (resource != "" and qty > 0.0 and have >= qty) or resource == ""
+				if hint_ok:
 					accepted_offer_index = hint_idx
 		# Fall back to scoring if hint was stale or missing
 		if accepted_offer_index < 0:
@@ -2446,10 +2448,13 @@ func _select_best_affordable_offer(offers: Array, resources: Dictionary, known_e
 			continue
 		var resource = str(offer.get("resource", ""))
 		var qty = float(offer.get("quantity", 0.0))
-		if resource == "" or qty <= 0.0:
-			continue
-		if float(resources.get(resource, 0.0)) < qty:
-			continue
+		# Non-DELIVERY quests (SHAPE_ACHIEVE, SHAPE_MAINTAIN, EVOLUTION, ENTANGLEMENT)
+		# have resource="" — they are always affordable (no resource cost).
+		# Delivery quests (resource != "" and qty > 0) must be checked for affordability.
+		if resource != "" and qty <= 0.0:
+			continue  # Degenerate delivery entry
+		if resource != "" and qty > 0.0 and float(resources.get(resource, 0.0)) < qty:
+			continue  # Can't afford delivery
 		var north = str(offer.get("reward_vocab_north", ""))
 		var south = str(offer.get("reward_vocab_south", ""))
 		var reward_resources = offer.get("reward_resources", {})

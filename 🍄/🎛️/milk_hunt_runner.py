@@ -2233,6 +2233,20 @@ def main() -> int:
             history.append(graph_row)
             turn += 1
             graph_payload = graph_row.get("policy_graph", {}) if isinstance(graph_row, dict) else {}
+
+            # Apply Claura's overlay to Godot's policy engine via policy_graph_apply.
+            # This reaches the Godot-side scoring (milk_distance_gain, base, etc.)
+            # which policy_graph_apply supports; the Python-side gate is handled
+            # separately by action_limits_for_action(extra_lines=...) below.
+            if _lichen_extra_lines:
+                apply_row = _run_turn(turn, "policy_graph_apply", lines=_lichen_extra_lines)
+                history.append(apply_row)
+                turn += 1
+                if isinstance(apply_row, dict) and apply_row.get("ok"):
+                    apply_payload = apply_row.get("policy_graph", {})
+                    if isinstance(apply_payload, dict) and apply_payload:
+                        graph_payload = apply_payload
+
             if isinstance(graph_payload, dict) and graph_payload:
                 action_gate_policies["lock_offer"] = action_limits_for_action_from_graph(graph_payload, "lock_offer")
                 if not bool(policy_restrictions):

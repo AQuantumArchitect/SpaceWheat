@@ -317,6 +317,19 @@ static func _sample_from_allowed_emojis(bath, allowed_emojis: Array, params, eco
 					total += weight
 
 		if filtered_emojis.is_empty() or total <= 0.0:
+			# Faction emojis not in biome icon_map (e.g. outer-ring factions with
+			# abstract/mystic emojis).  Use the biome's top-mass resource instead
+			# so the delivery quest is completable with farm resources.
+			var top_emoji = ""
+			var top_weight = 0.0
+			for emoji in by_emoji.keys():
+				var w = float(by_emoji.get(emoji, 0.0))
+				if w > top_weight:
+					top_weight = w
+					top_emoji = emoji
+			if top_emoji != "":
+				_log("debug", "quest", "🌾", "No IconMap overlap for faction emojis - using biome top: %s" % top_emoji)
+				return top_emoji
 			_log("debug", "quest", "🎲", "No IconMap overlap - random from allowed: %s" % allowed_emojis[0])
 			return allowed_emojis[randi() % allowed_emojis.size()]
 

@@ -37,6 +37,39 @@ from leaderboard import record_result
 from run_executor import run_seed
 
 
+def _write_claura_overlay_jsonl(character: str) -> Optional[Path]:
+    """Write Claura's policy graph overlay as a temp JSONL file.
+
+    The milk_hunt_runner.py reads MILK_HUNT_POLICY_EXTRA_JSONL and applies
+    the overlay to Godot via policy_graph_apply at startup.  Always includes
+    lock_offer.enabled=false because lock_offer picks milk pairs but then
+    fails to lock them (ok=false), permanently losing the offer.
+
+    Returns the path to the temp file, or None if Claura is unavailable.
+    """
+    # Baseline: disable lock_offer unconditionally
+    base_ops: List[Dict[str, Any]] = [
+        {"op": "set", "path": "action_limits.lock_offer.enabled", "value": False},
+    ]
+    overlay_ops = list(base_ops)
+    if CLAURA_RIG_STATE.exists():
+        try:
+            sys.path.insert(0, str(CLAURA_ROOT))
+            from quantum_lichen.derby_probe import probe as claura_probe
+            result = claura_probe(CLAURA_RIG_STATE)
+            quantum_ops = result.get("jsonl_overlay", [])
+            # Deduplicate: drop lock_offer.enabled if already in quantum_ops
+            quantum_ops = [op for op in quantum_ops
+                           if op.get("path") != "action_limits.lock_offer.enabled"]
+            overlay_ops = base_ops + quantum_ops
+        except Exception:
+            pass
+    overlay_path = Path("/tmp") / f"claura_overlay_{character}.jsonl"
+    lines = [json.dumps(op, ensure_ascii=False) for op in overlay_ops]
+    overlay_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return overlay_path
+
+
 class _CharacterSession(RunSession):
     """RunSession subclass that seeds from a character JSON (not a profile).
 
@@ -214,31 +247,6 @@ def _load_spacewheat_habitat() -> str:
     except Exception:
         return ""
 
-
-def _write_claura_overlay_jsonl(character: str) -> Optional[Path]:
-    """Write Claura's policy graph overlay as a temp JSONL file.
-
-    The milk_hunt_runner.py reads MILK_HUNT_POLICY_EXTRA_JSONL to inject
-    extra policy graph lines from Claura.  This includes pheromone-driven
-    milk_distance_gain modulation.
-
-    Returns the path to the temp file, or None if Claura is unavailable.
-    """
-    if not CLAURA_RIG_STATE.exists():
-        return None
-    try:
-        sys.path.insert(0, str(CLAURA_ROOT))
-        from quantum_lichen.derby_probe import probe as claura_probe
-        result = claura_probe(CLAURA_RIG_STATE)
-        overlay_ops = result.get("jsonl_overlay", [])
-        if not overlay_ops:
-            return None
-        overlay_path = Path("/tmp") / f"claura_overlay_{character}.jsonl"
-        lines = [json.dumps(op, ensure_ascii=False) for op in overlay_ops]
-        overlay_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
-        return overlay_path
-    except Exception:
-        return None
 
 
 def _write_control_habitat(character: str, model: str, max_cycles: int) -> None:
@@ -453,8 +461,9 @@ def play(
     _write_control_habitat(identity, model, max_cycles)
     _load_spacewheat_habitat()  # writes Claura habitat context.yaml
 
-    # Write Claura's pheromone-driven policy overlay for the engine runner.
-    # This injects milk_distance_gain modulation based on the quantum state.
+    # Write Claura's policy overlay for the engine runner.
+    # milk_hunt_runner.py reads MILK_HUNT_POLICY_EXTRA_JSONL and applies
+    # the overlay to Godot via policy_graph_apply after the rig starts.
     overlay_path = _write_claura_overlay_jsonl(identity)
     if overlay_path:
         os.environ["MILK_HUNT_POLICY_EXTRA_JSONL"] = str(overlay_path)
@@ -465,7 +474,7 @@ def play(
 
     SessionClass = _CharacterSession if character else RunSession
     session_arg = character if character else profile
-    with SessionClass(session_arg, slot=3) as s:
+    with SessionClass(session_arg, slot=2) as s:  # slot=2 (valid: 0,1,2; NUM_SAVE_SLOTS=3)
         # Delegate to the full engine policy — it ranks quests by
         # milk_distance_gain (28.0), uses probe_cycle, lock_offer,
         # discover_biome, and lindblad_drain. This is how milk is found.
@@ -521,7 +530,7 @@ def play(
                 overlay_path.unlink(missing_ok=True)
             except Exception:
                 pass
-            os.environ.pop("MILK_HUNT_POLICY_EXTRA_JSONL", None)
+        os.environ.pop("MILK_HUNT_POLICY_EXTRA_JSONL", None)
 
         return game_result
 
