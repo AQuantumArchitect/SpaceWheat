@@ -4,7 +4,7 @@
 extends SceneTree
 
 func _initialize():
-	var sep = "=" * 70
+	var sep = "=".repeat(70)
 	print("\n" + sep)
 	print("🧪 SPACEWHEAT SAVE/LOAD TEST RUNNER")
 	print(sep)

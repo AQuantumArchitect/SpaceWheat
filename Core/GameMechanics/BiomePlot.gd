@@ -59,7 +59,7 @@ func plant(labor_input = 0.0, wheat_input = 0.0, target_biome = null):
 
 func harvest() -> Dictionary:
 	"""Biome plots are not harvested by players"""
-	return {"success": false, "reason": "Cannot harvest biome plot"}
+	return {"success": false, "reason": "Cannot pop biome plot"}
 
 
 func add_entanglement(other_plot_id: String, strength: float) -> void:

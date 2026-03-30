@@ -797,75 +797,105 @@ func _on_menu_resume() -> void:
 
 
 func _on_restart_pressed() -> void:
-	"""Restart the game by reloading the current scene"""
-	_verbose.info("ui", "🔄", "Restarting game...")
-	# Ensure BootManager allows a fresh boot after scene reload.
+	"""RESTART (R): Reload last save, preserving player progress.
+
+	Tears down the current farm, resets boot state, and reloads the scene.
+	GameStateManager.request_restart() picks the most recent save slot so
+	the player resumes where they left off. If no saves exist, starts fresh.
+	"""
+	_verbose.info("ui", "🔄", "Restarting game (reload last save)...")
+
+	# Queue-free the old farm (can't use free() during signal emission)
+	var gsm = get_node_or_null("/root/GameStateManager")
+	if gsm:
+		if gsm.get("active_farm") and is_instance_valid(gsm.active_farm):
+			gsm.active_farm.queue_free()
+			gsm.active_farm = null
+		# Set pending_restart_slot to last save
+		gsm.pending_restart_slot = gsm.get("last_active_slot") if gsm.get("last_active_slot") != null else -1
+		_verbose.info("ui", "✓", "Restart → save slot %d" % gsm.pending_restart_slot)
+
+	# Reset BootManager so boot() runs again
 	var boot_mgr = get_node_or_null("/root/BootManager")
 	if boot_mgr:
 		boot_mgr._core_booted = false
 		boot_mgr._ui_booted = false
 		boot_mgr._booted = false
 		boot_mgr.is_ready = false
-		_verbose.info("ui", "✓", "BootManager reset for restart")
-	# Reset music completely before reloading
+
+	# Crossfade music (not hard reset — preserves track positions)
 	if has_node("/root/MusicManager"):
 		get_node("/root/MusicManager").reset()
+
+	get_tree().paused = false
 	get_tree().change_scene_to_file("res://scenes/FarmView.tscn")
 	emit_signal("restart_requested")
 
 
 func _on_dev_restart_pressed() -> void:
-	"""DEV RESTART: Hard reset autoloads + reload scene (Shift+R)
+	"""DEV RESTART (Shift+R): Hard reset everything for a fresh boot.
 
-	This resets key singleton state so the boot sequence runs fresh.
-	Useful for debugging initialization issues without restarting Godot.
+	Tears down the farm AND resets all autoload singletons. The game
+	restarts as if Godot was just launched — no save is loaded, boot
+	sequence runs from scratch. Useful for testing initialization.
 	"""
 	_verbose.info("ui", "🔧", "======================================================")
-	_verbose.info("ui", "🔧", "DEV RESTART - Resetting autoloads for fresh boot")
+	_verbose.info("ui", "🔧", "DEV RESTART - Full reset for fresh boot")
 	_verbose.info("ui", "🔧", "======================================================")
 
-	# Reset BootManager so boot() will run again
+	# Queue-free the farm (can't use free() during signal emission)
+	var gsm = get_node_or_null("/root/GameStateManager")
+	if gsm:
+		if gsm.get("active_farm") and is_instance_valid(gsm.active_farm):
+			gsm.active_farm.queue_free()
+			gsm.active_farm = null
+		# Force fresh game (no save loaded)
+		gsm.pending_restart_slot = -1
+		gsm._milk_autosave_done = false
+		gsm.last_milk_autosave_path = ""
+		if gsm.get("last_active_slot") != null:
+			gsm.last_active_slot = -1
+		_verbose.info("ui", "✓", "GameStateManager hard reset (fresh game)")
+
+	# Reset BootManager
 	var boot_mgr = get_node_or_null("/root/BootManager")
 	if boot_mgr:
 		boot_mgr._core_booted = false
 		boot_mgr._ui_booted = false
 		boot_mgr._booted = false
 		boot_mgr.is_ready = false
-		_verbose.info("ui", "✓", "BootManager reset (_core_booted=false, _ui_booted=false)")
-
-	# Reset GameStateManager
-	var gsm = get_node_or_null("/root/GameStateManager")
-	if gsm:
-		gsm.active_farm = null
-		_verbose.info("ui", "✓", "GameStateManager reset (active_farm=null)")
+		_verbose.info("ui", "✓", "BootManager reset")
 
 	# Reset ActiveBiomeManager
 	var abm = get_node_or_null("/root/ActiveBiomeManager")
-	if abm:
-		if abm.has_method("reset"):
-			abm.reset()
-		else:
-			# Manual reset if no reset method
-			abm._active_biome = "BioticFlux" if "_active_biome" in abm else null
+	if abm and abm.has_method("reset"):
+		abm.reset()
 		_verbose.info("ui", "✓", "ActiveBiomeManager reset")
 
-	# Reset MusicManager
+	# Hard reset MusicManager (silence + clear track positions)
 	if has_node("/root/MusicManager"):
 		get_node("/root/MusicManager").reset()
 		_verbose.info("ui", "✓", "MusicManager reset")
 
-	# Reset ActionChainTracker if it exists
+	# Reset ActionChainTracker
 	var act = get_node_or_null("/root/ActionChainTracker")
 	if act and act.has_method("reset"):
 		act.reset()
 		_verbose.info("ui", "✓", "ActionChainTracker reset")
 
-	# Reset ObservationFrame if it exists
+	# Reset ObservationFrame
 	var obs = get_node_or_null("/root/ObservationFrame")
 	if obs and obs.has_method("reset"):
 		obs.reset()
 		_verbose.info("ui", "✓", "ObservationFrame reset")
 
+	# Reset VocabularyEvolution (discovered vocab back to initial)
+	var vocab = get_node_or_null("/root/VocabularyEvolution")
+	if vocab and vocab.has_method("reset"):
+		vocab.reset()
+		_verbose.info("ui", "✓", "VocabularyEvolution reset")
+
+	get_tree().paused = false
 	_verbose.info("ui", "🔄", "Reloading scene with fresh boot...")
 	get_tree().change_scene_to_file("res://scenes/FarmView.tscn")
 	emit_signal("restart_requested")

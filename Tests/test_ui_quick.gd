@@ -29,7 +29,7 @@ func _initialize() -> void:
 
 	print("✅ Found FarmUIController\n")
 	print("UI Container Measurements:")
-	print("─" * 50)
+	print("─".repeat(50))
 
 	# Check container sizes
 	_check_container(ui, "top_bar", "TopBar")

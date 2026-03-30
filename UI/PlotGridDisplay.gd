@@ -576,11 +576,11 @@ func inject_farm(farm_ref: Node) -> void:
 			farm.plot_measured.connect(_on_farm_plot_measured)
 			if _verbose:
 				_verbose.debug("ui", "📡", "Connected to farm.plot_measured")
-	if farm.has_signal("plot_harvested"):
-		if not farm.plot_harvested.is_connected(_on_farm_plot_harvested):
-			farm.plot_harvested.connect(_on_farm_plot_harvested)
+	if farm.has_signal("plot_popped"):
+		if not farm.plot_popped.is_connected(_on_farm_plot_popped):
+			farm.plot_popped.connect(_on_farm_plot_popped)
 			if _verbose:
-				_verbose.debug("ui", "📡", "Connected to farm.plot_harvested")
+				_verbose.debug("ui", "📡", "Connected to farm.plot_popped")
 
 	# Connect to entanglement signals from FarmGrid
 	if farm.grid and farm.grid.has_signal("entanglement_created"):
@@ -898,9 +898,9 @@ func _on_farm_plot_measured(pos: Vector2i, outcome: String) -> void:
 	update_tile_from_farm(pos)
 
 
-func _on_farm_plot_harvested(pos: Vector2i, yield_data: Dictionary) -> void:
-	"""Handle plot harvested event from farm - PHASE 4: Direct signal"""
-	_verbose.debug("ui", "✂️", "Farm.plot_harvested received at PlotGridDisplay")
+func _on_farm_plot_popped(pos: Vector2i, yield_data: Dictionary) -> void:
+	"""Handle plot popped event from farm"""
+	_verbose.debug("ui", "✂️", "Farm.plot_popped received at PlotGridDisplay")
 	update_tile_from_farm(pos)
 
 

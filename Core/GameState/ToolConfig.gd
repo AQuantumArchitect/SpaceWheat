@@ -168,7 +168,7 @@ const TOOL_GROUPS = {
 						  "hint": "Collapse state (observe)"},
 					"R": {"action": "pop", "label": "Pop", "emoji": "^",
 						  "icon": "res://Assets/UI/Science/Pop-Harvest.svg",
-						  "hint": "Harvest measured terminal",
+						  "hint": "Pop terminal (auto-measures if only explored)",
 						  "shift_action": "reap", "shift_label": "Reap"}
 				},
 			# GATE MODE: Entanglement infrastructure

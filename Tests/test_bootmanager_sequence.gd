@@ -65,7 +65,7 @@ func _init():
 
 	# Verify phase order
 	print("\n📊 VERIFICATION:")
-	print("─" * 70)
+	print("─".repeat(70))
 
 	var expected_phases = ["CORE_SYSTEMS", "VISUALIZATION", "UI", "GAME"]
 	var success = true
@@ -83,7 +83,7 @@ func _init():
 				print("❌ Phase %d: Expected %s, got %s" % [i + 1, expected, actual])
 				success = false
 
-	print("─" * 70)
+	print("─".repeat(70))
 
 	# Verify farm state
 	print("\n🌾 FARM STATE:")
@@ -118,14 +118,14 @@ func _init():
 		success = false
 
 	# Final result
-	print("\n" + "=" * 70)
+	print("\n" + "=".repeat(70))
 	if success and phases_completed.size() == expected_phases.size():
 		print("✅ BOOT SEQUENCE TEST PASSED")
-		print("=" * 70)
+		print("=".repeat(70))
 		quit(0)
 	else:
 		print("❌ BOOT SEQUENCE TEST FAILED")
-		print("=" * 70)
+		print("=".repeat(70))
 		quit(1)
 
 

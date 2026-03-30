@@ -180,7 +180,7 @@ signal biome_expanded(biome_name: String, qubit_index: int, emoji_pair: Dictiona
 
 signal plot_measured(position: Vector2i, outcome: String)
 
-signal plot_harvested(position: Vector2i, yield_data: Dictionary)
+signal plot_popped(position: Vector2i, yield_data: Dictionary)
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # OTHER SIGNALS
@@ -354,7 +354,7 @@ func _ready():
 
 	# PERFORMANCE: Connect grid signals to invalidate mushroom cache
 	grid.plot_planted.connect(func(_pos): invalidate_mushroom_cache())
-	grid.plot_harvested.connect(func(_pos, _data): invalidate_mushroom_cache())
+	grid.plot_popped.connect(func(_pos, _data): invalidate_mushroom_cache())
 
 	# Connect economy to grid for mill/market/kitchen flour & bread processing
 	grid.farm_economy = economy
@@ -1371,27 +1371,27 @@ func measure_plot(pos: Vector2i) -> String:
 	return outcome
 
 
-func harvest_plot(pos: Vector2i) -> Dictionary:
-	"""Harvest measured plot - collect yield
+func pop_plot(pos: Vector2i) -> Dictionary:
+	"""Pop (harvest) measured plot - collect yield
 
 	Returns: Dictionary with {success: bool, outcome: String, yield: int}
-	Emits: plot_harvested signal with yield data
+	Emits: plot_popped signal with yield data
 	"""
 	if not grid or not economy:
 		return {"success": false}
 
-	var harvest_data = grid.harvest_wheat(pos)
+	var harvest_data = grid.pop_wheat(pos)
 
 	if harvest_data.get("success", false):
 		# Route resources based on outcome
 		_process_harvest_outcome(harvest_data)
-		plot_harvested.emit(pos, harvest_data)
+		plot_popped.emit(pos, harvest_data)
 		_emit_state_changed()
 
 		var emoji = harvest_data.get("outcome", "?")
-		action_result.emit("harvest", true, "Harvested %d %s!" % [harvest_data.get("yield", 0), emoji])
+		action_result.emit("pop", true, "Popped %d %s!" % [harvest_data.get("yield", 0), emoji])
 	else:
-		action_result.emit("harvest", false, "Harvest failed")
+		action_result.emit("pop", false, "Pop failed")
 
 	return harvest_data
 
@@ -1559,7 +1559,7 @@ func _process_harvest_outcome(harvest_data: Dictionary) -> void:
 		return
 
 	# Generic routing: any emoji → its credits
-	var credits_earned = economy.receive_harvest(outcome_emoji, quantum_energy, "harvest")
+	var credits_earned = economy.receive_pop_yield(outcome_emoji, quantum_energy, "pop")
 
 
 func _emit_state_changed() -> void:

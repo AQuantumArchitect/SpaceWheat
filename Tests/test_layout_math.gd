@@ -20,9 +20,9 @@ func _init():
 	var total_errors = 0
 
 	for test_case in test_cases:
-		print("─" * 70)
+		print("─".repeat(70))
 		print("Testing: %s" % test_case["name"])
-		print("─" * 70)
+		print("─".repeat(70))
 
 		var viewport_size = test_case["size"]
 		var num_plots = test_case["plots"]
@@ -156,9 +156,9 @@ func _init():
 		total_errors += errors.size()
 
 	# Summary
-	print("═" * 70)
+	print("═".repeat(70))
 	print("SUMMARY")
-	print("═" * 70)
+	print("═".repeat(70))
 	print("")
 
 	if total_errors == 0:

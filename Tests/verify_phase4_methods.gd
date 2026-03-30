@@ -29,7 +29,7 @@ func _ready():
 	# Phase 4.1: Icon Modification API
 	# ========================================
 	print("[Phase 4.1] Icon Modification API")
-	print("-" * 70)
+	print("-".repeat(70))
 	var phase41_methods = ["boost_coupling", "tune_decoherence", "add_time_dependent_driver"]
 	var phase41_count = 0
 
@@ -47,7 +47,7 @@ func _ready():
 	# Phase 4.2: Lindblad Operations
 	# ========================================
 	print("[Phase 4.2] Lindblad Channel Operations")
-	print("-" * 70)
+	print("-".repeat(70))
 	var phase42_methods = ["pump_to_emoji", "reset_to_pure_state", "reset_to_mixed_state"]
 	var phase42_count = 0
 
@@ -65,7 +65,7 @@ func _ready():
 	# Phase 4.3: Gate Infrastructure
 	# ========================================
 	print("[Phase 4.3] Gate Infrastructure")
-	print("-" * 70)
+	print("-".repeat(70))
 	var phase43_methods = ["create_cluster_state", "set_measurement_trigger", "remove_entanglement", "batch_entangle"]
 	var phase43_count = 0
 
@@ -83,7 +83,7 @@ func _ready():
 	# Phase 4.4: Energy Tap System
 	# ========================================
 	print("[Phase 4.4] Energy Tap System")
-	print("-" * 70)
+	print("-".repeat(70))
 	var phase44_methods = ["place_energy_tap", "initialize_energy_tap_system", "get_tap_flux", "clear_tap_flux"]
 	var phase44_count = 0
 
@@ -101,7 +101,7 @@ func _ready():
 	# Verify FarmInputHandler Actions
 	# ========================================
 	print("[FarmInputHandler] Action Methods")
-	print("-" * 70)
+	print("-".repeat(70))
 	var action_methods = [
 		"_action_boost_coupling",
 		"_action_tune_decoherence",

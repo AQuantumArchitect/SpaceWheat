@@ -545,10 +545,10 @@ func request_restart() -> bool:
 
 	# Full scene reload; FarmView._ready() picks up pending_restart_slot
 	var tree = Engine.get_main_loop()
-	if tree and tree.has_method("reload_current_scene"):
+	if tree:
 		if tree.paused:
 			tree.paused = false
-		tree.reload_current_scene()
+		tree.change_scene_to_file("res://scenes/FarmView.tscn")
 		return true
 	return false
 

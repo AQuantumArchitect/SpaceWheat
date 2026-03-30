@@ -13,6 +13,23 @@ signal ui_ready
 signal game_ready
 
 var _core_booted: bool = false
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_WM_CLOSE_REQUEST or what == NOTIFICATION_PREDELETE:
+		# Free static GPU resources to avoid ObjectDB leak warnings
+		var GPUCalcV2 = load("res://Core/Visualization/GPUForceCalculatorV2.gd")
+		if GPUCalcV2 and GPUCalcV2.get("_shared_rd") and GPUCalcV2._shared_rd:
+			if GPUCalcV2._shared_pipeline.is_valid():
+				GPUCalcV2._shared_rd.free_rid(GPUCalcV2._shared_pipeline)
+			if GPUCalcV2._shared_shader.is_valid():
+				GPUCalcV2._shared_rd.free_rid(GPUCalcV2._shared_shader)
+			GPUCalcV2._shared_rd.free()
+			GPUCalcV2._shared_rd = null
+		var GPUCalc = load("res://Core/Visualization/GPUForceCalculator.gd")
+		if GPUCalc and GPUCalc.get("_shared_rd") and GPUCalc._shared_rd:
+			GPUCalc._shared_rd.free()
+			GPUCalc._shared_rd = null
 var _ui_booted: bool = false
 var _booted: bool = false  # Full boot (core + UI)
 var is_ready: bool = false  # Public flag for checking boot completion

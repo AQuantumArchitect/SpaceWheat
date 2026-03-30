@@ -6,9 +6,9 @@ extends SaveLoadTestBase
 func _initialize():
 	"""Quick boot verification"""
 
-	_log("\n" + "=" * 60)
+	_log("\n" + "=".repeat(60))
 	_log("QUICK BOOT TEST")
-	_log("=" * 60)
+	_log("=".repeat(60))
 
 	var all_pass = true
 
@@ -72,12 +72,12 @@ func _initialize():
 		_log("  ⚠ GameStateManager not found (save/load tests won't work)")
 
 	# Summary
-	_log("\n" + "=" * 60)
+	_log("\n" + "=".repeat(60))
 	if all_pass:
 		_log("✅ BOOT TEST PASSED")
 	else:
 		_log("❌ BOOT TEST FAILED")
-	_log("=" * 60)
+	_log("=".repeat(60))
 
 	print_summary()
 	quit(0 if all_pass else 1)

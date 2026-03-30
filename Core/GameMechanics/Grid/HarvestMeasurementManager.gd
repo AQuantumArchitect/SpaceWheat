@@ -7,7 +7,7 @@ extends RefCounted
 ## Handles measurement, harvest, topology bonus, coherence penalty.
 
 # Signals
-signal plot_harvested(position: Vector2i, yield_data: Dictionary)
+signal plot_popped(position: Vector2i, yield_data: Dictionary)
 signal plot_changed(position: Vector2i, change_type: String, details: Dictionary)
 signal visualization_changed()
 
@@ -39,8 +39,8 @@ func set_verbose(verbose_ref) -> void:
 	_verbose = verbose_ref
 
 
-func harvest_wheat(position: Vector2i) -> Dictionary:
-	"""Harvest a measured terminal at position (terminal-first)."""
+func pop_wheat(position: Vector2i) -> Dictionary:
+	"""Pop (harvest) a measured terminal at position (terminal-first)."""
 	if not _terminal_pool:
 		return {"success": false, "error": "no_pool"}
 
@@ -69,8 +69,8 @@ func harvest_wheat(position: Vector2i) -> Dictionary:
 		"biome_name": harvest_result.get("biome_name", "")
 	}
 
-	plot_harvested.emit(position, yield_data)
-	plot_changed.emit(position, "harvested", {"yield": yield_data})
+	plot_popped.emit(position, yield_data)
+	plot_changed.emit(position, "popped", {"yield": yield_data})
 	visualization_changed.emit()
 
 	return yield_data

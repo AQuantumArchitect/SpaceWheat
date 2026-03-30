@@ -262,12 +262,12 @@ static func _can_execute_pop(farm, selected_plots: Array[Vector2i]) -> bool:
 	if selected_plots.is_empty():
 		return false
 
-	# Check any selected plot has a measured terminal
+	# Check any selected plot has a measured terminal (or bound terminal that will auto-measure on pop)
 	var grid = farm.get("grid") if farm else null
 	for pos in selected_plots:
 		var plot = grid.get_plot(pos) if grid else null
 		var terminal = plot.terminal if plot else null
-		if terminal and terminal.can_pop():
+		if terminal and (terminal.can_pop() or terminal.is_bound):
 			return true
 
 	return false

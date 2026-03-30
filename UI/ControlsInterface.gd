@@ -22,7 +22,7 @@ signal credits_changed(new_amount: int)
 signal inventory_changed(resource: String, amount: int)
 signal plot_state_changed(position: Vector2i)
 signal plot_planted(position: Vector2i)
-signal plot_harvested(position: Vector2i, yield_amount: int)
+signal plot_popped(position: Vector2i, yield_amount: int)
 signal qubit_measured(position: Vector2i, outcome: String)
 signal plots_entangled(pos1: Vector2i, pos2: Vector2i)
 

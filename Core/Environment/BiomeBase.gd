@@ -1225,7 +1225,7 @@ func harvest_all_plots() -> Array:
 			successful_harvests += 1
 			total_yield += result.get("yield", 0)
 
-	_verbose_log("info", "farm", "✂️", "BiomeBase.harvest_all_plots(): %d harvested, %d credits total" % [successful_harvests, total_yield])
+	_verbose_log("info", "farm", "✂️", "BiomeBase.harvest_all_plots(): %d popped, %d credits total" % [successful_harvests, total_yield])
 	return results
 
 

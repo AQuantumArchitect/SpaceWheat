@@ -27,7 +27,7 @@ func _initialize():
 
 	print("\n✅ UI Structure Found\n")
 	print("Layout Verification:")
-	print("─" * 50)
+	print("─".repeat(50))
 
 	# Measure vertical layout
 	var y = 0.0

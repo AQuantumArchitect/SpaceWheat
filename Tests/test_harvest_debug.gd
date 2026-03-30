@@ -50,9 +50,9 @@ func _ready():
 
 	# Harvest
 	print("\n✂️  Harvesting plot (0,0)...")
-	print("=" * 80)
+	print("=".repeat(80))
 	var result = farm.harvest_plot(Vector2i(0, 0))
-	print("=" * 80)
+	print("=".repeat(80))
 
 	print("\n📋 Harvest result:")
 	print("   success: %s" % result.get("success", false))

@@ -175,10 +175,10 @@ static func create_grower_bundle() -> FiberBundle:
 			"description": "Plant wheat in selected plots"
 		},
 		"E": {
-			"action": "harvest",
-			"label": "Harvest",
+			"action": "pop",
+			"label": "Pop",
 			"emoji": "🌾➡️📦",
-			"description": "Harvest mature crops"
+			"description": "Pop terminal"
 		},
 		"R": {
 			"action": "clear",

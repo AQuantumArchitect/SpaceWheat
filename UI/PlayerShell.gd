@@ -301,13 +301,14 @@ func _on_restart_pressed() -> void:
 	if gsm and gsm.has_method("request_restart"):
 		gsm.request_restart()
 	else:
-		# Fallback: plain scene reload (no save context)
+		# Fallback: plain scene change (no save context)
 		get_tree().paused = false
-		get_tree().reload_current_scene()
+		get_tree().change_scene_to_file("res://scenes/FarmView.tscn")
 
 
 func _on_dev_restart_pressed() -> void:
-	_on_restart_pressed()
+	# Dev restart is handled entirely by OverlayManager (hard reset path)
+	pass
 
 
 func _push_modal(modal: Control) -> void:

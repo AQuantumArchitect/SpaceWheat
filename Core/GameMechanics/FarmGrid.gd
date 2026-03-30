@@ -18,7 +18,7 @@ extends Node
 
 # Internal signals (for FarmGrid-level operations)
 signal plot_planted(position: Vector2i)
-signal plot_harvested(position: Vector2i, yield_data: Dictionary)
+signal plot_popped(position: Vector2i, yield_data: Dictionary)
 
 signal entanglement_created(from: Vector2i, to: Vector2i)
 signal entanglement_removed(from: Vector2i, to: Vector2i)
@@ -153,7 +153,7 @@ func _ready():
 	_entanglement.entanglement_created.connect(func(a, b): entanglement_created.emit(a, b))
 	_entanglement.entanglement_removed.connect(func(a, b): entanglement_removed.emit(a, b))
 
-	_harvest.plot_harvested.connect(func(pos, data): plot_harvested.emit(pos, data))
+	_harvest.plot_popped.connect(func(pos, data): plot_popped.emit(pos, data))
 	_harvest.plot_changed.connect(func(pos, t, d): plot_changed.emit(pos, t, d))
 	_harvest.visualization_changed.connect(func(): visualization_changed.emit())
 
@@ -333,14 +333,14 @@ func print_grid_state():
 # HARVEST & MEASUREMENT (delegates to HarvestMeasurementManager)
 # ═══════════════════════════════════════════════════════════════════════════════
 
-func harvest_wheat(position: Vector2i) -> Dictionary:
-	"""Harvest wheat at position"""
+func pop_wheat(position: Vector2i) -> Dictionary:
+	"""Pop (harvest) a measured terminal at position"""
 	# Ensure economy is wired
 	if farm_economy and not _harvest._economy:
 		_harvest.set_dependencies(_plot_manager, _biome_routing, farm_economy, _entanglement, terminal_pool, null)
 	elif terminal_pool and not _harvest._terminal_pool:
 		_harvest.set_dependencies(_plot_manager, _biome_routing, farm_economy, _entanglement, terminal_pool, null)
-	return _harvest.harvest_wheat(position)
+	return _harvest.pop_wheat(position)
 
 
 func measure_plot(position: Vector2i) -> String:

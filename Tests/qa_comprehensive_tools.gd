@@ -318,7 +318,10 @@ func _test_resource_constraints():
 		var biome = grid.get_biome_for_plot(plot_pos)
 		if biome and biome.get_plantable_capabilities().size() > 0:
 			var cap = biome.get_plantable_capabilities()[0]
-			var cost = EconomyConstants.get_planting_cost(cap.emoji_pair.get("north", "?"))
+			var cost_dict = EconomyConstants.get_action_cost("plant", {"emoji": cap.emoji_pair.get("north", "?")})
+			var cost = 0
+			for v in cost_dict.values():
+				cost += v
 
 			if cost > 0:
 				print("   Planting cost: %d 💰" % cost)

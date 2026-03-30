@@ -186,8 +186,8 @@ func spend_cost(cost: Dictionary, reason: String = "") -> bool:
 	return true
 
 
-func receive_harvest(emoji: String, quantum_energy: float, reason: String = "harvest") -> int:
-	"""Convert quantum energy from harvest to emoji-credits
+func receive_pop_yield(emoji: String, quantum_energy: float, reason: String = "pop") -> int:
+	"""Convert quantum energy from pop to emoji-credits
 
 	1 quantum energy = 1 credit (direct mass mapping)
 	Returns: number of credits added

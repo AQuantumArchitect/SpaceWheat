@@ -71,7 +71,7 @@ func _run_game_cycle(cycle: int):
 	"""Run one complete game cycle: plant → evolve → harvest"""
 
 	print("\n📍 Phase 1: PLANTING")
-	print("─" * 40)
+	print("─".repeat(40))
 
 	# Plant strategy: rotate through plots
 	var plot_to_plant = (cycle - 1) % grid.grid_width
@@ -97,7 +97,7 @@ func _run_game_cycle(cycle: int):
 		print("⚠ Plot already planted or unavailable")
 
 	print("\n📍 Phase 2: QUANTUM EVOLUTION (60 seconds)")
-	print("─" * 40)
+	print("─".repeat(40))
 
 	# Record state before evolution
 	var theta_before = {}
@@ -143,7 +143,7 @@ func _run_game_cycle(cycle: int):
 	print("\n✓ Evolution complete - %d qubits evolved" % evolved_qubits)
 
 	print("\n📍 Phase 3: MEASUREMENT & HARVEST")
-	print("─" * 40)
+	print("─".repeat(40))
 
 	var harvested_this_cycle = 0
 	for p in theta_before.keys():
@@ -172,7 +172,7 @@ func _run_game_cycle(cycle: int):
 			else:
 				print("⏳ Not ready at (%d, %d) - θ = %.3f (%.1f° away)" % [p.x, p.y, q.theta, rad_to_deg(distance_from_stable)])
 
-	print("\n" + "─" * 40)
+	print("\n" + "─".repeat(40))
 	print("Cycle Summary:")
 	print("  Harvested this cycle: %d" % harvested_this_cycle)
 	print("  Total harvested: %d" % harvest_count)
@@ -190,7 +190,7 @@ func _print_observations():
 	print("="*70)
 
 	print("\n🔬 QUANTUM EVOLUTION PATTERNS")
-	print("─" * 70)
+	print("─".repeat(70))
 	print("""
 The Bloch sphere qubits show interesting dynamics:
 - Qubits start with random θ initialization
@@ -204,7 +204,7 @@ Gameplay outcome is set at planting time. Strategic choice at plant time matters
 """)
 
 	print("\n🌾 HARVEST READINESS")
-	print("─" * 70)
+	print("─".repeat(70))
 	print("""
 Wheat ready when θ ≈ π/4 ≈ 0.785 rad (45°)
 Current threshold: Distance < 0.4 rad (~22.9°)
@@ -219,7 +219,7 @@ Excellent gameplay: timing pressure + quantum tradeoff.
 """)
 
 	print("\n💰 ECONOMY MECHANICS")
-	print("─" * 70)
+	print("─".repeat(70))
 	print("""
 Current state:
 - Starting credits: 50
@@ -243,7 +243,7 @@ SOLUTION: Implement market mechanics that convert crops → credits
 """ % [harvest_count, economy.credits, economy.wheat_inventory])
 
 	print("\n🏰 IMPERIUM & FEUDAL OPPORTUNITY")
-	print("─" * 70)
+	print("─".repeat(70))
 	print("""
 You're intrigued by enriching biome with 🏰,💰 or 🏰,👥
 
@@ -308,7 +308,7 @@ Biome becomes CONTESTED SPACE where:
 """)
 
 	print("\n🎯 THE GENIUS OF 🏰 IN QUANTUMLAND")
-	print("─" * 70)
+	print("─".repeat(70))
 	print("""
 Why this works thematically:
 

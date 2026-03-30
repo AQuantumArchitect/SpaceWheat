@@ -26,7 +26,7 @@ func _ready() -> void:
 
 	# Create FarmUI with the farm reference
 	print("🎮 Creating FarmUI...")
-	farm_ui = FarmUI.new(farm)
+	farm_ui = FarmUI.new()
 	farm_ui.size = Vector2(1280, 720)
 	farm_ui.position = Vector2.ZERO
 	add_child(farm_ui)

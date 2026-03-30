@@ -17,9 +17,9 @@ func _initialize():
 	"""Run the complete test cycle"""
 
 	# Phase 1: Boot
-	_log("\n" + "=" * 60)
+	_log("\n" + "=".repeat(60))
 	_log("PHASE 1: BOOT & INITIALIZE")
-	_log("=" * 60)
+	_log("=".repeat(60))
 
 	if not await initialize_game():
 		_error("Boot failed - cannot continue")
@@ -30,9 +30,9 @@ func _initialize():
 	_log("✓ Boot successful\n")
 
 	# Phase 2: Set up game board
-	_log("=" * 60)
+	_log("=".repeat(60))
 	_log("PHASE 2: BOARD SETUP")
-	_log("=" * 60)
+	_log("=".repeat(60))
 
 	var planting_positions = [Vector2i(0, 0), Vector2i(1, 0), Vector2i(2, 0)]
 	var snapshot_before_save = capture_game_snapshot()
@@ -47,9 +47,9 @@ func _initialize():
 	test_results["details"].append("Board setup: planted %d plots" % snapshot_after_setup["planted_positions"].size())
 
 	# Phase 3: Save game to slot 0
-	_log("\n" + "=" * 60)
+	_log("\n" + "=".repeat(60))
 	_log("PHASE 3: SAVE GAME (SLOT 0)")
-	_log("=" * 60)
+	_log("=".repeat(60))
 
 	if not save_game(0):
 		_error("Save failed - cannot continue")
@@ -63,9 +63,9 @@ func _initialize():
 	])
 
 	# Phase 4: Start new game (slot 1 to avoid overwriting)
-	_log("\n" + "=" * 60)
+	_log("\n" + "=".repeat(60))
 	_log("PHASE 4: NEW GAME (SLOT 1)")
-	_log("=" * 60)
+	_log("=".repeat(60))
 
 	# Delete old slot 1 to ensure clean start
 	delete_save(1)
@@ -95,9 +95,9 @@ func _initialize():
 		_log("  - %s" % diff)
 
 	# Phase 5: Load original game from slot 0
-	_log("\n" + "=" * 60)
+	_log("\n" + "=".repeat(60))
 	_log("PHASE 5: LOAD ORIGINAL (SLOT 0)")
-	_log("=" * 60)
+	_log("=".repeat(60))
 
 	if not await load_game(0):
 		_error("Load failed - cannot continue")
@@ -111,9 +111,9 @@ func _initialize():
 	])
 
 	# Phase 6: Verify loaded state matches saved state
-	_log("\n" + "=" * 60)
+	_log("\n" + "=".repeat(60))
 	_log("PHASE 6: VERIFICATION")
-	_log("=" * 60)
+	_log("=".repeat(60))
 
 	var final_comparison = verify_state_matches(snapshot_after_save, snapshot_after_load, 0.01)
 
@@ -128,9 +128,9 @@ func _initialize():
 	_log("✓ Loaded state matches saved state")
 
 	# Phase 7: Run game loop to verify functionality
-	_log("\n" + "=" * 60)
+	_log("\n" + "=".repeat(60))
 	_log("PHASE 7: POST-LOAD GAME LOOP")
-	_log("=" * 60)
+	_log("=".repeat(60))
 
 	var new_planting = [Vector2i(3, 0), Vector2i(4, 0)]
 	var loop_results = await run_game_loop(new_planting, 3.0)
@@ -140,9 +140,9 @@ func _initialize():
 	])
 
 	# Final summary
-	_log("\n" + "=" * 60)
+	_log("\n" + "=".repeat(60))
 	_log("TEST SUMMARY")
-	_log("=" * 60)
+	_log("=".repeat(60))
 
 	_print_results()
 	_exit_with_result(true)

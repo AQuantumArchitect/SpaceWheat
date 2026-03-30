@@ -88,7 +88,7 @@ func _connect_signals() -> void:
 func _test_tool_selection() -> void:
 	"""Test tool selection with keys 1-6"""
 	print("📍 TEST 1: Tool Selection (1-6)")
-	print("─" * 50)
+	print("─".repeat(50))
 
 	for tool_num in range(1, 7):
 		var key = KEY_1 + (tool_num - 1)
@@ -110,7 +110,7 @@ func _test_tool_selection() -> void:
 func _test_location_selection() -> void:
 	"""Test location selection with YUIOP"""
 	print("📍 TEST 2: Location Selection (YUIOP)")
-	print("─" * 50)
+	print("─".repeat(50))
 
 	var location_keys = {
 		KEY_Y: "Y (Location 1)",
@@ -137,7 +137,7 @@ func _test_location_selection() -> void:
 func _test_cursor_movement() -> void:
 	"""Test cursor movement with WASD"""
 	print("📍 TEST 3: Cursor Movement (WASD)")
-	print("─" * 50)
+	print("─".repeat(50))
 
 	var start_pos = Vector2i.ZERO
 	var current_pos = start_pos
@@ -175,7 +175,7 @@ func _test_cursor_movement() -> void:
 func _test_overlay_toggles() -> void:
 	"""Test overlay toggle keys"""
 	print("📍 TEST 4: Overlay Toggles (C/V/N)")
-	print("─" * 50)
+	print("─".repeat(50))
 
 	var overlay_keys = {
 		KEY_C: "C = Contracts",
@@ -238,7 +238,7 @@ func _print_results() -> void:
 	print("\nSignals received: %d" % input_events_received)
 
 	print("\nDetailed Log:")
-	print("─" * 70)
+	print("─".repeat(70))
 	for log in test_log:
 		print(log)
 

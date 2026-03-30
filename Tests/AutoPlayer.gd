@@ -180,9 +180,9 @@ func _step_check_quest():
 				print("   ⏳ Still in progress...")
 
 func _finish_test():
-	print("\n" + "=" * 70)
+	print("\n" + "=".repeat(70))
 	print("TEST COMPLETE")
-	print("=" * 70)
+	print("=".repeat(70))
 	print("\n📊 Final State:")
 	print("   🌾 Wheat: %d credits" % farm.economy.get_resource("🌾"))
 	print("   👥 Labor: %d credits" % farm.economy.get_resource("👥"))

@@ -173,7 +173,7 @@ func _create_actions_section() -> Control:
 		["=", "Stride Up", "Faster playback (double), up to 256x"],
 		["Shift+-", "Resolution Down", "Finer substeps (10x smaller dt)"],
 		["Shift+=", "Resolution Up", "Coarser substeps (10x larger dt)"],
-		["H", "Harvest All", "Global harvest"]
+		["Shift+R", "Reap", "Seasonal reap: fast-forward evolution, reap all active biomes"]
 	]
 
 	for entry in entries:
@@ -215,7 +215,10 @@ func _create_navigation_section() -> Control:
 		["J", "Plot 1", "Select first plot in current biome"],
 		["K", "Plot 2", "Select second plot in current biome"],
 		["L", "Plot 3", "Select third plot in current biome"],
-		[";", "Plot 4", "Select fourth plot in current biome"]
+		[";", "Plot 4", "Select fourth plot in current biome"],
+		["'", "Plot 5", "Select fifth plot in current biome"],
+		["H", "Plot 6", "Select sixth plot in current biome"],
+		["G", "Plot 7", "Select seventh plot in current biome"]
 	]
 
 	for entry in plot_entries:

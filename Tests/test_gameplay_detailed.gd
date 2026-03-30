@@ -10,9 +10,9 @@ var farm: Node
 var input_handler: Node
 
 func _ready():
-	print("\n" + "="*80)
+	print("\n" + "=".repeat(80))
 	print("🎮 DETAILED GAMEPLAY TEST")
-	print("="*80)
+	print("=".repeat(80))
 
 	await get_tree().process_frame
 	_setup()
@@ -35,30 +35,30 @@ func _setup():
 	print("   - InputHandler: %s" % ("✓" if input_handler else "✗"))
 
 func _run_gameplay_tests():
-	print("\n" + "-"*80)
+	print("\n" + "-".repeat(80))
 	print("TEST 1: PLOT SELECTION")
-	print("-"*80)
+	print("-".repeat(80))
 	_test_plot_selection()
 
 	await get_tree().process_frame
 
-	print("\n" + "-"*80)
+	print("\n" + "-".repeat(80))
 	print("TEST 2: TOOL SELECTION (1-6)")
-	print("-"*80)
+	print("-".repeat(80))
 	_test_tool_selection()
 
 	await get_tree().process_frame
 
-	print("\n" + "-"*80)
+	print("\n" + "-".repeat(80))
 	print("TEST 3: QUEST BOARD (Press C)")
-	print("-"*80)
+	print("-".repeat(80))
 	_test_quest_board()
 
 	await get_tree().process_frame
 
-	print("\n" + "-"*80)
+	print("\n" + "-".repeat(80))
 	print("SUMMARY")
-	print("-"*80)
+	print("-".repeat(80))
 	_print_summary()
 
 func _test_plot_selection():
@@ -196,12 +196,12 @@ func _print_summary():
 
 	# Determine overall status
 	var all_pass = results.values().all(func(r): return r == "PASS" or r.begins_with("FOUND"))
-	print("\n" + "="*80)
+	print("\n" + "=".repeat(80))
 	if all_pass:
 		print("✅ ALL TESTS PASSED")
 	else:
 		print("❌ SOME TESTS FAILED - See details above")
-	print("="*80)
+	print("=".repeat(80))
 
 func _get_tool_name(num: int) -> String:
 	match num:

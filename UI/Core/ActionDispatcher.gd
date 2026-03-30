@@ -36,7 +36,7 @@ const DISPATCH_TABLE = {
 	# ═══════════════════════════════════════════════════════════════════════════
 	"explore": ["ProbeHandler", "explore", "Discovered {explored_count} registers"],
 	"measure": ["ProbeHandler", "measure", "Measured {measured_count} terminals"],
-	"pop": ["ProbeHandler", "pop", "Harvested {popped_count} terminals (+{total_credits} credits)"],
+	"pop": ["ProbeHandler", "pop", "Popped {popped_count} terminals (+{total_credits} credits)"],
 
 	# ═══════════════════════════════════════════════════════════════════════════
 	# GATE ACTIONS - Single Qubit (Tool 2)

@@ -269,8 +269,8 @@ func _error(message: String) -> void:
 
 func print_summary() -> void:
 	_log("")
-	_log("═" * 60)
+	_log("═".repeat(60))
 	_log("Test log (%d entries)" % test_log.size())
-	_log("═" * 60)
+	_log("═".repeat(60))
 	for entry in test_log:
 		print(entry)

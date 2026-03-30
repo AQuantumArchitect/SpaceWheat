@@ -59,9 +59,9 @@ func measure_plot(pos: Vector2i) -> String:
 	return result
 
 
-func harvest_plot(pos: Vector2i) -> Dictionary:
-	"""Harvest single plot - uses generic emoji-credits routing"""
-	var harvest_data = farm_grid.harvest_wheat(pos)
+func pop_plot(pos: Vector2i) -> Dictionary:
+	"""Pop (harvest) single plot - uses generic emoji-credits routing"""
+	var harvest_data = farm_grid.pop_wheat(pos)
 
 	if harvest_data["success"]:
 		# Get harvest outcome (emoji) and energy/yield
@@ -75,7 +75,7 @@ func harvest_plot(pos: Vector2i) -> Dictionary:
 
 			if not outcome_emoji.is_empty():
 				# Generic routing: any emoji → its credits
-				var credits_earned = economy.receive_harvest(outcome_emoji, quantum_energy, "harvest")
+				var credits_earned = economy.receive_pop_yield(outcome_emoji, quantum_energy, "pop")
 				var units = credits_earned / EconomyConstants.get_quantum_to_credits(economy)
 
 			# Goal tracking for wheat
@@ -94,7 +94,7 @@ func harvest_plot(pos: Vector2i) -> Dictionary:
 			var tile = get_tile_callback.call(pos)
 			if tile:
 				var effect_pos = tile.global_position + tile.size / 2
-				visual_effect_requested.emit("harvest", effect_pos, {"color": Color(1.0, 0.9, 0.3)})
+				visual_effect_requested.emit("pop", effect_pos, {"color": Color(1.0, 0.9, 0.3)})
 
 		_trigger_updates()
 		if on_goal_update.is_valid():
@@ -115,7 +115,7 @@ func harvest_all() -> Dictionary:
 			if terminal.grid_position == Vector2i(-1, -1):
 				continue
 			var pos = terminal.grid_position
-			var harvest_data = farm_grid.harvest_wheat(pos)
+			var harvest_data = farm_grid.pop_wheat(pos)
 			if harvest_data.get("success", false):
 				harvest_count += 1
 				total_harvested += harvest_data.get("yield", 0)
@@ -129,7 +129,7 @@ func harvest_all() -> Dictionary:
 					var tile = get_tile_callback.call(pos)
 					if tile:
 						var effect_pos = tile.global_position + tile.size / 2
-						visual_effect_requested.emit("harvest", effect_pos, {"color": Color(1.0, 0.9, 0.3)})
+						visual_effect_requested.emit("pop", effect_pos, {"color": Color(1.0, 0.9, 0.3)})
 
 	if harvest_count > 0:
 		# Check contracts

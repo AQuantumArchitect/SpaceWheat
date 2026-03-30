@@ -74,7 +74,7 @@ func _test_overlays():
 	print("\n5️⃣ BIOME DETAIL OVERLAY (🔬)")
 	_test_overlay("biome_detail", "BiomeInspectorOverlay")
 
-func _test_overlay(name: String, class_name: String):
+func _test_overlay(name: String, expected_class: String):
 	"""Test a single overlay"""
 	if not overlay_manager.overlays.has(name):
 		print("   ❌ Not registered")
@@ -206,7 +206,7 @@ func _print_results():
 	tool_results.sort_custom(func(a, b): return int(a.key) < int(b.key))
 
 	print("\nOVERLAYS:")
-	print("-" * 70)
+	print("-".repeat(70))
 	var overlay_pass = 0
 	for item in overlay_results:
 		var symbol = "✅" if item.result == "PASS" else "❌"
@@ -216,7 +216,7 @@ func _print_results():
 	print("Result: %d/%d PASS" % [overlay_pass, overlay_results.size()])
 
 	print("\nTOOLS:")
-	print("-" * 70)
+	print("-".repeat(70))
 	var tool_pass = 0
 	for item in tool_results:
 		var symbol = "✅" if item.result == "PASS" else "❌"

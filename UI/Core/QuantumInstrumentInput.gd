@@ -168,6 +168,10 @@ func _unhandled_key_input(event: InputEvent) -> void:
 
 	var key = _keycode_to_string(event.keycode)
 
+	# Auto-close submenu when any non-action key is pressed
+	if _instrument.is_in_submenu() and key not in ["Q", "E", "R", "F"]:
+		_close_submenu()
+
 	# Tool group selection: 1, 2, 3, 4
 	if key in ["1", "2", "3", "4"]:
 		_select_tool_group(int(key))
@@ -422,6 +426,14 @@ func _cycle_submenu_page() -> void:
 	submenu_changed.emit(result.submenu_name, result.submenu_data.get("actions", {}))
 
 
+func _close_submenu() -> void:
+	"""Close the active submenu and reset all submenu state."""
+	_instrument.exit_submenu()
+	_in_submenu = false
+	_current_submenu = {}
+	submenu_changed.emit("", {})
+
+
 func _handle_submenu_action(action_key: String) -> void:
 	"""Handle Q/E/R actions while in a submenu.
 
@@ -467,11 +479,7 @@ func _handle_submenu_action(action_key: String) -> void:
 		_verbose.info("input", "⚛️", "Building %s gate (requires %d qubits)" % [label, qubits_required])
 		_execute_build_gate(gate_type)
 
-	# Exit submenu using headless state
-	_instrument.exit_submenu()
-	_in_submenu = false
-	_current_submenu = {}
-	submenu_changed.emit("", {})
+	_close_submenu()
 
 
 func _execute_inject_vocabulary(vocab_pair: Dictionary) -> void:
@@ -1385,6 +1393,8 @@ func _set_selection_for_grid_pos(grid_pos: Vector2i) -> void:
 		"biome": biome_name,
 		"subspace_idx": -1
 	}
+	_instrument.current_plot_idx = grid_pos.x
+	_instrument.current_biome = biome_name
 
 
 func _restore_selection(previous_selection: Dictionary) -> void:

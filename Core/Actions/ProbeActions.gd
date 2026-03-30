@@ -191,7 +191,7 @@ static func action_measure(terminal, biome, economy = null) -> Dictionary:
 			return {
 				"success": false,
 				"error": "already_measured",
-				"message": "Terminal already measured. Use POP to harvest.",
+				"message": "Terminal already measured. Use R to pop.",
 				"blocked": true
 			}
 		return {
@@ -307,9 +307,52 @@ static func _project_register(biome, register_id: int, is_north: bool) -> bool:
 	if not biome or not biome.quantum_computer:
 		return false
 	var qc = biome.quantum_computer
-	if qc.has_method("project_qubit"):
-		return qc.project_qubit(register_id, 0 if is_north else 1)
-	return false
+	if not qc.has_method("project_qubit"):
+		return false
+	# Guard against zero-trace projection: verify the chosen outcome has
+	# non-zero probability in the live density matrix. If Born sampling
+	# picked from a stale viz_cache, the live state may disagree.
+	var outcome_pole = 0 if is_north else 1
+	if qc.has_method("get_marginal"):
+		var live_prob = qc.get_marginal(register_id, outcome_pole)
+		if live_prob < 1e-12:
+			# Flip to the opposite outcome which must have ~1.0 probability
+			outcome_pole = 1 - outcome_pole
+	return qc.project_qubit(register_id, outcome_pole)
+
+
+static func _auto_measure_for_pop(terminal, farm) -> Dictionary:
+	"""Auto-measure a bound terminal so it can be popped directly.
+
+	Born-samples from the live density matrix, projects the qubit, and
+	marks the terminal as measured — collapsing explore→measure→pop into
+	explore→pop.
+	"""
+	var biome = _resolve_biome_from_terminal(farm, terminal)
+	if not biome or not biome.quantum_computer:
+		return {"success": false, "error": "no_biome", "message": "Cannot auto-measure: biome unavailable.", "blocked": true}
+
+	var register_id = terminal.bound_register_id
+	var qc = biome.quantum_computer
+
+	# Born sample from live density matrix
+	var north_prob = qc.get_marginal(register_id, 0) if qc.has_method("get_marginal") else 0.5
+	var is_north = randf() < north_prob
+	var outcome = terminal.north_emoji if is_north else terminal.south_emoji
+	var outcome_prob = north_prob if is_north else (1.0 - north_prob)
+
+	if outcome.is_empty():
+		outcome = "?"
+
+	# Project the register
+	_project_register(biome, register_id, is_north)
+
+	# Mark terminal as measured
+	var snapshot = {"purity": 1.0}
+	terminal.mark_measured(outcome, outcome_prob, 1.0, snapshot)
+	terminal.release_register()
+
+	return {"success": true, "auto_measured": true}
 
 
 ## ============================================================================
@@ -472,7 +515,7 @@ static func _prepare_pop_result(terminal, terminal_pool, economy = null, farm = 
 		return {
 			"success": false,
 			"error": "no_terminal",
-			"message": "No terminal to harvest. Use MEASURE first.",
+			"message": "No terminal to pop. Use E to measure first.",
 			"blocked": true
 		}
 	if not terminal_pool:
@@ -493,19 +536,25 @@ static func _prepare_pop_result(terminal, terminal_pool, economy = null, farm = 
 		}
 
 	if not terminal.can_pop():
-		if not terminal.is_measured:
+		if terminal.is_bound and not terminal.is_measured:
+			# Auto-measure: Born sample from live state and project
+			var auto_result = _auto_measure_for_pop(terminal, farm)
+			if not auto_result.get("success", false):
+				return auto_result
+		elif not terminal.is_measured:
 			return {
 				"success": false,
 				"error": "not_measured",
 				"message": "Terminal not measured. Use MEASURE first.",
 				"blocked": true
 			}
-		return {
-			"success": false,
-			"error": "cannot_pop",
-			"message": "Terminal cannot be popped.",
-			"blocked": true
-		}
+		else:
+			return {
+				"success": false,
+				"error": "cannot_pop",
+				"message": "Terminal cannot be popped.",
+				"blocked": true
+			}
 
 	var resource = terminal.measured_outcome
 	var recorded_prob = terminal.measured_probability
@@ -592,7 +641,7 @@ static func action_clear_all(terminal_pool) -> Dictionary:
 		terminal_pool.unbind_terminal(terminal)
 		cleared_count += 1
 	
-	_log("info", "farm", "🧹", "Cleared %d terminals (no harvest)" % cleared_count)
+	_log("info", "farm", "🧹", "Cleared %d terminals (no pop)" % cleared_count)
 
 	return {
 		"success": true,

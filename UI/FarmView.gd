@@ -193,7 +193,7 @@ func _on_restart_requested() -> void:
 	# Reset music completely before reloading
 	if has_node("/root/MusicManager"):
 		get_node("/root/MusicManager").reset()
-	get_tree().reload_current_scene()
+	get_tree().change_scene_to_file("res://scenes/FarmView.tscn")
 
 
 func _on_overlay_state_changed(overlay_name: String, visible: bool) -> void:
@@ -250,7 +250,7 @@ func _on_quantum_node_clicked(grid_pos: Vector2i, button_index: int) -> void:
 			var purity = result.get("purity", 1.0)
 			var neighbors = result.get("neighbor_count", 4)
 			_verbose.info("ui", "🎉", "Popped: %s → %.1f credits (purity: %.2f, neighbors: %d)" % [result.resource, credits, purity, neighbors])
-			farm.plot_harvested.emit(grid_pos, {
+			farm.plot_popped.emit(grid_pos, {
 				"emoji": result.resource,
 				"credits": credits,
 				"purity": purity,

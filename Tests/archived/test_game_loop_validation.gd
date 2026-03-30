@@ -6,9 +6,9 @@ extends SaveLoadTestBase
 func _initialize():
 	"""Test complete game loop with state verification"""
 
-	_log("\n" + "=" * 60)
+	_log("\n" + "=".repeat(60))
 	_log("GAME LOOP VALIDATION TEST")
-	_log("=" * 60)
+	_log("=".repeat(60))
 
 	# Initialize game
 	if not await initialize_game():
@@ -97,9 +97,9 @@ func _initialize():
 	_log("  Current measured: %d" % final_snapshot["measured_positions"].size())
 	_log("  Credits change: %+d" % (final_snapshot["credits"] - initial_snapshot["credits"]))
 
-	_log("\n" + "=" * 60)
+	_log("\n" + "=".repeat(60))
 	_log("✅ GAME LOOP VALIDATION COMPLETE")
-	_log("=" * 60)
+	_log("=".repeat(60))
 
 	print_summary()
 	quit(0)

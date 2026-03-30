@@ -24,9 +24,9 @@ func _init():
 		var test_name = res_config["name"]
 		var test_size = res_config["size"]
 
-		print("─" * 70)
+		print("─".repeat(70))
 		print("Testing: %s" % test_name)
-		print("─" * 70)
+		print("─".repeat(70))
 
 		var layout_manager = UILayoutManager.new()
 
@@ -136,9 +136,9 @@ func _init():
 		results.append(test_result)
 
 	# Summary
-	print("═" * 70)
+	print("═".repeat(70))
 	print("TEST SUMMARY")
-	print("═" * 70)
+	print("═".repeat(70))
 	print("")
 
 	var total_errors = 0
@@ -149,7 +149,7 @@ func _init():
 
 	print("")
 	print("Total errors: %d" % total_errors)
-	print("═" * 70)
+	print("═".repeat(70))
 
 	if total_errors == 0:
 		print("✓ All layout tests passed!")

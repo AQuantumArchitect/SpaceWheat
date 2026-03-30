@@ -19,9 +19,9 @@ var test_log: Array[String] = []
 
 func _ready():
 	test_name = self.get_class()
-	_log("═" * 60)
+	_log("═".repeat(60))
 	_log("Starting %s" % test_name)
-	_log("═" * 60)
+	_log("═".repeat(60))
 
 ## ============================================================================
 ## INITIALIZATION
@@ -351,8 +351,8 @@ func get_log() -> Array[String]:
 func print_summary() -> void:
 	"""Print test summary"""
 	_log("")
-	_log("═" * 60)
+	_log("═".repeat(60))
 	_log("Test log (%d entries)" % test_log.size())
-	_log("═" * 60)
+	_log("═".repeat(60))
 	for entry in test_log:
 		print(entry)
