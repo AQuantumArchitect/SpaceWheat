@@ -45,6 +45,7 @@ var _south_emoji: String = ""
 var _is_measured: bool = false
 var _measured_outcome: String = ""
 var _measured_probability: float = 0.0
+var bath_subplot_id: int = -1
 
 ## Delegating properties: terminal takes priority when present
 var bound_register_id: int:

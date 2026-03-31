@@ -345,7 +345,7 @@ static func enable_persistent_drive(farm, positions: Array[Vector2i],
 		success_count += 1
 		driven_emojis[north_emoji] = driven_emojis.get(north_emoji, 0) + 1
 
-	return {
+	var result = {
 		"success": success_count > 0,
 		"driven_count": success_count,
 		"driven_emojis": driven_emojis,
@@ -362,10 +362,18 @@ static func enable_persistent_drive(farm, positions: Array[Vector2i],
 			"unbound_plot": unbound_plot,
 			"unresolved_axis": unresolved_axis,
 			"unresolved_qubit": unresolved_qubit
-			},
-			"auto_bound_plot": auto_bound_plot,
-			"cost_model": "pump=free_persistent"
-		}
+		},
+		"auto_bound_plot": auto_bound_plot,
+		"cost_model": "pump=free_persistent"
+	}
+	if not result.success:
+		if already_active > 0:
+			result["message"] = "Pump already active on %d plot(s)" % already_active
+		elif not insufficient.is_empty():
+			result["message"] = "Insufficient resources for pump"
+		else:
+			result["message"] = "No valid plots to pump"
+	return result
 
 
 static func enable_persistent_decay(farm, positions: Array[Vector2i],
@@ -453,7 +461,7 @@ static func enable_persistent_decay(farm, positions: Array[Vector2i],
 		success_count += 1
 		decayed_emojis[north_emoji] = decayed_emojis.get(north_emoji, 0) + 1
 
-	return {
+	var result = {
 		"success": success_count > 0,
 		"decayed_count": success_count,
 		"decayed_emojis": decayed_emojis,
@@ -474,6 +482,14 @@ static func enable_persistent_decay(farm, positions: Array[Vector2i],
 		"auto_bound_plot": auto_bound_plot,
 		"cost_model": "drain=2⚙+8S"
 	}
+	if not result.success:
+		if already_active > 0:
+			result["message"] = "Drain already active on %d plot(s)" % already_active
+		elif not insufficient.is_empty():
+			result["message"] = "Insufficient resources for drain"
+		else:
+			result["message"] = "No valid plots to drain"
+	return result
 
 
 static func lindblad_transfer(farm, positions: Array[Vector2i]) -> Dictionary:
