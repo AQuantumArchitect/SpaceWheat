@@ -814,10 +814,29 @@ func _perform_action(action_key: String) -> void:
 	if not ActionValidator.can_execute_action_name(
 		action_name, farm, _get_selected_positions(), _get_grid_position()
 	):
-		_verbose.info("input", "•", "%s blocked" % action_info.get("label", action_name))
+		_verbose.info("input", "•", "%s blocked%s" % [
+			action_info.get("label", action_name),
+			_get_block_reason(action_name)
+		])
 		return
 
 	_run_action(action_name, emoji if emoji != "" else action_name, action_info.get("label", action_name))
+
+
+func _get_block_reason(action_name: String) -> String:
+	"""Return a human-readable reason why an action is blocked, or '' if unknown."""
+	if action_name != "explore" or not farm:
+		return ""
+	var grid = farm.get("grid")
+	var biome = grid.get_biome_for_plot(_get_grid_position()) if grid else null
+	if not biome:
+		return ""
+	var terminal_pool = farm.get("terminal_pool")
+	var free = biome.get_available_registers(terminal_pool) if biome.has_method("get_available_registers") and terminal_pool else []
+	if free.is_empty():
+		var name = biome.get_biome_type() if biome.has_method("get_biome_type") else "biome"
+		return ": %s full — pop a terminal to free a register" % name
+	return ""
 
 
 func _perform_shift_key_action(action_key: String) -> void:
@@ -869,7 +888,12 @@ func _perform_shift_key_action(action_key: String) -> void:
 		if not ActionValidator.can_execute_action_name(
 			action_name, farm, _get_selected_positions(), _get_grid_position()
 		):
-			_verbose.info("input", "•", "%s blocked" % log_label)
+			# For explore: if biome is full, stop iterating (all remaining plots will also fail)
+			if action_name == "explore":
+				var reason = _get_block_reason(action_name)
+				if reason != "":
+					_verbose.info("input", "•", "%s blocked%s" % [log_label, reason])
+					break
 			continue
 		if action_name == "pop":
 			_run_cleanup_action(action_name, symbol, log_label)
