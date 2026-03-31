@@ -666,4 +666,7 @@ func _hydrate_state_defaults(state: GameState) -> GameState:
 		state.ensure_balance_workbench_defaults()
 	if state.has_method("ensure_policy_state_defaults"):
 		state.ensure_policy_state_defaults()
+	# Ensure every session starts with at least 1 🍼 (reap resource)
+	if state.all_emoji_credits.get("🍼", 0) < 1:
+		state.all_emoji_credits["🍼"] = 1
 	return state
