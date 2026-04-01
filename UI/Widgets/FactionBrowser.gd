@@ -2,7 +2,7 @@ class_name FactionBrowser
 extends Control
 
 ## Faction Browser - Shows All Accessible Factions
-## Opened from QuestBoard with C key
+## Opened from QuestBoard with Shift+C
 ## Filtered by player vocabulary
 
 signal faction_selected(faction_quest: Dictionary)
@@ -55,40 +55,26 @@ func _unhandled_key_input(event: InputEvent) -> void:
 		return
 
 	match event.keycode:
-		KEY_ESCAPE, KEY_C:
+		KEY_ESCAPE, KEY_C, KEY_E:
 			close_browser()
 			get_viewport().set_input_as_handled()
 
-		# Navigate (UIOP)
-		KEY_U:
+		# Navigate
+		KEY_UP, KEY_W:
 			move_selection(-1)
 			get_viewport().set_input_as_handled()
-		KEY_I:
+		KEY_PAGEUP, KEY_LEFT, KEY_A, KEY_R:
 			move_selection(-3)  # Page up
 			get_viewport().set_input_as_handled()
-		KEY_O:
+		KEY_PAGEDOWN, KEY_RIGHT, KEY_D, KEY_F:
 			move_selection(3)   # Page down
 			get_viewport().set_input_as_handled()
-		KEY_P:
+		KEY_DOWN, KEY_S:
 			move_selection(1)
 			get_viewport().set_input_as_handled()
 
-		# Arrow keys for navigation
-		KEY_UP:
-			move_selection(-1)  # Up one
-			get_viewport().set_input_as_handled()
-		KEY_DOWN:
-			move_selection(1)   # Down one
-			get_viewport().set_input_as_handled()
-		KEY_PAGEUP:
-			move_selection(-3)  # Page up
-			get_viewport().set_input_as_handled()
-		KEY_PAGEDOWN:
-			move_selection(3)   # Page down
-			get_viewport().set_input_as_handled()
-
-		# Select (Q or Enter)
-		KEY_Q, KEY_ENTER, KEY_KP_ENTER:
+		# Select (Q / Enter / Space)
+		KEY_Q, KEY_ENTER, KEY_KP_ENTER, KEY_SPACE:
 			select_current_faction()
 			get_viewport().set_input_as_handled()
 
@@ -102,40 +88,26 @@ func handle_input(event: InputEvent) -> bool:
 		return false
 
 	match event.keycode:
-		KEY_ESCAPE, KEY_C:
+		KEY_ESCAPE, KEY_C, KEY_E:
 			close_browser()
 			return true
 
-		# Navigate (UIOP)
-		KEY_U:
+		# Navigate
+		KEY_UP, KEY_W:
 			move_selection(-1)
 			return true
-		KEY_I:
+		KEY_PAGEUP, KEY_LEFT, KEY_A, KEY_R:
 			move_selection(-3)  # Page up
 			return true
-		KEY_O:
+		KEY_PAGEDOWN, KEY_RIGHT, KEY_D, KEY_F:
 			move_selection(3)   # Page down
 			return true
-		KEY_P:
+		KEY_DOWN, KEY_S:
 			move_selection(1)
 			return true
 
-		# Arrow keys for navigation
-		KEY_UP:
-			move_selection(-1)  # Up one
-			return true
-		KEY_DOWN:
-			move_selection(1)   # Down one
-			return true
-		KEY_PAGEUP:
-			move_selection(-3)  # Page up
-			return true
-		KEY_PAGEDOWN:
-			move_selection(3)   # Page down
-			return true
-
-		# Select (Q or Enter)
-		KEY_Q, KEY_ENTER, KEY_KP_ENTER:
+		# Select (Q / Enter / Space)
+		KEY_Q, KEY_ENTER, KEY_KP_ENTER, KEY_SPACE:
 			select_current_faction()
 			return true
 
@@ -185,13 +157,13 @@ func _create_ui() -> void:
 	header_hbox.add_child(title_label)
 
 	var close_button = Button.new()
-	close_button.text = "← Back [C/ESC]"
+	close_button.text = "← Back [E/ESC]"
 	close_button.pressed.connect(close_browser)
 	header_hbox.add_child(close_button)
 
 	# Controls hint
 	var controls = Label.new()
-	controls.text = "[↑↓ or UIOP] Navigate  [ENTER or Q] Select  [ESC/C] Back"
+	controls.text = "[W/S or ↑↓] Move  [A/D or R/F] Page  [ENTER or Q] Select  [E/ESC] Back"
 	controls.add_theme_font_size_override("font_size", normal_size)
 	controls.modulate = Color(0.8, 0.8, 0.8)
 	main_vbox.add_child(controls)
@@ -245,7 +217,7 @@ func _refresh_faction_list() -> void:
 		return
 
 	# Update title
-	title_label.text = "⚛️ FACTION BROWSER → Will fill slot [%s]" % ["UIOP"[target_slot_index]]
+	title_label.text = "⚛️ FACTION BROWSER → Will fill slot %d" % [target_slot_index + 1]
 
 	# Create faction items
 	for i in range(all_quests.size()):

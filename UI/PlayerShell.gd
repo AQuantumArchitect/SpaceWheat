@@ -22,8 +22,7 @@ const LoggerConfigPanel = preload("res://UI/Overlays/LoggerConfigPanel.gd")
 const QuantumModeStatusIndicator = preload("res://UI/Widgets/QuantumModeStatusIndicator.gd")
 const BiomeSelectionRowClass = preload("res://UI/Widgets/BiomeSelectionRow.gd")
 
-## Farm overlay keys (CVBN) - game content overlays
-## These close each other but not shell menus
+## Game overlay keys (CVBN) - game content overlays
 const FARM_OVERLAY_KEYS = {
 	KEY_C: "quests",
 	KEY_V: "semantic_map",
@@ -31,9 +30,9 @@ const FARM_OVERLAY_KEYS = {
 	KEY_N: "inspector",
 }
 
-## Shell menu keys (ZX) - system-level panels
-## These close each other AND close farm overlays
-const SHELL_MENU_KEYS = [KEY_Z, KEY_X]
+## Shell/system menu keys (ZXM)
+## Z = controls/help, X = system menu, M = balance workbench
+const SHELL_MENU_KEYS = [KEY_Z, KEY_X, KEY_M]
 
 var current_farm_ui = null  # FarmUI instance (from scene)
 var overlay_manager = null
@@ -97,8 +96,8 @@ func _handle_shell_action(event: InputEvent) -> bool:
 
 	All menus are mutually exclusive - opening one closes others.
 
-	Shell menus (Z, X, ESC): System-level panels
-	Farm overlays (C, V, B, N): Game content overlays
+	Shell menus (Z, X, M, ESC): system-level panels
+	Game overlays (C, V, B, N): game content overlays
 	TAB: Build/Play mode toggle (only when no menu active)
 	"""
 	var keycode = event.keycode
@@ -112,22 +111,19 @@ func _handle_shell_action(event: InputEvent) -> bool:
 			_open_escape_menu()
 			return true
 
-	# Shell menu keys (Z, X)
-	if keycode == KEY_B and event.shift_pressed:
-		_toggle_shell_menu("balance_workbench")
-		return true
+	# Shell/system menu keys (Z, X, M)
 	if keycode == KEY_Z:
 		_toggle_shell_menu("controls")
 		return true
 	if keycode == KEY_X:
-		_toggle_shell_menu("logger")
+		_toggle_shell_menu("escape_menu")
+		return true
+	if keycode == KEY_M:
+		_toggle_shell_menu("balance_workbench")
 		return true
 
-	# Farm overlay keys (C, V, B, N)
+	# Game overlay keys (C, V, B, N)
 	if FARM_OVERLAY_KEYS.has(keycode):
-		if keycode == KEY_C and overlay_manager and overlay_manager.quest_board and overlay_manager.quest_board.visible:
-			overlay_manager.open_quest_board_faction_browser()
-			return true
 		_toggle_farm_overlay(FARM_OVERLAY_KEYS[keycode])
 		return true
 
@@ -150,57 +146,41 @@ func _any_menu_open() -> bool:
 	"""Check if any menu (shell or farm) is currently open."""
 	if overlay_stack and not overlay_stack.is_empty():
 		return true
-
-	# Check escape menu (via stack or visibility)
-	if overlay_manager and overlay_manager.escape_menu:
-		if overlay_stack and overlay_stack.has_overlay(overlay_manager.escape_menu):
-			return true
-		elif overlay_manager.escape_menu.visible:
-			return true
-	# Check controls overlay (shell menu, but in v2 system)
-	if overlay_manager and overlay_manager.has_overlay("controls"):
-		var controls = overlay_manager.get_overlay("controls")
-		if controls.visible:
-			return true
-	# Check farm overlays
-	if overlay_manager:
-		for name in FARM_OVERLAY_KEYS.values():
-			if overlay_manager.has_overlay(name):
-				var overlay = overlay_manager.get_overlay(name)
-				if overlay.visible:
-					return true
+	if overlay_manager and overlay_manager.quantum_config_ui and overlay_manager.quantum_config_ui.visible:
+		return true
 	return false
 
 
 func _close_all_menus() -> void:
 	"""Close all open menus (shell and farm)."""
-	# Close escape menu via overlay stack (if on stack)
-	if overlay_manager and overlay_manager.escape_menu and overlay_stack:
-		if overlay_stack.has_overlay(overlay_manager.escape_menu):
-			overlay_stack.pop_overlay(overlay_manager.escape_menu)
-		elif overlay_manager.escape_menu.visible:
-			overlay_manager.escape_menu.deactivate()
-	# Close all overlays (includes controls + logger + farm overlays)
 	if overlay_manager:
 		overlay_manager.close_all_overlays()
+		if overlay_manager.quantum_config_ui and overlay_manager.quantum_config_ui.visible:
+			overlay_manager.hide_overlay("quantum_config")
 
 
 func _open_escape_menu() -> void:
 	"""Open escape menu (closes other menus first)."""
 	_close_all_menus()
-	if overlay_manager and overlay_manager.escape_menu and overlay_stack:
-		overlay_stack.push(overlay_manager.escape_menu)
+	if overlay_manager:
+		overlay_manager.open_overlay("escape_menu")
 
 
 func _toggle_shell_menu(menu_name: String) -> void:
-	"""Toggle a shell menu (Z=controls, X=logger).
+	"""Toggle a shell menu (Z=controls, X=system, M=workbench).
 
 	Shell menus close all other menus when opening.
 	"""
+	if not overlay_manager:
+		return
+
 	match menu_name:
+		"escape_menu":
+			overlay_manager.toggle_overlay("escape_menu")
+
 		"balance_workbench":
 			advanced_mode_enabled = _resolve_advanced_mode()
-			if overlay_manager and overlay_manager.has_overlay("balance_workbench"):
+			if overlay_manager.has_overlay("balance_workbench"):
 				var wb = overlay_manager.get_overlay("balance_workbench")
 				if wb and wb.has_method("set_advanced_mode"):
 					wb.set_advanced_mode(advanced_mode_enabled)
@@ -208,29 +188,10 @@ func _toggle_shell_menu(menu_name: String) -> void:
 					wb.set_snapshot_service(snapshot_service)
 				if wb and wb.has_method("set_quantum_instrument"):
 					wb.set_quantum_instrument(quantum_instrument)
-				if wb.visible:
-					wb.deactivate()
-					return
-			_close_all_menus()
-			if overlay_manager:
-				overlay_manager.open_overlay("balance_workbench")
+			overlay_manager.toggle_overlay("balance_workbench")
 
 		"controls":
-			# Check if controls is already open
-			if overlay_manager and overlay_manager.has_overlay("controls"):
-				var controls = overlay_manager.get_overlay("controls")
-				if controls.visible:
-					controls.deactivate()
-					return
-			# Close everything and open controls
-			_close_all_menus()
-			if overlay_manager:
-				overlay_manager.open_overlay("controls")
-
-		"logger":
-			# Logger is registered as a overlay — toggle via OverlayManager
-			if overlay_manager:
-				overlay_manager.toggle_overlay("logger")
+			overlay_manager.toggle_overlay("controls")
 
 
 func _toggle_farm_overlay(overlay_name: String) -> void:
@@ -241,24 +202,20 @@ func _toggle_farm_overlay(overlay_name: String) -> void:
 	if not overlay_manager:
 		return
 
-	# Check if this overlay is already open
-	if overlay_manager.has_overlay(overlay_name):
-		var overlay = overlay_manager.get_overlay(overlay_name)
-		if overlay.visible:
-			var opened_frame = int(_overlay_open_frame.get(overlay_name, -999999))
-			var frame_delta = Engine.get_process_frames() - opened_frame
-			# Guard against duplicate key/touch events causing open-then-instant-close flash.
-			if frame_delta <= 1:
-				_verbose.debug("ui", "⏱️", "Ignoring rapid re-toggle for '%s' (frame delta=%d)" % [overlay_name, frame_delta])
-				return
-			overlay.deactivate()
-			_overlay_open_frame.erase(overlay_name)
+	var overlay = overlay_manager.get_overlay(overlay_name) if overlay_manager.has_overlay(overlay_name) else null
+	if overlay and overlay_stack and overlay_stack.has_overlay(overlay):
+		var opened_frame = int(_overlay_open_frame.get(overlay_name, -999999))
+		var frame_delta = Engine.get_process_frames() - opened_frame
+		# Guard against duplicate key/touch events causing open-then-instant-close flash.
+		if frame_delta <= 1:
+			_verbose.debug("ui", "⏱️", "Ignoring rapid re-toggle for '%s' (frame delta=%d)" % [overlay_name, frame_delta])
 			return
 
-	# Close everything and open the requested overlay
-	_close_all_menus()
-	if overlay_manager.open_overlay(overlay_name):
+	overlay_manager.toggle_overlay(overlay_name)
+	if overlay and overlay_stack and overlay_stack.has_overlay(overlay):
 		_overlay_open_frame[overlay_name] = Engine.get_process_frames()
+	else:
+		_overlay_open_frame.erase(overlay_name)
 
 func _toggle_build_play_mode() -> void:
 	"""Toggle between BUILD and PLAY modes (TAB key)
@@ -405,14 +362,14 @@ func _ready() -> void:
 		overlay_stack.set_overlay_manager(overlay_manager)
 		overlay_manager.set_overlay_stack(overlay_stack)
 
-	# Initialize overlays (C/V/N/Z/ESC menus - K moved to Z, freeing K/L for homerow)
+	# Initialize overlays (ZXCVBNM top-level menus; ESC opens/closes system menu)
 	overlay_manager.create_overlays(overlay_layer)
 
-	# Create logger config panel (debug tool, press X to toggle) — registered as overlay
+	# Create logger config panel (debug tool, currently unbound from top-level keys)
 	logger_config_panel = LoggerConfigPanel.new()
 	overlay_layer.add_child(logger_config_panel)
 	overlay_manager.register_overlay("logger", logger_config_panel)
-	_verbose.info("ui", "✅", "Logger config panel created (press X to toggle)")
+	_verbose.info("ui", "✅", "Logger config panel created (unbound debug overlay)")
 
 	# QuantumHUDPanel REMOVED - content merged into InspectorOverlay (N key)
 
@@ -497,10 +454,6 @@ func _connect_overlay_signals() -> void:
 	if quest_board:
 		quest_board.board_closed.connect(func():
 			_pop_modal(quest_board)
-			_restore_action_toolbar()
-		)
-		quest_board.board_opened.connect(func():
-			_update_action_toolbar_for_overlay(quest_board)
 		)
 		quest_board.slot_selection_changed.connect(func(_slot_state: int, _is_locked: bool):
 			_update_action_toolbar_for_overlay(quest_board)
@@ -535,6 +488,21 @@ func _connect_overlay_signals() -> void:
 			_pop_modal(overlay_manager.save_load_menu)
 		)
 		_verbose.info("ui", "✅", "Save/Load menu signals connected")
+
+	if overlay_stack and overlay_stack.has_signal("stack_changed"):
+		overlay_stack.stack_changed.connect(_sync_action_toolbar_to_stack)
+
+
+func _sync_action_toolbar_to_stack() -> void:
+	if not overlay_stack:
+		_restore_action_toolbar()
+		return
+
+	var active = overlay_stack.get_top()
+	if active:
+		_update_action_toolbar_for_overlay(active)
+	else:
+		_restore_action_toolbar()
 
 
 func get_farm_ui():

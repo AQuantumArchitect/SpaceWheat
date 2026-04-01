@@ -22,7 +22,7 @@ enum Section {
 
 const SECTION_NAMES = [
 	"Tool Selection",
-	"Actions (QER)",
+	"Actions (QERF)",
 	"Biome & Plot Nav",
 	"Overlays & Menus",
 	"Quantum UI",
@@ -46,7 +46,7 @@ const COMPACT_HEIGHT: int = 300
 func _init():
 	overlay_name = "controls"
 	overlay_icon = ""
-	overlay_tier = 2000  # Z_TIER_INFO
+	overlay_tier = 11  # Z_TIER_INFO
 	panel_title = "Keyboard Controls"
 	panel_size_mode = PanelSizeMode.LARGE
 	panel_border_color = Color(0.5, 0.5, 0.3, 0.8)  # Gold/tan border
@@ -125,7 +125,7 @@ func _create_tool_section() -> Control:
 		["1", "Probe", "Explore/Measure/Pop (core loop)"],
 		["2", "Gates", "X/H/Ry + F-cycle to Z/S/T"],
 		["3", "Entangle", "CNOT/SWAP/CZ + F-cycle to Bell/Disentangle"],
-		["4", "Industry", "Deprecated (buildings removed)"]
+		["4", "Meta", "Vocabulary, biome discovery, and reap (F)"]
 	]
 
 	for entry in play_entries:
@@ -151,12 +151,12 @@ func _create_tool_section() -> Control:
 
 
 func _create_actions_section() -> Control:
-	"""Create QER actions help section."""
+	"""Create QERF actions help section."""
 	var content = VBoxContainer.new()
 	content.add_theme_constant_override("separation", 6)
 
 	var desc = Label.new()
-	desc.text = "Q, E, R = Context-sensitive actions that change based on selected tool"
+	desc.text = "Q, E, R, F = Context-sensitive actions that change based on the selected tool or active menu"
 	desc.add_theme_font_size_override("font_size", 14)
 	desc.add_theme_color_override("font_color", Color(0.7, 0.8, 0.9))
 	desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -166,14 +166,14 @@ func _create_actions_section() -> Control:
 		["Q", "First Action", "Primary action for current tool"],
 		["E", "Second Action", "Secondary action for current tool"],
 		["R", "Third Action", "Tertiary action for current tool"],
-		["F", "Cycle Mode", "Switch tool sub-modes"],
+		["F", "Cycle / Reap", "Switch sub-modes; Meta tool uses F for reap"],
 		["Tab", "PLAY/BUILD", "Toggle between modes"],
 		["Space", "Pause", "Pause/resume evolution"],
 		["-", "Stride Down", "Slower playback (halve), 0=locked"],
 		["=", "Stride Up", "Faster playback (double), up to 256x"],
 		["Shift+-", "Resolution Down", "Finer substeps (10x smaller dt)"],
 		["Shift+=", "Resolution Up", "Coarser substeps (10x larger dt)"],
-		["Shift+R", "Reap", "Seasonal reap: fast-forward evolution, reap all active biomes"]
+		["Shift+R", "Mass Pop", "Pop all active bubbles in the checked set"]
 	]
 
 	for entry in entries:
@@ -231,7 +231,7 @@ func _create_navigation_section() -> Control:
 	content.add_child(subspace_header)
 
 	var subspace_note = Label.new()
-	subspace_note.text = "  M , . / = Reserved for future subspace navigation"
+	subspace_note.text = "  , . / = Reserved for future subspace navigation"
 	subspace_note.add_theme_font_size_override("font_size", 12)
 	subspace_note.add_theme_color_override("font_color", Color(0.4, 0.4, 0.4))
 	content.add_child(subspace_note)
@@ -246,19 +246,20 @@ func _create_overlays_section() -> Control:
 
 	var entries = [
 		["C", "Quest Board", "View and manage quests"],
-		["V", "Vocabulary", "Semantic vocabulary"],
+		["V", "Vocabulary", "Semantic map and known pairs"],
 		["B", "Biome Inspector", "Detailed biome info"],
-		["Shift+B", "Balance Workbench", "One-click auto timescale + probability-ranked emojis (advanced unlocks editing)"],
+		["N", "Inspector", "Density matrix and register view"],
 		["Z", "Keyboard Help", "This overlay"],
-		["X", "Logger Config", "Debug logging"],
-		["ESC", "Pause Menu", "Save, Load, Quit"]
+		["X", "System Menu", "Quit, save, load, restart"],
+		["M", "Balance Workbench", "Timescale and balance tuning"],
+		["ESC", "Back / System", "Close current menu, or open system menu"]
 	]
 
 	for entry in entries:
 		content.add_child(_create_help_row(entry[0], entry[1], entry[2]))
 
 	var pause_label = Label.new()
-	pause_label.text = "\nIn Pause Menu: S=Save, L=Load, X=Settings, D=Reload, R=Restart, Q=Quit"
+	pause_label.text = "\nIn system menus: use WASD or arrows to navigate, and Q/E/R/F for actions."
 	pause_label.add_theme_font_size_override("font_size", 12)
 	pause_label.add_theme_color_override("font_color", Color(0.6, 0.7, 0.8))
 	pause_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART

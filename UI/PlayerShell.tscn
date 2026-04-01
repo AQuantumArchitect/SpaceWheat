@@ -44,7 +44,7 @@ offset_left = 0.0
 offset_top = 0.0
 offset_right = 0.0
 offset_bottom = 0.0
-z_index = 100
+z_index = 30
 mouse_filter = 2
 
 [node name="ActionBarLayer" type="Control" parent="."]

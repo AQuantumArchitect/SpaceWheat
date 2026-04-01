@@ -1,9 +1,9 @@
 extends Node
 
-## RealityMidwife - Save token economy for the 3R harvest-all action
+## RealityMidwife - Legacy token economy for harvest-loop experiments
 ##
-## The Reality Midwife system gates the "proper" end-of-turn mechanic:
-## - 3R (harvest-all) requires a midwife token to execute
+## The Reality Midwife system was used to gate the experimental end-of-turn mechanic:
+## - Historically tied to mass-pop / harvest-loop actions
 ## - Players start with a few tokens
 ## - Tokens are sold in shops and rarely dropped
 ## - Players can play indefinitely using manual 3E (pop) without tokens
@@ -36,7 +36,7 @@ func _ready() -> void:
 	add_to_group("reality_midwife")
 
 
-## Consume a midwife token for harvest-all action
+## Consume a midwife token for mass-pop action
 ## Returns true if successful, false if no tokens available
 func consume_midwife() -> bool:
 	if midwife_tokens <= 0:

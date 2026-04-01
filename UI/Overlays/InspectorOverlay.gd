@@ -56,7 +56,7 @@ var update_timer: float = 0.0
 func _init():
 	overlay_name = "inspector"
 	overlay_icon = ""
-	overlay_tier = 2000  # Z_TIER_INFO
+	overlay_tier = 11  # Z_TIER_INFO
 	panel_title = ""  # We use custom title bar with mode indicator
 	panel_size_mode = PanelSizeMode.MEDIUM
 	panel_border_color = Color(0.3, 0.5, 0.7, 0.8)  # Blue border

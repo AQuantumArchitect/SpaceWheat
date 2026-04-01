@@ -51,7 +51,7 @@ func _init():
 	# Configure OverlayBase
 	overlay_name = "biome_detail"
 	overlay_icon = ""
-	overlay_tier = 3000  # Z_TIER_MODAL
+	overlay_tier = 14  # Z_TIER_MODAL
 	panel_title = "BIOME INSPECTOR"
 	panel_title_size = 24
 	panel_size_mode = PanelSizeMode.LARGE

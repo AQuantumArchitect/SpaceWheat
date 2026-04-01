@@ -40,6 +40,7 @@ func _init():
 	show_dimmer = true
 	use_scroll_container = false
 	navigation_mode = NavigationMode.NONE
+	overlay_tier = 11  # Info-tier overlay, below buttons and above gameplay
 	action_labels = {
 		"Q": "",
 		"E": "",

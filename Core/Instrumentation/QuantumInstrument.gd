@@ -393,11 +393,7 @@ func action_clear_all() -> Dictionary:
 	if not farm or not terminal_pool:
 		return {"success": false, "error": "no_farm", "message": "Farm not ready"}
 
-	# Detach all terminals from their plots before clearing
-	for t in terminal_pool.get_all_terminals():
-		if t.is_bound:
-			_detach_terminal_from_plot(t)
-	var result = ProbeActions.action_clear_all(terminal_pool)
+	var result = ProbeActions.action_clear_all(terminal_pool, farm, _get_economy())
 	_emit_farm_action("clear_all", result)
 	action_performed.emit("clear_all", result)
 	return result

@@ -8,7 +8,7 @@ extends RefCounted
 ##   - EXPLORE: Bind terminal to register (no quantum effect)
 ##   - MEASURE: Sample via Born rule, DRAIN probability from ρ, record claim
 ##   - POP: Convert recorded probability to credits (no quantum effect)
-##   - HARVEST: Global collapse, convert all probability, end level
+##   - HARVEST: Broad multi-terminal cleanup / harvest loop
 ##
 ## Physics:
 ##   - Ensemble interpretation: MEASURE samples without full collapse
@@ -616,10 +616,10 @@ static func _prepare_pop_result(terminal, terminal_pool, economy = null, farm = 
 
 
 ## ============================================================================
-## HARVEST ALL ACTION - End of Turn (3R)
+## MASS POP / CLEAR ALL ACTION
 ## ============================================================================
 
-static func action_clear_all(terminal_pool) -> Dictionary:
+static func action_clear_all(terminal_pool, farm = null, economy = null) -> Dictionary:
 	if not terminal_pool:
 		return {
 			"success": false,
@@ -627,25 +627,32 @@ static func action_clear_all(terminal_pool) -> Dictionary:
 			"message": "Plot pool not initialized."
 		}
 
-	var cleared_count = 0
+	var popped_count = 0
+	var total_credits = 0
+	var harvest_results: Array = []
 	var terminals_to_clear: Array = []
 
-	# Collect all bound terminals
+	# Collect all active terminals (bound or measured)
 	if terminal_pool.has_method("get_all_terminals"):
 		for terminal in terminal_pool.get_all_terminals():
-			if terminal and terminal.is_bound:
+			if terminal and (terminal.is_bound or terminal.is_measured):
 				terminals_to_clear.append(terminal)
 
-	# Unbind each terminal (no harvesting)
+	# Pop each terminal and collect whatever harvest it yields.
 	for terminal in terminals_to_clear:
-		terminal_pool.unbind_terminal(terminal)
-		cleared_count += 1
+		var result = action_pop(terminal, terminal_pool, economy, farm)
+		if result.get("success", false):
+			harvest_results.append(result)
+			total_credits += int(result.get("credits", 0))
+			popped_count += 1
 	
-	_log("info", "farm", "🧹", "Cleared %d terminals (no pop)" % cleared_count)
+	_log("info", "farm", "🧹", "Mass-popped %d terminals" % popped_count)
 
 	return {
 		"success": true,
-		"terminals_cleared": cleared_count
+		"terminals_popped": popped_count,
+		"total_credits": total_credits,
+		"harvest_results": harvest_results
 	}
 
 

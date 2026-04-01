@@ -67,7 +67,7 @@ func _init():
 	use_scroll_container = false  # We use custom grid layout
 	overlay_name = "quests"
 	overlay_icon = ""
-	overlay_tier = 3000
+	overlay_tier = 14
 	action_labels = {
 		"Q": "Accept/Complete",
 		"E": "Lock/Unlock",
@@ -174,6 +174,11 @@ func handle_input(event: InputEvent) -> bool:
 
 	# Handle quest board actions using keycodes
 	match event.keycode:
+		KEY_C:
+			if event.shift_pressed:
+				open_faction_browser()
+				return true
+			return false
 		KEY_ESCAPE:
 			close_board()
 			return true

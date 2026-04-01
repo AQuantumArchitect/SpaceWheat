@@ -33,7 +33,7 @@ var vocabulary_overlay: Control
 var network_info_panel: NetworkInfoPanel
 var escape_menu: EscapeMenu
 var save_load_menu
-# keyboard_hint_button REMOVED - K key now opens ControlsOverlay
+# keyboard_hint_button REMOVED - controls/help now lives on Z
 var biome_inspector: BiomeInspectorOverlay  # Biome inspection overlay
 var quantum_config_ui: QuantumRigorConfigUI  # Quantum rigor mode settings panel
 var touch_button_bar: Control  # Touch-friendly panel buttons on LEFT side (C/V/B/N/K)
@@ -179,7 +179,7 @@ func create_overlays(parent: Control) -> void:
 	if quest_manager:
 		quest_board.set_quest_manager(quest_manager)
 	quest_board.visible = false
-	quest_board.z_index = 1001
+	quest_board.z_index = 14
 	parent.add_child(quest_board)
 
 	# Connect signals
@@ -208,9 +208,10 @@ func create_overlays(parent: Control) -> void:
 	escape_menu = EscapeMenu.new()
 	if layout_manager and escape_menu.has_method("set_layout_manager"):
 		escape_menu.set_layout_manager(layout_manager)
-	escape_menu.z_index = 4000  # System tier - below SaveLoadMenu
+	escape_menu.z_index = 18  # System tier - below SaveLoadMenu and action bars
 	escape_menu.deactivate()
 	parent.add_child(escape_menu)
+	register_overlay("escape_menu", escape_menu)
 
 	# Connect escape menu signals
 	escape_menu.resume_pressed.connect(_on_menu_resume)
@@ -224,7 +225,7 @@ func create_overlays(parent: Control) -> void:
 	_verbose.info("ui", "🎮", "Escape menu created (ESC to toggle)")
 	_setup_visibility_processing(escape_menu)
 
-	# KeyboardHintButton REMOVED - K key now opens ControlsOverlay via the overlay stack
+	# KeyboardHintButton removed - controls/help now lives on the Z shell menu
 
 	# Create Save/Load Menu
 	_verbose.debug("save", "💾", "Creating Save/Load menu...")
@@ -232,10 +233,11 @@ func create_overlays(parent: Control) -> void:
 	if layout_manager and save_load_menu.has_method("set_layout_manager"):
 		save_load_menu.set_layout_manager(layout_manager)
 	_verbose.debug("save", "💾", "Save/Load menu instantiated, setting properties...")
-	save_load_menu.z_index = 4095  # HIGHEST - above ESC menu (4000), max is 4096
+	save_load_menu.z_index = 19  # Above EscapeMenu, still below action bars
 	save_load_menu.hide_menu()
 	_verbose.debug("save", "💾", "Adding Save/Load menu to parent...")
 	parent.add_child(save_load_menu)
+	register_overlay("save_load", save_load_menu)
 	_verbose.info("save", "💾", "Save/Load menu created")
 
 	# Connect save/load menu signals
@@ -257,9 +259,9 @@ func create_overlays(parent: Control) -> void:
 	# Create Quantum Rigor Config UI (Phase 1 UI Integration)
 	quantum_config_ui = QuantumRigorConfigUI.new()
 	quantum_config_ui.visible = false
-	quantum_config_ui.z_index = 1003  # Above other overlays
+	quantum_config_ui.z_index = 18  # System-tier panel, below action bars
 	parent.add_child(quantum_config_ui)
-	_verbose.info("ui", "🔬", "Quantum rigor config panel created (Shift+Q to toggle)")
+	_verbose.info("ui", "🔬", "Quantum rigor config panel created (via system menu)")
 	_setup_visibility_processing(quantum_config_ui)
 
 	# Create Touch Button Bar (for touch devices)
@@ -461,7 +463,7 @@ func toggle_quest_board() -> void:
 
 
 func open_quest_board_faction_browser() -> void:
-	"""Open faction browser from quest board (C key while board open)"""
+	"""Open faction browser from quest board (legacy helper; use Shift+C in board)."""
 	if quest_board and quest_board.visible:
 		quest_board.open_faction_browser()
 		_verbose.info("quest", "📚", "Opened faction browser from quest board")
@@ -518,7 +520,7 @@ func toggle_biome_inspector() -> void:
 
 
 func toggle_quantum_config_ui() -> void:
-	"""Toggle quantum rigor config UI (Shift+Q)"""
+	"""Toggle quantum rigor config UI."""
 	_verbose.debug("ui", "🔄", "toggle_quantum_config_ui() called")
 	if quantum_config_ui:
 		_verbose.debug("ui", "→", "quantum_config_ui exists, visible = %s" % quantum_config_ui.visible)
@@ -646,7 +648,7 @@ func _create_vocabulary_overlay() -> Control:
 	var panel = PanelContainer.new()
 	panel.custom_minimum_size = Vector2(500 * scale_factor, 600 * scale_factor)
 	panel.position = Vector2(100 * scale_factor, 100 * scale_factor)
-	panel.z_index = 1000
+	panel.z_index = 11
 	panel.visible = false
 
 	# VBox for content
@@ -709,13 +711,13 @@ func _create_vocabulary_overlay() -> Control:
 
 
 # _create_keyboard_hint_button REMOVED
-# K key now opens ControlsOverlay via the overlay stack (toggle_overlay("controls"))
+# Z opens ControlsOverlay via PlayerShell, and M is reserved for the workbench.
 
 
 func _create_touch_button_bar() -> Control:
 	"""Create touch-friendly button bar for LEFT CENTER of screen
 
-	Buttons: C (Quests), V (Vocabulary), B (Biome), N (Inspector), K (Controls)
+	Buttons: C (Quests), V (Vocabulary), B (Biome), N (Inspector), M (Workbench)
 	All use the overlay stack for consistency.
 	"""
 	const PanelTouchButton = preload("res://UI/Components/PanelTouchButton.gd")
@@ -774,15 +776,15 @@ func _create_touch_button_bar() -> Control:
 	inspector_button.button_activated.connect(func(): toggle_overlay("inspector"))
 	button_bar.add_child(inspector_button)
 
-	# K - Controls/Keyboard reference
-	var controls_button = PanelTouchButton.new()
-	controls_button.set_layout_manager(layout_manager)
-	controls_button.button_emoji = "⌨️"
-	controls_button.keyboard_hint = "[K]"
-	controls_button.button_activated.connect(func(): toggle_overlay("controls"))
-	button_bar.add_child(controls_button)
+	# M - Balance workbench
+	var workbench_button = PanelTouchButton.new()
+	workbench_button.set_layout_manager(layout_manager)
+	workbench_button.button_emoji = "⚖️"
+	workbench_button.keyboard_hint = "[M]"
+	workbench_button.button_activated.connect(func(): toggle_overlay("balance_workbench"))
+	button_bar.add_child(workbench_button)
 
-	_verbose.info("ui", "📱", "Touch button bar created: C/V/B/N/K on LEFT side")
+	_verbose.info("ui", "📱", "Touch button bar created: C/V/B/N/M on LEFT side")
 	return button_bar
 
 
@@ -1071,7 +1073,7 @@ func _create_overlays(parent: Control) -> void:
 	# Create Inspector Overlay (density matrix visualization)
 	# Note: Overlay centers its own panel in _build_standard_panel()
 	inspector_overlay = InspectorOverlay.new()
-	inspector_overlay.z_index = 2000  # Above regular overlays
+	inspector_overlay.z_index = 11  # Info-tier overlay
 	if layout_manager:
 		inspector_overlay.set_layout_manager(layout_manager)
 	parent.add_child(inspector_overlay)
@@ -1080,7 +1082,7 @@ func _create_overlays(parent: Control) -> void:
 
 	# Create Controls Overlay (keyboard reference)
 	controls_overlay = ControlsOverlay.new()
-	controls_overlay.z_index = 2000
+	controls_overlay.z_index = 11
 	if layout_manager:
 		controls_overlay.set_layout_manager(layout_manager)
 	parent.add_child(controls_overlay)
@@ -1089,7 +1091,7 @@ func _create_overlays(parent: Control) -> void:
 
 	# Create Semantic Map Overlay (vocabulary + octants)
 	semantic_map_overlay = SemanticMapOverlay.new()
-	semantic_map_overlay.z_index = 2000
+	semantic_map_overlay.z_index = 11
 	if layout_manager:
 		semantic_map_overlay.set_layout_manager(layout_manager)
 	parent.add_child(semantic_map_overlay)
@@ -1098,7 +1100,7 @@ func _create_overlays(parent: Control) -> void:
 
 	# Create Balance Workbench Overlay (shared balance tuning projection)
 	balance_workbench_overlay = BalanceWorkbenchOverlay.new()
-	balance_workbench_overlay.z_index = 2000
+	balance_workbench_overlay.z_index = 11
 	if layout_manager:
 		balance_workbench_overlay.set_layout_manager(layout_manager)
 	parent.add_child(balance_workbench_overlay)

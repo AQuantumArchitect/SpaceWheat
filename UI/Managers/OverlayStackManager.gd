@@ -13,10 +13,10 @@ extends Node
 ## - Tier-based priority (higher tier closes lower tier overlays)
 ##
 ## Tiers:
-##   Z_TIER_HUD (1000)    - ActionBar, ToolSelection (not managed by stack)
-##   Z_TIER_INFO (2000)   - Inspector, Controls, Vocabulary
-##   Z_TIER_MODAL (3000)  - QuestBoard, BiomeInspector
-##   Z_TIER_SYSTEM (4000) - EscapeMenu, SaveLoadMenu
+##   Z_TIER_HUD (50)      - ActionBar, ToolSelection (not managed by stack)
+##   Z_TIER_INFO (11)     - Inspector, Controls, Vocabulary
+##   Z_TIER_MODAL (14)    - QuestBoard, BiomeInspector
+##   Z_TIER_SYSTEM (18)   - EscapeMenu, SaveLoadMenu
 
 signal overlay_pushed(overlay: Control)
 signal overlay_popped(overlay: Control)
@@ -24,10 +24,10 @@ signal stack_changed()
 
 # Z-Index tier constants
 const Z_TIER_GAME = 0
-const Z_TIER_HUD = 1000
-const Z_TIER_INFO = 2000
-const Z_TIER_MODAL = 3000
-const Z_TIER_SYSTEM = 4000
+const Z_TIER_HUD = 50
+const Z_TIER_INFO = 11
+const Z_TIER_MODAL = 14
+const Z_TIER_SYSTEM = 18
 
 # The overlay stack - topmost overlay receives input
 var overlay_stack: Array[Control] = []
@@ -292,6 +292,6 @@ func get_stack_info() -> String:
 	for overlay in overlay_stack:
 		var name = overlay.name if overlay.name else "?"
 		var tier = get_overlay_tier(overlay)
-		names.append("%s(T%d)" % [name, tier / 1000])
+		names.append("%s(T%d)" % [name, tier])
 
 	return info + " → ".join(names)

@@ -35,7 +35,7 @@ signal selection_changed(index: int)
 
 var overlay_name: String = "overlay"
 var overlay_icon: String = ""
-var overlay_tier: int = 2000  # Z_TIER_INFO=2000, Z_TIER_MODAL=3000, Z_TIER_SYSTEM=4000
+var overlay_tier: int = 11  # Z_TIER_INFO=11, Z_TIER_MODAL=14, Z_TIER_SYSTEM=18
 
 var action_labels: Dictionary = {
 	"Q": "",
@@ -272,8 +272,8 @@ func handle_input(event: InputEvent) -> bool:
 		_on_action_f()
 		return true
 
-	# ENTER key - activate selected item
-	if keycode == KEY_ENTER or keycode == KEY_KP_ENTER:
+	# ENTER/SPACE keys - activate selected item
+	if keycode == KEY_ENTER or keycode == KEY_KP_ENTER or keycode == KEY_SPACE:
 		_activate_selected()
 		return true
 
@@ -530,4 +530,3 @@ func _activate_selected() -> void:
 	"""Activate the currently selected item (for ENTER key)."""
 	if selected_index >= 0 and selected_index < _menu_buttons.size():
 		_menu_buttons[selected_index].emit_signal("pressed")
-

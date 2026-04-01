@@ -44,7 +44,7 @@ func _create_ui() -> void:
 
 	# Size and position (centered)
 	custom_minimum_size = Vector2(600 * scale, 800 * scale)
-	z_index = 2000  # Above all other panels
+	z_index = 11  # Info-tier overlay, below buttons and above gameplay
 
 	# Position in center of screen
 	anchor_left = 0.5

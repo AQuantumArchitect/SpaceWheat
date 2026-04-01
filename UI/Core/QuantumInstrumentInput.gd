@@ -226,8 +226,12 @@ func _unhandled_key_input(event: InputEvent) -> void:
 		"F":
 			if _instrument.is_in_submenu():
 				_cycle_submenu_page()
-			else:
+			elif ToolConfig.has_f_cycling(ToolConfig.get_current_group()):
 				_cycle_mode()
+			else:
+				var f_action = ToolConfig.get_action(ToolConfig.get_current_group(), "F")
+				if not f_action.is_empty():
+					_perform_action("F")
 			get_viewport().set_input_as_handled()
 
 
@@ -633,7 +637,7 @@ func _select_biome(biome_idx: int, key: String) -> void:
 ## ============================================================================
 
 func _select_plot(plot_idx: int, key: String) -> void:
-	"""Select a plot in the current biome.
+	"""Select or toggle a plot in the current biome.
 
 	Args:
 		plot_idx: Which plot index was selected (0..N-1)
@@ -654,12 +658,24 @@ func _select_plot(plot_idx: int, key: String) -> void:
 
 	# Get current active biome
 	var biome_name = _active_biome_mgr.get_active_biome()
+	var target_grid_pos = _get_grid_position_for(plot_idx, biome_name)
+	var was_highlighted = (
+		_instrument.current_plot_idx == plot_idx and
+		_instrument.current_biome == biome_name
+	)
 
 	# Record the observation in the chain tracker
 	if _chain_tracker:
 		_chain_tracker.record_observation(key, plot_idx, biome_name, 0)
 
-	# Update current selection
+	# Second tap on the highlighted plot toggles only the checkbox state.
+	if was_highlighted:
+		if target_grid_pos.x >= 0:
+			toggle_check(target_grid_pos)
+		_verbose.debug("input", "~", "Plot %d in %s remains highlighted" % [plot_idx, biome_name])
+		return
+
+	# First tap on a different plot moves the highlight there.
 	current_selection = {
 		"plot_idx": plot_idx,
 		"biome": biome_name,
@@ -667,25 +683,21 @@ func _select_plot(plot_idx: int, key: String) -> void:
 	}
 	_instrument.current_plot_idx = plot_idx
 	_instrument.current_biome = biome_name
+	_instrument.last_selected_position = target_grid_pos
 
-	# Get grid position for visual updates and multi-select
-	var grid_pos = _get_grid_position()
+	_verbose.debug("input", "📍", "SELECTION DEBUG: plot_idx=%d, biome=%s → grid_pos=%s" % [plot_idx, biome_name, target_grid_pos])
 
-	_verbose.debug("input", "📍", "SELECTION DEBUG: plot_idx=%d, biome=%s → grid_pos=%s" % [plot_idx, biome_name, grid_pos])
+	if plot_grid_display and farm and target_grid_pos.x >= 0:
+		plot_grid_display.set_selected_plot(target_grid_pos)
+		_verbose.debug("input", "~", "Visual selection: %s" % target_grid_pos)
 
-	# CRITICAL: Update PlotGridDisplay visual selection
-	if plot_grid_display and farm and grid_pos.x >= 0:
-		plot_grid_display.set_selected_plot(grid_pos)
-		_instrument.last_selected_position = grid_pos  # Track for neighbor bonus
-		_verbose.debug("input", "~", "Visual selection: %s" % grid_pos)
-
-	# Emit selection changed signal
 	selection_changed.emit(plot_idx, biome_name)
 	_verbose.debug("input", "~", "Plot %d in %s" % [plot_idx, biome_name])
 
-	# NEW: Toggle checkmark on selection (multi-select support)
-	if grid_pos.x >= 0:
-		toggle_check(grid_pos)
+	# Highlighting a plot ensures it joins the checked set, but does not
+	# disturb any other checked plots already participating in batch actions.
+	if target_grid_pos.x >= 0 and not _instrument.checked_plots.has(target_grid_pos):
+		toggle_check(target_grid_pos)
 
 
 ## ============================================================================
@@ -858,19 +870,12 @@ func _perform_shift_key_action(action_key: String) -> void:
 	var symbol = "⇧%s" % action_key
 	var log_label = action_info.get("shift_label", action_info.get("label", action_name))
 
+	var original_selection = current_selection.duplicate()
+
 	# Use checked plots instead of entire homerow (ORDER PRESERVED from selection)
 	var positions = _instrument.checked_plots.duplicate()
 	if positions.is_empty():
 		_verbose.debug("input", "⚠️", "No plots checked - Shift+action requires checked plots")
-		return
-
-	var original_selection = current_selection.duplicate()
-
-	# Special case: Global shift actions (execute once, not per plot)
-	if action_name == "reap" or action_name == "clear_all":
-		_verbose.info("input", symbol, "Executing global %s once" % log_label)
-		_run_action(action_name, symbol, log_label)
-		_restore_selection(original_selection)
 		return
 
 	# BATCH GATE PATH: For Tool 1 (Unitary) gate actions, use batch injection
@@ -1016,7 +1021,7 @@ func _get_qubit_for_position(pos: Vector2i, biome) -> int:
 	return -1
 
 
-func _run_action(action_name: String, log_symbol: String, action_label: String) -> void:
+func _run_action(action_name: String, log_symbol: String, action_label: String) -> Dictionary:
 	"""Execute an action and emit logging + signal."""
 	var result = _execute_action(action_name)
 
@@ -1025,6 +1030,7 @@ func _run_action(action_name: String, log_symbol: String, action_label: String) 
 		_invalidate_biome_buffer_for_action(action_name)
 
 	_log_action_result(action_name, log_symbol, action_label, result)
+	return result
 
 
 func _run_cleanup_action(action_name: String, log_symbol: String, action_label: String) -> void:
@@ -1354,9 +1360,12 @@ func _get_grid_position() -> Vector2i:
 	var plot_idx = _instrument.current_plot_idx if _instrument.current_plot_idx >= 0 else 0
 	var biome_name = _instrument.current_biome if _instrument.current_biome != "" else ""
 
-	# Map biome name to row (y coordinate)
-	var biome_row = farm.get_biome_row(biome_name) if farm and farm.has_method("get_biome_row") else 0
+	return _get_grid_position_for(plot_idx, biome_name)
 
+
+func _get_grid_position_for(plot_idx: int, biome_name: String) -> Vector2i:
+	"""Convert plot + biome selection to a grid position."""
+	var biome_row = farm.get_biome_row(biome_name) if farm and farm.has_method("get_biome_row") else 0
 	return Vector2i(plot_idx, biome_row)
 
 
@@ -1428,12 +1437,14 @@ func _restore_selection(previous_selection: Dictionary) -> void:
 	else:
 		current_selection = {"plot_idx": -1, "biome": "", "subspace_idx": -1}
 
+	_instrument.current_plot_idx = int(current_selection.get("plot_idx", -1))
+	_instrument.current_biome = str(current_selection.get("biome", ""))
+
 	if plot_grid_display and farm and _instrument.current_plot_idx >= 0:
 		var grid_pos = _get_grid_position()
 		if grid_pos.x >= 0:
 			plot_grid_display.set_selected_plot(grid_pos)
-
-
+			_instrument.last_selected_position = grid_pos
 
 
 func _keycode_to_string(keycode: int) -> String:

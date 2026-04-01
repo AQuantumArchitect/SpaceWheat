@@ -27,6 +27,7 @@ var _snapshot: Dictionary = {}
 func _init() -> void:
 	overlay_name = "balance_workbench"
 	overlay_icon = "⚖️"
+	overlay_tier = 11  # Z_TIER_INFO
 	panel_title = "Balance Workbench"
 	panel_size_mode = PanelSizeMode.CUSTOM
 	panel_size = Vector2(860, 620)

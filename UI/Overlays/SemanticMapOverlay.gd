@@ -53,7 +53,7 @@ const OCTANT_SIZE: int = 140
 func _init():
 	overlay_name = "semantic_map"
 	overlay_icon = ""
-	overlay_tier = 2000  # Z_TIER_INFO
+	overlay_tier = 11  # Z_TIER_INFO
 	panel_title = ""  # We use custom title bar with mode indicator
 	panel_size_mode = PanelSizeMode.LARGE
 	panel_border_color = Color(0.4, 0.3, 0.6, 0.8)  # Purple border

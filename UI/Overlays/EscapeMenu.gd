@@ -5,7 +5,7 @@ extends "res://UI/Core/OverlayBase.gd"
 ## Shows when ESC is pressed, provides save, load, restart and quit options
 ##
 ## OverlayStackManager Integration:
-##   System-tier overlay (Z_TIER_SYSTEM = 4000)
+##   System-tier overlay (Z_TIER_SYSTEM = 18)
 
 signal restart_pressed()
 signal dev_restart_pressed()  # Shift+R: Hard reset autoloads + reload
@@ -19,12 +19,12 @@ signal music_volume_changed(volume: float)
 
 # Button indices for keyboard shortcuts
 enum ButtonIndex {
-	RESUME = 0,
+	QUIT = 0,
 	SAVE = 1,
 	LOAD = 2,
 	QUANTUM = 3,
 	RESTART = 4,
-	QUIT = 5
+	RESUME = 5
 }
 
 # Volume control
@@ -37,7 +37,7 @@ func _init():
 
 	# Configure OverlayBase
 	overlay_name = "escape_menu"
-	overlay_tier = 4000  # Z_TIER_SYSTEM
+	overlay_tier = 18  # Z_TIER_SYSTEM
 	panel_title = "PAUSED"
 	panel_title_size = 28
 	panel_size_mode = PanelSizeMode.SMALL
@@ -45,21 +45,27 @@ func _init():
 	navigation_mode = NavigationMode.LINEAR
 	use_scroll_container = false
 	content_spacing = 8
+	action_labels = {
+		"Q": "Quit",
+		"E": "Save",
+		"R": "Load",
+		"F": "Restart"
+	}
 
 
 func _build_content(container: Control) -> void:
 	"""Build menu buttons."""
 	# Ignore the container parameter - we add to _content_container via add_menu_button
-	add_menu_button("Resume [ESC]", Color(0.3, 0.6, 0.3))
-	add_menu_button("Save Game [S]", Color(0.2, 0.5, 0.7))
-	add_menu_button("Load Game [L]", Color(0.5, 0.4, 0.7))
-	add_menu_button("Quantum Settings [X]", Color(0.2, 0.6, 0.8))
+	add_menu_button("Quit", Color(0.6, 0.3, 0.3))
+	add_menu_button("Save Game", Color(0.2, 0.5, 0.7))
+	add_menu_button("Load Game", Color(0.5, 0.4, 0.7))
+	add_menu_button("Quantum Settings", Color(0.2, 0.6, 0.8))
 
 	# Volume control
 	_add_volume_control()
 
-	add_menu_button("Restart [R/⇧R]", Color(0.6, 0.5, 0.2))  # R = reload last save, Shift+R = dev restart
-	add_menu_button("Quit [Q]", Color(0.6, 0.3, 0.3))
+	add_menu_button("Restart", Color(0.6, 0.5, 0.2))
+	add_menu_button("Resume", Color(0.3, 0.6, 0.3))
 
 
 func _add_volume_control() -> void:
@@ -95,8 +101,8 @@ func _add_volume_control() -> void:
 func _on_button_activated(index: int) -> void:
 	"""Handle button activation from keyboard or click."""
 	match index:
-		ButtonIndex.RESUME:
-			_on_resume_pressed()
+		ButtonIndex.QUIT:
+			_on_quit_pressed()
 		ButtonIndex.SAVE:
 			_on_save_pressed()
 		ButtonIndex.LOAD:
@@ -105,17 +111,22 @@ func _on_button_activated(index: int) -> void:
 			_on_quantum_settings_pressed()
 		ButtonIndex.RESTART:
 			_on_restart_pressed()
-		ButtonIndex.QUIT:
-			_on_quit_pressed()
+		ButtonIndex.RESUME:
+			_on_resume_pressed()
 
 
 func _on_action_q() -> void:
-	"""Q = Quit (override base class action)."""
+	"""Q = Quit."""
 	_on_quit_pressed()
 
 
+func _on_action_e() -> void:
+	"""E = Save."""
+	_on_save_pressed()
+
+
 func _on_unhandled_key(keycode: int, event: InputEvent) -> bool:
-	"""Handle keyboard shortcuts not captured by QER+F."""
+	"""Handle navigation-adjacent shortcuts not covered by QERF."""
 	# Check for SaveLoadMenu being visible (don't process if it's open)
 	var parent = get_parent()
 	if parent:
@@ -124,15 +135,6 @@ func _on_unhandled_key(keycode: int, event: InputEvent) -> bool:
 				return false
 
 	match keycode:
-		KEY_S:
-			_on_save_pressed()
-			return true
-		KEY_L:
-			_on_load_pressed()
-			return true
-		KEY_X:
-			_on_quantum_settings_pressed()
-			return true
 		KEY_COMMA:
 			_adjust_volume(-0.1)
 			return true
@@ -147,12 +149,13 @@ func _on_unhandled_key(keycode: int, event: InputEvent) -> bool:
 
 
 func _on_action_r() -> void:
-	"""R = Restart, Shift+R = Dev Restart (hard reset autoloads)."""
-	# Check if shift is held for dev restart
-	if Input.is_key_pressed(KEY_SHIFT):
-		_on_dev_restart_pressed()
-	else:
-		_on_restart_pressed()
+	"""R = Load."""
+	_on_load_pressed()
+
+
+func _on_action_f() -> void:
+	"""F = Restart."""
+	_on_restart_pressed()
 
 
 # =============================================================================

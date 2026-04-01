@@ -39,7 +39,7 @@ var debug_section_label: Label
 
 func _init():
 	overlay_name = "save_load_menu"
-	overlay_tier = 4000  # Z_TIER_SYSTEM
+	overlay_tier = 19  # Above EscapeMenu, still below action bars
 	panel_title = "LOAD GAME"
 	panel_title_size = 28
 	panel_size_mode = PanelSizeMode.LARGE
@@ -48,16 +48,16 @@ func _init():
 	use_scroll_container = false
 	content_spacing = 8
 	action_labels = {
-		"Q": "",
-		"E": "",
-		"R": "",
-		"F": ""
+		"Q": "Confirm",
+		"E": "Cancel",
+		"R": "Previous",
+		"F": "Next"
 	}
 
 
 func _build_content(container: Control) -> void:
 	hints_label = Label.new()
-	hints_label.text = "↑↓ to select  |  ENTER to confirm  |  ESC to cancel"
+	hints_label.text = "WASD or arrows to select  |  Q, ENTER, or SPACE to confirm  |  E or ESC to cancel"
 	hints_label.add_theme_font_size_override("font_size", 14)
 	hints_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	hints_label.add_theme_color_override("font_color", UIStyleFactory.COLOR_TEXT_SUBTITLE)
@@ -103,7 +103,7 @@ func _build_content(container: Control) -> void:
 		content_vbox.add_child(env_btn)
 		env_btn.visible = false
 
-	var cancel_btn = _create_menu_button("Cancel (ESC)", Color(0.6, 0.3, 0.3))
+	var cancel_btn = _create_menu_button("Cancel [E/ESC]", Color(0.6, 0.3, 0.3))
 	cancel_btn.pressed.connect(_on_cancel_pressed)
 	container.add_child(cancel_btn)
 
@@ -118,20 +118,23 @@ func handle_input(event: InputEvent) -> bool:
 		KEY_ESCAPE:
 			_on_cancel_pressed()
 			return true
-		KEY_UP:
+		KEY_Q:
+			_confirm_selection()
+			return true
+		KEY_E:
+			_on_cancel_pressed()
+			return true
+		KEY_R:
 			_select_previous_slot()
 			return true
-		KEY_DOWN:
+		KEY_F:
 			_select_next_slot()
 			return true
-		KEY_1:
-			_select_slot(0)
+		KEY_UP, KEY_W, KEY_LEFT, KEY_A:
+			_select_previous_slot()
 			return true
-		KEY_2:
-			_select_slot(1)
-			return true
-		KEY_3:
-			_select_slot(2)
+		KEY_DOWN, KEY_S, KEY_RIGHT, KEY_D:
+			_select_next_slot()
 			return true
 		KEY_ENTER, KEY_KP_ENTER, KEY_SPACE:
 			_confirm_selection()
@@ -149,6 +152,22 @@ func _on_activated() -> void:
 func _on_deactivated() -> void:
 	if input_controller:
 		input_controller.set_process_input(true)
+
+
+func _on_action_q() -> void:
+	_confirm_selection()
+
+
+func _on_action_e() -> void:
+	_on_cancel_pressed()
+
+
+func _on_action_r() -> void:
+	_select_previous_slot()
+
+
+func _on_action_f() -> void:
+	_select_next_slot()
 
 
 func _create_slot_button(slot: int) -> Button:

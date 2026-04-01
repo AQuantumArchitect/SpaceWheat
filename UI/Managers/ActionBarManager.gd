@@ -64,7 +64,7 @@ func create_action_bars(parent: Control) -> void:
 	tool_selection_row.name = "ToolSelectionRow"
 	parent.add_child(tool_selection_row)
 
-	# Create ActionPreviewRow (QER buttons)
+	# Create ActionPreviewRow (QERF buttons)
 	action_preview_row = ActionPreviewRow.new()
 	if not action_preview_row:
 		push_error("ActionBarManager: Failed to create ActionPreviewRow!")

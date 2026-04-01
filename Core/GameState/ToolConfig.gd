@@ -14,7 +14,7 @@ extends RefCounted
 ## Key Layout:
 ##   1 2 3 [4]  = Tool group selection (time scale ratchet)
 ##   Q E R      = Action keys (DOWN, NEUTRAL, UP)
-##   F          = Mode cycling within tool group
+##   F          = Mode cycling, or direct meta action in group 4
 ##
 ## Direction Philosophy:
 ##   Q = DOWN  (dig into, bind, construct)
@@ -169,7 +169,7 @@ const TOOL_GROUPS = {
 					"R": {"action": "pop", "label": "Pop", "emoji": "^",
 						  "icon": "res://Assets/UI/Science/Pop-Harvest.svg",
 						  "hint": "Pop terminal (auto-measures if only explored)",
-						  "shift_action": "reap", "shift_label": "Reap"}
+						  "shift_action": "pop", "shift_label": "Mass Pop"}
 				},
 			# GATE MODE: Entanglement infrastructure
 			"gate": {
@@ -196,7 +196,7 @@ const TOOL_GROUPS = {
 		"emoji": "*",
 		"icon": "res://Assets/UI/Icon/Icon.svg",
 		"time_scale": "meta",
-		"description": "Vocabulary and biome configuration",
+		"description": "Vocabulary, biome discovery, and reap",
 		"has_f_cycling": false,
 		"pauses_sim": true,
 		"actions": {
@@ -209,7 +209,10 @@ const TOOL_GROUPS = {
 				  "hint": "Explore and unlock a new biome"},
 			"R": {"action": "remove_vocabulary", "label": "-Vocab", "emoji": "-",
 				  "icon": "res://Assets/UI/Biome/BiomeClear.svg",
-				  "hint": "Remove vocabulary from biome"}
+				  "hint": "Remove vocabulary from biome"},
+			"F": {"action": "reap", "label": "Reap", "emoji": "💀",
+				  "icon": "res://Assets/UI/Science/Pop-Harvest.svg",
+				  "hint": "Seasonal reap: fast-forward evolution and harvest active biomes"}
 		}
 	}
 }
@@ -392,10 +395,13 @@ static func get_action_icon(group_num: int, key: String) -> String:
 
 
 static func get_all_actions(group_num: int) -> Dictionary:
-	"""Get all Q/E/R actions for a group (respecting F-cycling mode)."""
-	return {
+	"""Get all action slots for a group."""
+	var actions = {
 		"Q": get_action(group_num, "Q"),
 		"E": get_action(group_num, "E"),
 		"R": get_action(group_num, "R")
 	}
-
+	var f_action = get_action(group_num, "F")
+	if not f_action.is_empty():
+		actions["F"] = f_action
+	return actions

@@ -1,8 +1,8 @@
 class_name ActionPreviewRow
 extends HBoxContainer
 
-## Physical keyboard layout UI - Middle row with QER action preview buttons
-## Displays what Q/E/R actions will do based on selected tool
+## Physical keyboard layout UI - Middle row with QERF action preview buttons
+## Displays what Q/E/R/F actions will do based on selected tool or overlay
 ## Buttons use BtnBtmMidl.svg (identical styling to 1234 tool buttons)
 ## Uses BtnBtmMidl.svg from Assets/UI/Chrome for sci-fi aesthetic
 
@@ -16,13 +16,14 @@ const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.
 
 # Button texture path (matches ToolSelectionRow)
 const BTN_TEXTURE_PATH = "res://Assets/UI/Chrome/BtnBtmMidl.svg"
+const ACTION_KEYS = ["Q", "E", "R", "F"]
 
 # Action buttons - now stores container references with .texture and .label children
-var action_buttons: Dictionary = {}  # "Q", "E", "R" -> {container, texture, label, disabled}
+var action_buttons: Dictionary = {}  # "Q", "E", "R", "F" -> {container, texture, label, disabled}
 var current_tool: int = 3  # Default to tool 3 (matches ToolConfig.current_group)
 var current_submenu: String = ""  # Active submenu name (empty = show tool actions)
 var current_submenu_actions: Dictionary = {}
-var active_overlay_node: Control = null  # Current overlay for context-aware QER actions
+var active_overlay_node: Control = null  # Current overlay for context-aware QERF actions
 
 # References for checking action availability
 var plot_grid_display = null  # Injected reference to PlotGridDisplay
@@ -67,8 +68,8 @@ func _ready():
 	mouse_filter = MOUSE_FILTER_PASS
 	size_flags_horizontal = Control.SIZE_EXPAND_FILL
 
-	# Create Q, E, R action buttons (matches 1234 button style)
-	for action_key in ["Q", "E", "R"]:
+	# Create Q, E, R, F action buttons (matches 1234 button style)
+	for action_key in ACTION_KEYS:
 		var btn_data = _create_action_button(action_key)
 		add_child(btn_data.container)
 		action_buttons[action_key] = btn_data
@@ -88,18 +89,18 @@ func update_for_tool(tool_num: int) -> void:
 	current_submenu_actions = {}
 
 	# Update each action button using ToolConfig API (respects F-cycling)
-	for action_key in ["Q", "E", "R"]:
+	for action_key in ACTION_KEYS:
 		if not action_buttons.has(action_key):
 			continue
 
 		var btn_data = action_buttons[action_key]
-		var action_info = ToolConfig.get_action(tool_num, action_key)
-		var label_text = ToolConfig.get_action_label(tool_num, action_key)
-		var emoji = ToolConfig.get_action_emoji(tool_num, action_key)
-		var icon_path = ToolConfig.get_action_icon(tool_num, action_key)
+		var action_info = _get_tool_action_info(tool_num, action_key)
+		var label_text = action_info.get("label", "")
+		var emoji = action_info.get("emoji", "")
+		var icon_path = action_info.get("icon", "")
 		var shift_hint = ""
 		if action_info.has("shift_label"):
-			shift_hint = " %s" % action_info.get("shift_label")
+			shift_hint = " (%s)" % action_info.get("shift_label")
 
 		# Try to load icon, fall back to emoji if unavailable
 		var has_icon = false
@@ -125,8 +126,9 @@ func update_for_tool(tool_num: int) -> void:
 			btn_data.label.offset_left = 0
 			btn_data.base_label_offset = 0
 
-		# Reset disabled state
-		btn_data.disabled = false
+		# Apply disabled state from action info (used by non-cycling F slots)
+		btn_data.disabled = action_info.get("disabled", false)
+		btn_data.texture.modulate = disabled_color if btn_data.disabled else button_color
 
 	# For Tool 1 (Probe), enhance with preview info
 	if tool_num == 1:
@@ -141,7 +143,7 @@ func update_for_submenu(submenu_name: String, submenu_info: Dictionary) -> void:
 	"""Update action buttons to show submenu actions
 
 	Called when entering a submenu (e.g., 4-Q opens vocab injection).
-	submenu_info contains Q/E/R action definitions.
+	submenu_info contains Q/E/R/F action definitions.
 
 	Supports _availability dict for per-action availability (e.g., mill power sources).
 	When _availability is present, unavailable actions are dimmed using disabled_color.
@@ -160,11 +162,11 @@ func update_for_submenu(submenu_name: String, submenu_info: Dictionary) -> void:
 	var is_disabled = submenu_info.get("_disabled", false)
 
 	# Get per-action availability (for mill submenus, etc.)
-	# Keys are "Q", "E", "R" with bool values. Default to available if not specified.
+	# Keys are "Q", "E", "R", "F" with bool values. Default to available if not specified.
 	var availability = submenu_info.get("_availability", {})
 
 	# Update each action button with submenu actions
-	for action_key in ["Q", "E", "R"]:
+	for action_key in ACTION_KEYS:
 		if not action_buttons.has(action_key):
 			continue
 
@@ -219,20 +221,22 @@ func update_for_submenu(submenu_name: String, submenu_info: Dictionary) -> void:
 
 
 func update_for_overlay(overlay: Control) -> void:
-	"""Switch to overlay mode: QER actions are projected from overlay state.
+	"""Switch to overlay mode: QERF actions are projected from overlay state.
 	
-	Overlay must implement get_action_info(key) -> Dictionary.
+	Prefer get_action_info(key) when available.
+	Fallback to get_action_labels() so standard OverlayBase menus still project
+	truthful labels onto the action bar.
 	"""
 	active_overlay_node = overlay
 	current_submenu = "overlay"
 	
 	# Update button display from overlay action info
-	for action_key in ["Q", "E", "R"]:
+	for action_key in ACTION_KEYS:
 		if not action_buttons.has(action_key):
 			continue
 			
 		var btn_data = action_buttons[action_key]
-		var info = active_overlay_node.get_action_info(action_key)
+		var info = _get_action_info(action_key)
 		
 		# Reset display
 		btn_data.icon.visible = false
@@ -280,12 +284,12 @@ func update_action_availability() -> void:
 
 	# Check if we have references
 	if not plot_grid_display or not plot_grid_display.has_method("get_selected_plots"):
-		update_button_highlights({"Q": false, "E": false, "R": false})
+		update_button_highlights({"Q": false, "E": false, "R": false, "F": true})
 		return
 
 	var selected_plots = plot_grid_display.get_selected_plots()
 	if selected_plots.is_empty():
-		update_button_highlights({"Q": false, "E": false, "R": false})
+		update_button_highlights({"Q": false, "E": false, "R": false, "F": true})
 		return
 
 	if quantum_input and quantum_input.has_method("can_execute_action"):
@@ -294,17 +298,18 @@ func update_action_availability() -> void:
 			"Q": quantum_input.can_execute_action("Q"),
 			"E": quantum_input.can_execute_action("E"),
 			"R": quantum_input.can_execute_action("R"),
+			"F": true,
 		}
 		update_button_highlights(availability)
 	elif quantum_input and quantum_input.has_method("get_current_selection"):
 		# QuantumInstrumentInput: Check if there's a valid selection
 		var selection = quantum_input.get_current_selection()
 		var has_selection = selection.get("plot_idx", -1) >= 0
-		update_button_highlights({"Q": has_selection, "E": has_selection, "R": has_selection})
+		update_button_highlights({"Q": has_selection, "E": has_selection, "R": has_selection, "F": true})
 	else:
 		# Fallback: naive behavior (all enabled if plots selected)
 		var has_selection = selected_plots.size() > 0
-		update_button_highlights({"Q": has_selection, "E": has_selection, "R": has_selection})
+		update_button_highlights({"Q": has_selection, "E": has_selection, "R": has_selection, "F": true})
 
 	# Update probe preview for Tool 1 (shows quantum state in button text)
 	if current_tool == 1:
@@ -315,9 +320,9 @@ func update_button_highlights(availability: Dictionary) -> void:
 	"""Highlight buttons based on per-action availability
 
 	Args:
-		availability: Dictionary with "Q"/"E"/"R" keys mapping to bool
+		availability: Dictionary with "Q"/"E"/"R"/"F" keys mapping to bool
 	"""
-	for action_key in ["Q", "E", "R"]:
+	for action_key in ACTION_KEYS:
 		if not action_buttons.has(action_key):
 			continue
 
@@ -411,7 +416,7 @@ func _update_probe_preview() -> void:
 func get_snapshot() -> Dictionary:
 	"""Return structured snapshot of current action button state."""
 	var actions: Dictionary = {}
-	for key in ["Q", "E", "R"]:
+	for key in ACTION_KEYS:
 		if not action_buttons.has(key):
 			continue
 		var btn = action_buttons[key]
@@ -422,7 +427,7 @@ func get_snapshot() -> Dictionary:
 func debug_layout() -> String:
 	"""Return detailed layout debug information for F3 display"""
 	var debug_text = ""
-	debug_text += "ActionPreviewRow (Q/E/R toolbar):\n"
+	debug_text += "ActionPreviewRow (Q/E/R/F toolbar):\n"
 	debug_text += "  Position: (%.0f, %.0f)\n" % [position.x, position.y]
 	debug_text += "  Actual size: %.0f × %.0f\n" % [size.x, size.y]
 	debug_text += "  Custom min size: %s\n" % custom_minimum_size
@@ -431,7 +436,7 @@ func debug_layout() -> String:
 	debug_text += "  Buttons: %d total (BtnBtmMidl style)\n" % action_buttons.size()
 
 	var button_widths = []
-	for action_key in ["Q", "E", "R"]:
+	for action_key in ACTION_KEYS:
 		if action_buttons.has(action_key):
 			var btn_data = action_buttons[action_key]
 			button_widths.append("%.0f" % btn_data.container.size.x)
@@ -534,21 +539,13 @@ func _create_action_button(action_key: String) -> Dictionary:
 	}
 
 func _update_action_costs() -> void:
-	"""Update cost labels for Q/E/R actions based on selection."""
-	for action_key in ["Q", "E", "R"]:
+	"""Update cost labels for Q/E/R/F actions based on selection."""
+	for action_key in ACTION_KEYS:
 		if not action_buttons.has(action_key):
 			continue
 		var btn_data = action_buttons[action_key]
 		var action_info = _get_action_info(action_key)
 		var action_name = action_info.get("action", "")
-
-		# Handle combined display for POP + Shift REAP.
-		if action_name == "pop" and action_info.get("shift_action", "") == "reap":
-			var normal_cost = _get_runtime_action_cost("pop")
-			var shift_cost = _get_runtime_action_cost("reap")
-			var has_cost = _set_combined_cost_display(btn_data, normal_cost, shift_cost)
-			_adjust_label_for_cost(btn_data, has_cost, 170)
-			continue
 
 		var cost = _get_cost_for_action(action_name, action_info)
 		var has_cost = _set_cost_display(btn_data, cost)
@@ -568,10 +565,55 @@ func _adjust_label_for_cost(btn_data: Dictionary, has_cost: bool, cost_width: in
 func _get_action_info(action_key: String) -> Dictionary:
 	if active_overlay_node and active_overlay_node.has_method("get_action_info"):
 		return active_overlay_node.get_action_info(action_key)
+	if active_overlay_node and active_overlay_node.has_method("get_action_labels"):
+		var labels = active_overlay_node.get_action_labels()
+		return {
+			"action": "",
+			"label": str(labels.get(action_key, "-")),
+			"emoji": "",
+			"disabled": false
+		}
 	
 	if current_submenu != "" and current_submenu_actions:
 		return current_submenu_actions.get(action_key, {})
-	return ToolConfig.get_action(current_tool, action_key)
+	return _get_tool_action_info(current_tool, action_key)
+
+
+func _get_tool_action_info(tool_num: int, action_key: String) -> Dictionary:
+	if action_key == "F":
+		var group_def = ToolConfig.get_group(tool_num)
+		if not group_def.is_empty() and not group_def.get("has_f_cycling", false):
+			var direct_f = ToolConfig.get_action(tool_num, "F")
+			if not direct_f.is_empty():
+				return direct_f
+		return _get_tool_cycle_action_info(tool_num)
+	return ToolConfig.get_action(tool_num, action_key)
+
+
+func _get_tool_cycle_action_info(tool_num: int) -> Dictionary:
+	var group_def = ToolConfig.get_group(tool_num)
+	if group_def.is_empty():
+		return {}
+	if not group_def.get("has_f_cycling", false):
+		return {
+			"action": "",
+			"label": "-",
+			"emoji": "",
+			"disabled": true
+		}
+
+	var mode_labels: Array = group_def.get("mode_labels", [])
+	var mode_index = ToolConfig.get_group_mode_index(tool_num)
+	var next_label = ""
+	if not mode_labels.is_empty():
+		next_label = str(mode_labels[(mode_index + 1) % mode_labels.size()])
+
+	return {
+		"action": "cycle_mode",
+		"label": "Cycle %s" % next_label if next_label != "" else "Cycle Mode",
+		"emoji": "↺",
+		"disabled": false
+	}
 
 
 func _get_cost_for_action(action_name: String, action_info: Dictionary = {}) -> Dictionary:
