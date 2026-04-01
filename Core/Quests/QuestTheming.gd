@@ -663,7 +663,7 @@ static func _compute_vocab_resonance_probability(
 	# Only applies when the biome HAS native factions (StarterForest/Village have
 	# none, so _is_biome_native tag is absent and all factions stay at full resonance).
 	if faction.has("_is_biome_native") and not faction.get("_is_biome_native", false):
-		p_vocab *= 0.5  # half vocab chance for non-native factions
+		p_vocab *= float(faction.get("_non_native_resonance", 0.8))
 
 	return {
 		"p_vocab": p_vocab,

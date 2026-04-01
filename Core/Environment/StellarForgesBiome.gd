@@ -200,7 +200,7 @@ func _patch_forge_icons(icons: Dictionary) -> void:
 	_configure_forge_dynamics(icons, null)
 
 
-func _create_local_icon(emoji: String) -> Icon:
+func _create_local_icon(emoji: String):
 	return _create_forge_emoji_icon(emoji)
 
 

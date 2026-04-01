@@ -14,6 +14,9 @@ const SUPPORTED_ROOTS: Array[String] = [
 	"action_limits",
 	"reward_terms",
 	"dynamics",
+	"ppg",
+	"biome_economics",
+	"quest_scoring",
 ]
 
 
@@ -113,6 +116,36 @@ static func default_graph(policy_kind: String = "ucb", profile_id: String = "def
 		},
 		"dynamics": {
 			"apply_stagnation_penalty": true,
+		},
+		"ppg": {
+			"pump_scale": 0.15,
+			"drain_scale": 0.10,
+			"decay_rate": 0.02,
+			"coupling_strength": 0.20,
+			"multiplier_min": 0.5,
+			"multiplier_max": 3.0,
+			"entropy_strength": 0.005,
+			"signal_milk_progress": 15.0,
+			"signal_milk_lock": 10.0,
+			"signal_biome_discover": 25.0,
+			"signal_biome_frontier": 15.0,
+			"signal_milk_bonus_quest": 30.0,
+			"signal_milk_bonus_frontier": 15.0,
+			"signal_milk_bonus_lock": 20.0,
+			"signal_milk_bonus_vocab": 25.0,
+		},
+		"biome_economics": {
+			"south_pole_affinity": 1.5,
+			"native_faction_score_bonus": 12.0,
+			"non_native_resonance_factor": 0.8,
+		},
+		"quest_scoring": {
+			"novelty_weight": 32.0,
+			"surplus_weight": 12.0,
+			"discovery_affinity_weight": 18.0,
+			"reward_sum_weight": 0.22,
+			"novelty_threshold_bonus": 20.0,
+			"milk_score": 420.0,
 		},
 	}
 	if policy_kind == "quantum_register":

@@ -67,23 +67,24 @@ func pop_plot(pos: Vector2i) -> Dictionary:
 		# Get harvest outcome (emoji) and energy/yield
 		var outcome_emoji = harvest_data.get("outcome", "")
 		var quantum_energy = harvest_data.get("energy", 0.0)
+		var units := 0
 
 		# Fallback: if energy not provided, derive from yield
 		if quantum_energy == 0.0:
 			var yield_amount = harvest_data.get("yield", 1)
 			quantum_energy = float(yield_amount) / EconomyConstants.get_quantum_to_credits(economy)
 
-			if not outcome_emoji.is_empty():
-				# Generic routing: any emoji → its credits
-				var credits_earned = economy.receive_pop_yield(outcome_emoji, quantum_energy, "pop")
-				var units = credits_earned / EconomyConstants.get_quantum_to_credits(economy)
+		if not outcome_emoji.is_empty():
+			# Generic routing: any emoji → its credits
+			var credits_earned = economy.receive_pop_yield(outcome_emoji, quantum_energy, "pop")
+			units = credits_earned / EconomyConstants.get_quantum_to_credits(economy)
 
-			# Goal tracking for wheat
-			if outcome_emoji == "🌾":
-				goals.record_harvest(units)
+		# Goal tracking for wheat
+		if outcome_emoji == "🌾":
+			goals.record_harvest(units)
 
-			action_feedback.emit("✂️ Harvested %d %s!" % [units, outcome_emoji], true)
-			print("✂️ Harvested at %s: %d %s" % [pos, units, outcome_emoji])
+		action_feedback.emit("✂️ Harvested %d %s!" % [units, outcome_emoji], true)
+		print("✂️ Harvested at %s: %d %s" % [pos, units, outcome_emoji])
 
 		# Check contracts
 		if on_contract_check.is_valid():

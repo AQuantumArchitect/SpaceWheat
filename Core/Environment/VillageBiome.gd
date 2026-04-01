@@ -219,5 +219,5 @@ func _rebuild_quantum_operators_impl() -> void:
 		build_operators_cached("VillageBiome", icons)
 
 
-func _create_local_icon(emoji: String) -> Icon:
+func _create_local_icon(emoji: String):
 	return _create_village_emoji_icon(emoji)

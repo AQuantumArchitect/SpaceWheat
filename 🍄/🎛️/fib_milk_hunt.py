@@ -26,7 +26,8 @@ from milk_hunt_paths import xdg_root
 
 OUTPUT_ROOT = Path("/tmp/fib_milk_hunt")
 SAVE_DIR = OUTPUT_ROOT / "saves"
-PPG_PRIOR_DIR = OUTPUT_ROOT / "ppg_priors"
+# PPG priors persist in the repo (survives /tmp wipes from reboots)
+PPG_PRIOR_DIR = Path(__file__).resolve().parent / "ppg_priors"
 
 CHARACTERS = [
     "pioneer_fib",

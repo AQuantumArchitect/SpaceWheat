@@ -220,7 +220,7 @@ func rebuild_quantum_operators() -> void:
 	print("  ✅ VolcanicWorlds: Rebuilt operators")
 
 
-func _create_local_icon(emoji: String) -> Icon:
+func _create_local_icon(emoji: String):
 	return _create_volcanic_emoji_icon(emoji)
 
 

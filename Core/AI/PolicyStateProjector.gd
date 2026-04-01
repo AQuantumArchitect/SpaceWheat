@@ -846,22 +846,26 @@ static func rank_offers(resources: Dictionary, offers: Array, known_pairs: Array
 			for emoji in reward_resources.keys():
 				reward_sum += max(0.0, float(reward_resources.get(emoji, 0.0)))
 		var milk_metrics = _offer_milk_metrics(offer, current_best_dist, current_best_cascade, known)
-		# Biome-native faction boost: quests from factions native to the active biome
-		# score higher, making "where you are" affect what vocabulary you pursue.
-		var biome_native_bonus = 40.0 if bool(offer.get("is_biome_native", false)) else 0.0
+		# Read scoring weights from graph (quest_scoring.* and biome_economics.*)
+		var qs = graph.get("quest_scoring", {})
+		if not (qs is Dictionary): qs = {}
+		var be = graph.get("biome_economics", {})
+		if not (be is Dictionary): be = {}
+		var native_bonus_val = float(be.get("native_faction_score_bonus", 12.0))
+		var biome_native_bonus = native_bonus_val if bool(offer.get("is_biome_native", false)) else 0.0
 		# Score: vocab novelty dominates, surplus rewards cheap quests, milk is king
 		var score = (
-			novelty * 32.0
-			+ surplus * 12.0
-			+ reward_sum * 0.22
-			+ discovery_aff * 18.0
+			novelty * float(qs.get("novelty_weight", 32.0))
+			+ surplus * float(qs.get("surplus_weight", 12.0))
+			+ reward_sum * float(qs.get("reward_sum_weight", 0.22))
+			+ discovery_aff * float(qs.get("discovery_affinity_weight", 18.0))
 			+ biome_native_bonus
 			+ float(milk_metrics.get("milk_hint", 0.0)) * float(cfg.get("milk_hint_scale", 1.0))
 			+ float(milk_metrics.get("milk_distance_gain", 0.0)) * float(cfg.get("milk_distance_gain", 28.0))
 			+ float(milk_metrics.get("milk_cascade_gain", 0.0)) * float(cfg.get("milk_cascade_gain", 12.0))
 			+ float(milk_metrics.get("webway_gain", 0.0)) * float(cfg.get("webway_gain", 20.0))
-			+ (420.0 if is_milk else 0.0)
-			+ (20.0 if novelty >= 2.0 else 0.0)
+			+ (float(qs.get("milk_score", 420.0)) if is_milk else 0.0)
+			+ (float(qs.get("novelty_threshold_bonus", 20.0)) if novelty >= 2.0 else 0.0)
 		)
 		if score > best_score:
 			best_score = score

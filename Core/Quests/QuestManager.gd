@@ -52,6 +52,7 @@ var economy: Node = null
 var faction_manager: Node = null
 var current_biome: Node = null  # For tracking non-delivery quest progress
 var _biome_offer_counts: Dictionary = {}
+var _non_native_resonance_factor: float = 0.8  # from biome_economics.non_native_resonance_factor
 var _state_projection: QuestStateProjectionService = QuestStateProjectionService.new()
 
 # =============================================================================
@@ -405,6 +406,10 @@ func offer_all_faction_quests(biome) -> Array:
 		# Village) leave all factions at equal resonance.
 		if not native_faction_names.is_empty():
 			faction["_is_biome_native"] = str(faction.get("name", "")) in native_faction_names
+			faction["_non_native_resonance"] = _non_native_resonance_factor
+		else:
+			faction.erase("_is_biome_native")
+			faction.erase("_non_native_resonance")
 		var quest = QuestTheming.generate_quest(
 			faction, biome, player_vocab, bias_emojis, self.economy,
 			cached_obs, cached_icon_map)

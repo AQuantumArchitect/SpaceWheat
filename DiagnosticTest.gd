@@ -18,10 +18,10 @@ func _ready():
 
 	print("\n[CHECK] C++ Class Availability:")
 	for i in classes_to_check.size():
-		var class_name = classes_to_check[i]
-		var exists = ClassDB.class_exists(class_name)
+		var checked_class = classes_to_check[i]
+		var exists = ClassDB.class_exists(checked_class)
 		var status = "✅" if exists else "❌"
-		print("  %s %s" % [status, class_name])
+		print("  %s %s" % [status, checked_class])
 
 	# Try to instantiate the most critical one
 	print("\n[TEST] Attempting to instantiate MultiBiomeLookaheadEngine...")

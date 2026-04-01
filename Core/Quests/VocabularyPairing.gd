@@ -123,9 +123,9 @@ static func _roll_south_pole(icon_registry) -> Dictionary:
 ## When provided, faction signature emojis that also appear in the biome
 ## get a soft weight boost (BIOME_AFFINITY_BOOST), making quests in a
 ## biome preferentially spend that biome's resources.
-const BIOME_AFFINITY_BOOST := 3.0
+const BIOME_AFFINITY_BOOST_DEFAULT := 1.5
 
-static func _roll_south_pole_from_signature(icon_registry, faction_signature: Array, biome_emojis: Array = []) -> Dictionary:
+static func _roll_south_pole_from_signature(icon_registry, faction_signature: Array, biome_emojis: Array = [], biome_affinity_boost: float = BIOME_AFFINITY_BOOST_DEFAULT) -> Dictionary:
 	"""Roll south pole from faction signature, weighted by player inventory
 
 	South pole can be known OR unknown to player.
@@ -167,7 +167,7 @@ static func _roll_south_pole_from_signature(icon_registry, faction_signature: Ar
 
 		# Biome affinity: boost emojis native to the active biome
 		if not biome_emojis.is_empty() and emoji in biome_emojis:
-			weight *= BIOME_AFFINITY_BOOST
+			weight *= biome_affinity_boost
 
 		candidates[emoji] = {"weight": weight, "amount": amount, "connections": connections}
 

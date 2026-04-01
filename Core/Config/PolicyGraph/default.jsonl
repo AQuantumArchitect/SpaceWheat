@@ -39,3 +39,16 @@
 {"op":"set","path":"reward_terms.milk_progress","value":15.0}
 {"op":"set","path":"reward_terms.execution_penalty","value":-4.0}
 {"op":"set","path":"dynamics.apply_stagnation_penalty","value":true}
+{"op":"set","path":"ppg.pump_scale","value":0.15}
+{"op":"set","path":"ppg.drain_scale","value":0.10}
+{"op":"set","path":"ppg.decay_rate","value":0.02}
+{"op":"set","path":"ppg.coupling_strength","value":0.20}
+{"op":"set","path":"ppg.multiplier_min","value":0.5}
+{"op":"set","path":"ppg.multiplier_max","value":3.0}
+{"op":"set","path":"ppg.entropy_strength","value":0.005}
+{"op":"set","path":"biome_economics.south_pole_affinity","value":1.5}
+{"op":"set","path":"biome_economics.native_faction_score_bonus","value":12.0}
+{"op":"set","path":"biome_economics.non_native_resonance_factor","value":0.8}
+{"op":"set","path":"quest_scoring.novelty_weight","value":32.0}
+{"op":"set","path":"quest_scoring.surplus_weight","value":12.0}
+{"op":"set","path":"quest_scoring.milk_score","value":420.0}

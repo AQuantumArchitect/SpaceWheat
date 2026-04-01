@@ -202,7 +202,7 @@ func get_paired_emoji(emoji: String) -> String:
 	return emoji_pairings.get(emoji, "?")
 
 
-func _create_local_icon(emoji: String) -> Icon:
+func _create_local_icon(emoji: String):
 	return _create_forest_emoji_icon(emoji)
 
 

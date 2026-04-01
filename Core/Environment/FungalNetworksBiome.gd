@@ -240,7 +240,7 @@ func rebuild_quantum_operators() -> void:
 	print("  ✅ FungalNetworks: Rebuilt operators")
 
 
-func _create_local_icon(emoji: String) -> Icon:
+func _create_local_icon(emoji: String):
 	return _create_fungal_emoji_icon(emoji)
 
 
