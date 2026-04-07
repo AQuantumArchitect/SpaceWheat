@@ -256,9 +256,10 @@ if [ "$BUILD_NATIVE" = true ]; then
     fi
 fi
 
-# Check for zip on Windows builds
+# Check for zip on Windows builds; fall back to tar.gz if unavailable
 if [ "$PLATFORM" = "windows" ] && ! command -v zip &> /dev/null; then
-    error "zip not found. Install with: sudo apt-get install zip"
+    warn "zip not found — will use tar.gz instead"
+    ARCHIVE_EXT="tar.gz"
 fi
 
 GODOT_VERSION=$($GODOT_BIN --version 2>/dev/null | head -1)
@@ -617,8 +618,17 @@ if [ "$DO_INSTALL" = true ]; then
 
         if [ "$ARCHIVE_EXT" = "tar.gz" ]; then
             tar xzf "$ARCHIVE" -C "$(dirname "$INSTALL_DIR")"
+            # tar extracts to SpaceWheat/; rename if INSTALL_DIR differs
+            EXTRACTED_DIR="$(dirname "$INSTALL_DIR")/SpaceWheat"
+            if [ "$EXTRACTED_DIR" != "$INSTALL_DIR" ] && [ -d "$EXTRACTED_DIR" ]; then
+                mv "$EXTRACTED_DIR" "$INSTALL_DIR"
+            fi
         elif [ "$ARCHIVE_EXT" = "zip" ]; then
             unzip -q "$ARCHIVE" -d "$(dirname "$INSTALL_DIR")"
+            EXTRACTED_DIR="$(dirname "$INSTALL_DIR")/SpaceWheat"
+            if [ "$EXTRACTED_DIR" != "$INSTALL_DIR" ] && [ -d "$EXTRACTED_DIR" ]; then
+                mv "$EXTRACTED_DIR" "$INSTALL_DIR"
+            fi
         fi
 
         # Verify
