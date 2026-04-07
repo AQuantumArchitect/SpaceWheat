@@ -1,6 +1,8 @@
 class_name GameStateSerializer
 extends RefCounted
 
+const GridSentinel = preload("res://Core/GameState/GridSentinel.gd")
+
 ## GameStateSerializer - capture/apply GameState to a live Farm.
 ## Keeps GameStateManager focused on orchestration.
 
@@ -162,13 +164,15 @@ func capture_state_from_farm(farm: Node, current_state: GameState, scenario_id: 
 			var pos = Vector2i(x, y)
 			var plot = grid.get_plot(pos)
 
-			var has_measurement: bool = bool(plot.get_is_measured())
+			var has_live_measurement: bool = bool(plot.get_is_measured())
+			var has_memory: bool = bool(plot.has_method("has_measurement_memory") and plot.has_measurement_memory())
+			var has_measurement: bool = has_live_measurement or has_memory
 			var has_live_register: bool = bool(plot.is_active())
 			var persist_plot: bool = has_live_register or has_measurement
 			var plot_data = {
 				"position": pos,
 				"type_name": plot.plot_type_name,
-				"is_planted": persist_plot,
+				"is_planted": has_live_register,
 				"has_been_measured": has_measurement,
 				"theta_frozen": plot.theta_frozen,
 				"entangled_with": plot.entangled_plots.keys(),
@@ -181,13 +185,13 @@ func capture_state_from_farm(farm: Node, current_state: GameState, scenario_id: 
 			# Persist both bound plots and measured terminals. Measured terminals may
 			# release their live register, so their identity must come from the
 			# terminal measurement snapshot rather than the current bound fields.
-			if persist_plot:
+			if has_live_register:
 				var register_id: int = int(plot.bound_register_id)
 				var biome_name: String = str(plot.bound_biome_name)
 				var north_emoji: String = str(plot.north_emoji)
 				var south_emoji: String = str(plot.south_emoji)
 
-				if has_measurement and plot.terminal:
+				if has_live_measurement and plot.terminal:
 					register_id = int(plot.terminal.measured_register_id)
 					biome_name = str(plot.terminal.measured_biome_name)
 					north_emoji = str(plot.terminal.north_emoji)
@@ -197,9 +201,15 @@ func capture_state_from_farm(farm: Node, current_state: GameState, scenario_id: 
 				plot_data["biome_name"] = biome_name
 				plot_data["north_emoji"] = north_emoji
 				plot_data["south_emoji"] = south_emoji
-				if has_measurement:
+				if has_live_measurement:
 					plot_data["measured_outcome"] = plot.measured_outcome
 					plot_data["measured_probability"] = plot.measured_probability
+			elif has_memory and plot.has_method("get_measurement_memory"):
+				var memory = plot.get_measurement_memory()
+				plot_data["north_emoji"] = str(memory.get("north_emoji", ""))
+				plot_data["south_emoji"] = str(memory.get("south_emoji", ""))
+				plot_data["measured_outcome"] = str(memory.get("outcome", ""))
+				plot_data["measured_probability"] = float(memory.get("probability", 0.0))
 
 			if "persistent_gates" in plot:
 				var serialized_gates = []
@@ -386,7 +396,7 @@ func apply_state_to_farm(state: GameState, farm: Node) -> void:
 				match old_type:
 					0: plot.plot_type_name = "wheat"
 					2: plot.plot_type_name = "mushroom"
-					6: plot.plot_type_name = "energy_tap"
+					6: plot.plot_type_name = "wheat"  # Deprecated energy taps coerce to a live crop type
 					_: plot.plot_type_name = "wheat"
 
 			if plot_data.get("is_planted", false):
@@ -429,6 +439,13 @@ func apply_state_to_farm(state: GameState, farm: Node) -> void:
 
 					if plot.is_measured and farm.has_signal("plot_measured"):
 						farm.plot_measured.emit(pos, plot.measured_outcome)
+			elif plot_data.get("has_been_measured", false):
+				var memory_outcome = plot_data.get("measured_outcome", "")
+				var memory_probability = plot_data.get("measured_probability", 0.5)
+				var memory_north = plot_data.get("north_emoji", "")
+				var memory_south = plot_data.get("south_emoji", "")
+				if plot.has_method("remember_measurement"):
+					plot.remember_measurement(memory_outcome, memory_probability, memory_north, memory_south)
 
 			plot.theta_frozen = plot_data.get("theta_frozen", false)
 			plot.lindblad_pump_active = plot_data.get("lindblad_pump_active", false)
@@ -832,8 +849,8 @@ func _migrate_plot_infra_to_register(farm: Node, state: GameState) -> void:
 
 	var migrated_count = 0
 	for plot_data in state.plots:
-		var pos = plot_data.get("position", Vector2i(-1, -1))
-		if pos == Vector2i(-1, -1):
+		var pos = plot_data.get("position", GridSentinel.INVALID_POSITION)
+		if pos == GridSentinel.INVALID_POSITION:
 			continue
 
 		var reg_id = plot_data.get("register_id", -1)

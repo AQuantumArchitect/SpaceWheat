@@ -7,11 +7,12 @@ extends RefCounted
 ## All methods are static with no side effects.
 ##
 ## Used by:
-## - ActionPreviewRow for button highlighting
+## - UIContextController for action availability projection
 ## - QuantumInstrumentInput for pre-execution validation
 
 const ToolConfig = preload("res://Core/GameState/ToolConfig.gd")
 const ActionCostRuntime = preload("res://Core/GameMechanics/ActionCostRuntime.gd")
+const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")
 const VocabPairUtils = preload("res://Core/Gameplay/VocabPairUtils.gd")
 
 
@@ -74,6 +75,10 @@ static func can_execute_action_name(
 			return _can_execute_remove_vocabulary(farm, current_selection)
 		"discover_biome":
 			return _can_execute_discover_biome(farm)
+		"remove_biome":
+			return _can_execute_remove_biome(farm)
+		"cycle_mode":
+			return true
 		_:
 			return true
 
@@ -90,6 +95,9 @@ static func _can_execute_tool_action(
 	current_selection: Vector2i
 ) -> bool:
 	"""Check if tool action can succeed (not in submenu)."""
+	if action_key == "F" and ToolConfig.has_f_cycling(current_tool):
+		return true
+
 	if selected_plots.is_empty():
 		return false
 
@@ -137,24 +145,18 @@ static func _can_execute_tool_action(
 			return true  # Available if plots selected
 
 		# ═══════════════════════════════════════════════════════════════
-		# BUILD MODE - Tool 1 (BIOME)
+		# LEGACY TOOL COMMENTS - retained action families
 		# ═══════════════════════════════════════════════════════════════
 		"submenu_biome_assign":
 			return true  # Opens submenu
 		"clear_biome_assignment", "inspect_plot":
 			return true  # Available if plots selected
 
-		# ═══════════════════════════════════════════════════════════════
-		# BUILD MODE - Tool 2 (ICON)
-		# ═══════════════════════════════════════════════════════════════
 		"submenu_icon_assign":
 			return true  # Opens submenu
 		"icon_swap", "icon_clear":
 			return true  # Available if plots selected
 
-		# ═══════════════════════════════════════════════════════════════
-		# BUILD MODE - Tool 3 (LINDBLAD)
-		# ═══════════════════════════════════════════════════════════════
 		"drain", "pump":
 			return true  # Available if plots selected
 		"transfer":
@@ -165,7 +167,7 @@ static func _can_execute_tool_action(
 			return selected_plots.size() == 2  # Transfer needs exactly 2 plots
 
 		# ═══════════════════════════════════════════════════════════════
-		# BUILD MODE - Tool 4 (QUANTUM) System/Phase/Rotation modes
+		# TOOL 4 META / SYSTEM ACTIONS
 		# ═══════════════════════════════════════════════════════════════
 		"inject_vocabulary":
 			return _can_execute_inject_vocabulary(farm, current_selection)
@@ -173,6 +175,10 @@ static func _can_execute_tool_action(
 			return _can_execute_remove_vocabulary(farm, current_selection)
 		"discover_biome":
 			return _can_execute_discover_biome(farm)
+		"remove_biome":
+			return _can_execute_remove_biome(farm)
+		"cycle_mode":
+			return true
 		"toggle_view", "cycle_biome":
 			return true  # Available if plots selected
 		"system_reset", "system_snapshot", "system_debug":
@@ -217,11 +223,9 @@ static func _can_execute_explore(farm, current_selection: Vector2i) -> bool:
 	var has_unbound = not available_registers.is_empty()
 
 	# Debug: Log availability
-	var tree = Engine.get_main_loop()
-	if tree and tree is SceneTree:
-		var verbose = tree.root.get_node_or_null("/root/VerboseConfig")
-		if verbose and not has_unbound:
-			verbose.debug("input", "🔍", "EXPLORE button disabled: no unbound registers in %s" % biome.get_biome_type())
+	var verbose = InstrumentLocator.resolve_verbose_config_main_loop()
+	if verbose and not has_unbound:
+		verbose.debug("input", "🔍", "EXPLORE button disabled: no unbound registers in %s" % biome.get_biome_type())
 
 	return has_unbound
 
@@ -427,6 +431,16 @@ static func _can_execute_discover_biome(farm) -> bool:
 
 	var gate = ActionCostRuntime.preflight_action(farm, "discover_biome")
 	return bool(gate.get("ok", false))
+
+
+static func _can_execute_remove_biome(farm) -> bool:
+	"""Check if the currently active biome can be liquidated and removed."""
+	if not farm:
+		return false
+	if farm.has_method("can_remove_biome"):
+		var gate = farm.can_remove_biome()
+		return bool(gate.get("ok", false))
+	return false
 
 
 static func _get_qubit_count(biome) -> int:

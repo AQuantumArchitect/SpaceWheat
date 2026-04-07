@@ -225,27 +225,27 @@ func investigate_building_costs():
 	var initial_credits = farm.economy.get_resource_amount("💰")
 	print("Initial credits: %d 💰" % initial_credits)
 
-	# Find FarmInputHandler action methods
+	# Find current input adapter details
 	var input_handler = null
 	var shell = root.get_node_or_null("FarmView/PlayerShell")
 	if shell:
-		input_handler = shell.input_handler if shell.has_meta("input_handler") else null
+		input_handler = shell.input_handler if "input_handler" in shell else null
 
 	if not input_handler:
-		print("⚠️  Could not find FarmInputHandler for cost testing")
+		print("⚠️  Could not find QuantumInstrumentInput for cost testing")
 	else:
-		print("✅ Found FarmInputHandler")
+		print("✅ Found QuantumInstrumentInput")
 
 		# Check if action methods exist
 		if input_handler.has_method("_action_batch_build"):
 			print("  ✅ _action_batch_build() method exists")
 		else:
-			log_issue("Tool 3: _action_batch_build() not found in FarmInputHandler")
+			log_issue("Tool 3: batch-build path not found in QuantumInstrumentInput")
 
 		if input_handler.has_method("_action_place_kitchen"):
 			print("  ✅ _action_place_kitchen() method exists")
 		else:
-			log_issue("Tool 3: _action_place_kitchen() not found in FarmInputHandler")
+			log_issue("Tool 3: kitchen-placement path not found in QuantumInstrumentInput")
 
 	# Check economy has spend_resource method
 	if farm.economy.has_method("spend_resource"):

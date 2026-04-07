@@ -98,6 +98,19 @@ func get_all() -> Array:
 	return _biomes
 
 
+## Get biomes intended for player-facing runtime/export use.
+## Internal helper records (for example "_orphan_lindblads") are excluded.
+func get_exportable_biomes() -> Array:
+	var exportable: Array = []
+	for biome in _biomes:
+		if biome == null:
+			continue
+		if biome.name.begins_with("_"):
+			continue
+		exportable.append(biome)
+	return exportable
+
+
 ## Get biome by exact name
 func get_by_name(biome_name: String) -> Biome:
 	return _name_index.get(biome_name, null)
@@ -159,6 +172,15 @@ func debug_print_all() -> void:
 func validate_all() -> bool:
 	var all_valid = true
 	for biome in _biomes:
+		if not biome.validate():
+			all_valid = false
+	return all_valid
+
+
+## Validate only the exportable/player-facing biome set.
+func validate_exportable() -> bool:
+	var all_valid = true
+	for biome in get_exportable_biomes():
 		if not biome.validate():
 			all_valid = false
 	return all_valid

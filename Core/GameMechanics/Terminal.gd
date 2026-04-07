@@ -1,6 +1,8 @@
 class_name Terminal
 extends RefCounted
 
+const GridSentinel = preload("res://Core/GameState/GridSentinel.gd")
+
 ## Terminal - Generic probe into the quantum soup (v2 Architecture)
 ##
 ## Replaces coordinate-based FarmPlot with ID-based binding to Registers.
@@ -17,7 +19,7 @@ extends RefCounted
 ##   Register = DualEmojiQubit within a biome's quantum bath
 
 signal state_changed(terminal: Terminal)
-signal bound(register_id: int, biome: Variant)
+signal bound(register_id: int, biome_name: String)
 signal unbound()
 signal measured(outcome: String)
 
@@ -43,7 +45,7 @@ var is_measured: bool = false
 
 ## Grid position where this terminal's bubble is displayed
 ## Set when EXPLORE places the bubble, cleared when POP removes it
-var grid_position: Vector2i = Vector2i(-1, -1)
+var grid_position: Vector2i = GridSentinel.INVALID_POSITION
 
 ## Result of measurement (emoji outcome)
 var measured_outcome: String = ""
@@ -68,8 +70,8 @@ func _init(id: String = ""):
 	terminal_id = id if id else "T_%d" % randi()
 
 
-## Bind this terminal to a register in a biome
-## biome_name: String name of the biome (decoupled from object reference)
+## Bind this terminal to a register in a biome.
+## biome_name is the canonical runtime key; terminals never hold biome node refs.
 func bind_to_register(register_id: int, biome_name: String, emoji_pair: Dictionary = {}) -> void:
 	if is_bound:
 		push_warning("Terminal %s already bound to register %d" % [terminal_id, bound_register_id])
@@ -80,6 +82,12 @@ func bind_to_register(register_id: int, biome_name: String, emoji_pair: Dictiona
 	is_bound = true
 	is_measured = false
 	measured_outcome = ""
+	measured_probability = 0.0
+	measured_purity = 1.0
+	measured_register_id = -1
+	measured_biome_name = ""
+	measured_snapshot.clear()
+	frozen_position = Vector2.ZERO
 
 	# Store emoji pair if provided
 	if emoji_pair.has("north"):
@@ -114,7 +122,7 @@ func unbind() -> void:
 	current_emoji = ""
 	north_emoji = ""
 	south_emoji = ""
-	grid_position = Vector2i(-1, -1)
+	grid_position = GridSentinel.INVALID_POSITION
 	frozen_position = Vector2.ZERO
 
 	unbound.emit()

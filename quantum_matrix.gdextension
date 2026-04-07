@@ -10,14 +10,12 @@ linux.x86_64 = "res://native/bin/linux/libquantummatrix.linux.template_release.x
 linux.debug.x86_64 = "res://native/bin/linux/libquantummatrix.linux.template_release.x86_64.so"
 linux.release.x86_64 = "res://native/bin/linux/libquantummatrix.linux.template_release.x86_64.so"
 
-# Windows (cross-compiled from Linux with MinGW)
+# Windows (cross-compiled from Linux with MinGW, required for shipping)
 windows.x86_64 = "res://native/bin/windows/libquantummatrix.windows.template_release.x86_64.dll"
 windows.debug.x86_64 = "res://native/bin/windows/libquantummatrix.windows.template_debug.x86_64.dll"
 windows.release.x86_64 = "res://native/bin/windows/libquantummatrix.windows.template_release.x86_64.dll"
 
-# Web/WASM (compiled with Emscripten)
-# IMPORTANT: Test thoroughly - Eigen may have WASM compatibility issues
-# If web build errors, comment this out to use GDScript fallback
+# Web/WASM (optional later; not part of the primary shipping path)
 web.wasm32 = "res://native/bin/web/libquantummatrix.wasm"
 
 # macOS (optional)

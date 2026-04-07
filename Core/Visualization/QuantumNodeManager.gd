@@ -2,6 +2,7 @@ class_name QuantumNodeManager
 extends RefCounted
 
 const QuantumNode = preload("res://Core/Visualization/QuantumNode.gd")
+const GridSentinel = preload("res://Core/GameState/GridSentinel.gd")
 
 ## Quantum Node Manager
 ##
@@ -88,7 +89,7 @@ func _create_node_for_register(biome_name: String, register_id: int, biomes: Dic
 		)
 
 	# Create node (no plot, no terminal initially - pure quantum)
-	var node = QuantumNode.new(null, anchor_pos, Vector2i(-1, -1), center_pos)
+	var node = QuantumNode.new(null, anchor_pos, GridSentinel.INVALID_POSITION, center_pos)
 
 	# PRIMARY quantum reference (this is what makes it first-class)
 	node.biome_name = biome_name
@@ -243,7 +244,7 @@ func create_sun_qubit_node(biotic_flux_biome, layout_calculator) -> QuantumNode:
 		anchor_pos = center_pos + Vector2(0, -layout_calculator.graph_radius * 0.7)
 
 	# Create node with required constructor arguments (null plot, special grid pos for celestial)
-	var node = QuantumNode.new(null, anchor_pos, Vector2i(-1, -1), center_pos)
+	var node = QuantumNode.new(null, anchor_pos, GridSentinel.INVALID_POSITION, center_pos)
 
 	node.plot_id = "celestial_sun"
 	node.biome_name = "BioticFlux"
@@ -578,13 +579,7 @@ func is_node_in_active_biome(node, active_biome: String) -> bool:
 
 
 func _get_verbose():
-	"""Get VerboseConfig autoload."""
-	var tree = Engine.get_main_loop()
-	if tree and tree.has_method("get_root"):
-		var root = tree.get_root()
-		if root:
-			return root.get_node_or_null("/root/VerboseConfig")
-	return null
+	return InstrumentLocator.resolve_verbose_config_main_loop()
 
 
 func rebuild_from_biomes(biomes: Dictionary, ctx: Dictionary) -> Array:
@@ -639,3 +634,4 @@ func create_all_register_bubbles(biomes: Dictionary, layout_calculator) -> Array
 		if verbose:
 			verbose.info("viz", "✓", "Created %d register bubbles total" % nodes.size())
 	return nodes
+const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")

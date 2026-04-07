@@ -48,7 +48,6 @@ jobs:
         run: |
           cd native
           make -j$(nproc)
-          mv bin/*.so bin/linux/
 
       - name: Upload Linux artifact
         uses: actions/upload-artifact@v4
@@ -63,8 +62,8 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Set up MSVC
-        uses: microsoft/setup-msbuild@v2
+      - name: Set up MSVC toolchain
+        uses: ilammy/msvc-dev-cmd@v1
 
       - name: Set up Python
         uses: actions/setup-python@v4
@@ -78,14 +77,25 @@ jobs:
         run: |
           cd godot-cpp
           scons platform=windows target=template_release -j4
+        shell: cmd
+
+      - name: Copy godot-cpp library
+        run: |
+          if not exist native\lib mkdir native\lib
+          copy godot-cpp\bin\libgodot-cpp.windows.template_release.x86_64.lib native\lib\
+        shell: cmd
 
       - name: Create platform directory
-        run: mkdir -p native/bin/windows
+        run: |
+          if not exist native\bin\windows mkdir native\bin\windows
+        shell: cmd
 
       - name: Build SpaceWheat extension
         run: |
           cd native
-          cl.exe /std:c++17 /EHsc /MD /O2 /I include /I include\godot_cpp /I include\gdextension /DWINDOWS_ENABLED /DGDEXTENSION /LD src\*.cpp ..\godot-cpp\bin\libgodot-cpp.windows.template_release.x86_64.lib /Fe:bin\windows\libquantummatrix.windows.template_release.x86_64.dll
+          cl /std:c++17 /EHsc /MD /O2 /I include /I include\godot_cpp /I include\gdextension /DWINDOWS_ENABLED /DGDEXTENSION /LD src\*.cpp lib\libgodot-cpp.windows.template_release.x86_64.lib /link /OUT:bin\windows\libquantummatrix.windows.template_release.x86_64.dll
+          copy bin\windows\libquantummatrix.windows.template_release.x86_64.dll bin\windows\libquantummatrix.windows.template_debug.x86_64.dll
+        shell: cmd
 
       - name: Upload Windows artifact
         uses: actions/upload-artifact@v4

@@ -3,6 +3,7 @@ extends RefCounted
 
 # Shared constants
 const VisualizationConstants = preload("res://Core/Visualization/VisualizationConstants.gd")
+const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")
 
 ## Quantum Bubble Renderer (FALLBACK ONLY - NOT USED IN PRODUCTION)
 ##
@@ -515,7 +516,7 @@ func _draw_emoji_with_opacity(graph: Node2D, font, text_pos: Vector2, emoji: Str
 
 	# Try SVG glyph first (safe autoload access)
 	var texture: Texture2D = null
-	var visual_asset_registry = graph.get_node_or_null("/root/VisualAssetRegistry")
+	var visual_asset_registry = InstrumentLocator.resolve_visual_asset_registry(graph)
 	if visual_asset_registry and visual_asset_registry.has_method("get_texture"):
 		texture = visual_asset_registry.get_texture(emoji)
 

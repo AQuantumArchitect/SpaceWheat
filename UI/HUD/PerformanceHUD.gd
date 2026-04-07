@@ -8,6 +8,7 @@ const PANEL_BORDER_COLOR: Color = Color(0.9, 0.4, 0.4, 0.7)  # Red border for pe
 const PANEL_PADDING: int = 8
 const UPDATE_INTERVAL: int = 30  # Update display every 30 frames (~0.5s at 60fps)
 const UIStyleFactory = preload("res://UI/Core/UIStyleFactory.gd")
+const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")
 
 var graph_ref = null  # QuantumForceGraph reference
 var frame_counter: int = 0
@@ -31,7 +32,7 @@ var bottleneck_label: Label
 
 func _ready() -> void:
 	_build_ui()
-	_verbose = get_node_or_null("/root/VerboseConfig")
+	_verbose = InstrumentLocator.resolve_verbose_config(self)
 	set_process(true)
 	_perf_file_logging_enabled = _should_enable_perf_file_logging()
 	if _perf_file_logging_enabled:
@@ -119,13 +120,8 @@ func _locate_graph() -> void:
 		_v_error("perf_hud", "🔬", "ERROR: No scene tree root")
 		return
 
-	# Try FarmView → QuantumForceGraph (direct - no controller)
-	var farm_view = root.get_node_or_null("/root/FarmView")
-	if not farm_view:
-		# FarmView might be under Farm
-		var farm = root.get_node_or_null("/root/Farm")
-		if farm:
-			farm_view = farm.get_node_or_null("FarmView")
+	var shell = InstrumentLocator.resolve_player_shell(self)
+	var farm_view = shell.get_parent() if shell else null
 
 	if farm_view:
 		_v_debug("perf_hud", "🔬", "Found FarmView at: %s" % farm_view.get_path())
@@ -181,12 +177,8 @@ func _update_display() -> void:
 
 	# Get batcher stats (if available)
 	var batcher_stats = ""
-	var batcher = get_node_or_null("/root/GameStateManager/Farm/BiomeEvolutionBatcher") if get_tree() else null
-	if not batcher:
-		# Try alternate path
-		var farm = get_node_or_null("/root/Farm")
-		if farm and "biome_evolution_batcher" in farm:
-			batcher = farm.biome_evolution_batcher
+	var farm = InstrumentLocator.resolve_active_farm(self)
+	var batcher = farm.biome_evolution_batcher if farm and "biome_evolution_batcher" in farm else null
 
 	if batcher:
 		var batch_queue_size = batcher.lookahead_batch_queue.size() if "lookahead_batch_queue" in batcher else 0
@@ -269,7 +261,7 @@ func _update_display() -> void:
 		bottlenecks.append("🚨 Draw Calls: %d" % int(render_draw_calls))
 
 	# Get UI component breakdown
-	var ui_tracker = get_node_or_null("/root/UIPerformanceTracker")
+	var ui_tracker = InstrumentLocator.resolve_ui_performance_tracker(self)
 	var ui_breakdown = {}
 	if ui_tracker:
 		ui_breakdown = ui_tracker.get_all_averages()

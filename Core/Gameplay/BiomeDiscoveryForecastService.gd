@@ -4,11 +4,26 @@ extends RefCounted
 const BiomeAffinityCalculator = preload("res://Core/Quantum/BiomeAffinityCalculator.gd")
 const BiomeRegistryClass = preload("res://Core/Biomes/BiomeRegistry.gd")
 const PolicyStateProjector = preload("res://Core/AI/PolicyStateProjector.gd")
+const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")
 
 const FLOOR = 0.1
 const QUEST_SCALE = 5.0
 const VOCAB_SCALE = 2.0
 const MILK_SCALE = 3.0
+
+# Mutable weight overrides — set via configure() from rig configure_discovery action.
+# Defaults to the consts above when empty.
+static var _weights: Dictionary = {}
+
+
+static func configure(weights: Dictionary) -> void:
+	_weights = weights.duplicate()
+
+
+static func _w(key: String, default: float) -> float:
+	if _weights.has(key):
+		return float(_weights[key])
+	return default
 
 
 static func compute_weights(farm, unexplored: Array) -> Array[float]:
@@ -17,7 +32,7 @@ static func compute_weights(farm, unexplored: Array) -> Array[float]:
 		return weights
 
 	var quest_pairs: Array = []
-	var quest_manager = farm.get_node_or_null("/root/QuestManager")
+	var quest_manager = InstrumentLocator.resolve_quest_manager(farm, farm)
 	if quest_manager:
 		for quest in quest_manager.get_active_quests():
 			var north = quest.get("reward_vocab_north", "")
@@ -30,24 +45,29 @@ static func compute_weights(farm, unexplored: Array) -> Array[float]:
 					quest_pairs.append({"north": north, "south": quest.get("reward_vocab_south", "")})
 
 	var learned_pairs: Array = []
-	var player_vocab = farm.get_node_or_null("/root/PlayerVocabulary")
+	var player_vocab = InstrumentLocator.resolve_player_vocabulary(farm)
 	if player_vocab and player_vocab.has_method("get_all_learned_pairs"):
 		learned_pairs = player_vocab.get_all_learned_pairs()
 
 	var emoji_to_factions = PolicyStateProjector.get_emoji_to_factions()
 	var biome_registry = BiomeRegistryClass.new()
 
+	var w_floor = _w("floor", FLOOR)
+	var w_quest = _w("quest_scale", QUEST_SCALE)
+	var w_vocab = _w("vocab_scale", VOCAB_SCALE)
+	var w_milk  = _w("milk_scale", MILK_SCALE)
+
 	for biome_name in unexplored:
-		var weight = FLOOR
+		var weight = w_floor
 
 		for pair in quest_pairs:
-			weight += QUEST_SCALE * BiomeAffinityCalculator.calculate_affinity_by_name(pair, biome_name)
+			weight += w_quest * BiomeAffinityCalculator.calculate_affinity_by_name(pair, biome_name)
 
 		if not learned_pairs.is_empty():
 			var vocab_sum = 0.0
 			for pair in learned_pairs:
 				vocab_sum += BiomeAffinityCalculator.calculate_affinity_by_name(pair, biome_name)
-			weight += VOCAB_SCALE * vocab_sum / learned_pairs.size()
+			weight += w_vocab * vocab_sum / learned_pairs.size()
 
 		var biome_data = biome_registry.get_by_name(biome_name)
 		if biome_data:
@@ -58,7 +78,7 @@ static func compute_weights(farm, unexplored: Array) -> Array[float]:
 					if faction_milk_value < best_fmv:
 						best_fmv = faction_milk_value
 			if best_fmv < PolicyStateProjector._MILK_MAX_DISTANCE:
-				weight += MILK_SCALE * (float(PolicyStateProjector._MILK_MAX_DISTANCE) / max(1.0, float(best_fmv)))
+				weight += w_milk * (float(PolicyStateProjector._MILK_MAX_DISTANCE) / max(1.0, float(best_fmv)))
 
 		weights.append(weight)
 
@@ -83,7 +103,7 @@ static func weighted_random_pick(items: Array, weights: Array[float]) -> Variant
 static func compute_forecast(farm) -> Dictionary:
 	if not farm:
 		return {}
-	var observation_frame = farm.get_node_or_null("/root/ObservationFrame")
+	var observation_frame = InstrumentLocator.resolve_root_node(farm, "/root/ObservationFrame")
 	if not observation_frame:
 		return {}
 	var unexplored = observation_frame.get_unexplored_biomes()

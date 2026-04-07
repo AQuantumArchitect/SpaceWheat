@@ -10,6 +10,8 @@ class_name GranularityController
 
 const MIN_DT: float = 0.0001  # 0.1ms - ultra fine (10^-4)
 const MAX_DT: float = 10000.0 # 10000s - ultra coarse (10^4, symmetric with MIN)
+const MIN_TIME_SCALE: float = 0.0009765625  # 1/1024x
+const MAX_TIME_SCALE: float = 16.0
 
 static func decrease_granularity(biomes: Array) -> Dictionary:
 	"""Make substeps finer (more accurate, slower) - triggered by `-` key.
@@ -166,3 +168,65 @@ static func get_current_granularity(biomes: Array) -> float:
 		return first_biome.max_evolution_dt
 
 	return 0.02
+
+
+## ============================================================================
+## SIMULATION SPEED CONTROLS
+## ============================================================================
+
+static func increase_time_scale(biomes: Array) -> Dictionary:
+	"""Double quantum_time_scale (faster simulation)."""
+	if biomes.is_empty():
+		return {"current_time_scale": 0.5, "new_time_scale": 0.5, "biome_count": 0}
+
+	var current_time_scale: float = 0.5
+	var first_biome = biomes[0]
+	if "quantum_time_scale" in first_biome:
+		current_time_scale = float(first_biome.quantum_time_scale)
+
+	var new_time_scale: float = min(current_time_scale * 2.0, MAX_TIME_SCALE)
+	var biome_count: int = 0
+	for biome in biomes:
+		if "quantum_time_scale" in biome:
+			biome.quantum_time_scale = new_time_scale
+			biome_count += 1
+
+	return {
+		"current_time_scale": current_time_scale,
+		"new_time_scale": new_time_scale,
+		"biome_count": biome_count
+	}
+
+
+static func decrease_time_scale(biomes: Array) -> Dictionary:
+	"""Halve quantum_time_scale (slower simulation)."""
+	if biomes.is_empty():
+		return {"current_time_scale": 0.5, "new_time_scale": 0.5, "biome_count": 0}
+
+	var current_time_scale: float = 0.5
+	var first_biome = biomes[0]
+	if "quantum_time_scale" in first_biome:
+		current_time_scale = float(first_biome.quantum_time_scale)
+
+	var new_time_scale: float = max(current_time_scale * 0.5, MIN_TIME_SCALE)
+	var biome_count: int = 0
+	for biome in biomes:
+		if "quantum_time_scale" in biome:
+			biome.quantum_time_scale = new_time_scale
+			biome_count += 1
+
+	return {
+		"current_time_scale": current_time_scale,
+		"new_time_scale": new_time_scale,
+		"biome_count": biome_count
+	}
+
+
+static func get_current_time_scale(biomes: Array) -> float:
+	"""Get current quantum_time_scale from first biome."""
+	if biomes.is_empty():
+		return 0.5
+	var first_biome = biomes[0]
+	if "quantum_time_scale" in first_biome:
+		return float(first_biome.quantum_time_scale)
+	return 0.5

@@ -59,7 +59,7 @@ func _ready():
 	# Legacy planting capabilities removed (vocabulary injection is the only expansion path)
 
 	# Configure visual properties for QuantumForceGraph
-	# Layout: BioticFlux (UIOP) in bottom-center
+	# Layout: BioticFlux occupies the center spindle slot cluster
 	visual_color = Color(0.4, 0.6, 0.8, 0.3)  # Blue
 	visual_label = "🌿 Biotic Flux"
 	visual_center_offset = Vector2(0.0, 0.45)  # Bottom-center

@@ -55,6 +55,9 @@ func create_action_bars(parent: Control) -> void:
 	if not parent.is_inside_tree():
 		push_error("ActionBarManager: parent not in scene tree!")
 		return
+	if not layout_manager or not layout_manager.has_method("get_action_row_height"):
+		push_error("ActionBarManager: UILayoutManager is required before creating action bars")
+		return
 
 	# Create ToolSelectionRow (1-6 buttons)
 	tool_selection_row = ToolSelectionRow.new()
@@ -111,23 +114,8 @@ func _position_tool_row() -> void:
 	tool_selection_row.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
 
 	# RESPONSIVE: Delegate sizing to UILayoutManager (single source of truth)
-	var parent_height = parent.size.y
-	var action_row_height: float
-	var tool_row_height: float
-
-	if layout_manager and layout_manager.has_method("get_action_row_height"):
-		# Use UILayoutManager for consistent responsive sizing
-		action_row_height = layout_manager.get_action_row_height()
-		tool_row_height = action_row_height  # Same height for both rows
-	else:
-		# Fallback: hardcoded values (legacy behavior)
-		action_row_height = max(60, parent_height * 0.13)
-		tool_row_height = max(55, parent_height * 0.13)
-		var total_toolbar_height = action_row_height + tool_row_height
-		if total_toolbar_height > parent_height * 0.4:
-			var scale_factor = (parent_height * 0.4) / total_toolbar_height
-			action_row_height *= scale_factor
-			tool_row_height *= scale_factor
+	var action_row_height = layout_manager.get_action_row_height()
+	var tool_row_height = action_row_height
 
 	# Position tool row above action row (reduced margins for more button space)
 	tool_selection_row.offset_top = -(action_row_height + tool_row_height)
@@ -156,17 +144,7 @@ func _position_action_row() -> void:
 	action_preview_row.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
 
 	# RESPONSIVE: Delegate sizing to UILayoutManager (single source of truth)
-	var parent_height = parent.size.y
-	var action_row_height: float
-
-	if layout_manager and layout_manager.has_method("get_action_row_height"):
-		# Use UILayoutManager for consistent responsive sizing
-		action_row_height = layout_manager.get_action_row_height()
-	else:
-		# Fallback: hardcoded values (legacy behavior)
-		action_row_height = max(60, parent_height * 0.13)
-		if action_row_height > parent_height * 0.25:
-			action_row_height = parent_height * 0.25
+	var action_row_height = layout_manager.get_action_row_height()
 
 	# Position at very bottom (reduced margins for more button space)
 	action_preview_row.offset_top = -action_row_height
@@ -187,35 +165,13 @@ func get_action_row() -> Control:
 
 
 func select_tool(tool_num: int) -> void:
-	"""Update tool selection display"""
+	"""Update tool selection display only."""
 	if tool_selection_row and tool_selection_row.has_method("select_tool"):
 		tool_selection_row.select_tool(tool_num)
-	if action_preview_row and action_preview_row.has_method("update_for_tool"):
-		action_preview_row.update_for_tool(tool_num)
 
-
-func inject_references(farm_ref, plot_grid_ref) -> void:
-	"""Inject farm and plot_grid_display references for action availability checking"""
-	if action_preview_row:
-		action_preview_row.farm = farm_ref
-		action_preview_row.plot_grid_display = plot_grid_ref
-
-
-func update_for_submenu(submenu_name: String, submenu_info: Dictionary) -> void:
-	"""Update action row for submenu mode"""
-	if action_preview_row and action_preview_row.has_method("update_for_submenu"):
-		action_preview_row.update_for_submenu(submenu_name, submenu_info)
+func render_action_projection(projection: Dictionary) -> void:
+	"""Render the projected Q/E/R/F action state."""
+	if action_preview_row and action_preview_row.has_method("render_projection"):
+		action_preview_row.render_projection(projection)
 	else:
-		push_error("ActionBarManager: action_preview_row is null or doesn't have update_for_submenu method!")
-
-
-func update_for_overlay(overlay: Control) -> void:
-	"""Update action row for generic overlay mode"""
-	if action_preview_row and action_preview_row.has_method("update_for_overlay"):
-		action_preview_row.update_for_overlay(overlay)
-
-
-func restore_normal_mode() -> void:
-	"""Restore normal tool mode display"""
-	if action_preview_row and action_preview_row.has_method("restore_normal_mode"):
-		action_preview_row.restore_normal_mode()
+		push_error("ActionBarManager: action_preview_row is null or doesn't have render_projection method!")

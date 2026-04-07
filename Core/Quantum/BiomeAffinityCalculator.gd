@@ -5,6 +5,7 @@ extends RefCounted
 ## Calculates quantum affinity between vocab pairs and biomes
 ## Uses graph-based connection weights from VocabularyPairing
 const VocabularyPairing = preload("res://Core/Quests/VocabularyPairing.gd")
+const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")
 
 static func calculate_affinity(vocab_pair: Dictionary, biome, player_vocab_qc = null) -> float:
 	"""Calculate quantum affinity between vocab pair and biome.
@@ -187,17 +188,9 @@ static func _get_icon_registry():
 			return gsm.get_icon_registry()
 
 	# Fallback: try to get from scene tree
-	var tree = Engine.get_main_loop() as SceneTree
-	if tree:
-		var gsm = tree.root.get_node_or_null("GameStateManager")
-		if gsm and gsm.has_method("get_icon_registry"):
-			return gsm.get_icon_registry()
-
-		# Last resort: try direct IconRegistry autoload access
-		push_warning("BiomeAffinityCalculator: Could not find IconRegistry via GameStateManager, trying direct access")
-		var icon_reg = tree.root.get_node_or_null("/root/IconRegistry")
-		if icon_reg:
-			return icon_reg
+	var icon_reg = InstrumentLocator.resolve_icon_registry_main_loop()
+	if icon_reg:
+		return icon_reg
 
 	push_error("BiomeAffinityCalculator: Could not find IconRegistry at all")
 	return null

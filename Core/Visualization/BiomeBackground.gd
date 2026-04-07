@@ -10,6 +10,7 @@ extends Control
 
 const BiomeRegistry = preload("res://Core/Biomes/BiomeRegistry.gd")
 const FALLBACK_BIOME_TEXTURE: String = "res://Assets/Biomes/Entropy_Garden.png"
+const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")
 
 ## Transition duration in seconds
 @export var transition_duration: float = 0.3
@@ -57,7 +58,7 @@ func _ready() -> void:
 	get_viewport().size_changed.connect(_on_viewport_size_changed)
 
 	# Connect to ActiveBiomeManager (with guards to prevent duplicate connections)
-	_biome_manager = get_node_or_null("/root/ActiveBiomeManager")
+	_biome_manager = InstrumentLocator.resolve_active_biome_manager(self)
 	if _biome_manager:
 		if not _biome_manager.active_biome_changed.is_connected(_on_active_biome_changed):
 			_biome_manager.active_biome_changed.connect(_on_active_biome_changed)

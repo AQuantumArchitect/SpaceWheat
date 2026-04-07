@@ -516,7 +516,7 @@ func _test_log(level: String, emoji: String, message: String) -> void:
 	var tree = Engine.get_main_loop()
 	if not tree:
 		return
-	var verbose = tree.root.get_node_or_null("/root/VerboseConfig")
+	var verbose = InstrumentLocator.resolve_verbose_config_main_loop()
 	if verbose:
 		verbose.trace("test", emoji, message)
 
@@ -605,7 +605,5 @@ func is_terminal_measured() -> bool:
 
 func _get_verbose():
 	"""Safely access VerboseConfig autoload from RefCounted class"""
-	var main_loop = Engine.get_main_loop()
-	if main_loop and main_loop.root:
-		return main_loop.root.get_node_or_null("/root/VerboseConfig")
-	return null
+	return InstrumentLocator.resolve_verbose_config_main_loop()
+const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")

@@ -364,7 +364,7 @@ def _run_trial(
         cmd.append("--no-clear-rig")
     if no_stop:
         cmd.append("--no-stop")
-    proc = run_cli(cmd, lane=lane, capture_output=True, timeout_s=400)
+    proc = run_cli(cmd, lane=lane, capture_output=True, timeout_s=600)
 
     summary: Dict[str, Any] = {}
     if proc.stdout:

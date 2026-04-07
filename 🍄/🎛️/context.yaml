@@ -1,0 +1,24 @@
+emoji: 🎛️🍄
+summary: 'SpaceWheat lichen_player session: character=claura_v0_20260331_110019 model=haiku
+  max_cycles=100'
+kind: session_context
+role: control_surface_packet
+gate: live
+for_agents: true
+session:
+  character: claura_v0_20260331_110019
+  model: haiku
+  max_cycles: 100
+  started: '2026-03-31T11:42:21'
+files:
+- 🍄/🎛️/📐_arena_parameters.yaml
+- 🍄/🎛️/session.py
+- 🍄/🎛️/lichen_player.py
+claura:
+  habitat: /home/primearchitect/ws/Claura/🍄/🧠/🌾/context.yaml
+  rig_state: /home/primearchitect/ws/Claura/fungi_rig_state.json
+  foldback: derby_probe --observe-derby
+queries:
+- What character is being played and what does their resource layout suggest?
+- What is the Claura habitat recommending for this domain?
+- Which actions have strong pheromone signal right now?

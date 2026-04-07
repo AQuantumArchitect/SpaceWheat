@@ -11,28 +11,19 @@ class_name PlayerShell
 extends Control
 
 # Access autoload safely (avoids compile-time errors)
-@onready var _verbose = get_node("/root/VerboseConfig")
+@onready var _verbose = InstrumentLocator.resolve_verbose_config(self)
 
 const OverlayManager = preload("res://UI/Managers/OverlayManager.gd")
 const OverlayStackManager = preload("res://UI/Managers/OverlayStackManager.gd")
+const UIContextController = preload("res://UI/Managers/UIContextController.gd")
+const MenuRegistry = preload("res://UI/Core/MenuRegistry.gd")
 const QuestManager = preload("res://Core/Quests/QuestManager.gd")
 const FactionDatabase = preload("res://Core/Quests/FactionDatabaseV2.gd")
 const LoggerConfigPanel = preload("res://UI/Overlays/LoggerConfigPanel.gd")
+const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")
 # QuantumHUDPanel REMOVED - content merged into InspectorOverlay (N key)
 const QuantumModeStatusIndicator = preload("res://UI/Widgets/QuantumModeStatusIndicator.gd")
 const BiomeSelectionRowClass = preload("res://UI/Widgets/BiomeSelectionRow.gd")
-
-## Game overlay keys (CVBN) - game content overlays
-const FARM_OVERLAY_KEYS = {
-	KEY_C: "quests",
-	KEY_V: "semantic_map",
-	KEY_B: "biome_detail",
-	KEY_N: "inspector",
-}
-
-## Shell/system menu keys (ZXM)
-## Z = controls/help, X = system menu, M = balance workbench
-const SHELL_MENU_KEYS = [KEY_Z, KEY_X, KEY_M]
 
 var current_farm_ui = null  # FarmUI instance (from scene)
 var overlay_manager = null
@@ -40,11 +31,12 @@ var quest_manager: QuestManager = null
 var farm: Node = null
 var farm_ui_container: Control = null
 var action_bar_manager = null  # ActionBarManager - manages bottom toolbars
-var action_preview_row: Control = null  # Cached reference from ActionBarManager
+var ui_context_controller: UIContextController = null
 var layout_manager: Node = null  # UILayoutManager
 var logger_config_panel = null  # Logger configuration UI
 var snapshot_service = null  # Snapshot/diagnostics node (set by BootManager)
 var quantum_instrument = null  # Unified action interface (set by BootManager)
+var input_handler = null  # Projection of current_farm_ui.input_handler for diagnostics/tests
 var advanced_mode_enabled: bool = false
 # quantum_hud_panel REMOVED - content merged into InspectorOverlay (N key)
 var quantum_mode_indicator: QuantumModeStatusIndicator = null  # Current quantum mode display
@@ -98,7 +90,7 @@ func _handle_shell_action(event: InputEvent) -> bool:
 
 	Shell menus (Z, X, M, ESC): system-level panels
 	Game overlays (C, V, B, N): game content overlays
-	TAB: Build/Play mode toggle (only when no menu active)
+	TAB: current-tool mode-cycle alias (only when no menu active)
 	"""
 	var keycode = event.keycode
 
@@ -111,20 +103,14 @@ func _handle_shell_action(event: InputEvent) -> bool:
 			_open_escape_menu()
 			return true
 
-	# Shell/system menu keys (Z, X, M)
-	if keycode == KEY_Z:
-		_toggle_shell_menu("controls")
-		return true
-	if keycode == KEY_X:
-		_toggle_shell_menu("escape_menu")
-		return true
-	if keycode == KEY_M:
-		_toggle_shell_menu("balance_workbench")
-		return true
-
-	# Game overlay keys (C, V, B, N)
-	if FARM_OVERLAY_KEYS.has(keycode):
-		_toggle_farm_overlay(FARM_OVERLAY_KEYS[keycode])
+	var menu_entry = MenuRegistry.get_menu_for_keycode(keycode)
+	if not menu_entry.is_empty():
+		var overlay_name = str(menu_entry.get("overlay_name", ""))
+		var menu_group = str(menu_entry.get("menu_group", ""))
+		if menu_group == "game":
+			_toggle_farm_overlay(overlay_name)
+		else:
+			_toggle_shell_menu(overlay_name)
 		return true
 
 	# TAB only works when no menu is active
@@ -132,7 +118,7 @@ func _handle_shell_action(event: InputEvent) -> bool:
 		return false
 
 	if keycode == KEY_TAB:
-		_toggle_build_play_mode()
+		_cycle_current_tool_mode_alias()
 		return true
 
 	return false
@@ -156,7 +142,7 @@ func _close_all_menus() -> void:
 	if overlay_manager:
 		overlay_manager.close_all_overlays()
 		if overlay_manager.quantum_config_ui and overlay_manager.quantum_config_ui.visible:
-			overlay_manager.hide_overlay("quantum_config")
+			overlay_manager.quantum_config_ui.visible = false
 
 
 func _open_escape_menu() -> void:
@@ -217,25 +203,19 @@ func _toggle_farm_overlay(overlay_name: String) -> void:
 	else:
 		_overlay_open_frame.erase(overlay_name)
 
-func _toggle_build_play_mode() -> void:
-	"""Toggle between BUILD and PLAY modes (TAB key)
+func _cycle_current_tool_mode_alias() -> void:
+	"""Cycle the current tool group from TAB.
 
-	This is handled here (in _input) because Godot's focus navigation
-	intercepts TAB before _unhandled_input() runs.
+	TAB is kept as a keyboard alias because Godot focus handling intercepts it
+	before the gameplay input layer sees it.
 	"""
 	const ToolConfig = preload("res://Core/GameState/ToolConfig.gd")
 
 	var group = ToolConfig.get_current_group()
 	var new_mode_idx = ToolConfig.cycle_group_mode(group)
 	var new_mode = ToolConfig.get_group_mode_name(group)
-	_verbose.info("input", "🔧" if new_mode_idx > 0 else "🎮",
-		"Switched to %s MODE (Tab to toggle)" % new_mode.to_upper())
-
-	# Update ToolSelectionRow UI
-	if action_bar_manager:
-		var tool_row = action_bar_manager.get_tool_row()
-		if tool_row and tool_row.has_method("refresh_for_mode"):
-			tool_row.refresh_for_mode(new_mode)
+	_verbose.info("input", "⇥",
+		"TAB alias cycled tool %d to %s" % [group, new_mode])
 
 	# QuantumInstrumentInput handles mode changes for gameplay
 
@@ -249,12 +229,11 @@ func _on_restart_pressed() -> void:
 	_verbose.info("ui", "🔄", "Restart - requesting reload of last active save")
 
 	# Reset music before the scene goes away
-	if has_node("/root/MusicManager"):
-		var music = get_node("/root/MusicManager")
-		if music.has_method("reset"):
-			music.reset()
+	var music = InstrumentLocator.resolve_music_manager(self)
+	if music and music.has_method("reset"):
+		music.reset()
 
-	var gsm = get_node_or_null("/root/GameStateManager")
+	var gsm = InstrumentLocator.resolve_game_state_manager(self)
 	if gsm and gsm.has_method("request_restart"):
 		gsm.request_restart()
 	else:
@@ -266,20 +245,6 @@ func _on_restart_pressed() -> void:
 func _on_dev_restart_pressed() -> void:
 	# Dev restart is handled entirely by OverlayManager (hard reset path)
 	pass
-
-
-func _push_modal(modal: Control) -> void:
-	"""Add modal/overlay to stack"""
-	if overlay_stack and not overlay_stack.has_overlay(modal):
-		overlay_stack.push(modal)
-		_verbose.debug("input", "📚", "Overlay stack: %s" % overlay_stack.get_stack_info())
-
-
-func _pop_modal(modal: Control) -> void:
-	"""Remove modal/overlay from stack"""
-	if overlay_stack:
-		overlay_stack.pop_overlay(modal)
-		_verbose.debug("input", "📚", "Overlay stack: %s" % overlay_stack.get_stack_info())
 
 
 func _ready() -> void:
@@ -336,17 +301,6 @@ func _ready() -> void:
 	action_bar_manager.set_layout_manager(layout_manager)
 	action_bar_manager.create_action_bars(action_bar_layer)
 
-	# Store reference for quest board updates
-	action_preview_row = action_bar_manager.get_action_row()
-
-	# Connect tool selection signal
-	var tool_row = action_bar_manager.get_tool_row()
-	if tool_row and tool_row.has_signal("tool_selected"):
-		tool_row.tool_selected.connect(_on_tool_selected_from_bar)
-
-	# Connect action button signal - will be connected to QuantumInstrumentInput later
-	# (after farm setup completes and input_handler is available)
-
 	_verbose.info("ui", "✅", "Action bars created")
 	# ═══════════════════════════════════════════════════════════════
 
@@ -359,7 +313,6 @@ func _ready() -> void:
 
 	# Connect overlay stack and overlay manager bidirectionally
 	if overlay_stack:
-		overlay_stack.set_overlay_manager(overlay_manager)
 		overlay_manager.set_overlay_stack(overlay_stack)
 
 	# Initialize overlays (ZXCVBNM top-level menus; ESC opens/closes system menu)
@@ -370,6 +323,11 @@ func _ready() -> void:
 	overlay_layer.add_child(logger_config_panel)
 	overlay_manager.register_overlay("logger", logger_config_panel)
 	_verbose.info("ui", "✅", "Logger config panel created (unbound debug overlay)")
+
+	# Create UI context controller after all bars/overlays are present.
+	ui_context_controller = UIContextController.new()
+	add_child(ui_context_controller)
+	ui_context_controller.setup(action_bar_manager, overlay_stack, overlay_manager)
 
 	# QuantumHUDPanel REMOVED - content merged into InspectorOverlay (N key)
 
@@ -402,7 +360,7 @@ func _resolve_advanced_mode() -> bool:
 		return true
 	if env_mode in ["0", "false", "no", "off"]:
 		return false
-	var gsm = get_tree().root.get_node_or_null("/root/GameStateManager")
+	var gsm = InstrumentLocator.resolve_game_state_manager(self)
 	if gsm and "current_state" in gsm and gsm.current_state:
 		if "advanced_mode_enabled" in gsm.current_state:
 			return bool(gsm.current_state.advanced_mode_enabled)
@@ -445,35 +403,15 @@ func _apply_top_strip_layout() -> void:
 
 
 func _connect_overlay_signals() -> void:
-	"""Connect signals from overlays to manage unified overlay stack.
-
-	Note: _push_modal() and _pop_modal() delegate to OverlayStackManager.
-	These signal handlers keep overlays synchronized with the stack.
-	"""
+	"""Connect non-toolbar overlay signals that still matter at the shell layer."""
 	var quest_board = overlay_manager.get("quest_board")
 	if quest_board:
-		quest_board.board_closed.connect(func():
-			_pop_modal(quest_board)
-		)
-		quest_board.slot_selection_changed.connect(func(_slot_state: int, _is_locked: bool):
-			_update_action_toolbar_for_overlay(quest_board)
-		)
 		_verbose.info("ui", "✅", "Quest board signals connected")
 
 	if overlay_manager.escape_menu:
-		overlay_manager.escape_menu.resume_pressed.connect(func():
-			_pop_modal(overlay_manager.escape_menu)
-		)
-		overlay_manager.escape_menu.save_pressed.connect(func():
-			_push_modal(overlay_manager.save_load_menu)
-		)
-		overlay_manager.escape_menu.load_pressed.connect(func():
-			_push_modal(overlay_manager.save_load_menu)
-		)
 		overlay_manager.escape_menu.quantum_settings_pressed.connect(func():
-			_pop_modal(overlay_manager.escape_menu)
 			if overlay_manager.quantum_config_ui:
-				overlay_manager.toggle_quantum_config()
+				overlay_manager.toggle_quantum_config_ui()
 		)
 		overlay_manager.escape_menu.restart_pressed.connect(func():
 			_on_restart_pressed()
@@ -482,27 +420,6 @@ func _connect_overlay_signals() -> void:
 			_on_dev_restart_pressed()
 		)
 		_verbose.info("ui", "✅", "Escape menu signals connected")
-
-	if overlay_manager.save_load_menu:
-		overlay_manager.save_load_menu.menu_closed.connect(func():
-			_pop_modal(overlay_manager.save_load_menu)
-		)
-		_verbose.info("ui", "✅", "Save/Load menu signals connected")
-
-	if overlay_stack and overlay_stack.has_signal("stack_changed"):
-		overlay_stack.stack_changed.connect(_sync_action_toolbar_to_stack)
-
-
-func _sync_action_toolbar_to_stack() -> void:
-	if not overlay_stack:
-		_restore_action_toolbar()
-		return
-
-	var active = overlay_stack.get_top()
-	if active:
-		_update_action_toolbar_for_overlay(active)
-	else:
-		_restore_action_toolbar()
 
 
 func get_farm_ui():
@@ -546,10 +463,7 @@ func connect_to_quantum_input() -> void:
 		return
 
 	var input_handler = farm_ui.input_handler
-
-	# Already connected? Skip (check for tool_group_changed signal)
-	if input_handler.has_signal("tool_group_changed") and input_handler.tool_group_changed.get_connections().size() > 0:
-		return
+	self.input_handler = input_handler
 
 	# Connect quest_manager to economy (CRITICAL for quest completion!)
 	if quest_manager and farm_ui.farm and farm_ui.farm.economy:
@@ -557,33 +471,10 @@ func connect_to_quantum_input() -> void:
 		_verbose.info("ui", "✅", "QuestManager connected to economy")
 		_connect_quest_manager_to_biomes(farm_ui)
 
-	# ═══════════════════════════════════════════════════════════════
-	# KEYBOARD → UI: QuantumInstrumentInput signals update UI
-	# ═══════════════════════════════════════════════════════════════
-
-	# Tool group changes (1-4 keys) → update ToolSelectionRow highlight
-	if input_handler.has_signal("tool_group_changed"):
-		input_handler.tool_group_changed.connect(func(group: int):
-			if action_bar_manager:
-				action_bar_manager.select_tool(group)
-				# Also refresh ActionPreviewRow for new group's Q/E/R actions
-				var action_row = action_bar_manager.get_action_row()
-				if action_row and action_row.has_method("update_for_tool"):
-					action_row.update_for_tool(group)
-		)
-		_verbose.info("ui", "✔", "tool_group_changed → ToolSelectionRow")
-
-	# Mode cycling (F key) → refresh ActionPreviewRow labels
-	if input_handler.has_signal("mode_cycled"):
-		input_handler.mode_cycled.connect(func(_group: int, _mode_idx: int, _mode_label: String):
-			if action_bar_manager:
-				var action_row = action_bar_manager.get_action_row()
-				if action_row and action_row.has_method("update_for_tool"):
-					# Get current group and refresh display
-					var current_group = input_handler.get_current_tool_group() if input_handler.has_method("get_current_tool_group") else 1
-					action_row.update_for_tool(current_group)
-		)
-		_verbose.info("ui", "✔", "mode_cycled → ActionPreviewRow refresh")
+	if ui_context_controller:
+		ui_context_controller.bind_quantum_input(input_handler)
+		ui_context_controller.bind_farm_ui(farm_ui)
+		_verbose.info("ui", "✔", "UIContextController bound to QuantumInstrumentInput")
 
 
 func _connect_quest_manager_to_biomes(farm_ui: Control) -> void:
@@ -598,7 +489,7 @@ func _connect_quest_manager_to_biomes(farm_ui: Control) -> void:
 		return
 
 	var farm_ref = farm_ui.farm
-	var abm = get_node_or_null("/root/ActiveBiomeManager")
+	var abm = InstrumentLocator.resolve_active_biome_manager(self)
 
 	if abm and abm.has_signal("active_biome_changed"):
 		var biome_callable = Callable(self, "_handle_active_biome_change").bind(farm_ref)
@@ -611,84 +502,6 @@ func _connect_quest_manager_to_biomes(farm_ui: Control) -> void:
 
 	_quest_biome_connected = true
 
-	# Submenu changes → update ActionPreviewRow with submenu actions
-	if input_handler.has_signal("submenu_changed"):
-		input_handler.submenu_changed.connect(func(submenu_name: String, submenu_actions: Dictionary):
-			if action_bar_manager:
-				action_bar_manager.update_for_submenu(submenu_name, submenu_actions)
-		)
-		_verbose.info("ui", "✔", "submenu_changed → ActionPreviewRow submenu")
-
-	# Action performed → refresh availability buttons
-	if input_handler.has_signal("action_performed"):
-		input_handler.action_performed.connect(func(_action: String, _result: Dictionary):
-			if action_bar_manager:
-				var action_row = action_bar_manager.get_action_row()
-				if action_row and action_row.has_method("update_action_availability"):
-					action_row.update_action_availability()
-		)
-		_verbose.info("ui", "✔", "action_performed → ActionPreviewRow availability")
-
-	# ═══════════════════════════════════════════════════════════════
-	# UI → KEYBOARD: Button clicks trigger QuantumInstrumentInput
-	# ═══════════════════════════════════════════════════════════════
-
-	if action_bar_manager:
-		# ToolSelectionRow clicks → select tool group
-		var tool_row = action_bar_manager.get_tool_row()
-		if tool_row and tool_row.has_signal("tool_selected"):
-			# Disconnect old handler if present
-			if tool_row.tool_selected.is_connected(_on_tool_selected_from_bar):
-				tool_row.tool_selected.disconnect(_on_tool_selected_from_bar)
-			# Connect to QuantumInstrumentInput's internal method
-			tool_row.tool_selected.connect(func(tool_num: int):
-				const ToolConfig = preload("res://Core/GameState/ToolConfig.gd")
-				ToolConfig.select_group(tool_num)
-				input_handler.tool_group_changed.emit(tool_num)
-			)
-			_verbose.info("ui", "✔", "ToolSelectionRow → tool_group_changed")
-
-		# ActionPreviewRow clicks → execute Q/E/R action
-		var action_row = action_bar_manager.get_action_row()
-		if action_row and action_row.has_signal("action_pressed"):
-			action_row.action_pressed.connect(func(action_key: String):
-				# Call QuantumInstrumentInput's internal action method
-				if input_handler.has_method("_perform_action"):
-					input_handler._perform_action(action_key)
-			)
-			_verbose.info("ui", "✔", "ActionPreviewRow → _perform_action")
-
-		# Inject references for action availability checking
-		action_row.quantum_input = input_handler
-		_verbose.info("ui", "✔", "ActionPreviewRow.quantum_input injected")
-
-	_verbose.info("ui", "✔", "QuantumInstrumentInput connected to action bars")
-
-	# ═══════════════════════════════════════════════════════════════
-	# SELECTION CHANGES → Refresh action availability
-	# ═══════════════════════════════════════════════════════════════
-
-	if action_bar_manager and farm_ui and farm_ui.farm and farm_ui.plot_grid_display:
-		action_bar_manager.inject_references(farm_ui.farm, farm_ui.plot_grid_display)
-
-		# Selection changes → update action button availability
-		if farm_ui.plot_grid_display.has_signal("selection_count_changed"):
-			farm_ui.plot_grid_display.selection_count_changed.connect(func(_count: int):
-				var action_row = action_bar_manager.get_action_row()
-				if action_row and action_row.has_method("update_action_availability"):
-					action_row.update_action_availability()
-			)
-			_verbose.info("ui", "✔", "Selection changes → action availability")
-
-	# Resource changes → update action button availability
-	if farm_ui.farm.economy and farm_ui.farm.economy.has_signal("resource_changed"):
-		farm_ui.farm.economy.resource_changed.connect(func(_emoji, _amount):
-			var action_row = action_bar_manager.get_action_row()
-			if action_row and action_row.has_method("update_action_availability"):
-				action_row.update_action_availability()
-		)
-		_verbose.info("ui", "✔", "Resource changes → action availability")
-
 
 func _handle_active_biome_change(biome_name: String, _old_biome: String, farm_ref: Node) -> void:
 	if not quest_manager or not farm_ref or not farm_ref.grid or not farm_ref.grid.has_biomes() or biome_name == "":
@@ -697,26 +510,3 @@ func _handle_active_biome_change(biome_name: String, _old_biome: String, farm_re
 	var biome = farm_ref.grid.get_biome(biome_name)
 	if biome:
 		quest_manager.connect_to_biome(biome)
-
-## ACTION TOOLBAR UPDATES (for quest board context)
-
-func _update_action_toolbar_for_overlay(overlay: Control) -> void:
-	"""Update action toolbar to show context-specific actions from an overlay"""
-	if action_bar_manager:
-		action_bar_manager.update_for_overlay(overlay)
-
-func _restore_action_toolbar() -> void:
-	"""Restore action toolbar to normal tool mode"""
-	if action_bar_manager:
-		action_bar_manager.restore_normal_mode()
-
-
-func _on_tool_selected_from_bar(tool_num: int) -> void:
-	"""Handle tool selection from action bar"""
-	# Update action bar display
-	if action_bar_manager:
-		action_bar_manager.select_tool(tool_num)
-
-	# Forward to FarmUI if available
-	if current_farm_ui and current_farm_ui.has_method("_on_tool_selected"):
-		current_farm_ui._on_tool_selected(tool_num)

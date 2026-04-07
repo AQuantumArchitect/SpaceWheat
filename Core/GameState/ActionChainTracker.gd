@@ -102,7 +102,7 @@ func _compute_address() -> Array:
 
 	# Start from the end of the chain and work backwards to build the address
 	var current_biome = ""
-	var observation_frame = get_node_or_null("/root/ObservationFrame")
+	var observation_frame = InstrumentLocator.resolve_observation_frame(self)
 	if observation_frame:
 		current_biome = observation_frame.get_neutral_biome()
 
@@ -154,3 +154,4 @@ func get_stats() -> Dictionary:
 		"first_timestamp": chain[0].timestamp,
 		"last_timestamp": chain[chain.size() - 1].timestamp
 	}
+const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")

@@ -6,6 +6,7 @@ const VisualizationConstants = preload("res://Core/Visualization/VisualizationCo
 const QuantumBubbleRenderer = preload("res://Core/Visualization/QuantumBubbleRenderer.gd")
 const EmojiAtlasBatcher = preload("res://Core/Visualization/EmojiAtlasBatcher.gd")
 const VerboseConfig = preload("res://Core/Config/VerboseConfig.gd")
+const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")
 
 ## Batched Bubble Renderer - Rendering Tier Coordinator
 ##
@@ -760,7 +761,7 @@ func _draw_emoji_pass(graph: Node2D) -> void:
 
 func _draw_emoji_pass_legacy(graph: Node2D) -> void:
 	"""Legacy emoji rendering path (no atlas)."""
-	var visual_asset_registry = graph.get_node_or_null("/root/VisualAssetRegistry")
+	var visual_asset_registry = InstrumentLocator.resolve_visual_asset_registry(graph)
 
 	# Legacy path: no batcher (should not happen)
 	var font = ThemeDB.fallback_font
@@ -1023,3 +1024,24 @@ func compact_buffer() -> void:
 	if _bubble_data.size() > required_size * 2:  # Only shrink if >2x oversized
 		_bubble_data.resize(required_size)
 		print("[BatchedBubbleRenderer] Buffer compacted to %d floats" % required_size)
+
+
+func release_resources() -> void:
+	"""Release renderer-owned atlases, buffers, and cached native state."""
+	if _emoji_batcher and _emoji_batcher.has_method("release_resources"):
+		_emoji_batcher.release_resources()
+	if _bubble_atlas_batcher and _bubble_atlas_batcher.has_method("release_resources"):
+		_bubble_atlas_batcher.release_resources()
+	if _native_renderer and _native_renderer.has_method("cleanup"):
+		_native_renderer.cleanup()
+	_emoji_queue.clear()
+	_shadow_influences.clear()
+	_bubble_data.clear()
+	_num_bubbles = 0
+	_bubble_atlas_batcher = null
+	_emoji_batcher = null
+	_native_renderer = null
+	_fallback_renderer = null
+	_gpu_compute = null
+	_use_atlas = false
+	_use_native = false

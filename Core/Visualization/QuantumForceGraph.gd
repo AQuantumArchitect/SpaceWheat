@@ -1,6 +1,8 @@
 class_name QuantumForceGraph
 extends Node2D
 
+const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")
+
 ## Quantum Force Graph - Coordinator
 ##
 ## Physics-grounded visualization of quantum states.
@@ -39,9 +41,10 @@ const QuantumNode = preload("res://Core/Visualization/QuantumNode.gd")
 const BiomeLayoutCalculator = preload("res://Core/Visualization/BiomeLayoutCalculator.gd")
 const GeometryBatcherScript = preload("res://Core/Visualization/GeometryBatcher.gd")
 const NestedForceOptimizerScript = preload("res://Core/Visualization/NestedForceOptimizer.gd")
+const GridSentinel = preload("res://Core/GameState/GridSentinel.gd")
 
 # Logging
-@onready var _verbose = get_node("/root/VerboseConfig")
+@onready var _verbose = InstrumentLocator.resolve_verbose_config(self)
 
 
 # Signals
@@ -61,7 +64,7 @@ var effects_renderer
 var node_manager
 
 # Autoload references
-@onready var _touch_input_manager = get_node_or_null("/root/TouchInputManager")
+@onready var _touch_input_manager = InstrumentLocator.resolve_touch_input_manager(self)
 
 # Drag chain state (for chain swipe gesture)
 var _drag_chain: Array = []  # QuantumNode chain during swipe
@@ -149,9 +152,13 @@ func _ready():
 	_connect_to_active_biome_manager()
 
 
+func _exit_tree() -> void:
+	teardown()
+
+
 func _connect_to_active_biome_manager():
 	"""Connect to ActiveBiomeManager for biome filtering optimization."""
-	var abm = get_node_or_null("/root/ActiveBiomeManager")
+	var abm = InstrumentLocator.resolve_active_biome_manager(self)
 	if abm:
 		# Initialize with current active biome
 		active_biome = abm.active_biome
@@ -488,7 +495,7 @@ func rebuild_nodes():
 	for node in quantum_nodes:
 		if node.plot_id:
 			node_by_plot_id[node.plot_id] = node
-		if node.grid_position != Vector2i(-1, -1):
+		if node.grid_position != GridSentinel.INVALID_POSITION:
 			quantum_nodes_by_grid_pos[node.grid_position] = node
 			all_plot_positions[node.grid_position] = node.classical_anchor
 		# Register with nested force optimizer
@@ -673,7 +680,7 @@ func _on_biome_removed(biome_name: String) -> void:
 			# Remove from all registries
 			if node.plot_id:
 				node_by_plot_id.erase(node.plot_id)
-			if node.grid_position != Vector2i(-1, -1):
+			if node.grid_position != GridSentinel.INVALID_POSITION:
 				quantum_nodes_by_grid_pos.erase(node.grid_position)
 				all_plot_positions.erase(node.grid_position)
 
@@ -831,7 +838,7 @@ func add_nodes_for_biome(biome_name: String, biome) -> void:
 		# Update lookup dictionaries
 		if node.plot_id:
 			node_by_plot_id[node.plot_id] = node
-		if node.grid_position != Vector2i(-1, -1):
+		if node.grid_position != GridSentinel.INVALID_POSITION:
 			quantum_nodes_by_grid_pos[node.grid_position] = node
 			all_plot_positions[node.grid_position] = node.classical_anchor
 
@@ -852,7 +859,7 @@ func remove_nodes_for_biome(biome_name: String) -> void:
 			# Remove from lookup dictionaries
 			if node.plot_id and node_by_plot_id.has(node.plot_id):
 				node_by_plot_id.erase(node.plot_id)
-			if node.grid_position != Vector2i(-1, -1):
+			if node.grid_position != GridSentinel.INVALID_POSITION:
 				if quantum_nodes_by_grid_pos.has(node.grid_position):
 					quantum_nodes_by_grid_pos.erase(node.grid_position)
 				if all_plot_positions.has(node.grid_position):
@@ -981,6 +988,70 @@ func set_bubble_atlas_batcher(atlas_batcher):
 		bubble_renderer.set_bubble_atlas_batcher(atlas_batcher)
 
 
+func teardown() -> void:
+	"""Release visualization resources and disconnect runtime signal owners."""
+	if _touch_input_manager:
+		if _touch_input_manager.tap_detected.is_connected(_on_touch_tap):
+			_touch_input_manager.tap_detected.disconnect(_on_touch_tap)
+		if _touch_input_manager.drag_started.is_connected(_on_drag_start):
+			_touch_input_manager.drag_started.disconnect(_on_drag_start)
+		if _touch_input_manager.drag_moved.is_connected(_on_drag_move):
+			_touch_input_manager.drag_moved.disconnect(_on_drag_move)
+		if _touch_input_manager.drag_ended.is_connected(_on_drag_end):
+			_touch_input_manager.drag_ended.disconnect(_on_drag_end)
+
+	var abm = InstrumentLocator.resolve_active_biome_manager(self)
+	if abm and abm.has_signal("active_biome_changed") and abm.active_biome_changed.is_connected(_on_active_biome_changed):
+		abm.active_biome_changed.disconnect(_on_active_biome_changed)
+
+	if farm_ref:
+		if farm_ref.has_signal("terminal_bound") and farm_ref.terminal_bound.is_connected(_on_terminal_bound):
+			farm_ref.terminal_bound.disconnect(_on_terminal_bound)
+		if farm_ref.has_signal("terminal_measured") and farm_ref.terminal_measured.is_connected(_on_terminal_measured):
+			farm_ref.terminal_measured.disconnect(_on_terminal_measured)
+		if farm_ref.has_signal("terminal_released") and farm_ref.terminal_released.is_connected(_on_terminal_released):
+			farm_ref.terminal_released.disconnect(_on_terminal_released)
+		if farm_ref.has_signal("biome_removed") and farm_ref.biome_removed.is_connected(_on_biome_removed):
+			farm_ref.biome_removed.disconnect(_on_biome_removed)
+		if farm_ref.has_signal("biome_loaded") and farm_ref.biome_loaded.is_connected(_on_biome_loaded):
+			farm_ref.biome_loaded.disconnect(_on_biome_loaded)
+
+	if terminal_pool:
+		if terminal_pool.terminal_bound.is_connected(_on_pool_terminal_bound):
+			terminal_pool.terminal_bound.disconnect(_on_pool_terminal_bound)
+		if terminal_pool.terminal_unbound.is_connected(_on_pool_terminal_unbound):
+			terminal_pool.terminal_unbound.disconnect(_on_pool_terminal_unbound)
+
+	if bubble_renderer and bubble_renderer.has_method("release_resources"):
+		bubble_renderer.release_resources()
+
+	quantum_nodes.clear()
+	node_by_plot_id.clear()
+	quantum_nodes_by_grid_pos.clear()
+	all_plot_positions.clear()
+	entanglement_particles.clear()
+	life_cycle_effects = {"spawns": [], "deaths": [], "strikes": []}
+	plot_tether_colors.clear()
+	_context_cache.clear()
+	sun_qubit_node = null
+	biomes.clear()
+	farm_ref = null
+	farm_grid = null
+	terminal_pool = null
+	biome_evolution_batcher = null
+	emoji_atlas_batcher = null
+	bubble_atlas_batcher = null
+	geometry_batcher = null
+	nested_force_optimizer = null
+	bubble_renderer = null
+	edge_renderer = null
+	region_renderer = null
+	infra_renderer = null
+	effects_renderer = null
+	node_manager = null
+	force_system = null
+
+
 func print_snapshot(reason: String = ""):
 	"""Print debug snapshot of graph state."""
 	if not DEBUG_MODE:
@@ -1029,7 +1100,7 @@ func update_plot_positions(plot_positions: Dictionary, biome_name: String = "") 
 
 	# Update node anchors
 	for node in quantum_nodes:
-		if node.grid_position == Vector2i(-1, -1):
+		if node.grid_position == GridSentinel.INVALID_POSITION:
 			continue
 		if not plot_positions.has(node.grid_position):
 			continue
@@ -1077,7 +1148,7 @@ func _on_pool_terminal_unbound(_terminal: RefCounted):
 func _on_touch_tap(position: Vector2) -> void:
 	"""Handle tap from TouchInputManager — hit-test bubbles."""
 	var node = get_bubble_at_screen_pos(position)
-	if not node or node.grid_position == Vector2i(-1, -1):
+	if not node or node.grid_position == GridSentinel.INVALID_POSITION:
 		return
 
 	if _verbose:

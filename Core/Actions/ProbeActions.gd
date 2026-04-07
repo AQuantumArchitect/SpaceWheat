@@ -370,28 +370,15 @@ static func action_pop(terminal, terminal_pool, economy = null, farm = null) -> 
 		biome_name = terminal.measured_biome_name if terminal.measured_biome_name != "" else terminal.bound_biome_name
 	var register_id = harvest_result.get("register_id", -1)
 
-	terminal_pool.unbind_terminal(terminal)
+	# Measured terminals typically released their register during MEASURE, so POP
+	# must clear the full terminal snapshot, not only the still-bound case.
+	terminal_pool.release_terminal(terminal)
 	_log("info", "farm", "📤", "Register %d released in %s" % [register_id, biome_name if biome_name else "biome"])
 
 	return harvest_result
 
 
-static func action_reap(arg0, arg1 = null, arg2 = null, arg3 = null) -> Dictionary:
-	# New path: action_reap(farm, economy)
-	if _looks_like_farm(arg0):
-		var farm = arg0
-		var economy = arg1 if arg1 != null else (farm.economy if ("economy" in farm) else null)
-		return _action_reap_global(farm, economy)
-
-	# Legacy compatibility path: action_reap(terminal, terminal_pool, economy, farm)
-	return _action_reap_terminal(arg0, arg1, arg2, arg3)
-
-
-static func _action_reap_terminal(terminal, terminal_pool, economy = null, farm = null) -> Dictionary:
-	return action_pop(terminal, terminal_pool, economy, farm)
-
-
-static func _action_reap_global(farm, economy = null) -> Dictionary:
+static func action_reap(farm, economy = null) -> Dictionary:
 	if not farm or not economy:
 		return {
 			"success": false,

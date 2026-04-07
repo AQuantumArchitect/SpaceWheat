@@ -1,6 +1,9 @@
 class_name ControlsOverlay
 extends "res://UI/Core/OverlayBase.gd"
 
+const MenuRegistry = preload("res://UI/Core/MenuRegistry.gd")
+const ToolConfig = preload("res://Core/GameState/ToolConfig.gd")
+
 ## ControlsOverlay - Full keyboard reference with section navigation
 ##
 ## Controls:
@@ -33,6 +36,7 @@ const SECTION_ICONS = ["Tools", "Actions", "Nav", "Overlays", "Quantum", "Advanc
 
 var current_section: int = Section.TOOL_SELECTION
 var compact_mode: bool = false
+var overlay_source = null
 
 # UI elements
 var section_tabs: HBoxContainer
@@ -76,6 +80,12 @@ func _build_content(container: Control) -> void:
 	_update_section_display()
 
 
+func set_overlay_source(source) -> void:
+	overlay_source = source
+	if sections_container:
+		_rebuild_sections()
+
+
 func _create_section_tabs() -> HBoxContainer:
 	"""Create section tab bar."""
 	var hbox = HBoxContainer.new()
@@ -104,48 +114,37 @@ func _create_section_panels() -> void:
 	section_panels.append(_create_advanced_section())
 
 
+func _rebuild_sections() -> void:
+	if not sections_container:
+		return
+
+	for child in sections_container.get_children():
+		sections_container.remove_child(child)
+
+	_create_section_panels()
+	_update_section_display()
+
+
 func _create_tool_section() -> Control:
 	"""Create tool selection help section."""
 	var content = VBoxContainer.new()
 	content.add_theme_constant_override("separation", 6)
 
 	var mode_header = Label.new()
-	mode_header.text = "Tab = Toggle PLAY/BUILD Mode"
+	mode_header.text = "1-4 select the active tool group. F cycles the current group."
 	mode_header.add_theme_font_size_override("font_size", 14)
 	mode_header.add_theme_color_override("font_color", Color(1.0, 0.8, 0.3))
 	content.add_child(mode_header)
 
-	var play_label = Label.new()
-	play_label.text = "\nPLAY MODE (default):"
-	play_label.add_theme_font_size_override("font_size", 13)
-	play_label.add_theme_color_override("font_color", Color(0.3, 1.0, 0.5))
-	content.add_child(play_label)
-
-	var play_entries = [
-		["1", "Probe", "Explore/Measure/Pop (core loop)"],
-		["2", "Gates", "X/H/Ry + F-cycle to Z/S/T"],
-		["3", "Entangle", "CNOT/SWAP/CZ + F-cycle to Bell/Disentangle"],
-		["4", "Meta", "Vocabulary, biome discovery, and reap (F)"]
-	]
-
-	for entry in play_entries:
+	for entry in _build_tool_help_entries():
 		content.add_child(_create_help_row(entry[0], entry[1], entry[2]))
 
-	var build_label = Label.new()
-	build_label.text = "\nBUILD MODE (Tab to switch):"
-	build_label.add_theme_font_size_override("font_size", 13)
-	build_label.add_theme_color_override("font_color", Color(1.0, 0.6, 0.3))
-	content.add_child(build_label)
-
-	var build_entries = [
-		["1", "Biome", "Assign plots to biomes"],
-		["2", "Icon", "Configure emoji icons"],
-		["3", "Lindblad", "Drive/Decay/Transfer dissipation"],
-		["4", "Quantum", "Reset/Snapshot/Debug + F-cycle to phase gates"]
-	]
-
-	for entry in build_entries:
-		content.add_child(_create_help_row(entry[0], entry[1], entry[2]))
+	var alias_note = Label.new()
+	alias_note.text = "\nTab currently mirrors mode cycling for the selected tool. It is an alias, not a separate global mode layer."
+	alias_note.add_theme_font_size_override("font_size", 12)
+	alias_note.add_theme_color_override("font_color", Color(0.8, 0.7, 0.5))
+	alias_note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	content.add_child(alias_note)
 
 	return content
 
@@ -156,28 +155,44 @@ func _create_actions_section() -> Control:
 	content.add_theme_constant_override("separation", 6)
 
 	var desc = Label.new()
-	desc.text = "Q, E, R, F = Context-sensitive actions that change based on the selected tool or active menu"
+	desc.text = "Q, E, R, F are projected from the active tool or menu contract. The rows below are pulled from the live tool config."
 	desc.add_theme_font_size_override("font_size", 14)
 	desc.add_theme_color_override("font_color", Color(0.7, 0.8, 0.9))
 	desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	content.add_child(desc)
 
-	var entries = [
-		["Q", "First Action", "Primary action for current tool"],
-		["E", "Second Action", "Secondary action for current tool"],
-		["R", "Third Action", "Tertiary action for current tool"],
-		["F", "Cycle / Reap", "Switch sub-modes; Meta tool uses F for reap"],
-		["Tab", "PLAY/BUILD", "Toggle between modes"],
-		["Space", "Pause", "Pause/resume evolution"],
-		["-", "Stride Down", "Slower playback (halve), 0=locked"],
-		["=", "Stride Up", "Faster playback (double), up to 256x"],
-		["Shift+-", "Resolution Down", "Finer substeps (10x smaller dt)"],
-		["Shift+=", "Resolution Up", "Coarser substeps (10x larger dt)"],
-		["Shift+R", "Mass Pop", "Pop all active bubbles in the checked set"]
-	]
+	for tool_num in range(1, 5):
+		var group_def = ToolConfig.get_group(tool_num)
+		var group_header = Label.new()
+		group_header.text = "\nTool %d (%s):" % [tool_num, str(group_def.get("name", "Tool"))]
+		group_header.add_theme_font_size_override("font_size", 13)
+		group_header.add_theme_color_override("font_color", Color(0.5, 0.8, 1.0))
+		content.add_child(group_header)
 
-	for entry in entries:
-		content.add_child(_create_help_row(entry[0], entry[1], entry[2]))
+		for action_key in InputBindingRegistry.ACTION_KEYS:
+			var action_info = ToolConfig.get_action(tool_num, action_key)
+			if action_info.is_empty():
+				continue
+
+			var label = str(action_info.get("label", "-"))
+			var description = str(action_info.get("hint", ""))
+			if action_key == "F":
+				var mode_name = ToolConfig.get_group_mode_name(tool_num)
+				description = "Current mode: %s. %s" % [mode_name, description]
+			content.add_child(_create_help_row(action_key, label, description))
+
+	var global_header = Label.new()
+	global_header.text = "\nGlobal Bindings:"
+	global_header.add_theme_font_size_override("font_size", 13)
+	global_header.add_theme_color_override("font_color", Color(1.0, 0.8, 0.3))
+	content.add_child(global_header)
+
+	for entry in InputBindingRegistry.get_global_bindings():
+		content.add_child(_create_help_row(
+			str(entry.get("key", "")),
+			str(entry.get("label", "")),
+			str(entry.get("description", ""))
+		))
 
 	return content
 
@@ -188,53 +203,60 @@ func _create_navigation_section() -> Control:
 	content.add_theme_constant_override("separation", 6)
 
 	var biome_header = Label.new()
-	biome_header.text = "Biome Selection (TYUIOP):"
+	biome_header.text = "Biome Selection (%s):" % "".join(InputBindingRegistry.get_biome_keys())
 	biome_header.add_theme_font_size_override("font_size", 14)
 	biome_header.add_theme_color_override("font_color", Color(0.5, 0.8, 1.0))
 	content.add_child(biome_header)
 
-	var biome_entries = [
-		["T", "StarterForest", "Switch to Starter Forest"],
-		["Y", "Village", "Switch to Village"],
-		["U", "BioticFlux", "Switch to Quantum Fields"],
-		["I", "StellarForges", "Switch to Stellar Forges"],
-		["O", "FungalNetworks", "Switch to Fungal Networks"],
-		["P", "VolcanicWorlds", "Switch to Volcanic Worlds"]
-	]
-
-	for entry in biome_entries:
-		content.add_child(_create_help_row(entry[0], entry[1], entry[2]))
+	for entry in InputBindingRegistry.get_biome_entries():
+		content.add_child(_create_help_row(
+			str(entry.get("key", "")),
+			str(entry.get("label", "")),
+			str(entry.get("description", ""))
+		))
 
 	var plot_header = Label.new()
-	plot_header.text = "\nPlot Selection (JKL; Homerow):"
+	plot_header.text = "\nPlot Selection (%s):" % "".join(InputBindingRegistry.get_plot_keys())
 	plot_header.add_theme_font_size_override("font_size", 14)
 	plot_header.add_theme_color_override("font_color", Color(0.3, 1.0, 0.5))
 	content.add_child(plot_header)
 
-	var plot_entries = [
-		["J", "Plot 1", "Select first plot in current biome"],
-		["K", "Plot 2", "Select second plot in current biome"],
-		["L", "Plot 3", "Select third plot in current biome"],
-		[";", "Plot 4", "Select fourth plot in current biome"],
-		["'", "Plot 5", "Select fifth plot in current biome"],
-		["H", "Plot 6", "Select sixth plot in current biome"],
-		["G", "Plot 7", "Select seventh plot in current biome"]
-	]
-
-	for entry in plot_entries:
-		content.add_child(_create_help_row(entry[0], entry[1], entry[2]))
+	for entry in InputBindingRegistry.get_plot_entries():
+		content.add_child(_create_help_row(
+			str(entry.get("key", "")),
+			str(entry.get("label", "")),
+			str(entry.get("description", ""))
+		))
 
 	var subspace_header = Label.new()
-	subspace_header.text = "\nSubspace Navigation (Reserved):"
+	subspace_header.text = "\nSubspace Navigation (%s):" % " ".join(InputBindingRegistry.get_subspace_keys())
 	subspace_header.add_theme_font_size_override("font_size", 14)
 	subspace_header.add_theme_color_override("font_color", Color(0.5, 0.5, 0.5))
 	content.add_child(subspace_header)
 
-	var subspace_note = Label.new()
-	subspace_note.text = "  , . / = Reserved for future subspace navigation"
-	subspace_note.add_theme_font_size_override("font_size", 12)
-	subspace_note.add_theme_color_override("font_color", Color(0.4, 0.4, 0.4))
-	content.add_child(subspace_note)
+	for entry in InputBindingRegistry.get_subspace_entries():
+		content.add_child(_create_help_row(
+			str(entry.get("key", "")),
+			str(entry.get("label", "")),
+			str(entry.get("description", ""))
+		))
+
+	var quest_header = Label.new()
+	quest_header.text = "\nQuest Oracle Direct Slots (%s):" % "".join(InputBindingRegistry.get_quest_slot_keys())
+	quest_header.add_theme_font_size_override("font_size", 14)
+	quest_header.add_theme_color_override("font_color", Color(0.9, 0.7, 1.0))
+	content.add_child(quest_header)
+
+	for entry in InputBindingRegistry.get_quest_slot_entries():
+		content.add_child(_create_help_row(
+			str(entry.get("key", "")),
+			str(entry.get("label", "")),
+			str(entry.get("description", ""))
+		))
+
+	content.add_child(_create_help_row("Q / Enter / Space", "Confirm", "Shared menu confirm alias used across overlays and browser lists"))
+	content.add_child(_create_help_row("E / ESC", "Back", "Shared menu cancel alias used across overlays and browser lists"))
+	content.add_child(_create_help_row("R / F", "Page", "Shared menu page aliases where a menu supports previous/next paging"))
 
 	return content
 
@@ -244,19 +266,27 @@ func _create_overlays_section() -> Control:
 	var content = VBoxContainer.new()
 	content.add_theme_constant_override("separation", 6)
 
-	var entries = [
-		["C", "Quest Board", "View and manage quests"],
-		["V", "Vocabulary", "Semantic map and known pairs"],
-		["B", "Biome Inspector", "Detailed biome info"],
-		["N", "Inspector", "Density matrix and register view"],
-		["Z", "Keyboard Help", "This overlay"],
-		["X", "System Menu", "Quit, save, load, restart"],
-		["M", "Balance Workbench", "Timescale and balance tuning"],
-		["ESC", "Back / System", "Close current menu, or open system menu"]
-	]
+	for entry in MenuRegistry.get_top_level_menus():
+		var overlay_name = str(entry.get("overlay_name", ""))
+		var description = str(entry.get("description", ""))
+		var action_summary = _describe_overlay_actions(overlay_name)
+		if action_summary != "":
+			description = "%s | %s" % [description, action_summary]
+		content.add_child(_create_help_row(
+			str(entry.get("key_label", "")),
+			str(entry.get("display_name", "")),
+			description
+		))
 
-	for entry in entries:
-		content.add_child(_create_help_row(entry[0], entry[1], entry[2]))
+		for shortcut in InputBindingRegistry.get_overlay_shortcuts(overlay_name):
+			content.add_child(_create_help_row(
+				str(shortcut.get("key", "")),
+				str(shortcut.get("label", "")),
+				str(shortcut.get("description", ""))
+			))
+
+	content.add_child(_create_help_row("Shift+C", "Faction Browser", "Quest-board drill-down for all accessible factions"))
+	content.add_child(_create_help_row("ESC", "Back / System", "Close current menu, or open system menu"))
 
 	var pause_label = Label.new()
 	pause_label.text = "\nIn system menus: use WASD or arrows to navigate, and Q/E/R/F for actions."
@@ -265,7 +295,46 @@ func _create_overlays_section() -> Control:
 	pause_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	content.add_child(pause_label)
 
+	for entry in MenuRegistry.get_debug_menus():
+		var debug_note = Label.new()
+		debug_note.text = "\nDebug overlay: %s (%s)" % [
+			str(entry.get("display_name", "")),
+			str(entry.get("description", ""))
+		]
+		debug_note.add_theme_font_size_override("font_size", 12)
+		debug_note.add_theme_color_override("font_color", Color(0.6, 0.7, 0.8))
+		debug_note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		content.add_child(debug_note)
+
 	return content
+
+
+func _describe_overlay_actions(overlay_name: String) -> String:
+	if not overlay_source or not overlay_source.has_method("get_overlay"):
+		return ""
+
+	var overlay = overlay_source.get_overlay(overlay_name)
+	if not overlay:
+		return ""
+
+	var labels: Dictionary = {}
+	if overlay.has_method("get_action_info"):
+		for key in InputBindingRegistry.ACTION_KEYS:
+			var action_info = overlay.get_action_info(key)
+			var label = str(action_info.get("label", ""))
+			if label != "" and label != "-":
+				labels[key] = label
+	elif overlay.has_method("get_action_labels"):
+		labels = overlay.get_action_labels()
+
+	var parts: Array[String] = []
+	for key in InputBindingRegistry.ACTION_KEYS:
+		var label = str(labels.get(key, ""))
+		if label == "":
+			continue
+		parts.append("%s=%s" % [key, label])
+
+	return ", ".join(parts)
 
 
 func _create_quantum_section() -> Control:
@@ -292,7 +361,7 @@ func _create_quantum_section() -> Control:
 	content.add_child(right_label)
 
 	var right_items = Label.new()
-	right_items.text = "  Shows: HARDWARE/INSPECTOR mode\n  Configure: ESC -> X (Quantum Settings)"
+	right_items.text = "  Shows: HARDWARE/INSPECTOR mode\n  Configure: open System Menu, then navigate to Quantum Settings"
 	right_items.add_theme_font_size_override("font_size", 13)
 	right_items.add_theme_color_override("font_color", Color(0.7, 0.8, 0.9))
 	content.add_child(right_items)
@@ -306,39 +375,69 @@ func _create_advanced_section() -> Control:
 	content.add_theme_constant_override("separation", 8)
 
 	var play_header = Label.new()
-	play_header.text = "PLAY MODE - F-Cycling Details:"
+	play_header.text = "F-Cycling Details:"
 	play_header.add_theme_font_size_override("font_size", 14)
 	play_header.add_theme_color_override("font_color", Color(0.3, 1.0, 0.5))
 	content.add_child(play_header)
 
-	var t2_label = Label.new()
-	t2_label.text = "\nTool 2 (Gates) - F-cycles:"
-	t2_label.add_theme_font_size_override("font_size", 13)
-	t2_label.add_theme_color_override("font_color", Color(0.5, 0.8, 1.0))
-	content.add_child(t2_label)
+	for group_num in range(1, 5):
+		var group_def = ToolConfig.get_group(group_num)
+		if not bool(group_def.get("has_f_cycling", false)):
+			continue
 
-	content.add_child(_create_help_row("Convert", "X/H/Ry", "Bit flip, Superposition, Tune"))
-	content.add_child(_create_help_row("Phase", "Z/S/T", "Phase flip, pi/2, pi/4"))
+		var section_label = Label.new()
+		section_label.text = "\nTool %d (%s) - F-cycles:" % [group_num, str(group_def.get("name", "Tool"))]
+		section_label.add_theme_font_size_override("font_size", 13)
+		section_label.add_theme_color_override("font_color", Color(0.5, 0.8, 1.0))
+		content.add_child(section_label)
 
-	var t3_label = Label.new()
-	t3_label.text = "\nTool 3 (Entangle) - F-cycles:"
-	t3_label.add_theme_font_size_override("font_size", 13)
-	t3_label.add_theme_color_override("font_color", Color(0.5, 0.8, 1.0))
-	content.add_child(t3_label)
-
-	content.add_child(_create_help_row("Link", "CNOT/SWAP/CZ", "Two-qubit gates"))
-	content.add_child(_create_help_row("Manage", "Bell/Disentangle", "Entanglement control"))
-
-	var t4_label = Label.new()
-	t4_label.text = "\nTool 4 (Industry) - F-cycles:"
-	t4_label.add_theme_font_size_override("font_size", 13)
-	t4_label.add_theme_color_override("font_color", Color(0.5, 0.8, 1.0))
-	content.add_child(t4_label)
-
-	content.add_child(_create_help_row("Build", "Deprecated", "Mill/Market/Kitchen removed"))
-	content.add_child(_create_help_row("Harvest", "Disabled", "Industry structures no longer exist"))
+		var modes: Array = group_def.get("modes", [])
+		for mode_name in modes:
+			var mode_actions = group_def.get("actions", {}).get(mode_name, {})
+			var action_labels: Array[String] = []
+			for key in ["Q", "E", "R"]:
+				var action_info = mode_actions.get(key, {})
+				var label = str(action_info.get("label", ""))
+				if label != "" and label != "-":
+					action_labels.append(label)
+			content.add_child(_create_help_row(
+				"F",
+				str(mode_name).capitalize(),
+				", ".join(action_labels)
+			))
 
 	return content
+
+
+func _build_tool_help_entries() -> Array:
+	var entries: Array = []
+	for tool_num in range(1, 5):
+		var group_def = ToolConfig.get_group(tool_num)
+		var description = _describe_tool_group(tool_num, group_def)
+		entries.append([
+			str(tool_num),
+			str(group_def.get("name", "Tool")),
+			description
+		])
+	return entries
+
+
+func _describe_tool_group(tool_num: int, group_def: Dictionary) -> String:
+	var mode_name = ToolConfig.get_group_mode_name(tool_num)
+	var mode_actions = group_def.get("actions", {}).get(mode_name, {})
+	var labels: Array[String] = []
+	for key in ["Q", "E", "R"]:
+		var action_info = mode_actions.get(key, {})
+		var label = str(action_info.get("label", ""))
+		if label != "" and label != "-":
+			labels.append(label)
+
+	var summary = ", ".join(labels)
+	if bool(group_def.get("has_f_cycling", false)):
+		var modes: Array = group_def.get("modes", [])
+		if not modes.is_empty():
+			return "%s; F cycles %s" % [summary, "/".join(modes)]
+	return summary
 
 
 func _create_help_row(key: String, action: String, description: String) -> Control:

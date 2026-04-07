@@ -90,8 +90,8 @@ func _init():
 	# Keep legacy registry for backward compatibility (deprecated)
 	var tree = Engine.get_main_loop()
 	if tree and tree is SceneTree:
-		_visual_asset_registry = tree.root.get_node_or_null("/root/VisualAssetRegistry")
-		_verbose_config = tree.root.get_node_or_null("/root/VerboseConfig")
+		_visual_asset_registry = InstrumentLocator.resolve_visual_asset_registry_main_loop()
+		_verbose_config = InstrumentLocator.resolve_verbose_config_main_loop()
 
 
 ## CRITICAL: Normalize emoji strings to handle variation selector inconsistencies.
@@ -882,3 +882,25 @@ func get_stats() -> Dictionary:
 		"fallbacks": _fallback_count,
 		"hit_rate": _atlas_hit_count / max(1.0, float(_atlas_hit_count + _fallback_count)) * 100.0
 	}
+
+
+func release_resources() -> void:
+	"""Release atlas textures and cached render state before shutdown."""
+	_canvas_item = RID()
+	_points.clear()
+	_uvs.clear()
+	_colors.clear()
+	_text_fallback_queue.clear()
+	_missing_emojis_this_frame.clear()
+	_fallback_warnings.clear()
+	_emoji_uvs.clear()
+	_emoji_cells.clear()
+	_atlas_texture = null
+	_atlas_image = null
+	_geometry_batcher = null
+	_visual_asset_registry = null
+	_tiered_emoji_registry = null
+	_atlas_cache = null
+	_verbose_config = null
+	_atlas_built = false
+const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")

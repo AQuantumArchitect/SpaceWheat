@@ -138,6 +138,18 @@ static func default_graph(policy_kind: String = "ucb", profile_id: String = "def
 			"south_pole_affinity": 1.5,
 			"native_faction_score_bonus": 12.0,
 			"non_native_resonance_factor": 0.8,
+			# Resonance gate: logistic weights for vocab probability
+			# x = Σ(weight_i × observable_i) + bias → p_vocab = floor + scale × σ(x)
+			"resonance_signature_weight": 1.5,
+			"resonance_coherence_weight": 1.0,
+			"resonance_purity_weight": 0.6,
+			"resonance_overlap_weight": 1.5,
+			"resonance_unknown_weight": 1.2,
+			"resonance_inventory_weight": 1.8,
+			"resonance_bias": -0.5,
+			"resonance_floor": 0.35,
+			"resonance_ceiling": 0.90,
+			"resonance_scale": 0.50,
 		},
 		"quest_scoring": {
 			"novelty_weight": 32.0,

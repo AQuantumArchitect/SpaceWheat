@@ -11,6 +11,7 @@ const SAVE_DIR = "user://saves/"
 const NUM_SAVE_SLOTS = 3
 const SCENARIO_DIR = "res://Scenarios/"
 const NEW_GAME_TEMPLATE = "new_game_easy.tres"
+const DEFAULT_SCENARIO_ID = "new_game_easy"
 const SAVE_ARTIFACT_INDEX_FILE = "emoji_save_index.json"
 const EMOJI_SIDECAR_SUFFIX = ".json"
 
@@ -167,7 +168,7 @@ static func load_scenario(scenario_id: String) -> GameState:
 
 
 static func load_new_game_template() -> GameState:
-	# Prefer the project template for normal fresh-game boot.
+	# Prefer one canonical project template for normal fresh-game boot.
 	# A stale user:// override should not silently replace the shipped default character.
 	var project_path = SCENARIO_DIR + NEW_GAME_TEMPLATE
 	if ResourceLoader.exists(project_path):
@@ -179,7 +180,9 @@ static func load_new_game_template() -> GameState:
 		var user_state = ResourceLoader.load(user_path, "", ResourceLoader.CACHE_MODE_IGNORE)
 		if user_state:
 			return user_state
-	return load_scenario("default")
+	var state = GameState.new()
+	state.scenario_id = DEFAULT_SCENARIO_ID
+	return state
 
 
 static func _write_save_artifacts(state: GameState, slot: int, canonical_path: String) -> void:

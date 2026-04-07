@@ -43,6 +43,13 @@ _DEFAULT_SCORING = {
     "completion_penalty": -30,
 }
 
+_DEFAULT_BIOME_DISCOVERY: Dict[str, float] = {
+    "floor": 0.1,
+    "quest_scale": 5.0,
+    "vocab_scale": 2.0,
+    "milk_scale": 3.0,
+}
+
 _DEFAULT_DISTANCE_SCORES = {"milk": 1000, "d1": 260, "d2": 180, "d3": 80}
 _DEFAULT_FACTION_SIG_SCORES = {"d1": 140, "d2": 90, "d3": 35}
 
@@ -253,6 +260,17 @@ class Strategy:
         if isinstance(raw, list):
             return [str(x) for x in raw]
         return list(_DEFAULT_INITIAL_INJECTION["resources"])
+
+    # ── biome discovery weights ──────────────────────────────────────
+
+    @property
+    def biome_discovery(self) -> Dict[str, float]:
+        """Weights for BiomeDiscoveryForecastService — sent via configure_discovery."""
+        raw = self._data.get("biome_discovery")
+        defaults = dict(_DEFAULT_BIOME_DISCOVERY)
+        if isinstance(raw, dict):
+            return {**defaults, **{k: float(v) for k, v in raw.items() if isinstance(v, (int, float))}}
+        return defaults
 
     # ── serialization ────────────────────────────────────────────────
 

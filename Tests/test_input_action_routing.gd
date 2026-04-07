@@ -194,7 +194,7 @@ func _test_gate_dispatch_table():
 
 
 func _test_state_snapshot_restore():
-	"""TEST 6: State snapshot and restore round-trip"""
+	"""TEST 6: Public-state round-trip"""
 	print("📍 TEST 6: State Snapshot/Restore")
 	print(_sep("─", 80))
 
@@ -206,7 +206,13 @@ func _test_state_snapshot_restore():
 	instrument.toggle_plot_check(Vector2i(1, 1))
 	instrument.set_tool_group(2)
 
-	var snapshot = instrument.get_state_snapshot()
+	var snapshot = {
+		"current_plot_idx": instrument.current_plot_idx,
+		"current_biome": instrument.current_biome,
+		"last_selected_position": instrument.last_selected_position,
+		"checked_plots": instrument.get_checked_plots(),
+		"current_tool_group": instrument.current_tool_group,
+	}
 	_assert(snapshot.current_plot_idx == 3, "snapshot.current_plot_idx should be 3")
 	_assert(snapshot.current_biome == "TestBiome", "snapshot.current_biome should be TestBiome")
 	_assert(snapshot.checked_plots.size() == 2, "snapshot.checked_plots should have 2 items")
@@ -215,7 +221,13 @@ func _test_state_snapshot_restore():
 
 	# Restore to fresh instrument
 	var instrument2 = QuantumInstrument.new()
-	instrument2.restore_state(snapshot)
+	instrument2.select_plot(
+		int(snapshot.current_plot_idx),
+		str(snapshot.current_biome),
+		snapshot.last_selected_position if snapshot.last_selected_position is Vector2i else Vector2i.ZERO
+	)
+	instrument2.set_checked_plots(snapshot.checked_plots)
+	instrument2.set_tool_group(int(snapshot.current_tool_group))
 
 	_assert(instrument2.current_plot_idx == 3, "restored plot_idx should be 3")
 	_assert(instrument2.current_biome == "TestBiome", "restored biome should be TestBiome")

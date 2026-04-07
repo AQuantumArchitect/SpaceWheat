@@ -2,8 +2,9 @@
 
 ## Current Status
 
-**Working:** Linux (native .so built)
-**Need:** Windows (.dll) and Web (WASM) builds
+**Working:** Linux native `.so`
+**In progress:** Windows native `.dll` via MinGW cross-compile
+**Optional later:** Web/WASM
 
 ---
 
@@ -93,23 +94,11 @@ make  # (if you have make for Windows)
 
 ---
 
-### Option 4: Use Your GDScript Fallback (Easiest)
+### Option 4: Do Not Ship Windows Without Native
 
-**Good news:** You already have ComplexMatrix.gd fallback!
+This project should not ship a Windows build without the native DLL.
 
-**For Windows export:**
-1. Don't include the .dll
-2. Godot will use GDScript fallback automatically
-3. Performance: ~10× slower but still works
-
-**In `.gdextension` file:**
-```ini
-[libraries]
-
-linux.debug.x86_64 = "res://native/bin/libquantummatrix.linux.template_debug.x86_64.so"
-linux.release.x86_64 = "res://native/bin/libquantummatrix.linux.template_release.x86_64.so"
-# No windows entry = uses GDScript fallback
-```
+The GDScript fallback is too slow for real gameplay. Treat it as a development fallback only, not a distribution target.
 
 ---
 
@@ -123,9 +112,9 @@ linux.release.x86_64 = "res://native/bin/libquantummatrix.linux.template_release
 - Limited threading support
 - Eigen might not work fully
 
-### Option 1: Disable Native for Web (Recommended)
+### Option 1: Defer Web Until Native Or Performance Is Proven Acceptable
 
-**Your GDScript fallback works perfectly for this!**
+Web is optional. Do not let it block Linux and Windows desktop shipping.
 
 **In `.gdextension` file:**
 ```ini
@@ -136,16 +125,9 @@ linux.release.x86_64 = "res://native/bin/libquantummatrix.linux.template_release
 # web.wasm32 = ... (omit this - uses GDScript)
 ```
 
-**What happens:**
-1. Export to web (HTML5)
-2. Native extension not found
-3. ComplexMatrix.gd fallback activates automatically
-4. Game runs slower but WORKS
-
-**Performance impact:**
-- Biome evolution: 10× slower (still fast enough for 1Hz updates)
-- Music selection: 100× slower (still <1ms, acceptable)
-- Visual: No impact (GDScript already)
+If you revisit Web later, either:
+1. ship a real WASM native module, or
+2. prove with profiling that fallback performance is acceptable for the public build.
 
 ### Option 2: Compile to WASM (Advanced)
 
@@ -194,14 +176,13 @@ web.wasm32 = "res://native/bin/libquantummatrix.wasm"
 
 ### For Distribution
 
-**Desktop (Windows/Mac/Linux):**
-- **Option A:** Build for all platforms (GitHub Actions)
-- **Option B:** Ship GDScript fallback only (slower but works)
+**Desktop (Windows/Linux):**
+- Ship native libraries only
+- Do not ship fallback-only Windows
 
 **Web (itch.io):**
-- **Recommended:** Use GDScript fallback (omit WASM build)
-- **Why:** Simpler, reliable, acceptable performance
-- **Tradeoff:** ~10× slower evolution (still 60fps)
+- Prefer desktop uploads to itch.io first
+- Add a browser build later only if native WASM or acceptable measured fallback exists
 
 **Mobile (Android/iOS):**
 - Android: Build ARM64 .so
@@ -225,9 +206,9 @@ compatibility_minimum = "4.1"
 linux.debug.x86_64 = "res://native/bin/libquantummatrix.linux.template_debug.x86_64.so"
 linux.release.x86_64 = "res://native/bin/libquantummatrix.linux.template_release.x86_64.so"
 
-# Windows (optional - omit to use GDScript fallback)
-# windows.debug.x86_64 = "res://native/bin/libquantummatrix.windows.template_debug.x86_64.dll"
-# windows.release.x86_64 = "res://native/bin/libquantummatrix.windows.template_release.x86_64.dll"
+# Windows (required for shipping on Windows)
+windows.debug.x86_64 = "res://native/bin/windows/libquantummatrix.windows.template_debug.x86_64.dll"
+windows.release.x86_64 = "res://native/bin/windows/libquantummatrix.windows.template_release.x86_64.dll"
 
 # macOS (optional)
 # macos.debug = "res://native/bin/libquantummatrix.macos.template_debug.framework"

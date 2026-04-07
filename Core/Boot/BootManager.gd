@@ -5,7 +5,8 @@ extends Node
 ## Core boot happens before UI; UI can be attached later.
 
 # Access autoloads safely
-@onready var _verbose = get_node("/root/VerboseConfig")
+@onready var _verbose = InstrumentLocator.resolve_verbose_config(self)
+const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")
 
 signal core_systems_ready
 signal visualization_ready
@@ -17,19 +18,9 @@ var _core_booted: bool = false
 
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_WM_CLOSE_REQUEST or what == NOTIFICATION_PREDELETE:
-		# Free static GPU resources to avoid ObjectDB leak warnings
-		var GPUCalcV2 = load("res://Core/Visualization/GPUForceCalculatorV2.gd")
-		if GPUCalcV2 and GPUCalcV2.get("_shared_rd") and GPUCalcV2._shared_rd:
-			if GPUCalcV2._shared_pipeline.is_valid():
-				GPUCalcV2._shared_rd.free_rid(GPUCalcV2._shared_pipeline)
-			if GPUCalcV2._shared_shader.is_valid():
-				GPUCalcV2._shared_rd.free_rid(GPUCalcV2._shared_shader)
-			GPUCalcV2._shared_rd.free()
-			GPUCalcV2._shared_rd = null
-		var GPUCalc = load("res://Core/Visualization/GPUForceCalculator.gd")
-		if GPUCalc and GPUCalc.get("_shared_rd") and GPUCalc._shared_rd:
-			GPUCalc._shared_rd.free()
-			GPUCalc._shared_rd = null
+		# Free static GPU resources to avoid RenderingDevice RID leak warnings.
+		_cleanup_gpu_shared_resources(load("res://Core/Visualization/GPUForceCalculatorV2.gd"))
+		_cleanup_gpu_shared_resources(load("res://Core/Visualization/GPUForceCalculator.gd"))
 var _ui_booted: bool = false
 var _booted: bool = false  # Full boot (core + UI)
 var is_ready: bool = false  # Public flag for checking boot completion
@@ -42,6 +33,26 @@ var _biome_registry = null  # BiomeRegistry (lazy-loaded)
 # Performance optimization (class-level const)
 const PerfOptimizer = preload("res://Core/Settings/PerformanceOptimizer.gd")
 const BiomeRegistry = preload("res://Core/Biomes/BiomeRegistry.gd")
+const SaveStore = preload("res://Core/GameState/SaveStore.gd")
+
+
+func _cleanup_gpu_shared_resources(calc_class) -> void:
+	if not calc_class:
+		return
+	if not calc_class.get("_shared_rd") or not calc_class._shared_rd:
+		return
+
+	if calc_class.get("_shared_pipeline") and calc_class._shared_pipeline.is_valid():
+		calc_class._shared_rd.free_rid(calc_class._shared_pipeline)
+		calc_class._shared_pipeline = RID()
+	if calc_class.get("_shared_shader") and calc_class._shared_shader.is_valid():
+		calc_class._shared_rd.free_rid(calc_class._shared_shader)
+		calc_class._shared_shader = RID()
+
+	calc_class._shared_rd.free()
+	calc_class._shared_rd = null
+	if calc_class.get("_shader_compiled") != null:
+		calc_class._shader_compiled = false
 
 ## Autoload singleton - ready to use as global
 func _ready() -> void:
@@ -100,10 +111,11 @@ func _should_rebuild_biome_operators(farm: Node) -> bool:
 	return false
 
 ## Main boot sequence entry point - call after farm and shell are created
-func boot_core(load_slot: int = -1, scenario_id: String = "default", headless: bool = false) -> Node:
+func boot_core(load_slot: int = -1, scenario_id: String = SaveStore.DEFAULT_SCENARIO_ID, headless: bool = false) -> Node:
 	"""Boot core systems and ensure Farm exists (no UI)."""
+	var gsm = InstrumentLocator.resolve_game_state_manager(self)
 	if _core_booted:
-		return get_node_or_null("/root/GameStateManager").active_farm if get_node_or_null("/root/GameStateManager") else null
+		return gsm.get_active_farm() if gsm and gsm.has_method("get_active_farm") else null
 
 	_mark_boot_start_if_needed()
 	_verbose.info("boot", "🚀", "======================================================================")
@@ -111,7 +123,6 @@ func boot_core(load_slot: int = -1, scenario_id: String = "default", headless: b
 	_verbose.info("boot", "🚀", "======================================================================")
 	_boot_timing("boot_core start")
 
-	var gsm = get_node_or_null("/root/GameStateManager")
 	if not gsm:
 		push_warning("BootManager: GameStateManager not found")
 		return null
@@ -193,7 +204,7 @@ func _stage_core_systems(farm: Node) -> void:
 	assert(has_biomes, "BootManager: no biomes loaded - boot aborted")
 
 	# Verify IconRegistry is available and fully loaded
-	var icon_registry = get_node_or_null("/root/IconRegistry")
+	var icon_registry = InstrumentLocator.resolve_icon_registry(self)
 	assert(icon_registry != null, "IconRegistry not found! Autoloads not initialized.")
 
 	# Wait for IconRegistry to finish loading if needed
@@ -544,7 +555,7 @@ func _stage_music(_farm: Node) -> void:
 	_current_stage = "MUSIC"
 	_verbose.info("boot", "📍", "Stage 3E: Music")
 
-	var music = get_node_or_null("/root/MusicManager")
+	var music = InstrumentLocator.resolve_music_manager(self)
 	if not music:
 		_verbose.warn("boot", "⚠️", "MusicManager not found - skipping music")
 		return
@@ -668,7 +679,7 @@ func load_biome(biome_name: String, farm: Node) -> Dictionary:
 	# ====== STEP 5: REBUILD OPERATORS ======
 	# CRITICAL: Must happen BEFORE batcher registration
 	# IconRegistry should be ready by this point (checked in Stage 3A)
-	var icon_registry = get_node_or_null("/root/IconRegistry")
+	var icon_registry = InstrumentLocator.resolve_icon_registry(self)
 	if icon_registry and biome.has_method("rebuild_quantum_operators"):
 		biome.rebuild_quantum_operators()
 		_verbose.debug("boot", "✓", "Rebuilt operators for '%s'" % biome_name)

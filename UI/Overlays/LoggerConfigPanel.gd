@@ -1,9 +1,11 @@
 class_name LoggerConfigPanel
 extends "res://UI/Core/OverlayBase.gd"
 
+const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")
+
 ## Logger Configuration Panel
-## Runtime UI for configuring log categories and levels
-## Toggle with X key (shell menu)
+## Runtime UI for configuring log categories and levels.
+## Registered as a debug overlay and intentionally unbound from the top-level menu row.
 
 # Category controls
 var category_checkboxes: Dictionary = {}  # category_name -> CheckBox
@@ -51,7 +53,7 @@ func _init():
 
 func _build_content(container: Control) -> void:
 	"""Build logger config UI inside OverlayBase panel."""
-	var _verbose = get_node_or_null("/root/VerboseConfig")
+	var _verbose = InstrumentLocator.resolve_verbose_config(self)
 	if not _verbose:
 		var err = Label.new()
 		err.text = "VerboseConfig not available"
@@ -181,7 +183,7 @@ func _create_buttons(parent: Control) -> void:
 
 	# Close button
 	var close_btn = Button.new()
-	close_btn.text = "Close [X / ESC]"
+	close_btn.text = "Close [ESC]"
 	close_btn.custom_minimum_size = Vector2(150, 40)
 	close_btn.pressed.connect(deactivate)
 	button_hbox.add_child(close_btn)
@@ -215,7 +217,7 @@ func _on_category_level_changed(category: String, level_idx: int, _verbose: Node
 
 func _on_reset_pressed() -> void:
 	"""Reset all categories to default levels"""
-	var _verbose = get_node_or_null("/root/VerboseConfig")
+	var _verbose = InstrumentLocator.resolve_verbose_config(self)
 	if not _verbose:
 		return
 
@@ -270,7 +272,7 @@ func _refresh_ui(_verbose: Node) -> void:
 
 func get_snapshot() -> Dictionary:
 	"""Return all currently-displayed state as structured data."""
-	var _verbose = get_node_or_null("/root/VerboseConfig")
+	var _verbose = InstrumentLocator.resolve_verbose_config(self)
 	if not _verbose:
 		return {"error": "verbose_config_unavailable"}
 

@@ -471,13 +471,7 @@ func get_bubble_world_position(node, biome_name: String) -> Vector2:
 
 
 func _get_verbose():
-	"""Get VerboseConfig autoload."""
-	var tree = Engine.get_main_loop()
-	if tree and tree.has_method("get_root"):
-		var root = tree.get_root()
-		if root:
-			return root.get_node_or_null("/root/VerboseConfig")
-	return null
+	return InstrumentLocator.resolve_verbose_config_main_loop()
 
 
 # ============================================================================
@@ -542,3 +536,4 @@ func get_all_meta_mi() -> Array:
 		})
 
 	return result
+const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")

@@ -31,7 +31,7 @@ var _verbose = null
 
 
 func _ready():
-	_verbose = get_node_or_null("/root/VerboseConfig")
+	_verbose = InstrumentLocator.resolve_verbose_config(self)
 
 
 func _input(event: InputEvent) -> void:
@@ -112,3 +112,4 @@ func is_current_tap_consumed() -> bool:
 		true if tap was consumed, false if still available to handle
 	"""
 	return current_tap_consumed
+const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")

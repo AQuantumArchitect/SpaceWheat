@@ -1,6 +1,8 @@
 class_name SemanticMapOverlay
 extends "res://UI/Core/OverlayBase.gd"
 
+const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")
+
 ## SemanticMapOverlay - Octant visualization and vocabulary explorer
 ##
 ## Displays the 8 semantic octants with:
@@ -312,7 +314,7 @@ func _load_vocabulary_data() -> void:
 	"""Load vocabulary from game state."""
 	vocabulary_data = {}
 
-	var gsm = get_node_or_null("/root/GameStateManager")
+	var gsm = InstrumentLocator.resolve_game_state_manager(self)
 	if not gsm:
 		return
 
@@ -365,7 +367,7 @@ func _populate_vocab_list() -> void:
 	for child in vocab_list_grid.get_children():
 		child.queue_free()
 
-	var gsm = get_node_or_null("/root/GameStateManager")
+	var gsm = InstrumentLocator.resolve_game_state_manager(self)
 	if not gsm:
 		_add_vocab_placeholder("Game not loaded")
 		return
@@ -655,11 +657,12 @@ func get_snapshot() -> Dictionary:
 	"""Return all currently-displayed state as structured data."""
 	# Collect known pairs from game state
 	var known_pairs: Array = []
-	var gsm = get_node_or_null("/root/GameStateManager")
+	var gsm = InstrumentLocator.resolve_game_state_manager(self)
 	if gsm:
 		var pairs_raw: Array = []
-		if "active_farm" in gsm and gsm.active_farm and gsm.active_farm.has_method("get_known_pairs"):
-			pairs_raw = gsm.active_farm.get_known_pairs()
+		var active_farm = gsm.get_active_farm() if gsm.has_method("get_active_farm") else null
+		if active_farm and active_farm.has_method("get_known_pairs"):
+			pairs_raw = active_farm.get_known_pairs()
 		elif gsm.current_state:
 			pairs_raw = gsm.current_state.known_pairs
 		for p in pairs_raw:

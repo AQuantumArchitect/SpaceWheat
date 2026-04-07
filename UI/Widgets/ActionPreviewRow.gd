@@ -6,13 +6,8 @@ extends HBoxContainer
 ## Buttons use BtnBtmMidl.svg (identical styling to 1234 tool buttons)
 ## Uses BtnBtmMidl.svg from Assets/UI/Chrome for sci-fi aesthetic
 
-# Tool actions from shared config (single source of truth)
-const ToolConfig = preload("res://Core/GameState/ToolConfig.gd")
-const ProbeActions = preload("res://Core/Actions/ProbeActions.gd")
-const ActionCostRuntime = preload("res://Core/GameMechanics/ActionCostRuntime.gd")
-const LindbladHandler = preload("res://UI/Handlers/LindbladHandler.gd")
+const LindbladHandler = preload("res://Core/Instrumentation/Handlers/LindbladHandler.gd")
 const EmojiDisplay = preload("res://UI/Core/EmojiDisplay.gd")
-const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")
 
 # Button texture path (matches ToolSelectionRow)
 const BTN_TEXTURE_PATH = "res://Assets/UI/Chrome/BtnBtmMidl.svg"
@@ -20,15 +15,9 @@ const ACTION_KEYS = ["Q", "E", "R", "F"]
 
 # Action buttons - now stores container references with .texture and .label children
 var action_buttons: Dictionary = {}  # "Q", "E", "R", "F" -> {container, texture, label, disabled}
-var current_tool: int = 3  # Default to tool 3 (matches ToolConfig.current_group)
-var current_submenu: String = ""  # Active submenu name (empty = show tool actions)
-var current_submenu_actions: Dictionary = {}
-var active_overlay_node: Control = null  # Current overlay for context-aware QERF actions
-
-# References for checking action availability
-var plot_grid_display = null  # Injected reference to PlotGridDisplay
-var farm = null  # Injected reference to Farm
-var quantum_input = null  # Injected reference to QuantumInstrumentInput
+var current_tool: int = 3
+var current_submenu: String = ""
+var current_projection: Dictionary = {}
 
 # Styling - colors applied via modulate on the TextureRect (matches ToolSelectionRow)
 var button_color: Color = Color(1.0, 1.0, 1.0)  # Normal state (texture's natural color)
@@ -74,275 +63,30 @@ func _ready():
 		add_child(btn_data.container)
 		action_buttons[action_key] = btn_data
 
-	# Update display for current tool
-	update_for_tool(1)
+	render_projection({
+		"context": "tool",
+		"tool": current_tool,
+		"submenu_name": "",
+		"actions": {}
+	})
 	print("🛠️  ActionPreviewRow initialized with BtnBtmMidl textures (matches 1234 buttons)")
 
 
-func update_for_tool(tool_num: int) -> void:
-	"""Update action buttons to show actions for the selected tool"""
-	if tool_num < 1 or tool_num > 4:  # v2: 4 tools per mode
-		return
+func render_projection(projection: Dictionary) -> void:
+	"""Render a fully projected Q/E/R/F action state."""
+	current_projection = projection.duplicate(true)
+	current_tool = int(current_projection.get("tool", current_tool))
+	current_submenu = str(current_projection.get("submenu_name", ""))
 
-	current_tool = tool_num
-	current_submenu = ""  # Clear submenu when tool changes
-	current_submenu_actions = {}
-
-	# Update each action button using ToolConfig API (respects F-cycling)
+	var actions: Dictionary = current_projection.get("actions", {})
 	for action_key in ACTION_KEYS:
-		if not action_buttons.has(action_key):
-			continue
-
-		var btn_data = action_buttons[action_key]
-		var action_info = _get_tool_action_info(tool_num, action_key)
-		var label_text = action_info.get("label", "")
-		var emoji = action_info.get("emoji", "")
-		var icon_path = action_info.get("icon", "")
-		var shift_hint = ""
-		if action_info.has("shift_label"):
-			shift_hint = " (%s)" % action_info.get("shift_label")
-
-		# Try to load icon, fall back to emoji if unavailable
-		var has_icon = false
-		if icon_path != "" and btn_data.has("icon"):
-			var icon_tex = load(icon_path)
-			if icon_tex:
-				btn_data.icon.texture = icon_tex
-				btn_data.icon.visible = true
-				has_icon = true
-			else:
-				btn_data.icon.visible = false
-		elif btn_data.has("icon"):
-			btn_data.icon.visible = false
-
-		# Update button label text
-		# If icon loaded, omit emoji from label; otherwise include it as fallback
-		if has_icon:
-			btn_data.label.text = "[%s] %s%s" % [action_key, label_text, shift_hint]
-			btn_data.label.offset_left = 40 * scale_factor  # Make room for icon
-			btn_data.base_label_offset = 40 * scale_factor
-		else:
-			btn_data.label.text = "[%s] %s %s%s" % [action_key, emoji, label_text, shift_hint]
-			btn_data.label.offset_left = 0
-			btn_data.base_label_offset = 0
-
-		# Apply disabled state from action info (used by non-cycling F slots)
-		btn_data.disabled = action_info.get("disabled", false)
-		btn_data.texture.modulate = disabled_color if btn_data.disabled else button_color
-
-	# For Tool 1 (Probe), enhance with preview info
-	if tool_num == 1:
-		_update_probe_preview()
-
-	# Update action availability based on selected plots
-	update_action_availability()
-	_update_action_costs()
+		var action_info: Dictionary = actions.get(action_key, {})
+		_apply_button_projection(action_key, action_info)
 
 
-func update_for_submenu(submenu_name: String, submenu_info: Dictionary) -> void:
-	"""Update action buttons to show submenu actions
-
-	Called when entering a submenu (e.g., 4-Q opens vocab injection).
-	submenu_info contains Q/E/R/F action definitions.
-
-	Supports _availability dict for per-action availability (e.g., mill power sources).
-	When _availability is present, unavailable actions are dimmed using disabled_color.
-	"""
-	if submenu_name == "":
-		# Exiting submenu - restore tool display
-		current_submenu = ""
-		current_submenu_actions = {}
-		update_for_tool(current_tool)
-		return
-
-	current_submenu = submenu_name
-	current_submenu_actions = submenu_info
-
-	# Check if entire submenu is disabled
-	var is_disabled = submenu_info.get("_disabled", false)
-
-	# Get per-action availability (for mill submenus, etc.)
-	# Keys are "Q", "E", "R", "F" with bool values. Default to available if not specified.
-	var availability = submenu_info.get("_availability", {})
-
-	# Update each action button with submenu actions
-	for action_key in ACTION_KEYS:
-		if not action_buttons.has(action_key):
-			continue
-
-		var btn_data = action_buttons[action_key]
-
-		var action_info = submenu_info.get(action_key, {})
-		var label_text = action_info.get("label", "?")
-		var emoji = action_info.get("emoji", "")
-		var action = action_info.get("action", "")
-		var icon_path = action_info.get("icon", "")
-
-		# Try to load icon, fall back to emoji if unavailable
-		var has_icon = false
-		if icon_path != "" and btn_data.has("icon"):
-			var icon_tex = load(icon_path)
-			if icon_tex:
-				btn_data.icon.texture = icon_tex
-				btn_data.icon.visible = true
-				has_icon = true
-			else:
-				btn_data.icon.visible = false
-		elif btn_data.has("icon"):
-			btn_data.icon.visible = false
-
-		# Update button label text
-		# If icon loaded, omit emoji from label; otherwise include it as fallback
-		if has_icon:
-			btn_data.label.text = "[%s] %s" % [action_key, label_text]
-			btn_data.label.offset_left = 40 * scale_factor
-			btn_data.base_label_offset = 40 * scale_factor
-		else:
-			btn_data.label.text = "[%s] %s %s" % [action_key, emoji, label_text]
-			btn_data.label.offset_left = 0
-			btn_data.base_label_offset = 0
-
-		# Check per-action availability (from _availability dict)
-		# Default to true (available) if not specified
-		var is_available = availability.get(action_key, true)
-
-		# Handle disabled/locked/unavailable states
-		if is_disabled or action == "" or not is_available:
-			btn_data.disabled = true
-			btn_data.texture.modulate = disabled_color
-		else:
-			# Don't set color here - let validation system handle it below
-			btn_data.disabled = false
-
-	# CRITICAL: Update button colors based on validation (resources, plot states, etc.)
-	# This must happen AFTER text is updated so validation knows what submenu we're in
-	update_action_availability()
-	_update_action_costs()
-
-
-func update_for_overlay(overlay: Control) -> void:
-	"""Switch to overlay mode: QERF actions are projected from overlay state.
-	
-	Prefer get_action_info(key) when available.
-	Fallback to get_action_labels() so standard OverlayBase menus still project
-	truthful labels onto the action bar.
-	"""
-	active_overlay_node = overlay
-	current_submenu = "overlay"
-	
-	# Update button display from overlay action info
-	for action_key in ACTION_KEYS:
-		if not action_buttons.has(action_key):
-			continue
-			
-		var btn_data = action_buttons[action_key]
-		var info = _get_action_info(action_key)
-		
-		# Reset display
-		btn_data.icon.visible = false
-		btn_data.base_label_offset = 0
-		btn_data.label.offset_left = 0
-		
-		var label_text = info.get("label", "-")
-		var emoji = info.get("emoji", "")
-		var is_disabled = info.get("disabled", false)
-		btn_data.label.text = "[%s] %s %s" % [action_key, emoji, label_text]
-		btn_data.disabled = is_disabled
-		btn_data.texture.modulate = disabled_color if is_disabled else button_color
-
-	_update_action_costs()
-
-
-func restore_normal_mode() -> void:
-	"""Restore normal tool display (called when overlay closes)"""
-	active_overlay_node = null
-	current_submenu = ""
-	update_for_tool(current_tool)
-
-
-func set_action_enabled(action_key: String, enabled: bool) -> void:
-	"""Enable or disable a specific action button"""
-	if not action_buttons.has(action_key):
-		return
-
-	var btn_data = action_buttons[action_key]
-	btn_data.disabled = not enabled
-
-	if not enabled:
-		btn_data.texture.modulate = disabled_color
-	else:
-		btn_data.texture.modulate = button_color
-
-
-func update_action_availability() -> void:
-	"""Check selected plots and highlight available actions.
-
-	Uses QuantumInstrumentInput for current selection state, or falls back
-	to naive behavior if no input handler is available.
-	"""
-	_update_action_costs()
-
-	# Check if we have references
-	if not plot_grid_display or not plot_grid_display.has_method("get_selected_plots"):
-		update_button_highlights({"Q": false, "E": false, "R": false, "F": true})
-		return
-
-	var selected_plots = plot_grid_display.get_selected_plots()
-	if selected_plots.is_empty():
-		update_button_highlights({"Q": false, "E": false, "R": false, "F": true})
-		return
-
-	if quantum_input and quantum_input.has_method("can_execute_action"):
-		# Use validation API if available
-		var availability = {
-			"Q": quantum_input.can_execute_action("Q"),
-			"E": quantum_input.can_execute_action("E"),
-			"R": quantum_input.can_execute_action("R"),
-			"F": true,
-		}
-		update_button_highlights(availability)
-	elif quantum_input and quantum_input.has_method("get_current_selection"):
-		# QuantumInstrumentInput: Check if there's a valid selection
-		var selection = quantum_input.get_current_selection()
-		var has_selection = selection.get("plot_idx", -1) >= 0
-		update_button_highlights({"Q": has_selection, "E": has_selection, "R": has_selection, "F": true})
-	else:
-		# Fallback: naive behavior (all enabled if plots selected)
-		var has_selection = selected_plots.size() > 0
-		update_button_highlights({"Q": has_selection, "E": has_selection, "R": has_selection, "F": true})
-
-	# Update probe preview for Tool 1 (shows quantum state in button text)
-	if current_tool == 1:
-		_update_probe_preview()
-
-
-func update_button_highlights(availability: Dictionary) -> void:
-	"""Highlight buttons based on per-action availability
-
-	Args:
-		availability: Dictionary with "Q"/"E"/"R"/"F" keys mapping to bool
-	"""
-	for action_key in ACTION_KEYS:
-		if not action_buttons.has(action_key):
-			continue
-
-		var btn_data = action_buttons[action_key]
-
-		# Skip if button is already disabled (locked slot from submenu)
-		if btn_data.disabled:
-			continue
-
-		var is_available = availability.get(action_key, false)
-
-		# Store availability for hover state restoration
-		btn_data["available"] = is_available
-
-		if is_available:
-			# Actions available - highlight with green tint
-			btn_data.texture.modulate = enabled_color
-		else:
-			# Action not available (no resources, wrong state, etc) - show normal color
-			btn_data.texture.modulate = button_color
+func refresh_projection() -> void:
+	"""Repaint the last projection."""
+	render_projection(current_projection)
 
 
 func set_layout_manager(mgr) -> void:
@@ -355,63 +99,6 @@ func set_layout_manager(mgr) -> void:
 # ============================================================================
 # PRIVATE METHODS
 # ============================================================================
-
-func _on_action_button_pressed(action_key: String) -> void:
-	"""Handle action button press"""
-	action_pressed.emit(action_key)
-
-
-func _update_probe_preview() -> void:
-	"""Update Tool 1 (Probe) buttons with preview info from ProbeActions.
-
-	Shows what registers are available for EXPLORE, what terminals can be
-	measured, etc. Makes the quantum state visible before action.
-	"""
-	if not farm or not farm.terminal_pool:
-		return
-
-	# Get current biome from selection
-	var biome = null
-	if plot_grid_display and plot_grid_display.has_method("get_selected_plots"):
-		var selected = plot_grid_display.get_selected_plots()
-		if not selected.is_empty() and farm.grid:
-			biome = farm.grid.get_biome_for_plot(selected[0])
-
-	if not biome:
-		return
-
-	# Get EXPLORE preview
-	var explore_preview = ProbeActions.get_explore_preview(farm.terminal_pool, biome)
-	if explore_preview.can_explore and not explore_preview.top_probabilities.is_empty():
-		# Show top probability in button text
-		var top = explore_preview.top_probabilities[0]
-		var emoji = top.get("emoji", "?")
-		var prob = top.get("probability", 0.0) * 100
-		action_buttons["Q"].label.text = "[Q] 🔍 Explore (%s %.0f%%)" % [emoji, prob]
-
-	# Get MEASURE preview - find active terminal
-	var biome_name = biome.get_biome_type() if biome.has_method("get_biome_type") else ""
-	var active_terminals = []
-	for terminal in farm.terminal_pool.get_active_terminals():
-		if terminal.bound_biome_name == biome_name:
-			active_terminals.append(terminal)
-
-	if not active_terminals.is_empty():
-		var terminal = active_terminals[0]
-		var emoji = terminal.north_emoji if terminal.north_emoji else "?"
-		action_buttons["E"].label.text = "[E] 👁️ Measure (%s)" % emoji
-
-	# Get POP preview - find measured terminal
-	var measured_terminals = []
-	for terminal in farm.terminal_pool.get_measured_terminals():
-		if terminal.bound_biome_name == biome_name:
-			measured_terminals.append(terminal)
-
-	if not measured_terminals.is_empty():
-		var terminal = measured_terminals[0]
-		var outcome = terminal.measured_outcome if terminal.measured_outcome else "?"
-		action_buttons["R"].label.text = "[R] ✂️ Pop (%s)" % outcome
-
 
 func get_snapshot() -> Dictionary:
 	"""Return structured snapshot of current action button state."""
@@ -538,18 +225,47 @@ func _create_action_button(action_key: String) -> Dictionary:
 		"disabled": false
 	}
 
-func _update_action_costs() -> void:
-	"""Update cost labels for Q/E/R/F actions based on selection."""
-	for action_key in ACTION_KEYS:
-		if not action_buttons.has(action_key):
-			continue
-		var btn_data = action_buttons[action_key]
-		var action_info = _get_action_info(action_key)
-		var action_name = action_info.get("action", "")
+func _apply_button_projection(action_key: String, action_info: Dictionary) -> void:
+	if not action_buttons.has(action_key):
+		return
 
-		var cost = _get_cost_for_action(action_name, action_info)
-		var has_cost = _set_cost_display(btn_data, cost)
-		_adjust_label_for_cost(btn_data, has_cost)
+	var btn_data = action_buttons[action_key]
+	btn_data.icon.visible = false
+	btn_data.base_label_offset = 0
+	btn_data.label.offset_left = 0
+
+	var label_text = str(action_info.get("label", "-"))
+	var emoji = str(action_info.get("emoji", ""))
+	var icon_path = str(action_info.get("icon", ""))
+	var shift_hint = str(action_info.get("shift_label", ""))
+	var is_disabled = bool(action_info.get("disabled", false))
+	var is_available = bool(action_info.get("available", false))
+	var has_icon = false
+
+	if icon_path != "":
+		if ResourceLoader.exists(icon_path):
+			var icon_tex = load(icon_path)
+			if icon_tex:
+				btn_data.icon.texture = icon_tex
+				btn_data.icon.visible = true
+				has_icon = true
+
+	if has_icon:
+		btn_data.label.text = "[%s] %s%s" % [action_key, label_text, " (%s)" % shift_hint if shift_hint != "" else ""]
+		btn_data.label.offset_left = 40 * scale_factor
+		btn_data.base_label_offset = 40 * scale_factor
+	else:
+		var prefix = ("%s " % emoji) if emoji != "" else ""
+		var suffix = " (%s)" % shift_hint if shift_hint != "" else ""
+		btn_data.label.text = "[%s] %s%s%s" % [action_key, prefix, label_text, suffix]
+
+	btn_data.disabled = is_disabled
+	btn_data.available = is_available
+	btn_data.texture.modulate = _resolve_button_color(btn_data)
+
+	var cost = action_info.get("cost", {})
+	var has_cost = _set_cost_display(btn_data, cost if cost is Dictionary else {})
+	_adjust_label_for_cost(btn_data, has_cost)
 
 
 func _adjust_label_for_cost(btn_data: Dictionary, has_cost: bool, cost_width: int = 130) -> void:
@@ -560,125 +276,6 @@ func _adjust_label_for_cost(btn_data: Dictionary, has_cost: bool, cost_width: in
 			btn_data.label.offset_right = -cost_width * scale_factor
 		else:
 			btn_data.label.offset_right = 0
-
-
-func _get_action_info(action_key: String) -> Dictionary:
-	if active_overlay_node and active_overlay_node.has_method("get_action_info"):
-		return active_overlay_node.get_action_info(action_key)
-	if active_overlay_node and active_overlay_node.has_method("get_action_labels"):
-		var labels = active_overlay_node.get_action_labels()
-		return {
-			"action": "",
-			"label": str(labels.get(action_key, "-")),
-			"emoji": "",
-			"disabled": false
-		}
-	
-	if current_submenu != "" and current_submenu_actions:
-		return current_submenu_actions.get(action_key, {})
-	return _get_tool_action_info(current_tool, action_key)
-
-
-func _get_tool_action_info(tool_num: int, action_key: String) -> Dictionary:
-	if action_key == "F":
-		var group_def = ToolConfig.get_group(tool_num)
-		if not group_def.is_empty() and not group_def.get("has_f_cycling", false):
-			var direct_f = ToolConfig.get_action(tool_num, "F")
-			if not direct_f.is_empty():
-				return direct_f
-		return _get_tool_cycle_action_info(tool_num)
-	return ToolConfig.get_action(tool_num, action_key)
-
-
-func _get_tool_cycle_action_info(tool_num: int) -> Dictionary:
-	var group_def = ToolConfig.get_group(tool_num)
-	if group_def.is_empty():
-		return {}
-	if not group_def.get("has_f_cycling", false):
-		return {
-			"action": "",
-			"label": "-",
-			"emoji": "",
-			"disabled": true
-		}
-
-	var mode_labels: Array = group_def.get("mode_labels", [])
-	var mode_index = ToolConfig.get_group_mode_index(tool_num)
-	var next_label = ""
-	if not mode_labels.is_empty():
-		next_label = str(mode_labels[(mode_index + 1) % mode_labels.size()])
-
-	return {
-		"action": "cycle_mode",
-		"label": "Cycle %s" % next_label if next_label != "" else "Cycle Mode",
-		"emoji": "↺",
-		"disabled": false
-	}
-
-
-func _get_cost_for_action(action_name: String, action_info: Dictionary = {}) -> Dictionary:
-	if action_name == "":
-		return {}
-
-	var shift_action = action_info.get("shift_action", "")
-	if shift_action != "":
-		return _get_cost_for_action_name(shift_action, action_info)
-
-	return _get_cost_for_action_name(action_name, action_info)
-
-
-func _get_cost_for_action_name(action_name: String, action_info: Dictionary = {}) -> Dictionary:
-	# Special cases that need context
-	match action_name:
-		"inject_vocabulary":
-			var pair = action_info.get("vocab_pair", {})
-			var context = {"south_emoji": pair.get("south", "")}
-			return _get_runtime_action_cost(action_name, context)
-		"drain", "pump":
-			var pair = _resolve_selected_axis_pair()
-			if pair.is_empty():
-				return {}
-			var normalized = "lindblad_drain" if action_name == "drain" else "lindblad_pump"
-			var context = {
-				"north_emoji": str(pair.get("north", "")),
-				"south_emoji": str(pair.get("south", ""))
-			}
-			return _get_runtime_action_cost(normalized, context)
-		_:
-			# Use unified cost system for all standard actions
-			# (explore, measure, reap, discover_biome, etc.)
-			return _get_runtime_action_cost(action_name)
-
-
-func _resolve_quantum_instrument():
-	if quantum_input and "_instrument" in quantum_input and quantum_input._instrument:
-		return quantum_input._instrument
-	return InstrumentLocator.resolve_quantum_instrument(self)
-
-
-func _get_runtime_action_cost(action_name: String, context: Dictionary = {}) -> Dictionary:
-	var instrument = _resolve_quantum_instrument()
-	if instrument and instrument.has_method("get_action_cost"):
-		return instrument.get_action_cost(action_name, context)
-	return ActionCostRuntime.get_action_cost(farm, action_name, context)
-
-
-func _format_cost(cost: Dictionary) -> String:
-	if cost.is_empty():
-		return ""
-	var parts: Array = []
-	var keys = cost.keys()
-	keys.sort()
-	if keys.has(LindbladHandler.DRAIN_GEAR_EMOJI):
-		keys.erase(LindbladHandler.DRAIN_GEAR_EMOJI)
-		keys.append(LindbladHandler.DRAIN_GEAR_EMOJI)
-	for emoji in keys:
-		var amount = cost[emoji]
-		if amount == 0:
-			continue
-		parts.append("%s%d" % [emoji, amount])
-	return " ".join(parts)
-
 
 func _set_cost_display(btn_data: Dictionary, cost: Dictionary) -> bool:
 	if not btn_data.has("cost_container"):
@@ -695,47 +292,6 @@ func _set_cost_display(btn_data: Dictionary, cost: Dictionary) -> bool:
 	_build_cost_entries(container, cost)
 	container.visible = true
 	return true
-
-
-func _set_combined_cost_display(btn_data: Dictionary, normal_cost: Dictionary, shift_cost: Dictionary) -> bool:
-	if not btn_data.has("cost_container"):
-		return false
-
-	var container: HBoxContainer = btn_data.cost_container
-	for child in container.get_children():
-		child.queue_free()
-
-	if normal_cost.is_empty() and shift_cost.is_empty():
-		container.visible = false
-		return false
-
-	# Build normal costs
-	_build_cost_entries(container, normal_cost)
-
-	# Slash separator
-	var slash = Label.new()
-	slash.text = "/"
-	slash.add_theme_font_size_override("font_size", int(18 * scale_factor))
-	slash.add_theme_color_override("font_color", Color(0.6, 0.6, 0.6))
-	slash.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	container.add_child(slash)
-
-	# Shift indicator (⇧)
-	var shift_icon = Label.new()
-	shift_icon.text = "⇧"
-	shift_icon.add_theme_font_size_override("font_size", int(18 * scale_factor))
-	shift_icon.add_theme_color_override("font_color", Color(0.8, 0.8, 1.0))
-	shift_icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	container.add_child(shift_icon)
-
-	# Build shift costs
-	_build_cost_entries(container, shift_cost)
-
-	container.visible = true
-	# Increase container size for combined cost
-	container.custom_minimum_size.x = 160 * scale_factor
-	return true
-
 
 func _build_cost_entries(container: HBoxContainer, cost: Dictionary) -> void:
 	var keys = cost.keys()
@@ -772,52 +328,6 @@ func _build_cost_entries(container: HBoxContainer, cost: Dictionary) -> void:
 		entry.add_child(display)
 
 		container.add_child(entry)
-
-
-func _resolve_selected_axis_pair() -> Dictionary:
-	var north = ""
-	var south = ""
-	if not farm:
-		return {}
-	var selected: Array = []
-	if plot_grid_display and plot_grid_display.has_method("get_selected_plots"):
-		selected = plot_grid_display.get_selected_plots()
-	var pos: Vector2i = Vector2i(-1, -1)
-	if selected.is_empty():
-		# Fallback to QuantumInstrumentInput selection if UI selection isn't set
-		if quantum_input and quantum_input.has_method("get_current_selection") and farm and farm.has_method("get_biome_row"):
-			var selection = quantum_input.get_current_selection()
-			var plot_idx = selection.get("plot_idx", -1)
-			var biome_name = selection.get("biome", "")
-			if plot_idx >= 0:
-				var biome_row = farm.get_biome_row(biome_name)
-				pos = Vector2i(plot_idx, biome_row)
-	else:
-		pos = selected[0]
-	if pos.x < 0:
-		return {}
-
-	var _preview_plot = farm.grid.get_plot(pos) if farm.grid else null
-	if _preview_plot and _preview_plot.is_active():
-		north = str(_preview_plot.north_emoji) if _preview_plot.north_emoji else ""
-		south = str(_preview_plot.south_emoji) if _preview_plot.south_emoji else ""
-		if north != "":
-			return {"north": north, "south": south}
-
-	var plot = farm.grid.get_plot(pos) if farm and farm.grid else null
-	if plot and plot.is_active():
-		north = str(plot.north_emoji if plot.north_emoji else "")
-		if north != "":
-			var biome = farm.grid.get_biome_for_plot(pos)
-			if biome and biome.viz_cache and biome.viz_cache.has_metadata():
-				var q = biome.viz_cache.get_qubit(north)
-				if q >= 0:
-					var axis = biome.viz_cache.get_axis(q)
-					if axis is Dictionary:
-						south = str(axis.get("south", ""))
-			return {"north": north, "south": south}
-	return {}
-
 
 func _on_action_button_input(event: InputEvent, action_key: String) -> void:
 	"""Handle input on action button container."""
@@ -868,3 +378,11 @@ func _update_single_button_color(action_key: String) -> void:
 		btn_data.texture.modulate = enabled_color
 	else:
 		btn_data.texture.modulate = button_color
+
+
+func _resolve_button_color(btn_data: Dictionary) -> Color:
+	if btn_data.get("disabled", false):
+		return disabled_color
+	if btn_data.get("available", false):
+		return enabled_color
+	return button_color

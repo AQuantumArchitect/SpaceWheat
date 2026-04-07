@@ -17,6 +17,8 @@ signal reload_last_save_pressed()
 signal quantum_settings_pressed()
 signal music_volume_changed(volume: float)
 
+const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")
+
 # Button indices for keyboard shortcuts
 enum ButtonIndex {
 	QUIT = 0,
@@ -48,8 +50,8 @@ func _init():
 	action_labels = {
 		"Q": "Quit",
 		"E": "Save",
-		"R": "Load",
-		"F": "Restart"
+		"R": "Restart",
+		"F": "Load"
 	}
 
 
@@ -126,13 +128,16 @@ func _on_action_e() -> void:
 
 
 func _on_unhandled_key(keycode: int, event: InputEvent) -> bool:
-	"""Handle navigation-adjacent shortcuts not covered by QERF."""
+	"""Handle system-menu-local shortcuts not covered by QERF."""
 	# Check for SaveLoadMenu being visible (don't process if it's open)
 	var parent = get_parent()
 	if parent:
 		for child in parent.get_children():
 			if child.name == "SaveLoadMenu" and child.visible:
 				return false
+
+	if not InputBindingRegistry.overlay_has_shortcut(overlay_name, keycode):
+		return false
 
 	match keycode:
 		KEY_COMMA:
@@ -149,13 +154,13 @@ func _on_unhandled_key(keycode: int, event: InputEvent) -> bool:
 
 
 func _on_action_r() -> void:
-	"""R = Load."""
-	_on_load_pressed()
+	"""R = Restart."""
+	_on_restart_pressed()
 
 
 func _on_action_f() -> void:
-	"""F = Restart."""
-	_on_restart_pressed()
+	"""F = Load."""
+	_on_load_pressed()
 
 
 # =============================================================================
@@ -183,7 +188,6 @@ func _on_dev_restart_pressed():
 func _on_quit_pressed():
 	print("[INFO][UI] Quit pressed from menu")
 	quit_pressed.emit()
-	get_tree().quit()
 
 
 func _on_save_pressed():
@@ -211,11 +215,9 @@ func _on_volume_changed(value: float):
 	var percent = int(value * 100)
 	volume_label.text = "%d%%" % percent
 
-	# Update MusicManager if available
-	if Engine.has_singleton("MusicManager"):
-		Engine.get_singleton("MusicManager").set_volume(value)
-	elif has_node("/root/MusicManager"):
-		get_node("/root/MusicManager").set_volume(value)
+	var music = InstrumentLocator.resolve_music_manager(self)
+	if music and music.has_method("set_volume"):
+		music.set_volume(value)
 
 	music_volume_changed.emit(value)
 
@@ -224,10 +226,9 @@ func _sync_volume_slider():
 	"""Sync slider with current MusicManager volume."""
 	var current_volume = 0.7  # Default
 
-	if Engine.has_singleton("MusicManager"):
-		current_volume = Engine.get_singleton("MusicManager").get_volume()
-	elif has_node("/root/MusicManager"):
-		current_volume = get_node("/root/MusicManager").get_volume()
+	var music = InstrumentLocator.resolve_music_manager(self)
+	if music and music.has_method("get_volume"):
+		current_volume = music.get_volume()
 
 	if volume_slider:
 		volume_slider.value = current_volume
@@ -242,8 +243,8 @@ func _adjust_volume(delta: float):
 
 func _toggle_mute():
 	"""Toggle music mute state."""
-	if has_node("/root/MusicManager"):
-		var music = get_node("/root/MusicManager")
+	var music = InstrumentLocator.resolve_music_manager(self)
+	if music:
 		music.set_muted(not music.is_muted())
 		if music.is_muted():
 			volume_label.text = "MUTE"

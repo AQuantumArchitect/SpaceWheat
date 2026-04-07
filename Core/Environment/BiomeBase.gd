@@ -2,10 +2,11 @@ class_name BiomeBase
 extends Node
 
 const _PC = preload("res://Core/Config/PhysicsConfig.gd")
+const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")
 
 # Access autoloads safely (avoids compile-time errors)
-@onready var _icon_registry = get_node("/root/IconRegistry")
-@onready var _verbose = get_node("/root/VerboseConfig")
+@onready var _icon_registry = InstrumentLocator.resolve_icon_registry(self)
+@onready var _verbose = InstrumentLocator.resolve_verbose_config(self)
 
 ## Abstract base class for all biomes (Model C - Unified QuantumComputer)
 ##
@@ -108,7 +109,7 @@ var phase_lnn_enabled: bool = false  # Enable/disable phase modulation
 # Quantum time scaling (affects simulation speed without changing render rate)
 # Lower = slower simulation, higher = faster simulation
 # 1.0 = real-time, 0.5 = half-speed, 2.0 = double-speed
-var quantum_time_scale: float = 0.03125  # Default to 1/32nd real-time for detailed observation (4x slower)
+var quantum_time_scale: float = 0.5  # Default to half real-time so dynamics are visible (~50s day/night)
 
 # Matrix substep granularity (controls numerical accuracy of evolution)
 # Smaller = more substeps = better accuracy but slower computation
@@ -151,18 +152,15 @@ var planting_capabilities: Array:
 	get: return _resource_registry.planting_capabilities if _resource_registry else []
 	set(v): if _resource_registry: _resource_registry.planting_capabilities = v
 
-# PlantingCapability alias for backward compatibility (static const)
-const PlantingCapability = BiomeResourceRegistry.PlantingCapability
-
 # ============================================================================
 # INITIALIZATION
 # ============================================================================
 
 func _verbose_log(level: String, category: String, emoji: String, message: String) -> void:
 	"""Safely log to VerboseConfig if available"""
-	if not has_node("/root/VerboseConfig"):
+	var logger = InstrumentLocator.resolve_verbose_config(self)
+	if not logger:
 		return
-	var logger = get_node("/root/VerboseConfig")
 	match level:
 		"debug": logger.debug(category, emoji, message)
 		"info": logger.info(category, emoji, message)
@@ -261,9 +259,7 @@ func _get_icon_registry():
 	"""Refresh IconRegistry reference on demand."""
 	if _icon_registry and is_instance_valid(_icon_registry):
 		return _icon_registry
-	var tree = Engine.get_main_loop()
-	if tree and tree is SceneTree:
-		_icon_registry = tree.root.get_node_or_null("/root/IconRegistry")
+	_icon_registry = InstrumentLocator.resolve_icon_registry_main_loop()
 	return _icon_registry
 
 

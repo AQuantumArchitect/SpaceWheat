@@ -6,7 +6,7 @@ extends SceneTree
 ## Result file:  user://rig/results.jsonl (append-only)
 ##
 ## Actions supported:
-## - open_overlay: {name: "quests"|"vocabulary"|"controls"}
+## - open_overlay: {name: "quests"|"semantic_map"|"vocabulary"|"controls"}
 ## - offer_quests: {include_reward_resources?: bool, include_market_projection?: bool}
 ## - accept_offer: {offer_index: int}
 ## - complete_quest: {quest_id: int}
@@ -87,11 +87,12 @@ const QuantumFiberPolicyClass = preload("res://Core/AI/QuantumFiberPolicy.gd")
 const PolicyQuantumRegisterClass = preload("res://Core/AI/PolicyQuantumRegister.gd")
 const PolicyGraph = preload("res://Core/AI/PolicyGraph.gd")
 const BiomeAffinityCalc = preload("res://Core/Quantum/BiomeAffinityCalculator.gd")
-const PolicySnapshotBuilder = preload("res://Core/Instrumentation/PolicySnapshotBuilder.gd")
 const PhysicsConfig = preload("res://Core/Config/PhysicsConfig.gd")
 const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")
 const ToolConfig = preload("res://Core/GameState/ToolConfig.gd")
+const SaveStore = preload("res://Core/GameState/SaveStore.gd")
 const PlayerInputMacroRunner = preload("res://UI/Core/PlayerInputMacroRunner.gd")
+const InputBindingRegistry = preload("res://UI/Core/InputBindingRegistry.gd")
 
 signal action_executed(turn_id: int, action: String, result: Dictionary)
 signal bridge_idle()
@@ -124,10 +125,6 @@ var _poll_interval_ms: int = 0
 var _next_poll_at_ms: int = 0
 var _result_writer: FileAccess = null
 
-const _PLOT_KEYCODES: Array[int] = [KEY_J, KEY_K, KEY_L, KEY_SEMICOLON, KEY_APOSTROPHE, KEY_H, KEY_G]
-const _QUEST_SLOT_KEYCODES: Array[int] = [KEY_U, KEY_I, KEY_O, KEY_P]
-
-
 func _phrame_hz() -> float:
 	return float(PhysicsConfig.PHRAME_HZ)
 
@@ -146,7 +143,7 @@ func _bootstrap() -> void:
 	var is_headless = DisplayServer.get_name() == "headless"
 	_is_headless = is_headless
 	var load_slot = int(OS.get_environment("RIG_LOAD_SLOT")) if OS.get_environment("RIG_LOAD_SLOT") != "" else -1
-	var scenario_id = OS.get_environment("RIG_SCENARIO") if OS.get_environment("RIG_SCENARIO") != "" else "default"
+	var scenario_id = OS.get_environment("RIG_SCENARIO") if OS.get_environment("RIG_SCENARIO") != "" else SaveStore.DEFAULT_SCENARIO_ID
 	_farm = await boot_manager.boot_core(load_slot, scenario_id, is_headless)
 	if not _farm:
 		print("❌ Farm failed to boot; cannot start rig")
@@ -355,6 +352,7 @@ func _requires_quantum_instrument(action: String) -> bool:
 		"recommend_timescale",
 		"auto_timescale",
 		"configure_economy",
+		"configure_discovery",
 		"balance_snapshot",
 		"balance_patch",
 		"balance_reset",
@@ -454,8 +452,10 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 	match action:
 		"open_overlay":
 			var name = cmd.get("name", "")
+			if name == "vocabulary":
+				name = "semantic_map"
 			var opened = _snapshot_service.open_quest_board() if name == "quests" \
-				else _snapshot_service.open_vocabulary_panel() if name == "vocabulary" \
+				else _snapshot_service.open_semantic_map_panel() if name == "semantic_map" \
 				else _snapshot_service.open_controls_panel() if name == "controls" \
 				else false
 			result["opened"] = opened
@@ -540,7 +540,7 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 			result["claimed"] = bool(claim_result.get("claimed", false))
 
 		"resource_snapshot":
-			result["resources"] = _snapshot_service.get_resource_snapshot() if _snapshot_service else {}
+			result["resources"] = _instrument.get_resource_snapshot() if _instrument else {}
 
 		"policy_snapshot":
 			var include_offers = bool(cmd.get("include_offers", true))
@@ -568,22 +568,22 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 			result["mutations"] = _instrument.get_recent_resource_mutations(limit)
 
 		"grid_snapshot":
-			result["grid"] = _snapshot_service.get_grid_snapshot() if _snapshot_service else {}
+			result["grid"] = _instrument.get_grid_snapshot() if _instrument else {}
 
 		"biome_positions":
 			var biome_name = str(cmd.get("biome", ""))
 			result["biome"] = biome_name
-			result["positions"] = _snapshot_service.get_biome_positions(biome_name) if _snapshot_service else []
+			result["positions"] = _instrument.get_biome_positions(biome_name) if _instrument else []
 
 		"active_quests":
 			var full = bool(cmd.get("full", false))
-			var active = _snapshot_service.get_active_quests() if _snapshot_service else []
+			var active = _instrument.get_active_quests() if _instrument else []
 			if not (active is Array):
 				active = []
 			result["quests"] = active if full else _slim_active_quests(active)
 
 		"known_vocab_pairs":
-			var pairs = _snapshot_service.get_known_vocab_pairs() if _snapshot_service else []
+			var pairs = _instrument.get_known_vocab_pairs() if _instrument else []
 			result["pairs"] = pairs if pairs is Array else []
 
 		"inject_vocab":
@@ -756,6 +756,16 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 				result = {"ok": false, "turn": turn_id, "action": action, "error": "empty_overrides"}
 			else:
 				result["configured"] = _instrument.configure_economy(overrides)
+
+		"configure_discovery":
+			var weights = cmd.get("weights", {})
+			if weights is Dictionary and not weights.is_empty():
+				BiomeDiscoveryForecastService.configure(weights)
+				result["ok"] = true
+				result["weights"] = weights
+			else:
+				result["ok"] = false
+				result["error"] = "empty_weights"
 
 		"configure_seed_state":
 			result["seed_state"] = _instrument.configure_seed_state(cmd)
@@ -1212,7 +1222,9 @@ func _slim_offers(
 			"quantity": offer.get("quantity", 0),
 			"reward_vocab_north": offer.get("reward_vocab_north", ""),
 			"reward_vocab_south": offer.get("reward_vocab_south", ""),
-			"completion_action": completion_action
+			"completion_action": completion_action,
+			"biome": offer.get("biome", ""),
+			"is_biome_native": bool(offer.get("is_biome_native", false)),
 		}
 		if include_market_projection and offer.has("market_projection"):
 			row["market_projection"] = offer.get("market_projection", {})
@@ -1704,11 +1716,6 @@ func _parse_wait_threshold(raw) -> Dictionary:
 
 
 func _get_resource_map() -> Dictionary:
-	if _snapshot_service and _snapshot_service.has_method("get_resource_snapshot"):
-		var snap = _snapshot_service.get_resource_snapshot()
-		if snap is Dictionary:
-			var resources = snap.get("resources", {})
-			return resources if resources is Dictionary else {}
 	if not _instrument:
 		return {}
 	var snap = _instrument.get_resource_snapshot()
@@ -1719,17 +1726,13 @@ func _get_resource_map() -> Dictionary:
 
 
 func _get_policy_snapshot(include_offers: bool = true, include_grid: bool = true) -> Dictionary:
-	if _snapshot_service and _snapshot_service.has_method("get_policy_snapshot"):
-		var via_snapshot = _snapshot_service.get_policy_snapshot(include_offers, include_grid)
-		if via_snapshot is Dictionary:
-			return via_snapshot
 	if not _instrument:
 		return {}
 	if _instrument.has_method("get_policy_snapshot"):
 		var bundled = _instrument.get_policy_snapshot(include_offers, include_grid)
 		if bundled is Dictionary:
 			return bundled
-	return PolicySnapshotBuilder.build(_instrument, include_offers, include_grid)
+	return {}
 
 
 func _resource_threshold_met(resources: Dictionary, threshold: Dictionary) -> bool:
@@ -1844,23 +1847,12 @@ func _sync_policy_from_game_state() -> void:
 
 func _build_policy_state(cmd: Dictionary = {}) -> Dictionary:
 	# Cache quest offers: only regenerate when vocab count changes (89 factions is expensive).
-	# MUST run before SnapshotService path — otherwise the snapshot service
-	# calls quest_offer_all() uncached on every single policy_step.
 	var known_pairs = _instrument.get_known_vocab_pairs() if _instrument else []
 	var pairs_count = known_pairs.size() if known_pairs is Array else 0
 	if pairs_count != _cached_offers_pairs_count:
 		_cached_offers = _instrument.get_quest_offers_for_current_biome() if _instrument else []
 		_cached_offers_pairs_count = pairs_count
 
-	if _snapshot_service and _snapshot_service.has_method("build_policy_state_lightweight"):
-		# Use lightweight path (skips quest_offer_all) and inject our cached offers.
-		# build_policy_state() would call quest_offer_all() again uncached — defeating the cache.
-		var projected = _snapshot_service.build_policy_state_lightweight(cmd)
-		if projected is Dictionary:
-			projected["offers"] = _cached_offers
-			if _farm and _farm.has_method("compute_discovery_forecast"):
-				projected["discovery_forecast"] = _farm.compute_discovery_forecast()
-			return projected
 	return {
 		"profile": str(cmd.get("profile", "default")),
 		"resources": _get_resource_map(),
@@ -1880,10 +1872,6 @@ func _build_policy_state_lightweight(cmd: Dictionary = {}) -> Dictionary:
 	"""Build post-action state for reward computation WITHOUT regenerating quest offers.
 	Quest generation (89 factions × generate_quest) is expensive; the reward signal
 	only needs resources, pairs, biomes, and lindblad state — not fresh offers."""
-	if _snapshot_service and _snapshot_service.has_method("build_policy_state_lightweight"):
-		var projected = _snapshot_service.build_policy_state_lightweight(cmd)
-		if projected is Dictionary:
-			return projected
 	return {
 		"profile": str(cmd.get("profile", "default")),
 		"resources": _get_resource_map(),
@@ -1937,10 +1925,7 @@ func _resolve_quantum_input():
 	for node in get_nodes_in_group("quantum_instrument_input"):
 		if node and (_shell == node or _shell.is_ancestor_of(node)):
 			return node
-	var direct = _shell.get_node_or_null("FarmInputHandler")
-	if direct:
-		return direct
-	return _shell.find_child("FarmInputHandler", true, false)
+	return null
 
 
 func _resolve_overlay_manager():
@@ -2140,10 +2125,15 @@ func _select_biome_via_input(biome_name: String) -> Dictionary:
 
 
 func _select_plot_via_input(plot_idx: int) -> Dictionary:
-	if plot_idx < 0 or plot_idx >= _PLOT_KEYCODES.size():
+	var plot_keys = InputBindingRegistry.get_plot_keys()
+	if plot_idx < 0 or plot_idx >= plot_keys.size():
 		return {"ok": false, "error": "plot_idx_out_of_range", "plot_idx": plot_idx}
-	await _press_key(_PLOT_KEYCODES[plot_idx], false, 2)
-	return {"ok": true, "plot_idx": plot_idx}
+	var key_label = str(plot_keys[plot_idx])
+	var keycode = InputBindingRegistry.get_keycode_for_label(key_label)
+	if keycode == KEY_UNKNOWN:
+		return {"ok": false, "error": "unknown_plot_key", "plot_idx": plot_idx, "key": key_label}
+	await _press_key(keycode, false, 2)
+	return {"ok": true, "plot_idx": plot_idx, "key": key_label}
 
 
 func _open_quest_board_via_input() -> Dictionary:
@@ -2167,13 +2157,19 @@ func _navigate_quest_slot_via_input(page_idx: int, slot_idx: int) -> Dictionary:
 	while int(board.get("current_page")) != page_idx and guard < total_pages + 1:
 		await _press_key(KEY_F, false, 2)
 		guard += 1
-	if slot_idx < 0 or slot_idx >= _QUEST_SLOT_KEYCODES.size():
+	var quest_slot_keys = InputBindingRegistry.get_quest_slot_keys()
+	if slot_idx < 0 or slot_idx >= quest_slot_keys.size():
 		return {"ok": false, "error": "slot_idx_out_of_range", "slot_idx": slot_idx}
-	await _press_key(_QUEST_SLOT_KEYCODES[slot_idx], false, 2)
+	var slot_key = str(quest_slot_keys[slot_idx])
+	var slot_keycode = InputBindingRegistry.get_keycode_for_label(slot_key)
+	if slot_keycode == KEY_UNKNOWN:
+		return {"ok": false, "error": "unknown_quest_slot_key", "slot_idx": slot_idx, "key": slot_key}
+	await _press_key(slot_keycode, false, 2)
 	return {
 		"ok": int(board.get("current_page")) == page_idx and int(board.get("selected_slot_index")) == slot_idx,
 		"page": int(board.get("current_page")),
 		"slot_idx": int(board.get("selected_slot_index")),
+		"key": slot_key,
 	}
 
 

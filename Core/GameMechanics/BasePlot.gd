@@ -17,6 +17,7 @@ extends Resource
 ## register_infrastructure via QuantumComputer (unchanged).
 
 const VerboseHelper = preload("res://Core/Config/VerboseHelper.gd")
+const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")
 
 func _log(level: String, category: String, emoji: String, message: String) -> void:
 	VerboseHelper.log(level, category, emoji, message)
@@ -46,6 +47,11 @@ var _is_measured: bool = false
 var _measured_outcome: String = ""
 var _measured_probability: float = 0.0
 var bath_subplot_id: int = -1
+var _has_measurement_memory: bool = false
+var _memory_outcome: String = ""
+var _memory_probability: float = 0.0
+var _memory_north_emoji: String = ""
+var _memory_south_emoji: String = ""
 
 ## Delegating properties: terminal takes priority when present
 var bound_register_id: int:
@@ -208,6 +214,37 @@ func mark_measured(outcome: String, probability: float) -> void:
 	_measured_probability = probability
 
 
+func remember_measurement(outcome: String, probability: float, north_emoji: String = "", south_emoji: String = "") -> void:
+	"""Store a non-live ghost snapshot for UI memory after the terminal is gone."""
+	_has_measurement_memory = not outcome.is_empty()
+	_memory_outcome = outcome
+	_memory_probability = probability
+	_memory_north_emoji = north_emoji
+	_memory_south_emoji = south_emoji
+
+
+func clear_measurement_memory() -> void:
+	_has_measurement_memory = false
+	_memory_outcome = ""
+	_memory_probability = 0.0
+	_memory_north_emoji = ""
+	_memory_south_emoji = ""
+
+
+func has_measurement_memory() -> bool:
+	return _has_measurement_memory
+
+
+func get_measurement_memory() -> Dictionary:
+	return {
+		"has_memory": _has_measurement_memory,
+		"outcome": _memory_outcome,
+		"probability": _memory_probability,
+		"north_emoji": _memory_north_emoji,
+		"south_emoji": _memory_south_emoji
+	}
+
+
 # ============================================================================
 # BIOME RESOLUTION (cached from terminal binding)
 # ============================================================================
@@ -218,12 +255,12 @@ func _resolve_biome():
 		return _cached_biome
 	if bound_biome_name == "":
 		return null
+	var abm = InstrumentLocator.resolve_active_biome_manager_main_loop()
+	if abm and abm.has_method("get_biome_by_name"):
+		_cached_biome = abm.get_biome_by_name(bound_biome_name)
+		return _cached_biome
 	var tree = Engine.get_main_loop()
 	if tree and tree is SceneTree:
-		var abm = tree.root.get_node_or_null("/root/ActiveBiomeManager")
-		if abm and abm.has_method("get_biome_by_name"):
-			_cached_biome = abm.get_biome_by_name(bound_biome_name)
-			return _cached_biome
 		# Fallback: try farm grid lookup
 		var farm = tree.root.get_node_or_null("Farm")
 		if farm and farm.grid:

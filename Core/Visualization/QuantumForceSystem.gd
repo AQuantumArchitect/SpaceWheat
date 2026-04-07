@@ -45,7 +45,7 @@ var _native_enabled: bool = false
 var _angular_velocities: Dictionary = {}  # node_id -> float (radians/sec)
 
 func _init():
-	_verbose = Engine.get_main_loop().root.get_node_or_null("/root/VerboseConfig")
+	_verbose = InstrumentLocator.resolve_verbose_config_main_loop()
 	var selector = ComputeBackendSelector.new()
 
 	_log("info", "Platform=%s Backend=%s" % [
@@ -887,3 +887,4 @@ func _pack_bloch_data(viz_cache, packet: PackedFloat64Array) -> void:
 			packet.append(bloch.get("r", 0.0))
 			packet.append(bloch.get("theta", 0.0))
 			packet.append(bloch.get("phi", 0.0))
+const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")

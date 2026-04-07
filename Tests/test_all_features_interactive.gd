@@ -274,7 +274,7 @@ func _test_input_routing(shell: Node):
 	_add_test("Modal stack routing ready", has_modal_stack)
 
 	var has_input_handler = input_handler != null
-	_add_test("FarmInputHandler routing ready", has_input_handler)
+	_add_test("QuantumInstrumentInput routing ready", has_input_handler)
 
 	# Test ESC handling
 	_add_test("ESC key routing implemented", input_handler.has_method("_unhandled_input"))

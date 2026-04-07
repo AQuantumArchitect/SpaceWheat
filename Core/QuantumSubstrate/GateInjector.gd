@@ -8,7 +8,7 @@ extends RefCounted
 ## are applied (otherwise the pre-computed evolution frames become stale).
 ##
 ## Flow:
-##   UI keypress → GateActionHandler → GateInjector.inject_gate()
+##   input/instrument command → GateActionHandler → GateInjector.inject_gate()
 ##        ↓
 ##   QuantumComputer.apply_gate()  +  BiomeEvolutionBatcher.signal_user_action()
 ##

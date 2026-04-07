@@ -57,7 +57,7 @@ static func _collect_options(selection: Array) -> Array:
 		"label": "Bell",
 		"hint": "(|00>+|11>)/sqrt2",
 		"emoji": ")(",
-		"icon": "res://Assets/UI/Q-Bit/CNOT.svg",
+		"icon": "res://Assets/UI/Q-Bit/Bell.svg",
 		"qubits_required": 2,
 		"enabled": count >= 2
 	})

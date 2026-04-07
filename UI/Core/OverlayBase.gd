@@ -19,6 +19,7 @@ extends Control
 ##   4. Override navigation: _on_navigate(direction) or set navigation_mode
 
 const UIStyleFactory = preload("res://UI/Core/UIStyleFactory.gd")
+const InputBindingRegistry = preload("res://UI/Core/InputBindingRegistry.gd")
 
 # =============================================================================
 # SIGNALS
@@ -258,22 +259,22 @@ func handle_input(event: InputEvent) -> bool:
 	if keycode == KEY_ESCAPE:
 		return false
 
-	# QER+F action keys
-	if keycode == KEY_Q:
+	# QERF action keys
+	if keycode == InputBindingRegistry.get_action_keycode("Q"):
 		_on_action_q()
 		return true
-	if keycode == KEY_E:
+	if keycode == InputBindingRegistry.get_action_keycode("E"):
 		_on_action_e()
 		return true
-	if keycode == KEY_R:
+	if keycode == InputBindingRegistry.get_action_keycode("R"):
 		_on_action_r()
 		return true
-	if keycode == KEY_F:
+	if keycode == InputBindingRegistry.get_action_keycode("F"):
 		_on_action_f()
 		return true
 
 	# ENTER/SPACE keys - activate selected item
-	if keycode == KEY_ENTER or keycode == KEY_KP_ENTER or keycode == KEY_SPACE:
+	if InputBindingRegistry.is_menu_confirm_key(keycode):
 		_activate_selected()
 		return true
 

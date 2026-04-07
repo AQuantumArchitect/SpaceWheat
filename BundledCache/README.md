@@ -4,41 +4,45 @@ This directory contains pre-built quantum operators that ship with the game.
 
 ## What's Here
 
-- **manifest.json** - Maps biome names to cache files
-- **{biome}_{cachekey}.json** - Serialized operators for each biome
+- `manifest.json` maps biome names to cache files.
+- `{biome}_{cachekey}.json` stores serialized Hamiltonian and Lindblad operators.
 
 ## Purpose
 
-Players load these operators instantly on first boot instead of building them from scratch (~100ms saved, scales to seconds as icons become more complex).
+Players should load these operators immediately on first boot instead of rebuilding
+them from scratch. That keeps startup cost stable as the biome registry grows.
 
-## How It Works
+## Build Rule
 
-**Cache Priority:**
-1. User cache (runtime modifications, mods)
-2. **Bundled cache (this directory)** ← Ships with game
-3. Build from scratch (fallback)
+Refresh this directory through the release gate:
 
-## Updating
+```bash
+godot --headless --path . --script tools/BuildBundledCache.gd
+```
 
-Rebuild this cache before exporting:
+or via the wrapper:
 
 ```bash
 bash tools/BuildBundledCache.sh
 ```
 
-Then commit:
+The builder now:
 
-```bash
-git add BundledCache/
-git commit -m "Update bundled operator cache"
-```
+1. validates the exportable biome registry
+2. rebuilds operator cache through the current runtime path
+3. copies the resolved runtime cache into `BundledCache/`
+4. verifies manifest coverage against the exportable biome set
 
-## Do NOT
+If validation or coverage fails, the build must stop.
 
-- ❌ Manually edit cache files
-- ❌ Delete this directory from exports
-- ❌ Commit without rebuilding when icons change
+## Cache Priority
 
-## Learn More
+1. user cache
+2. bundled cache
+3. rebuild from scratch
 
-See `llm_outbox/HYBRID_CACHE_SYSTEM_COMPLETE.md` for full documentation.
+## Do Not
+
+- Do not hand-edit cache JSON.
+- Do not delete this directory from exports.
+- Do not ship a release without rebuilding after biome/icon changes.

@@ -1,5 +1,7 @@
 extends Node
 
+const InputBindingRegistry = preload("res://UI/Core/InputBindingRegistry.gd")
+
 ## ActiveBiomeManager - Singleton tracking which biome is currently active/visible
 ## Note: No class_name needed - accessed via autoload singleton "ActiveBiomeManager"
 ##
@@ -11,8 +13,8 @@ extends Node
 ##
 ## Keyboard (new layout):
 ##   7890 = UP row (parent biome)
-##   UIOP = NEUTRAL row (current biome)
-##   JKL; = DOWN row (child biome)
+##   TYUIOP = slot row (assigned spindle biomes)
+##   plot row = current biome plots (see shared input binding registry)
 ##   - = Previous biome, = = Next biome
 ##
 ## Signals emitted for UI updates (background, tabs, plot display, quantum graph)
@@ -26,17 +28,6 @@ const ALL_BIOMES: Array[String] = ["StarterForest", "Village", "BioticFlux", "St
 
 ## Current available biomes (filtered by unlocked status - synced with ObservationFrame)
 var BIOME_ORDER: Array[String] = ["StarterForest", "Village"]
-
-## Key-to-slot mapping (UIOP slots are assigned as biomes are unlocked)
-const BIOME_KEY_ORDER: Array[String] = ["T", "Y", "U", "I", "O", "P"]
-const BIOME_KEYCODES: Dictionary = {
-	KEY_T: 0,
-	KEY_Y: 1,
-	KEY_U: 2,
-	KEY_I: 3,
-	KEY_O: 4,
-	KEY_P: 5,
-}
 
 ## Slot assignment (index -> biome name or "")
 var _slot_assignment: Array[String] = ["StarterForest", "Village", "", "", "", ""]
@@ -70,7 +61,7 @@ func _ready() -> void:
 
 func _connect_to_observation_frame() -> void:
 	"""Connect to ObservationFrame for spindle-based biome tracking."""
-	_observation_frame = get_node_or_null("/root/ObservationFrame")
+	_observation_frame = InstrumentLocator.resolve_observation_frame(self)
 	if _observation_frame:
 		if not _observation_frame.neutral_changed.is_connected(_on_neutral_changed):
 			_observation_frame.neutral_changed.connect(_on_neutral_changed)
@@ -140,18 +131,21 @@ func cycle_prev() -> void:
 
 
 func select_biome_by_key(keycode: int) -> bool:
-	"""Handle direct biome selection by key (7, 8, 9, 0)
+	"""Handle direct biome selection by the shared TYUIOP row.
 
 	Returns: true if key was handled, false otherwise
 	"""
-	if BIOME_KEYCODES.has(keycode):
-		var slot_idx = BIOME_KEYCODES[keycode]
+	for slot_idx in range(InputBindingRegistry.get_biome_keys().size()):
+		if InputBindingRegistry.get_keycode_for_label(get_slot_key(slot_idx)) != keycode:
+			continue
+
 		var biome_name = get_biome_for_slot(slot_idx)
 		if biome_name == "":
 			return true  # Slot is unassigned, consume the key
 		var direction = _get_direction_to(biome_name)
 		set_active_biome(biome_name, direction)
 		return true
+
 	return false
 
 
@@ -214,19 +208,20 @@ func get_biome_for_slot(slot_idx: int) -> String:
 
 func get_slot_key(slot_idx: int) -> String:
 	"""Get the key label for a slot index."""
-	if slot_idx < 0 or slot_idx >= BIOME_KEY_ORDER.size():
+	var slot_keys = InputBindingRegistry.get_biome_keys()
+	if slot_idx < 0 or slot_idx >= slot_keys.size():
 		return ""
-	return BIOME_KEY_ORDER[slot_idx]
+	return slot_keys[slot_idx]
 
 
 func get_slot_count() -> int:
-	"""Total number of biome slots (UIOP row)."""
-	return BIOME_KEY_ORDER.size()
+	"""Total number of biome slots (TYUIOP row)."""
+	return InputBindingRegistry.get_biome_keys().size()
 
 
 func get_open_slot_count() -> int:
 	"""Number of unassigned biome slots available."""
-	if _slot_assignment.size() != BIOME_KEY_ORDER.size():
+	if _slot_assignment.size() != InputBindingRegistry.get_biome_keys().size():
 		_rebuild_slot_assignment()
 	var open_count = 0
 	for slot in _slot_assignment:
@@ -274,7 +269,7 @@ func reset() -> void:
 
 
 func _rebuild_slot_assignment() -> void:
-	"""Rebuild slot->biome mapping with T/Y fixed and extras on UIOP."""
+	"""Rebuild slot->biome mapping with T/Y fixed and extras on TYUIOP."""
 	_slot_assignment = ["", "", "", "", "", ""]
 
 	# Slot 0 (T) = StarterForest if unlocked
@@ -294,3 +289,4 @@ func _rebuild_slot_assignment() -> void:
 			break
 		_slot_assignment[slot_idx] = biome_name
 		slot_idx += 1
+const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")

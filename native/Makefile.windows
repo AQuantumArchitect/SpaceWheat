@@ -1,0 +1,40 @@
+CXX = x86_64-w64-mingw32-g++
+CXXFLAGS = -std=c++17 -O2 \
+           -I./include \
+           -I./include/godot_cpp \
+           -I./include/gdextension \
+           -DWINDOWS_ENABLED -DGDEXTENSION
+
+LDFLAGS = -shared -static-libgcc -static-libstdc++ \
+          ./lib/libgodot-cpp.windows.template_release.x86_64.a
+
+SOURCES = $(wildcard src/*.cpp)
+OBJECTS = $(SOURCES:.cpp=.obj)
+TARGET = bin/windows/libquantummatrix.windows.template_release.x86_64.dll
+DEBUG_TARGET = bin/windows/libquantummatrix.windows.template_debug.x86_64.dll
+
+all: $(TARGET) $(DEBUG_TARGET)
+
+$(TARGET): | bin/windows
+
+bin/windows:
+	mkdir -p bin/windows
+
+$(TARGET): $(OBJECTS)
+	$(CXX) $(OBJECTS) -o $@ $(LDFLAGS)
+	@echo ""
+	@echo "✓ Windows build complete: $(TARGET)"
+	@ls -lh $(TARGET)
+
+$(DEBUG_TARGET): $(TARGET)
+	rm -f $(DEBUG_TARGET)
+	cp $(TARGET) $(DEBUG_TARGET)
+
+%.obj: %.cpp
+	@echo "Compiling $< for Windows..."
+	$(CXX) $(CXXFLAGS) -c $< -o $@
+
+clean:
+	rm -f src/*.obj bin/windows/*.dll
+
+.PHONY: all clean

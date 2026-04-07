@@ -173,7 +173,7 @@ func _verify_input_routing(shell: Node):
 	print("   Checking routing priority:")
 	print("      1. Overlays ............ %s" % ("✅" if overlay_mgr and overlay_mgr.overlays else "❌"))
 	print("      2. PlayerShell ........ %s" % ("✅" if shell.has_method("_handle_shell_action") else "❌"))
-	print("      3. FarmInputHandler ... %s" % ("✅" if input_handler else "❌"))
+	print("      3. QuantumInstrumentInput ... %s" % ("✅" if input_handler else "❌"))
 
 	# Check if overlays have input handlers
 	print("\n   Checking overlay input methods:")

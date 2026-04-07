@@ -314,7 +314,6 @@ static func create_biome_bundle() -> FiberBundle:
 	var bundle = FiberBundleScript.new(4)
 
 	bundle.base_actions = {
-		# NOTE: energy_tap ("Q") removed (2026-01) - system deprecated
 		"E": {
 			"action": "inspect",
 			"label": "Inspect",
@@ -328,8 +327,6 @@ static func create_biome_bundle() -> FiberBundle:
 			"description": "Reset biome to initial state"
 		}
 	}
-
-	# NOTE: Energy tap variants for "Q" removed (2026-01) - system deprecated
 
 	return bundle
 

@@ -156,9 +156,10 @@ func get_biome_factions(biome_type: String) -> Array:
 
 		"StellarForges":
 			return _get_factions_by_names([
-				"Market Spirits",
-				"Memory Merchants",
-				"Iron Shepherds",
+				"Kilowatt Collective",   # 🔋⚙🔌⚡ — power and gear baseline
+				"Gearwright Circle",     # 🧰🛠⚙🔩 — mechanical assembly
+				"Rocketwright Institute", # ⚙📋🚀🔬 — launch and propulsion
+				"Iron Shepherds",        # 🛸🧭🐑🛡 — covers 🛸
 			])
 
 		"FungalNetworks":
@@ -171,20 +172,33 @@ func get_biome_factions(biome_type: String) -> Array:
 
 		"VolcanicWorlds":
 			return _get_factions_by_names([
-				"Volcanic Foundry",
-				"Brotherhood of Ash",
-				"Children of the Ember",
-				"Wildfire",
+				"Volcanic Foundry",        # 🌋🔥🪨💎🌫✨ — covers 5/6 emojis
+				"The Gilded Legacy",       # ⛏💎💰✨ — covers ⛏ (the missing one)
+				"Brotherhood of Ash",      # ⚔🌫⚱🩹 — ash/aftermath narrative
+				"Children of the Ember",   # ⚔🔥✊🚩🧨 — fire cult narrative
+				"Wildfire",                # 🔥🌿🌲🍂🌬 — spread and burn dynamics
+			])
+
+		"StarterForest":
+			# Celestial Archons intentionally excluded: its 🌙 self-energy (+0.8)
+			# inverts StarterForest's day/night design. ☀/🌙 physics lives in
+			# starterforest.jsonl instead.
+			return _get_factions_by_names([
+				"Verdant Pulse",    # 🌱🌿🌲🍂 — plant growth/decay cycle
+				"Swift Herd",       # 🐇🦌🌿 — grazers and prey
+				"Pack Lords",       # 🐺🦅🐇🦌 — predators and death
 			])
 
 		"Village":
+			# Verdant Pulse excluded: its sig (🌱🌿🌾🌲🍂) has zero overlap with Village emojis
+			# 👥 is an orphan (no faction covers it); defined fully in village.jsonl
+			# ⚙️ normalization: Millwright's ⚙ (U+2699) matches ⚙️ (U+2699+FE0F) via EmojiUtil
 			return _get_factions_by_names([
-				"Celestial Archons",
-				"Verdant Pulse",
-				"Hearth Keepers",
-				"Granary Guilds",
-				"Millwright's Union",
-				"Yeast Prophets",
+				"Celestial Archons",     # ☀🌙🔥💧⛰🌬 — contributes 🔥 self_energy
+				"Hearth Keepers",        # 🔥❄️💨🍞 — primary fire/ice driver
+				"Granary Guilds",        # 🌱🍞💰🧺 — commerce and grain loop
+				"Millwright's Union",    # ⚙🏭💨🍞 — covers ⚙ after EmojiUtil normalization
+				"Yeast Prophets",        # 🍞🥖🫙 — gated bread production
 			])
 
 		"Imperial":

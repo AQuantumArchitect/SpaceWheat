@@ -1,7 +1,7 @@
 extends Node
 
 # Access autoload safely (avoids compile-time errors)
-@onready var _verbose = get_node("/root/VerboseConfig")
+@onready var _verbose = InstrumentLocator.resolve_verbose_config(self)
 
 ## GameStateManager - Singleton for save/load operations
 ## Handles 3 save slots, scenarios, and state capture/restore
@@ -13,6 +13,7 @@ const VocabularyEvolution = preload("res://Core/QuantumSubstrate/VocabularyEvolu
 const FactionDatabase = preload("res://Core/Quests/FactionDatabaseV2.gd")
 const QuantumRigorConfig = preload("res://Core/GameState/QuantumRigorConfig.gd")
 const Farm = preload("res://Core/Farm.gd")
+const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")
 
 # Signals
 signal emoji_discovered(emoji: String)
@@ -22,10 +23,12 @@ signal farm_ready(farm: Node, state: GameState)
 
 # Current state
 var current_state: GameState = null
-var current_scenario_id: String = "default"
+var current_scenario_id: String = SaveStore.DEFAULT_SCENARIO_ID
 var last_saved_slot: int = -1   # Track most recent save
 var last_active_slot: int = -1  # Track most recently saved OR loaded slot
 var pending_restart_slot: int = -1  # Set before reload_current_scene(); FarmView reads+clears it
+var pending_restart_requested: bool = false  # Distinguishes "fresh restart" from ordinary boot
+var pending_restart_scenario_id: String = SaveStore.DEFAULT_SCENARIO_ID
 
 # Removed: active_farm_view (never used)
 
@@ -43,6 +46,7 @@ const MILK_EMOJI := "🍼"
 const MILK_AUTOSAVE_SLOT := 2
 var _milk_autosave_done := false
 var last_milk_autosave_path: String = ""
+var _quit_in_progress: bool = false
 
 
 func _ready():
@@ -67,7 +71,7 @@ func _ready():
 ## SESSION BOOTSTRAP (GSM owns Farm lifecycle)
 ## ============================================================================
 
-func start_session(load_slot: int = -1, scenario_id: String = "default", reset_farm: bool = true) -> Node:
+func start_session(load_slot: int = -1, scenario_id: String = SaveStore.DEFAULT_SCENARIO_ID, reset_farm: bool = true) -> Node:
 	"""Start or load a session and ensure Farm exists (headless-safe).
 
 	Order:
@@ -116,7 +120,7 @@ func start_session(load_slot: int = -1, scenario_id: String = "default", reset_f
 func _build_new_session_state(scenario_id: String) -> GameState:
 	"""Create a fresh session state honoring explicit scenario IDs."""
 	var requested = scenario_id.strip_edges()
-	if requested != "" and requested != "default":
+	if requested != "" and requested != SaveStore.DEFAULT_SCENARIO_ID:
 		var scenario_path = SaveStore.SCENARIO_DIR + requested + ".tres"
 		if ResourceLoader.exists(scenario_path):
 			var scenario_state = SaveStore.load_scenario(requested)
@@ -163,43 +167,69 @@ func shutdown_session(reset_singletons: bool = true) -> void:
 	if reset_singletons:
 		_reset_runtime_singletons()
 
+	var tree = get_tree()
+	if tree and tree.current_scene == farm:
+		tree.current_scene = null
+
 	if farm and is_instance_valid(farm):
 		farm.queue_free()
 
-	var tree = get_tree()
 	if tree:
 		await tree.process_frame
 		await tree.process_frame
 
 
+func request_application_quit(reset_singletons: bool = true) -> void:
+	"""Shutdown the active session from an autoload-owned coroutine, then quit."""
+	if _quit_in_progress:
+		return
+	_quit_in_progress = true
+	await shutdown_session(reset_singletons)
+	var tree = get_tree()
+	if tree:
+		await tree.process_frame
+		await tree.process_frame
+		tree.quit()
+	_quit_in_progress = false
+
+
 func _reset_runtime_singletons() -> void:
 	"""Reset runtime-only singleton state between sessions."""
 	pending_restart_slot = -1
+	pending_restart_requested = false
+	pending_restart_scenario_id = current_scenario_id if current_scenario_id != "" else SaveStore.DEFAULT_SCENARIO_ID
 	_milk_autosave_done = false
 	last_milk_autosave_path = ""
 
-	var boot_mgr = get_node_or_null("/root/BootManager")
+	var boot_mgr = InstrumentLocator.resolve_root_node(self, "/root/BootManager")
 	if boot_mgr:
 		boot_mgr._core_booted = false
 		boot_mgr._ui_booted = false
 		boot_mgr._booted = false
 		boot_mgr.is_ready = false
 
-	var abm = get_node_or_null("/root/ActiveBiomeManager")
+	var abm = InstrumentLocator.resolve_active_biome_manager(self)
 	if abm and abm.has_method("reset"):
 		abm.reset()
 
-	var obs = get_node_or_null("/root/ObservationFrame")
+	var obs = InstrumentLocator.resolve_observation_frame(self)
 	if obs and obs.has_method("reset"):
 		obs.reset()
 
-	var music = get_node_or_null("/root/MusicManager")
+	var music = InstrumentLocator.resolve_music_manager(self)
 	if music and music.has_method("reset"):
 		music.reset()
 
-	var act = get_node_or_null("/root/ActionChainTracker")
+	var act = InstrumentLocator.resolve_action_chain_tracker(self)
 	if act and act.has_method("reset"):
 		act.reset()
+
+	var shell = InstrumentLocator.resolve_player_shell(self)
+	if shell:
+		if "overlay_manager" in shell and shell.overlay_manager and shell.overlay_manager.has_method("reset"):
+			shell.overlay_manager.reset()
+		if "ui_context_controller" in shell and shell.ui_context_controller and shell.ui_context_controller.has_method("reset"):
+			shell.ui_context_controller.reset()
 
 
 ## Player Vocabulary Discovery
@@ -219,10 +249,10 @@ func discover_pair(north: String, south: String) -> void:
 		south: The South pole emoji (rolled from physics)
 	"""
 	# Get emojis before adding (for checking newly accessible factions)
-	var old_emojis = _get_player_vocab_emojis()
+	var old_emojis = get_player_vocab_emojis()
 
 	# Prefer farm-owned vocabulary
-	var farm = active_farm if "active_farm" in self else null
+	var farm = get_active_farm()
 	var added = false
 	if farm and farm.has_method("discover_pair"):
 		added = farm.discover_pair(north, south)
@@ -244,15 +274,15 @@ func discover_pair(north: String, south: String) -> void:
 		emit_signal("emoji_discovered", south)
 
 	emit_signal("pair_discovered", north, south)
-	var pair_count = _get_player_vocab_pairs().size()
+	var pair_count = get_player_vocab_pairs().size()
 	_verbose.info("quest", "📖", "Discovered pair: %s/%s (vocabulary: %d pairs)" % [north, south, pair_count])
 
-	# Keep persisted state in sync (legacy readers)
+	# Keep persisted state in sync with the farm-owned vocabulary source.
 	if current_state:
-		current_state.known_pairs = _get_player_vocab_pairs()
+		current_state.known_pairs = get_player_vocab_pairs()
 
 	# Check if new emojis unlock factions
-	var new_emojis = _get_player_vocab_emojis()
+	var new_emojis = get_player_vocab_emojis()
 	for emoji in [north, south]:
 		if emoji not in old_emojis:
 			var newly_accessible = _check_newly_accessible_factions(emoji, old_emojis, new_emojis)
@@ -334,8 +364,9 @@ func get_accessible_factions() -> Array:
 
 func get_player_vocab_pairs() -> Array:
 	"""Return canonical player vocab pairs (farm-owned preferred)."""
-	if "active_farm" in self and active_farm and active_farm.has_method("get_known_pairs"):
-		return active_farm.get_known_pairs()
+	var farm = get_active_farm()
+	if farm and farm.has_method("get_known_pairs"):
+		return farm.get_known_pairs()
 	if current_state:
 		return current_state.known_pairs.duplicate(true)
 	return []
@@ -343,24 +374,17 @@ func get_player_vocab_pairs() -> Array:
 
 func get_player_vocab_emojis() -> Array:
 	"""Return canonical player vocab emojis (farm-owned preferred)."""
-	if "active_farm" in self and active_farm and active_farm.has_method("get_known_pairs"):
-		return GameState.derive_known_emojis_from_pairs(active_farm.get_known_pairs())
+	var farm = get_active_farm()
+	if farm and farm.has_method("get_known_pairs"):
+		return GameState.derive_known_emojis_from_pairs(farm.get_known_pairs())
 	if current_state:
 		return GameState.derive_known_emojis_from_pairs(current_state.known_pairs)
 	return []
 
 
-func _get_player_vocab_pairs() -> Array:
-	return get_player_vocab_pairs()
-
-
-func _get_player_vocab_emojis() -> Array:
-	return get_player_vocab_emojis()
-
-
 ## New Game / Scenarios
 
-func new_game(scenario_id: String = "default") -> GameState:
+func new_game(scenario_id: String = SaveStore.DEFAULT_SCENARIO_ID) -> GameState:
 	"""Start new game by loading a scenario template"""
 	_verbose.info("quest", "🎮", "Starting new game with scenario: " + scenario_id)
 	current_scenario_id = scenario_id
@@ -541,9 +565,48 @@ func request_restart() -> bool:
 				slot = s
 
 	pending_restart_slot = slot  # -1 = fresh game, >=0 = load that slot
+	pending_restart_requested = true
+	pending_restart_scenario_id = current_scenario_id if current_scenario_id != "" else SaveStore.DEFAULT_SCENARIO_ID
 	_verbose.info("save", "🔄", "Restart requested → slot %d" % pending_restart_slot)
 
 	# Full scene reload; FarmView._ready() picks up pending_restart_slot
+	var tree = Engine.get_main_loop()
+	if tree:
+		if tree.paused:
+			tree.paused = false
+		tree.change_scene_to_file("res://scenes/FarmView.tscn")
+		return true
+	return false
+
+
+func request_fresh_restart(reset_progress: bool = false, scenario_id: String = "") -> bool:
+	"""Reload FarmView into a fresh new-game boot through one lifecycle authority.
+
+	If reset_progress is true, also reset runtime singletons and debug-progress state
+	that should not survive a dev-style cold boot.
+	"""
+	if active_farm and is_instance_valid(active_farm):
+		active_farm.queue_free()
+		active_farm = null
+
+	pending_restart_slot = -1
+	pending_restart_requested = true
+	pending_restart_scenario_id = scenario_id if scenario_id.strip_edges() != "" else (current_scenario_id if current_scenario_id != "" else SaveStore.DEFAULT_SCENARIO_ID)
+	_milk_autosave_done = false
+	last_milk_autosave_path = ""
+
+	if reset_progress:
+		last_active_slot = -1
+		_reset_runtime_singletons()
+		var vocab = InstrumentLocator.resolve_vocabulary_evolution(self)
+		if vocab and vocab.has_method("reset"):
+			vocab.reset()
+
+	var music = InstrumentLocator.resolve_music_manager(self)
+	if music and music.has_method("reset"):
+		music.reset()
+
+	_verbose.info("save", "🔄", "Fresh restart requested (%s)" % pending_restart_scenario_id)
 	var tree = Engine.get_main_loop()
 	if tree:
 		if tree.paused:
@@ -560,7 +623,7 @@ func _get_serializer() -> GameStateSerializer:
 		_serializer = GameStateSerializer.new()
 	_serializer.set_verbose(_verbose)
 	_serializer.set_vocabulary_evolution(vocabulary_evolution)
-	_serializer.set_player_vocab(get_node_or_null("/root/PlayerVocabulary"))
+	_serializer.set_player_vocab(InstrumentLocator.resolve_player_vocabulary(self))
 	return _serializer
 
 
@@ -623,10 +686,9 @@ func _save_completed_scenarios(completed: Array):
 ## Restart
 
 func restart_current_scenario():
-	"""Restart by reloading current scenario (not scene reload!)"""
+	"""Restart current scenario through the unified restart lifecycle."""
 	_verbose.info("quest", "🔄", "Restarting scenario: " + current_scenario_id)
-	var state = new_game(current_scenario_id)
-	apply_state_to_game(state)
+	request_fresh_restart(false, current_scenario_id)
 
 
 ## Persistent Vocabulary Access
@@ -653,10 +715,7 @@ func get_active_farm() -> Node:
 
 func get_icon_registry():
 	"""Get IconRegistry autoload (used by affinity/vocab pairing helpers)."""
-	var tree = Engine.get_main_loop() as SceneTree
-	if tree:
-		return tree.root.get_node_or_null("/root/IconRegistry")
-	return null
+	return InstrumentLocator.resolve_icon_registry_main_loop()
 
 
 func _hydrate_state_defaults(state: GameState) -> GameState:

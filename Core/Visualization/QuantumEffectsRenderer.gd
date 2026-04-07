@@ -1,6 +1,8 @@
 class_name QuantumEffectsRenderer
 extends RefCounted
 
+const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")
+
 ## Quantum Effects Renderer
 ##
 ## Draws visual effects with mathematical basis:
@@ -203,7 +205,7 @@ func _draw_life_cycle_effects(graph: Node2D, ctx: Dictionary) -> void:
 
 		# Try SVG glyph, fallback to emoji text (safe autoload access) - not batched
 		var texture: Texture2D = null
-		var visual_asset_registry = graph.get_node_or_null("/root/VisualAssetRegistry")
+		var visual_asset_registry = InstrumentLocator.resolve_visual_asset_registry(graph)
 		if visual_asset_registry and visual_asset_registry.has_method("get_texture"):
 			texture = visual_asset_registry.get_texture(icon)
 

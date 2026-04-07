@@ -3,14 +3,14 @@
 #
 # Usage:
 #   ./scripts/build-release.sh --platform linux                # Build Linux
-#   ./scripts/build-release.sh --platform windows --install    # Build Windows + install
+#   ./scripts/build-release.sh --platform windows --install    # Build Windows + install (native DLL required)
 #   ./scripts/build-release.sh --platform web                  # Build Web
 #   ./scripts/build-release.sh --platform all --version v0.2.0 # Build all platforms
 #
 # This script:
 #   1. Clones fresh repo to build directory
-#   2. Builds godot-cpp (cached unless --clean) [Linux only]
-#   3. Builds C++ extension [Linux only]
+#   2. Builds godot-cpp (cached unless --clean)
+#   3. Builds C++ extension
 #   4. Exports game via Godot headless
 #   5. Creates archive in releases/{platform}/
 #   6. Optionally installs to ~/games/SpaceWheat*/
@@ -40,6 +40,9 @@ EXPORT_EXT=""
 ARCHIVE_EXT=""
 INSTALL_DIR=""
 BUILD_NATIVE=false
+NATIVE_KIND=""
+GODOT_CPP_LIB=""
+NATIVE_OUTPUT=""
 RELEASE_DIR=""
 
 # ─────────────────────────────────────────────────────────────
@@ -70,7 +73,7 @@ OPTIONS:
 
 PLATFORMS:
     linux       Linux Desktop (x86_64) - Builds native C++ extension
-    windows     Windows Desktop (x86_64) - Uses GDScript fallback
+    windows     Windows Desktop (x86_64) - Requires native C++ extension
     web         Web (HTML5/WebAssembly) - Uses GDScript fallback
     all         Build all platforms sequentially
 
@@ -78,7 +81,7 @@ EXAMPLES:
     # Build Linux (with native extension)
     ./scripts/build-release.sh --platform linux --install
 
-    # Build Windows (GDScript fallback)
+    # Build Windows (native DLL required)
     ./scripts/build-release.sh --platform windows --install
 
     # Build Web
@@ -200,6 +203,9 @@ case "$PLATFORM" in
         ARCHIVE_EXT="tar.gz"
         INSTALL_DIR="$HOME/games/SpaceWheat"
         BUILD_NATIVE=true  # Build C++ extension
+        NATIVE_KIND="linux"
+        GODOT_CPP_LIB="libgodot-cpp.linux.template_release.x86_64.a"
+        NATIVE_OUTPUT="bin/linux/libquantummatrix.linux.template_release.x86_64.so"
         RELEASE_DIR="$HOME/ws/SpaceWheat/releases/linux"
         ;;
     windows)
@@ -207,7 +213,10 @@ case "$PLATFORM" in
         EXPORT_EXT="exe"
         ARCHIVE_EXT="zip"
         INSTALL_DIR="$HOME/games/SpaceWheat_Windows"
-        BUILD_NATIVE=false  # Skip C++ (use GDScript fallback or pre-built)
+        BUILD_NATIVE=true  # Windows shipping requires native DLL
+        NATIVE_KIND="windows"
+        GODOT_CPP_LIB="libgodot-cpp.windows.template_release.x86_64.a"
+        NATIVE_OUTPUT="bin/windows/libquantummatrix.windows.template_release.x86_64.dll"
         RELEASE_DIR="$HOME/ws/SpaceWheat/releases/windows"
         ;;
     web)
@@ -215,7 +224,7 @@ case "$PLATFORM" in
         EXPORT_EXT="html"
         ARCHIVE_EXT="tar.gz"
         INSTALL_DIR=""  # Web doesn't install locally
-        BUILD_NATIVE=false  # Skip C++ (use GDScript fallback or pre-built)
+        BUILD_NATIVE=false
         RELEASE_DIR="$HOME/ws/SpaceWheat/releases/web"
         ;;
     *)
@@ -232,14 +241,18 @@ if ! command -v $GODOT_BIN &> /dev/null; then
     error "Godot not found. Set GODOT_BIN or ensure 'godot' is in PATH."
 fi
 
-# Only require build tools for Linux native builds
+# Only require build tools for native builds
 if [ "$BUILD_NATIVE" = true ]; then
     if ! command -v scons &> /dev/null; then
         error "scons not found. Install with: pip install scons"
     fi
 
-    if ! command -v g++ &> /dev/null; then
+    if [ "$NATIVE_KIND" = "linux" ] && ! command -v g++ &> /dev/null; then
         error "g++ not found. Install build-essential."
+    fi
+
+    if [ "$NATIVE_KIND" = "windows" ] && [ "$SKIP_CPP" = false ] && ! command -v x86_64-w64-mingw32-g++ &> /dev/null; then
+        error "x86_64-w64-mingw32-g++ not found. Install mingw-w64 or provide a prebuilt Windows DLL and use --skip-cpp."
     fi
 fi
 
@@ -275,11 +288,9 @@ COMMIT_HASH=$(git rev-parse --short HEAD)
 success "Cloned repo to $BUILD_DIR (commit: $COMMIT_HASH)"
 
 # ─────────────────────────────────────────────────────────────
-# Step 2: Build godot-cpp (Linux only, with caching)
+# Step 2: Build godot-cpp (native builds, with caching)
 # ─────────────────────────────────────────────────────────────
 if [ "$BUILD_NATIVE" = true ] && [ "$SKIP_CPP" = false ]; then
-    GODOT_CPP_LIB="libgodot-cpp.linux.template_release.x86_64.a"
-
     if [ "$DO_CLEAN" = true ]; then
         log "Cleaning godot-cpp cache (--clean)..."
         rm -rf "$GODOT_CPP_CACHE"
@@ -295,7 +306,13 @@ if [ "$BUILD_NATIVE" = true ] && [ "$SKIP_CPP" = false ]; then
     else
         log "Building godot-cpp (this takes ~5 minutes)..."
         cd "$BUILD_DIR/godot-cpp"
-        scons platform=linux target=template_release -j$(nproc)
+        if [ "$NATIVE_KIND" = "linux" ]; then
+            scons platform=linux target=template_release -j$(nproc)
+        elif [ "$NATIVE_KIND" = "windows" ]; then
+            scons platform=windows target=template_release use_mingw=yes -j$(nproc)
+        else
+            error "Unsupported native kind: $NATIVE_KIND"
+        fi
 
         # Cache it for next time
         cp "bin/$GODOT_CPP_LIB" "$GODOT_CPP_CACHE/"
@@ -306,31 +323,47 @@ if [ "$BUILD_NATIVE" = true ] && [ "$SKIP_CPP" = false ]; then
 fi
 
 # ─────────────────────────────────────────────────────────────
-# Step 3: Build C++ extension (Linux only)
+# Step 3: Build C++ extension
 # ─────────────────────────────────────────────────────────────
 if [ "$BUILD_NATIVE" = true ] && [ "$SKIP_CPP" = false ]; then
     log "Building C++ extension for $PLATFORM..."
     cd "$BUILD_DIR/native"
     make clean 2>/dev/null || true
-    make -j$(nproc)
-
-    SO_FILE=$(ls -1 bin/linux/*.so 2>/dev/null | grep -v debug | head -1)
-    if [ -n "$SO_FILE" ]; then
-        SO_SIZE=$(du -h "$SO_FILE" | cut -f1)
-        success "C++ extension built: $SO_SIZE"
+    if [ "$NATIVE_KIND" = "linux" ]; then
+        make -j$(nproc)
+    elif [ "$NATIVE_KIND" = "windows" ]; then
+        make -f Makefile.windows -j$(nproc)
     else
-        error "C++ extension build failed - no .so file found"
+        error "Unsupported native kind: $NATIVE_KIND"
+    fi
+
+    if [ -f "$NATIVE_OUTPUT" ]; then
+        NATIVE_SIZE=$(du -h "$NATIVE_OUTPUT" | cut -f1)
+        success "C++ extension built: $NATIVE_SIZE"
+    else
+        error "C++ extension build failed - expected output missing: $NATIVE_OUTPUT"
     fi
 else
-    if [ "$BUILD_NATIVE" = false ]; then
-        warn "Skipping native build for $PLATFORM (using GDScript fallback or pre-built binaries)"
-    else
+    if [ "$BUILD_NATIVE" = true ]; then
         warn "Skipping C++ build (--skip-cpp)"
+        if [ ! -f "$BUILD_DIR/native/$NATIVE_OUTPUT" ]; then
+            error "Expected prebuilt native binary not found: $BUILD_DIR/native/$NATIVE_OUTPUT"
+        fi
+    else
+        warn "Skipping native build for $PLATFORM"
     fi
 fi
 
 # ─────────────────────────────────────────────────────────────
-# Step 4: Export game with Godot
+# Step 4: Rebuild bundled operator cache
+# ─────────────────────────────────────────────────────────────
+log "Rebuilding bundled operator cache..."
+cd "$BUILD_DIR"
+$GODOT_BIN --headless --path . --script tools/BuildBundledCache.gd
+success "Bundled operator cache refreshed"
+
+# ─────────────────────────────────────────────────────────────
+# Step 5: Export game with Godot
 # ─────────────────────────────────────────────────────────────
 EXPORT_DIR="$BUILD_DIR/export/SpaceWheat"
 
@@ -376,14 +409,18 @@ else
     success "Game exported ($PRESET_NAME)"
 fi
 
-# Copy C++ extension to export (Linux only)
+# Copy C++ extension to export
 if [ "$BUILD_NATIVE" = true ]; then
     log "Packaging C++ extension with export..."
-    cp "$BUILD_DIR/native/bin/linux/"*.so "$EXPORT_DIR/" 2>/dev/null || warn "No .so files to copy"
+    if [ "$NATIVE_KIND" = "linux" ]; then
+        cp "$BUILD_DIR/native/bin/linux/"*.so "$EXPORT_DIR/" 2>/dev/null || warn "No .so files to copy"
+    elif [ "$NATIVE_KIND" = "windows" ]; then
+        cp "$BUILD_DIR/native/bin/windows/"*.dll "$EXPORT_DIR/" 2>/dev/null || error "No Windows DLLs to copy"
+    fi
 fi
 
 # ─────────────────────────────────────────────────────────────
-# Step 5: Create platform-specific launch scripts and README
+# Step 6: Create platform-specific launch scripts and README
 # ─────────────────────────────────────────────────────────────
 log "Creating launch scripts and README..."
 
@@ -462,8 +499,8 @@ Or use the batch file:
 ./launch.bat
 ```
 
-### Note: GDScript Fallback
-This build uses GDScript fallback (no native C++ extension). Performance may be 10-100× slower than the Linux build with native extensions. For better performance, build the Windows native extension separately using MinGW cross-compilation.
+### Native Runtime
+This build includes the native QuantumMatrix DLL and is intended to ship with native performance parity rather than fallback mode.
 EOF
         ;;
     web)
@@ -547,7 +584,7 @@ EOF
 success "Created README.md"
 
 # ─────────────────────────────────────────────────────────────
-# Step 6: Create release archive
+# Step 7: Create release archive
 # ─────────────────────────────────────────────────────────────
 log "Creating release archive..."
 mkdir -p "$RELEASE_DIR"
@@ -564,7 +601,7 @@ ARCHIVE_SIZE=$(du -h "$ARCHIVE" | cut -f1)
 success "Release created: $ARCHIVE ($ARCHIVE_SIZE)"
 
 # ─────────────────────────────────────────────────────────────
-# Step 7: Install (optional)
+# Step 8: Install (optional)
 # ─────────────────────────────────────────────────────────────
 if [ "$DO_INSTALL" = true ]; then
     if [ -z "$INSTALL_DIR" ]; then

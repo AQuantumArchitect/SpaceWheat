@@ -161,7 +161,7 @@ func _run_tests():
 
 	var input_handler = player_shell.input_handler
 	if input_handler:
-		print("   ✅ FarmInputHandler found")
+		print("   ✅ QuantumInstrumentInput found")
 
 		# Open overlay
 		overlay_manager.open_overlay("inspector")
@@ -173,21 +173,21 @@ func _run_tests():
 		key_event.pressed = true
 
 		print("Simulating Q key press with overlay open...")
-		# The input handler should route this to the overlay
-		var handled = input_handler._unhandled_input(key_event)
-		print("   ℹ️  Input handler processed event")
+		# PlayerShell owns top-level input routing and should hand this to the overlay stack.
+		player_shell._input(key_event)
+		print("   ℹ️  PlayerShell routed event")
 
 		overlay_manager.close_overlay()
 		await get_tree().process_frame
 
 		print("✅ Test 5 PASSED: Input routing functional")
 	else:
-		print("   ❌ FarmInputHandler not found")
+		print("   ❌ QuantumInstrumentInput not found")
 
 	# Test 6: Context-sensitive labels (QuestBoard)
-	print("\n" + "-"*60)
+	print("\n" + "-".repeat(60))
 	print("Test 6: Context-Sensitive Labels (QuestBoard)")
-	print("-"*60)
+	print("-".repeat(60))
 
 	var quest_board = overlay_manager.quest_board
 	if quest_board and quest_board.has_method("get_action_labels"):
@@ -205,9 +205,9 @@ func _run_tests():
 		print("   ⚠️  QuestBoard overlay interface not available")
 
 	# Final summary
-	print("\n" + "="*60)
+	print("\n" + "=".repeat(60))
 	print("🎉 Overlay System Integration Tests Complete")
-	print("="*60)
+	print("=".repeat(60))
 	print("\n✅ All overlays are properly integrated:")
 	print("   - Overlays registered with OverlayManager")
 	print("   - Lifecycle (activate/deactivate) working")
@@ -216,8 +216,8 @@ func _run_tests():
 	print("   - Input routing functional")
 	print("\n📝 Next steps:")
 	print("   - Add keyboard shortcuts to open overlays")
-	print("   - Integrate ActionPreviewRow to show overlay actions")
-	print("   - Add sidebar buttons for overlay activation")
+	print("   - Expand overlay routing assertions beyond shell open/close")
+	print("   - Add focused snapshot assertions for overlay action projections")
 	print("   - Test in-game with actual gameplay")
 
 	print("\n⌨️  Manual testing:")

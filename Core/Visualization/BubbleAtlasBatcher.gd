@@ -825,6 +825,22 @@ func get_atlas_texture() -> ImageTexture:
 	return _atlas_texture
 
 
+func release_resources() -> void:
+	"""Release atlas texture and batched draw state before shutdown."""
+	_canvas_item = RID()
+	_points.clear()
+	_uvs.clear()
+	_colors.clear()
+	_arc_points.clear()
+	_arc_colors.clear()
+	_template_uvs.clear()
+	_purity_arc_cache.clear()
+	_purity_arc_segment_counts.clear()
+	_atlas_texture = null
+	_atlas_image = null
+	_atlas_built = false
+
+
 func get_stats() -> Dictionary:
 	"""Get batching statistics for performance monitoring."""
 	var total_verts = _last_vertex_count + _last_arc_count

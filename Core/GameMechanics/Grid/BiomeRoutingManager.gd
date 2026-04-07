@@ -1,6 +1,8 @@
 class_name BiomeRoutingManager
 extends RefCounted
 
+const GridSentinel = preload("res://Core/GameState/GridSentinel.gd")
+
 ## BiomeRoutingManager - Multi-biome registry and quantum computer routing
 ##
 ## Extracted from FarmGrid.gd as part of decomposition.
@@ -10,7 +12,7 @@ extends RefCounted
 var biomes: Dictionary = {}  # String → BiomeBase (registry of all biomes)
 var plot_biome_assignments: Dictionary = {}  # Vector2i → String (plot position → biome name)
 
-# Terminal pool (kept for backward compat; register lookups prefer plot.terminal)
+# Terminal pool for terminal-based register lookup when plot.terminal is absent.
 var terminal_pool = null
 
 # Plot manager for plot-based register lookups
@@ -48,6 +50,29 @@ func register_biome(biome_name: String, biome_instance) -> void:
 	biomes[biome_name] = biome_instance
 	if _verbose:
 		_verbose.info("biome", "📍", "Biome registered: %s" % biome_name)
+
+
+func unregister_biome(biome_name: String) -> void:
+	"""Remove a biome from the registry and clear all of its plot assignments."""
+	if biome_name == "":
+		return
+
+	biomes.erase(biome_name)
+
+	var to_clear: Array[Vector2i] = []
+	for key in plot_biome_assignments.keys():
+		if str(plot_biome_assignments.get(key, "")) != biome_name:
+			continue
+		if key is Vector2i:
+			to_clear.append(key)
+		elif key is Vector2:
+			to_clear.append(Vector2i(int((key as Vector2).x), int((key as Vector2).y)))
+
+	for pos in to_clear:
+		plot_biome_assignments.erase(pos)
+
+	if _verbose:
+		_verbose.info("biome", "🧹", "Biome unregistered: %s" % biome_name)
 
 
 func assign_plot_to_biome(position: Vector2i, biome_name: String) -> bool:
@@ -156,14 +181,14 @@ func get_register_for_plot(position: Vector2i) -> int:
 func get_plot_for_register(register_id: int) -> Vector2i:
 	"""Reverse lookup: find the grid position bound to a register ID.
 
-	Returns: Grid position if found, Vector2i(-1, -1) if not found
+	Returns: Grid position if found, GridSentinel.INVALID_POSITION if not found
 	"""
 	if _plot_manager:
 		for pos in _plot_manager.plots.keys():
 			var plot = _plot_manager.plots[pos]
 			if plot.is_active() and plot.bound_register_id == register_id:
 				return pos
-	return Vector2i(-1, -1)
+	return GridSentinel.INVALID_POSITION
 
 
 func is_biomes_empty() -> bool:

@@ -1,6 +1,8 @@
 class_name QuantumEdgeRenderer
 extends RefCounted
 
+const GridSentinel = preload("res://Core/GameState/GridSentinel.gd")
+
 # Debug flags
 var _debug_batcher_checked: bool = false
 var _debug_draw_checked: bool = false
@@ -73,7 +75,7 @@ func _draw_plot_tethers(graph: Node2D, ctx: Dictionary) -> void:
 	for node in quantum_nodes:
 		if not node.visible or not node.has_farm_tether:
 			continue
-		if node.grid_position == Vector2i(-1, -1):
+		if node.grid_position == GridSentinel.INVALID_POSITION:
 			continue
 
 		var anchor_pos = plot_positions.get(node.grid_position, node.classical_anchor)

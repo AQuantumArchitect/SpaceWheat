@@ -18,10 +18,10 @@ extends Resource
 ##  - UI/visual state
 
 ## Meta
-@export var scenario_id: String = "default"
+@export var scenario_id: String = "new_game_easy"
 @export var save_timestamp: int = 0  # Unix timestamp
 @export var game_time: float = 0.0  # Total playtime
-@export var quantum_time_scale: float = 0.03125  # Simulation speed multiplier (0.001-16.0) - Start 4x slower for observation
+@export var quantum_time_scale: float = 0.5  # Simulation speed multiplier (0.001-16.0) - Half real-time so day/night cycle is ~50s
 @export var observation_stride: int = 1  # Observation stride (0=locked, 1=normal, 2+=fast forward)
 @export var max_evolution_dt: float = 0.02  # Euler substep size for Lindblad evolution (resolution)
 @export var save_version: int = 1  # Phase 4: Save format version (increment when format changes)
@@ -89,7 +89,7 @@ extends Resource
 ## Unlocked Biomes - Start with StarterForest and Village, unlock more through exploration
 @export var unlocked_biomes: Array[String] = ["StarterForest", "Village"]
 
-## Pool of unexplored biomes (assigned to UIOP slots dynamically)
+## Pool of unexplored biomes (assigned to active TYUIOP spindle slots dynamically)
 ## These are available but not yet assigned to keyboard slots
 @export var unexplored_biome_pool: Array[String] = ["BioticFlux", "StellarForges", "FungalNetworks", "VolcanicWorlds"]
 
@@ -144,7 +144,7 @@ func get_pair_for_emoji(emoji: String) -> Variant:
 @export var plots: Array[Dictionary] = []
 # Each plot dictionary contains:
 #   position: Vector2i - Grid coordinates (x, y)
-#   type_name: String - plot type ("wheat", "mushroom", "energy_tap", etc.)
+#   type_name: String - plot type ("wheat", "mushroom", etc.)
 #   is_planted: bool - Currently has an active crop
 #   has_been_measured: bool - Quantum state has been collapsed
 #   theta_frozen: bool - Measurement locked the theta value (stops Hamiltonian drift)
@@ -220,7 +220,7 @@ func get_pair_for_emoji(emoji: String) -> Variant:
 
 func _init():
 	# Initialize with default values
-	scenario_id = "default"
+	scenario_id = "new_game_easy"
 	save_timestamp = Time.get_unix_time_from_system()
 	game_time = 0.0
 
@@ -377,6 +377,7 @@ func _default_balance_workbench_config() -> Dictionary:
 			"pop": "Single terminal payoff from measured outcome, driven by icon-map mass and purity.",
 			"reap": "Season change: fast-forward, collect sink flux, and broad harvest across active biomes.",
 			"discover_biome": "Long-term expansion unlock; increases future terminal surface area.",
+			"remove_biome": "Liquidates one non-core biome from its live quantum state and frees the slot.",
 			"inject_vocabulary": "Converts known pairs into biome terminals and new learning options.",
 			"remove_vocabulary": "Emergency rollback action; expensive by design.",
 			"lindblad_pump": "Raises local population/energy; setup cost for stronger harvest curves.",

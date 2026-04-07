@@ -1,5 +1,7 @@
 extends Node
 
+const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")
+
 ## Global logging configuration with category-based filtering and log levels
 ##
 ## NOTE: This is an autoload singleton. Cannot use class_name VerboseConfig (Godot restriction).
@@ -12,7 +14,7 @@ extends Node
 ##
 ## Configuration:
 ##   --verbose flag enables ALL categories at TRACE level
-##   Runtime config via LoggerConfigPanel (press L key)
+##   Runtime config via LoggerConfigPanel (debug overlay, currently unbound)
 
 # ============================================================================
 # LOG LEVELS
@@ -371,7 +373,7 @@ func _parse_runtime_log_level(level_name: String) -> int:
 
 static func safe_is_verbose(subsystem: String = "") -> bool:
 	"""Safe category-level check that works even if VerboseConfig isn't initialized."""
-	var config = Engine.get_main_loop().root.get_node_or_null("/root/VerboseConfig") if Engine.get_main_loop() else null
+	var config = InstrumentLocator.resolve_verbose_config_main_loop()
 	if not is_instance_valid(config):
 		return false
 
@@ -382,7 +384,7 @@ static func safe_is_verbose(subsystem: String = "") -> bool:
 
 
 static func safe_allows(category: String, level: int) -> bool:
-	var config = Engine.get_main_loop().root.get_node_or_null("/root/VerboseConfig") if Engine.get_main_loop() else null
+	var config = InstrumentLocator.resolve_verbose_config_main_loop()
 	if not is_instance_valid(config):
 		return false
 	if not config.is_node_ready():

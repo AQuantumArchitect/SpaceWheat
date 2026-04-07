@@ -7,6 +7,12 @@ This folder is the automation and test lane for LLM collaborators.
 Use it to run headless rig control, milk-hunt runners, and batch scans
 without patching core game code first.
 
+Cross-Reference
+---------------
+- Repo-wide operational memory: `MEMORY.md`
+- Use `MEMORY.md` for release/build notes and the high-level `🍄` folder map.
+- Use this file for the lane-local quick start and artifact rules.
+
 Quick Start (2 minutes)
 -----------------------
 1) Start live headless rig listener:

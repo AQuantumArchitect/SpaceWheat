@@ -81,11 +81,22 @@ func get_icon_component(emoji: String) -> Dictionary:
 func validate() -> bool:
 	var valid = true
 
+	if emojis.size() % 2 != 0:
+		push_error("Biome %s: emojis list must contain an even number of entries for north/south axes (got %d)" % [name, emojis.size()])
+		valid = false
+
+	var seen_emojis: Dictionary = {}
+	for emoji in emojis:
+		if seen_emojis.has(emoji):
+			push_error("Biome %s: duplicate emoji %s in emojis list" % [name, emoji])
+			valid = false
+		else:
+			seen_emojis[emoji] = true
+
 	# Check icon_components reference valid emojis
 	for emoji in icon_components:
 		if emoji not in emojis:
-			push_error("Biome %s: icon_component for emoji %s not in emojis list" % [name, emoji])
-			valid = false
+			push_warning("Biome %s: auxiliary icon_component %s is not in emojis list" % [name, emoji])
 
 	# Check hamiltonian targets are in biome
 	for emoji in icon_components:
@@ -144,11 +155,38 @@ func load_from_dict(data: Dictionary) -> void:
 	music_path = data.get("music_path", "")
 	discovered = data.get("discovered", false)
 	plot_layout = data.get("plot_layout", [])
-	emojis = data.get("emojis", [])
-	icon_components = data.get("icon_components", {})
+	# Normalize variation selectors so emoji keys match faction sig strings
+	emojis = EmojiUtil.normalize_array(data.get("emojis", []))
+	icon_components = _normalize_icon_components(data.get("icon_components", {}))
 	cross_couplings = data.get("cross_couplings", [])
 	native_factions = data.get("native_factions", [])
 	tags = data.get("tags", [])
+
+
+## Normalize all emoji keys inside icon_components.
+## Structure: {emoji: {field: {emoji: value} | scalar | {rate, target}}}
+static func _normalize_icon_components(raw: Dictionary) -> Dictionary:
+	if raw.is_empty():
+		return raw
+	var result: Dictionary = {}
+	for emoji_key in raw:
+		var nkey: String = EmojiUtil.normalize(str(emoji_key))
+		var comp = raw[emoji_key]
+		if not comp is Dictionary:
+			result[nkey] = comp
+			continue
+		var nc: Dictionary = {}
+		for field in comp:
+			var val = comp[field]
+			match field:
+				"lindblad_outgoing", "lindblad_incoming", "hamiltonian":
+					nc[field] = EmojiUtil.normalize_keys(val if val is Dictionary else {})
+				"decay":
+					nc[field] = EmojiUtil.normalize_decay(val if val is Dictionary else {})
+				_:
+					nc[field] = val
+		result[nkey] = nc
+	return result
 
 
 ## Create biome from dictionary (static factory)

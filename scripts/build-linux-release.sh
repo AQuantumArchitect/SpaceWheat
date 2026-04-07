@@ -208,7 +208,15 @@ else
 fi
 
 # ─────────────────────────────────────────────────────────────
-# Step 4: Export game with Godot
+# Step 4: Rebuild bundled operator cache
+# ─────────────────────────────────────────────────────────────
+log "Rebuilding bundled operator cache..."
+cd "$BUILD_DIR"
+$GODOT_BIN --headless --path . --script tools/BuildBundledCache.gd
+success "Bundled operator cache refreshed"
+
+# ─────────────────────────────────────────────────────────────
+# Step 5: Export game with Godot
 # ─────────────────────────────────────────────────────────────
 EXPORT_DIR="$BUILD_DIR/export/SpaceWheat"
 
@@ -261,7 +269,7 @@ LAUNCH
 fi
 
 # ─────────────────────────────────────────────────────────────
-# Step 5: Create tarball
+# Step 6: Create tarball
 # ─────────────────────────────────────────────────────────────
 log "Creating release tarball..."
 mkdir -p "$RELEASE_DIR"
@@ -274,7 +282,7 @@ TARBALL_SIZE=$(du -h "$TARBALL" | cut -f1)
 success "Release created: $TARBALL ($TARBALL_SIZE)"
 
 # ─────────────────────────────────────────────────────────────
-# Step 6: Install (optional)
+# Step 7: Install (optional)
 # ─────────────────────────────────────────────────────────────
 if [ "$DO_INSTALL" = true ]; then
     log "Installing to $INSTALL_DIR..."

@@ -71,13 +71,6 @@ func set_tool_enabled(tool_num: int, enabled: bool) -> void:
 	"""Enable or disable a specific tool button."""
 	set_button_enabled(tool_num, enabled)
 
-
-func refresh_for_mode(_new_mode: String) -> void:
-	"""Retained for PlayerShell compatibility; tool groups are mode-agnostic now."""
-	_rebuild_buttons()
-	select_tool(current_tool)
-
-
 func _print_corners() -> void:
 	"""DEBUG: Print actual corner positions of toolbar."""
 	var tl = position

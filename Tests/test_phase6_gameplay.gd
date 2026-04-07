@@ -162,9 +162,9 @@ func _test_input_routing(shell: Node, output: Array):
 		output.append("      1. ❌ Overlay system missing")
 
 	if input_handler:
-		output.append("      2. ✅ FarmInputHandler present")
+		output.append("      2. ✅ QuantumInstrumentInput present")
 	else:
-		output.append("      2. ❌ FarmInputHandler missing")
+		output.append("      2. ❌ QuantumInstrumentInput missing")
 
 	if shell.has_method("_handle_shell_action"):
 		output.append("      3. ✅ PlayerShell modal routing present")

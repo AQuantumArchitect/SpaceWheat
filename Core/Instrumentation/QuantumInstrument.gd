@@ -12,19 +12,18 @@ extends RefCounted
 ## Holds selection state (biome, plot, checked plots) shared across adapters.
 
 const ProbeActions = preload("res://Core/Actions/ProbeActions.gd")
-const GateActionHandler = preload("res://UI/Handlers/GateActionHandler.gd")
-const LindbladHandler = preload("res://UI/Handlers/LindbladHandler.gd")
+const GateActionHandler = preload("res://Core/Instrumentation/Handlers/GateActionHandler.gd")
+const LindbladHandler = preload("res://Core/Instrumentation/Handlers/LindbladHandler.gd")
 const EconomyConstants = preload("res://Core/GameMechanics/EconomyConstants.gd")
 const ActionCostRuntime = preload("res://Core/GameMechanics/ActionCostRuntime.gd")
 const VocabPairUtils = preload("res://Core/Gameplay/VocabPairUtils.gd")
-const BiomeHandler = preload("res://UI/Handlers/BiomeHandler.gd")
 const PhysicsConfig = preload("res://Core/Config/PhysicsConfig.gd")
 const GranularityController = preload("res://Core/Utils/GranularityController.gd")
 const GameStateSerializerClass = preload("res://Core/GameState/GameStateSerializer.gd")
 const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")
-const PolicySnapshotBuilder = preload("res://Core/Instrumentation/PolicySnapshotBuilder.gd")
 const BalanceService = preload("res://Core/GameMechanics/BalanceService.gd")
 const VerboseHelper = preload("res://Core/Config/VerboseHelper.gd")
+const GridSentinel = preload("res://Core/GameState/GridSentinel.gd")
 
 ## Fallback biome pool used when ObservationFrame.get_loadable_biomes() is unavailable.
 const DEFAULT_BIOME_POOL: Array[String] = [
@@ -61,7 +60,7 @@ var terminal_pool = null
 ## Selection state (absorbed from QuantumInstrumentState)
 var current_biome: String = ""
 var current_plot_idx: int = -1
-var last_selected_position: Vector2i = Vector2i(-1, -1)
+var last_selected_position: Vector2i = GridSentinel.INVALID_POSITION
 var checked_plots: Array[Vector2i] = []
 
 ## Submenu state
@@ -314,7 +313,7 @@ func action_pump(positions: Array[Vector2i]) -> Dictionary:
 # GROUP 3: PROBE ACTIONS
 # ============================================================================
 
-func action_explore(biome_name: String, grid_pos: Vector2i = Vector2i(-1, -1)) -> Dictionary:
+func action_explore(biome_name: String, grid_pos: Vector2i = GridSentinel.INVALID_POSITION) -> Dictionary:
 	if not farm or not terminal_pool:
 		return {"success": false, "error": "no_farm", "message": "Farm not ready"}
 	var economy = _get_economy()
@@ -329,7 +328,7 @@ func action_explore(biome_name: String, grid_pos: Vector2i = Vector2i(-1, -1)) -
 	# Attach terminal to its grid plot
 	if result.get("success", false):
 		var terminal = result.get("terminal", null)
-		if terminal and grid_pos != Vector2i(-1, -1):
+		if terminal and grid_pos != GridSentinel.INVALID_POSITION:
 			terminal.grid_position = grid_pos
 		_attach_terminal_to_plot(terminal)
 	_emit_farm_action("explore", result, grid_pos)
@@ -581,6 +580,17 @@ func action_discover_biome() -> Dictionary:
 
 	var result = farm.discover_biome()
 	action_performed.emit("discover_biome", result)
+	return result
+
+
+func action_remove_biome() -> Dictionary:
+	if not farm:
+		return {"success": false, "error": "no_farm", "message": "Farm not ready"}
+	if not farm.has_method("remove_biome"):
+		return {"success": false, "error": "no_method", "message": "Farm cannot remove biomes"}
+
+	var result = farm.remove_biome()
+	action_performed.emit("remove_biome", result)
 	return result
 
 
@@ -924,7 +934,53 @@ func load_farm_variable_graph_file(path: String) -> Dictionary:
 
 func get_policy_snapshot(include_offers: bool = true, include_grid: bool = true) -> Dictionary:
 	"""Aggregate policy-facing reads into one payload for rig/runner loops."""
-	return PolicySnapshotBuilder.build(self, include_offers, include_grid)
+	var resource_snapshot = get_resource_snapshot()
+	var resources = resource_snapshot.get("resources", {}) if resource_snapshot is Dictionary else {}
+	if not (resources is Dictionary):
+		resources = {}
+
+	var known_pairs = get_known_vocab_pairs()
+	if not (known_pairs is Array):
+		known_pairs = []
+
+	var active_quests = get_active_quests()
+	if not (active_quests is Array):
+		active_quests = []
+
+	var locked_offers = get_locked_offers()
+	if not (locked_offers is Array):
+		locked_offers = []
+
+	var offers: Array = []
+	if include_offers:
+		var raw_offers = get_quest_offers_for_current_biome()
+		if raw_offers is Array:
+			offers = raw_offers
+
+	var grid_snapshot: Dictionary = {}
+	if include_grid:
+		var raw_grid = get_grid_snapshot()
+		if raw_grid is Dictionary:
+			grid_snapshot = raw_grid
+
+	var biomes: Array = []
+	var raw_biomes = grid_snapshot.get("biomes", []) if grid_snapshot is Dictionary else []
+	if raw_biomes is Array:
+		for biome_name in raw_biomes:
+			var name = str(biome_name)
+			if name != "":
+				biomes.append(name)
+
+	return {
+		"resources": resources,
+		"resource_snapshot": resource_snapshot if resource_snapshot is Dictionary else {},
+		"known_pairs": known_pairs,
+		"offers": offers,
+		"active_quests": active_quests,
+		"locked_offers": locked_offers,
+		"grid": grid_snapshot,
+		"biomes": biomes,
+	}
 
 
 func get_active_quests() -> Array:
@@ -1246,20 +1302,22 @@ func configure_seed_state(cmd: Dictionary) -> Dictionary:
 # PRIVATE HELPERS
 # ============================================================================
 
-func _emit_farm_action(action: String, result: Dictionary, pos: Vector2i = Vector2i(-1, -1)) -> void:
+func _emit_farm_action(action: String, result: Dictionary, pos: Vector2i = GridSentinel.INVALID_POSITION) -> void:
 	if farm and farm.has_method("emit_action_signal"):
 		farm.emit_action_signal(action, result, pos)
 
 
 func _attach_terminal_to_plot(t) -> void:
-	if t and t.grid_position != Vector2i(-1, -1) and farm and farm.grid:
+	if t and t.grid_position != GridSentinel.INVALID_POSITION and farm and farm.grid:
 		var plot = farm.grid.get_plot(t.grid_position)
 		if plot:
+			if plot.has_method("clear_measurement_memory"):
+				plot.clear_measurement_memory()
 			plot.terminal = t
 
 
 func _detach_terminal_from_plot(t) -> void:
-	if t and t.grid_position != Vector2i(-1, -1) and farm and farm.grid:
+	if t and t.grid_position != GridSentinel.INVALID_POSITION and farm and farm.grid:
 		var plot = farm.grid.get_plot(t.grid_position)
 		if plot:
 			plot.terminal = null
@@ -1276,8 +1334,9 @@ func _resolve_quest_manager():
 	if qm:
 		return qm
 	var gsm = _get_autoload("GameStateManager")
-	if gsm and "active_farm" in gsm and gsm.active_farm and "quest_manager" in gsm.active_farm:
-		return gsm.active_farm.quest_manager
+	var active_farm = gsm.get_active_farm() if gsm and gsm.has_method("get_active_farm") else null
+	if active_farm and "quest_manager" in active_farm:
+		return active_farm.quest_manager
 	return null
 
 
@@ -1552,11 +1611,6 @@ func _resolve_terminal_for_harvest(grid_pos: Vector2i) -> RefCounted:
 	var plot = farm.grid.get_plot(grid_pos)
 	if plot and plot.terminal:
 		return plot.terminal
-	# Fallback: try last selected position
-	if last_selected_position != Vector2i(-1, -1) and last_selected_position != grid_pos:
-		var fallback_plot = farm.grid.get_plot(last_selected_position)
-		if fallback_plot and fallback_plot.terminal and fallback_plot.terminal.is_measured:
-			return fallback_plot.terminal
 	return null
 
 

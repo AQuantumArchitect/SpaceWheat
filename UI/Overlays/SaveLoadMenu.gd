@@ -1,6 +1,8 @@
 class_name SaveLoadMenu
 extends "res://UI/Core/OverlayBase.gd"
 
+const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")
+
 ## Save/Load Menu
 ## Unified modal implementation using OverlayBase.
 
@@ -15,9 +17,6 @@ var slot_buttons: Array[Button] = []
 var debug_env_buttons: Array[Button] = []
 var selected_slot_index: int = 0
 var selected_is_debug: bool = false
-
-# Optional InputController injection (legacy compatibility)
-var input_controller: Node = null
 
 # Debug environments: name -> display name
 var debug_environments = {
@@ -114,44 +113,29 @@ func handle_input(event: InputEvent) -> bool:
 	if not event is InputEventKey or not event.pressed or event.echo:
 		return false
 
-	match event.keycode:
-		KEY_ESCAPE:
-			_on_cancel_pressed()
-			return true
-		KEY_Q:
-			_confirm_selection()
-			return true
-		KEY_E:
-			_on_cancel_pressed()
-			return true
-		KEY_R:
-			_select_previous_slot()
-			return true
-		KEY_F:
-			_select_next_slot()
-			return true
-		KEY_UP, KEY_W, KEY_LEFT, KEY_A:
-			_select_previous_slot()
-			return true
-		KEY_DOWN, KEY_S, KEY_RIGHT, KEY_D:
-			_select_next_slot()
-			return true
-		KEY_ENTER, KEY_KP_ENTER, KEY_SPACE:
-			_confirm_selection()
-			return true
+	var keycode: int = event.keycode
+	if InputBindingRegistry.is_menu_cancel_key(keycode):
+		_on_cancel_pressed()
+		return true
+	if InputBindingRegistry.is_menu_confirm_key(keycode):
+		_confirm_selection()
+		return true
+	if InputBindingRegistry.is_menu_page_prev_key(keycode) or InputBindingRegistry.is_menu_move_prev_key(keycode):
+		_select_previous_slot()
+		return true
+	if InputBindingRegistry.is_menu_page_next_key(keycode) or InputBindingRegistry.is_menu_move_next_key(keycode):
+		_select_next_slot()
+		return true
 
 	return false
 
 
 func _on_activated() -> void:
 	_refresh_menu_state()
-	if input_controller:
-		input_controller.set_process_input(false)
 
 
 func _on_deactivated() -> void:
-	if input_controller:
-		input_controller.set_process_input(true)
+	pass
 
 
 func _on_action_q() -> void:
@@ -328,10 +312,6 @@ func _confirm_selection() -> void:
 	_on_slot_pressed(selected_slot_index)
 
 
-func inject_input_controller(controller: Node) -> void:
-	input_controller = controller
-
-
 func _refresh_menu_state() -> void:
 	panel_title = "SAVE GAME" if current_mode == Mode.SAVE else "LOAD GAME"
 	set_title(panel_title)
@@ -363,11 +343,6 @@ func open_menu(mode: Mode) -> void:
 		_refresh_menu_state()
 
 
-func show_menu() -> void:
-	# MenuPanelBase compatibility signature (no args).
-	open_menu(current_mode)
-
-
 func hide_menu() -> void:
 	deactivate()
 
@@ -376,7 +351,7 @@ func _update_slot_info() -> void:
 	if not is_node_ready():
 		return
 
-	var gsm = get_node_or_null("/root/GameStateManager")
+	var gsm = InstrumentLocator.resolve_game_state_manager(self)
 	if not gsm:
 		return
 

@@ -122,7 +122,7 @@ func _init():
 	await get_root().process_frame
 
 	print("   Event should fall through to farm")
-	print("   (FarmInputHandler should process it in _unhandled_input)")
+	print("   (QuantumInstrumentInput should process it through the shared input path)")
 	print("✅ PASS: Input falls through when no modal\n")
 
 	print("\n🎉 === ALL TESTS PASSED ===\n")

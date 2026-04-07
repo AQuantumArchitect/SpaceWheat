@@ -5,7 +5,7 @@ extends Control
 const PlotTile = preload("res://UI/PlotTile.gd")
 
 # Access autoload safely (avoids compile-time errors)
-@onready var _verbose = get_node("/root/VerboseConfig")
+@onready var _verbose = InstrumentLocator.resolve_verbose_config(self)
 
 ## INPUT CONTRACT (Layer 3 - Mouse Drag Selection)
 ## ═══════════════════════════════════════════════════════════════
@@ -25,6 +25,7 @@ const PlotTile = preload("res://UI/PlotTile.gd")
 const GridConfig = preload("res://Core/GameState/GridConfig.gd")
 const BiomeLayoutCalculator = preload("res://Core/Visualization/BiomeLayoutCalculator.gd")
 const BiomeRegistry = preload("res://Core/Biomes/BiomeRegistry.gd")
+const GridSentinel = preload("res://Core/GameState/GridSentinel.gd")
 
 # Single-biome view: Only show tiles for the active biome
 var active_biome_manager: Node = null
@@ -53,7 +54,7 @@ var current_selection: Vector2i = Vector2i.ZERO
 # Drag/swipe selection state
 var is_dragging: bool = false
 var drag_plots: Dictionary = {}  # Plots touched during this drag
-var drag_start_pos: Vector2i = Vector2i(-1, -1)
+var drag_start_pos: Vector2i = GridSentinel.INVALID_POSITION
 var _skip_next_click: bool = false  # Skip click handler after multi-plot drag
 
 # Signals for selection state changes
@@ -285,16 +286,34 @@ func _create_tile_at(pos: Vector2i, label: String = "") -> void:
 
 
 func apply_grid_config_update(new_config: GridConfig, new_biomes: Dictionary = {}) -> void:
-	"""Apply a new GridConfig (used when biomes are added)."""
+	"""Apply a new GridConfig after biome add/remove operations."""
 	if not new_config:
 		return
 	grid_config = new_config
 	if not new_biomes.is_empty():
 		biomes = new_biomes
 
+	var active_positions: Dictionary = {}
+	for plot_config in grid_config.get_all_active_plots():
+		active_positions[plot_config.position] = true
+
+	var stale_positions: Array[Vector2i] = []
+	for pos in tiles.keys():
+		if not active_positions.has(pos):
+			stale_positions.append(pos)
+
+	for pos in stale_positions:
+		var stale_tile = tiles.get(pos, null)
+		if stale_tile:
+			stale_tile.queue_free()
+		tiles.erase(pos)
+		classical_plot_positions.erase(pos)
+		selected_plots.erase(pos)
+		if current_selection == pos:
+			current_selection = Vector2i.ZERO
+
 	# Create missing tiles for new positions
-	var active_plots = grid_config.get_all_active_plots()
-	for plot_config in active_plots:
+	for plot_config in grid_config.get_all_active_plots():
 		_create_tile_at(plot_config.position, plot_config.keyboard_label)
 
 	# Reposition for current biome (if available)
@@ -314,7 +333,7 @@ func _connect_to_biome_manager() -> void:
 	if _biome_manager_connected:
 		return
 
-	active_biome_manager = get_node_or_null("/root/ActiveBiomeManager")
+	active_biome_manager = InstrumentLocator.resolve_active_biome_manager(self)
 	if active_biome_manager:
 		if not active_biome_manager.active_biome_changed.is_connected(_on_active_biome_changed):
 			active_biome_manager.active_biome_changed.connect(_on_active_biome_changed)
@@ -576,12 +595,6 @@ func inject_farm(farm_ref: Node) -> void:
 			farm.plot_measured.connect(_on_farm_plot_measured)
 			if _verbose:
 				_verbose.debug("ui", "📡", "Connected to farm.plot_measured")
-	if farm.has_signal("plot_popped"):
-		if not farm.plot_popped.is_connected(_on_farm_plot_popped):
-			farm.plot_popped.connect(_on_farm_plot_popped)
-			if _verbose:
-				_verbose.debug("ui", "📡", "Connected to farm.plot_popped")
-
 	# Connect to entanglement signals from FarmGrid
 	if farm.grid and farm.grid.has_signal("entanglement_created"):
 		if not farm.grid.entanglement_created.is_connected(_on_entanglement_created):
@@ -686,10 +699,9 @@ func inject_ui_controller(controller: Node) -> void:
 
 
 func wire_to_farm(farm_ref: Node) -> void:
-	"""Standard wiring interface for FarmUIController
+	"""Standard farm-wiring entrypoint.
 
 	This method encapsulates all initialization needed when a farm is injected.
-	Called by FarmUIController during farm injection phase.
 	"""
 	inject_farm(farm_ref)
 	if _verbose:
@@ -722,10 +734,7 @@ func set_plot_checked(pos: Vector2i, is_checked: bool) -> void:
 
 
 func update_tile_from_farm(pos: Vector2i) -> void:
-	"""PHASE 4: Update tile visual state directly from farm plot data
-
-	Transforms farm plot state into PlotUIData inline (no FarmUIState layer).
-	"""
+	"""Update tile visual state directly from live farm plot data."""
 	if not tiles.has(pos):
 		_verbose.debug("ui", "✗", "update_tile_from_farm(%s): tile not found!" % pos)
 		return
@@ -763,9 +772,8 @@ func update_tile_from_farm(pos: Vector2i) -> void:
 ## PHASE 4: PLOT TRANSFORMATION HELPER
 
 func _transform_plot_to_ui_data(pos: Vector2i, plot, terminal = null) -> Dictionary:
-	"""Transform WheatPlot/Terminal state → PlotUIData dictionary
+	"""Transform WheatPlot/Terminal state → plot display dictionary.
 
-	This inline transformation replaces the FarmUIState layer for real-time updates.
 	Handles both:
 	- Traditional planted plots (plot.is_active())
 	- Terminal-bound plots from EXPLORE action (terminal.is_bound)
@@ -776,17 +784,24 @@ func _transform_plot_to_ui_data(pos: Vector2i, plot, terminal = null) -> Diction
 		entangled_list = plot.entangled_plots.keys()
 
 	var terminal_active = terminal and (terminal.is_bound or terminal.is_measured)
+	var memory = plot.get_measurement_memory() if plot and plot.has_method("get_measurement_memory") else {}
+	var memory_visible = not terminal_active and bool(memory.get("has_memory", false))
 
 	var ui_data = {
 		"position": pos,
 		# Single source of truth for v2 terminals: terminal state overrides plot state
 		"is_planted": terminal_active if terminal_active else (plot and plot.is_active()),
-		"plot_type": plot.plot_type_name if plot else "terminal",
+		"type_name": plot.plot_type_name if plot else "terminal",
 		"north_emoji": "",
 		"south_emoji": "",
 		"north_probability": 0.0,
 		"south_probability": 0.0,
-		"has_been_measured": (plot and plot.is_measured),
+		"has_been_measured": terminal != null and terminal.is_measured,
+		"memory_visible": memory_visible,
+		"memory_outcome": str(memory.get("outcome", "")),
+		"memory_north_emoji": str(memory.get("north_emoji", "")),
+		"memory_south_emoji": str(memory.get("south_emoji", "")),
+		"memory_probability": float(memory.get("probability", 0.0)),
 		"entangled_plots": entangled_list,
 		"lindblad_pump_active": plot and plot.lindblad_pump_active,
 		"lindblad_drain_active": plot and plot.lindblad_drain_active
@@ -869,7 +884,7 @@ func refresh_all_tiles() -> void:
 
 
 func _on_tile_clicked(pos: Vector2i) -> void:
-	"""Handle tile click - toggle plot selection (same as keyboard JKL; keys)"""
+	"""Handle tile click using the same plot-selection behavior as the shared homerow bindings."""
 	# Skip if we just completed a multi-plot drag (prevents double-select)
 	if _skip_next_click:
 		_skip_next_click = false
@@ -884,7 +899,7 @@ func _on_tile_clicked(pos: Vector2i) -> void:
 		ui_controller.on_plot_selected(pos)
 
 
-## PHASE 4: DIRECT FARM SIGNAL HANDLERS (bypass FarmUIState)
+## Direct farm signal handlers
 
 func _on_farm_plot_planted(pos: Vector2i, plant_type: String) -> void:
 	"""Handle plot planted event from farm - PHASE 4: Direct signal"""
@@ -895,12 +910,6 @@ func _on_farm_plot_planted(pos: Vector2i, plant_type: String) -> void:
 func _on_farm_plot_measured(pos: Vector2i, outcome: String) -> void:
 	"""Handle plot measured event from farm - update tile to show collapsed emoji"""
 	_verbose.debug("ui", "👁️", "Farm.plot_measured received at PlotGridDisplay: %s → %s" % [pos, outcome])
-	update_tile_from_farm(pos)
-
-
-func _on_farm_plot_popped(pos: Vector2i, yield_data: Dictionary) -> void:
-	"""Handle plot popped event from farm"""
-	_verbose.debug("ui", "✂️", "Farm.plot_popped received at PlotGridDisplay")
 	update_tile_from_farm(pos)
 
 
@@ -934,7 +943,7 @@ func select_plot_by_key(action: String) -> void:
 		return
 
 	var pos = grid_config.keyboard_layout.get_position_for_action(action)
-	if pos == Vector2i(-1, -1):
+	if pos == GridSentinel.INVALID_POSITION:
 		push_error("PlotGridDisplay: Unknown keyboard action: %s" % action)
 		return
 
@@ -996,7 +1005,7 @@ func select_all_plots() -> void:
 	"""Select all plots in the active biome (] key)"""
 	# Get active biome
 	var active_biome = ""
-	var biome_mgr = get_node_or_null("/root/ActiveBiomeManager")
+	var biome_mgr = InstrumentLocator.resolve_active_biome_manager(self)
 	if biome_mgr and biome_mgr.has_method("get_active_biome"):
 		active_biome = biome_mgr.get_active_biome()
 
@@ -1041,7 +1050,7 @@ func get_selected_plots() -> Array[Vector2i]:
 
 	# Get active biome to filter selections
 	var active_biome = ""
-	var biome_mgr = get_node_or_null("/root/ActiveBiomeManager")
+	var biome_mgr = InstrumentLocator.resolve_active_biome_manager(self)
 	if biome_mgr and biome_mgr.has_method("get_active_biome"):
 		active_biome = biome_mgr.get_active_biome()
 
@@ -1072,7 +1081,7 @@ func get_selected_plot() -> Vector2i:
 func _get_quad_screen_positions() -> Array[Vector2]:
 	"""Get fixed screen positions for 4 plots in a 2x2-ish arrangement.
 
-	Layout (matching homerow plot keys JKL;):
+	Layout (matching the shared homerow plot bindings):
 	  [0] [1] [2] [3]
 	   J   K   L   ;
 
@@ -1127,7 +1136,7 @@ func get_plot_position(grid_pos: Vector2i) -> Vector2:
 
 
 func _get_touch_input_manager() -> Node:
-	return get_node_or_null("/root/TouchInputManager")
+	return InstrumentLocator.resolve_touch_input_manager(self)
 
 
 ## DRAG/SWIPE BATCH SELECTION
@@ -1146,7 +1155,7 @@ func _input(event: InputEvent) -> void:
 			if event.pressed:
 				# Start drag tracking if pressing on a plot
 				var plot_pos = _get_plot_at_screen_position(event.global_position)
-				if plot_pos != Vector2i(-1, -1):
+				if plot_pos != GridSentinel.INVALID_POSITION:
 					_start_drag(plot_pos)
 					# Don't consume - let TouchInputManager also track for tap detection
 					_verbose.debug("ui", "📱", "PlotGridDisplay: Started drag tracking at %s" % plot_pos)
@@ -1161,7 +1170,7 @@ func _input(event: InputEvent) -> void:
 		if is_dragging:
 			# Check if cursor is over a new plot
 			var plot_pos = _get_plot_at_screen_position(event.global_position)
-			if plot_pos != Vector2i(-1, -1):
+			if plot_pos != GridSentinel.INVALID_POSITION:
 				if not drag_plots.has(plot_pos):
 					_drag_over_plot(plot_pos)
 
@@ -1192,7 +1201,7 @@ func _on_touch_tap(position: Vector2) -> void:
 
 	var plot_pos = _get_plot_at_screen_position(position)
 	_verbose.debug("ui", "", "Converted to plot grid position: %s" % plot_pos)
-	if plot_pos != Vector2i(-1, -1):
+	if plot_pos != GridSentinel.INVALID_POSITION:
 		# FOUND PLOT: Toggle checkbox and consume tap
 		toggle_plot_selection(plot_pos)
 		touch_input.consume_current_tap()
@@ -1229,7 +1238,7 @@ func _end_drag() -> void:
 	if drag_plots.size() <= 1:
 		# Single plot or empty - handled by normal click
 		drag_plots.clear()
-		drag_start_pos = Vector2i(-1, -1)
+		drag_start_pos = GridSentinel.INVALID_POSITION
 		return
 
 	# Multi-plot drag completed - skip the click handler that will fire next
@@ -1247,7 +1256,7 @@ func _end_drag() -> void:
 
 	selection_count_changed.emit(selected_plots.size())
 	drag_plots.clear()
-	drag_start_pos = Vector2i(-1, -1)
+	drag_start_pos = GridSentinel.INVALID_POSITION
 
 
 func _get_plot_at_screen_position(screen_pos: Vector2) -> Vector2i:
@@ -1262,7 +1271,7 @@ func _get_plot_at_screen_position(screen_pos: Vector2) -> Vector2i:
 		if rect.has_point(screen_pos):
 			return pos
 
-	return Vector2i(-1, -1)  # No plot at this position
+	return GridSentinel.INVALID_POSITION  # No plot at this position
 
 
 ## ============================================================================
@@ -1323,7 +1332,7 @@ func _process(delta: float) -> void:
 		_verbose.trace("ui", "⏱️", "PGD Process Trace: Total %d us (Sync: %d, Rejection: %d, Cleanup: %d, Connections: %d)" % [t4 - t0, t1 - t0, t2 - t1, t3 - t2, t4 - t3])
 
 	# Report timing to UIPerformanceTracker
-	var tracker = get_node_or_null("/root/UIPerformanceTracker")
+	var tracker = InstrumentLocator.resolve_ui_performance_tracker(self)
 	if tracker:
 		tracker.record_time("PlotGridDisplay._process", t4 - t0)
 	elif Engine.get_process_frames() % 300 == 0:
@@ -1417,7 +1426,7 @@ func _draw() -> void:
 	_draw_persistent_gate_infrastructure()
 
 	var t1 = Time.get_ticks_usec()
-	var tracker = get_node_or_null("/root/UIPerformanceTracker")
+	var tracker = InstrumentLocator.resolve_ui_performance_tracker(self)
 	if tracker:
 		tracker.record_time("PlotGridDisplay._draw", t1 - t0)
 

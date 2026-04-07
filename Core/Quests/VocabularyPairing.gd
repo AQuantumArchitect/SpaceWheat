@@ -1,6 +1,8 @@
 class_name VocabularyPairing
 extends RefCounted
 
+const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")
+
 ## Vocabulary Pairing System (South-First Design)
 ##
 ## NEW ORDER: South pole is calculated FIRST, then North pole.
@@ -17,10 +19,7 @@ extends RefCounted
 
 ## Get IconRegistry from scene tree
 static func _get_icon_registry():
-	var tree = Engine.get_main_loop() as SceneTree
-	if tree:
-		return tree.root.get_node_or_null("/root/IconRegistry")
-	return null
+	return InstrumentLocator.resolve_icon_registry_main_loop()
 
 
 ## Roll a complete vocabulary pair (South first, then North)
@@ -329,61 +328,6 @@ static func _roll_north_pole(south_emoji: String, known_vocab: Array, icon_regis
 		"connections": filtered
 	}
 
-
-## LEGACY: Roll a partner (South) for a given North emoji
-## Kept for backward compatibility - prefer roll_pair() for new code
-static func roll_partner(north_emoji: String) -> Dictionary:
-	var icon_registry = _get_icon_registry()
-
-	if not icon_registry:
-		push_error("VocabularyPairing: IconRegistry not found")
-		return {"south": "", "error": "no_icon_registry"}
-
-	var connections = get_connection_weights(north_emoji, icon_registry)
-
-	if connections.is_empty():
-		push_warning("VocabularyPairing: No connections for %s" % north_emoji)
-		return {"south": "", "error": "no_connections", "north": north_emoji}
-
-	# Apply resource quantity bias to weights
-	_apply_resource_bias(connections)
-
-	# Calculate total weight (after resource bias applied)
-	var total_weight = 0.0
-	for target in connections:
-		total_weight += connections[target]["weight"]
-
-	if total_weight <= 0:
-		return {"south": "", "error": "zero_weight", "north": north_emoji}
-
-	# Weighted random roll
-	var roll = randf() * total_weight
-	var cumulative = 0.0
-
-	for target in connections:
-		cumulative += connections[target]["weight"]
-		if roll <= cumulative:
-			return {
-				"north": north_emoji,
-				"south": target,
-				"weight": connections[target]["weight"],
-				"probability": connections[target]["weight"] / total_weight,
-				"connections": connections,
-				"total_weight": total_weight
-			}
-
-	# Fallback (shouldn't reach here)
-	var first_target = connections.keys()[0]
-	return {
-		"north": north_emoji,
-		"south": first_target,
-		"weight": connections[first_target]["weight"],
-		"probability": connections[first_target]["weight"] / total_weight,
-		"connections": connections,
-		"total_weight": total_weight
-	}
-
-
 ## Apply resource quantity bias to connection weights
 ## Modifies weights in-place based on player's emoji-credit resources
 ## Formula: weight *= (1.0 + log(1 + credits) / 3.0)
@@ -411,11 +355,9 @@ static func _apply_resource_bias(connections: Dictionary) -> void:
 
 ## Get FarmEconomy from scene tree
 static func _get_economy():
-	var tree = Engine.get_main_loop() as SceneTree
-	if tree and tree.root:
-		var gsm = tree.root.get_node_or_null("/root/GameStateManager")
-		if gsm and "active_farm" in gsm and gsm.active_farm:
-			return gsm.active_farm.get("economy")
+	var active_farm = InstrumentLocator.resolve_active_farm_main_loop()
+	if active_farm:
+		return active_farm.get("economy")
 	return null
 
 
@@ -524,12 +466,6 @@ static func get_sorted_connections(emoji: String, icon_registry) -> Array:
 
 	sorted_list.sort_custom(func(a, b): return a.weight > b.weight)
 	return sorted_list
-
-
-## Reroll partner (same distribution, fresh roll)
-static func reroll_partner(north_emoji: String) -> Dictionary:
-	return roll_partner(north_emoji)
-
 
 ## Format pair for display
 static func format_pair(north: String, south: String) -> String:

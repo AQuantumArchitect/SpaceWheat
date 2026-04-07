@@ -7,10 +7,9 @@ extends Node
 ## - GridPlotManager: Plot lifecycle and queries
 ## - BiomeRoutingManager: Multi-biome registry and routing
 ## - EntanglementManager: Quantum entanglement operations
-## - HarvestMeasurementManager: Harvest and measurement operations
 
 # Access autoload safely (avoids compile-time errors)
-@onready var _verbose = get_node("/root/VerboseConfig")
+@onready var _verbose = InstrumentLocator.resolve_verbose_config(self)
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # SIGNALS (unchanged API)
@@ -18,7 +17,6 @@ extends Node
 
 # Internal signals (for FarmGrid-level operations)
 signal plot_planted(position: Vector2i)
-signal plot_popped(position: Vector2i, yield_data: Dictionary)
 
 signal entanglement_created(from: Vector2i, to: Vector2i)
 signal entanglement_removed(from: Vector2i, to: Vector2i)
@@ -34,7 +32,6 @@ signal visualization_changed()
 const GridPlotManager = preload("res://Core/GameMechanics/Grid/GridPlotManager.gd")
 const BiomeRoutingManager = preload("res://Core/GameMechanics/Grid/BiomeRoutingManager.gd")
 const EntanglementManager = preload("res://Core/GameMechanics/Grid/EntanglementManager.gd")
-const HarvestMeasurementManager = preload("res://Core/GameMechanics/Grid/HarvestMeasurementManager.gd")
 
 const FarmPlot = preload("res://Core/GameMechanics/FarmPlot.gd")
 const Icon = preload("res://Core/QuantumSubstrate/Icon.gd")
@@ -46,7 +43,6 @@ const Icon = preload("res://Core/QuantumSubstrate/Icon.gd")
 var _plot_manager: GridPlotManager
 var _biome_routing: BiomeRoutingManager
 var _entanglement: EntanglementManager
-var _harvest: HarvestMeasurementManager
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # CONFIGURATION & STATE
@@ -105,7 +101,6 @@ func _init(width: int = 6, height: int = 4):
 	_plot_manager = GridPlotManager.new(grid_width, grid_height)
 	_biome_routing = BiomeRoutingManager.new()
 	_entanglement = EntanglementManager.new()
-	_harvest = HarvestMeasurementManager.new()
 
 
 func resize_grid(new_width: int, new_height: int) -> void:
@@ -140,11 +135,9 @@ func _ready():
 	if terminal_pool:
 		_biome_routing.set_terminal_pool(terminal_pool)
 	_entanglement.set_verbose(_verbose)
-	_harvest.set_verbose(_verbose)
 
 	# Wire component dependencies
 	_entanglement.set_dependencies(_plot_manager, _biome_routing)
-	_harvest.set_dependencies(_plot_manager, _biome_routing, farm_economy, _entanglement, terminal_pool, null)
 
 	# Wire external references
 	_plot_manager.faction_territory_manager = faction_territory_manager
@@ -152,10 +145,6 @@ func _ready():
 	# Forward signals from components
 	_entanglement.entanglement_created.connect(func(a, b): entanglement_created.emit(a, b))
 	_entanglement.entanglement_removed.connect(func(a, b): entanglement_removed.emit(a, b))
-
-	_harvest.plot_popped.connect(func(pos, data): plot_popped.emit(pos, data))
-	_harvest.plot_changed.connect(func(pos, t, d): plot_changed.emit(pos, t, d))
-	_harvest.visualization_changed.connect(func(): visualization_changed.emit())
 
 	# Pre-initialize all plots
 	_plot_manager.initialize_all_plots()
@@ -185,6 +174,11 @@ func _process(delta):
 func register_biome(biome_name: String, biome_instance) -> void:
 	"""Register a biome in the grid's biome registry"""
 	_biome_routing.register_biome(biome_name, biome_instance)
+
+
+func unregister_biome(biome_name: String) -> void:
+	"""Unregister a biome and clear its routing assignments."""
+	_biome_routing.unregister_biome(biome_name)
 
 
 func has_biome(biome_name: String) -> bool:
@@ -242,8 +236,6 @@ func set_terminal_pool(pool) -> void:
 	terminal_pool = pool
 	if _biome_routing:
 		_biome_routing.set_terminal_pool(pool)
-	if _harvest:
-		_harvest.set_dependencies(_plot_manager, _biome_routing, farm_economy, _entanglement, terminal_pool, null)
 
 
 func get_biome_for_plot(position: Vector2i):
@@ -330,25 +322,6 @@ func print_grid_state():
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# HARVEST & MEASUREMENT (delegates to HarvestMeasurementManager)
-# ═══════════════════════════════════════════════════════════════════════════════
-
-func pop_wheat(position: Vector2i) -> Dictionary:
-	"""Pop (harvest) a measured terminal at position"""
-	# Ensure economy is wired
-	if farm_economy and not _harvest._economy:
-		_harvest.set_dependencies(_plot_manager, _biome_routing, farm_economy, _entanglement, terminal_pool, null)
-	elif terminal_pool and not _harvest._terminal_pool:
-		_harvest.set_dependencies(_plot_manager, _biome_routing, farm_economy, _entanglement, terminal_pool, null)
-	return _harvest.pop_wheat(position)
-
-
-func measure_plot(position: Vector2i) -> String:
-	"""Measure quantum state (observer effect)"""
-	return _harvest.measure_plot(position)
-
-
-# ═══════════════════════════════════════════════════════════════════════════════
 # ENTANGLEMENT (delegates to EntanglementManager)
 # ═══════════════════════════════════════════════════════════════════════════════
 
@@ -384,3 +357,4 @@ func are_plots_entangled(pos_a: Vector2i, pos_b: Vector2i) -> bool:
 func get_register_for_plot(position: Vector2i) -> int:
 	"""Get the RegisterId for a plot via terminal binding."""
 	return _biome_routing.get_register_for_plot(position)
+const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")

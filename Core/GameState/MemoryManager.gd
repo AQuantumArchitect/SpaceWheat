@@ -9,7 +9,7 @@
 ## - UI = Observes GameState changes via signals
 ##
 ## Usage:
-##   var state = MemoryManager.new_game("default")
+##   var state = MemoryManager.new_game(SaveStore.DEFAULT_SCENARIO_ID)
 ##   # ... simulate ...
 ##   MemoryManager.save_game(state, 0)
 ##   # ... later ...
@@ -38,13 +38,17 @@ func _ready():
 
 ## CREATE NEW GAME STATE
 ## Returns a fresh GameState from scenario or default
-func new_game(scenario_id: String = "default") -> GameState:
+func new_game(scenario_id: String = SaveStore.DEFAULT_SCENARIO_ID) -> GameState:
 	"""Create new game state from scenario template"""
 	print("🎮 Creating new game: " + scenario_id)
 
-	var state = SaveStore.load_scenario(scenario_id)
-	if state and state.scenario_id == "":
-		state.scenario_id = scenario_id
+	var state: GameState = null
+	if scenario_id.strip_edges() == "" or scenario_id == SaveStore.DEFAULT_SCENARIO_ID:
+		state = SaveStore.load_new_game_template()
+	else:
+		state = SaveStore.load_scenario(scenario_id)
+		if state and state.scenario_id == "":
+			state.scenario_id = scenario_id
 
 	state.save_timestamp = Time.get_unix_time_from_system()
 	state.game_time = 0.0

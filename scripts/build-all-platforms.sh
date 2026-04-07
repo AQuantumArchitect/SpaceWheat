@@ -135,7 +135,7 @@ fi
 if [ "$WINDOWS_ONLY" = true ]; then
     if [ ! -f "bin/libgodot-cpp.windows.template_release.x86_64.a" ] || [ "$DO_CLEAN" = true ]; then
         log "Building godot-cpp for Windows..."
-        scons platform=windows target=template_release -j$(nproc)
+        scons platform=windows target=template_release use_mingw=yes -j$(nproc)
         success "godot-cpp Windows built"
     else
         success "godot-cpp Windows already built (cached)"
@@ -156,6 +156,20 @@ if [ "$WEB_ONLY" = true ]; then
     fi
 fi
 
+# Copy platform-specific static libraries into native/lib so the local and
+# release build paths consume the same inputs.
+mkdir -p "$NATIVE_DIR/lib"
+
+if [ "$LINUX_ONLY" = true ] && [ -f "$GODOT_CPP_DIR/bin/libgodot-cpp.linux.template_release.x86_64.a" ]; then
+    cp "$GODOT_CPP_DIR/bin/libgodot-cpp.linux.template_release.x86_64.a" \
+       "$NATIVE_DIR/lib/libgodot-cpp.linux.template_release.x86_64.a"
+fi
+
+if [ "$WINDOWS_ONLY" = true ] && [ -f "$GODOT_CPP_DIR/bin/libgodot-cpp.windows.template_release.x86_64.a" ]; then
+    cp "$GODOT_CPP_DIR/bin/libgodot-cpp.windows.template_release.x86_64.a" \
+       "$NATIVE_DIR/lib/libgodot-cpp.windows.template_release.x86_64.a"
+fi
+
 # Build SpaceWheat extensions
 cd "$NATIVE_DIR"
 
@@ -173,23 +187,7 @@ fi
 
 if [ "$WINDOWS_ONLY" = true ]; then
     log "Building Windows extension..."
-    mkdir -p bin/windows
-
-    x86_64-w64-mingw32-g++ -std=c++17 -shared -O2 \
-        -I./include \
-        -I./include/godot_cpp \
-        -I./include/gdextension \
-        -DWINDOWS_ENABLED -DGDEXTENSION \
-        src/*.cpp \
-        ../godot-cpp/bin/libgodot-cpp.windows.template_release.x86_64.a \
-        -o bin/windows/libquantummatrix.windows.template_release.x86_64.dll \
-        -static-libgcc -static-libstdc++
-
-    # Create debug symlink
-    cd bin/windows
-    ln -sf libquantummatrix.windows.template_release.x86_64.dll \
-           libquantummatrix.windows.template_debug.x86_64.dll
-    cd ../..
+    make -f Makefile.windows -j$(nproc)
 
     if [ -f "bin/windows/libquantummatrix.windows.template_release.x86_64.dll" ]; then
         SIZE=$(ls -lh bin/windows/libquantummatrix.windows.template_release.x86_64.dll | awk '{print $5}')
@@ -250,7 +248,7 @@ echo ""
 
 if [ "$WINDOWS_ONLY" = true ] || [ "$WEB_ONLY" = true ]; then
     echo "Next steps:"
-    echo "  1. Update quantum_matrix.gdextension (uncomment Windows/Web lines)"
+    echo "  1. Verify quantum_matrix.gdextension points at the built platform libraries"
     echo "  2. Export game for each platform:"
     if [ "$LINUX_ONLY" = true ]; then
         echo "     godot --headless --export-release \"Linux Desktop\" releases/linux/game.x86_64"

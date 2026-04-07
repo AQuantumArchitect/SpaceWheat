@@ -1,6 +1,8 @@
 class_name TerminalPool
 extends RefCounted
 
+const GridSentinel = preload("res://Core/GameState/GridSentinel.gd")
+
 ## TerminalPool - Pool of generic terminals for quantum soup probing (v2 Architecture)
 ##
 ## Manages a pool of Terminal objects and tracks their binding state to registers.
@@ -131,12 +133,35 @@ func unbind_terminal(terminal: RefCounted) -> void:
 	terminal.unbind()
 
 	terminal_unbound.emit(terminal)
-	if old_pos != Vector2i(-1, -1):
+	if old_pos != GridSentinel.INVALID_POSITION:
 		terminal_unbound_at.emit(old_pos, old_id)
 
 	# Emit pool_available if we just freed a terminal from exhaustion
 	if was_exhausted:
 		pool_available.emit()
+
+
+func release_terminal(terminal: RefCounted) -> void:
+	"""Fully remove a terminal from the field, regardless of bound/measured state."""
+	if not terminal:
+		return
+	if terminal.is_bound:
+		unbind_terminal(terminal)
+		return
+	if not terminal.is_measured and terminal.grid_position == GridSentinel.INVALID_POSITION:
+		return
+
+	var old_pos = terminal.grid_position
+	var old_id = terminal.terminal_id
+	terminal.clear_measurement()
+	terminal.current_emoji = ""
+	terminal.north_emoji = ""
+	terminal.south_emoji = ""
+	terminal.grid_position = GridSentinel.INVALID_POSITION
+	terminal.frozen_position = Vector2.ZERO
+	terminal_unbound.emit(terminal)
+	if old_pos != GridSentinel.INVALID_POSITION:
+		terminal_unbound_at.emit(old_pos, old_id)
 
 
 ## Check if a register is currently bound (queries Terminal state directly)

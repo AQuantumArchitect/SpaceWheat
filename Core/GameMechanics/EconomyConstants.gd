@@ -36,6 +36,7 @@ const ACTION_COSTS: Dictionary = {
 	"quest_reroll": {"🐇": 1},   # Reroll quest slot
 	"quest_lock": {"🌲": 1},     # Lock quest slot
 	"discover_biome": {"🦅": 4}, # Scout new biome (reduced for 1:1 quantum mass economy)
+	"remove_biome": {"💀": 8},  # Cull biome: pay skulls, then liquidate the biome's live state
 	"remove_vocabulary": {"🐺": 20}, # Remove vocabulary: penalize with wolf cost
 	"lindblad_pump": {"🌱": 8},  # Axis-aware dynamic cost adds north emoji
 	"lindblad_drain": {"⚙": 2}  # Axis-aware dynamic cost adds south emoji
@@ -68,15 +69,12 @@ const GATE_COSTS: Dictionary = {
 ## Vocab injection dynamic costs (LOWERED to 4 for 1:1 quantum mass economy)
 const VOCAB_INJECTION_SOUTH_COST: int = 4
 const VOCAB_INJECTION_SPROUT_COST: Dictionary = {"🌱": 10}
-const VOCAB_INJECTION_BASE_COST: int = VOCAB_INJECTION_SOUTH_COST  # Deprecated compatibility alias
 
 ## Lindblad axis-aware costs
 const LINDBLAD_PUMP_SPROUT_COST: int = 8
 const LINDBLAD_PUMP_NORTH_COST: int = 32
 const LINDBLAD_DRAIN_GEAR_COST: int = 2
 const LINDBLAD_DRAIN_SOUTH_COST: int = 8
-
-# Removed: old VOCAB_INJECTION_BASE_COST (never used)
 
 ## Hard cap on biome qubits (enforced by actions, not by the quantum computer)
 const MAX_BIOME_QUBITS: int = 12

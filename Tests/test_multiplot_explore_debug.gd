@@ -3,7 +3,7 @@ extends SceneTree
 
 ## TEST: Multi-plot EXPLORE behavior
 ## Simulates selecting multiple plots and exploring all at once
-## This mimics the actual FarmInputHandler._action_explore loop
+## This mimics the current multi-plot explore loop through QuantumInstrumentInput/instrument state
 
 const ProbeActions = preload("res://Core/Actions/ProbeActions.gd")
 

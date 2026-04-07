@@ -1,17 +1,17 @@
 class_name BiomeTabBar
 extends HBoxContainer
 
+const InputBindingRegistry = preload("res://UI/Core/InputBindingRegistry.gd")
+const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")
+
 ## BiomeTabBar - Top bar showing biome tabs for switching between biomes
 ##
 ## Displays tabs for all biomes with the active one highlighted.
-## Click a tab to switch biomes. Shows keyboard shortcuts (UIOP).
+## Click a tab to switch biomes. Shows keyboard shortcuts (TYUIOP).
 ## Connects to ActiveBiomeManager for state synchronization.
 
 # Access autoload safely
-@onready var _verbose = get_node("/root/VerboseConfig")
-
-# Fixed key slots (TYUIOP). Biomes are assigned as they are unlocked.
-const SLOT_KEYS: Array[String] = ["T", "Y", "U", "I", "O", "P"]
+@onready var _verbose = InstrumentLocator.resolve_verbose_config(self)
 
 # Biome display names (more user-friendly)
 const BIOME_LABELS: Dictionary = {
@@ -44,13 +44,14 @@ func _ready() -> void:
 	custom_minimum_size = Vector2(0, 40)
 
 	# Create tab buttons for each slot (T/Y/U/I/O/P)
-	for slot_idx in range(SLOT_KEYS.size()):
+	var slot_keys = InputBindingRegistry.get_biome_keys()
+	for slot_idx in range(slot_keys.size()):
 		var button = _create_tab_button(slot_idx)
 		add_child(button)
 		slot_buttons.append(button)
 
 	# Connect to ActiveBiomeManager (with guard to prevent duplicate connections)
-	active_biome_manager = get_node_or_null("/root/ActiveBiomeManager")
+	active_biome_manager = InstrumentLocator.resolve_active_biome_manager(self)
 	if active_biome_manager:
 		if not active_biome_manager.active_biome_changed.is_connected(_on_active_biome_changed):
 			active_biome_manager.active_biome_changed.connect(_on_active_biome_changed)
@@ -180,7 +181,8 @@ func _refresh_slot_labels() -> void:
 		var button = slot_buttons[slot_idx]
 		if not button:
 			continue
-		var slot_key = SLOT_KEYS[slot_idx] if slot_idx < SLOT_KEYS.size() else ""
+		var slot_keys = InputBindingRegistry.get_biome_keys()
+		var slot_key = slot_keys[slot_idx] if slot_idx < slot_keys.size() else ""
 		var biome_name = active_biome_manager.get_biome_for_slot(slot_idx) if active_biome_manager else ""
 		if biome_name == "":
 			button.text = "Unassigned [%s]" % slot_key

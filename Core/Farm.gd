@@ -2,8 +2,8 @@ class_name Farm
 extends Node
 
 # Access autoloads safely (avoids compile-time errors)
-@onready var _icon_registry = get_node("/root/IconRegistry")
-@onready var _verbose = get_node("/root/VerboseConfig")
+@onready var _icon_registry = InstrumentLocator.resolve_icon_registry(self)
+@onready var _verbose = InstrumentLocator.resolve_verbose_config(self)
 
 ## Farm - Pure simulation manager for quantum wheat farming
 ## Owns all game systems and handles all game logic
@@ -14,19 +14,23 @@ extends Node
 const GridConfig = preload("res://Core/GameState/GridConfig.gd")
 const PlotConfig = preload("res://Core/GameState/PlotConfig.gd")
 const KeyboardLayoutConfig = preload("res://Core/GameState/KeyboardLayoutConfig.gd")
+const InputBindingRegistry = preload("res://UI/Core/InputBindingRegistry.gd")
 const PhysicsConfig = preload("res://Core/Config/PhysicsConfig.gd")
+const GridSentinel = preload("res://Core/GameState/GridSentinel.gd")
 
 const FarmGrid = preload("res://Core/GameMechanics/FarmGrid.gd")
 const FarmPlot = preload("res://Core/GameMechanics/FarmPlot.gd")
 const FarmEconomy = preload("res://Core/GameMechanics/FarmEconomy.gd")
 const EconomyConstants = preload("res://Core/GameMechanics/EconomyConstants.gd")
 const ActionCostRuntime = preload("res://Core/GameMechanics/ActionCostRuntime.gd")
+const BalanceService = preload("res://Core/GameMechanics/BalanceService.gd")
 const TerminalPoolClass = preload("res://Core/GameMechanics/TerminalPool.gd")
 const BiomeEvolutionBatcherClass = preload("res://Core/Environment/BiomeEvolutionBatcher.gd")
-const FarmUIState = preload("res://Core/GameState/FarmUIState.gd")
 const GameState = preload("res://Core/GameState/GameState.gd")
 const VocabularyEvolution = preload("res://Core/QuantumSubstrate/VocabularyEvolution.gd")
 const BiomeDiscoveryForecastService = preload("res://Core/Gameplay/BiomeDiscoveryForecastService.gd")
+const ProbeActions = preload("res://Core/Actions/ProbeActions.gd")
+const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")
 
 # Icon system moved to faction-based IconRegistry (no preload needed)
 
@@ -44,7 +48,6 @@ var _loaded_biome_count: int = 0  # Track how many biomes loaded successfully
 var vocabulary_evolution: VocabularyEvolution  # Vocabulary evolution system
 var known_pairs: Array = []  # Player vocabulary pairs (canonical, farm-owned)
 var reap_count: int = 0  # Number of global seasonal reaps completed
-var ui_state: FarmUIState  # UI State abstraction layer
 var grid_config: GridConfig = null  # Single source of truth for grid layout
 var _bootstrap_pool: TerminalPoolClass = null  # Created at boot, transferred to instrument via set_instrument()
 var instrument = null  # QuantumInstrument (set via set_instrument() after boot)
@@ -63,6 +66,22 @@ var _mushroom_count_dirty: bool = true  # Set true when plots change
 func invalidate_mushroom_cache() -> void:
 	"""Call when plots are planted/harvested to recalculate mushroom count on next frame"""
 	_mushroom_count_dirty = true
+
+
+func _get_gsm():
+	return InstrumentLocator.resolve_game_state_manager(self)
+
+
+func _get_player_vocab():
+	return InstrumentLocator.resolve_player_vocabulary(self)
+
+
+func _get_active_biome_manager():
+	return InstrumentLocator.resolve_active_biome_manager(self)
+
+
+func _get_icon_registry_autoload():
+	return InstrumentLocator.resolve_icon_registry(self)
 
 
 func _exit_tree() -> void:
@@ -122,7 +141,16 @@ const DEFAULT_PLOTS_PER_BIOME = 4
 const MAX_PLOTS_PER_BIOME = 7  # J K L ; ' H G
 const LINDBLAD_TIMESCALE_BASE_DT = 0.02
 const LINDBLAD_TIMESCALE_CAP = 4096.0
-const RAINBOW_DRAIN_MODE_DEFAULT = true
+const RAINBOW_DRAIN_MODE_DEFAULT = false
+const CORE_BIOMES: Array[String] = ["StarterForest", "Village"]
+const BIOME_FIELD_NAMES: Dictionary = {
+	"StarterForest": "starter_forest_biome",
+	"Village": "village_biome",
+	"BioticFlux": "biotic_flux_biome",
+	"StellarForges": "stellar_forges_biome",
+	"FungalNetworks": "fungal_networks_biome",
+	"VolcanicWorlds": "volcanic_worlds_biome"
+}
 
 # Dynamic row mappings (built from explored biome order)
 var biome_row_map: Dictionary = {}  # biome_name -> row index
@@ -180,8 +208,6 @@ signal biome_expanded(biome_name: String, qubit_index: int, emoji_pair: Dictiona
 
 signal plot_measured(position: Vector2i, outcome: String)
 
-signal plot_popped(position: Vector2i, yield_data: Dictionary)
-
 # ═══════════════════════════════════════════════════════════════════════════════
 # OTHER SIGNALS
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -197,7 +223,7 @@ signal economy_changed(state: Dictionary)
 # identically, and tests can trigger visualization by calling this method.
 # ═══════════════════════════════════════════════════════════════════════════════
 
-func emit_action_signal(action: String, result: Dictionary, grid_pos: Vector2i = Vector2i(-1, -1)) -> void:
+func emit_action_signal(action: String, result: Dictionary, grid_pos: Vector2i = GridSentinel.INVALID_POSITION) -> void:
 	"""Central hub for action→signal emission.
 
 	Simulation layer (ProbeActions) returns result dictionaries.
@@ -217,13 +243,24 @@ func emit_action_signal(action: String, result: Dictionary, grid_pos: Vector2i =
 			var terminal = result.get("terminal")
 			if terminal:
 				# Set grid_position on terminal if not already set
-				if "grid_position" in terminal and grid_pos != Vector2i(-1, -1):
+				if "grid_position" in terminal and grid_pos != GridSentinel.INVALID_POSITION:
 					terminal.grid_position = grid_pos
 				terminal_bound.emit(grid_pos, terminal.terminal_id, result.get("emoji_pair", {}))
 
 		"measure":
 			var terminal = result.get("terminal")
 			var terminal_id = terminal.terminal_id if terminal else result.get("terminal_id", "")
+			if grid_pos != GridSentinel.INVALID_POSITION and grid:
+				var plot = grid.get_plot(grid_pos)
+				if plot and plot.has_method("remember_measurement"):
+					var north = terminal.north_emoji if terminal else ""
+					var south = terminal.south_emoji if terminal else ""
+					plot.remember_measurement(
+						result.get("outcome", ""),
+						result.get("probability", result.get("recorded_probability", 0.0)),
+						north,
+						south
+					)
 			terminal_measured.emit(grid_pos, terminal_id,
 				result.get("outcome", ""), result.get("probability", 0.0))
 
@@ -235,23 +272,23 @@ func emit_action_signal(action: String, result: Dictionary, grid_pos: Vector2i =
 			var harvest_results = result.get("harvest_results", [])
 			if harvest_results is Array and not harvest_results.is_empty():
 				for harvest in harvest_results:
-					var h_pos = harvest.get("grid_position", Vector2i(-1, -1))
+					var h_pos = harvest.get("grid_position", GridSentinel.INVALID_POSITION)
 					var tid = harvest.get("terminal_id", "")
 					var h_credits = int(harvest.get("total_credits", harvest.get("credits", 0)))
-					if h_pos != Vector2i(-1, -1) and tid != "":
+					if h_pos != GridSentinel.INVALID_POSITION and tid != "":
 						terminal_released.emit(h_pos, tid, h_credits)
 
 		"clear_all":
 			# Handle array of harvest/clear results
 			var harvest_results = result.get("harvest_results", result.get("terminals", []))
 			for harvest in harvest_results:
-				var h_pos = harvest.get("grid_position", Vector2i(-1, -1))
+				var h_pos = harvest.get("grid_position", GridSentinel.INVALID_POSITION)
 				var tid = harvest.get("terminal_id", "")
-				if h_pos == Vector2i(-1, -1) and harvest is Object and "grid_position" in harvest:
+				if h_pos == GridSentinel.INVALID_POSITION and harvest is Object and "grid_position" in harvest:
 					h_pos = harvest.grid_position
 				if tid == "" and harvest is Object and "terminal_id" in harvest:
 					tid = harvest.terminal_id
-				if h_pos != Vector2i(-1, -1) and tid != "":
+				if h_pos != GridSentinel.INVALID_POSITION and tid != "":
 					terminal_released.emit(h_pos, tid, int(harvest.get("total_credits", 0)))
 
 
@@ -290,7 +327,7 @@ func _ready():
 
 	# Load only unlocked biomes (initially just StarterForest and Village)
 	# Other biomes are loaded dynamically when explored via 4E action
-	var observation_frame = get_node_or_null("/root/ObservationFrame")
+	var observation_frame = InstrumentLocator.resolve_observation_frame(self)
 	var unlocked_biomes = ["StarterForest", "Village"]  # Default
 	if observation_frame and observation_frame.has_method("get_explored_biomes"):
 		unlocked_biomes = observation_frame.get_explored_biomes()
@@ -298,23 +335,14 @@ func _ready():
 		unlocked_biomes = observation_frame.get_unlocked_biomes()
 
 	# Load unlocked biomes through unified BootManager.load_biome()
-	var boot_manager = get_node_or_null("/root/BootManager")
-	var biome_name_to_var = {
-		"StarterForest": "starter_forest_biome",
-		"Village": "village_biome",
-		"BioticFlux": "biotic_flux_biome",
-		"StellarForges": "stellar_forges_biome",
-		"FungalNetworks": "fungal_networks_biome",
-		"VolcanicWorlds": "volcanic_worlds_biome"
-	}
-
+	var boot_manager = InstrumentLocator.resolve_root_node(self, "/root/BootManager")
 	for biome_name in unlocked_biomes:
 		if boot_manager and boot_manager.has_method("load_biome"):
 			var result = boot_manager.load_biome(biome_name, self)
 			if result.get("success", false):
 				# Store biome reference in the correct variable
-				if biome_name_to_var.has(biome_name):
-					var var_name = biome_name_to_var[biome_name]
+				if BIOME_FIELD_NAMES.has(biome_name):
+					var var_name = BIOME_FIELD_NAMES[biome_name]
 					set(var_name, result.get("biome_ref"))
 					_loaded_biome_count += 1
 			else:
@@ -347,14 +375,14 @@ func _ready():
 			return
 
 	# Persist grid dimensions into GameState (source of truth for saves)
-	var gsm = get_node_or_null("/root/GameStateManager")
+	var gsm = _get_gsm()
 	if gsm and gsm.current_state:
 		gsm.current_state.grid_width = grid_config.grid_width
 		gsm.current_state.grid_height = grid_config.grid_height
 
 	# PERFORMANCE: Connect grid signals to invalidate mushroom cache
 	grid.plot_planted.connect(func(_pos): invalidate_mushroom_cache())
-	grid.plot_popped.connect(func(_pos, _data): invalidate_mushroom_cache())
+	terminal_released.connect(func(_pos, _terminal_id, _credits): invalidate_mushroom_cache())
 
 	# Connect economy to grid for mill/market/kitchen flour & bread processing
 	grid.farm_economy = economy
@@ -389,7 +417,7 @@ func _ready():
 	# Get persistent vocabulary evolution from GameStateManager
 	# The vocabulary persists across farms/biomes and travels with the player
 	# Safe access for headless mode where get_tree() may return null
-	var game_state_mgr = get_node_or_null("/root/GameStateManager")
+	var game_state_mgr = _get_gsm()
 	if game_state_mgr and game_state_mgr.has_method("get_vocabulary_evolution"):
 		vocabulary_evolution = game_state_mgr.get_vocabulary_evolution()
 	else:
@@ -413,26 +441,11 @@ func _ready():
 	if _verbose:
 		_verbose.info("boot", "🧭", "Farm _ready checkpoint: after batcher finalization")
 
-	# Create UI State abstraction layer (Phase 2 integration)
-	ui_state = FarmUIState.new()
-	if _verbose:
-		_verbose.info("boot", "🧭", "Farm _ready checkpoint: UIState created")
-
-	# Connect economy signals to both state_changed AND ui_state (de-slopped)
+	# Connect economy signals to canonical farm state propagation only.
 	var economy_signals = ["wheat_changed", "credits_changed", "flour_changed", "flower_changed", "labor_changed"]
 	for sig_name in economy_signals:
 		if economy.has_signal(sig_name):
 			economy.connect(sig_name, _on_economy_changed)
-			economy.connect(sig_name, _on_economy_changed_ui)
-
-	# Connect Farm's own measurement signal to trigger UIState update
-	plot_measured.connect(_on_plot_measured_ui)
-
-
-	# Populate UIState with initial farm state
-	ui_state.refresh_all(self)
-	if _verbose:
-		_verbose.info("boot", "🧭", "Farm _ready checkpoint: UIState refreshed")
 
 
 ## ============================================================================
@@ -511,7 +524,7 @@ func discover_pair(north: String, south: String) -> bool:
 
 	known_pairs.append({"north": north, "south": south})
 	# Incremental sync: only push the new pair (was O(n²): full _sync_player_vocabulary on every discovery)
-	var player_vocab = get_node_or_null("/root/PlayerVocabulary")
+	var player_vocab = _get_player_vocab()
 	if player_vocab and player_vocab.has_method("learn_vocab_pair"):
 		player_vocab.learn_vocab_pair(north, south)
 	_sync_current_state_vocab()
@@ -528,7 +541,7 @@ func get_pair_for_emoji(emoji: String) -> Variant:
 
 func _sync_player_vocabulary(reset_first: bool) -> void:
 	"""Keep PlayerVocabulary QC in sync with farm-owned vocabulary."""
-	var player_vocab = get_node_or_null("/root/PlayerVocabulary")
+	var player_vocab = _get_player_vocab()
 	if not player_vocab:
 		return
 	if reset_first and player_vocab.has_method("reset"):
@@ -543,7 +556,7 @@ func _sync_player_vocabulary(reset_first: bool) -> void:
 
 func _sync_current_state_vocab() -> void:
 	"""Mirror canonical farm vocabulary into the active GameState when present."""
-	var gsm = get_node_or_null("/root/GameStateManager")
+	var gsm = _get_gsm()
 	if gsm and "current_state" in gsm and gsm.current_state:
 		gsm.current_state.known_pairs = get_known_pairs()
 
@@ -952,8 +965,6 @@ func _process_mushroom_composting(delta: float):
 ##   width  = max plot count across loadable biomes (min 5)
 ##   height = number of explored biomes loaded into the farm
 
-const HOMEROW_KEYS: Array[String] = ["J", "K", "L", ";", "'", "H", "G"]
-
 func _create_grid_config() -> GridConfig:
 	"""Create grid configuration - single source of truth for layout
 
@@ -978,11 +989,12 @@ func _create_grid_config() -> GridConfig:
 
 	# Create keyboard layout configuration
 	var keyboard = KeyboardLayoutConfig.new()
+	var homerow_keys = InputBindingRegistry.get_plot_keys()
 
 	# Homerow → positions 0..N-1 (within active biome, y determined at runtime)
 	var neutral_keys = []
 	for i in range(grid_width):
-		var key_label = HOMEROW_KEYS[i] if i < HOMEROW_KEYS.size() else str(i + 1)
+		var key_label = homerow_keys[i] if i < homerow_keys.size() else str(i + 1)
 		neutral_keys.append(key_label)
 		var pos = Vector2i(i, 0)  # Default to y=0, remapped at runtime
 		keyboard.action_to_position["plot_neutral_" + str(i)] = pos
@@ -1017,12 +1029,12 @@ func _create_grid_config() -> GridConfig:
 
 func _get_explored_biomes() -> Array[String]:
 	"""Get explored biomes (preferred terminology)."""
-	var observation_frame = get_node_or_null("/root/ObservationFrame")
+	var observation_frame = InstrumentLocator.resolve_observation_frame(self)
 	if observation_frame and observation_frame.has_method("get_explored_biomes"):
 		return observation_frame.get_explored_biomes()
 	if observation_frame and observation_frame.has_method("get_unlocked_biomes"):
 		return observation_frame.get_unlocked_biomes()
-	var gsm = get_node_or_null("/root/GameStateManager")
+	var gsm = _get_gsm()
 	if gsm and gsm.current_state and "unlocked_biomes" in gsm.current_state:
 		return gsm.current_state.unlocked_biomes
 	return ["StarterForest", "Village"]
@@ -1061,7 +1073,7 @@ func _is_biome_loaded(biome_name: String) -> bool:
 
 func _get_loadable_biomes() -> Array[String]:
 	"""Get loadable biomes (icon build succeeded)."""
-	var observation_frame = get_node_or_null("/root/ObservationFrame")
+	var observation_frame = InstrumentLocator.resolve_observation_frame(self)
 	if observation_frame and observation_frame.has_method("get_loadable_biomes"):
 		return observation_frame.get_loadable_biomes()
 	# Fallback to explored list if loadable list not available
@@ -1110,6 +1122,84 @@ func _get_loaded_biome_ref(biome_name: String):
 			return null
 
 
+func _clear_loaded_biome_ref(biome_name: String) -> void:
+	var var_name = str(BIOME_FIELD_NAMES.get(biome_name, ""))
+	if var_name != "":
+		set(var_name, null)
+
+	var meta_name = biome_name.to_lower() + "_biome"
+	if has_meta(meta_name):
+		remove_meta(meta_name)
+
+
+func _release_terminals_in_biome(biome_name: String) -> void:
+	if not terminal_pool:
+		return
+
+	var terminals_to_release: Array = []
+	for terminal in terminal_pool.get_all_terminals():
+		if not terminal:
+			continue
+		var terminal_biome = str(terminal.bound_biome_name if terminal.bound_biome_name != "" else terminal.measured_biome_name)
+		if terminal_biome == biome_name:
+			terminals_to_release.append(terminal)
+
+	for terminal in terminals_to_release:
+		if terminal_pool.has_method("release_terminal"):
+			terminal_pool.release_terminal(terminal)
+		else:
+			terminal_pool.unbind_terminal(terminal)
+
+
+func _liquidate_biome_resources(biome_name: String, biome) -> Dictionary:
+	var out := {
+		"flux_totals": {},
+		"icon_totals": {},
+		"total_flux_credits": 0,
+		"total_icon_credits": 0,
+		"total_credits": 0
+	}
+	if not biome or not biome.quantum_computer or not economy:
+		return out
+
+	var flux_to_credits = float(BalanceService.get_tuning_value(self, "flux_to_credits", 1.0))
+	var removal_base_yield = float(BalanceService.get_tuning_value(self, "reap_base_yield", 50.0)) * 0.5
+	var qc = biome.quantum_computer
+
+	var fluxes: Dictionary = qc.get_all_sink_fluxes() if qc.has_method("get_all_sink_fluxes") else {}
+	for emoji in fluxes.keys():
+		var raw_flux = float(fluxes.get(emoji, 0.0))
+		var credits = int(raw_flux * flux_to_credits)
+		if credits <= 0:
+			continue
+		economy.add_resource(str(emoji), credits, "remove_biome_flux")
+		out["flux_totals"][emoji] = int(out["flux_totals"].get(emoji, 0)) + credits
+		out["total_flux_credits"] = int(out["total_flux_credits"]) + credits
+	if qc.has_method("reset_sink_flux"):
+		qc.reset_sink_flux()
+
+	var mass_map = ProbeActions._resolve_mass_map_for_biome(biome)
+	var by_emoji: Dictionary = mass_map.get("by_emoji", {})
+	var total_mass = float(mass_map.get("total", 0.0))
+	if total_mass > 0.0:
+		for emoji in by_emoji.keys():
+			var mass = float(by_emoji.get(emoji, 0.0))
+			if mass <= 0.0:
+				continue
+			var mass_fraction = mass / total_mass
+			var purity = ProbeActions._resolve_emoji_purity(biome, str(emoji))
+			var credits = int(mass_fraction * removal_base_yield * maxf(purity, 0.25))
+			if credits <= 0:
+				continue
+			economy.add_resource(str(emoji), credits, "remove_biome_iconmap")
+			out["icon_totals"][emoji] = int(out["icon_totals"].get(emoji, 0)) + credits
+			out["total_icon_credits"] = int(out["total_icon_credits"]) + credits
+
+	out["total_credits"] = int(out["total_flux_credits"]) + int(out["total_icon_credits"])
+	out["biome_name"] = biome_name
+	return out
+
+
 func _rebuild_biome_row_maps(biome_list: Array[String]) -> void:
 	"""Rebuild row mappings based on explored biome order."""
 	biome_row_map.clear()
@@ -1154,7 +1244,7 @@ func refresh_grid_for_biomes() -> bool:
 			grid.assign_plot_to_biome(pos, grid_config.biome_assignments[pos])
 
 	# Persist dimensions into GameState if available
-	var gsm = get_node_or_null("/root/GameStateManager")
+	var gsm = _get_gsm()
 	if gsm and gsm.current_state:
 		gsm.current_state.grid_width = grid_config.grid_width
 		gsm.current_state.grid_height = grid_config.grid_height
@@ -1203,12 +1293,12 @@ func get_plot_position_for_active_biome(plot_index: int) -> Vector2i:
 	plot_index = clampi(plot_index, 0, max_index)
 
 	# Try ObservationFrame first, fall back to ActiveBiomeManager
-	var observation_frame = get_node_or_null("/root/ObservationFrame")
+	var observation_frame = InstrumentLocator.resolve_observation_frame(self)
 	var active_biome = "BioticFlux"
 	if observation_frame:
 		active_biome = observation_frame.get_neutral_biome()
 	else:
-		var biome_mgr = get_node_or_null("/root/ActiveBiomeManager")
+		var biome_mgr = _get_active_biome_manager()
 		if biome_mgr:
 			active_biome = biome_mgr.get_active_biome()
 
@@ -1220,11 +1310,11 @@ func get_plot_position_for_active_biome(plot_index: int) -> Vector2i:
 
 func can_discover_biome() -> Dictionary:
 	"""Check if a new biome can be explored (slots + availability)."""
-	var observation_frame = get_node_or_null("/root/ObservationFrame")
+	var observation_frame = InstrumentLocator.resolve_observation_frame(self)
 	if not observation_frame:
 		return {"ok": false, "message": "ObservationFrame not available"}
 
-	var biome_mgr = get_node_or_null("/root/ActiveBiomeManager")
+	var biome_mgr = _get_active_biome_manager()
 	if not biome_mgr:
 		return {"ok": false, "message": "ActiveBiomeManager not available"}
 	if biome_mgr.has_method("has_open_biome_slot") and not biome_mgr.has_open_biome_slot():
@@ -1239,6 +1329,31 @@ func can_discover_biome() -> Dictionary:
 		return {"ok": false, "message": "Insufficient resources"}
 
 	return {"ok": true, "unexplored": unexplored}
+
+
+func can_remove_biome() -> Dictionary:
+	"""Check if the current active biome can be liquidated and removed."""
+	var observation_frame = InstrumentLocator.resolve_observation_frame(self)
+	if not observation_frame:
+		return {"ok": false, "message": "ObservationFrame not available"}
+
+	var biome_mgr = _get_active_biome_manager()
+	if not biome_mgr:
+		return {"ok": false, "message": "ActiveBiomeManager not available"}
+
+	var biome_name = str(biome_mgr.get_active_biome())
+	if biome_name == "":
+		return {"ok": false, "message": "No active biome"}
+	if biome_name in CORE_BIOMES:
+		return {"ok": false, "message": "Starter biomes cannot be removed"}
+	if observation_frame.get_unlocked_biomes().size() <= CORE_BIOMES.size():
+		return {"ok": false, "message": "Need at least one removable biome unlocked"}
+
+	var biome = _get_loaded_biome_ref(biome_name)
+	if not biome:
+		return {"ok": false, "message": "Biome is not loaded"}
+
+	return {"ok": true, "biome_name": biome_name}
 
 func discover_biome() -> Dictionary:
 	"""Explore and unlock a random new biome (4E action)
@@ -1257,7 +1372,7 @@ func discover_biome() -> Dictionary:
 		print("❌ %s" % msg)
 		return {"success": false, "blocked": true, "message": msg}
 
-	var observation_frame = get_node_or_null("/root/ObservationFrame")
+	var observation_frame = InstrumentLocator.resolve_observation_frame(self)
 	if not observation_frame:
 		print("❌ ObservationFrame not found")
 		return {"success": false, "message": "ObservationFrame not available"}
@@ -1293,7 +1408,7 @@ func discover_biome() -> Dictionary:
 	print("✅ Biome loaded successfully")
 
 	# Sync with ActiveBiomeManager
-	var biome_manager = get_node_or_null("/root/ActiveBiomeManager")
+	var biome_manager = _get_active_biome_manager()
 	if biome_manager:
 		biome_manager.set_biome_order(observation_frame.get_unlocked_biomes())
 		print("✅ Synced with ActiveBiomeManager")
@@ -1309,6 +1424,72 @@ func discover_biome() -> Dictionary:
 
 	print("🗺️ Exploration complete: %s" % new_biome)
 	return {"success": true, "biome_name": new_biome, "message": "Discovered %s!" % new_biome}
+
+
+func remove_biome() -> Dictionary:
+	"""Liquidate the active biome from its live quantum state, then unregister it."""
+	var gate = can_remove_biome()
+	if not gate.get("ok", false):
+		return {
+			"success": false,
+			"blocked": true,
+			"message": gate.get("message", "Biome removal blocked")
+		}
+
+	var biome_name := str(gate.get("biome_name", ""))
+	var biome = _get_loaded_biome_ref(biome_name)
+	if not biome:
+		return {"success": false, "message": "Biome is not loaded"}
+
+	var liquidation = _liquidate_biome_resources(biome_name, biome)
+	_release_terminals_in_biome(biome_name)
+
+	var observation_frame = InstrumentLocator.resolve_observation_frame(self)
+	var old_order: Array[String] = observation_frame.get_unlocked_biomes() if observation_frame else []
+	var removed_index := old_order.find(biome_name)
+	var successor := ""
+	for candidate in old_order:
+		var candidate_name := str(candidate)
+		if candidate_name != biome_name:
+			successor = candidate_name
+			break
+	if removed_index > 0 and removed_index - 1 < old_order.size():
+		successor = str(old_order[removed_index - 1])
+
+	if observation_frame and not observation_frame.lock_biome(biome_name):
+		return {"success": false, "message": "Failed to remove biome from observation frame"}
+
+	biome_removed.emit(biome_name)
+
+	if biome_evolution_batcher and biome_evolution_batcher.has_method("unregister_biome"):
+		biome_evolution_batcher.unregister_biome(biome)
+
+	if grid and grid.has_method("unregister_biome"):
+		grid.unregister_biome(biome_name)
+
+	_clear_loaded_biome_ref(biome_name)
+	_loaded_biome_count = maxi(0, _loaded_biome_count - 1)
+
+	if is_instance_valid(biome):
+		biome.queue_free()
+
+	refresh_grid_for_biomes()
+
+	var biome_manager = _get_active_biome_manager()
+	if biome_manager and observation_frame:
+		biome_manager.set_biome_order(observation_frame.get_unlocked_biomes())
+		if successor != "":
+			biome_manager.set_active_biome(successor, -1)
+
+	_emit_state_changed()
+
+	return {
+		"success": true,
+		"biome_name": biome_name,
+		"next_biome": successor,
+		"liquidation": liquidation,
+		"message": "Removed %s" % biome_name
+	}
 
 
 func compute_discovery_forecast() -> Dictionary:
@@ -1329,7 +1510,7 @@ func _load_biome_dynamically(biome_name: String) -> bool:
 
 	Idempotent: if already loaded, returns true without re-initializing.
 	"""
-	var boot_manager = get_node_or_null("/root/BootManager")
+	var boot_manager = InstrumentLocator.resolve_root_node(self, "/root/BootManager")
 	if not boot_manager:
 		push_error("BootManager not found")
 		return false
@@ -1350,51 +1531,6 @@ func _load_biome_dynamically(biome_name: String) -> bool:
 
 
 	return true
-
-func measure_plot(pos: Vector2i) -> String:
-	"""Measure (collapse) quantum state of plot at position
-
-	Returns: outcome emoji (e.g., "🌾", "👥", "🍄", "🍂")
-	Emits: plot_measured signal
-	"""
-	if not grid:
-		return ""
-
-	var outcome = grid.measure_plot(pos)
-
-	if outcome != "":
-		plot_measured.emit(pos, outcome)
-		_emit_state_changed()
-		action_result.emit("measure", true, "Measured: %s collapsed!" % outcome)
-	else:
-		action_result.emit("measure", false, "Measurement failed")
-	return outcome
-
-
-func pop_plot(pos: Vector2i) -> Dictionary:
-	"""Pop (harvest) measured plot - collect yield
-
-	Returns: Dictionary with {success: bool, outcome: String, yield: int}
-	Emits: plot_popped signal with yield data
-	"""
-	if not grid or not economy:
-		return {"success": false}
-
-	var harvest_data = grid.pop_wheat(pos)
-
-	if harvest_data.get("success", false):
-		# Route resources based on outcome
-		_process_harvest_outcome(harvest_data)
-		plot_popped.emit(pos, harvest_data)
-		_emit_state_changed()
-
-		var emoji = harvest_data.get("outcome", "?")
-		action_result.emit("pop", true, "Popped %d %s!" % [harvest_data.get("yield", 0), emoji])
-	else:
-		action_result.emit("pop", false, "Pop failed")
-
-	return harvest_data
-
 
 func entangle_plots(pos1: Vector2i, pos2: Vector2i, bell_state: String = "phi_plus") -> bool:
 	"""Create entanglement between two plots with specified Bell state
@@ -1487,7 +1623,7 @@ func _ensure_iconregistry() -> void:
 	In normal gameplay: IconRegistry is autoload at /root/IconRegistry
 	In script/headless harnesses: create a local root child if needed
 	"""
-	var icon_registry = get_node_or_null("/root/IconRegistry")
+	var icon_registry = _get_icon_registry_autoload()
 	if icon_registry:
 		# Already exists (normal game mode)
 		return
@@ -1545,23 +1681,6 @@ func _refund_resources(cost: Dictionary) -> void:
 		economy.add_resource(emoji, cost[emoji], "refund")
 
 
-func _process_harvest_outcome(harvest_data: Dictionary) -> void:
-	"""Route harvested resources to economy - generic emoji routing"""
-	var outcome_emoji = harvest_data.get("outcome", "")
-	var quantum_energy = harvest_data.get("energy", 0.0)
-
-	# Fallback: if energy not provided, use yield * 0.1 (inverse of QUANTUM_TO_CREDITS)
-	if quantum_energy == 0.0:
-		var yield_amount = harvest_data.get("yield", 1)
-		quantum_energy = float(yield_amount) / EconomyConstants.get_quantum_to_credits(economy)
-
-	if outcome_emoji.is_empty():
-		return
-
-	# Generic routing: any emoji → its credits
-	var credits_earned = economy.receive_pop_yield(outcome_emoji, quantum_energy, "pop")
-
-
 func _emit_state_changed() -> void:
 	"""Emit state_changed signal with current game state"""
 	state_changed.emit(get_state())
@@ -1570,19 +1689,3 @@ func _emit_state_changed() -> void:
 func _on_economy_changed(_value) -> void:
 	"""Handle economy signal"""
 	_emit_state_changed()
-
-
-## UI State Integration (Phase 2)
-
-func _on_economy_changed_ui(_value = null) -> void:
-	"""Handle economy changes - update UIState"""
-	if ui_state:
-		ui_state.update_economy(economy)
-
-
-func _on_plot_measured_ui(position: Vector2i, outcome: String) -> void:
-	"""Handle measurement - update UIState with measured outcome"""
-	if ui_state and grid:
-		var plot = grid.get_plot(position)
-		if plot:
-			ui_state.update_plot(position, plot)

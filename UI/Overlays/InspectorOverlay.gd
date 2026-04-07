@@ -1,6 +1,8 @@
 class_name InspectorOverlay
 extends "res://UI/Core/OverlayBase.gd"
 
+const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")
+
 ## InspectorOverlay - Density matrix visualization with register selection
 ##
 ## Primary analysis overlay for v2 architecture. Displays:
@@ -261,9 +263,9 @@ func _process(delta: float) -> void:
 
 func _auto_find_biome() -> void:
 	"""Auto-detect the current biome from farm/selected plot."""
-	var gsm = get_node_or_null("/root/GameStateManager")
-	if gsm and "active_farm" in gsm and gsm.active_farm:
-		var farm = gsm.active_farm
+	var gsm = InstrumentLocator.resolve_game_state_manager(self)
+	if gsm and gsm.has_method("get_active_farm"):
+		var farm = gsm.get_active_farm()
 		if farm.has_method("get") and "grid" in farm and farm.grid:
 			var biomes = farm.grid.get_biomes() if farm.grid.has_method("get_biomes") else []
 			if biomes.size() > 0:
@@ -535,7 +537,7 @@ func _locate_farm():
 	"""Find the active farm instance."""
 	if farm_ref and farm_ref.is_inside_tree():
 		return farm_ref
-	var gsm = get_node_or_null("/root/GameStateManager") if get_tree() else null
+	var gsm = InstrumentLocator.resolve_game_state_manager(self) if get_tree() else null
 	if gsm and gsm.has_method("get_active_farm"):
 		var candidate = gsm.get_active_farm()
 		if candidate:

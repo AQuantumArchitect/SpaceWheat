@@ -9,12 +9,12 @@ extends RefCounted
 ## | 1     | Continuous   | Unitary     | Smooth, reversible quantum gates         |
 ## | 2     | Dissipative  | Lindbladian | Energy exchange, "vampire" in/out        |
 ## | 3     | Discrete     | Measurement | Collapse, harvest, build gates           |
-## | [4]   | Meta         | System      | Vocabulary inject/remove, biome config   |
+## | [4]   | Meta         | System      | Vocabulary and biome add/remove via F-cycle |
 ##
 ## Key Layout:
 ##   1 2 3 [4]  = Tool group selection (time scale ratchet)
 ##   Q E R      = Action keys (DOWN, NEUTRAL, UP)
-##   F          = Mode cycling, or direct meta action in group 4
+##   F          = Mode cycling (all groups), or current meta mode cycle button
 ##
 ## Direction Philosophy:
 ##   Q = DOWN  (dig into, bind, construct)
@@ -196,23 +196,38 @@ const TOOL_GROUPS = {
 		"emoji": "*",
 		"icon": "res://Assets/UI/Icon/Icon.svg",
 		"time_scale": "meta",
-		"description": "Vocabulary, biome discovery, and reap",
-		"has_f_cycling": false,
+		"description": "Vocabulary and biome lifecycle controls",
+		"has_f_cycling": true,
+		"modes": ["vocabulary", "biomes"],
+		"mode_labels": ["Vocab", "Biomes"],
+		"mode_emojis": ["📖", "🌍"],
 		"pauses_sim": true,
 		"actions": {
-			"Q": {"action": "inject_vocabulary", "label": "+Vocab", "emoji": "+",
-				  "icon": "res://Assets/UI/Biome/BiomeAssign.svg",
-				  "hint": "Inject vocabulary into biome",
-				  "submenu": "vocab_injection"},
-			"E": {"action": "discover_biome", "label": "Explore", "emoji": "?",
-				  "icon": "res://Assets/UI/Science/Explore.svg",
-				  "hint": "Explore and unlock a new biome"},
-			"R": {"action": "remove_vocabulary", "label": "-Vocab", "emoji": "-",
-				  "icon": "res://Assets/UI/Biome/BiomeClear.svg",
-				  "hint": "Remove vocabulary from biome"},
-			"F": {"action": "reap", "label": "Reap", "emoji": "💀",
-				  "icon": "res://Assets/UI/Science/Pop-Harvest.svg",
-				  "hint": "Seasonal reap: fast-forward evolution and harvest active biomes"}
+			"vocabulary": {
+				"Q": {"action": "inject_vocabulary", "label": "Add Vocab", "emoji": "+",
+					  "icon": "res://Assets/UI/Biome/BiomeAssign.svg",
+					  "hint": "Inject a vocabulary pair into the active biome",
+					  "submenu": "vocab_injection"},
+				"E": {"action": "", "label": "-", "emoji": "",
+					  "icon": "",
+					  "hint": "Reserved",
+					  "disabled": true},
+				"R": {"action": "remove_vocabulary", "label": "Trim Vocab", "emoji": "-",
+					  "icon": "res://Assets/UI/Biome/BiomeClear.svg",
+					  "hint": "Remove a vocabulary pair from the active biome"}
+			},
+			"biomes": {
+				"Q": {"action": "discover_biome", "label": "Add Biome", "emoji": "🗺️",
+					  "icon": "res://Assets/UI/Science/Explore.svg",
+					  "hint": "Discover and load a new biome into the spindle"},
+				"E": {"action": "", "label": "-", "emoji": "",
+					  "icon": "",
+					  "hint": "Reserved",
+					  "disabled": true},
+				"R": {"action": "remove_biome", "label": "Cull Biome", "emoji": "💀",
+					  "icon": "res://Assets/UI/Biome/BiomeClear.svg",
+					  "hint": "Liquidate the active biome from its live quantum state and return it to the unexplored pool"}
+			}
 		}
 	}
 }
@@ -365,6 +380,8 @@ static func get_action(group_num: int, key: String) -> Dictionary:
 
 	# Handle F-cycling groups
 	if group_def.get("has_f_cycling", false):
+		if key == "F":
+			return get_cycle_action_info(group_num)
 		var mode_name = get_group_mode_name(group_num)
 		var mode_actions = group_def.get("actions", {}).get(mode_name, {})
 		return mode_actions.get(key, {})
@@ -405,3 +422,30 @@ static func get_all_actions(group_num: int) -> Dictionary:
 	if not f_action.is_empty():
 		actions["F"] = f_action
 	return actions
+
+
+static func get_cycle_action_info(group_num: int) -> Dictionary:
+	"""Get the F-cycle action info for a cycling group."""
+	var group_def = get_group(group_num)
+	if group_def.is_empty() or not group_def.get("has_f_cycling", false):
+		return {}
+
+	var modes = group_def.get("modes", [])
+	if modes.is_empty():
+		return {}
+
+	var mode_labels: Array = group_def.get("mode_labels", [])
+	var current_index = group_mode_indices.get(group_num, 0)
+	var next_index = (current_index + 1) % modes.size()
+	var next_label = ""
+	if next_index < mode_labels.size():
+		next_label = str(mode_labels[next_index])
+	elif next_index < modes.size():
+		next_label = str(modes[next_index])
+
+	return {
+		"action": "cycle_mode",
+		"label": "Cycle %s" % next_label if next_label != "" else "Cycle Mode",
+		"emoji": "↺",
+		"disabled": false
+	}

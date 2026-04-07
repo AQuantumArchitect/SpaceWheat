@@ -10,6 +10,7 @@ extends RefCounted
 
 const CacheKey = preload("res://Core/QuantumSubstrate/CacheKey.gd")
 const OperatorCache = preload("res://Core/QuantumSubstrate/OperatorCache.gd")
+const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")
 
 # Signals
 signal coupling_updated(emoji_a: String, emoji_b: String, strength: float)
@@ -32,9 +33,7 @@ func set_dependencies(qc, res_registry, icon_reg, icon_overrides: Dictionary = {
 func _ensure_icon_registry():
 	if _icon_registry and is_instance_valid(_icon_registry):
 		return _icon_registry
-	var tree = Engine.get_main_loop()
-	if tree and tree is SceneTree:
-		_icon_registry = tree.root.get_node_or_null("/root/IconRegistry")
+	_icon_registry = InstrumentLocator.resolve_icon_registry_main_loop()
 	return _icon_registry
 
 
@@ -123,7 +122,7 @@ func expand_quantum_system(north_emoji: String, south_emoji: String) -> Dictiona
 	# 9. Rebuild Hamiltonian and Lindblad operators with new coupling terms
 	var HamBuilder = load("res://Core/QuantumSubstrate/HamiltonianBuilder.gd")
 	var LindBuilder = load("res://Core/QuantumSubstrate/LindbladBuilder.gd")
-	var verbose = Engine.get_singleton("VerboseConfig") if Engine.has_singleton("VerboseConfig") else null
+	var verbose = InstrumentLocator.resolve_verbose_config_main_loop()
 
 	quantum_computer.hamiltonian = HamBuilder.build(all_icons, quantum_computer.register_map, verbose)
 	var lindblad_result = LindBuilder.build(all_icons, quantum_computer.register_map, verbose)
@@ -217,16 +216,7 @@ func build_operators_cached(biome_name: String, icons: Dictionary) -> void:
 	var cache_key = CacheKey.for_biome(biome_name, icons)
 
 	# Safe VerboseConfig access
-	var verbose = null
-	if Engine.has_singleton("VerboseConfig"):
-		verbose = Engine.get_singleton("VerboseConfig")
-	else:
-		# Try node path
-		var root = Engine.get_main_loop()
-		if root and root.has_method("get_root"):
-			var scene_root = root.get_root()
-			if scene_root:
-				verbose = scene_root.get_node_or_null("/root/VerboseConfig")
+	var verbose = InstrumentLocator.resolve_verbose_config_main_loop()
 
 	if verbose:
 		verbose.info("cache", "🔑", "%s cache key: %s" % [biome_name, cache_key])

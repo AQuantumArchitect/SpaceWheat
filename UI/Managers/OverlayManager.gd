@@ -2,15 +2,12 @@ class_name OverlayManager
 extends Node
 
 # Access autoload safely (avoids compile-time errors)
-@onready var _verbose = get_node("/root/VerboseConfig")
-@onready var _icon_registry = get_node("/root/IconRegistry")
-
+@onready var _verbose = InstrumentLocator.resolve_verbose_config(self)
 ## Centralizes management of all overlays (Quests, Vocabulary, Network, Escape Menu, Save/Load)
 ## Handles overlay visibility, positioning, and menu actions
 
 # Preload dependencies
 const QuestBoard = preload("res://UI/Overlays/QuestBoard.gd")  # New modal quest board
-const NetworkInfoPanel = preload("res://UI/NetworkInfoPanel.gd")
 # DEPRECATED: ConspiracyNetworkOverlay - tomato conspiracy system removed
 # const ConspiracyNetworkOverlay = preload("res://UI/ConspiracyNetworkOverlay.gd")
 const SaveLoadMenu = preload("res://UI/Overlays/SaveLoadMenu.gd")
@@ -18,7 +15,6 @@ const EscapeMenu = preload("res://UI/Overlays/EscapeMenu.gd")
 const BiomeInspectorOverlay = preload("res://UI/Overlays/BiomeInspectorOverlay.gd")
 const QuantumRigorConfigUI = preload("res://UI/Overlays/QuantumRigorConfigUI.gd")
 const IconDetailPanel = preload("res://UI/Widgets/IconDetailPanel.gd")
-# const SaveDataAdapter = preload("res://UI/SaveDataAdapter.gd")  # Legacy - unused, commented out to fix compilation error
 
 # Unified overlay stack system
 const OverlayBaseClass = preload("res://UI/Core/OverlayBase.gd")
@@ -26,17 +22,17 @@ const InspectorOverlay = preload("res://UI/Overlays/InspectorOverlay.gd")
 const ControlsOverlay = preload("res://UI/Overlays/ControlsOverlay.gd")
 const SemanticMapOverlay = preload("res://UI/Overlays/SemanticMapOverlay.gd")
 const BalanceWorkbenchOverlay = preload("res://UI/Overlays/BalanceWorkbenchOverlay.gd")
+const MenuRegistry = preload("res://UI/Core/MenuRegistry.gd")
+const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")
 
 # Overlay instances
 var quest_board: QuestBoard  # New modal 4-slot quest board (primary interface)
-var vocabulary_overlay: Control
-var network_info_panel: NetworkInfoPanel
 var escape_menu: EscapeMenu
 var save_load_menu
 # keyboard_hint_button REMOVED - controls/help now lives on Z
 var biome_inspector: BiomeInspectorOverlay  # Biome inspection overlay
 var quantum_config_ui: QuantumRigorConfigUI  # Quantum rigor mode settings panel
-var touch_button_bar: Control  # Touch-friendly panel buttons on LEFT side (C/V/B/N/K)
+var touch_button_bar: Control  # Touch-friendly panel buttons for the top-level menu row
 var icon_detail_panel  # Icon information detail panel
 
 # Unified overlay registry
@@ -58,23 +54,10 @@ var vocabulary_evolution
 var conspiracy_network
 var farm  # Farm reference for biome inspector
 
-# Track overlay visibility state
-var overlay_states: Dictionary = {
-	"quests": false,
-	"vocabulary": false,
-	"network": false,
-	"escape_menu": false,
-	"save_load": false,
-	"biomes": false,
-	"quantum_config": false  # Quantum rigor mode settings
-}
-
 # Signals for menu actions
-signal overlay_toggled(name: String, visible: bool)
 signal save_requested(slot: int)
 signal load_requested(slot: int)
 signal load_completed()
-signal restart_requested()
 signal quit_requested()
 signal menu_resumed()
 signal debug_scenario_requested(name: String)
@@ -107,17 +90,30 @@ func _get_current_biome(farm_ref):
 	if not farm_ref:
 		return null
 
-	# Get current biome name
-	var current_biome_name = "StarterForest"  # Default fallback
+	var current_biome_name := ""
 	var observation = farm_ref.observation_frame if "observation_frame" in farm_ref else null
 	if observation and observation.has_method("get_neutral_biome"):
 		current_biome_name = observation.get_neutral_biome()
+	elif farm_ref and farm_ref.has_method("get_current_biome"):
+		var biome = farm_ref.get_current_biome()
+		if biome and "biome_name" in biome:
+			current_biome_name = str(biome.biome_name)
+
+	if current_biome_name.is_empty():
+		return null
 
 	# Look up biome object in grid
 	if farm_ref.grid and farm_ref.grid.has_biome(current_biome_name):
 		return farm_ref.grid.get_biome(current_biome_name)
 
 	return null
+
+
+func _resolve_farm() -> Node:
+	"""Resolve the active farm through the current runtime authority graph."""
+	if farm and is_instance_valid(farm):
+		return farm
+	return InstrumentLocator.resolve_active_farm(self)
 
 
 ## ========================================
@@ -186,8 +182,6 @@ func create_overlays(parent: Control) -> void:
 	quest_board.quest_accepted.connect(_on_quest_board_quest_accepted)
 	quest_board.quest_completed.connect(_on_quest_board_quest_completed)
 	quest_board.quest_abandoned.connect(_on_quest_board_quest_abandoned)
-	quest_board.board_closed.connect(_on_quest_board_closed)
-
 	_verbose.info("ui", "📋", "Quest Board created (press C to toggle - modal 4-slot system)")
 	_setup_visibility_processing(quest_board)
 
@@ -197,12 +191,6 @@ func create_overlays(parent: Control) -> void:
 	# sim_stats_overlay.z_index = 4096  # Max z_index in Godot 4 (was 5000, exceeded limit)
 	# parent.add_child(sim_stats_overlay)
 	_verbose.info("ui", "⏱", "Simulation stats overlay removed - now in InspectorOverlay (N key)")
-
-	# Create Vocabulary Overlay
-	vocabulary_overlay = _create_vocabulary_overlay()
-	parent.add_child(vocabulary_overlay)
-	_verbose.info("ui", "📖", "Vocabulary overlay created (press V to toggle)")
-	_setup_visibility_processing(vocabulary_overlay)
 
 	# Create Escape Menu
 	escape_menu = EscapeMenu.new()
@@ -215,8 +203,6 @@ func create_overlays(parent: Control) -> void:
 
 	# Connect escape menu signals
 	escape_menu.resume_pressed.connect(_on_menu_resume)
-	escape_menu.restart_pressed.connect(_on_restart_pressed)
-	escape_menu.dev_restart_pressed.connect(_on_dev_restart_pressed)
 	escape_menu.quit_pressed.connect(func(): quit_requested.emit())
 	escape_menu.save_pressed.connect(_on_save_pressed)
 	escape_menu.load_pressed.connect(_on_load_pressed)
@@ -268,7 +254,6 @@ func create_overlays(parent: Control) -> void:
 	touch_button_bar = _create_touch_button_bar()
 	parent.add_child(touch_button_bar)
 	_setup_visibility_processing(touch_button_bar)
-	# Note: Function logs "C/V/B/N/K on LEFT side" - no need for duplicate log
 	_verbose.debug("ui", "📏", "Parent (OverlayLayer) size: %s" % parent.size)
 	_verbose.debug("ui", "📏", "Parent (OverlayLayer) position: (%s, %s)" % [parent.position.x, parent.position.y])
 	_verbose.debug("ui", "📏", "TouchButtonBar position: (%s, %s)" % [touch_button_bar.position.x, touch_button_bar.position.y])
@@ -293,251 +278,28 @@ func create_overlays(parent: Control) -> void:
 	update_positions()
 
 
-func _toggle_overlay_legacy(name: String) -> void:
-	"""Legacy toggle — superseded by stack-based toggle_overlay() below."""
-	match name:
-		"quests":
-			toggle_quest_board()
-		"vocabulary":
-			toggle_vocabulary_overlay()
-		"escape_menu":
-			toggle_escape_menu()
-		"biomes":
-			toggle_biome_inspector()
-		"quantum_config":
-			toggle_quantum_config_ui()
-		_:
-			push_warning("OverlayManager: Unknown overlay '%s'" % name)
-
-
-func show_overlay(name: String) -> void:
-	"""Show a specific overlay"""
-	_verbose.debug("ui", "🔓", "show_overlay('%s') called" % name)
-	match name:
-		"quests":
-			if quest_board and farm:
-				var biome = _get_current_biome(farm)
-				if biome:
-					quest_board.set_biome(biome)
-				quest_board.open_board()
-				overlay_states["quests"] = true
-				overlay_toggled.emit("quests", true)
-				_verbose.info("quest", "✅", "Quest board opened")
-			elif not quest_board:
-				_verbose.warn("quest", "❌", "quest_board is null!")
-			else:
-				_verbose.warn("quest", "❌", "farm reference not set!")
-		"vocabulary":
-			if vocabulary_overlay:
-				_verbose.debug("ui", "→", "Setting vocabulary_overlay.visible = true")
-				vocabulary_overlay.visible = true
-				overlay_states["vocabulary"] = true
-				overlay_toggled.emit("vocabulary", true)
-				_verbose.info("ui", "✅", "vocabulary_overlay shown")
-			else:
-				_verbose.warn("ui", "❌", "vocabulary_overlay is null!")
-		"escape_menu":
-			if escape_menu:
-				_verbose.debug("ui", "→", "Calling escape_menu.activate()")
-				escape_menu.activate()
-				overlay_states["escape_menu"] = true
-				overlay_toggled.emit("escape_menu", true)
-				_verbose.info("ui", "✅", "escape_menu shown")
-			else:
-				_verbose.warn("ui", "❌", "escape_menu is null!")
-		"quantum_config":
-			if quantum_config_ui:
-				_verbose.debug("ui", "→", "Setting quantum_config_ui.visible = true")
-				quantum_config_ui.visible = true
-				overlay_states["quantum_config"] = true
-				overlay_toggled.emit("quantum_config", true)
-				_verbose.info("ui", "✅", "quantum_config_ui shown")
-			else:
-				_verbose.warn("ui", "❌", "quantum_config_ui is null!")
-		_:
-			push_warning("OverlayManager: Unknown overlay '%s'" % name)
-
-
-func hide_overlay(name: String) -> void:
-	"""Hide a specific overlay"""
-	_verbose.debug("ui", "🔐", "hide_overlay('%s') called" % name)
-	match name:
-		"quests":
-			if quest_board:
-				quest_board.close_board()
-				overlay_states["quests"] = false
-				overlay_toggled.emit("quests", false)
-				_verbose.info("quest", "✅", "Quest board closed")
-			else:
-				_verbose.warn("quest", "❌", "quest_board is null!")
-		"vocabulary":
-			if vocabulary_overlay:
-				_verbose.debug("ui", "→", "Setting vocabulary_overlay.visible = false")
-				vocabulary_overlay.visible = false
-				overlay_states["vocabulary"] = false
-				overlay_toggled.emit("vocabulary", false)
-				_verbose.info("ui", "✅", "vocabulary_overlay hidden")
-			else:
-				_verbose.warn("ui", "❌", "vocabulary_overlay is null!")
-		"escape_menu":
-			if escape_menu:
-				_verbose.debug("ui", "→", "Calling escape_menu.deactivate()")
-				escape_menu.deactivate()
-				overlay_states["escape_menu"] = false
-				overlay_toggled.emit("escape_menu", false)
-				_verbose.info("ui", "✅", "escape_menu hidden")
-			else:
-				_verbose.warn("ui", "❌", "escape_menu is null!")
-		"quantum_config":
-			if quantum_config_ui:
-				_verbose.debug("ui", "→", "Setting quantum_config_ui.visible = false")
-				quantum_config_ui.visible = false
-				overlay_states["quantum_config"] = false
-				overlay_toggled.emit("quantum_config", false)
-				_verbose.info("ui", "✅", "quantum_config_ui hidden")
-			else:
-				_verbose.warn("ui", "❌", "quantum_config_ui is null!")
-		_:
-			push_warning("OverlayManager: Unknown overlay '%s'" % name)
-
-
-func hide_all_overlays() -> void:
-	"""Hide all overlays (useful when entering/exiting menus)"""
-	for overlay_name in overlay_states.keys():
-		hide_overlay(overlay_name)
-
-
 func update_positions() -> void:
 	"""Update positions of all overlays based on layout_manager"""
 	if not layout_manager:
 		return
 
-	# Vocabulary overlay - position set during creation, can be overridden here if needed
-	# (currently left at creation position for UX consistency)
-
-
-func show_escape_menu() -> void:
-	"""Show the escape menu"""
-	show_overlay("escape_menu")
-
-
-func hide_escape_menu() -> void:
-	"""Hide the escape menu"""
-	hide_overlay("escape_menu")
-
-
-func is_menu_open() -> bool:
-	"""Check if any menu/overlay is currently visible"""
-	return overlay_states.values().any(func(visible): return visible)
-
-
-# ============================================================================
-# PRIVATE METHODS
-# ============================================================================
-
-func toggle_quest_board() -> void:
-	"""Toggle quest board visibility (modal 4-slot system)"""
-	_verbose.debug("quest", "🔄", "toggle_quest_board() called")
-	if quest_board:
-		_verbose.debug("quest", "→", "quest_board exists, visible = %s" % quest_board.visible)
-		if quest_board.visible:
-			_verbose.debug("quest", "→", "Board is visible, closing")
-			quest_board.close_board()
-		else:
-			_verbose.debug("quest", "→", "Board is hidden, opening")
-			if farm:
-				# Get current biome from farm
-				var biome = _get_current_biome(farm)
-				if biome:
-					quest_board.set_biome(biome)
-					quest_board.open_board()
-					overlay_states["quests"] = true
-					overlay_toggled.emit("quests", true)
-					_verbose.info("quest", "✅", "Quest board opened")
-				else:
-					_verbose.warn("quest", "❌", "No biome available!")
-			else:
-				_verbose.warn("quest", "❌", "Farm reference not set!")
-	else:
-		_verbose.warn("quest", "❌", "quest_board is null!")
-
-
-func open_quest_board_faction_browser() -> void:
-	"""Open faction browser from quest board (legacy helper; use Shift+C in board)."""
-	if quest_board and quest_board.visible:
-		quest_board.open_faction_browser()
-		_verbose.info("quest", "📚", "Opened faction browser from quest board")
-
-
-func toggle_vocabulary_overlay() -> void:
-	"""Toggle vocabulary overlay visibility and refresh content"""
-	_verbose.debug("ui", "🔄", "toggle_vocabulary_overlay() called")
-	if vocabulary_overlay:
-		_verbose.debug("ui", "→", "vocabulary_overlay exists, visible = %s" % vocabulary_overlay.visible)
-		if vocabulary_overlay.visible:
-			_verbose.debug("ui", "→", "Overlay is visible, calling hide_overlay()")
-			hide_overlay("vocabulary")
-		else:
-			_verbose.debug("ui", "→", "Overlay is hidden, refreshing and showing")
-			_refresh_vocabulary_overlay()
-			show_overlay("vocabulary")
-	else:
-		_verbose.warn("ui", "❌", "vocabulary_overlay is null!")
-
-
-func toggle_escape_menu() -> void:
-	"""Toggle escape menu visibility"""
-	_verbose.debug("ui", "🔄", "toggle_escape_menu() called")
-	if escape_menu:
-		_verbose.debug("ui", "→", "escape_menu exists, is_visible() = %s" % escape_menu.is_visible())
-		if escape_menu.is_visible():
-			_verbose.debug("ui", "→", "Menu is visible, calling hide_overlay()")
-			hide_overlay("escape_menu")
-		else:
-			_verbose.debug("ui", "→", "Menu is hidden, calling show_overlay()")
-			show_overlay("escape_menu")
-	else:
-		_verbose.warn("ui", "❌", "escape_menu is null!")
-
-
-func toggle_biome_inspector() -> void:
-	"""Toggle biome inspector overlay (B key)"""
-	_verbose.debug("ui", "🔄", "toggle_biome_inspector() called")
-	if biome_inspector:
-		if not farm:
-			_verbose.warn("ui", "⚠️", "Farm reference not set in OverlayManager")
-			return
-
-		_verbose.debug("ui", "→", "biome_inspector exists, visible = %s" % biome_inspector.is_overlay_visible())
-		if biome_inspector.is_overlay_visible():
-			_verbose.debug("ui", "→", "Overlay is visible, hiding")
-			biome_inspector.hide_overlay()
-		else:
-			_verbose.debug("ui", "→", "Overlay is hidden, showing all biomes")
-			biome_inspector.show_all_biomes(farm)
-	else:
-		_verbose.warn("ui", "❌", "biome_inspector is null!")
-
-
 func toggle_quantum_config_ui() -> void:
 	"""Toggle quantum rigor config UI."""
 	_verbose.debug("ui", "🔄", "toggle_quantum_config_ui() called")
-	if quantum_config_ui:
-		_verbose.debug("ui", "→", "quantum_config_ui exists, visible = %s" % quantum_config_ui.visible)
-		if quantum_config_ui.visible:
-			_verbose.debug("ui", "→", "Panel is visible, hiding")
-			hide_overlay("quantum_config")
-		else:
-			_verbose.debug("ui", "→", "Panel is hidden, showing")
-			show_overlay("quantum_config")
-	else:
+	if not quantum_config_ui:
 		_verbose.warn("ui", "❌", "quantum_config_ui is null!")
+		return
+	_verbose.debug("ui", "→", "quantum_config_ui exists, visible = %s" % quantum_config_ui.visible)
+	quantum_config_ui.visible = not quantum_config_ui.visible
+	if quantum_config_ui.visible:
+		_verbose.info("ui", "✅", "quantum_config_ui shown")
+	else:
+		_verbose.info("ui", "✅", "quantum_config_ui hidden")
 
 
 func _on_biome_inspector_closed() -> void:
 	"""Handle biome inspector overlay closed signal"""
-	overlay_states["biomes"] = false
-	overlay_toggled.emit("biomes", false)
+	pass
 
 
 func _on_icon_detail_panel_closed() -> void:
@@ -554,172 +316,12 @@ func _on_emoji_clicked(emoji: String, icon) -> void:
 		push_warning("Icon detail panel not available")
 
 
-func _refresh_vocabulary_overlay() -> void:
-	"""Refresh vocabulary overlay with current player vocabulary"""
-	if not vocabulary_overlay:
-		return
-
-	const FactionDatabase = preload("res://Core/Quests/FactionDatabaseV2.gd")
-
-	# Get player's known emojis from the canonical pair state.
-	var gsm = get_node_or_null("/root/GameStateManager")
-	var known_pairs: Array = []
-	if gsm and gsm.has_method("get_player_vocab_pairs"):
-		known_pairs = gsm.get_player_vocab_pairs()
-	elif gsm and gsm.current_state:
-		known_pairs = gsm.current_state.known_pairs
-	var known_emojis: Array = GameState.derive_known_emojis_from_pairs(known_pairs)
-
-	# Get stats label and emoji grid
-	var stats_label = vocabulary_overlay.find_child("StatsLabel", true, false)
-	var emoji_grid = vocabulary_overlay.find_child("EmojiGrid", true, false)
-
-	if not stats_label or not emoji_grid:
-		push_error("VocabularyOverlay missing required children!")
-		return
-
-	# Update stats
-	var total_factions = FactionDatabase.ALL_FACTIONS.size()
-	var accessible = gsm.get_accessible_factions().size() if gsm else 0
-
-	stats_label.text = "Vocabulary: %d emojis | Accessible Factions: %d/%d (%.0f%%)" % [
-		known_emojis.size(),
-		accessible,
-		total_factions,
-		float(accessible) / total_factions * 100
-	]
-
-	# Clear existing emoji labels
-	for child in emoji_grid.get_children():
-		child.queue_free()
-
-	# Add emoji labels (or buttons if Icon exists)
-	var scale_factor = layout_manager.scale_factor if layout_manager else 1.0
-	var emoji_font_size = layout_manager.get_scaled_font_size(32) if layout_manager else 32
-
-	for emoji in known_emojis:
-		# Check if Icon exists for this emoji
-		var icon = _icon_registry.get_icon(emoji) if _icon_registry else null
-
-		if icon:
-			# Create button for emojis with Icons (clickable)
-			var emoji_button = Button.new()
-			emoji_button.text = emoji
-			emoji_button.flat = true  # No button background
-			emoji_button.add_theme_font_size_override("font_size", emoji_font_size)
-			emoji_button.custom_minimum_size = Vector2(50 * scale_factor, 50 * scale_factor)
-
-			# Visual indicator: slight yellow tint for Icons
-			emoji_button.modulate = Color(1.0, 1.0, 0.7)  # Light yellow
-
-			# Connect to Icon detail panel
-			emoji_button.pressed.connect(_on_emoji_clicked.bind(emoji, icon))
-
-			emoji_grid.add_child(emoji_button)
-		else:
-			# Create label for emojis without Icons (not clickable)
-			var label = Label.new()
-			label.text = emoji
-			label.add_theme_font_size_override("font_size", emoji_font_size)
-			label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-			label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-			label.custom_minimum_size = Vector2(50 * scale_factor, 50 * scale_factor)
-
-			# Slightly dimmed for no Icon
-			label.modulate = Color(0.8, 0.8, 0.8)
-
-			emoji_grid.add_child(label)
-
-	_verbose.debug("ui", "📖", "Vocabulary overlay refreshed: %d emojis, %d/%d factions accessible" % [
-		known_emojis.size(),
-		accessible,
-		total_factions
-	])
-
-
-func _create_vocabulary_overlay() -> Control:
-	"""Create vocabulary display overlay - shows player's discovered emojis"""
-	var scale_factor = layout_manager.scale_factor if layout_manager else 1.0
-	var font_size = layout_manager.get_scaled_font_size(18) if layout_manager else 18
-	var title_font_size = layout_manager.get_scaled_font_size(24) if layout_manager else 24
-	var stats_font_size = layout_manager.get_scaled_font_size(14) if layout_manager else 14
-
-	# Main panel container
-	var panel = PanelContainer.new()
-	panel.custom_minimum_size = Vector2(500 * scale_factor, 600 * scale_factor)
-	panel.position = Vector2(100 * scale_factor, 100 * scale_factor)
-	panel.z_index = 11
-	panel.visible = false
-
-	# VBox for content
-	var vbox = VBoxContainer.new()
-	vbox.add_theme_constant_override("separation", int(10 * scale_factor))
-	panel.add_child(vbox)
-
-	# Header HBox
-	var header_hbox = HBoxContainer.new()
-	vbox.add_child(header_hbox)
-
-	# Title
-	var title = Label.new()
-	title.text = "📖 Vocabulary"
-	title.add_theme_font_size_override("font_size", title_font_size)
-	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	header_hbox.add_child(title)
-
-	# Close button (top right)
-	var close_btn = Button.new()
-	close_btn.text = "✖"
-	close_btn.add_theme_font_size_override("font_size", font_size)
-	close_btn.pressed.connect(func():
-		panel.visible = false
-	)
-	header_hbox.add_child(close_btn)
-
-	# Stats label (shows faction accessibility)
-	var stats_label = Label.new()
-	stats_label.name = "StatsLabel"
-	stats_label.add_theme_font_size_override("font_size", stats_font_size)
-	stats_label.modulate = Color(0.7, 0.9, 1.0)  # Light blue
-	vbox.add_child(stats_label)
-
-	# Scroll container for emoji grid
-	var scroll = ScrollContainer.new()
-	scroll.custom_minimum_size.y = 450 * scale_factor
-	scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
-	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	vbox.add_child(scroll)
-
-	# Grid container for emojis
-	var grid = GridContainer.new()
-	grid.name = "EmojiGrid"
-	grid.columns = 8
-	grid.add_theme_constant_override("h_separation", int(15 * scale_factor))
-	grid.add_theme_constant_override("v_separation", int(15 * scale_factor))
-	scroll.add_child(grid)
-
-	# Close button (bottom)
-	var close_btn_bottom = Button.new()
-	close_btn_bottom.text = "Close [V]"
-	close_btn_bottom.add_theme_font_size_override("font_size", font_size)
-	close_btn_bottom.pressed.connect(func():
-		panel.visible = false
-	)
-	vbox.add_child(close_btn_bottom)
-
-	return panel
-
-
 # _create_keyboard_hint_button REMOVED
 # Z opens ControlsOverlay via PlayerShell, and M is reserved for the workbench.
 
 
 func _create_touch_button_bar() -> Control:
-	"""Create touch-friendly button bar for LEFT CENTER of screen
-
-	Buttons: C (Quests), V (Vocabulary), B (Biome), N (Inspector), M (Workbench)
-	All use the overlay stack for consistency.
-	"""
+	"""Create touch-friendly button bar for LEFT CENTER of screen."""
 	const PanelTouchButton = preload("res://UI/Components/PanelTouchButton.gd")
 
 	var scale = layout_manager.scale_factor if layout_manager else 1.0
@@ -744,47 +346,20 @@ func _create_touch_button_bar() -> Control:
 	button_bar.z_index = 4090  # Near Godot max (4096), above all UI elements
 	button_bar.mouse_filter = Control.MOUSE_FILTER_PASS  # Allow clicks through to children
 
-	# C - Quest Board
-	var quest_button = PanelTouchButton.new()
-	quest_button.set_layout_manager(layout_manager)
-	quest_button.button_emoji = "📋"
-	quest_button.keyboard_hint = "[C]"
-	quest_button.button_activated.connect(func(): toggle_overlay("quests"))
-	button_bar.add_child(quest_button)
+	var touch_entries = MenuRegistry.get_touch_button_menus()
+	for entry in touch_entries:
+		var button = PanelTouchButton.new()
+		button.set_layout_manager(layout_manager)
+		button.button_emoji = str(entry.get("button_emoji", ""))
+		button.keyboard_hint = "[%s]" % str(entry.get("key_label", ""))
+		var overlay_name = str(entry.get("overlay_name", ""))
+		button.button_activated.connect(func(): toggle_overlay(overlay_name))
+		button_bar.add_child(button)
 
-	# V - Vocabulary/Semantic Map
-	var vocab_button = PanelTouchButton.new()
-	vocab_button.set_layout_manager(layout_manager)
-	vocab_button.button_emoji = "📖"
-	vocab_button.keyboard_hint = "[V]"
-	vocab_button.button_activated.connect(func(): toggle_overlay("semantic_map"))
-	button_bar.add_child(vocab_button)
-
-	# B - Biome Detail
-	var biome_button = PanelTouchButton.new()
-	biome_button.set_layout_manager(layout_manager)
-	biome_button.button_emoji = "🌍"
-	biome_button.keyboard_hint = "[B]"
-	biome_button.button_activated.connect(func(): toggle_overlay("biome_detail"))
-	button_bar.add_child(biome_button)
-
-	# N - Inspector (density matrix + quantum state)
-	var inspector_button = PanelTouchButton.new()
-	inspector_button.set_layout_manager(layout_manager)
-	inspector_button.button_emoji = "🔬"
-	inspector_button.keyboard_hint = "[N]"
-	inspector_button.button_activated.connect(func(): toggle_overlay("inspector"))
-	button_bar.add_child(inspector_button)
-
-	# M - Balance workbench
-	var workbench_button = PanelTouchButton.new()
-	workbench_button.set_layout_manager(layout_manager)
-	workbench_button.button_emoji = "⚖️"
-	workbench_button.keyboard_hint = "[M]"
-	workbench_button.button_activated.connect(func(): toggle_overlay("balance_workbench"))
-	button_bar.add_child(workbench_button)
-
-	_verbose.info("ui", "📱", "Touch button bar created: C/V/B/N/M on LEFT side")
+	var hints: Array[String] = []
+	for entry in touch_entries:
+		hints.append(str(entry.get("key_label", "")))
+	_verbose.info("ui", "📱", "Touch button bar created: %s on LEFT side" % "/".join(hints))
 	return button_bar
 
 
@@ -794,113 +369,33 @@ func _create_touch_button_bar() -> Control:
 
 func _on_menu_resume() -> void:
 	"""Resume game from escape menu"""
-	hide_overlay("escape_menu")
 	menu_resumed.emit()
 
 
 func _on_restart_pressed() -> void:
 	"""RESTART (R): Reload last save, preserving player progress.
 
-	Tears down the current farm, resets boot state, and reloads the scene.
-	GameStateManager.request_restart() picks the most recent save slot so
-	the player resumes where they left off. If no saves exist, starts fresh.
+	GameStateManager is the only lifecycle authority for restart semantics.
 	"""
 	_verbose.info("ui", "🔄", "Restarting game (reload last save)...")
 
-	# Queue-free the old farm (can't use free() during signal emission)
-	var gsm = get_node_or_null("/root/GameStateManager")
-	if gsm:
-		if gsm.get("active_farm") and is_instance_valid(gsm.active_farm):
-			gsm.active_farm.queue_free()
-			gsm.active_farm = null
-		# Set pending_restart_slot to last save
-		gsm.pending_restart_slot = gsm.get("last_active_slot") if gsm.get("last_active_slot") != null else -1
-		_verbose.info("ui", "✓", "Restart → save slot %d" % gsm.pending_restart_slot)
-
-	# Reset BootManager so boot() runs again
-	var boot_mgr = get_node_or_null("/root/BootManager")
-	if boot_mgr:
-		boot_mgr._core_booted = false
-		boot_mgr._ui_booted = false
-		boot_mgr._booted = false
-		boot_mgr.is_ready = false
-
-	# Crossfade music (not hard reset — preserves track positions)
-	if has_node("/root/MusicManager"):
-		get_node("/root/MusicManager").reset()
-
-	get_tree().paused = false
-	get_tree().change_scene_to_file("res://scenes/FarmView.tscn")
-	emit_signal("restart_requested")
+	var gsm = InstrumentLocator.resolve_game_state_manager(self)
+	if gsm and gsm.has_method("request_restart"):
+		gsm.request_restart()
 
 
 func _on_dev_restart_pressed() -> void:
 	"""DEV RESTART (Shift+R): Hard reset everything for a fresh boot.
 
-	Tears down the farm AND resets all autoload singletons. The game
-	restarts as if Godot was just launched — no save is loaded, boot
-	sequence runs from scratch. Useful for testing initialization.
+	GameStateManager is the only lifecycle authority for this cold-boot path.
 	"""
 	_verbose.info("ui", "🔧", "======================================================")
 	_verbose.info("ui", "🔧", "DEV RESTART - Full reset for fresh boot")
 	_verbose.info("ui", "🔧", "======================================================")
 
-	# Queue-free the farm (can't use free() during signal emission)
-	var gsm = get_node_or_null("/root/GameStateManager")
-	if gsm:
-		if gsm.get("active_farm") and is_instance_valid(gsm.active_farm):
-			gsm.active_farm.queue_free()
-			gsm.active_farm = null
-		# Force fresh game (no save loaded)
-		gsm.pending_restart_slot = -1
-		gsm._milk_autosave_done = false
-		gsm.last_milk_autosave_path = ""
-		if gsm.get("last_active_slot") != null:
-			gsm.last_active_slot = -1
-		_verbose.info("ui", "✓", "GameStateManager hard reset (fresh game)")
-
-	# Reset BootManager
-	var boot_mgr = get_node_or_null("/root/BootManager")
-	if boot_mgr:
-		boot_mgr._core_booted = false
-		boot_mgr._ui_booted = false
-		boot_mgr._booted = false
-		boot_mgr.is_ready = false
-		_verbose.info("ui", "✓", "BootManager reset")
-
-	# Reset ActiveBiomeManager
-	var abm = get_node_or_null("/root/ActiveBiomeManager")
-	if abm and abm.has_method("reset"):
-		abm.reset()
-		_verbose.info("ui", "✓", "ActiveBiomeManager reset")
-
-	# Hard reset MusicManager (silence + clear track positions)
-	if has_node("/root/MusicManager"):
-		get_node("/root/MusicManager").reset()
-		_verbose.info("ui", "✓", "MusicManager reset")
-
-	# Reset ActionChainTracker
-	var act = get_node_or_null("/root/ActionChainTracker")
-	if act and act.has_method("reset"):
-		act.reset()
-		_verbose.info("ui", "✓", "ActionChainTracker reset")
-
-	# Reset ObservationFrame
-	var obs = get_node_or_null("/root/ObservationFrame")
-	if obs and obs.has_method("reset"):
-		obs.reset()
-		_verbose.info("ui", "✓", "ObservationFrame reset")
-
-	# Reset VocabularyEvolution (discovered vocab back to initial)
-	var vocab = get_node_or_null("/root/VocabularyEvolution")
-	if vocab and vocab.has_method("reset"):
-		vocab.reset()
-		_verbose.info("ui", "✓", "VocabularyEvolution reset")
-
-	get_tree().paused = false
-	_verbose.info("ui", "🔄", "Reloading scene with fresh boot...")
-	get_tree().change_scene_to_file("res://scenes/FarmView.tscn")
-	emit_signal("restart_requested")
+	var gsm = InstrumentLocator.resolve_game_state_manager(self)
+	if gsm and gsm.has_method("request_fresh_restart"):
+		gsm.request_fresh_restart(true)
 
 
 func _on_save_pressed() -> void:
@@ -908,11 +403,9 @@ func _on_save_pressed() -> void:
 	_verbose.debug("save", "📋", "OverlayManager._on_save_pressed() called")
 	_verbose.debug("save", "→", "save_load_menu exists: %s" % (save_load_menu != null))
 	if save_load_menu:
-		_verbose.debug("save", "→", "Calling show_menu(SAVE)...")
-		if save_load_menu.has_method("open_menu"):
-			save_load_menu.open_menu(SaveLoadMenu.Mode.SAVE)
-		else:
-			save_load_menu.show_menu()
+		_verbose.debug("save", "→", "Opening registered save_load overlay in SAVE mode...")
+		open_overlay("save_load")
+		save_load_menu.open_menu(SaveLoadMenu.Mode.SAVE)
 		_verbose.debug("save", "→", "save_load_menu.visible = %s" % save_load_menu.visible)
 		_verbose.info("save", "💾", "Save menu opened")
 	else:
@@ -924,11 +417,9 @@ func _on_load_pressed() -> void:
 	_verbose.debug("save", "📋", "OverlayManager._on_load_pressed() called")
 	_verbose.debug("save", "→", "save_load_menu exists: %s" % (save_load_menu != null))
 	if save_load_menu:
-		_verbose.debug("save", "→", "Calling show_menu(LOAD)...")
-		if save_load_menu.has_method("open_menu"):
-			save_load_menu.open_menu(SaveLoadMenu.Mode.LOAD)
-		else:
-			save_load_menu.show_menu()
+		_verbose.debug("save", "→", "Opening registered save_load overlay in LOAD mode...")
+		open_overlay("save_load")
+		save_load_menu.open_menu(SaveLoadMenu.Mode.LOAD)
 		_verbose.debug("save", "→", "save_load_menu.visible = %s" % save_load_menu.visible)
 		_verbose.info("save", "📂", "Load menu opened")
 	else:
@@ -937,7 +428,7 @@ func _on_load_pressed() -> void:
 
 func _on_reload_last_save_pressed() -> void:
 	"""Reload the last saved game"""
-	var gsm = get_node_or_null("/root/GameStateManager")
+	var gsm = InstrumentLocator.resolve_game_state_manager(self)
 	if gsm and gsm.last_saved_slot >= 0:
 		if gsm.load_and_apply(gsm.last_saved_slot):
 			_verbose.info("save", "✅", "Game reloaded from last save")
@@ -950,7 +441,7 @@ func _on_reload_last_save_pressed() -> void:
 
 func _on_save_load_slot_selected(slot: int, mode: String) -> void:
 	"""Handle save/load slot selection from the SaveLoadMenu"""
-	var gsm = get_node_or_null("/root/GameStateManager")
+	var gsm = InstrumentLocator.resolve_game_state_manager(self)
 	if not gsm:
 		_verbose.error("save", "❌", "GameStateManager not available")
 		return
@@ -960,7 +451,8 @@ func _on_save_load_slot_selected(slot: int, mode: String) -> void:
 		if gsm.save_game(slot):
 			_verbose.info("save", "✅", "Game saved to slot %d" % (slot + 1))
 			save_requested.emit(slot)
-			save_load_menu.hide_menu()
+			_close_registered_overlay("save_load")
+			_close_registered_overlay("escape_menu")
 		else:
 			_verbose.error("save", "❌", "Failed to save to slot %d" % (slot + 1))
 	elif mode == "load":
@@ -976,7 +468,8 @@ func _on_save_load_slot_selected(slot: int, mode: String) -> void:
 
 			# Emit signal
 			load_requested.emit(slot)
-			save_load_menu.hide_menu()
+			_close_registered_overlay("save_load")
+			_close_registered_overlay("escape_menu")
 			emit_signal("load_completed")
 		else:
 			_verbose.error("save", "❌", "Failed to load/apply save from slot %d" % (slot + 1))
@@ -1025,17 +518,20 @@ func _on_debug_environment_selected(env_name: String) -> void:
 	debug_scenario_requested.emit(env_name)
 
 	# Hide the save/load menu and escape menu
-	save_load_menu.hide_menu()
-	hide_overlay("escape_menu")
+	_close_registered_overlay("save_load")
+	_close_registered_overlay("escape_menu")
 
 
 func _on_save_load_menu_closed() -> void:
 	"""Handle save/load menu closed - return to escape menu"""
 	_verbose.debug("save", "📋", "Returning from save/load menu to escape menu")
 	# When user presses ESC in save/load menu, return to main escape menu (don't close it)
-	if escape_menu:
-		escape_menu.activate()
-	else:
+	if overlay_stack:
+		if overlay_stack.dismiss_overlay(save_load_menu):
+			overlay_changed.emit("save_load", false)
+	if escape_menu and not (overlay_stack and overlay_stack.has_overlay(escape_menu)):
+		open_overlay("escape_menu")
+	elif not escape_menu:
 		_verbose.warn("save", "⚠️", "Escape menu not available to return to")
 
 
@@ -1052,12 +548,6 @@ func _on_quest_board_quest_completed(quest_id: int, rewards: Dictionary) -> void
 func _on_quest_board_quest_abandoned(quest_id: int) -> void:
 	"""Handle when player abandons a quest from quest board"""
 	_verbose.info("quest", "❌", "Quest abandoned from board: ID %d" % quest_id)
-
-
-func _on_quest_board_closed() -> void:
-	"""Handle when quest board is closed"""
-	overlay_states["quests"] = false
-	overlay_toggled.emit("quests", false)
 
 
 # ============================================================================
@@ -1087,6 +577,7 @@ func _create_overlays(parent: Control) -> void:
 		controls_overlay.set_layout_manager(layout_manager)
 	parent.add_child(controls_overlay)
 	register_overlay("controls", controls_overlay)
+	controls_overlay.set_overlay_source(self)
 	_setup_visibility_processing(controls_overlay)
 
 	# Create Semantic Map Overlay (vocabulary + octants)
@@ -1118,41 +609,6 @@ func _create_overlays(parent: Control) -> void:
 	_verbose.info("ui", "📊", "Overlay stack created with %d overlays" % overlays.size())
 
 
-func _center_overlay(overlay: Control) -> void:
-	"""Center an overlay in the middle of the screen.
-
-	Delegates to UILayoutManager if available, otherwise uses local fallback.
-	"""
-	# Delegate to layout_manager if available (single source of truth)
-	if layout_manager and layout_manager.has_method("center_overlay"):
-		var size = overlay.custom_minimum_size
-		if size == Vector2.ZERO and layout_manager.has_method("get_overlay_size"):
-			size = layout_manager.get_overlay_size()
-		layout_manager.center_overlay(overlay, size)
-		return
-
-	# Fallback: manual centering
-	overlay.anchor_left = 0.5
-	overlay.anchor_right = 0.5
-	overlay.anchor_top = 0.5
-	overlay.anchor_bottom = 0.5
-
-	# Get the minimum size (set by custom_minimum_size in overlay)
-	var min_size = overlay.custom_minimum_size
-	if min_size == Vector2.ZERO:
-		min_size = Vector2(600, 400)  # Default fallback
-
-	# Center the overlay around the anchor point
-	overlay.offset_left = -min_size.x / 2
-	overlay.offset_right = min_size.x / 2
-	overlay.offset_top = -min_size.y / 2
-	overlay.offset_bottom = min_size.y / 2
-
-	# Ensure it grows from center
-	overlay.grow_horizontal = Control.GROW_DIRECTION_BOTH
-	overlay.grow_vertical = Control.GROW_DIRECTION_BOTH
-
-
 func register_overlay(name: String, overlay) -> void:
 	"""Register an overlay for stack management.
 
@@ -1164,6 +620,10 @@ func register_overlay(name: String, overlay) -> void:
 		_verbose.warn("ui", "⚠️", "overlay '%s' already registered, replacing" % name)
 
 	overlays[name] = overlay
+	if overlay and overlay.has_signal("overlay_closed"):
+		var close_callable = Callable(self, "_on_registered_overlay_closed").bind(name)
+		if not overlay.overlay_closed.is_connected(close_callable):
+			overlay.overlay_closed.connect(close_callable)
 	_verbose.info("ui", "📋", "Registered overlay: %s" % name)
 
 
@@ -1185,26 +645,7 @@ func open_overlay(name: String) -> bool:
 		return false
 
 	var overlay = overlays[name]
-
-	# Bind data to overlays that need it
-	# Try multiple paths to find Farm node (scene structure varies)
-	var farm_ref = get_tree().root.get_node_or_null("/root/FarmView/Farm")
-	if not farm_ref:
-		farm_ref = get_tree().root.get_node_or_null("/root/Farm")
-	if not farm_ref:
-		# Search in parent hierarchy (FarmView might not be at root)
-		var parent = get_parent()
-		while parent and not farm_ref:
-			if parent.has_method("get_node_or_null"):
-				farm_ref = parent.get_node_or_null("Farm")
-			parent = parent.get_parent() if parent.has_method("get_parent") else null
-	if not farm_ref:
-		farm_ref = farm  # Fallback to stored reference
-	if not farm_ref:
-		# Final fallback: try GameStateManager
-		var gsm = get_tree().root.get_node_or_null("/root/GameStateManager")
-		if gsm and "active_farm" in gsm:
-			farm_ref = gsm.active_farm
+	var farm_ref = _resolve_farm()
 
 	if name == "inspector" and overlay.has_method("set_biome"):
 		if farm_ref and farm_ref.has_method("get_current_biome"):
@@ -1297,6 +738,33 @@ func close_overlay() -> void:
 	overlay_changed.emit(overlay_name, false)
 
 
+func _close_registered_overlay(name: String) -> void:
+	"""Close a registered overlay through the current runtime authority."""
+	if not overlays.has(name):
+		return
+
+	var overlay = overlays[name]
+	if overlay_stack and overlay_stack.has_overlay(overlay):
+		overlay_stack.pop_overlay(overlay)
+	else:
+		if overlay.has_method("deactivate"):
+			overlay.deactivate()
+		else:
+			overlay.visible = false
+
+	overlay_changed.emit(name, false)
+
+
+func _on_registered_overlay_closed(name: String) -> void:
+	"""Synchronize stack state when a registered overlay closes itself."""
+	if not overlays.has(name) or not overlay_stack:
+		return
+
+	var overlay = overlays[name]
+	if overlay_stack.dismiss_overlay(overlay):
+		overlay_changed.emit(name, false)
+
+
 func close_all_overlays() -> void:
 	"""Close all registered overlays (used by logger config for mutual exclusion)."""
 	if not overlay_stack:
@@ -1307,6 +775,40 @@ func close_all_overlays() -> void:
 		if overlay_stack.has_overlay(overlay):
 			overlay_stack.pop_overlay(overlay)
 			overlay_changed.emit(name, false)
+
+
+func reset() -> void:
+	"""Reset runtime overlay state for shutdown or restart."""
+	close_all_overlays()
+	if quantum_config_ui and quantum_config_ui.visible:
+		quantum_config_ui.visible = false
+	if save_load_menu and save_load_menu.has_method("hide_menu"):
+		save_load_menu.hide_menu()
+	elif save_load_menu:
+		save_load_menu.visible = false
+	if escape_menu and escape_menu.has_method("deactivate"):
+		escape_menu.deactivate()
+	elif escape_menu:
+		escape_menu.visible = false
+	overlays.clear()
+	quest_board = null
+	escape_menu = null
+	save_load_menu = null
+	biome_inspector = null
+	quantum_config_ui = null
+	touch_button_bar = null
+	icon_detail_panel = null
+	inspector_overlay = null
+	controls_overlay = null
+	semantic_map_overlay = null
+	balance_workbench_overlay = null
+	overlay_stack = null
+	farm = null
+	quest_manager = null
+	faction_manager = null
+	vocabulary_evolution = null
+	conspiracy_network = null
+	_overlays_created = false
 
 
 func toggle_overlay(name: String) -> void:
@@ -1356,17 +858,6 @@ func get_active_overlay():
 	if overlay_stack:
 		return overlay_stack.get_top()
 	return null
-
-
-func get_active_overlay_actions() -> Dictionary:
-	"""Get QER+F action labels for current overlay (for ActionPreviewRow).
-
-	Returns empty dict if no overlay active.
-	"""
-	var top = get_active_overlay()
-	if top and top.has_method("get_action_labels"):
-		return top.get_action_labels()
-	return {}
 
 
 func get_overlay(name: String):

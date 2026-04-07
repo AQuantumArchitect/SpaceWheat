@@ -10,6 +10,7 @@ const OperatorSerializer = preload("res://Core/QuantumSubstrate/OperatorSerializ
 # User cache (runtime, modifiable)
 const CACHE_DIR = "user://operator_cache/"
 const MANIFEST_FILE = "user://operator_cache/manifest.json"
+const FALLBACK_CACHE_DIR = "/tmp/spacewheat_operator_cache/"
 
 # Bundled cache (shipped with game, read-only)
 const BUNDLED_CACHE_DIR = "res://BundledCache/"
@@ -21,6 +22,8 @@ static var _instance: OperatorCache = null
 # Cache manifests: biome_name → {cache_key, file_name, timestamp}
 var manifest: Dictionary = {}  # User cache
 var bundled_manifest: Dictionary = {}  # Bundled cache (read-only)
+var _resolved_user_cache_dir: String = ""
+var _resolved_user_manifest_path: String = ""
 
 # Statistics
 var hit_count: int = 0
@@ -44,7 +47,7 @@ func _init():
 ## Checks user cache first, then bundled cache, then builds from scratch
 func try_load(biome_name: String, cache_key: String) -> Dictionary:
 	# Try user cache first (supports runtime modifications)
-	var ops = _try_load_from_dir(biome_name, cache_key, CACHE_DIR, manifest)
+	var ops = _try_load_from_dir(biome_name, cache_key, _user_cache_dir_path(), manifest)
 	if not ops.is_empty():
 		hit_count += 1
 		return ops
@@ -100,8 +103,9 @@ func _try_load_from_dir(biome_name: String, cache_key: String, cache_dir: String
 
 ## Save operators to cache with new cache key
 func save(biome_name: String, cache_key: String, hamiltonian, lindblad_ops: Array):
+	_ensure_cache_dir()
 	var file_name = "%s_%s.json" % [biome_name.to_lower().replace("_biome", ""), cache_key]
-	var file_path = CACHE_DIR + file_name
+	var file_path = _user_cache_entry_path(file_name)
 
 	# Serialize operators
 	var data = OperatorSerializer.serialize_operators(hamiltonian, lindblad_ops)
@@ -127,8 +131,8 @@ func save(biome_name: String, cache_key: String, hamiltonian, lindblad_ops: Arra
 func invalidate(biome_name: String):
 	if manifest.has(biome_name):
 		var entry = manifest[biome_name]
-		var file_path = CACHE_DIR + entry.file_name
-		if FileAccess.file_exists(file_path):
+		var file_path = _cache_entry_absolute_path(str(entry.file_name))
+		if FileAccess.file_exists(ProjectSettings.localize_path(file_path)):
 			DirAccess.remove_absolute(file_path)
 		manifest.erase(biome_name)
 		_save_manifest()
@@ -141,7 +145,7 @@ func invalidate_all():
 
 ## Clear entire cache (useful for debugging)
 func clear_all():
-	var dir = DirAccess.open(CACHE_DIR)
+	var dir = DirAccess.open(_cache_dir_absolute())
 	if dir:
 		dir.list_dir_begin()
 		var file_name = dir.get_next()
@@ -178,15 +182,19 @@ func print_stats():
 	print("Total size: %.2f KB" % stats.total_size_kb)
 
 func _ensure_cache_dir():
-	if not DirAccess.dir_exists_absolute(CACHE_DIR):
-		DirAccess.make_dir_recursive_absolute(CACHE_DIR)
+	var cache_dir_abs = _cache_dir_absolute()
+	if not DirAccess.dir_exists_absolute(cache_dir_abs):
+		var err = DirAccess.make_dir_recursive_absolute(cache_dir_abs)
+		if err != OK:
+			push_error("Failed to create operator cache dir: %s (err=%d)" % [cache_dir_abs, err])
 
 func _load_manifest():
-	if not FileAccess.file_exists(MANIFEST_FILE):
+	var manifest_path = _user_manifest_path()
+	if not FileAccess.file_exists(manifest_path):
 		manifest = {}
 		return
 
-	var file = FileAccess.open(MANIFEST_FILE, FileAccess.READ)
+	var file = FileAccess.open(manifest_path, FileAccess.READ)
 	if not file:
 		manifest = {}
 		return
@@ -221,20 +229,80 @@ func _load_bundled_manifest():
 		bundled_manifest = {}
 
 func _save_manifest():
-	var file = FileAccess.open(MANIFEST_FILE, FileAccess.WRITE)
+	_ensure_cache_dir()
+	var file = FileAccess.open(_user_manifest_path(), FileAccess.WRITE)
 	if file:
 		file.store_string(JSON.stringify(manifest, "\t"))
 		file.close()
+	else:
+		push_error("Failed to save operator cache manifest: %s" % _user_manifest_path())
 
 func _calculate_cache_size_kb() -> float:
 	var total_bytes = 0
-	var dir = DirAccess.open(CACHE_DIR)
+	var dir = DirAccess.open(_cache_dir_absolute())
 	if dir:
 		for entry in manifest.values():
-			var file_path = CACHE_DIR + entry.file_name
+			var file_path = _user_cache_entry_path(str(entry.file_name))
 			if FileAccess.file_exists(file_path):
 				var file = FileAccess.open(file_path, FileAccess.READ)
 				if file:
 					total_bytes += file.get_length()
 					file.close()
 	return total_bytes / 1024.0
+
+
+func _cache_dir_absolute() -> String:
+	if _resolved_user_cache_dir == "":
+		_resolve_user_cache_paths()
+	return _resolved_user_cache_dir
+
+
+func _cache_entry_absolute_path(file_name: String) -> String:
+	return _cache_dir_absolute().path_join(file_name)
+
+
+func _user_cache_dir_path() -> String:
+	return _cache_dir_absolute()
+
+
+func _user_cache_entry_path(file_name: String) -> String:
+	return _cache_entry_absolute_path(file_name)
+
+
+func _user_manifest_path() -> String:
+	if _resolved_user_manifest_path == "":
+		_resolve_user_cache_paths()
+	return _resolved_user_manifest_path
+
+
+func _resolve_user_cache_paths() -> void:
+	var primary_dir = ProjectSettings.globalize_path(CACHE_DIR)
+	if _can_write_cache_dir(primary_dir):
+		_resolved_user_cache_dir = primary_dir
+		_resolved_user_manifest_path = _resolved_user_cache_dir.path_join("manifest.json")
+		return
+
+	if _can_write_cache_dir(FALLBACK_CACHE_DIR):
+		_resolved_user_cache_dir = FALLBACK_CACHE_DIR
+		_resolved_user_manifest_path = _resolved_user_cache_dir.path_join("manifest.json")
+		push_warning("OperatorCache: user cache dir is not writable, falling back to %s" % _resolved_user_cache_dir)
+		return
+
+	_resolved_user_cache_dir = primary_dir
+	_resolved_user_manifest_path = _resolved_user_cache_dir.path_join("manifest.json")
+	push_error("OperatorCache: no writable cache directory available")
+
+
+func _can_write_cache_dir(dir_path: String) -> bool:
+	var err = DirAccess.make_dir_recursive_absolute(dir_path)
+	if err != OK and err != ERR_ALREADY_EXISTS:
+		return false
+
+	var probe_path = dir_path.path_join(".write_probe_%d.tmp" % Time.get_ticks_usec())
+	var file = FileAccess.open(probe_path, FileAccess.WRITE)
+	if not file:
+		return false
+	file.store_string("ok")
+	file.close()
+	DirAccess.remove_absolute(probe_path)
+	return true

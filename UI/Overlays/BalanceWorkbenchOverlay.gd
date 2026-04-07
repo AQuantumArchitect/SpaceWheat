@@ -2,6 +2,7 @@ class_name BalanceWorkbenchOverlay
 extends "res://UI/Core/OverlayBase.gd"
 
 const BalanceService = preload("res://Core/GameMechanics/BalanceService.gd")
+const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")
 
 var _farm: Node = null
 var _snapshot_service = null
@@ -125,7 +126,7 @@ func _build_content(container: Control) -> void:
 	root.add_child(_quest_label)
 
 	var hints = Label.new()
-	hints.text = "Dummy mode: click Auto Apply button. Keys: Q/E action nav | R/F edit in advanced mode, otherwise biome/refresh | T/Y quest ratio (advanced)"
+	hints.text = "Q/E action nav | R/F edit in advanced mode, otherwise biome/refresh | T/Y quest ratio in advanced mode"
 	hints.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	root.add_child(hints)
 
@@ -242,6 +243,8 @@ func _on_action_f() -> void:
 func _on_unhandled_key(keycode: int, _event: InputEvent) -> bool:
 	if not _advanced_mode:
 		return false
+	if not InputBindingRegistry.overlay_has_shortcut(overlay_name, keycode):
+		return false
 	if keycode == KEY_T:
 		_apply_quest_ratio_delta(0.05)
 		return true
@@ -293,8 +296,8 @@ func _apply_quest_ratio_delta(delta: float) -> void:
 func _refresh_timescale_projection() -> void:
 	_last_projection = {}
 	_timescale_biomes.clear()
-	if _snapshot_service and _snapshot_service.has_method("get_grid_snapshot"):
-		var grid = _snapshot_service.get_grid_snapshot()
+	if _instrument and _instrument.has_method("get_grid_snapshot"):
+		var grid = _instrument.get_grid_snapshot()
 		if bool(grid.get("ok", false)):
 			var biomes = grid.get("biomes", [])
 			if biomes is Array:
@@ -392,55 +395,19 @@ func _on_easy_apply_pressed() -> void:
 		_render()
 		return
 
-	if _instrument.has_method("auto_apply_timescale"):
-		var apply_result = _instrument.auto_apply_timescale(biome_name, 8)
-		if bool(apply_result.get("ok", false)):
-			var stride = int(apply_result.get("recommended_stride", 1))
-			var dt = float(apply_result.get("recommended_dt", 0.02))
-			_set_easy_status("Applied to %s: stride=%d dt=%.4f" % [biome_name, stride, dt])
-			var gsm = get_tree().root.get_node_or_null("/root/GameStateManager")
-			if gsm and "current_state" in gsm and gsm.current_state:
-				gsm.current_state.observation_stride = stride
-				gsm.current_state.max_evolution_dt = dt
-		else:
-			_set_easy_status("Apply failed on %s." % biome_name)
-		_refresh_timescale_projection()
-		_render()
-		return
-
-	# Legacy fallback if instrument doesn't expose auto helper.
-	if not (_instrument.has_method("set_observation_stride") and _instrument.has_method("set_resolution")):
-		_set_easy_status("Timescale controls unavailable.")
-		_render()
-		return
-
-	_refresh_timescale_projection()
-	var rec = _last_projection
-	if not bool(rec.get("ok", false)):
-		_set_easy_status("No recommendation available.")
-		_render()
-		return
-
-	var stride = int(rec.get("recommended_stride", -1))
-	var dt = float(rec.get("recommended_dt", -1.0))
-	if stride <= 0 or dt <= 0.0:
-		_set_easy_status("Recommendation missing stride/dt.")
-		_render()
-		return
-
-	var stride_result = _instrument.set_observation_stride(biome_name, stride)
-	var dt_result = _instrument.set_resolution(biome_name, dt)
-	var stride_ok = bool(stride_result.get("ok", false))
-	var dt_ok = bool(dt_result.get("ok", false))
-	if stride_ok and dt_ok:
+	var apply_result = _instrument.auto_apply_timescale(biome_name, 8)
+	if bool(apply_result.get("ok", false)):
+		var stride = int(apply_result.get("recommended_stride", 1))
+		var dt = float(apply_result.get("recommended_dt", 0.02))
 		_set_easy_status("Applied to %s: stride=%d dt=%.4f" % [biome_name, stride, dt])
 		# Persist global timescale defaults through save state path (best-effort).
-		var gsm = get_tree().root.get_node_or_null("/root/GameStateManager")
+		var gsm = InstrumentLocator.resolve_game_state_manager(self)
 		if gsm and "current_state" in gsm and gsm.current_state:
 			gsm.current_state.observation_stride = stride
 			gsm.current_state.max_evolution_dt = dt
 	else:
 		_set_easy_status("Apply failed on %s." % biome_name)
+	_refresh_timescale_projection()
 	_render()
 
 

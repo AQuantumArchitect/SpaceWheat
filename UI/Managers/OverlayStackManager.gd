@@ -32,10 +32,6 @@ const Z_TIER_SYSTEM = 18
 # The overlay stack - topmost overlay receives input
 var overlay_stack: Array[Control] = []
 
-# Reference to OverlayManager for ActionPreviewRow updates
-var overlay_manager: Node = null
-
-
 # =============================================================================
 # STACK OPERATIONS
 # =============================================================================
@@ -77,8 +73,6 @@ func push(overlay: Control) -> void:
 	overlay_pushed.emit(overlay)
 	stack_changed.emit()
 
-	_update_action_preview()
-
 
 func pop() -> Control:
 	"""Pop the top overlay from the stack.
@@ -99,8 +93,6 @@ func pop() -> Control:
 
 	overlay_popped.emit(overlay)
 	stack_changed.emit()
-
-	_update_action_preview()
 
 	return overlay
 
@@ -130,8 +122,22 @@ func pop_overlay(overlay: Control) -> bool:
 	overlay_popped.emit(overlay)
 	stack_changed.emit()
 
-	_update_action_preview()
+	return true
 
+
+func dismiss_overlay(overlay: Control) -> bool:
+	"""Remove an overlay from the stack without calling deactivate().
+
+	Used when an overlay has already closed itself and the stack only needs to
+	forget it.
+	"""
+	var idx = overlay_stack.find(overlay)
+	if idx < 0:
+		return false
+
+	overlay_stack.remove_at(idx)
+	overlay_popped.emit(overlay)
+	stack_changed.emit()
 	return true
 
 
@@ -230,40 +236,6 @@ func is_modal_overlay_active() -> bool:
 		if get_overlay_tier(overlay) >= Z_TIER_MODAL:
 			return true
 	return false
-
-
-# =============================================================================
-# ACTION PREVIEW INTEGRATION
-# =============================================================================
-
-func set_overlay_manager(manager: Node) -> void:
-	"""Set reference to OverlayManager for ActionPreviewRow updates."""
-	overlay_manager = manager
-
-
-func _update_action_preview() -> void:
-	"""Update ActionPreviewRow when stack changes."""
-	if not overlay_manager:
-		return
-
-	# Get action labels from top overlay
-	var top = get_top()
-	if top and top.has_method("get_action_labels"):
-		var labels = top.get_action_labels()
-		if overlay_manager.has_method("update_action_preview_for_overlay"):
-			overlay_manager.update_action_preview_for_overlay(labels)
-	else:
-		# No overlay active - restore default actions
-		if overlay_manager.has_method("restore_action_preview"):
-			overlay_manager.restore_action_preview()
-
-
-func get_active_action_labels() -> Dictionary:
-	"""Get action labels from the top overlay for ActionPreviewRow."""
-	var top = get_top()
-	if top and top.has_method("get_action_labels"):
-		return top.get_action_labels()
-	return {}
 
 
 # =============================================================================

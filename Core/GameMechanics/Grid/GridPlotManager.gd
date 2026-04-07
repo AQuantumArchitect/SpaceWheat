@@ -7,6 +7,7 @@ extends RefCounted
 ## Handles plot creation, lookup, validity checks, and neighbor queries.
 
 const FarmPlot = preload("res://Core/GameMechanics/FarmPlot.gd")
+const GridSentinel = preload("res://Core/GameState/GridSentinel.gd")
 
 # Grid configuration
 var grid_width: int = 5
@@ -78,13 +79,13 @@ func find_plot_by_id(plot_id: String) -> Vector2i:
 			var plot = get_plot(pos)
 			if plot and plot.plot_id == plot_id:
 				return pos
-	return Vector2i(-1, -1)
+	return GridSentinel.INVALID_POSITION
 
 
 func get_plot_by_id(plot_id: String) -> FarmPlot:
 	"""Get plot directly by ID (convenience wrapper for cluster operations)"""
 	var pos = find_plot_by_id(plot_id)
-	if pos != Vector2i(-1, -1):
+	if pos != GridSentinel.INVALID_POSITION:
 		return get_plot(pos)
 	return null
 

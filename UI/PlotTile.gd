@@ -6,14 +6,14 @@ const EmojiDisplay = preload("res://UI/Core/EmojiDisplay.gd")
 
 ## PlotTile - Visual representation of a single farm plot
 ## Part of the emoji lattice grid
-## Phase 4: Decoupled from WheatPlot - uses PlotUIData (display snapshots)
+## Decoupled from WheatPlot - uses display snapshots.
 
 signal clicked(grid_position: Vector2i)
 signal long_pressed(grid_position: Vector2i)
 
-# Plot data (set by FarmView) - Phase 4: Use PlotUIData instead of WheatPlot
+# Plot data (set by FarmView) - display snapshot dictionary
 var grid_position: Vector2i = Vector2i.ZERO
-var plot_ui_data = null  # FarmUIState.PlotUIData
+var plot_ui_data = null
 
 # Visual state
 var is_selected: bool = false
@@ -49,6 +49,7 @@ var entanglement_counter: Label  # Shows number of entangled connections
 
 # Colors (backgrounds at 60% transparency = 0.4 alpha, text stays opaque)
 const COLOR_EMPTY = Color(0.15, 0.15, 0.15, 0.4)
+const COLOR_MEMORY = Color(0.22, 0.2, 0.18, 0.28)
 const COLOR_SELECTED = Color(0.3, 0.6, 0.8, 0.5)  # Slightly more visible when selected
 const COLOR_HOVER = Color(0.25, 0.25, 0.25, 0.4)
 const COLOR_NATURAL = Color(0.2, 0.8, 0.2, 0.4)  # Green (🌾)
@@ -84,7 +85,7 @@ func _ready():
 	_create_ui_elements()
 
 	# Don't set grid position number - let set_label_text() provide keyboard labels only
-	# This prevents duplicate label overlap (number_label was showing 0-5 behind JKL; keys)
+	# Prevent duplicate label overlap when plot key labels are rendered on top.
 	number_label.text = ""
 
 	# Now set size properties (this triggers NOTIFICATION_RESIZED, which calls _layout_elements)
@@ -264,7 +265,10 @@ func _update_visuals():
 		return
 
 	if not plot_ui_data.get("is_planted", false):
-		_show_empty_state()
+		if plot_ui_data.get("memory_visible", false):
+			_show_memory_state()
+		else:
+			_show_empty_state()
 	else:
 		# Quantum-only mechanics: plants are instant full size
 		# Always show mature state when planted
@@ -312,6 +316,24 @@ func _show_empty_state():
 
 	if lindblad_indicator:
 		lindblad_indicator.text = ""
+
+
+func _show_memory_state():
+	var outcome = str(plot_ui_data.get("memory_outcome", ""))
+	var north_emoji = str(plot_ui_data.get("memory_north_emoji", ""))
+	var south_emoji = str(plot_ui_data.get("memory_south_emoji", ""))
+	var ghost = outcome if outcome != "" else (north_emoji if north_emoji != "" else south_emoji)
+
+	emoji_label_north.emoji = ghost
+	emoji_label_south.emoji = ""
+	emoji_label_north.modulate = Color(1, 1, 1, 0.38)
+	emoji_label_south.modulate.a = 0.0
+	growth_bar.visible = false
+	background.color = COLOR_MEMORY if not is_selected else COLOR_SELECTED.darkened(0.15)
+
+	if lindblad_indicator:
+		lindblad_indicator.text = "·"
+		lindblad_indicator.modulate = Color(0.8, 0.7, 0.5, 0.55)
 
 
 func _show_growing_state():
@@ -617,4 +639,4 @@ func set_plot_data(plot_data, pos: Vector2i, index: int = -1):
 func get_debug_info() -> String:
 	if plot_ui_data == null or not plot_ui_data.get("is_planted", false):
 		return "Empty"
-	return "Planted: %s" % plot_ui_data.get("plot_type", "unknown")
+	return "Planted: %s" % plot_ui_data.get("type_name", "unknown")

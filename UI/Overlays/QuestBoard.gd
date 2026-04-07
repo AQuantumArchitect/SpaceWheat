@@ -1,7 +1,7 @@
 class_name QuestBoard
 extends "res://UI/Core/OverlayBase.gd"
 
-## Modal Quest Board with 4 Slots (UIOP)
+## Modal Quest Board with 4 direct-select slots (UIOP)
 ## Controls hijacked when open (like ESC menu)
 ## Press C to drill into faction browser
 ##
@@ -13,7 +13,7 @@ const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.
 const ActionCostRuntime = preload("res://Core/GameMechanics/ActionCostRuntime.gd")
 
 # Logging
-@onready var _verbose = get_node("/root/VerboseConfig")
+@onready var _verbose = InstrumentLocator.resolve_verbose_config(self)
 
 signal quest_accepted(quest: Dictionary)
 signal quest_completed(quest_id: int, rewards: Dictionary)
@@ -44,9 +44,6 @@ const QUESTS_PER_PAGE: int = 4  # Fixed: all slots cycle together
 # Faction browser
 var faction_browser: Node = null
 var is_browser_open: bool = false
-
-# Slot letters
-const SLOT_KEYS = ["U", "I", "O", "P"]
 
 # Quest slot states
 enum SlotState {
@@ -93,7 +90,7 @@ func _build_content(container: Control) -> void:
 	for i in range(4):
 		var slot = QuestSlot.new()
 		slot.set_layout_manager(layout_manager)
-		slot.slot_letter = SLOT_KEYS[i]
+		slot.slot_letter = InputBindingRegistry.get_quest_slot_keys()[i]
 		slot.slot_index = i
 		slot.slot_selected.connect(_on_slot_selected)
 		slot_container.add_child(slot)
@@ -145,7 +142,7 @@ func _ensure_player_vocab_connected() -> void:
 	if not get_tree() or not get_tree().root:
 		return
 
-	_player_vocab = get_tree().root.get_node_or_null("/root/PlayerVocabulary")
+	_player_vocab = InstrumentLocator.resolve_player_vocabulary(self)
 	if _player_vocab and _player_vocab.has_signal("vocab_learned"):
 		if not _player_vocab.vocab_learned.is_connected(_on_player_vocab_learned):
 			_player_vocab.vocab_learned.connect(_on_player_vocab_learned)
@@ -182,19 +179,6 @@ func handle_input(event: InputEvent) -> bool:
 		KEY_ESCAPE:
 			close_board()
 			return true
-		# UIOP keys for direct selection
-		KEY_U:
-			select_slot(0)
-			return true
-		KEY_I:
-			select_slot(1)
-			return true
-		KEY_O:
-			select_slot(2)
-			return true
-		KEY_P:
-			select_slot(3)
-			return true
 		# Arrow keys for navigation (2x2 grid layout)
 		KEY_UP, KEY_W:
 			_navigate_up()
@@ -224,6 +208,11 @@ func handle_input(event: InputEvent) -> bool:
 		KEY_F:
 			on_f_pressed()
 			return true
+
+	var quest_slot_index = InputBindingRegistry.get_quest_slot_index_for_keycode(event.keycode)
+	if quest_slot_index >= 0:
+		select_slot(quest_slot_index)
+		return true
 
 	return false  # Input not consumed
 
@@ -284,7 +273,7 @@ func _ensure_biome_context_for_open() -> void:
 	if not farm_ref or not farm_ref.grid or not farm_ref.grid.has_biomes():
 		return
 
-	var abm = get_node_or_null("/root/ActiveBiomeManager")
+	var abm = InstrumentLocator.resolve_active_biome_manager(self)
 	if abm and abm.has_method("get_active_biome"):
 		var active_biome_name = abm.get_active_biome()
 		var active_biome = farm_ref.grid.get_biome(active_biome_name)
@@ -300,13 +289,9 @@ func _ensure_biome_context_for_open() -> void:
 
 func _resolve_farm_for_open() -> Node:
 	"""Find farm reference without relying on a single scene path."""
-	var farm_ref = get_tree().root.get_node_or_null("/root/Farm")
+	var farm_ref = InstrumentLocator.resolve_active_farm(self)
 	if farm_ref:
 		return farm_ref
-
-	var gsm = get_tree().root.get_node_or_null("/root/GameStateManager")
-	if gsm and "active_farm" in gsm:
-		return gsm.active_farm
 
 	var current = get_parent()
 	while current:
@@ -383,7 +368,7 @@ func _get_game_state_manager():
 	"""Safely get GameStateManager autoload (avoids static analyzer warnings)"""
 	if Engine.is_editor_hint():
 		return null
-	return get_node_or_null("/root/GameStateManager")
+	return InstrumentLocator.resolve_game_state_manager(self)
 
 
 func _resolve_quantum_instrument():
@@ -1417,7 +1402,7 @@ func _is_quest_invalidated(quest_data: Dictionary) -> bool:
 
 	# Get player's known vocabulary from canonical pair state.
 	var known_pairs: Array = []
-	var gsm = get_tree().root.get_node_or_null("/root/GameStateManager")
+	var gsm = InstrumentLocator.resolve_game_state_manager(self)
 	if gsm and gsm.has_method("get_player_vocab_pairs"):
 		known_pairs = gsm.get_player_vocab_pairs()
 	elif gsm and gsm.current_state:

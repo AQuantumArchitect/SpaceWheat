@@ -8,6 +8,7 @@ extends Resource
 # Preload config classes
 const PlotConfig = preload("res://Core/GameState/PlotConfig.gd")
 const KeyboardLayoutConfig = preload("res://Core/GameState/KeyboardLayoutConfig.gd")
+const GridSentinel = preload("res://Core/GameState/GridSentinel.gd")
 
 @export var grid_width: int = 6
 @export var grid_height: int = 2
@@ -50,7 +51,7 @@ func validate() -> Dictionary:
 	for action in keyboard_layout.get_all_actions():
 		var pos = keyboard_layout.get_position_for_action(action)
 
-		if pos == Vector2i(-1, -1):
+		if pos == GridSentinel.INVALID_POSITION:
 			errors.append("Invalid position for keyboard action %s" % action)
 			continue
 

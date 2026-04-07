@@ -17,6 +17,7 @@ extends "res://UI/Core/OverlayBase.gd"
 ##   Dynamic panels created on demand within scrollable content area.
 
 const BiomeOvalPanel = preload("res://UI/Widgets/BiomeOvalPanel.gd")
+const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")
 
 # Biome display order (consistent across app)
 const BIOME_ORDER: Array[String] = ["StarterForest", "Village", "BioticFlux", "StellarForges", "FungalNetworks", "VolcanicWorlds"]
@@ -69,7 +70,7 @@ func _ready() -> void:
 	super._ready()
 
 	# Connect to biome changes so we update when user switches with ,/.
-	var active_biome_manager = get_node_or_null("/root/ActiveBiomeManager")
+	var active_biome_manager = InstrumentLocator.resolve_active_biome_manager(self)
 	if active_biome_manager:
 		active_biome_manager.active_biome_changed.connect(_on_active_biome_changed)
 
@@ -320,19 +321,19 @@ func _on_activated() -> void:
 
 	if farm:
 		# Show only the currently active biome (not all 4)
-		var active_biome_manager = get_node_or_null("/root/ActiveBiomeManager")
+		var active_biome_manager = InstrumentLocator.resolve_active_biome_manager(self)
 		if active_biome_manager:
 			var active_biome_name = active_biome_manager.get_active_biome()
 			var biome = _get_biome_by_name(active_biome_name)
 			if biome:
 				_populate_single_biome(biome)
 				return
-		# Fallback: show first biome if no active biome manager
-		if farm.grid and farm.grid.has_biomes():
-			for biome_name in BIOME_ORDER:
-				if farm.grid.has_biome(biome_name):
-					_populate_single_biome(farm.grid.get_biome(biome_name))
-					return
+	# Fallback: show first biome if no active biome manager
+	if farm and farm.grid and farm.grid.has_biomes():
+		for biome_name in BIOME_ORDER:
+			if farm.grid.has_biome(biome_name):
+				_populate_single_biome(farm.grid.get_biome(biome_name))
+				return
 
 
 func _on_deactivated() -> void:

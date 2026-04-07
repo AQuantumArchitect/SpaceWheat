@@ -4,6 +4,7 @@
 extends Node
 
 const ProbeActions = preload("res://Core/Actions/ProbeActions.gd")
+const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")
 
 var farm: Node = null
 var biotic_flux: Node = null
@@ -23,7 +24,7 @@ var sun_theta_history: Array = []
 
 func _ready():
 	# Try to find farm reference
-	farm = get_node_or_null("/root/FarmView/Farm")
+	farm = InstrumentLocator.resolve_active_farm(self)
 	if farm:
 		biotic_flux = farm.biotic_flux_biome
 		terminal_pool = farm.terminal_pool

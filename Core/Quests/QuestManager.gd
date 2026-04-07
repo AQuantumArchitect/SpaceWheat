@@ -14,9 +14,11 @@ const EconomyConstants = preload("res://Core/GameMechanics/EconomyConstants.gd")
 const FactionStateMatcher = preload("res://Core/QuantumSubstrate/FactionStateMatcher.gd")
 const FactionDatabase = preload("res://Core/Quests/FactionDatabaseV2.gd")
 const QuestStateProjectionService = preload("res://Core/Quests/QuestStateProjectionService.gd")
+const PolicyGraph = preload("res://Core/AI/PolicyGraph.gd")
+const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")
 
 # Logging
-@onready var _verbose = get_node("/root/VerboseConfig")
+@onready var _verbose = InstrumentLocator.resolve_verbose_config(self)
 
 # =============================================================================
 # SIGNALS
@@ -53,6 +55,7 @@ var faction_manager: Node = null
 var current_biome: Node = null  # For tracking non-delivery quest progress
 var _biome_offer_counts: Dictionary = {}
 var _non_native_resonance_factor: float = 0.8  # from biome_economics.non_native_resonance_factor
+var _biome_config: Dictionary = {}  # Resolved biome_economics from PolicyGraph — passed to QuestTheming resonance gate
 var _state_projection: QuestStateProjectionService = QuestStateProjectionService.new()
 
 # =============================================================================
@@ -137,10 +140,7 @@ func connect_to_biome(biome: Node) -> void:
 
 func _get_gsm():
 	"""Get GameStateManager singleton safely (supports headless tests)."""
-	var tree = get_tree()
-	if tree and tree.root:
-		return tree.root.get_node_or_null("/root/GameStateManager")
-	return null
+	return InstrumentLocator.resolve_game_state_manager(self)
 
 
 func _get_player_vocab_emojis() -> Array:
@@ -157,8 +157,9 @@ func _discover_vocab_pair(north: String, south: String) -> bool:
 	Returns true if vocabulary was newly discovered, false if already known.
 	"""
 	var gsm = _get_gsm()
-	if gsm and "active_farm" in gsm and gsm.active_farm and gsm.active_farm.has_method("discover_pair"):
-		return gsm.active_farm.discover_pair(north, south)
+	var active_farm = gsm.get_active_farm() if gsm and gsm.has_method("get_active_farm") else null
+	if active_farm and active_farm.has_method("discover_pair"):
+		return active_farm.discover_pair(north, south)
 	elif gsm and gsm.has_method("discover_pair"):
 		return gsm.discover_pair(north, south)
 	return false
@@ -315,7 +316,7 @@ func offer_quest_emergent(faction: Dictionary, biome) -> Dictionary:
 	var bias_emojis = _get_simulated_vocab_emojis(biome)
 
 	# Generate via abstract machinery + theming (with vocabulary constraint!)
-	var quest = QuestTheming.generate_quest(faction, biome, player_vocab, bias_emojis, self.economy)
+	var quest = QuestTheming.generate_quest(faction, biome, player_vocab, bias_emojis, self.economy, null, null, _biome_config)
 
 	# Check for vocabulary mismatch error
 	if quest.is_empty() or quest.has("error"):
@@ -412,7 +413,7 @@ func offer_all_faction_quests(biome) -> Array:
 			faction.erase("_non_native_resonance")
 		var quest = QuestTheming.generate_quest(
 			faction, biome, player_vocab, bias_emojis, self.economy,
-			cached_obs, cached_icon_map)
+			cached_obs, cached_icon_map, _biome_config)
 
 		if quest.is_empty() or quest.has("error"):
 			continue
@@ -493,8 +494,9 @@ func get_biome_observables(biome) -> Dictionary:
 
 func _get_global_icon_map() -> Dictionary:
 	var gsm = _get_gsm()
-	if gsm and "active_farm" in gsm and gsm.active_farm and "biome_evolution_batcher" in gsm.active_farm:
-		var batcher = gsm.active_farm.biome_evolution_batcher
+	var active_farm = gsm.get_active_farm() if gsm and gsm.has_method("get_active_farm") else null
+	if active_farm and "biome_evolution_batcher" in active_farm:
+		var batcher = active_farm.biome_evolution_batcher
 		if batcher and batcher.has_method("get_global_icon_map"):
 			var icon_map = batcher.get_global_icon_map()
 			if icon_map is Dictionary:

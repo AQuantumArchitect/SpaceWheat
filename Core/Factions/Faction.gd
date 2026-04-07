@@ -268,23 +268,24 @@ func load_from_dict(data: Dictionary) -> void:
 	name = data.get("name", "")
 	description = data.get("description", "")
 	ring = data.get("ring", "center")
-	signature = _coerce_string_array(data.get("signature", data.get("sig", [])))
+	# Normalize variation selectors so "⚙️" and "⚙" resolve to the same key
+	signature = EmojiUtil.normalize_array(_coerce_string_array(data.get("signature", data.get("sig", []))))
 	tags = _coerce_string_array(data.get("tags", []))
 
-	self_energies = data.get("self_energies", {})
+	self_energies = EmojiUtil.normalize_keys(data.get("self_energies", {}))
 
-	# Convert [real, imag] arrays back to Vector2
-	hamiltonian = _deserialize_hamiltonian(data.get("hamiltonian", {}))
+	# Convert [real, imag] arrays back to Vector2, normalize emoji keys
+	hamiltonian = _deserialize_hamiltonian(EmojiUtil.normalize_nested_keys(data.get("hamiltonian", {})))
 
-	drivers = data.get("drivers", {})
-	lindblad_outgoing = data.get("lindblad_outgoing", {})
-	lindblad_incoming = data.get("lindblad_incoming", {})
-	gated_lindblad = data.get("gated_lindblad", {})
-	measurement_behavior = data.get("measurement_behavior", {})
-	decay = data.get("decay", {})
-	alignment_couplings = data.get("alignment_couplings", {})
-	bell_activated_features = data.get("bell_activated_features", {})
-	decoherence_coupling = data.get("decoherence_coupling", {})
+	drivers = EmojiUtil.normalize_keys(data.get("drivers", {}))
+	lindblad_outgoing = EmojiUtil.normalize_nested_keys(data.get("lindblad_outgoing", {}))
+	lindblad_incoming = EmojiUtil.normalize_nested_keys(data.get("lindblad_incoming", {}))
+	gated_lindblad = EmojiUtil.normalize_gated_lindblad(data.get("gated_lindblad", {}))
+	measurement_behavior = EmojiUtil.normalize_keys(data.get("measurement_behavior", {}))
+	decay = EmojiUtil.normalize_decay(data.get("decay", {}))
+	alignment_couplings = EmojiUtil.normalize_nested_keys(data.get("alignment_couplings", {}))
+	bell_activated_features = EmojiUtil.normalize_keys(data.get("bell_activated_features", {}))
+	decoherence_coupling = EmojiUtil.normalize_keys(data.get("decoherence_coupling", {}))
 
 
 func _coerce_string_array(value) -> Array:

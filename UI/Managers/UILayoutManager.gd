@@ -380,7 +380,7 @@ func get_debug_info() -> Dictionary:
 ## Consolidated from scattered hardcoded values across UI components
 
 func get_overlay_size() -> Vector2:
-	"""Default overlay size (medium). Kept for backwards compatibility."""
+	"""Default overlay size alias for medium modals."""
 	return get_modal_size("medium")
 
 

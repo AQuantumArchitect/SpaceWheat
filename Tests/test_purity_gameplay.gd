@@ -119,9 +119,9 @@ func test_tune_decoherence_resource_cost():
 	print("📊 Test 3: Tune decoherence resource cost...")
 
 	# Note: This test validates the cost calculation
-	# Full integration test would require FarmInputHandler setup
+	# Full integration test would require QuantumInstrumentInput setup
 
-	var cost_per_plot = 10  # As defined in FarmInputHandler
+	var cost_per_plot = 10  # Historical tool-cost assumption for this test fixture
 	var num_plots = 3
 
 	var total_cost = num_plots * cost_per_plot
@@ -130,7 +130,7 @@ func test_tune_decoherence_resource_cost():
 
 	assert(total_cost == 30, "Total cost should be 30 for 3 plots")
 
-	# Test economy check (without actual FarmInputHandler)
+	# Test economy check without the live keyboard adapter
 	var economy = FarmEconomy.new()
 	root.add_child(economy)
 

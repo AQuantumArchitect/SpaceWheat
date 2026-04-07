@@ -15,6 +15,7 @@ const VocabularyPairing = preload("res://Core/Quests/VocabularyPairing.gd")
 const QuestRewards = preload("res://Core/Quests/QuestRewards.gd")
 const EconomyConstants = preload("res://Core/GameMechanics/EconomyConstants.gd")
 const VerboseHelper = preload("res://Core/Config/VerboseHelper.gd")
+const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")
 
 # Light bias toward simulated vocab when selecting north pole.
 const NORTH_BIAS_WEIGHT: float = 1.3
@@ -24,15 +25,9 @@ static func _log(level: String, category: String, emoji: String, message: String
 
 
 static func apply_theming(params: FactionStateMatcher.QuestParameters, bath, economy = null, icon_map = null) -> Dictionary:
-	"""Map abstract parameters to SpaceWheat quest
+	"""Map abstract parameters to SpaceWheat quest."""
 
-	Chooses quest type based on complexity and generates appropriate quest
-	"""
-
-	# Choose quest type based on abstract parameters
 	var quest_type = _select_quest_type(params)
-
-	# Generate quest based on type
 	var quest: Dictionary
 
 	match quest_type:
@@ -47,30 +42,27 @@ static func apply_theming(params: FactionStateMatcher.QuestParameters, bath, eco
 		QuestTypes.Type.ENTANGLEMENT:
 			quest = _generate_entanglement_quest(params)
 		_:
-			quest = _generate_delivery_quest(params, bath, economy, icon_map)  # Fallback
+			quest = _generate_delivery_quest(params, bath, economy, icon_map)
 
-	# Add quest type
 	quest["type"] = quest_type
-
 	return quest
 
 
 static func _select_quest_type(params: FactionStateMatcher.QuestParameters) -> int:
-	"""Choose quest type based on abstract parameters
+	"""Choose quest type based on abstract parameters.
 
-	High complexity → shape/evolution quests (teach quantum manipulation)
-	Medium complexity → mix
-	Low complexity → mostly delivery (familiar gameplay)
+	Operator weights (params.operator_weights) are available for future use
+	once non-delivery quest completion is supported by the engine policy bot.
+
+	For now: complexity thresholds gate quest types.  Complexity is quantum-
+	derived (entropy × 0.5 + coherence × 0.5) so this is still downstream
+	from the world state graph.
 	"""
-
-	# High complexity: Advanced quantum quests
 	if params.complexity > 0.7:
 		if randf() < 0.5:
 			return QuestTypes.Type.SHAPE_MAINTAIN
 		else:
 			return QuestTypes.Type.EVOLUTION
-
-	# Medium complexity: Mix of types
 	elif params.complexity > 0.4:
 		var roll = randf()
 		if roll < 0.5:
@@ -79,14 +71,12 @@ static func _select_quest_type(params: FactionStateMatcher.QuestParameters) -> i
 			return QuestTypes.Type.SHAPE_ACHIEVE
 		else:
 			return QuestTypes.Type.ENTANGLEMENT
-
-	# Low complexity: Mostly delivery (80%)
 	else:
 		return QuestTypes.Type.DELIVERY if randf() < 0.8 else QuestTypes.Type.SHAPE_ACHIEVE
 
 
 static func _generate_delivery_quest(params: FactionStateMatcher.QuestParameters, bath, economy = null, icon_map = null) -> Dictionary:
-	"""Generate traditional delivery quest (current system)"""
+	"""Generate delivery quest from quantum state observables."""
 
 	# intensity → quantity in CREDITS (fallback when IconMap missing)
 	var base_units = 1 + int(params.intensity * 4)  # 1-5 base
@@ -107,19 +97,15 @@ static func _generate_delivery_quest(params: FactionStateMatcher.QuestParameters
 			quantity = max(quantity, 1)
 
 	# Scale quantity with inventory using golden ratio exponent.
-	# demand = inv^(1/φ) where φ = golden ratio ≈ 1.618
-	# Strong feedback: small stockpile changes produce visible demand shifts.
-	#   inv  2→1.5,  5→2.9,  8→4.0, 13→5.7, 21→8.1
 	if economy != null and economy.has_method("get_resource") and resource != "":
 		var inv = float(economy.get_resource(resource))
 		if inv > 0.0:
 			const INV_PHI = 0.6180339887  # 1/φ = (√5 - 1) / 2
 			var fib_qty = int(round(pow(inv, INV_PHI)))
 			fib_qty = max(fib_qty, 1)
-			# Only scale UP from base quantity, never down
 			quantity = max(quantity, fib_qty)
 
-	# urgency → time limit
+	# urgency → time limit (continuous: period ∝ 1/frequency)
 	var time_limit = _urgency_to_time(params.urgency)
 
 	# alignment → reward multiplier
@@ -421,13 +407,7 @@ static func _get_icon_map_payload(bath) -> Dictionary:
 
 
 static func _get_global_icon_map() -> Dictionary:
-	var tree = Engine.get_main_loop()
-	if not tree or not tree.root:
-		return {}
-	var gsm = tree.root.get_node_or_null("/root/GameStateManager")
-	if not gsm or not ("active_farm" in gsm):
-		return {}
-	var farm = gsm.active_farm
+	var farm = InstrumentLocator.resolve_active_farm_main_loop()
 	if not farm or not ("biome_evolution_batcher" in farm):
 		return {}
 	var batcher = farm.biome_evolution_batcher
@@ -437,15 +417,16 @@ static func _get_global_icon_map() -> Dictionary:
 
 
 static func _urgency_to_time(urgency: float) -> float:
-	"""Map urgency [0,1] to SpaceWheat time limits"""
-	if urgency < 0.2:
-		return -1  # No time limit
-	elif urgency < 0.5:
-		return 180  # Relaxed (3 minutes)
-	elif urgency < 0.8:
-		return 120  # Moderate (2 minutes)
-	else:
-		return 60   # Urgent (1 minute)
+	"""Map urgency [0,1] to time limit via inverse relationship (period ∝ 1/frequency).
+
+	Very low urgency (< 0.1): no time pressure → -1 (unlimited).
+	Otherwise: characteristic_time / urgency, clamped to [45, 600] seconds.
+	  urgency 0.1 → 600s    urgency 0.3 → 400s   urgency 0.5 → 240s
+	  urgency 0.7 → 171s    urgency 0.9 → 133s    urgency 1.0 → 120s
+	"""
+	if urgency < 0.1:
+		return -1.0
+	return clamp(120.0 / urgency, 45.0, 600.0)
 
 
 static func generate_quest(
@@ -455,9 +436,10 @@ static func generate_quest(
 	bias_emojis: Array = [],
 	economy = null,
 	cached_obs = null,
-	cached_icon_map = null
+	cached_icon_map = null,
+	biome_config: Dictionary = {}
 ) -> Dictionary:
-	"""Full pipeline: faction x bath -> themed quest
+	"""Full pipeline: faction × bath → themed quest.
 
 	Args:
 		faction: Faction data with bits and signature
@@ -467,6 +449,9 @@ static func generate_quest(
 		economy: FarmEconomy for demand curve and resource lookups
 		cached_obs: Pre-computed BiomeObservables (avoids O(dim²) per call)
 		cached_icon_map: Pre-fetched icon map dict (avoids GSM tree walk per call)
+		biome_config: Resolved biome_economics dict from PolicyGraph surface.
+			Resonance gate reads coefficients from here instead of hardcoding.
+			Pass {} to use built-in defaults.
 
 	Returns:
 		Quest dict, or error if no vocabulary overlap
@@ -551,7 +536,8 @@ static func generate_quest(
 	var resonance = _compute_vocab_resonance_probability(
 		faction, obs,
 		icon_map if icon_map else {},
-		available_emojis, player_vocab, economy
+		available_emojis, player_vocab, economy,
+		biome_config
 	)
 	var grant_vocab = randf() < resonance.get("p_vocab", 0.0)
 	quest["reward_vocab_resonance"] = resonance
@@ -579,8 +565,11 @@ static func generate_quest(
 	quest["reward_resources"] = QuestRewards.plan_resource_rewards(quest, faction, icon_map if icon_map else {})
 
 	if grant_vocab:
-		_log("debug", "quest", "📖", "Resonance gate opened (p=%.2f) -> vocab reward granted" % [
-			float(resonance.get("p_vocab", 0.0))
+		# Vocab quests cost two Fibonacci brackets more than plain delivery quests.
+		var bumped = _fibonacci_bump_quantity(int(quest.get("quantity", 1)), 2)
+		quest["quantity"] = bumped
+		_log("debug", "quest", "📖", "Resonance gate opened (p=%.2f) -> vocab reward granted, qty bumped to %d" % [
+			float(resonance.get("p_vocab", 0.0)), bumped
 		])
 	else:
 		_log("debug", "quest", "📖", "Resonance gate closed (p=%.2f) -> resource reward only" % [
@@ -599,15 +588,25 @@ static func _compute_vocab_resonance_probability(
 	icon_map: Dictionary,
 	available_emojis: Array,
 	player_vocab: Array,
-	economy = null
+	economy = null,
+	biome_config: Dictionary = {}
 ) -> Dictionary:
 	"""Compute Resonance Gate probability for vocab rewards.
 
-	p_vocab rises when:
-	- Faction signature has strong mass in the current IconMap.
-	- Observable coherence/purity are high.
-	- Player has meaningful overlap with faction signature.
-	- Player has accumulated inventory in faction signature emojis.
+	All coefficients are read from biome_config (PolicyGraph's biome_economics
+	surface), falling back to built-in defaults.  This means PPG and per-profile
+	JSONL overrides can tune the gate without touching code.
+
+	p_vocab = clamp(floor + scale × σ(x), floor, ceiling)
+	x = Σ(weight_i × observable_i) + bias
+
+	Observables:
+	  signature_ratio  — faction mass present in this biome's IconMap
+	  coherence        — biome quantum coherence (off-diagonal sum)
+	  purity           — biome purity Tr(ρ²)
+	  overlap_ratio    — fraction of faction vocab the player already knows
+	  unknown_ratio    — fraction of faction vocab that's NEW to the player
+	  inventory_mass   — how much of faction's resources the player has stockpiled
 	"""
 	var signature = faction.get("sig", faction.get("signature", []))
 	var by_emoji: Dictionary = icon_map.get("by_emoji", {}) if icon_map is Dictionary else {}
@@ -631,37 +630,43 @@ static func _compute_vocab_resonance_probability(
 			unknown_count += 1
 	var unknown_ratio = float(unknown_count) / max(1.0, float(signature.size()))
 
-	# Inventory mass: how much of the faction's signature has the player stockpiled?
-	# Uses power-law scaling so accumulation matters.
 	var inventory_mass = 0.0
 	if economy != null and economy.has_method("get_resource"):
 		var sig_inventory = 0.0
 		for emoji in signature:
 			sig_inventory += float(economy.get_resource(emoji))
-		# Normalize: sig_inventory / (signature_size * 21) puts starting Fibonacci top (21) at ~1.0
 		inventory_mass = sig_inventory / max(1.0, float(signature.size()) * 21.0)
 		inventory_mass = clamp(inventory_mass, 0.0, 3.0)
 
-	# Logistic gate: vocab rewards are the primary quest value in the Fibonacci economy
-	# (resource rewards are net-negative trades for diversification).
-	# Floor at 0.35 ensures vocab flows even with minimal biome evolution.
-	# Factors that BOOST beyond floor: coherence, purity, overlap, unknown emojis.
+	# Read coefficients from PolicyGraph's biome_economics surface.
+	# Defaults match the original hardcoded values so behavior is unchanged
+	# until a profile JSONL or PPG multiplier overrides them.
+	var w_sig   = float(biome_config.get("resonance_signature_weight", 1.5))
+	var w_coh   = float(biome_config.get("resonance_coherence_weight", 1.0))
+	var w_pur   = float(biome_config.get("resonance_purity_weight", 0.6))
+	var w_ovlp  = float(biome_config.get("resonance_overlap_weight", 1.5))
+	var w_unk   = float(biome_config.get("resonance_unknown_weight", 1.2))
+	var w_inv   = float(biome_config.get("resonance_inventory_weight", 1.8))
+	var bias    = float(biome_config.get("resonance_bias", -0.5))
+	var gate_floor   = float(biome_config.get("resonance_floor", 0.35))
+	var gate_ceiling = float(biome_config.get("resonance_ceiling", 0.90))
+	var gate_scale   = float(biome_config.get("resonance_scale", 0.50))
+
+	# Logistic gate: x = weighted sum of quantum observables + bias
 	var x = (
-		(1.5 * signature_ratio)
-		+ (1.0 * coherence)
-		+ (0.6 * purity)
-		+ (1.5 * overlap_ratio)
-		+ (1.2 * unknown_ratio)
-		+ (1.8 * inventory_mass)
-		- 0.5
+		w_sig  * signature_ratio
+		+ w_coh  * coherence
+		+ w_pur  * purity
+		+ w_ovlp * overlap_ratio
+		+ w_unk  * unknown_ratio
+		+ w_inv  * inventory_mass
+		+ bias
 	)
 	var logistic = 1.0 / (1.0 + exp(-x))
-	var p_vocab = clamp(0.35 + 0.50 * logistic, 0.35, 0.9)
+	var p_vocab = clamp(gate_floor + gate_scale * logistic, gate_floor, gate_ceiling)
 
-	# Biome-native faction boost: factions native to the active biome get full
-	# resonance; non-native factions get reduced vocab probability.
-	# Only applies when the biome HAS native factions (StarterForest/Village have
-	# none, so _is_biome_native tag is absent and all factions stay at full resonance).
+	# Biome-native resonance: non-native factions get reduced vocab probability.
+	# The factor itself comes from biome_economics.non_native_resonance_factor.
 	if faction.has("_is_biome_native") and not faction.get("_is_biome_native", false):
 		p_vocab *= float(faction.get("_non_native_resonance", 0.8))
 
@@ -826,3 +831,17 @@ static func _roll_vocabulary_reward_pair(
 		"probability": north_weight / total_weight if total_weight > 0 else 0.0,
 		"south_weight": south_result.get("weight", 0.0)
 	}
+
+
+static func _fibonacci_bump_quantity(quantity: int, brackets: int) -> int:
+	"""Move a delivery quantity up N Fibonacci brackets.
+	e.g. qty=8 + 2 brackets → 21,  qty=13 + 2 brackets → 34.
+	"""
+	var fib := [1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144]
+	var idx := fib.size() - 1
+	for i in range(fib.size()):
+		if quantity <= fib[i]:
+			idx = i
+			break
+	idx = mini(idx + brackets, fib.size() - 1)
+	return fib[idx]

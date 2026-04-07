@@ -171,8 +171,8 @@ Vector2 ForceGraphEngine::_calculate_phase_angular_force(
 
     // Angular error (wrap to [-π, π])
     double angular_error = target_angle - current_angle;
-    while (angular_error > M_PI) angular_error -= 2.0 * M_PI;
-    while (angular_error < -M_PI) angular_error += 2.0 * M_PI;
+    while (angular_error > Math_PI) angular_error -= 2.0 * Math_PI;
+    while (angular_error < -Math_PI) angular_error += 2.0 * Math_PI;
 
     // Tangent force (perpendicular to radial)
     Vector2 tangent = Vector2(-delta.y, delta.x) / current_radius;

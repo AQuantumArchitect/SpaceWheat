@@ -1,0 +1,68 @@
+# ╔══════════════════════════════════════════════════════════════════════════╗
+# ║  Village Hamiltonian Profile — differential tuning layer                ║
+# ╚══════════════════════════════════════════════════════════════════════════╝
+#
+# Assigned factions (FactionRegistry.gd):
+#   Celestial Archons  — ☀🌙🔥💧⛰🌬  (contributes 🔥 self_energy to Village)
+#   Verdant Pulse      — 🌱🌿🌾🌲🍂   (contributes 🌱 cross-biome link)
+#   Hearth Keepers     — 🔥❄️💨🍞      (primary: drivers on 🔥❄️, couplings 🔥↔❄️=0.8)
+#   Granary Guilds     — 🌱🍞💰🧺      (commerce and grain loop)
+#   Millwright's Union — ⚙🛠🔩🧰🏷    (covers ⚙ after EmojiUtil normalization)
+#   Yeast Prophets     — 🍞🥖🫙        (gated 🍞 production)
+#
+# Four quantum axes:
+#   Q0: 🔥/❄️  — Hearth (Hearth Keepers driver at 0.0667 Hz → 30s real cycle)
+#   Q1: 👥/🍞  — Labor/Bread (👥 is an ORPHAN — no faction covers it; defined here)
+#   Q2: ⚙️/💨  — Gears/Wind (Millwright covers ⚙ after normalization; 💨 from Hearth)
+#   Q3: 💰/🧺  — Commerce (Granary Guilds: 💰↔🧺=0.4)
+#
+# Timescale targets at 0.5× real-time:
+#   🔥↔❄️  30s  (Hearth Keepers driver at 0.0667 Hz, ❄ driven anti-phase)
+#   👥↔🍞  ~12s (fast labor cycle; coupling=1.0, detuning=0.70 → Ω_r≈1.06)
+#   ⚙️↔💨  ~20s (gear engagement cycle, slower than labor)
+#   💰↔🧺  ~25s (commerce accumulation, slowest; Granary Guilds coupling=0.40)
+#
+# ── Tuning guide ──────────────────────────────────────────────────────────
+#   To speed up labor:       increase couplings.👥.🍞 or reduce self_energies gap
+#   To make gears matter:    increase cross-coupling 👥→⚙ (people run the gears)
+#   To make fire more urgent: increase self_energies.❄️ magnitude (colder cold)
+#   To link wheat→bread:     add couplings.🌾.🍞 (cross-biome via Verdant Pulse)
+# ══════════════════════════════════════════════════════════════════════════
+
+# ─── Q1: 👥/🍞 — Labor axis (orphan emoji; full definition here) ──────────
+# 👥 has zero faction coverage in Village. These are complete values, not diffs.
+# 🍞 gets +0.0 from Hearth Keepers and +0.1 from Granary Guilds → faction total +0.1
+# 🍞 correction: target -0.20 → profile adds -0.30
+
+# Workers (north pole): elevated energy, drive to produce
+{"op":"set","path":"self_energies.👥","value":0.50}
+# Bread (south pole): faction total +0.10 → target -0.20 → profile -0.30
+{"op":"set","path":"self_energies.🍞","value":-0.30}
+
+# Rabi coupling: 1.0 → Ω_r = √(1.0² + 0.35²) ≈ 1.06 → T_sim ≈ 5.9s → T_real ≈ 12s
+# Faction gives no 👥↔🍞 coupling (👥 orphan) → full value here
+{"op":"set","path":"couplings.👥.🍞","value":1.0}
+
+# ─── Q0: 🔥/❄️ corrections ────────────────────────────────────────────────
+# Hearth Keepers already sets: 🔥 self=+0.8, ❄️ self=-0.3, Rabi=0.8, drivers at 0.0667Hz
+# Celestial Archons also contributes 🔥 self=+0.6 → total 🔥 self = +1.4
+# That's too hot. Correct downward: target 🔥 self = +0.80 → profile adds -0.60
+{"op":"set","path":"self_energies.🔥","value":-0.60}
+# ❄️ from Hearth Keepers = -0.30. Target = -0.60 (colder cold = more urgent hearth-tending)
+{"op":"set","path":"self_energies.❄️","value":-0.30}
+
+# ─── Cross-axis: fire drives labor ────────────────────────────────────────
+# When fire is high, workers are active. When cold, workers rest.
+# Faction gives no 🔥→👥 coupling (👥 orphan) → full value here
+{"op":"set","path":"couplings.🔥.👥","value":0.35}
+# Cold suppresses commerce (❄️ → 🧺 pump: empty baskets pile up)
+{"op":"set","path":"couplings.❄️.🧺","value":0.22}
+
+# ─── Cross-axis: labor drives gears ───────────────────────────────────────
+# People (👥) running the gears (⚙). No faction gives this (👥 orphan).
+{"op":"set","path":"couplings.👥.⚙","value":0.28}
+
+# ─── Cross-axis: bread closes the loop ────────────────────────────────────
+# Granary Guilds gives 🍞↔💰=0.5 already (commerce from bread).
+# Add: fed workers return to labor (🍞→👥 feedback)
+{"op":"set","path":"couplings.🍞.👥","value":0.30}

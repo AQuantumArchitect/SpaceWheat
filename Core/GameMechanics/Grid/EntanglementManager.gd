@@ -1,6 +1,8 @@
 class_name EntanglementManager
 extends RefCounted
 
+const GridSentinel = preload("res://Core/GameState/GridSentinel.gd")
+
 ## EntanglementManager - Multi-qubit entanglement and quantum operations
 ##
 ## Extracted from FarmGrid.gd as part of decomposition.
@@ -301,25 +303,6 @@ func update_cluster_gameplay_connections(cluster) -> void:
 				plot.entangled_plots[other_id] = 1.0  # Full strength
 
 
-func add_to_cluster(_cluster, _new_plot, _control_index: int) -> bool:
-	"""Add new qubit to existing cluster via CNOT gate.
-
-	Note: Model B quantum_state code removed. Cluster operations now go through
-	biome.quantum_computer entanglement graph. This stub remains for FarmGrid API compat.
-	"""
-	push_warning("add_to_cluster: Model B cluster API — use _create_quantum_entanglement instead")
-	return false
-
-
-func upgrade_pair_to_cluster(_pair, _new_plot) -> bool:
-	"""Upgrade 2-qubit pair to 3-qubit cluster.
-
-	Note: Model B quantum_state code removed. This stub remains for FarmGrid API compat.
-	"""
-	push_warning("upgrade_pair_to_cluster: Model B cluster API — use _create_quantum_entanglement instead")
-	return false
-
-
 func handle_cluster_collapse(cluster) -> void:
 	"""Handle measurement cascade when cluster is measured.
 
@@ -343,7 +326,7 @@ func clear_plot_entanglements(plot) -> void:
 	"""Clear all entanglements for a plot (called during harvest/measurement)."""
 	for partner_id in plot.entangled_plots.keys():
 		var partner_pos = _plot_manager.find_plot_by_id(partner_id)
-		if partner_pos != Vector2i(-1, -1):
+		if partner_pos != GridSentinel.INVALID_POSITION:
 			var partner_plot = _plot_manager.get_plot(partner_pos)
 			if partner_plot:
 				partner_plot.entangled_plots.erase(plot.plot_id)

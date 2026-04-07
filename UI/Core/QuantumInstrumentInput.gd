@@ -13,8 +13,8 @@ extends Node
 ## Key Layout:
 ##   1 2 3 [4]    = Tool groups (time scale ratchet)
 ##
-##   U I O P      = Biome selection (4 biomes)
-##   J K L ;      = Homerow plot selection (4 plots in current biome - PRIMARY INTERFACE)
+##   T Y U I O P  = Biome selection (6 spindle slots)
+##   J K L ; ' H G = Homerow plot selection (up to 7 plots in current biome)
 ##   M , . /      = Reserved for future subspace navigation
 ##
 ##   Q = DOWN action (dig into, bind, construct)
@@ -22,33 +22,25 @@ extends Node
 ##   R = UP action (extract, harvest, remove)
 ##   F = Mode cycling within tool group
 ##
-##   - = Decrease observation stride (slower playback, halves)
-##   = = Increase observation stride (faster playback, doubles)
+##   - = Decrease stride and sim speed together
+##   = = Increase stride and sim speed together
 ##   Shift+- = Decrease resolution dt (finer substeps, 10x more accurate)
 ##   Shift+= = Increase resolution dt (coarser substeps, 10x faster)
 
 # Preloads
 const ToolConfig = preload("res://Core/GameState/ToolConfig.gd")
-const GateActionHandler = preload("res://UI/Handlers/GateActionHandler.gd")
+const InputBindingRegistry = preload("res://UI/Core/InputBindingRegistry.gd")
+const GridSentinel = preload("res://Core/GameState/GridSentinel.gd")
 const ActionValidator = preload("res://UI/Core/ActionValidator.gd")
 const GranularityController = preload("res://Core/Utils/GranularityController.gd")
 const GateSelectionSubmenu = preload("res://UI/Core/Submenus/GateSelectionSubmenu.gd")
+const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")
 
 # Access autoloads safely
-@onready var _verbose = get_node("/root/VerboseConfig")
-@onready var _observation_frame = get_node("/root/ObservationFrame")
-@onready var _chain_tracker = get_node("/root/ActionChainTracker")
-@onready var _active_biome_mgr = get_node("/root/ActiveBiomeManager")
-
-# Row mappings: key -> slot index (T,Y,U,I,O,P)
-const BIOME_ROW = {"T": 0, "Y": 1, "U": 2, "I": 3, "O": 4, "P": 5}  # Biome selection (6 slots)
-const HOMEROW = {"J": 0, "K": 1, "L": 2, ";": 3, "'": 4, "H": 5, "G": 6}        # Plot selection (dynamic)
-const SUBSPACE_ROW = {"M": 0, ",": 1, ".": 2, "/": 3}   # Reserved for future subspace navigation
-
-# Input action mappings for the rows (order must match BIOME_ROW: T,Y,U,I,O,P)
-const BIOME_ACTIONS = ["biome_0", "biome_1", "biome_2", "biome_3", "biome_4", "biome_5"]
-const HOMEROW_ACTIONS = ["plot_0", "plot_1", "plot_2", "plot_3", "plot_4", "plot_5", "plot_6"]
-const SUBSPACE_ACTIONS = ["subspace_0", "subspace_1", "subspace_2", "subspace_3"]
+@onready var _verbose = InstrumentLocator.resolve_verbose_config(self)
+@onready var _observation_frame = InstrumentLocator.resolve_observation_frame(self)
+@onready var _chain_tracker = InstrumentLocator.resolve_action_chain_tracker(self)
+@onready var _active_biome_mgr = InstrumentLocator.resolve_active_biome_manager(self)
 
 # Instrument reference (game mechanics API, injected by BootManager)
 var _instrument  # QuantumInstrument
@@ -81,7 +73,7 @@ const BUFFER_INVALIDATING_ACTIONS: Array[String] = [
 	"drain", "transfer", "pump",
 	# Tool 3: Measure (collapse wavefunction + build entangled states)
 	"measure", "build_gate", "remove_gates",
-	# Tool 4: Meta (system expansion/contraction adds/removes qubits)
+# Tool 4: Meta (system expansion/contraction adds/removes qubits)
 	"inject_vocabulary", "remove_vocabulary"
 ]
 
@@ -89,25 +81,7 @@ const BUFFER_INVALIDATING_ACTIONS: Array[String] = [
 func _ready() -> void:
 	add_to_group("quantum_instrument_input")
 	set_process_unhandled_key_input(true)
-
-	# Ensure extra plot action exists for 5th column (apostrophe)
-	if not InputMap.has_action("plot_4"):
-		InputMap.add_action("plot_4")
-		var ev = InputEventKey.new()
-		ev.keycode = KEY_APOSTROPHE
-		InputMap.action_add_event("plot_4", ev)
-
-	if not InputMap.has_action("plot_5"):
-		InputMap.add_action("plot_5")
-		var ev_h = InputEventKey.new()
-		ev_h.keycode = KEY_H
-		InputMap.action_add_event("plot_5", ev_h)
-
-	if not InputMap.has_action("plot_6"):
-		InputMap.add_action("plot_6")
-		var ev_g = InputEventKey.new()
-		ev_g.keycode = KEY_G
-		InputMap.action_add_event("plot_6", ev_g)
+	InputBindingRegistry.ensure_inputmap_actions()
 
 	_verbose.info("input", "~", "QuantumInstrumentInput initialized (Homerow + Biome Selection)")
 
@@ -178,37 +152,19 @@ func _unhandled_key_input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 		return
 
-	# Biome selection: UIOP
-	if key in BIOME_ROW:
-		_select_biome(BIOME_ROW[key], key)
-		get_viewport().set_input_as_handled()
-		return
-
-	# Plot selection: JKL; (homerow - primary interface)
-	if key in HOMEROW:
-		_select_plot(HOMEROW[key], key)
-		get_viewport().set_input_as_handled()
-		return
-
-	# Subspace selection: M,./ (reserved for future)
-	if key in SUBSPACE_ROW:
-		_select_subspace(SUBSPACE_ROW[key], key)
-		get_viewport().set_input_as_handled()
-		return
-
-	# Timescale controls: -/= = stride (playback speed), Shift+-/Shift+= = resolution (dt)
+	# Timescale controls: -/= = stride + sim speed, Shift+-/Shift+= = resolution (dt)
 	if key == "-":
 		if event.is_shift_pressed():
 			_decrease_resolution()
 		else:
-			_decrease_stride()
+			_decrease_time_controls()
 		get_viewport().set_input_as_handled()
 		return
 	if key == "=":
 		if event.is_shift_pressed():
 			_increase_resolution()
 		else:
-			_increase_stride()
+			_increase_time_controls()
 		get_viewport().set_input_as_handled()
 		return
 
@@ -236,32 +192,57 @@ func _unhandled_key_input(event: InputEvent) -> void:
 
 
 func _input(event: InputEvent) -> void:
-	"""Handle input actions for biome and plot selection."""
-	# Check BIOME row actions (UIOP)
-	for i in range(BIOME_ACTIONS.size()):
-		if event.is_action_pressed(BIOME_ACTIONS[i]):
-			var key_label = BIOME_ACTIONS[i]
-			if _active_biome_mgr:
-				var slot_key = _active_biome_mgr.get_slot_key(i)
-				if slot_key != "":
-					key_label = slot_key
-			_select_biome(i, key_label)
-			get_viewport().set_input_as_handled()
-			return
+	"""Handle InputMap actions for biome/plot/subspace selection."""
+	if _handle_biome_row_input(event):
+		get_viewport().set_input_as_handled()
+		return
 
-	# Check HOMEROW actions (JKL;)
-	for i in range(HOMEROW_ACTIONS.size()):
-		if event.is_action_pressed(HOMEROW_ACTIONS[i]):
-			_select_plot(i, HOMEROW_ACTIONS[i])
-			get_viewport().set_input_as_handled()
-			return
+	if _handle_plot_row_input(event):
+		get_viewport().set_input_as_handled()
+		return
 
-	# Check SUBSPACE row actions (M,./) - reserved for future
-	for i in range(SUBSPACE_ACTIONS.size()):
-		if event.is_action_pressed(SUBSPACE_ACTIONS[i]):
-			_select_subspace(i, SUBSPACE_ACTIONS[i])
-			get_viewport().set_input_as_handled()
-			return
+	if _handle_subspace_row_input(event):
+		get_viewport().set_input_as_handled()
+		return
+
+
+func _handle_biome_row_input(event: InputEvent) -> bool:
+	for i in range(InputBindingRegistry.BIOME_ACTIONS.size()):
+		if not event.is_action_pressed(InputBindingRegistry.BIOME_ACTIONS[i]):
+			continue
+
+		var key_label = InputBindingRegistry.BIOME_ACTIONS[i]
+		if _active_biome_mgr:
+			var slot_key = _active_biome_mgr.get_slot_key(i)
+			if slot_key != "":
+				key_label = slot_key
+
+		_select_biome(i, key_label)
+		return true
+
+	return false
+
+
+func _handle_plot_row_input(event: InputEvent) -> bool:
+	for i in range(InputBindingRegistry.HOMEROW_ACTIONS.size()):
+		if not event.is_action_pressed(InputBindingRegistry.HOMEROW_ACTIONS[i]):
+			continue
+
+		_select_plot(i, InputBindingRegistry.HOMEROW_ACTIONS[i])
+		return true
+
+	return false
+
+
+func _handle_subspace_row_input(event: InputEvent) -> bool:
+	for i in range(InputBindingRegistry.SUBSPACE_ACTIONS.size()):
+		if not event.is_action_pressed(InputBindingRegistry.SUBSPACE_ACTIONS[i]):
+			continue
+
+		_select_subspace(i, InputBindingRegistry.SUBSPACE_ACTIONS[i])
+		return true
+
+	return false
 
 
 ## ============================================================================
@@ -537,46 +518,19 @@ func _execute_build_gate(gate_type: String) -> void:
 		return
 
 	var result: Dictionary = {}
-
-	match gate_type:
-		"bell":
-			# Bell pair (|00⟩+|11⟩)/√2 - uses first 2 positions
-			result = GateActionHandler.create_bell_pair(farm, positions.slice(0, 2))
-
-		"cnot":
-			# CNOT gate - first position is control, second is target
-			result = GateActionHandler.apply_cnot(farm, positions.slice(0, 2))
-
-		"cz":
-			# Controlled-Z - phase flip if both qubits are |1⟩
-			result = GateActionHandler.apply_cz(farm, positions.slice(0, 2))
-
-		"swap":
-			# SWAP gate - exchange qubit states
-			result = GateActionHandler.apply_swap(farm, positions.slice(0, 2))
-
-		"ghz":
-			# GHZ state - (|000...⟩+|111...⟩)/√2 for all selected qubits
-			result = GateActionHandler.create_ghz_state(farm, positions)
-
-		"cluster":
-			# Linear cluster state
-			result = GateActionHandler.cluster(farm, positions)
-
-		_:
-			_verbose.warn("input", "⚛️", "Unknown gate type: %s" % gate_type)
-			result = {"success": false, "error": "unknown_gate_type", "gate_type": gate_type}
+	if _instrument and _instrument.has_method("gate_inject"):
+		result = _instrument.gate_inject(gate_type, positions)
+	else:
+		_verbose.warn("input", "⚛️", "Gate build unavailable: no instrument gate dispatch")
+		result = {"success": false, "error": "no_gate_dispatch", "gate_type": gate_type}
 
 	if result.get("success", false):
 		_verbose.info("input", "⚛️", "Built %s gate on %d qubits" % [gate_type, positions.size()])
 
-		# Invalidate buffer (building gate modifies density matrix)
-		_invalidate_biome_buffer_for_action("build_gate")
-
 		# Clear selections after successful gate build
 		clear_all_checks()
 	else:
-		_verbose.warn("input", "⚛️", "Failed to build %s: %s" % [gate_type, result.get("error", "unknown")])
+		_verbose.warn("input", "⚛️", "Failed to build %s: %s" % [gate_type, result.get("error", result.get("message", "unknown"))])
 
 	action_performed.emit("build_gate", result)
 
@@ -596,7 +550,7 @@ func apply_chain_gate(positions) -> void:
 
 
 ## ============================================================================
-## BIOME SELECTION (UIOP Row)
+## BIOME SELECTION (TYUIOP Row)
 ## ============================================================================
 
 func _select_biome(biome_idx: int, key: String) -> void:
@@ -633,7 +587,7 @@ func _select_biome(biome_idx: int, key: String) -> void:
 
 
 ## ============================================================================
-## PLOT SELECTION (JKL; Homerow)
+## PLOT SELECTION (Shared Homerow)
 ## ============================================================================
 
 func _select_plot(plot_idx: int, key: String) -> void:
@@ -753,11 +707,11 @@ func _clear_checks_and_cycle_biome() -> void:
 
 	# Deselect all plots visually
 	if plot_grid_display:
-		plot_grid_display.set_selected_plot(Vector2i(-1, -1))  # Invalid position = clear selection
+		plot_grid_display.set_selected_plot(GridSentinel.INVALID_POSITION)
 
 	# Reset current selection state
 	current_selection = {"plot_idx": -1, "biome": "", "subspace_idx": -1}
-	_instrument.last_selected_position = Vector2i(-1, -1)
+	_instrument.last_selected_position = GridSentinel.INVALID_POSITION
 
 	# Reset quantum simulation (if farm has reset method)
 	if farm and farm.has_method("reset_quantum_state"):
@@ -847,7 +801,11 @@ func _get_block_reason(action_name: String) -> String:
 	var free = biome.get_available_registers(terminal_pool) if biome.has_method("get_available_registers") and terminal_pool else []
 	if free.is_empty():
 		var name = biome.get_biome_type() if biome.has_method("get_biome_type") else "biome"
-		return ": %s full — pop a terminal to free a register" % name
+		var total = biome.get_total_register_count() if biome.has_method("get_total_register_count") else -1
+		var used = total - free.size() if total >= 0 else -1
+		if total >= 0 and used >= 0:
+			return ": %s full (%d/%d registers in use) — empty plots are just sockets; pop a terminal to free a register" % [name, used, total]
+		return ": %s full — empty plots are just sockets; pop a terminal to free a register" % name
 	return ""
 
 
@@ -1308,6 +1266,8 @@ func _execute_action(action_name: String) -> Dictionary:
 			result = _instrument.action_cycle_biome()
 		"remove_vocabulary":
 			result = _instrument.action_remove_vocabulary(biome_name, grid_pos)
+		"remove_biome":
+			result = _instrument.action_remove_biome()
 		_:
 			_verbose.warn("input", "?", "Unknown action: %s" % action_name)
 			return {"success": false, "error": "unknown_action", "message": "Unknown action: %s" % action_name}
@@ -1532,13 +1492,74 @@ func get_current_tool_info() -> Dictionary:
 
 
 func get_actions_for_current_group() -> Dictionary:
-	"""Get Q/E/R actions for current tool group."""
+	"""Get current action slots for the active tool group."""
 	return ToolConfig.get_all_actions(ToolConfig.get_current_group())
 
 
 ## ============================================================================
 ## TIMESCALE CONTROLS (stride + resolution)
 ## ============================================================================
+
+func _decrease_time_controls() -> void:
+	"""Decrease stride and simulation speed together (- key)."""
+	if not farm or not farm.grid:
+		_verbose.warn("input", "⚠️", "Cannot adjust time controls - no farm/grid")
+		return
+
+	var target_biome_info = _get_target_biome_for_granularity()
+	if not target_biome_info.has("biome") or target_biome_info.biome == null:
+		_verbose.warn("input", "⚠️", "No target biome for time controls: %s" % target_biome_info.get("reason", "unknown"))
+		return
+
+	var target_biome = target_biome_info.biome
+	var target_biome_name = target_biome_info.name
+
+	var stride_result = GranularityController.decrease_stride([target_biome])
+	var speed_result = GranularityController.decrease_time_scale([target_biome])
+	_reset_single_biome_stride_carry(target_biome_name)
+
+	_persist_runtime_timescale(stride_result.new_stride, speed_result.new_time_scale)
+
+	var locked_str = " (LOCKED)" if stride_result.new_stride == 0 else ""
+	_verbose.info("input", "⏪", "[%s] Time: stride %d → %d%s | sim %.5fx → %.5fx" % [
+		target_biome_name,
+		stride_result.current_stride,
+		stride_result.new_stride,
+		locked_str,
+		speed_result.current_time_scale,
+		speed_result.new_time_scale
+	])
+
+
+func _increase_time_controls() -> void:
+	"""Increase stride and simulation speed together (= key)."""
+	if not farm or not farm.grid:
+		_verbose.warn("input", "⚠️", "Cannot adjust time controls - no farm/grid")
+		return
+
+	var target_biome_info = _get_target_biome_for_granularity()
+	if not target_biome_info.has("biome") or target_biome_info.biome == null:
+		_verbose.warn("input", "⚠️", "No target biome for time controls: %s" % target_biome_info.get("reason", "unknown"))
+		return
+
+	var target_biome = target_biome_info.biome
+	var target_biome_name = target_biome_info.name
+
+	var stride_result = GranularityController.increase_stride([target_biome])
+	var speed_result = GranularityController.increase_time_scale([target_biome])
+	_reset_single_biome_stride_carry(target_biome_name)
+
+	_persist_runtime_timescale(stride_result.new_stride, speed_result.new_time_scale)
+
+	var unlocked_str = " (UNLOCKED)" if stride_result.current_stride == 0 and stride_result.new_stride == 1 else ""
+	_verbose.info("input", "⏩", "[%s] Time: stride %d → %d%s | sim %.5fx → %.5fx" % [
+		target_biome_name,
+		stride_result.current_stride,
+		stride_result.new_stride,
+		unlocked_str,
+		speed_result.current_time_scale,
+		speed_result.new_time_scale
+	])
 
 func _decrease_stride() -> void:
 	"""Decrease observation stride - slower playback (- key).
@@ -1563,9 +1584,7 @@ func _decrease_stride() -> void:
 	_reset_single_biome_stride_carry(target_biome_name)
 
 	# Persist to GameState so stride survives save/load
-	var gsm = get_node_or_null("/root/GameStateManager")
-	if gsm and gsm.current_state:
-		gsm.current_state.observation_stride = result.new_stride
+	_persist_runtime_timescale(result.new_stride, null)
 
 	var locked_str = " (LOCKED)" if result.new_stride == 0 else ""
 	_verbose.info("input", "⏪", "[%s] Stride: %d → %d%s" % [
@@ -1596,9 +1615,7 @@ func _increase_stride() -> void:
 	_reset_single_biome_stride_carry(target_biome_name)
 
 	# Persist to GameState so stride survives save/load
-	var gsm = get_node_or_null("/root/GameStateManager")
-	if gsm and gsm.current_state:
-		gsm.current_state.observation_stride = result.new_stride
+	_persist_runtime_timescale(result.new_stride, null)
 
 	var unlocked_str = " (UNLOCKED)" if result.current_stride == 0 and result.new_stride == 1 else ""
 	_verbose.info("input", "⏩", "[%s] Stride: %d → %d%s" % [
@@ -1631,9 +1648,7 @@ func _decrease_resolution() -> void:
 	_reset_single_biome_stride_carry(target_biome_name)
 
 	# Persist to GameState so resolution survives save/load
-	var gsm = get_node_or_null("/root/GameStateManager")
-	if gsm and gsm.current_state:
-		gsm.current_state.max_evolution_dt = result.new_dt
+	_persist_runtime_resolution(result.new_dt)
 
 	# CRITICAL: Invalidate ONLY target biome's buffer - lookahead was computed with old dt
 	_invalidate_single_biome_buffer(target_biome_name, "granularity_decrease")
@@ -1668,9 +1683,7 @@ func _increase_resolution() -> void:
 	_reset_single_biome_stride_carry(target_biome_name)
 
 	# Persist to GameState so resolution survives save/load
-	var gsm = get_node_or_null("/root/GameStateManager")
-	if gsm and gsm.current_state:
-		gsm.current_state.max_evolution_dt = result.new_dt
+	_persist_runtime_resolution(result.new_dt)
 
 	# OPTIMIZATION: Decimate buffer instead of full invalidation (10x coarser = keep every 10th frame)
 	_decimate_single_biome_buffer(target_biome_name, 10)
@@ -1678,3 +1691,19 @@ func _increase_resolution() -> void:
 	_verbose.info("input", "🔭", "[%s] Resolution: %.4fs → %.4fs (coarser, buffer decimated)" % [
 		target_biome_name, result.current_dt, result.new_dt
 	])
+
+
+func _persist_runtime_timescale(stride: Variant, quantum_time_scale: Variant) -> void:
+	var gsm = InstrumentLocator.resolve_game_state_manager(self)
+	if not gsm or not gsm.current_state:
+		return
+	if stride != null:
+		gsm.current_state.observation_stride = int(stride)
+	if quantum_time_scale != null:
+		gsm.current_state.quantum_time_scale = float(quantum_time_scale)
+
+
+func _persist_runtime_resolution(max_evolution_dt: float) -> void:
+	var gsm = InstrumentLocator.resolve_game_state_manager(self)
+	if gsm and gsm.current_state:
+		gsm.current_state.max_evolution_dt = max_evolution_dt

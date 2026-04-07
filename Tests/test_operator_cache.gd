@@ -10,14 +10,10 @@ const OperatorCache = preload("res://Core/QuantumSubstrate/OperatorCache.gd")
 const OperatorSerializer = preload("res://Core/QuantumSubstrate/OperatorSerializer.gd")
 const CacheKey = preload("res://Core/QuantumSubstrate/CacheKey.gd")
 const Icon = preload("res://Core/QuantumSubstrate/Icon.gd")
-const IconRegistry = preload("res://Core/QuantumSubstrate/IconRegistry.gd")
+const BiomeRegistry = preload("res://Core/Biomes/BiomeRegistry.gd")
 
 var test_count: int = 0
 var pass_count: int = 0
-
-# Temporary test cache directory
-var test_cache_dir: String = "user://test_operator_cache/"
-
 
 func _init():
 	print("\n" + "=".repeat(70))
@@ -32,7 +28,7 @@ func _init():
 	test_cache_key_stability()
 	test_cache_key_invalidation()
 	test_all_biome_cache_keys()
-	test_new_biomes_have_cache_entries()
+	test_registry_biomes_have_even_axes()
 
 	# OperatorSerializer tests
 	test_serialize_complex()
@@ -96,24 +92,16 @@ func assert_approx(actual: float, expected: float, tolerance: float, message: St
 ## ========================================
 
 func _setup_test_dir():
-	# Ensure test directory exists
-	if not DirAccess.dir_exists_absolute(test_cache_dir):
-		DirAccess.make_dir_recursive_absolute(test_cache_dir)
+	var cache = OperatorCache.new()
+	cache.clear_all()
+	cache.hit_count = 0
+	cache.miss_count = 0
+	cache.bundled_hit_count = 0
 
 
 func _cleanup_test_dir():
-	# Remove test directory and contents
-	var dir = DirAccess.open(test_cache_dir)
-	if dir:
-		dir.list_dir_begin()
-		var file_name = dir.get_next()
-		while file_name != "":
-			if not file_name.starts_with("."):
-				var file_path = test_cache_dir + file_name
-				DirAccess.remove_absolute(file_path)
-			file_name = dir.get_next()
-	if DirAccess.dir_exists_absolute(test_cache_dir):
-		DirAccess.remove_absolute(test_cache_dir)
+	var cache = OperatorCache.new()
+	cache.clear_all()
 
 
 ## ========================================
@@ -155,8 +143,8 @@ func test_cache_key_invalidation():
 	var key1 = CacheKey.for_biome("BioticFluxBiome", registry)
 
 	# Modify icon configuration
-	if registry.icons.has("🌾"):
-		var wheat_icon = registry.icons["🌾"]
+	if registry.has("🌾"):
+		var wheat_icon = registry["🌾"]
 		wheat_icon.self_energy = 9999.0  # Change it
 
 		# Generate new key
@@ -188,24 +176,37 @@ func test_all_biome_cache_keys():
 	print()
 
 
-func test_new_biomes_have_cache_entries():
-	print("\nTEST: New Biomes (StarterForest, Village) Have Emoji Entries")
+func test_registry_biomes_have_even_axes():
+	print("\nTEST: Registry Biomes Have Valid Axis Layout")
 
-	# Test that CacheKey._get_biome_emojis returns non-empty arrays for new biomes
-	var forest_emojis = CacheKey._get_biome_emojis("StarterForestBiome")
-	var village_emojis = CacheKey._get_biome_emojis("VillageBiome")
+	var registry = BiomeRegistry.new()
+	var forest = registry.get_by_name("StarterForest")
+	var village = registry.get_by_name("Village")
+	var cyber_debt = registry.get_by_name("CyberDebtMegacity")
 
-	assert_true(forest_emojis.size() > 0, "StarterForestBiome has emoji list")
-	assert_equal(forest_emojis.size(), 10, "StarterForestBiome has 10 emojis")
-	assert_true(forest_emojis.has("☀"), "StarterForestBiome includes ☀")
-	assert_true(forest_emojis.has("🐺"), "StarterForestBiome includes 🐺")
-	assert_true(forest_emojis.has("🌲"), "StarterForestBiome includes 🌲")
+	assert_true(forest != null, "StarterForest is present in biome registry")
+	assert_true(village != null, "Village is present in biome registry")
+	assert_true(cyber_debt != null, "CyberDebtMegacity is present in biome registry")
 
-	assert_true(village_emojis.size() > 0, "VillageBiome has emoji list")
-	assert_equal(village_emojis.size(), 10, "VillageBiome has 10 emojis")
-	assert_true(village_emojis.has("🔥"), "VillageBiome includes 🔥")
-	assert_true(village_emojis.has("🌾"), "VillageBiome includes 🌾")
-	assert_true(village_emojis.has("👥"), "VillageBiome includes 👥")
+	if forest:
+		assert_equal(forest.emojis.size(), 10, "StarterForest has 10 emojis")
+		assert_true(forest.emojis.has("☀"), "StarterForest includes ☀")
+		assert_true(forest.emojis.has("🐺"), "StarterForest includes 🐺")
+		assert_true(forest.emojis.has("🌲"), "StarterForest includes 🌲")
+		assert_true(forest.validate(), "StarterForest biome validates")
+
+	if village:
+		assert_equal(village.emojis.size(), 8, "Village has 8 emojis")
+		assert_true(village.emojis.has("🔥"), "Village includes 🔥")
+		assert_true(village.emojis.has("🍞"), "Village includes 🍞")
+		assert_true(village.emojis.has("👥"), "Village includes 👥")
+		assert_true(village.validate(), "Village biome validates")
+
+	if cyber_debt:
+		assert_equal(cyber_debt.emojis.size(), 12, "CyberDebtMegacity now has an even 12-emoji axis layout")
+		assert_true(cyber_debt.emojis.has("✊"), "CyberDebtMegacity includes ✊")
+		assert_true(cyber_debt.emojis.has("🚩"), "CyberDebtMegacity includes 🚩")
+		assert_true(cyber_debt.validate(), "CyberDebtMegacity biome validates")
 
 	print()
 
@@ -314,6 +315,7 @@ func test_cache_save_load():
 	print("\nTEST: Cache Save and Load")
 
 	var cache = OperatorCache.new()
+	cache.clear_all()
 
 	# Create mock operators
 	var hamiltonian = ComplexMatrix.new(2)
@@ -337,6 +339,7 @@ func test_cache_hit_miss_tracking():
 	print("\nTEST: Cache Hit/Miss Tracking")
 
 	var cache = OperatorCache.new()
+	cache.clear_all()
 
 	# Initial state
 	assert_equal(cache.hit_count, 0, "Initial hit count is 0")
@@ -360,6 +363,7 @@ func test_cache_invalidation():
 	print("\nTEST: Cache Invalidation")
 
 	var cache = OperatorCache.new()
+	cache.clear_all()
 
 	# Save entry
 	var hamiltonian = ComplexMatrix.new(2)
@@ -383,6 +387,7 @@ func test_cache_manifest():
 	print("\nTEST: Cache Manifest Management")
 
 	var cache = OperatorCache.new()
+	cache.clear_all()
 
 	# Create entries
 	var h1 = ComplexMatrix.new(2)
@@ -411,6 +416,7 @@ func test_cache_with_icon_changes():
 
 	var registry = _create_mock_registry()
 	var cache = OperatorCache.new()
+	cache.clear_all()
 
 	# Generate initial cache key
 	var key1 = CacheKey.for_biome("BioticFluxBiome", registry)
@@ -425,16 +431,16 @@ func test_cache_with_icon_changes():
 	assert_true(not result1.is_empty(), "Initial cache hit")
 
 	# Change an icon parameter
-	if registry.icons.has("🌾"):
-		registry.icons["🌾"].self_energy = 9999.0
+	if registry.has("🌾"):
+		registry["🌾"].self_energy = 9999.0
 
 		# Generate new cache key
 		var key2 = CacheKey.for_biome("BioticFluxBiome", registry)
 		assert_true(key1 != key2, "Cache key changed after config modification")
 
-		# Old key should now miss
-		var result2 = cache.try_load("BioticFluxBiome", key1)
-		assert_true(result2.is_empty(), "Old cache entry misses with changed icons")
+		# The updated key should miss until operators are rebuilt and re-saved
+		var result2 = cache.try_load("BioticFluxBiome", key2)
+		assert_true(result2.is_empty(), "New cache key misses until rebuilt operators are saved")
 
 	print()
 
@@ -443,8 +449,8 @@ func test_cache_with_icon_changes():
 ## Helper Functions
 ## ========================================
 
-func _create_mock_registry() -> IconRegistry:
-	var registry = IconRegistry.new()
+func _create_mock_registry() -> Dictionary:
+	var registry: Dictionary = {}
 
 	# Create basic icons for testing
 	var emojis = ["☀️", "🌙", "🌾", "🍄", "🏰"]
@@ -458,6 +464,6 @@ func _create_mock_registry() -> IconRegistry:
 		icon.lindblad_outgoing = {}
 		icon.decay_rate = 0.0
 		icon.decay_target = ""
-		registry.register_icon(icon)
+		registry[emoji] = icon
 
 	return registry

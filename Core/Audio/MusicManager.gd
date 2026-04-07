@@ -15,6 +15,8 @@ extends Node
 signal volume_changed(new_volume: float)
 signal track_changed(track_name: String)
 
+const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")
+
 ## Track paths (relative to res://Assets/Audio/Music/)
 const TRACKS: Dictionary = {
 	# Named tracks (biome-mapped)
@@ -330,7 +332,7 @@ func _deferred_connect_farm() -> void:
 	await get_tree().process_frame
 	await get_tree().process_frame  # Wait 2 frames for Farm to be ready
 
-	var farm = get_node_or_null("/root/Farm")
+	var farm = _get_active_farm()
 	if not farm:
 		_log_info("Farm not found - Layer 3 signals not connected")
 		return
@@ -365,7 +367,7 @@ func _on_terminal_bound(grid_pos: Vector2i, terminal_id: String, _emoji_pair: Di
 			return
 
 	# IconMap doesn't have enough data yet - use biome track for the terminal's biome
-	var farm = get_node_or_null("/root/Farm")
+	var farm = _get_active_farm()
 	if farm and farm.terminal_pool:
 		var terminal = farm.terminal_pool.get_terminal(terminal_id) if farm.terminal_pool.has_method("get_terminal") else null
 		var biome_name := ""
@@ -454,7 +456,7 @@ func _global_icon_map_has_data() -> bool:
 	Fallback: If batcher has no data yet (early startup, headless), check for
 	any active terminals across all biomes as a proxy for 'something is evolving'.
 	"""
-	var farm = get_node_or_null("/root/Farm")
+	var farm = _get_active_farm()
 	if not farm:
 		return false
 
@@ -480,7 +482,7 @@ func _global_icon_map_has_data() -> bool:
 func _get_best_biome_from_global_map() -> String:
 	"""Get the biome name with highest weight in the global icon map.
 	Used as fallback when IconMap accumulator doesn't have enough samples yet."""
-	var farm = get_node_or_null("/root/Farm")
+	var farm = _get_active_farm()
 	if not farm:
 		return ""
 	var batcher = farm.get("biome_evolution_batcher")
@@ -535,7 +537,7 @@ func _stop_for_layer3() -> void:
 
 func _get_biome_evolution_count(biome_name: String) -> int:
 	"""Query BiomeEvolutionBatcher for cumulative evolution count."""
-	var farm = get_node_or_null("/root/Farm")
+	var farm = _get_active_farm()
 	if not farm:
 		return 0
 
@@ -632,7 +634,7 @@ func _accumulate_iconmap_sample() -> bool:
 	Uses BiomeEvolutionBatcher.get_global_icon_map() which aggregates across
 	all evolving biomes - music reflects global state, not the viewed biome.
 	"""
-	var farm = get_node_or_null("/root/Farm")
+	var farm = _get_active_farm()
 	if not farm:
 		return false
 
@@ -666,7 +668,7 @@ func _accumulate_portfolio_sample() -> bool:
 	Resources are normalized by total holdings to create a portfolio distribution.
 	Returns true if data was accumulated, false otherwise.
 	"""
-	var farm = get_node_or_null("/root/Farm")
+	var farm = _get_active_farm()
 	if not farm:
 		return false
 
@@ -1387,6 +1389,10 @@ func _check_sources_changed() -> bool:
 		if current_hash != cached_hash:
 			return true
 	return false
+
+
+func _get_active_farm() -> Node:
+	return InstrumentLocator.resolve_active_farm(self)
 
 
 func _compute_file_hash(path: String) -> String:

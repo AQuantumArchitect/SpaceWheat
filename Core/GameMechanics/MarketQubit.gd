@@ -15,6 +15,40 @@ extends Resource
 ## Key Insight: Market probabilities (sin²/cos²) ARE the exchange rates!
 ##   P(flour) = sin²(θ/2) → determines flour value
 ##   P(coins) = cos²(θ/2) → determines coin value
+##
+## ─── FUTURE INTEGRATION ROADMAP ────────────────────────────────────
+##
+## This qubit is a placeholder for a full quantum market layer.
+## Recommended next steps:
+##
+## 1. MULTI-RESOURCE MARKET: Promote from single qubit (flour/coins) to an
+##    N-qubit register where each basis state is a resource emoji. The density
+##    matrix diagonal encodes supply, off-diagonal encodes exchange coupling.
+##    The biome's QuantumBath already has this structure — the market register
+##    could be a SECOND bath that co-evolves with the biome bath via shared
+##    Lindblad operators (trade = measurement-induced dissipation).
+##
+## 2. QUEST REWARD MODULATION: Market state should modulate quest reward
+##    multipliers. When a resource is scarce (low diagonal occupation),
+##    delivery quests for that resource should pay more (reward_multiplier ∝
+##    1/P(resource)). This creates a natural supply-demand feedback loop
+##    driven entirely by the quantum state — no ad-hoc price curves needed.
+##
+## 3. PPG COUPLING: Add market_volatility as a PPG parameter slot. The PPG
+##    could learn to time trades (buy low / sell high) by reading the market
+##    qubit's theta and radius as observables. Wire via ParametricPolicyGraph
+##    slots and PolicyGraph JSONL surface (biome_economics.market_*).
+##
+## 4. ENTANGLEMENT WITH BIOME: Entangle market register with biome bath so
+##    that biome evolution (Lindblad drain, probe) also shifts market prices.
+##    Probing a resource increases its biome mass → market supply increases →
+##    price drops. This makes probe/drain decisions have market consequences.
+##
+## 5. MEASUREMENT BACK-ACTION: Currently theta injection is classical
+##    (direct rotation). Replace with proper quantum measurement back-action:
+##    trade collapses the market state, post-measurement state depends on
+##    outcome. Use Kraus operators instead of direct theta manipulation.
+## ────────────────────────────────────────────────────────────────────
 
 const DualEmojiQubit = preload("res://Core/QuantumSubstrate/DualEmojiQubit.gd")
 

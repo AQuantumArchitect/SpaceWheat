@@ -9,6 +9,7 @@ signal faction_selected(faction_quest: Dictionary)
 signal browser_closed
 
 const UIStyleFactory = preload("res://UI/Core/UIStyleFactory.gd")
+const InputBindingRegistry = preload("res://UI/Core/InputBindingRegistry.gd")
 
 # References
 var layout_manager: Node
@@ -51,32 +52,8 @@ func set_quest_manager(manager: Node) -> void:
 
 func _unhandled_key_input(event: InputEvent) -> void:
 	"""Handle input using unhandled input pattern"""
-	if not visible or not event is InputEventKey or not event.pressed or event.echo:
-		return
-
-	match event.keycode:
-		KEY_ESCAPE, KEY_C, KEY_E:
-			close_browser()
-			get_viewport().set_input_as_handled()
-
-		# Navigate
-		KEY_UP, KEY_W:
-			move_selection(-1)
-			get_viewport().set_input_as_handled()
-		KEY_PAGEUP, KEY_LEFT, KEY_A, KEY_R:
-			move_selection(-3)  # Page up
-			get_viewport().set_input_as_handled()
-		KEY_PAGEDOWN, KEY_RIGHT, KEY_D, KEY_F:
-			move_selection(3)   # Page down
-			get_viewport().set_input_as_handled()
-		KEY_DOWN, KEY_S:
-			move_selection(1)
-			get_viewport().set_input_as_handled()
-
-		# Select (Q / Enter / Space)
-		KEY_Q, KEY_ENTER, KEY_KP_ENTER, KEY_SPACE:
-			select_current_faction()
-			get_viewport().set_input_as_handled()
+	if _route_input(event):
+		get_viewport().set_input_as_handled()
 
 
 func handle_input(event: InputEvent) -> bool:
@@ -84,34 +61,37 @@ func handle_input(event: InputEvent) -> bool:
 
 	Returns true if input was consumed, false otherwise.
 	"""
+	return _route_input(event)
+
+
+func _route_input(event: InputEvent) -> bool:
 	if not visible or not event is InputEventKey or not event.pressed or event.echo:
 		return false
 
-	match event.keycode:
-		KEY_ESCAPE, KEY_C, KEY_E:
-			close_browser()
-			return true
+	var keycode: int = event.keycode
+	if keycode == KEY_C:
+		close_browser()
+		return true
+	if InputBindingRegistry.is_menu_cancel_key(keycode):
+		close_browser()
+		return true
+	if InputBindingRegistry.is_menu_confirm_key(keycode):
+		select_current_faction()
+		return true
+	if InputBindingRegistry.is_menu_move_prev_key(keycode):
+		move_selection(-1)
+		return true
+	if InputBindingRegistry.is_menu_move_next_key(keycode):
+		move_selection(1)
+		return true
+	if InputBindingRegistry.is_menu_page_prev_key(keycode):
+		move_selection(-3)
+		return true
+	if InputBindingRegistry.is_menu_page_next_key(keycode):
+		move_selection(3)
+		return true
 
-		# Navigate
-		KEY_UP, KEY_W:
-			move_selection(-1)
-			return true
-		KEY_PAGEUP, KEY_LEFT, KEY_A, KEY_R:
-			move_selection(-3)  # Page up
-			return true
-		KEY_PAGEDOWN, KEY_RIGHT, KEY_D, KEY_F:
-			move_selection(3)   # Page down
-			return true
-		KEY_DOWN, KEY_S:
-			move_selection(1)
-			return true
-
-		# Select (Q / Enter / Space)
-		KEY_Q, KEY_ENTER, KEY_KP_ENTER, KEY_SPACE:
-			select_current_faction()
-			return true
-
-	return false  # Input not consumed
+	return false
 
 
 func _create_ui() -> void:
@@ -163,7 +143,7 @@ func _create_ui() -> void:
 
 	# Controls hint
 	var controls = Label.new()
-	controls.text = "[W/S or ↑↓] Move  [A/D or R/F] Page  [ENTER or Q] Select  [E/ESC] Back"
+	controls.text = "[W/S or ↑↓] Move  [A/D or R/F] Page  [Q / Enter / Space] Select  [E / ESC / C] Back"
 	controls.add_theme_font_size_override("font_size", normal_size)
 	controls.modulate = Color(0.8, 0.8, 0.8)
 	main_vbox.add_child(controls)

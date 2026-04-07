@@ -1,14 +1,14 @@
 extends Node
 
-## ObservationFrame - Manages the spindle (which biome is neutral in the fractal address)
+## ObservationFrame - Manages the spindle reference point in the fractal address
 ##
 ## The observation frame determines the reference point for fractal navigation:
-## - NEUTRAL (UIOP row): Current biome at neutral_index
-## - UP (7890 row): Parent biome at neutral_index - 1
-## - DOWN (JKL; row): Child biome at neutral_index + 1
+## - ACTIVE SLOT ROW (TYUIOP): assigned spindle biomes anchored around neutral_index
+## - UP CONTEXT (+1): parent/reference biome at neutral_index - 1
+## - DOWN CONTEXT (-1): child/next biome at neutral_index + 1
 ##
-## Selecting plots in UP or DOWN rows shifts the spindle, making that biome
-## the new neutral reference point.
+## Selecting a biome or shifting context moves the spindle and changes the
+## neutral reference point.
 
 ## Full biome order (loadable biomes from registry + icon build)
 var ALL_BIOMES: Array[String] = []
@@ -22,6 +22,7 @@ var neutral_index: int = 0
 
 const BiomeRegistry = preload("res://Core/Biomes/BiomeRegistry.gd")
 const BiomeIconCache = preload("res://Core/Biomes/BiomeIconCache.gd")
+const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")
 
 var _biome_registry: BiomeRegistry = null
 var _icon_cache: BiomeIconCache = null
@@ -42,8 +43,8 @@ func get_neutral_biome() -> String:
 	return BIOME_ORDER[neutral_index]
 
 
-## Get biome at a given offset from neutral
-## offset: -1 = DOWN (JKL; row), 0 = NEUTRAL (UIOP row), +1 = UP (7890 row)
+## Get biome at a given spindle offset
+## offset: -1 = child/next context, 0 = active spindle slot, +1 = parent/reference context
 func get_biome_at_offset(offset: int) -> String:
 	# UP (+1) means we go to earlier index, DOWN (-1) means later index
 	# This creates the hierarchical parent/child relationship
@@ -134,7 +135,7 @@ func get_neutral_index() -> int:
 func _load_unlocked_biomes() -> void:
 	"""Load unlocked biomes from GameState"""
 	_refresh_loadable_biomes()
-	var gsm = get_node_or_null("/root/GameStateManager")
+	var gsm = InstrumentLocator.resolve_game_state_manager(self)
 	if gsm and gsm.current_state and "unlocked_biomes" in gsm.current_state:
 		var unlocked = gsm.current_state.unlocked_biomes
 		# Clamp unlocked biomes to loadable list (keeps save data sane)
@@ -175,7 +176,7 @@ func unlock_biome(biome_name: String) -> bool:
 	BIOME_ORDER.append(biome_name)
 
 	# Persist to GameState
-	var gsm = get_node_or_null("/root/GameStateManager")
+	var gsm = InstrumentLocator.resolve_game_state_manager(self)
 	if gsm and gsm.current_state:
 		gsm.current_state.unlocked_biomes = BIOME_ORDER.duplicate()
 		# Remove from unexplored pool
@@ -185,6 +186,43 @@ func unlock_biome(biome_name: String) -> bool:
 			if idx >= 0:
 				pool.remove_at(idx)
 
+	return true
+
+
+func lock_biome(biome_name: String) -> bool:
+	"""Remove a biome from the unlocked list and return it to the unexplored pool."""
+	if biome_name == "" or biome_name not in BIOME_ORDER:
+		return false
+	if biome_name == "StarterForest" or biome_name == "Village":
+		return false
+
+	var removed_index := BIOME_ORDER.find(biome_name)
+	if removed_index < 0:
+		return false
+
+	BIOME_ORDER.remove_at(removed_index)
+	if BIOME_ORDER.is_empty():
+		BIOME_ORDER = ["StarterForest", "Village"]
+
+	if neutral_index >= BIOME_ORDER.size():
+		neutral_index = max(0, BIOME_ORDER.size() - 1)
+	elif removed_index <= neutral_index:
+		neutral_index = max(0, neutral_index - 1)
+
+	var gsm = InstrumentLocator.resolve_game_state_manager(self)
+	if gsm and gsm.current_state:
+		gsm.current_state.unlocked_biomes = BIOME_ORDER.duplicate()
+		var pool: Array[String] = []
+		if "unexplored_biome_pool" in gsm.current_state:
+			for candidate in gsm.current_state.unexplored_biome_pool:
+				var biome_text := str(candidate)
+				if biome_text != "" and biome_text not in pool and biome_text not in BIOME_ORDER:
+					pool.append(biome_text)
+		if biome_name not in pool:
+			pool.append(biome_name)
+		gsm.current_state.unexplored_biome_pool = pool
+
+	neutral_changed.emit(get_neutral_biome())
 	return true
 
 

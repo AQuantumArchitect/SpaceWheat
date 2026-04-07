@@ -1,0 +1,44 @@
+{
+  "name": "claura_v0_20260327_164304",
+  "description": "Claura-derived character (berry cycle 0)",
+  "resource_scale": "fibonacci",
+  "scenario_id": "default",
+  "strict_biome_economy": false,
+  "resources": {
+    "👥": 13,
+    "🌾": 21,
+    "🍞": 13,
+    "❄️": 13,
+    "🌱": 8,
+    "⚙": 8,
+    "🔥": 8
+  },
+  "known_pairs": [
+    {
+      "north": "🌾",
+      "south": "🌱"
+    }
+  ],
+  "unlocked_biomes": [
+    "StarterForest",
+    "Village",
+    "PastoralCommons"
+  ],
+  "active_biome": "Village",
+  "policies": {
+    "engine_policy": {
+      "policy_kind": "ucb",
+      "template": "core:default"
+    },
+    "quantum_register": {
+      "policy_kind": "quantum_register",
+      "template": "core:default",
+      "graph_jsonl": [
+        "{\"op\": \"set\", \"path\": \"profile_id\", \"value\": \"claura_v0_20260327_164304\"}",
+        "{\"op\": \"set\", \"path\": \"action_priors.probe_cycle.base\", \"value\": 1.0499}",
+        "{\"op\": \"set\", \"path\": \"action_priors.quest_cycle.unknown_vocab\", \"value\": 1.2999}",
+        "{\"op\": \"set\", \"path\": \"action_priors.time_skip.base\", \"value\": 0.5}"
+      ]
+    }
+  }
+}

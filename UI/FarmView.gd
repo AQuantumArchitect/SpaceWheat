@@ -4,8 +4,9 @@
 extends Control
 
 const QuantumForceGraph = preload("res://Core/Visualization/QuantumForceGraph.gd")
-const ProbeActions = preload("res://Core/Actions/ProbeActions.gd")
 const BiomeBackgroundClass = preload("res://Core/Visualization/BiomeBackground.gd")
+const SaveStore = preload("res://Core/GameState/SaveStore.gd")
+const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")
 # BootManager is an autoload singleton - no need to preload
 
 const BACKGROUND_LAYER := -1
@@ -19,8 +20,8 @@ var biome_background: Control = null  # BiomeBackground for full-screen biome ar
 var performance_hud: Control = null  # Performance profiling overlay
 
 # Helpers to access autoloads safely (avoids compile-time errors in tests)
-@onready var _verbose = get_node("/root/VerboseConfig")
-@onready var _boot_mgr = get_node("/root/BootManager")
+@onready var _verbose = InstrumentLocator.resolve_verbose_config(self)
+@onready var _boot_mgr = InstrumentLocator.resolve_root_node(self, "/root/BootManager")
 
 
 func _ready():
@@ -38,15 +39,22 @@ func _ready():
 	# ═══════════════════════════════════════════════════════════════════════
 	# BOOT CORE (GameStateManager owns Farm)
 	# ═══════════════════════════════════════════════════════════════════════
-	# Consume pending_restart_slot if a restart was requested (R key / ESC menu).
+	# Consume pending restart state if a restart was requested (R key / ESC menu).
 	# -1 means fresh game; >=0 means load that slot through the normal boot path.
-	var gsm = get_node_or_null("/root/GameStateManager")
+	var gsm = InstrumentLocator.resolve_game_state_manager(self)
 	var load_slot := -1
-	if gsm and gsm.pending_restart_slot >= 0:
+	var scenario_id := SaveStore.DEFAULT_SCENARIO_ID
+	if gsm and gsm.pending_restart_requested:
 		load_slot = gsm.pending_restart_slot
+		scenario_id = gsm.pending_restart_scenario_id if gsm.pending_restart_scenario_id != "" else SaveStore.DEFAULT_SCENARIO_ID
 		gsm.pending_restart_slot = -1
-		_verbose.info("ui", "🔄", "Restarting into save slot %d" % load_slot)
-	farm = await _boot_mgr.boot_core(load_slot, "default", is_headless)
+		gsm.pending_restart_requested = false
+		gsm.pending_restart_scenario_id = scenario_id
+		if load_slot >= 0:
+			_verbose.info("ui", "🔄", "Restarting into save slot %d" % load_slot)
+		else:
+			_verbose.info("ui", "🔄", "Restarting into fresh scenario '%s'" % scenario_id)
+	farm = await _boot_mgr.boot_core(load_slot, scenario_id, is_headless)
 	if not farm:
 		_verbose.warn("ui", "❌", "Farm not available after core boot")
 		return
@@ -172,11 +180,13 @@ func _connect_visualization_ui_signals() -> void:
 
 
 func _bind_overlay_hud_proxies() -> void:
-	"""Expose overlay-driven HUDs through legacy FarmView properties."""
+	"""Expose overlay-driven HUD references for diagnostics surfaces."""
 	performance_hud = null
 	if not shell or not ("overlay_manager" in shell) or not shell.overlay_manager:
 		return
 	var overlay_manager = shell.overlay_manager
+	if overlay_manager.has_signal("quit_requested") and not overlay_manager.quit_requested.is_connected(_on_quit_requested):
+		overlay_manager.quit_requested.connect(_on_quit_requested)
 	if overlay_manager.has_method("get_overlay"):
 		performance_hud = overlay_manager.get_overlay("inspector")
 
@@ -184,16 +194,17 @@ func _bind_overlay_hud_proxies() -> void:
 func _on_quit_requested() -> void:
 	"""Handle quit request"""
 	_verbose.info("ui", "🛑", "Quit requested - exiting game")
-	get_tree().quit()
-
-
-func _on_restart_requested() -> void:
-	"""Handle restart request"""
-	_verbose.info("ui", "🔄", "Restart requested - reloading scene")
-	# Reset music completely before reloading
-	if has_node("/root/MusicManager"):
-		get_node("/root/MusicManager").reset()
-	get_tree().change_scene_to_file("res://scenes/FarmView.tscn")
+	if quantum_viz and quantum_viz.has_method("teardown"):
+		quantum_viz.teardown()
+	var gsm = InstrumentLocator.resolve_game_state_manager(self)
+	if gsm and gsm.has_method("request_application_quit"):
+		gsm.request_application_quit(true)
+	else:
+		if farm and is_instance_valid(farm):
+			farm.queue_free()
+		await get_tree().process_frame
+		await get_tree().process_frame
+		get_tree().quit()
 
 
 func _on_overlay_state_changed(overlay_name: String, visible: bool) -> void:
@@ -223,39 +234,32 @@ func _on_quantum_node_clicked(grid_pos: Vector2i, button_index: int) -> void:
 		_verbose.warn("ui", "⚠️", "No terminal bound at %s" % grid_pos)
 		return
 
-	# Get biome for this position (needed for MEASURE)
-	var biome = farm.grid.get_biome_for_plot(grid_pos) if farm.grid else null
+	if not ("instrument" in farm) or not farm.instrument:
+		_verbose.error("ui", "❌", "Bubble tap requires Farm.instrument but none is attached")
+		return
 
 	# Bubble tap action: measure or pop (Ensemble Model)
 	if not terminal.is_measured:
 		# MEASURE: Sample from ensemble, drain ρ, record claim
 		_verbose.debug("ui", "→", "MEASURING terminal at %s" % grid_pos)
-		var result = ProbeActions.action_measure(terminal, biome, farm.economy)
+		var result = farm.instrument.action_measure(grid_pos)
 		if result.success:
 			var prob = result.recorded_probability
 			var drained = result.was_drained
 			_verbose.info("ui", "📊", "Measured: %s (%.1f%% recorded, drained=%s)" % [
 				result.outcome, prob * 100, drained
 			])
-			# Emit with recorded probability for visualization
-			farm.plot_measured.emit(grid_pos, result.outcome)
 		else:
 			_verbose.warn("ui", "⚠️", "Measure failed: %s" % result.get("message", "unknown"))
 	else:
 		# POP: Convert recorded probability to credits with purity and neighbor bonuses
 		_verbose.debug("ui", "→", "POPPING terminal at %s" % grid_pos)
-		var result = ProbeActions.action_pop(terminal, farm.terminal_pool, farm.economy, farm)
+		var result = farm.instrument.action_pop(grid_pos)
 		if result.success:
 			var credits = result.credits
 			var purity = result.get("purity", 1.0)
 			var neighbors = result.get("neighbor_count", 4)
 			_verbose.info("ui", "🎉", "Popped: %s → %.1f credits (purity: %.2f, neighbors: %d)" % [result.resource, credits, purity, neighbors])
-			farm.plot_popped.emit(grid_pos, {
-				"emoji": result.resource,
-				"credits": credits,
-				"purity": purity,
-				"neighbors": neighbors
-			})
 		else:
 			_verbose.warn("ui", "⚠️", "Pop failed: %s" % result.get("message", "unknown"))
 
@@ -269,13 +273,10 @@ func _on_chain_swiped(positions: Array) -> void:
 
 	# Route through QuantumInstrumentInput for tool-aware gate building
 	var qi = shell.current_farm_ui.input_handler if shell and shell.current_farm_ui else null
-	if qi:
-		qi.apply_chain_gate(positions)
-	else:
-		_verbose.debug("ui", "⛓️", "No QII available, using fallback entanglement")
-		# Fallback: Bell pairs between consecutive bubbles
-		for i in range(positions.size() - 1):
-			farm.grid.create_entanglement(positions[i], positions[i + 1], "phi_plus")
+	if not qi:
+		_verbose.error("ui", "❌", "Chain swipe requires QuantumInstrumentInput but none is attached")
+		return
+	qi.apply_chain_gate(positions)
 
 
 func get_farm() -> Node:

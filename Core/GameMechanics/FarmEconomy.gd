@@ -8,8 +8,9 @@ extends Node
 
 const EconomyConstants = preload("res://Core/GameMechanics/EconomyConstants.gd")
 const QuestRewards = preload("res://Core/Quests/QuestRewards.gd")
+const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")
 
-@onready var _verbose = get_node_or_null("/root/VerboseConfig")
+@onready var _verbose = InstrumentLocator.resolve_verbose_config(self)
 
 signal resource_changed(emoji: String, new_amount: int)
 signal resource_mutated(emoji: String, delta: float, reason: String, new_amount: float)
@@ -75,7 +76,7 @@ func _get_vocabulary_purity_multiplier(emoji: String) -> float:
 	If emoji is in player's vocabulary: 2x multiplier, squared = 4.0x bonus
 	Otherwise: 1.0x (no bonus, but still allowed)
 	"""
-	var gsm = get_node_or_null("/root/GameStateManager")
+	var gsm = InstrumentLocator.resolve_game_state_manager(self)
 	if not gsm:
 		return 1.0
 
@@ -96,10 +97,10 @@ func _get_vocabulary_purity_multiplier(emoji: String) -> float:
 
 func _resource_allowed_by_iconmap(emoji: String) -> bool:
 	"""Only allow gains for emojis present in the current IconMap vocabulary."""
-	var gsm = get_node_or_null("/root/GameStateManager")
-	if not gsm or not ("active_farm" in gsm):
+	var gsm = InstrumentLocator.resolve_game_state_manager(self)
+	if not gsm or not gsm.has_method("get_active_farm"):
 		return true
-	var farm = gsm.active_farm
+	var farm = gsm.get_active_farm()
 	if not farm or not ("biome_evolution_batcher" in farm):
 		return true
 	var batcher = farm.biome_evolution_batcher
@@ -301,11 +302,6 @@ func get_overridden_action_cost(action: String, context: Dictionary = {}) -> Dic
 	var overrides = _economy_overrides.get("action_costs", {})
 	if overrides is Dictionary and overrides.has(normalized_action):
 		var cost = overrides[normalized_action]
-		if cost is Dictionary:
-			return cost
-	# Legacy fallback for old world-state keys.
-	if overrides is Dictionary and overrides.has(action):
-		var cost = overrides[action]
 		if cost is Dictionary:
 			return cost
 	return EconomyConstants.get_action_cost(normalized_action, context)

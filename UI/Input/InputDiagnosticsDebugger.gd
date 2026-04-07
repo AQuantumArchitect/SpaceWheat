@@ -12,6 +12,7 @@
 extends Node
 
 const ACTIVATION_KEY = KEY_F1
+const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")
 
 var is_active = false
 var verbose: Node = null
@@ -21,7 +22,7 @@ var test_results: Dictionary = {}
 
 func _ready() -> void:
 	# Try to get verbose logger if available
-	verbose = get_node_or_null("/root/VerboseConfig")
+	verbose = InstrumentLocator.resolve_verbose_config(self)
 
 	# Register for input events
 	set_process_unhandled_input(true)
@@ -191,14 +192,15 @@ func _print_report() -> void:
 
 
 func _check_player_shell_active() -> bool:
-	var player_shell = get_node_or_null("/root/PlayerShell")
+	var player_shell = InstrumentLocator.resolve_player_shell(self)
 	if player_shell:
 		return player_shell.visible and player_shell.get_tree().paused == false
 	return false
 
 
 func _check_plot_grid_active() -> bool:
-	var farm_ui = get_node_or_null("/root/PlayerShell/FarmUIContainer/FarmUI")
+	var player_shell = InstrumentLocator.resolve_player_shell(self)
+	var farm_ui = player_shell.get_farm_ui() if player_shell and player_shell.has_method("get_farm_ui") else null
 	if farm_ui and farm_ui.has_meta("plot_grid_display"):
 		var pgd = farm_ui.get_meta("plot_grid_display")
 		return pgd and pgd.visible
@@ -206,14 +208,15 @@ func _check_plot_grid_active() -> bool:
 
 
 func _get_overlay_stack_size() -> int:
-	var overlay_stack = get_node_or_null("/root/PlayerShell/OverlayStackManager")
+	var player_shell = InstrumentLocator.resolve_player_shell(self)
+	var overlay_stack = player_shell.overlay_stack if player_shell and "overlay_stack" in player_shell else null
 	if overlay_stack and overlay_stack.has_method("size"):
 		return overlay_stack.size()
 	return 0
 
 
 func _get_active_biome() -> String:
-	var biome_mgr = get_node_or_null("/root/ActiveBiomeManager")
+	var biome_mgr = InstrumentLocator.resolve_active_biome_manager(self)
 	if biome_mgr and biome_mgr.has_method("get_active_biome"):
 		return biome_mgr.get_active_biome()
 	return "(unknown)"
@@ -282,7 +285,7 @@ func _find_canvas_layers(node: Node) -> Array:
 
 func _check_for_signal_connection_issues() -> void:
 	"""Check if PlotGridDisplay is still connected to touch signals"""
-	var farm_ui = get_node_or_null("/root/PlayerShell/FarmUIContainer/FarmUI")
+	var farm_ui = InstrumentLocator.resolve_root_node(self, "/root/PlayerShell/FarmUIContainer/FarmUI")
 	if not farm_ui or not farm_ui.has_meta("plot_grid_display"):
 		_log("ℹ️", "PlotGridDisplay not found or not stored in metadata")
 		return

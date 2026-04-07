@@ -1,6 +1,8 @@
 class_name KeyboardLayoutConfig
 extends Resource
 
+const GridSentinel = preload("res://Core/GameState/GridSentinel.gd")
+
 ## KeyboardLayoutConfig - Maps keyboard actions to grid positions and vice versa
 ## Decouples input system from grid layout
 
@@ -10,7 +12,7 @@ extends Resource
 
 func get_position_for_action(action: String) -> Vector2i:
 	"""Get grid position for a keyboard action"""
-	return action_to_position.get(action, Vector2i(-1, -1))
+	return action_to_position.get(action, GridSentinel.INVALID_POSITION)
 
 
 func get_label_for_position(pos: Vector2i) -> String:

@@ -1,6 +1,8 @@
 class_name BiomeBuilder
 extends RefCounted
 
+const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")
+
 ## BiomeBuilder: Unified machinery for building biome quantum systems
 ##
 ## DESIGN INVARIANT: Boot and live-rebuild use the SAME code path.
@@ -56,11 +58,7 @@ static func _get_biome_registry() -> BiomeRegistry:
 ## Get IconRegistry autoload
 static func _get_icon_registry():
 	if _icon_registry == null:
-		var tree = Engine.get_main_loop()
-		if tree and tree.has_method("get_root"):
-			var root = tree.get_root()
-			if root:
-				_icon_registry = root.get_node_or_null("/root/IconRegistry")
+		_icon_registry = InstrumentLocator.resolve_icon_registry_main_loop()
 	return _icon_registry
 
 
@@ -158,14 +156,29 @@ static func build_from_spec(
 	# Build Lindblad spec from biome icon_components
 	var lindblad_spec = _build_lindblad_spec_from_biome(biome_def)
 
+	# Auto-load biome Hamiltonian profile (biome-crafter surface).
+	# Looks for Core/Config/Hamiltonians/<biome_lower>.jsonl and injects it as
+	# an icon_patch_fn so the energy landscape applies on top of faction physics.
+	var build_options = options.duplicate()
+	var h_profile = _load_hamiltonian_profile(biome_name)
+	if not h_profile.is_empty():
+		var existing_patch = build_options.get("icon_patch_fn", null)
+		if existing_patch is Callable and existing_patch.is_valid():
+			# Compose: profile runs first (base landscape), then caller's patch
+			build_options["icon_patch_fn"] = func(icons: Dictionary) -> void:
+				h_profile.apply_to_icons(icons)
+				existing_patch.call(icons)
+		else:
+			build_options["icon_patch_fn"] = h_profile.get_patch_callable()
+
 	# Build quantum system (H + L)
-	var faction_standings = options.get("faction_standings", {})
+	var faction_standings = build_options.get("faction_standings", {})
 	var quantum_result = build_biome_quantum_system(
 		biome_name,
 		emoji_pairs,
 		faction_standings,
 		lindblad_spec,
-		options
+		build_options
 	)
 
 	if not quantum_result.success:
@@ -646,6 +659,12 @@ static func _build_hamiltonian_icon(emoji: String, factions: Array, standings: D
 	return icon
 
 
+## INTERNAL: Load biome Hamiltonian profile if one exists for this biome
+static func _load_hamiltonian_profile(biome_name: String):
+	var ProfileClass = load("res://Core/QuantumSubstrate/BiomeHamiltonianProfile.gd")
+	return ProfileClass.load_for_biome(biome_name)
+
+
 ## INTERNAL: Build Lindblad operators from BiomeLindblad spec (DEPRECATED)
 static func _build_lindblad_from_biome_spec(
 	lindblad_spec: BiomeLindblad,
@@ -692,13 +711,4 @@ static func _build_lindblad_from_biome_spec(
 
 ## Get VerboseConfig singleton (safe access)
 static func _get_verbose_config():
-	if Engine.has_singleton("VerboseConfig"):
-		return Engine.get_singleton("VerboseConfig")
-	
-	var tree = Engine.get_main_loop()
-	if tree and tree.has_method("get_root"):
-		var root = tree.get_root()
-		if root:
-			return root.get_node_or_null("/root/VerboseConfig")
-	
-	return null
+	return InstrumentLocator.resolve_verbose_config_main_loop()

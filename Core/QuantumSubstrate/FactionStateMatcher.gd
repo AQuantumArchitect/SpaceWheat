@@ -44,6 +44,7 @@ class QuestParameters:
 	var variety: float = 0.5      # Derived from distribution shape
 	var basis_weights: Array = [] # Probability weights for each basis state
 	var available_emojis: Array = []  # Vocabulary constraint (faction ∩ player)
+	var operator_weights: Dictionary = {}  # Quest type distribution from faction bits (Born rule sampling)
 
 
 # ============================================================================
@@ -178,6 +179,10 @@ static func generate_quest_parameters(faction_bits: Array, obs: BiomeObservables
 
 	# Basis weights: probability distribution from bath
 	params.basis_weights = _get_basis_weights(bath)
+
+	# Operator weights: quest type probability distribution from faction bits
+	# Born rule sampling over operator structures (amplitude/coherence/ratio/multi)
+	params.operator_weights = calculate_operator_weights(faction_bits)
 
 	return params
 

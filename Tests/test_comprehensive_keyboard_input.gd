@@ -133,6 +133,6 @@ func _report_results() -> void:
 	print("\n💾 Test Environment:")
 	print("  • Running headless: YES")
 	print("  • Farm simulation: NOT LOADED (UI-only test)")
-	print("  • Visual feedback: Check FarmInputHandler output for action signals")
+	print("  • Visual feedback: Check QuantumInstrumentInput output for action signals")
 
 	print("\n" + separator + "\n")

@@ -2,6 +2,7 @@ class_name StarterForestBiome
 extends "res://Core/Environment/BiomeBase.gd"
 
 const Icon = preload("res://Core/QuantumSubstrate/Icon.gd")
+# InstrumentLocator inherited from BiomeBase
 
 ## Starter Forest Biome - Classic ecosystem with predator/prey dynamics
 ## Celestial cycle (sun/moon), wolves/rabbits, eagles/deer, forest lifecycle, plant growth
@@ -248,7 +249,7 @@ func _rebuild_quantum_operators_impl() -> void:
 	
 	# Rebuild Hamiltonian (universal dynamics change with faction power)
 	var HamBuilder = load("res://Core/QuantumSubstrate/HamiltonianBuilder.gd")
-	var verbose = get_node_or_null("/root/VerboseConfig")
+	var verbose = InstrumentLocator.resolve_verbose_config(self)
 	quantum_computer.hamiltonian = HamBuilder.build(new_icons, quantum_computer.register_map, verbose)
 	
 	# Lindblad stays the same (environmental context unchanged)

@@ -7,6 +7,7 @@ const INJECT_VOCAB := "inject_vocabulary"
 const LINDBLAD_PUMP := "lindblad_pump"
 const LINDBLAD_DRAIN := "lindblad_drain"
 const DISCOVER_BIOME := "discover_biome"
+const REMOVE_BIOME := "remove_biome"
 
 const ACTION_ALIASES: Dictionary = {
 	"vocab_injection": INJECT_VOCAB,

@@ -47,5 +47,11 @@
         "enabled": false,
         "amount": 0,
         "resources": []
+    },
+    "biome_discovery": {
+        "floor": 0.1,
+        "quest_scale": 5.0,
+        "vocab_scale": 2.0,
+        "milk_scale": 3.0
     }
 }

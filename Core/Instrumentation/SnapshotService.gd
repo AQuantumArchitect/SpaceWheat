@@ -1,32 +1,26 @@
 class_name SnapshotService
 extends Node
 
-## SnapshotService - Shared diagnostics and state snapshot API for UI + headless runners.
+## SnapshotService - UI/diagnostic projection service.
 ##
-## Provides a single API for external scripts (like the emoji bash runners) to:
-##   1. Query economy/output information (resources, farm grid)
-##   2. Control modal overlays (quest board, vocabulary)
-##   3. Interact with the quest manager (offer, accept, read status)
-##
-## This node is created by BootManager after FarmUI and the PlayerShell overlays exist.
+## Owns:
+## - overlay control for rig/UI diagnostics
+## - widget / HUD / overlay snapshots
+## - probe-cycle status UI
+## - diagnostics that are not part of QuantumInstrument's gameplay API
 
-@onready var _verbose = get_node_or_null("/root/VerboseConfig")
+@onready var _verbose = InstrumentLocator.resolve_verbose_config(self)
 
 var farm: Node = null
 var player_shell: Node = null
 var overlay_manager = null
-var quest_manager = null
-var action_bar_manager = null
 var instrument = null  # QuantumInstrument (injected by BootManager)
 var _probe_status_panel: PanelContainer = null
 var _probe_status_label: Label = null
 var _probe_status_hide_at_ms: int = 0
 
 const PROBE_STATUS_DURATION_MS: int = 900
-const GameState = preload("res://Core/GameState/GameState.gd")
 const QuantumInstrumentClass = preload("res://Core/Instrumentation/QuantumInstrument.gd")
-const PolicySnapshotBuilder = preload("res://Core/Instrumentation/PolicySnapshotBuilder.gd")
-const BiomeAffinityCalc = preload("res://Core/Quantum/BiomeAffinityCalculator.gd")
 
 
 func setup(farm_ref: Node, shell_ref: Node) -> void:
@@ -37,12 +31,8 @@ func setup(farm_ref: Node, shell_ref: Node) -> void:
 
 	if "overlay_manager" in shell_ref:
 		overlay_manager = shell_ref.overlay_manager
-	if "quest_manager" in shell_ref:
-		quest_manager = shell_ref.quest_manager
 	if overlay_manager:
 		overlay_manager.farm = farm_ref
-	if "action_bar_manager" in shell_ref:
-		action_bar_manager = shell_ref.action_bar_manager
 
 	if _verbose:
 		_verbose.info("instrument", "🎛️", "SnapshotService initialized (farm=%s, shell=%s)" % [
@@ -68,7 +58,11 @@ func open_quest_board() -> bool:
 
 
 func open_vocabulary_panel() -> bool:
-	return _open_overlay("vocabulary")
+	return _open_overlay("semantic_map")
+
+
+func open_semantic_map_panel() -> bool:
+	return _open_overlay("semantic_map")
 
 
 func open_controls_panel() -> bool:
@@ -83,133 +77,6 @@ func _open_overlay(name: String) -> bool:
 
 func get_resource_amount(emoji: String) -> float:
 	return QuantumInstrumentClass._get_resource_amount(farm, emoji)
-
-
-func _get_economy():
-	if farm and "economy" in farm and farm.economy:
-		return farm.economy
-	return null
-
-
-func describe_resources() -> Dictionary:
-	var economy = _get_economy()
-	if economy and economy.has_method("get_all_resources"):
-		return economy.get_all_resources()
-	return {}
-
-
-func get_resource_snapshot() -> Dictionary:
-	"""Return a stable snapshot of resources for turn-by-turn rigs."""
-	if instrument and instrument.has_method("get_resource_snapshot"):
-		var snap = instrument.get_resource_snapshot()
-		return snap if snap is Dictionary else {}
-	var resources = describe_resources()
-	var keys: Array = resources.keys()
-	keys.sort()
-	return {
-		"resources": resources,
-		"ordered": keys
-	}
-
-
-func get_policy_snapshot(include_offers: bool = true, include_grid: bool = true) -> Dictionary:
-	"""Aggregate policy-facing reads into one payload for rigs and UI diagnostics."""
-	return PolicySnapshotBuilder.build(self, include_offers, include_grid)
-
-
-func _build_policy_state_from_snapshot(policy_snapshot: Dictionary, cmd: Dictionary = {}, include_discovery_forecast: bool = true) -> Dictionary:
-	var resource_floors = _parse_resource_thresholds(cmd.get("resource_floors", {}))
-	var forbid_actions = _parse_forbid_actions(cmd.get("forbid_actions", []))
-
-	var resources = policy_snapshot.get("resources", {})
-	if not (resources is Dictionary):
-		resources = describe_resources()
-
-	var known_pairs: Array = policy_snapshot.get("known_pairs", [])
-	if not (known_pairs is Array):
-		known_pairs = get_known_vocab_pairs()
-
-	var offers: Array = policy_snapshot.get("offers", [])
-	if not (offers is Array):
-		offers = get_quest_offers_for_current_biome()
-
-	var active_quests: Array = policy_snapshot.get("active_quests", [])
-	if not (active_quests is Array):
-		active_quests = get_active_quests()
-
-	var biomes: Array = policy_snapshot.get("biomes", [])
-	if not (biomes is Array):
-		biomes = []
-
-	var grid_snapshot = policy_snapshot.get("grid", {})
-	if biomes.is_empty() and grid_snapshot is Dictionary:
-		var raw_biomes = grid_snapshot.get("biomes", [])
-		if raw_biomes is Array:
-			for biome_name in raw_biomes:
-				var b = str(biome_name)
-				if b != "":
-					biomes.append(b)
-
-	var locked_offers: Array = policy_snapshot.get("locked_offers", [])
-	if not (locked_offers is Array):
-		locked_offers = get_locked_offers()
-
-	var lindblad_snapshot = get_lindblad_snapshot("", false)
-	var discovery_forecast: Dictionary = {}
-	if include_discovery_forecast and farm and farm.has_method("compute_discovery_forecast"):
-		discovery_forecast = farm.compute_discovery_forecast()
-
-	_annotate_offer_discovery_affinity(offers)
-
-	return {
-		"profile": str(cmd.get("profile", "default")),
-		"resources": resources,
-		"resource_floors": resource_floors,
-		"forbid_actions": forbid_actions,
-		"known_pairs": known_pairs,
-		"offers": offers,
-		"active_quests": active_quests,
-		"biomes": biomes,
-		"lindblad": lindblad_snapshot,
-		"discovery_forecast": discovery_forecast,
-		"locked_offers": locked_offers,
-	}
-
-
-func build_policy_state(cmd: Dictionary = {}) -> Dictionary:
-	"""Build canonical policy input state for engine-side automation."""
-	return _build_policy_state_from_snapshot(get_policy_snapshot(true, true), cmd, true)
-
-
-func build_policy_state_lightweight(cmd: Dictionary = {}) -> Dictionary:
-	"""Build post-action reward state without expensive offer regeneration."""
-	var policy_snapshot = get_policy_snapshot(false, true)
-	var out = _build_policy_state_from_snapshot(policy_snapshot, cmd, false)
-	out["offers"] = []
-	out["discovery_forecast"] = {}
-	return out
-
-
-func get_grid_snapshot() -> Dictionary:
-	"""Return a minimal grid snapshot for QA turn-by-turn rigs."""
-	if instrument and instrument.has_method("get_grid_snapshot"):
-		var snap = instrument.get_grid_snapshot()
-		return snap if snap is Dictionary else {"ok": false, "error": "invalid_grid_snapshot"}
-	if not farm or not ("grid" in farm) or not farm.grid:
-		return {"ok": false, "error": "no_grid"}
-	var grid = farm.grid
-	var snapshot: Dictionary = {"ok": true}
-	if "grid_width" in grid:
-		snapshot["grid_width"] = grid.grid_width
-	if "grid_height" in grid:
-		snapshot["grid_height"] = grid.grid_height
-	if grid.has_biomes():
-		var biome_names = grid.get_biome_names()
-		biome_names.sort()
-		snapshot["biomes"] = biome_names
-	if snapshot.has("grid_width") and snapshot.has("grid_height"):
-		snapshot["plot_count"] = int(snapshot["grid_width"]) * int(snapshot["grid_height"])
-	return snapshot
 
 
 func get_batcher_metrics() -> Dictionary:
@@ -324,77 +191,6 @@ func get_lindblad_snapshot(biome_name: String = "", include_populations: bool = 
 	}
 
 
-func get_recent_resource_mutations(limit: int = 40) -> Array:
-	var economy = _get_economy()
-	if not economy or not economy.has_method("get_recent_resource_mutations"):
-		return []
-	return economy.get_recent_resource_mutations(limit)
-
-
-func get_active_quests() -> Array:
-	if instrument and instrument.has_method("get_active_quests"):
-		var quests = instrument.get_active_quests()
-		return quests if quests is Array else []
-	if quest_manager and quest_manager.has_method("get_active_quests"):
-		return quest_manager.get_active_quests()
-	return []
-
-
-func get_quest_offers_for_current_biome() -> Array:
-	"""Return quest offers for the current biome (does not accept)."""
-	if instrument and instrument.has_method("quest_offer_all"):
-		var offer_result = instrument.quest_offer_all()
-		if offer_result is Dictionary and bool(offer_result.get("ok", false)):
-			var offers = offer_result.get("offers", [])
-			if offers is Array:
-				return offers
-	if not quest_manager or not farm:
-		return []
-	if not quest_manager.has_method("offer_all_faction_quests"):
-		return []
-	var current_biome = farm.get_current_biome() if farm.has_method("get_current_biome") else null
-	if not current_biome and farm.grid and farm.grid.has_biomes():
-		current_biome = farm.grid.get_primary_biome()
-	if not current_biome:
-		return []
-	return quest_manager.offer_all_faction_quests(current_biome)
-
-
-func get_known_vocab_pairs() -> Array:
-	if instrument and instrument.has_method("get_known_vocab_pairs"):
-		var pairs = instrument.get_known_vocab_pairs()
-		return pairs if pairs is Array else []
-	if farm and farm.has_method("get_known_pairs"):
-		return farm.get_known_pairs()
-	return []
-
-
-func get_known_vocab_emojis() -> Array:
-	var pairs = get_known_vocab_pairs()
-	return GameState.derive_known_emojis_from_pairs(pairs)
-	return []
-
-
-func get_biome_positions(biome_name: String) -> Array:
-	"""Return plot positions for a biome name."""
-	if instrument and instrument.has_method("get_biome_positions"):
-		var positions = instrument.get_biome_positions(biome_name)
-		return positions if positions is Array else []
-	if not farm or not ("grid" in farm) or not farm.grid:
-		return []
-	return farm.grid.get_plot_positions_for_biome(biome_name)
-
-
-func get_locked_offers() -> Array:
-	if instrument and instrument.has_method("quest_locked_offers"):
-		var result = instrument.quest_locked_offers()
-		var offers = result.get("offers", [])
-		return offers if offers is Array else []
-	if not quest_manager or not quest_manager.has_method("get_locked_offers"):
-		return []
-	return quest_manager.get_locked_offers()
-
-
 func get_overlay_snapshot(overlay_name: String) -> Dictionary:
 	var overlay = _resolve_overlay(overlay_name)
 	if overlay and overlay.has_method("get_snapshot"):
@@ -426,7 +222,7 @@ func get_full_ui_snapshot() -> Dictionary:
 		var row = get_hud_snapshot(hname)
 		if bool(row.get("ok", false)):
 			snapshot["huds"][hname] = row.get("snapshot", {})
-	for oname in ["quests", "controls", "semantic_map", "logger_config", "inspector"]:
+	for oname in ["quests", "controls", "semantic_map", "logger", "inspector"]:
 		var row = get_overlay_snapshot(oname)
 		if bool(row.get("ok", false)):
 			snapshot["overlays"][oname] = row.get("snapshot", {})
@@ -496,56 +292,6 @@ func _resolve_hud(hud_name: String):
 	return null
 
 
-func _parse_resource_thresholds(raw) -> Dictionary:
-	var out: Dictionary = {}
-	if not (raw is Dictionary):
-		return out
-	for key in raw.keys():
-		var emoji = str(key)
-		if emoji == "":
-			continue
-		var amount = float(raw.get(key, 0.0))
-		if amount > 0.0:
-			out[emoji] = amount
-	return out
-
-
-func _parse_forbid_actions(raw) -> Array:
-	var forbid_actions: Array = []
-	var seen: Dictionary = {}
-	if not (raw is Array):
-		return forbid_actions
-	for item in raw:
-		var action_name = str(item)
-		if action_name == "" or seen.has(action_name):
-			continue
-		seen[action_name] = true
-		forbid_actions.append(action_name)
-	return forbid_actions
-
-
-func _annotate_offer_discovery_affinity(offers: Array) -> void:
-	if offers.is_empty():
-		return
-	var obs = get_tree().root.get_node_or_null("ObservationFrame")
-	var unexplored: Array = obs.get_unexplored_biomes() if obs and obs.has_method("get_unexplored_biomes") else []
-	for offer in offers:
-		if not (offer is Dictionary):
-			continue
-		var north = str(offer.get("reward_vocab_north", ""))
-		var south = str(offer.get("reward_vocab_south", ""))
-		if north == "" and south == "":
-			offer["discovery_affinity"] = 0.0
-			continue
-		var pair = {"north": north, "south": south}
-		var max_aff = 0.0
-		for biome_name in unexplored:
-			var aff = BiomeAffinityCalc.calculate_affinity_by_name(pair, biome_name)
-			if aff > max_aff:
-				max_aff = aff
-		offer["discovery_affinity"] = max_aff
-
-
 func log_action(action: String, details: Dictionary = {}) -> void:
 	if _verbose:
 		_verbose.info("instrument", "✍️", "%s %s" % [action, str(details)])
@@ -601,3 +347,4 @@ func _ensure_probe_status_ui() -> void:
 	host.add_child(panel)
 	_probe_status_panel = panel
 	_probe_status_label = label
+const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")

@@ -1,11 +1,13 @@
 class_name BiomeSelectionRow
 extends "res://UI/Widgets/SelectionButtonRow.gd"
 
+const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")
+
 ## BiomeSelectionRow - Top bar with biome selection buttons (T/Y/U/I/O/P).
 ## Dynamically expands as new biomes are unlocked.
 
 # Access autoload safely
-@onready var _verbose = get_node("/root/VerboseConfig")
+@onready var _verbose = InstrumentLocator.resolve_verbose_config(self)
 
 var active_biome_manager: Node = null
 
@@ -23,7 +25,7 @@ const BIOME_LABELS: Dictionary = {
 func _ready() -> void:
 	super._ready()
 
-	active_biome_manager = get_node_or_null("/root/ActiveBiomeManager")
+	active_biome_manager = InstrumentLocator.resolve_active_biome_manager(self)
 	if active_biome_manager:
 		if not active_biome_manager.active_biome_changed.is_connected(_on_active_biome_changed):
 			active_biome_manager.active_biome_changed.connect(_on_active_biome_changed)

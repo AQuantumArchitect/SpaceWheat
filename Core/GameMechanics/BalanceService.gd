@@ -11,6 +11,7 @@ const ActionIds = preload("res://Core/GameMechanics/ActionIds.gd")
 const QuestRewards = preload("res://Core/Quests/QuestRewards.gd")
 const BalanceConfig = preload("res://Core/GameMechanics/BalanceConfig.gd")
 const FarmVariableGraph = preload("res://Core/GameMechanics/FarmVariableGraph.gd")
+const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")
 
 const ACTION_CATALOG: Array[String] = [
 	"explore",
@@ -18,6 +19,7 @@ const ACTION_CATALOG: Array[String] = [
 	"pop",
 	"reap",
 	"discover_biome",
+	"remove_biome",
 	"inject_vocabulary",
 	"remove_vocabulary",
 	"lindblad_pump",
@@ -249,7 +251,7 @@ static func _get_economy(farm: Node):
 static func _get_current_state(farm: Node):
 	if not farm:
 		return null
-	var gsm = farm.get_node_or_null("/root/GameStateManager")
+	var gsm = InstrumentLocator.resolve_game_state_manager(farm)
 	if not gsm:
 		return null
 	if not ("current_state" in gsm):

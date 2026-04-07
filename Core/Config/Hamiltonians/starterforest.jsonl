@@ -1,0 +1,116 @@
+# ╔══════════════════════════════════════════════════════════════════════════╗
+# ║  StarterForest Hamiltonian Profile — differential tuning layer          ║
+# ╚══════════════════════════════════════════════════════════════════════════╝
+#
+# Assigned factions (FactionRegistry.gd):
+#   Verdant Pulse  — 🌱🌿🌲🍂  plant growth/decay baseline
+#   Swift Herd     — 🐇🦌🌿    grazer/prey baseline
+#   Pack Lords     — 🐺🦅🐇🦌  predator baseline
+#
+# Celestial Archons excluded: its self_energy.🌙 = +0.8 would invert the
+# day/night axis. ☀/🌙 physics lives entirely in this file.
+#
+# ALL values in this file are ADDITIVE CORRECTIONS on top of faction totals.
+# The notation "[faction→X] target Y → profile Z]" means:
+#   factions contribute X to this emoji/coupling, target game value is Y,
+#   so this file sets Z = Y - X.
+#
+# Five quantum axes:
+#   Q0: ☀/🌙  — Day/night (no faction → full values here)
+#   Q1: 🐺/🦌  — Wolf/deer (Pack Lords + Swift Herd baseline)
+#   Q2: 🦅/🐇  — Eagle/rabbit (Pack Lords baseline; eagle scarcity by design)
+#   Q3: 🌲/🍂  — Forest cycle (Verdant Pulse baseline)
+#   Q4: 🌱/🌿  — Ground growth (Verdant Pulse + Swift Herd baseline)
+#
+# ── Timescales at 0.5× real-time ──────────────────────────────────────────
+#   ☀↔🌙  50s  (driven by cosine at 0.04 Hz; Landau-Zener at 25s)
+#   🐺↔🦌  ~15s (Rabi: total ≈ 0.42 after correction)
+#   🌲↔🍂  ~11s (Rabi: total ≈ 0.55 after boost)
+#   🌱↔🌿  ~32s (Rabi: reduced from faction's 0.60 → 0.30 total)
+#   🦅↔🐇  ~65s (Rabi: reduced to 0.20, detuning 0.95 → eagle stays ~4%)
+#
+# Eagle scarcity design:
+#   With 🦅 self_energy = +0.70, 🐇 = -0.25, Rabi = 0.20:
+#   max natural eagle population ≈ 4%.
+#   Pauli_X on Q2 creates ~10s spike; eagle is the biome-discovery currency.
+# ══════════════════════════════════════════════════════════════════════════
+
+# ─── Self-energies ───────────────────────────────────────────────────────
+# Format: [faction total → X]  target Y  → profile value = Y - X
+
+# ☀/🌙: no faction coverage → full values
+{"op":"set","path":"self_energies.☀","value":0.80}
+{"op":"set","path":"self_energies.🌙","value":-0.80}
+
+# 🐺: Pack Lords = -0.05  → target +0.35  → +0.40
+{"op":"set","path":"self_energies.🐺","value":0.40}
+# 🦌: Pack Lords+Swift Herd = +0.02  → target -0.30  → -0.32
+{"op":"set","path":"self_energies.🦌","value":-0.32}
+# 🦅: Pack Lords = -0.03  → target +0.70  → +0.73
+{"op":"set","path":"self_energies.🦅","value":0.73}
+# 🐇: Pack Lords+Swift Herd = +0.04  → target -0.25  → -0.29
+{"op":"set","path":"self_energies.🐇","value":-0.29}
+
+# 🌲: Verdant Pulse = +0.30  → target +0.20  → -0.10
+{"op":"set","path":"self_energies.🌲","value":-0.10}
+# 🍂: Verdant Pulse = +0.00  → target -0.70  → -0.70
+{"op":"set","path":"self_energies.🍂","value":-0.70}
+# 🌱: Verdant Pulse = +0.05  → target +0.10  → +0.05
+{"op":"set","path":"self_energies.🌱","value":0.05}
+# 🌿: Verdant Pulse+Swift Herd = +0.20  → target -0.10  → -0.30
+{"op":"set","path":"self_energies.🌿","value":-0.30}
+
+# ─── Intra-axis Rabi couplings ────────────────────────────────────────────
+# ☀↔🌙: no faction → full value
+{"op":"set","path":"couplings.☀.🌙","value":0.80}
+
+# 🐺↔🦌: Pack Lords = 0.50  → target 0.42  → -0.08
+{"op":"set","path":"couplings.🐺.🦌","value":-0.08}
+
+# 🦅↔🐇: Pack Lords = 0.50  → target 0.20  → -0.30
+# (Eagle scarcity: low Rabi + high detuning keeps eagle at ~4%)
+{"op":"set","path":"couplings.🦅.🐇","value":-0.30}
+
+# 🌲↔🍂: Verdant Pulse = 0.20  → target 0.55  → +0.35
+{"op":"set","path":"couplings.🌲.🍂","value":0.35}
+
+# 🌱↔🌿: Verdant Pulse = 0.60  → target 0.30  → -0.30
+{"op":"set","path":"couplings.🌱.🌿","value":-0.30}
+
+# ─── Cross-axis coherent couplings ────────────────────────────────────────
+
+# ☀/🌙 cross-axis: no faction → full values
+{"op":"set","path":"couplings.🌙.🐺","value":0.28}
+{"op":"set","path":"couplings.☀.🦅","value":0.22}
+{"op":"set","path":"couplings.☀.🌱","value":0.32}
+{"op":"set","path":"couplings.☀.🌲","value":0.18}
+
+# 🐺→🐇 (wolf hunts rabbit, cross Q1→Q2):
+# Pack Lords = 0.60  → target 0.18  → -0.42
+{"op":"set","path":"couplings.🐺.🐇","value":-0.42}
+
+# 🦌→🌿 (deer grazes ferns, cross Q1→Q4):
+# Swift Herd = 0.60  → target 0.25  → -0.35
+{"op":"set","path":"couplings.🦌.🌿","value":-0.35}
+
+# 🐇→🌱 (rabbit grazes seedlings, cross Q2→Q4):
+# No faction gives 🐇→🌱 directly (Swift Herd gives 🐇→🌿, different target)
+# target 0.20 → +0.20
+{"op":"set","path":"couplings.🐇.🌱","value":0.20}
+
+# 🌱→🌲 (succession, cross Q4→Q3):
+# Verdant Pulse = 0.40  → target 0.38  → -0.02 (negligible, leave at 0)
+
+# 🍂→🌱 (nutrient cycling, cross Q3→Q4):
+# Verdant Pulse = 0.50  → target 0.22  → -0.28
+{"op":"set","path":"couplings.🍂.🌱","value":-0.28}
+
+# ─── Day/night driver ─────────────────────────────────────────────────────
+# Overrides any faction driver (Celestial Archons excluded anyway).
+# E_☀(t) = 0.80 × cos(2π × 0.04 × t)  → 25s sim period → 50s real at 0.5×
+# Landau-Zener resonance at t=12.5s sim (25s real): full ☀↔🌙 inversion possible
+
+{"op":"set","path":"drivers.☀.type","value":"cosine"}
+{"op":"set","path":"drivers.☀.frequency","value":0.04}
+{"op":"set","path":"drivers.☀.phase","value":0.0}
+{"op":"set","path":"drivers.☀.amplitude","value":1.0}

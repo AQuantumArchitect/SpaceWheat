@@ -74,7 +74,8 @@
       "🚀",
       "💰",
       "⚙️",
-      "✊"
+      "✊",
+      "🚩"
     ],
     "native_factions": [
       "Debt Wardens",
@@ -750,15 +751,19 @@
       {
         "x": 0.38,
         "y": 0.5
+      },
+      {
+        "x": 0.5,
+        "y": 0.5
       }
     ],
     "emojis": [
       "☀",
       "🌙",
       "🐺",
-      "🐇",
-      "🦅",
       "🦌",
+      "🦅",
+      "🐇",
       "🌲",
       "🍂",
       "🌱",
@@ -770,7 +775,73 @@
       "forest",
       "ecosystem"
     ],
-    "icon_components": {}
+    "icon_components": {
+      "☀": {
+        "lindblad_outgoing": {
+          "🌱": 0.025,
+          "🌲": 0.012
+        }
+      },
+      "🌙": {
+        "lindblad_outgoing": {
+          "🐺": 0.018
+        }
+      },
+      "🌱": {
+        "lindblad_outgoing": {
+          "🌲": 0.01,
+          "🌿": 0.006,
+          "🐇": 0.008
+        }
+      },
+      "🌿": {
+        "lindblad_outgoing": {
+          "🌱": 0.005,
+          "🦌": 0.01
+        }
+      },
+      "🌲": {
+        "lindblad_outgoing": {
+          "🍂": 0.012
+        }
+      },
+      "🍂": {
+        "lindblad_outgoing": {
+          "🌱": 0.01
+        }
+      },
+      "🦌": {
+        "lindblad_outgoing": {
+          "🐺": 0.014
+        },
+        "decay": {
+          "rate": 0.005,
+          "target": "🌿"
+        }
+      },
+      "🐇": {
+        "lindblad_outgoing": {
+          "🐺": 0.016,
+          "🦅": 0.008
+        },
+        "decay": {
+          "rate": 0.006,
+          "target": "🌱"
+        }
+      },
+      "🐺": {
+        "decay": {
+          "rate": 0.004,
+          "target": "🌲"
+        }
+      },
+      "🦅": {
+        "decay": {
+          "rate": 0.025,
+          "target": "🐇"
+        }
+      }
+    }
   },
   {
     "name": "StellarForges",

@@ -162,7 +162,7 @@ func _run_tests():
 		return
 
 	# Now test via GateActionHandler
-	const GateActionHandler = preload("res://UI/Handlers/GateActionHandler.gd")
+	const GateActionHandler = preload("res://Core/Instrumentation/Handlers/GateActionHandler.gd")
 
 	var positions: Array[Vector2i] = [Vector2i(0, 0)]
 	var diag_before_full = qc.density_matrix.get_element(0, 0)

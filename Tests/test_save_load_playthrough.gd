@@ -4,6 +4,7 @@ extends SceneTree
 ## Tests saving and loading while playing
 
 const ProbeActions = preload("res://Core/Actions/ProbeActions.gd")
+const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")
 const SEPARATOR = "======================================================================"
 
 var farm_view = null
@@ -63,11 +64,16 @@ func _on_game_ready():
 
 
 func _find_components():
-	farm_view = root.get_node_or_null("FarmView")
-	if farm_view and "farm" in farm_view:
-		farm = farm_view.farm
-
+	var scene_root: Node = root
 	gsm = root.get_node_or_null("/root/GameStateManager")
+	if gsm:
+		farm = gsm.get_active_farm() if gsm.has_method("get_active_farm") else null
+
+	if not farm:
+		farm_view = InstrumentLocator.resolve_root_node(scene_root, "/root/FarmView")
+		if farm_view and "farm" in farm_view:
+			farm = farm_view.farm
+
 	if gsm and farm:
 		gsm.active_farm = farm
 
@@ -88,7 +94,15 @@ func _phase_play():
 		phase = 4
 		return
 
-	var biome = farm.biotic_flux_biome if farm else null
+	var biome = null
+	if farm and farm.grid:
+		var active_biome_mgr = InstrumentLocator.resolve_active_biome_manager(farm)
+		if active_biome_mgr and active_biome_mgr.has_method("get_active_biome"):
+			var active_biome_name = active_biome_mgr.get_active_biome()
+			if active_biome_name != "":
+				biome = farm.grid.get_biome(active_biome_name)
+		if not biome:
+			biome = farm.grid.get_biome_for_plot(Vector2i.ZERO)
 	if not biome:
 		print("❌ No biome")
 		phase = 4
@@ -139,7 +153,11 @@ func _phase_verify():
 		var loaded_state = gsm.load_game_state(2)
 		if loaded_state:
 			print("  ✓ State can be loaded")
-			print("  Loaded credits: %d" % loaded_state.credits)
+			var loaded_credits = 0
+			if loaded_state.all_emoji_credits is Dictionary:
+				loaded_credits = int(loaded_state.all_emoji_credits.get("💰", 0))
+			print("  Loaded credits: %d" % loaded_credits)
+			print("  Loaded scenario: %s" % loaded_state.scenario_id)
 		else:
 			print("  ⚠ Could not load state (might be expected)")
 	else:
