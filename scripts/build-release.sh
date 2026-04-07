@@ -355,10 +355,14 @@ else
 fi
 
 # ─────────────────────────────────────────────────────────────
-# Step 4: Rebuild bundled operator cache
+# Step 4: Import project + rebuild bundled operator cache
 # ─────────────────────────────────────────────────────────────
-log "Rebuilding bundled operator cache..."
+log "Importing project (class_name resolution)..."
 cd "$BUILD_DIR"
+timeout 60 $GODOT_BIN --headless --import . 2>/dev/null || true
+success "Project imported"
+
+log "Rebuilding bundled operator cache..."
 $GODOT_BIN --headless --path . --script tools/BuildBundledCache.gd
 success "Bundled operator cache refreshed"
 
