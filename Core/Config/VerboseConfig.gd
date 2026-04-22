@@ -45,6 +45,8 @@ var category_levels = {
 	"save": LogLevel.INFO,
 	"quest": LogLevel.INFO,
 	"boot": LogLevel.INFO,
+	"audio": LogLevel.WARN,
+	"music": LogLevel.WARN,
 	"cache": LogLevel.INFO,       # Operator cache hits/misses
 	"test": LogLevel.TRACE,       # Tests want everything
 	"perf": LogLevel.WARN,        # Only show slow frames
@@ -65,6 +67,8 @@ var category_enabled = {
 	"save": true,
 	"quest": true,
 	"boot": true,
+	"audio": true,
+	"music": true,
 	"cache": true,
 	"test": false,
 	"perf": true,

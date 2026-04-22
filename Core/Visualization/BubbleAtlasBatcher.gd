@@ -3,6 +3,7 @@ extends RefCounted
 
 # Shared constants
 const VisualizationConstants = preload("res://Core/Visualization/VisualizationConstants.gd")
+const VerboseHelper = preload("res://Core/Config/VerboseHelper.gd")
 
 ## Bubble Atlas Batcher - GPU-Accelerated Bubble Rendering
 ##
@@ -69,6 +70,10 @@ var _colors: PackedColorArray = PackedColorArray()
 var _arc_points: PackedVector2Array = PackedVector2Array()
 var _arc_colors: PackedColorArray = PackedColorArray()
 
+
+func _log_debug(message: String) -> void:
+	VerboseHelper.debug("viz", "atlas", message)
+
 # Capacity tracking to avoid frequent reallocations
 var _last_vertex_count: int = 0
 var _last_arc_count: int = 0
@@ -128,21 +133,21 @@ func set_graphics_quality(quality: GraphicsQuality) -> void:
 			draw_data_rings = false
 			enable_spin_pattern = false
 			enable_season_wedges = false
-			print("[BubbleAtlasBatcher] Graphics: LOW (minimal layers, max FPS)")
+			_log_debug("[BubbleAtlasBatcher] Graphics: LOW (minimal layers, max FPS)")
 
 		GraphicsQuality.MEDIUM:
 			draw_glow_layers = true   # Berry phase glow
 			draw_data_rings = false
 			enable_spin_pattern = true
 			enable_season_wedges = false
-			print("[BubbleAtlasBatcher] Graphics: MEDIUM (glow + spin, no rings/wedges)")
+			_log_debug("[BubbleAtlasBatcher] Graphics: MEDIUM (glow + spin, no rings/wedges)")
 
 		GraphicsQuality.HIGH:
 			draw_glow_layers = true
 			draw_data_rings = true
 			enable_spin_pattern = true
 			enable_season_wedges = true
-			print("[BubbleAtlasBatcher] Graphics: HIGH (all layers)")
+			_log_debug("[BubbleAtlasBatcher] Graphics: HIGH (all layers)")
 
 
 # Arc configuration
@@ -341,7 +346,7 @@ func build_atlas() -> bool:
 	_build_purity_arc_cache()
 
 	var elapsed = Time.get_ticks_msec() - start_time
-	print("[BubbleAtlasBatcher] Atlas built: %dx%d (%d templates) + %d purity bands in %dms" % [
+	_log_debug("[BubbleAtlasBatcher] Atlas built: %dx%d (%d templates) + %d purity bands in %dms" % [
 		ATLAS_WIDTH, ATLAS_HEIGHT, _template_uvs.size(), _purity_arc_cache.size(), elapsed
 	])
 
@@ -866,7 +871,7 @@ func draw_bubble(pos: Vector2, base_radius: float, anim_scale: float, anim_alpha
 				 is_measured: bool, is_celestial: bool,
 				 individual_purity: float = 0.5, biome_purity: float = 0.5,
 				 global_prob: float = 0.0, p_north: float = 0.0, p_south: float = 0.0,
-				 sink_flux: float = 0.0, pulse_phase: float = 0.0,
+				 sink_flux: float = 0.0, _pulse_phase: float = 0.0,
 				 phi_raw: float = 0.0, season_projections: Array = [],
 				 coherence: float = 0.0, shadow_influence: Dictionary = {},
 				 berry_phase: float = 0.0) -> void:
@@ -885,9 +890,9 @@ func draw_bubble(pos: Vector2, base_radius: float, anim_scale: float, anim_alpha
 	if anim_scale <= 0.0:
 		return
 
-	# Calculate effective radius with pulse
-	var pulse_scale = 1.0 + pulse_phase * 0.08
-	var effective_radius = base_radius * anim_scale * pulse_scale
+	# Keep bubble size stable. Bloch phase can move/color internal wedges, but
+	# object radius should not breathe independently of state.
+	var effective_radius = base_radius * anim_scale
 
 	# Glow tint (complementary hue) and alpha (from berry phase)
 	var glow_tint = _get_complementary_color(base_color)
@@ -947,13 +952,11 @@ func draw_bubble(pos: Vector2, base_radius: float, anim_scale: float, anim_alpha
 		draw_phi_arc_and_wedge(pos, effective_radius, phi_raw, season_projections, coherence, anim_alpha)
 
 
-func _draw_measured_glow(pos: Vector2, base_radius: float, anim_scale: float, anim_alpha: float, time: float) -> void:
-	"""Draw single cyan pulsing glow for measured bubbles (simplified for performance)."""
-	var measured_pulse = 0.5 + 0.5 * sin(time * 4.0)
+func _draw_measured_glow(pos: Vector2, base_radius: float, anim_scale: float, anim_alpha: float, _time: float) -> void:
+	"""Draw single cyan glow for measured bubbles (simplified for performance)."""
 
-	# Single pulsing glow circle
-	var glow_alpha = (0.5 + 0.3 * measured_pulse) * anim_alpha
-	var glow_radius = base_radius * (1.8 + 0.2 * measured_pulse) * anim_scale
+	var glow_alpha = 0.65 * anim_alpha
+	var glow_radius = base_radius * 1.9 * anim_scale
 	add_circle_layer("circle_220", pos, glow_radius, Color(0.0, 1.0, 1.0, glow_alpha))
 
 
@@ -966,12 +969,11 @@ func _draw_unmeasured_glow(pos: Vector2, effective_radius: float, glow_tint: Col
 	add_circle_layer("circle_220", pos, effective_radius * glow_mult, glow_color)
 
 
-func _draw_measured_outline(pos: Vector2, base_radius: float, anim_scale: float, anim_alpha: float, time: float) -> void:
+func _draw_measured_outline(pos: Vector2, base_radius: float, anim_scale: float, anim_alpha: float, _time: float) -> void:
 	"""Draw cyan outline with checkmark indicator for measured bubbles."""
-	var measured_pulse = 0.5 + 0.5 * sin(time * 4.0)
 
 	# Outer cyan ring
-	var outline_alpha = (0.85 + 0.15 * measured_pulse) * anim_alpha
+	var outline_alpha = 0.95 * anim_alpha
 	add_arc_layer(pos, base_radius * 1.08 * anim_scale, 0, TAU, 5.0,
 		Color(0.0, 1.0, 1.0, outline_alpha))
 

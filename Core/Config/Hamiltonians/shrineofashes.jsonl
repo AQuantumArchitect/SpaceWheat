@@ -1,0 +1,24 @@
+# ╔════════════════════════════════════════════════════════════════════════╗
+# ║  ShrineOfAshes Hamiltonian Profile — differential tuning layer        ║
+# ╚════════════════════════════════════════════════════════════════════════╝
+#
+# "Urns glow by candlelight; prayer beads count the dead."
+#
+# All values ADD to the normalized faction baseline (all 89 factions at 1.0).
+#
+# Axes:
+#   Q0: ⚱/🕯 — Urn/Candle — FROZEN, Δ=-0.757, cosine@8s driver
+#   Q1: 📿/💀 — Beads/Skull — FROZEN, Δ=+0.537
+#
+
+# ─── Self-energy corrections ─────────────────────────────────────────────
+{"op":"set","path":"self_energies.⚱","value":0.2}
+{"op":"set","path":"self_energies.🕯","value":-0.2}
+
+# ─── Rabi coupling corrections ───────────────────────────────────────────
+{"op":"set","path":"couplings.⚱.🕯","value":0.35}
+{"op":"set","path":"couplings.📿.💀","value":0.4}
+
+# ─── New cross-axis couplings ────────────────────────────────────────────
+{"op":"set","path":"couplings.⚱.📿","value":0.3}
+{"op":"set","path":"couplings.🕯.💀","value":0.25}

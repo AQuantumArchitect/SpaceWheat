@@ -17,6 +17,7 @@ const PlotGridDisplay = preload("res://UI/PlotGridDisplay.gd")
 const ResourcePanel = preload("res://UI/Widgets/ResourcePanel.gd")
 const QuantumModeStatusIndicator = preload("res://UI/Widgets/QuantumModeStatusIndicator.gd")
 const GridConfig = preload("res://Core/GameState/GridConfig.gd")
+const VerboseHelper = preload("res://Core/Config/VerboseHelper.gd")
 
 var farm: Node
 var grid_config: GridConfig
@@ -33,13 +34,17 @@ var debug_layout_visible: bool = false
 var debug_label: Label = null
 
 
+func _log_debug(message: String) -> void:
+	VerboseHelper.debug("ui", "farm", message)
+
+
 func _ready() -> void:
 	"""FarmUI scene is ready - get references to child nodes and setup layout.
 
 	NOTE: Farm setup (setup_farm()) will be called by BootManager after all
 	dependencies are guaranteed to exist. We only initialize scene structure here.
 	"""
-	print("🎮 FarmUI initializing from scene...")
+	_log_debug("🎮 FarmUI initializing from scene...")
 
 	# Ensure FarmUI is properly sized to fill parent (using anchors)
 	set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -51,7 +56,7 @@ func _ready() -> void:
 
 	# Quantum mode status indicator removed - no longer needed in Phase 2 UI
 
-	print("   ✅ All child nodes referenced")
+	_log_debug("   ✅ All child nodes referenced")
 
 	if layout_manager:
 		inject_layout_manager(layout_manager)
@@ -68,19 +73,19 @@ func _ready() -> void:
 	var main_container = get_node_or_null("MainContainer")
 	if main_container:
 		main_container.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		print("   ✅ MainContainer mouse_filter set to IGNORE for plot tile input")
+		_log_debug("   ✅ MainContainer mouse_filter set to IGNORE for plot tile input")
 
 	# Apply responsive sizing BEFORE layout engine runs (critical - must happen in _ready)
 	_apply_parametric_sizing()
 
 	# DEBUG: Add info about toggling debug display
-	print("💡 Press F3 to toggle layout debug display")
-	print("   ⏳ Waiting for BootManager to call setup_farm()...")
+	_log_debug("💡 Press F3 to toggle layout debug display")
+	_log_debug("   ⏳ Waiting for BootManager to call setup_farm()...")
 
 
 func setup_farm(farm_ref: Node) -> void:
 	"""Configure FarmUI for a specific farm (called after scene instantiation)"""
-	print("📂 Loading farm into FarmUI...")
+	_log_debug("📂 Loading farm into FarmUI...")
 
 	farm = farm_ref
 	grid_config = farm.grid_config if farm else null
@@ -89,7 +94,7 @@ func setup_farm(farm_ref: Node) -> void:
 	if farm and farm.economy and resource_panel:
 		if resource_panel.has_method("connect_to_economy"):
 			resource_panel.connect_to_economy(farm.economy)
-			print("   ✅ ResourcePanel wired to economy")
+			_log_debug("   ✅ ResourcePanel wired to economy")
 		else:
 			push_warning("FarmUI.setup_farm: resource_panel has no connect_to_economy()")
 
@@ -104,9 +109,9 @@ func setup_farm(farm_ref: Node) -> void:
 		if farm.has_signal("action_rejected"):
 			if not farm.action_rejected.is_connected(plot_grid_display.show_rejection_effect):
 				farm.action_rejected.connect(plot_grid_display.show_rejection_effect)
-				print("   📡 Connected to farm.action_rejected for visual feedback")
+				_log_debug("   📡 Connected to farm.action_rejected for visual feedback")
 
-		print("   ✅ PlotGridDisplay wired to farm")
+		_log_debug("   ✅ PlotGridDisplay wired to farm")
 
 	# Action bars (ToolSelectionRow, ActionPreviewRow) are now managed by PlayerShell's ActionBarManager
 	# Signal connections are handled in PlayerShell.load_farm_ui()
@@ -121,9 +126,9 @@ func setup_farm(farm_ref: Node) -> void:
 	# Wire plot selection changes
 	if plot_grid_display and plot_grid_display.has_signal("selection_count_changed"):
 		plot_grid_display.selection_count_changed.connect(_on_selection_changed)
-		print("   📡 Connected to plot selection changes")
+		_log_debug("   📡 Connected to plot selection changes")
 
-	print("✅ FarmUI farm setup complete")
+	_log_debug("✅ FarmUI farm setup complete")
 	farm_setup_complete.emit()  # Signal PlayerShell that input_handler is ready
 
 
@@ -152,7 +157,7 @@ func _select_tool(tool_num: int) -> void:
 	"""Switch to a different tool (UI-driven)."""
 	current_tool = tool_num
 	# Action bars are updated via PlayerShell's ActionBarManager
-	print("🔧 Tool changed to %d" % tool_num)
+	_log_debug("🔧 Tool changed to %d" % tool_num)
 
 
 func _on_tool_selected(tool_num: int) -> void:
@@ -164,9 +169,9 @@ func _on_selection_changed(count: int) -> void:
 	"""Handle plot selection changes"""
 	var has_selection = count > 0
 	if has_selection:
-		print("✅ %d plot(s) selected - Q/E/R actions available" % count)
+		_log_debug("✅ %d plot(s) selected - Q/E/R actions available" % count)
 	else:
-		print("❌ No plots selected - Q/E/R actions disabled")
+		_log_debug("❌ No plots selected - Q/E/R actions disabled")
 
 
 func _apply_parametric_sizing() -> void:
@@ -257,4 +262,4 @@ func _create_quantum_mode_indicator() -> void:
 	# Enable input processing for the indicator
 	quantum_mode_indicator.mouse_filter = Control.MOUSE_FILTER_PASS
 
-	print("   ✅ Quantum mode status indicator created (top-right corner)")
+	_log_debug("   ✅ Quantum mode status indicator created (top-right corner)")

@@ -1,0 +1,36 @@
+# ╔════════════════════════════════════════════════════════════════════════╗
+# ║  CyberDebtMegacity Hamiltonian Profile — differential tuning layer    ║
+# ╚════════════════════════════════════════════════════════════════════════╝
+#
+# "Chains bind debtors; crowds seek keys as detectives hunt the dead. Blood fuels rockets while money grinds gears. Fists and flags resist."
+#
+# All values ADD to the normalized faction baseline (all 89 factions at 1.0).
+#
+# Axes:
+#   Q0: ⛓/💸 — Chains/Debt — alive (33.6%), Rabi=1.177
+#   Q1: 👥/🗝 — Crowd/Key — FROZEN, Δ=-1.364 (🗝 dominates)
+#   Q2: 🕵/💀 — Detective/Skull — alive (16.7%), Rabi=0.445
+#   Q3: 🩸/🚀 — Blood/Rocket — FROZEN, Δ=-0.340, pulse@25s
+#   Q4: 💰/⚙ — Money/Gears — FROZEN, Δ=+1.557 (both massive)
+#   Q5: ✊/🚩 — Fist/Flag — alive (42.7%), Rabi=1.007
+
+# ─── Self-energy corrections ─────────────────────────────────────────────
+{"op":"set","path":"self_energies.👥","value":0.4}
+{"op":"set","path":"self_energies.🗝","value":-0.4}
+{"op":"set","path":"self_energies.💀","value":0.2}
+{"op":"set","path":"self_energies.💰","value":-1.0}
+
+# ─── Rabi coupling corrections ───────────────────────────────────────────
+{"op":"set","path":"couplings.👥.🗝","value":0.4}
+{"op":"set","path":"couplings.🩸.🚀","value":0.35}
+{"op":"set","path":"couplings.💰.⚙","value":0.4}
+
+# ─��─ Cross-axis moderations ──────────────────────────────────────────────
+# ⛓↔👥: fac=2.306 → target 0.500
+{"op":"set","path":"couplings.⛓.👥","value":-1.806}
+# 👥↔💸: fac=1.201 → target 0.450
+{"op":"set","path":"couplings.👥.💸","value":-0.751}
+# ⚙↔🚀: fac=1.687 → target 0.500
+{"op":"set","path":"couplings.⚙.🚀","value":-1.187}
+# 💰↔🗝: fac=1.480 → target 0.450
+{"op":"set","path":"couplings.💰.🗝","value":-1.030}

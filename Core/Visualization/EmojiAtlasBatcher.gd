@@ -1,7 +1,9 @@
 class_name EmojiAtlasBatcher
 extends RefCounted
 
+const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")
 const TieredEmojiRegistry = preload("res://Core/Visualization/TieredEmojiRegistry.gd")
+const VerboseHelper = preload("res://Core/Config/VerboseHelper.gd")
 
 ## Emoji Atlas Batcher - GPU-Accelerated Emoji Rendering
 ##
@@ -73,14 +75,15 @@ var _visual_asset_registry = null
 # NEW: Three-tier emoji registry (hand-crafted → twemoji → text)
 var _tiered_emoji_registry = null
 
-# Cache for persistent atlas storage
-var _atlas_cache = null
-
 # Verbose config (for gating per-frame logs)
 var _verbose_config = null
 
 # Track text fallback warnings for batch reporting
 var _fallback_warnings: Dictionary = {}  # emoji → count
+
+
+func _log_debug(message: String) -> void:
+	VerboseHelper.debug("viz", "atlas", message)
 
 
 func _init():
@@ -198,7 +201,7 @@ func build_atlas(emoji_list: Array, font_size: int = 48) -> bool:
 	_atlas_built = true
 
 	var elapsed = Time.get_ticks_msec() - start_time
-	print("[EmojiAtlasBatcher] Atlas built: %dx%d (%d emojis) in %dms" % [
+	_log_debug("[EmojiAtlasBatcher] Atlas built: %dx%d (%d emojis) in %dms" % [
 		_atlas_width, _atlas_height, _emoji_uvs.size(), elapsed
 	])
 
@@ -274,12 +277,12 @@ func build_atlas_async(emoji_list: Array, parent_node: Node, font_size: int = 48
 	Must be called from scene tree context (e.g., during _ready).
 	Uses coroutines to avoid blocking.
 	"""
-	print("[EmojiAtlasBatcher] build_atlas_async called with %d emojis" % emoji_list.size())
+	_log_debug("[EmojiAtlasBatcher] build_atlas_async called with %d emojis" % emoji_list.size())
 	if emoji_list.is_empty():
 		push_warning("[EmojiAtlasBatcher] No emojis provided for atlas")
 		return
 
-	print("[EmojiAtlasBatcher] Starting to process emojis: %s" % str(emoji_list))
+	_log_debug("[EmojiAtlasBatcher] Starting to process emojis: %s" % str(emoji_list))
 	var start_time = Time.get_ticks_msec()
 
 	# Calculate atlas dimensions
@@ -382,13 +385,13 @@ func build_atlas_async(emoji_list: Array, parent_node: Node, font_size: int = 48
 			_emoji_cells[normalized_emoji] = cell_index
 			successful_count += 1
 		else:
-			print("[EmojiAtlasBatcher] DEBUG: emoji_image is null for '%s' (svg=%s, vp=%s, failed=%s)" % [emoji, svg_count, viewport_count, failed_count])
+			_log_debug("[EmojiAtlasBatcher] DEBUG: emoji_image is null for '%s' (svg=%s, vp=%s, failed=%s)" % [emoji, svg_count, viewport_count, failed_count])
 
 		cell_index += 1
 
 	# Log rendering breakdown
-	print("[EmojiAtlasBatcher] Rendering breakdown: SVG=%d, Viewport=%d, Failed=%d, Total=%d" % [svg_count, viewport_count, failed_count, emoji_list.size()])
-	print("[EmojiAtlasBatcher] Stored %d emojis in UV map:" % _emoji_uvs.size())
+	_log_debug("[EmojiAtlasBatcher] Rendering breakdown: SVG=%d, Viewport=%d, Failed=%d, Total=%d" % [svg_count, viewport_count, failed_count, emoji_list.size()])
+	_log_debug("[EmojiAtlasBatcher] Stored %d emojis in UV map:" % _emoji_uvs.size())
 
 	# Track which emojis failed
 	var failed_emojis: Array = []
@@ -398,14 +401,14 @@ func build_atlas_async(emoji_list: Array, parent_node: Node, font_size: int = 48
 			failed_emojis.append(emoji)
 
 	if failed_emojis.size() > 0:
-		print("[EmojiAtlasBatcher] ⚠️ Failed to render %d emojis (will use text fallback):" % failed_emojis.size())
+		_log_debug("[EmojiAtlasBatcher] ⚠️ Failed to render %d emojis (will use text fallback):" % failed_emojis.size())
 		for e in failed_emojis:
-			print("  - '%s'" % e)
+			_log_debug("  - '%s'" % e)
 
 	# List successfully stored emojis (only if not too many)
 	if _emoji_uvs.size() <= 50:
 		for e in _emoji_uvs.keys():
-			print("  ✓ '%s'" % e)
+			_log_debug("  ✓ '%s'" % e)
 
 	# Cleanup viewport
 	viewport.queue_free()
@@ -415,26 +418,26 @@ func build_atlas_async(emoji_list: Array, parent_node: Node, font_size: int = 48
 	_atlas_built = true
 
 	var elapsed = Time.get_ticks_msec() - start_time
-	print("[EmojiAtlasBatcher] 🎨 Atlas built: %dx%d (%d emojis) in %dms" % [
+	_log_debug("[EmojiAtlasBatcher] 🎨 Atlas built: %dx%d (%d emojis) in %dms" % [
 		_atlas_width, _atlas_height, _emoji_uvs.size(), elapsed
 	])
 
 	# NEW: Report text fallback usage
 	if _fallback_warnings.size() > 0:
-		print("")
-		print("⚠️ EMOJI TEXT FALLBACK REPORT:")
+		_log_debug("")
+		_log_debug("⚠️ EMOJI TEXT FALLBACK REPORT:")
 		var sorted_emojis = _fallback_warnings.keys()
 		sorted_emojis.sort()
 		for emoji in sorted_emojis:
 			var count = _fallback_warnings[emoji]
-			print("  '%s' rendered as text (%d time%s)" % [emoji, count, "s" if count > 1 else ""])
-		print("  Consider adding these to Assets/emoji_svg/ or Assets/UI/")
-		print("")
+			_log_debug("  '%s' rendered as text (%d time%s)" % [emoji, count, "s" if count > 1 else ""])
+		_log_debug("  Consider adding these to Assets/emoji_svg/ or Assets/UI/")
+		_log_debug("")
 
 	# NEW: Print tiered registry statistics
 	if _tiered_emoji_registry:
 		_tiered_emoji_registry.print_statistics()
-		print("")
+		_log_debug("")
 
 	# Early warning: Check VisualAssetRegistry for missing SVG files (DEPRECATED)
 	if _visual_asset_registry:
@@ -454,12 +457,7 @@ func build_atlas_async(emoji_list: Array, parent_node: Node, font_size: int = 48
 
 
 func build_atlas_cached(emoji_list: Array, parent_node: Node, font_size: int = 48) -> void:
-	"""Build atlas with cache support (preferred method).
-
-	Attempts to load from cache first. On cache miss, builds from scratch
-	and saves to cache for next boot.
-
-	This is the RECOMMENDED entry point for atlas building.
+	"""Build atlas through the live renderer.
 
 	Args:
 		emoji_list: Array of emoji strings to include
@@ -467,7 +465,7 @@ func build_atlas_cached(emoji_list: Array, parent_node: Node, font_size: int = 4
 		font_size: Font size for rendering (default 48)
 	"""
 	var start_time = Time.get_ticks_msec()
-	print("[EmojiAtlasBatcher] build_atlas_cached called with %d emojis" % emoji_list.size())
+	VerboseHelper.debug("viz", "atlas", "[EmojiAtlasBatcher] build_atlas_cached called with %d emojis" % emoji_list.size())
 
 	if emoji_list.is_empty():
 		push_warning("[EmojiAtlasBatcher] No emojis provided for atlas")
@@ -476,76 +474,20 @@ func build_atlas_cached(emoji_list: Array, parent_node: Node, font_size: int = 4
 	# Skip building in headless mode (can't render SubViewport without display)
 	var is_headless = DisplayServer.get_name() == "headless"
 	if is_headless:
-		print("[EmojiAtlasBatcher] Headless mode - skipping atlas build")
+		VerboseHelper.debug("viz", "atlas", "[EmojiAtlasBatcher] Headless mode - skipping atlas build")
 		_atlas_built = false
 		return
 
-	# Initialize cache if needed
-	if not _atlas_cache:
-		var CacheClass = load("res://Core/Visualization/EmojiAtlasCache.gd")
-		_atlas_cache = CacheClass.new()
-
-	# Try loading from cache
-	var cache_result = _atlas_cache.try_load(emoji_list, font_size)
-
-	if cache_result.success:
-		# Cache HIT - use cached data
-		_atlas_image = cache_result.atlas_image
-		_emoji_uvs = cache_result.emoji_uvs
-		_atlas_width = cache_result.atlas_width
-		_atlas_height = cache_result.atlas_height
-		_cells_per_row = cache_result.cells_per_row
-
-		# Rebuild emoji_cells from emoji_uvs (needed for some internal operations)
-		var cell_index = 0
-		for emoji in _emoji_uvs.keys():
-			_emoji_cells[emoji] = cell_index
-			cell_index += 1
-
-		# Create GPU texture from cached image
-		_atlas_texture = ImageTexture.create_from_image(_atlas_image)
-		_atlas_built = true
-
-		var elapsed = Time.get_ticks_msec() - start_time
-		print("[EmojiAtlasBatcher] ⚡ Loaded from %s (%d emojis, %dx%d) in %dms" % [
-			cache_result.source,
-			_emoji_uvs.size(),
-			_atlas_width,
-			_atlas_height,
-			elapsed
-		])
-		return
-
-	# Cache MISS - build from scratch
-	print("[EmojiAtlasBatcher] Cache miss - building atlas from scratch...")
 	var build_start = Time.get_ticks_msec()
 	build_atlas_async(emoji_list, parent_node, font_size)
 	var build_elapsed = Time.get_ticks_msec() - build_start
 
-	# Save to cache after building
-	if _atlas_built and _atlas_image:
-		var save_success = _atlas_cache.save(
-			emoji_list,
-			font_size,
-			_atlas_image,
-			_emoji_uvs,
-			_atlas_width,
-			_atlas_height,
-			_cells_per_row
-		)
-		if save_success:
-			print("[EmojiAtlasBatcher] ✓ Saved to cache for next boot")
-		else:
-			push_warning("[EmojiAtlasBatcher] Failed to save atlas to cache")
-
 	var total_elapsed = Time.get_ticks_msec() - start_time
-	print("[EmojiAtlasBatcher] Total time: %dms (build: %dms)" % [total_elapsed, build_elapsed])
+	VerboseHelper.debug("viz", "atlas", "[EmojiAtlasBatcher] Total time: %dms (build: %dms)" % [total_elapsed, build_elapsed])
 
 
 func get_cache_stats() -> Dictionary:
 	"""Get cache statistics for monitoring."""
-	if _atlas_cache:
-		return _atlas_cache.get_stats()
 	return {}
 
 
@@ -789,7 +731,7 @@ func flush_text_fallbacks(graph: Node2D) -> void:
 			var count = emoji_list.size()
 			emoji_list.sort()  # Sort for consistent message
 			var emojis_str = " ".join(emoji_list) if count <= 10 else "%d emojis" % count
-			print("[EmojiAtlasBatcher] ℹ️  %d emoji(s) missing from atlas, rendering as text boxes: %s" % [count, emojis_str])
+			_log_debug("[EmojiAtlasBatcher] ℹ️  %d emoji(s) missing from atlas, rendering as text boxes: %s" % [count, emojis_str])
 
 	_text_fallback_queue.clear()
 
@@ -900,7 +842,5 @@ func release_resources() -> void:
 	_geometry_batcher = null
 	_visual_asset_registry = null
 	_tiered_emoji_registry = null
-	_atlas_cache = null
 	_verbose_config = null
 	_atlas_built = false
-const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")

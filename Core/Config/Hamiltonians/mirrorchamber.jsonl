@@ -1,0 +1,23 @@
+# ╔════════════════════════════════════════════════════════════════════════╗
+# ║  MirrorChamber Hamiltonian Profile — differential tuning layer        ║
+# ╚════════════════════════════════════════════════════════════════════════╝
+#
+# "Reflections of shadow dance by candlelight in endless darkness."
+#
+# All values ADD to the normalized faction baseline (all 89 factions at 1.0).
+#
+# Axes:
+#   Q0: 🪞/👤 — Mirror/Shadow — alive (34.5%), Rabi=0.690, Δ=+0.451
+#   Q1: 🕯/🌑 — Candle/Darkness — FROZEN, Δ=+1.615, has cosine@8s driver
+#
+
+# ─── Self-energy corrections ─────────────────────────────────────────────
+{"op":"set","path":"self_energies.🕯","value":-0.5}
+{"op":"set","path":"self_energies.🌑","value":0.5}
+
+# ─── Rabi coupling corrections ───────────────────────────────────────────
+{"op":"set","path":"couplings.🕯.🌑","value":0.5}
+
+# ─── New cross-axis couplings ────────────────────────────────────────────
+{"op":"set","path":"couplings.🪞.🕯","value":0.3}
+{"op":"set","path":"couplings.👤.🌑","value":0.25}

@@ -1,0 +1,27 @@
+# ╔════════════════════════════════════════════════════════════════════════╗
+# ║  EnforcementPost Hamiltonian Profile — differential tuning layer      ║
+# ╚════════════════════════════════════════════════════════════════════════╝
+#
+# "Police cars and locks; chains rattle as paperwork piles up."
+#
+# All values ADD to the normalized faction baseline (all 89 factions at 1.0).
+#
+# Axes:
+#   Q0: 🚔/🔓 — Police/Lock — FROZEN, Δ=-0.031 (near-degenerate)
+#   Q1: ⛓/📋 — Chains/Clipboard — FROZEN, Δ=-0.257
+#
+
+# ─── Self-energy corrections ─────────────────────────────────────────────
+{"op":"set","path":"self_energies.🚔","value":0.15}
+{"op":"set","path":"self_energies.🔓","value":-0.1}
+
+# ─── Rabi coupling corrections ───────────────────────────────────────────
+{"op":"set","path":"couplings.🚔.🔓","value":0.3}
+{"op":"set","path":"couplings.⛓.📋","value":0.35}
+
+# ─── Cross-axis moderations ──────────────────────────────────────────────
+# ⛓↔🔓: fac=1.190 → target 0.450
+{"op":"set","path":"couplings.⛓.🔓","value":-0.740}
+
+# ─── New cross-axis couplings ────────────────────────────────────────────
+{"op":"set","path":"couplings.🚔.📋","value":0.3}

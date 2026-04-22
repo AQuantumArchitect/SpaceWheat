@@ -1,0 +1,23 @@
+# ╔════════════════════════════════════════════════════════════════════════╗
+# ║  TradingFloor Hamiltonian Profile — differential tuning layer         ║
+# ╚════════════════════════════════════════════════════════════════════════╝
+#
+# "Bulls and bears clash; charts and currencies track the chaos."
+#
+# All values ADD to the normalized faction baseline (all 89 factions at 1.0).
+#
+# Axes:
+#   Q0: 🐂/🐻 — Bull/Bear — alive (36.6%), has sine@60s driver
+#   Q1: 📊/💱 — Charts/Currency — FROZEN, Δ=-0.039 (near-degenerate)
+#
+
+# ─── Self-energy corrections ─────────────────────────────────────────────
+{"op":"set","path":"self_energies.📊","value":0.1}
+{"op":"set","path":"self_energies.💱","value":-0.1}
+
+# ─── Rabi coupling corrections ───────────────────────────────────────────
+{"op":"set","path":"couplings.📊.💱","value":0.3}
+
+# ─── New cross-axis couplings ────────────────────────────────────────────
+{"op":"set","path":"couplings.🐂.📊","value":0.3}
+{"op":"set","path":"couplings.🐻.💱","value":0.25}

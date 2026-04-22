@@ -1,0 +1,21 @@
+# ╔════════════════════════════════════════════════════════════════════════╗
+# ║  VolcanicWorlds Hamiltonian Profile — final target values             ║
+# ╚════════════════════════════════════════════════════════════════════════╝
+#
+# "Fire melts rock to reveal gems; volcanic mist hides cosmic sparkle."
+#
+# Axes:
+#   Q0: 🔥/🪨 — Fire/Rock
+#   Q1: 💎/⛏ — Gem/Pickaxe
+#   Q2: 🌫/✨ — Mist/Sparkle
+#
+# Rabi couplings set as final target values (SET semantics).
+# Self-energies come from faction baseline.
+
+# ─── On-axis Rabi couplings ──────────────────────────────────────────────
+{"op":"set","path":"couplings.🔥.🪨","value":0.2}
+{"op":"set","path":"couplings.🪨.🔥","value":0.2}
+{"op":"set","path":"couplings.💎.⛏","value":0.1}
+{"op":"set","path":"couplings.⛏.💎","value":0.1}
+{"op":"set","path":"couplings.🌫.✨","value":0.15}
+{"op":"set","path":"couplings.✨.🌫","value":0.15}

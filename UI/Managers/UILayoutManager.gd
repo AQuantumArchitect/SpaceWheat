@@ -7,6 +7,7 @@ extends Node
 
 # Preload GridConfig (Phase 5)
 const GridConfig = preload("res://Core/GameState/GridConfig.gd")
+const VerboseHelper = preload("res://Core/Config/VerboseHelper.gd")
 
 # Base resolution for design (all proportions calculated from this)
 const BASE_RESOLUTION = Vector2(960, 540)  # Static viewport base resolution
@@ -42,7 +43,7 @@ const OVERLAY_LARGE_MAX_WIDTH = 940
 const OVERLAY_LARGE_MAX_HEIGHT = 760
 
 # Action bar constants (consolidated from ActionBarManager)
-const ACTION_ROW_HEIGHT_PERCENT = 0.13  # 13% of viewport height
+const ACTION_ROW_HEIGHT_PERCENT = 0.10  # 10% of viewport height
 const ACTION_ROW_MIN_HEIGHT = 55        # Minimum height in pixels
 const ACTION_ROW_MAX_PERCENT = 0.40     # Max 40% of viewport for both rows combined
 
@@ -66,6 +67,10 @@ var play_area_rect: Rect2  # x, y, width, height (quantum graph area)
 var play_area_inner_rect: Rect2  # After applying margins
 var plots_row_rect: Rect2  # PCB-style component placement row
 var actions_row_rect: Rect2  # Action buttons row
+
+
+func _log_debug(message: String) -> void:
+	VerboseHelper.debug("ui", "layout", message)
 
 # Breakpoint-based scaling
 enum ScaleBreakpoint { MOBILE, HD, FHD, QHD, UHD_4K }
@@ -96,7 +101,7 @@ func _detect_input_mode():
 		# For web, check user agent
 		is_touch_device = is_touch_device or _detect_mobile_browser()
 
-	print("UILayoutManager: Input mode detected - %s" % ("TOUCH" if is_touch_device else "MOUSE"))
+	_log_debug("UILayoutManager: Input mode detected - %s" % ("TOUCH" if is_touch_device else "MOUSE"))
 	input_mode_changed.emit(is_touch_device)
 
 
@@ -118,7 +123,7 @@ func inject_grid_config(config: GridConfig) -> void:
 
 	grid_config = config
 	_recalculate_layout_percentages()
-	print("💉 GridConfig injected into UILayoutManager")
+	_log_debug("💉 GridConfig injected into UILayoutManager")
 
 
 func _recalculate_layout_percentages() -> void:
@@ -134,7 +139,7 @@ func _recalculate_layout_percentages() -> void:
 	# Cap at 35% max (don't let plots dominate screen)
 	plots_row_height_percent = min(plots_row_height_percent, 0.35)
 
-	print("📐 Plots row height recalculated: %.1f%% (grid: %d rows)" %
+	_log_debug("📐 Plots row height recalculated: %.1f%% (grid: %d rows)" %
 		[plots_row_height_percent * 100, grid_config.grid_height])
 
 
@@ -173,7 +178,7 @@ func _calculate_scale_factor():
 	if is_touch_device and scale_factor < 1.0:
 		scale_factor = 1.0
 
-	print("UILayoutManager: Viewport=%s, Scale=%.2f×, Breakpoint=%s" % [
+	_log_debug("UILayoutManager: Viewport=%s, Scale=%.2f×, Breakpoint=%s" % [
 		viewport_size, scale_factor, ScaleBreakpoint.keys()[current_breakpoint]
 	])
 
@@ -210,12 +215,12 @@ func _calculate_layout_dimensions():
 	actions_row_rect = Rect2(0, actions_row_y, viewport_size.x, actions_row_height)
 
 	# DEBUG: Verify layout fits within viewport
-	print("📐 Layout breakdown (parametric):")
-	print("  Top bar: %.1fpx (0%% to %d%%)" % [top_bar_height, int(TOP_BAR_HEIGHT_PERCENT * 100)])
-	print("  Play area: %.1fpx (%d%% to %d%%)" % [play_area_height, int(TOP_BAR_HEIGHT_PERCENT * 100), int((TOP_BAR_HEIGHT_PERCENT + PLAY_AREA_PERCENT) * 100)])
-	print("  Plots row: %.1fpx (%d%% to %d%%)" % [plots_row_height, int((TOP_BAR_HEIGHT_PERCENT + PLAY_AREA_PERCENT) * 100), int((TOP_BAR_HEIGHT_PERCENT + PLAY_AREA_PERCENT + plots_row_height_percent) * 100)])
-	print("  Actions row: %.1fpx (%d%% to 100%%)" % [actions_row_height, int((TOP_BAR_HEIGHT_PERCENT + PLAY_AREA_PERCENT + plots_row_height_percent) * 100)])
-	print("  Total: %.1fpx (should equal viewport height: %.1fpx)" % [top_bar_height + play_area_height + plots_row_height + actions_row_height, viewport_size.y])
+	_log_debug("📐 Layout breakdown (parametric):")
+	_log_debug("  Top bar: %.1fpx (0%% to %d%%)" % [top_bar_height, int(TOP_BAR_HEIGHT_PERCENT * 100)])
+	_log_debug("  Play area: %.1fpx (%d%% to %d%%)" % [play_area_height, int(TOP_BAR_HEIGHT_PERCENT * 100), int((TOP_BAR_HEIGHT_PERCENT + PLAY_AREA_PERCENT) * 100)])
+	_log_debug("  Plots row: %.1fpx (%d%% to %d%%)" % [plots_row_height, int((TOP_BAR_HEIGHT_PERCENT + PLAY_AREA_PERCENT) * 100), int((TOP_BAR_HEIGHT_PERCENT + PLAY_AREA_PERCENT + plots_row_height_percent) * 100)])
+	_log_debug("  Actions row: %.1fpx (%d%% to 100%%)" % [actions_row_height, int((TOP_BAR_HEIGHT_PERCENT + PLAY_AREA_PERCENT + plots_row_height_percent) * 100)])
+	_log_debug("  Total: %.1fpx (should equal viewport height: %.1fpx)" % [top_bar_height + play_area_height + plots_row_height + actions_row_height, viewport_size.y])
 
 
 func _emit_layout_change():

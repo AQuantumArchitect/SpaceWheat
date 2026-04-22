@@ -1,0 +1,28 @@
+# ╔════════════════════════════════════════════════════════════════════════╗
+# ║  GildedRot Hamiltonian Profile — differential tuning layer            ║
+# ╚════════════════════════════════════════════════════════════════════════╝
+#
+# "Crown and crest gild the rot; wine and roses mask theatre as eagles bleed over fading scrolls."
+#
+# All values ADD to the normalized faction baseline (all 89 factions at 1.0).
+#
+# Axes:
+#   Q0: 👑/⚜ — Crown/Crest — FROZEN, Δ=-0.479, 👑 orphan
+#   Q1: 🍷/🌹 — Wine/Rose — near-degen (49.2%), Rabi=1.088
+#   Q2: 🎭/💃 — Theatre/Dancer — alive (41.8%), sine@4s
+#   Q3: 🦅/🩸 — Eagle/Blood — low (13.7%), Rabi=0.169
+#   Q4: 📜/🥀 — Scroll/WiltedRose — FROZEN, Δ=+0.651
+
+# ─── Self-energy corrections ─────────────────────────────────────────────
+{"op":"set","path":"self_energies.🍷","value":0.5}
+
+# ─── Rabi coupling corrections ───────────────────────────────────────────
+{"op":"set","path":"couplings.👑.⚜","value":0.35}
+{"op":"set","path":"couplings.🦅.🩸","value":0.25}
+{"op":"set","path":"couplings.📜.🥀","value":0.45}
+
+# ─��─ Cross-axis moderations ──────────────────────────────────────────────
+# 🌹↔🥀: fac=0.902 → target 0.400
+{"op":"set","path":"couplings.🌹.🥀","value":-0.502}
+# 🍷↔🎭: fac=0.740 → target 0.400
+{"op":"set","path":"couplings.🍷.🎭","value":-0.340}

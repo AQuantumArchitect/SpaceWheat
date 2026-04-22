@@ -1,0 +1,21 @@
+# ╔════════════════════════════════════════════════════════════════════════╗
+# ║  StellarForges Hamiltonian Profile — final target values              ║
+# ╚════════════════════════════════════════════════════════════════════════╝
+#
+# "Lightning charges batteries in stellar furnaces; gears bolt rockets to saucers."
+#
+# Axes:
+#   Q0: ⚡/🔋 — Lightning/Battery
+#   Q1: ⚙/🔩 — Gear/Bolt
+#   Q2: 🚀/🛸 — Rocket/Saucer
+#
+# Rabi couplings set as final target values (SET semantics).
+# Self-energies come from faction baseline.
+
+# ─── On-axis Rabi couplings ──────────────────────────────────────────────
+{"op":"set","path":"couplings.⚡.🔋","value":0.3}
+{"op":"set","path":"couplings.🔋.⚡","value":0.3}
+{"op":"set","path":"couplings.⚙.🔩","value":0.2}
+{"op":"set","path":"couplings.🔩.⚙","value":0.2}
+{"op":"set","path":"couplings.🚀.🛸","value":0.15}
+{"op":"set","path":"couplings.🛸.🚀","value":0.15}

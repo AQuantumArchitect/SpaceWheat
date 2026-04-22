@@ -31,19 +31,13 @@ const VocabularyEvolution = preload("res://Core/QuantumSubstrate/VocabularyEvolu
 const BiomeDiscoveryForecastService = preload("res://Core/Gameplay/BiomeDiscoveryForecastService.gd")
 const ProbeActions = preload("res://Core/Actions/ProbeActions.gd")
 const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")
+const VerboseHelper = preload("res://Core/Config/VerboseHelper.gd")
 
 # Icon system moved to faction-based IconRegistry (no preload needed)
 
 # Core simulation systems
 var grid: FarmGrid
 var economy  # FarmEconomy type
-# Biome instances (may be null if script failed to load)
-var biotic_flux_biome = null
-var stellar_forges_biome = null
-var fungal_networks_biome = null
-var volcanic_worlds_biome = null
-var starter_forest_biome = null
-var village_biome = null
 var _loaded_biome_count: int = 0  # Track how many biomes loaded successfully
 var vocabulary_evolution: VocabularyEvolution  # Vocabulary evolution system
 var known_pairs: Array = []  # Player vocabulary pairs (canonical, farm-owned)
@@ -62,6 +56,11 @@ var biome_evolution_batcher: BiomeEvolutionBatcherClass = null  # Batched quantu
 # PERFORMANCE: Cached mushroom count (avoid O(n) iteration every frame)
 var _cached_mushroom_count: int = 0
 var _mushroom_count_dirty: bool = true  # Set true when plots change
+
+
+func _log_debug(message: String) -> void:
+	VerboseHelper.debug("farm", "farm", message)
+
 
 func invalidate_mushroom_cache() -> void:
 	"""Call when plots are planted/harvested to recalculate mushroom count on next frame"""
@@ -103,32 +102,21 @@ func _finalize_biome_evolution_batcher() -> void:
 	"""Finalize batched biome evolution setup after all biomes are loaded.
 
 	The batcher was created before biome loading and biomes were registered
-	during BootManager.load_biome(). Now we just disable individual biome
-	_process() to prevent double evolution.
+	during BootManager.load_biome(). The batcher owns biome process state; this
+	finalizer only verifies every loaded biome reached that single owner.
 	"""
 	if not biome_evolution_batcher:
 		push_warning("Farm: Batcher not initialized - cannot finalize")
 		return
 
-	# Disable individual biome _process() to prevent double evolution
-	# BiomeEvolutionBatcher handles both quantum evolution AND time_tracker updates
-	var all_biomes = [
-		biotic_flux_biome,
-		stellar_forges_biome,
-		fungal_networks_biome,
-		volcanic_worlds_biome,
-		starter_forest_biome,
-		village_biome
-	]
-
-	var disabled_count = 0
-	for biome in all_biomes:
+	var registered_count = 0
+	for biome_name in grid.get_biome_names():
+		var biome = grid.get_biome(biome_name)
 		if biome:
-			biome.set_meta("batched_evolution", true)
-			biome.set_process(false)  # Completely disable - batcher handles everything
-			disabled_count += 1
+			biome_evolution_batcher.register_biome(biome)
+			registered_count += 1
 
-	print("Farm: Biome evolution batcher finalized (%d biomes, 2/frame rotation)" % disabled_count)
+	_log_debug("Farm: Biome evolution batcher finalized (%d biomes verified)" % registered_count)
 
 
 # Configuration
@@ -143,14 +131,6 @@ const LINDBLAD_TIMESCALE_BASE_DT = 0.02
 const LINDBLAD_TIMESCALE_CAP = 4096.0
 const RAINBOW_DRAIN_MODE_DEFAULT = false
 const CORE_BIOMES: Array[String] = ["StarterForest", "Village"]
-const BIOME_FIELD_NAMES: Dictionary = {
-	"StarterForest": "starter_forest_biome",
-	"Village": "village_biome",
-	"BioticFlux": "biotic_flux_biome",
-	"StellarForges": "stellar_forges_biome",
-	"FungalNetworks": "fungal_networks_biome",
-	"VolcanicWorlds": "volcanic_worlds_biome"
-}
 
 # Dynamic row mappings (built from explored biome order)
 var biome_row_map: Dictionary = {}  # biome_name -> row index
@@ -193,14 +173,6 @@ signal biome_loaded(biome_name: String, biome_ref)
 signal biome_removed(biome_name: String)
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# STRUCTURE LIFECYCLE SIGNALS (BUILD mode actions)
-# These trigger plot tile updates in PlotGridDisplay
-# ═══════════════════════════════════════════════════════════════════════════════
-
-## Emitted when biome quantum system expands (new axis added)
-signal biome_expanded(biome_name: String, qubit_index: int, emoji_pair: Dictionary)
-
-# ═══════════════════════════════════════════════════════════════════════════════
 # Plot-facing visualization signals
 # These remain intentional because the player-facing UI is plot-oriented even
 # though the simulation/runtime path is terminal-oriented underneath.
@@ -213,7 +185,6 @@ signal plot_measured(position: Vector2i, outcome: String)
 # ═══════════════════════════════════════════════════════════════════════════════
 
 signal plots_entangled(pos1: Vector2i, pos2: Vector2i, bell_state: String)
-signal economy_changed(state: Dictionary)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -340,18 +311,14 @@ func _ready():
 		if boot_manager and boot_manager.has_method("load_biome"):
 			var result = boot_manager.load_biome(biome_name, self)
 			if result.get("success", false):
-				# Store biome reference in the correct variable
-				if BIOME_FIELD_NAMES.has(biome_name):
-					var var_name = BIOME_FIELD_NAMES[biome_name]
-					set(var_name, result.get("biome_ref"))
-					_loaded_biome_count += 1
+				_loaded_biome_count += 1
 			else:
 				_verbose.warn("boot", "⚠️", "Failed to load biome '%s': %s" % [biome_name, result.get("message", "unknown error")])
 
 	# Enable biome features if at least one biome loaded
 	if _loaded_biome_count > 0:
 		biome_enabled = true
-		print("Farm: %d biomes loaded successfully (via unified BootManager.load_biome)" % _loaded_biome_count)
+		_log_debug("Farm: %d biomes loaded successfully (via unified BootManager.load_biome)" % _loaded_biome_count)
 	else:
 		biome_enabled = false
 		push_error("Farm: no biomes loaded - aborting boot")
@@ -392,20 +359,8 @@ func _ready():
 	# NOTE: Biomes are already wired to grid by BootManager.load_biome()
 	# (No additional registration needed here - unified path handles it)
 
-	# Register loaded biomes as metadata for UI systems (QuantumForceGraph visualization)
+	# Register grid as metadata for UI systems
 	set_meta("grid", grid)
-	if biotic_flux_biome:
-		set_meta("biotic_flux_biome", biotic_flux_biome)
-	if stellar_forges_biome:
-		set_meta("stellar_forges_biome", stellar_forges_biome)
-	if starter_forest_biome:
-		set_meta("starter_forest_biome", starter_forest_biome)
-	if village_biome:
-		set_meta("village_biome", village_biome)
-	if fungal_networks_biome:
-		set_meta("fungal_networks_biome", fungal_networks_biome)
-	if volcanic_worlds_biome:
-		set_meta("volcanic_worlds_biome", volcanic_worlds_biome)
 
 	# Configure plot-to-biome assignments from GridConfig (biomes × plots)
 	# Row ordering matches BIOME_ORDER (StarterForest=0, Village=1, then unlocked biomes)
@@ -573,18 +528,10 @@ func rebuild_all_biome_operators() -> void:
 		return
 
 	_verbose.info("boot", "🔧", "Rebuilding operators for loaded biomes...")
-	if biotic_flux_biome:
-		biotic_flux_biome.rebuild_quantum_operators()
-	if stellar_forges_biome:
-		stellar_forges_biome.rebuild_quantum_operators()
-	if fungal_networks_biome:
-		fungal_networks_biome.rebuild_quantum_operators()
-	if volcanic_worlds_biome:
-		volcanic_worlds_biome.rebuild_quantum_operators()
-	if starter_forest_biome:
-		starter_forest_biome.rebuild_quantum_operators()
-	if village_biome:
-		village_biome.rebuild_quantum_operators()
+	for biome_name in grid.get_biome_names():
+		var biome = grid.get_biome(biome_name)
+		if biome and biome.has_method("rebuild_quantum_operators"):
+			biome.rebuild_quantum_operators()
 	_verbose.info("boot", "✓", "Loaded biome operators rebuilt")
 
 
@@ -610,10 +557,9 @@ func enable_simulation() -> void:
 
 	# Enable biome processing (only for non-batched biomes)
 	# Batched biomes stay disabled - BiomeEvolutionBatcher handles their updates
-	if biome_enabled:
-		var all_biomes = [biotic_flux_biome, stellar_forges_biome, fungal_networks_biome,
-						  volcanic_worlds_biome, starter_forest_biome, village_biome]
-		for biome in all_biomes:
+	if biome_enabled and grid:
+		for biome_name in grid.get_biome_names():
+			var biome = grid.get_biome(biome_name)
 			if biome and not biome.get_meta("batched_evolution", false):
 				biome.set_process(true)
 		if _verbose:
@@ -662,7 +608,7 @@ func time_skip_phrames(phrames: int, delta: float = PhysicsConfig.PHRAME_DT) -> 
 		return {"ok": true, "phrames": 0, "delta": dt}
 
 	if debug_time_skip:
-		print("[TIME_SKIP] begin steps=%d dt=%.6f skip_lindblad=%s" % [steps, dt, str(skip_lindblad)])
+		_log_debug("[TIME_SKIP] begin steps=%d dt=%.6f skip_lindblad=%s" % [steps, dt, str(skip_lindblad)])
 
 	var evolved_steps = 0
 	var skipped_steps = 0
@@ -671,13 +617,13 @@ func time_skip_phrames(phrames: int, delta: float = PhysicsConfig.PHRAME_DT) -> 
 		evolved_steps = int(direct_result.get("evolved_steps", 0))
 		skipped_steps = int(direct_result.get("skipped_biomes", 0))
 		if debug_time_skip:
-			print("[TIME_SKIP] direct_result=%s" % str(direct_result))
+			_log_debug("[TIME_SKIP] direct_result=%s" % str(direct_result))
 	elif biome_evolution_batcher and biome_evolution_batcher.has_method("run_additional_cycles"):
 		var batch_result = biome_evolution_batcher.run_additional_cycles(steps)
 		evolved_steps = int(batch_result.get("evolved_steps", 0))
 		skipped_steps = int(batch_result.get("skipped_due_empty_buffer", 0))
 		if debug_time_skip:
-			print("[TIME_SKIP] additional_cycles_result=%s" % str(batch_result))
+			_log_debug("[TIME_SKIP] additional_cycles_result=%s" % str(batch_result))
 	else:
 		for _i in range(steps):
 			if biome_evolution_batcher:
@@ -687,15 +633,15 @@ func time_skip_phrames(phrames: int, delta: float = PhysicsConfig.PHRAME_DT) -> 
 	# Lindblad accumulation is farm-level and should track skipped phrames as well.
 	if not skip_lindblad:
 		if debug_time_skip:
-			print("[TIME_SKIP] applying_lindblad_effects steps=%d" % steps)
+			_log_debug("[TIME_SKIP] applying_lindblad_effects steps=%d" % steps)
 		for _i in range(steps):
 			_process_lindblad_effects(dt)
 	else:
 		if debug_time_skip:
-			print("[TIME_SKIP] lindblad_effects_skipped")
+			_log_debug("[TIME_SKIP] lindblad_effects_skipped")
 
 	if debug_time_skip:
-		print("[TIME_SKIP] end evolved=%d skipped=%d" % [evolved_steps, skipped_steps])
+		_log_debug("[TIME_SKIP] end evolved=%d skipped=%d" % [evolved_steps, skipped_steps])
 
 	return {
 		"ok": true,
@@ -730,11 +676,7 @@ func _process_lindblad_effects(delta: float) -> void:
 		var effective_delta = _get_lindblad_effective_delta_for_biome(biome, delta)
 		if effective_delta <= 0.0:
 			continue
-		var biome_name = ""
-		if biome.has_method("get_biome_type"):
-			biome_name = str(biome.get_biome_type())
-		elif "name" in biome:
-			biome_name = str(biome.name)
+		var biome_name = biome.get_biome_type()
 		if biome_name != "" and not processed_structural_flux.has(biome_name):
 			_accumulate_sink_flux_from_biome_rates(biome_name, biome, effective_delta)
 			processed_structural_flux[biome_name] = true
@@ -1052,23 +994,7 @@ func _get_loaded_biomes_in_order() -> Array[String]:
 
 func _is_biome_loaded(biome_name: String) -> bool:
 	"""Check if a biome instance is loaded on this Farm."""
-	if grid and grid.has_biome(biome_name):
-		return grid.get_biome(biome_name) != null
-	match biome_name:
-		"StarterForest":
-			return starter_forest_biome != null
-		"Village":
-			return village_biome != null
-		"BioticFlux":
-			return biotic_flux_biome != null
-		"StellarForges":
-			return stellar_forges_biome != null
-		"FungalNetworks":
-			return fungal_networks_biome != null
-		"VolcanicWorlds":
-			return volcanic_worlds_biome != null
-		_:
-			return false
+	return grid != null and grid.get_biome(biome_name) != null
 
 
 func _get_loadable_biomes() -> Array[String]:
@@ -1103,30 +1029,10 @@ func _get_max_biome_plot_count(biome_names: Array[String]) -> int:
 
 
 func _get_loaded_biome_ref(biome_name: String):
-	if grid and grid.has_biome(biome_name):
-		return grid.get_biome(biome_name)
-	match biome_name:
-		"StarterForest":
-			return starter_forest_biome
-		"Village":
-			return village_biome
-		"BioticFlux":
-			return biotic_flux_biome
-		"StellarForges":
-			return stellar_forges_biome
-		"FungalNetworks":
-			return fungal_networks_biome
-		"VolcanicWorlds":
-			return volcanic_worlds_biome
-		_:
-			return null
+	return grid.get_biome(biome_name) if grid else null
 
 
 func _clear_loaded_biome_ref(biome_name: String) -> void:
-	var var_name = str(BIOME_FIELD_NAMES.get(biome_name, ""))
-	if var_name != "":
-		set(var_name, null)
-
 	var meta_name = biome_name.to_lower() + "_biome"
 	if has_meta(meta_name):
 		remove_meta(meta_name)
@@ -1266,20 +1172,15 @@ func get_biome_for_row(row: int) -> String:
 
 
 func get_biomes() -> Array:
-	"""Get all loaded biomes for testing/diagnostics.
-
-	Returns array of biome instances in order:
-	[BioticFlux, StellarForges, FungalNetworks, VolcanicWorlds, StarterForest, Village]
-	Null entries if biome failed to load.
-	"""
-	return [
-		biotic_flux_biome,
-		stellar_forges_biome,
-		fungal_networks_biome,
-		volcanic_worlds_biome,
-		starter_forest_biome,
-		village_biome
-	]
+	"""Get all loaded biomes for testing/diagnostics."""
+	if not grid:
+		return []
+	var result: Array = []
+	for biome_name in grid.get_biome_names():
+		var biome = grid.get_biome(biome_name)
+		if biome:
+			result.append(biome)
+	return result
 
 
 func get_plot_position_for_active_biome(plot_index: int) -> Vector2i:
@@ -1364,65 +1265,65 @@ func discover_biome() -> Dictionary:
 			- biome_name: String (if successful)
 			- message: String (error or success message)
 	"""
-	print("🗺️ discover_biome() called!")
+	_log_debug("🗺️ discover_biome() called!")
 
 	var gate = can_discover_biome()
 	if not gate.get("ok", false):
 		var msg = gate.get("message", "Biome exploration blocked")
-		print("❌ %s" % msg)
+		_log_debug("❌ %s" % msg)
 		return {"success": false, "blocked": true, "message": msg}
 
 	var observation_frame = InstrumentLocator.resolve_observation_frame(self)
 	if not observation_frame:
-		print("❌ ObservationFrame not found")
+		_log_debug("❌ ObservationFrame not found")
 		return {"success": false, "message": "ObservationFrame not available"}
 
 	# Get unexplored biomes
 	var unexplored = gate.get("unexplored", observation_frame.get_unexplored_biomes())
-	print("🗺️ Unexplored biomes: %s" % str(unexplored))
+	_log_debug("🗺️ Unexplored biomes: %s" % str(unexplored))
 
 	if unexplored.is_empty():
-		print("❌ All biomes already explored")
+		_log_debug("❌ All biomes already explored")
 		return {"success": false, "message": "All biomes already explored!"}
 
 	var weights = BiomeDiscoveryForecastService.compute_weights(self, unexplored)
 	var new_biome = BiomeDiscoveryForecastService.weighted_random_pick(unexplored, weights)
-	print("🗺️ Selected biome: %s (weighted discovery)" % new_biome)
+	_log_debug("🗺️ Selected biome: %s (weighted discovery)" % new_biome)
 
 	# Unlock it
 	var unlocked = observation_frame.unlock_biome(new_biome)
 	if not unlocked:
-		print("❌ Failed to unlock biome")
+		_log_debug("❌ Failed to unlock biome")
 		return {"success": false, "message": "Failed to unlock biome"}
-	print("✅ Biome unlocked successfully")
+	_log_debug("✅ Biome unlocked successfully")
 
 	# Expand grid to accommodate newly explored biome
 	refresh_grid_for_biomes()
 
 	# Load the new biome
-	print("🗺️ Loading biome dynamically...")
+	_log_debug("🗺️ Loading biome dynamically...")
 	var biome_loaded = _load_biome_dynamically(new_biome)
 	if not biome_loaded:
-		print("❌ Biome failed to load")
+		_log_debug("❌ Biome failed to load")
 		return {"success": false, "biome_name": new_biome, "message": "Biome unlocked but failed to load"}
-	print("✅ Biome loaded successfully")
+	_log_debug("✅ Biome loaded successfully")
 
 	# Sync with ActiveBiomeManager
 	var biome_manager = _get_active_biome_manager()
 	if biome_manager:
 		biome_manager.set_biome_order(observation_frame.get_unlocked_biomes())
-		print("✅ Synced with ActiveBiomeManager")
+		_log_debug("✅ Synced with ActiveBiomeManager")
 
 	# Switch to the new biome
 	if biome_manager:
 		var direction = 1  # Slide right (new biome appears)
 		biome_manager.set_active_biome(new_biome, direction)
-		print("✅ Switched to new biome: %s" % new_biome)
+		_log_debug("✅ Switched to new biome: %s" % new_biome)
 
 	if economy and not ActionCostRuntime.commit_action(economy, "discover_biome"):
 		return {"success": false, "biome_name": new_biome, "message": "Explore biome failed: unable to spend cost."}
 
-	print("🗺️ Exploration complete: %s" % new_biome)
+	_log_debug("🗺️ Exploration complete: %s" % new_biome)
 	return {"success": true, "biome_name": new_biome, "message": "Discovered %s!" % new_biome}
 
 
@@ -1527,7 +1428,7 @@ func _load_biome_dynamically(biome_name: String) -> bool:
 	# Print success message
 	var already = result.get("already_loaded", false)
 	if not already:
-		print("🗺️ Dynamically loaded and registered biome: %s" % biome_name)
+		_log_debug("🗺️ Dynamically loaded and registered biome: %s" % biome_name)
 
 
 	return true

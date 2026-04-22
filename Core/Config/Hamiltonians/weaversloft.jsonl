@@ -1,0 +1,29 @@
+# ╔════════════════════════════════════════════════════════════════════════╗
+# ║  WeaversLoft Hamiltonian Profile — differential tuning layer          ║
+# ╚════════════════════════════════════════════════════════════════════════╝
+#
+# "Thread and yarn weave robes pinned together; knots tie needles to fabric."
+#
+# All values ADD to the normalized faction baseline (all 89 factions at 1.0).
+#
+# Axes:
+#   Q0: 🧵/🧶 — Thread/Yarn — alive (19.2%), cosine@8s
+#   Q1: 👘/🧷 — Robe/Pin — FROZEN, Δ=-0.014 (near-degen)
+#   Q2: 🪢/🪡 — Knot/Needle — near-degen (46.3%), Rabi=0.782
+
+# ─── Self-energy corrections ─────────────────────────────────────────────
+{"op":"set","path":"self_energies.👘","value":0.2}
+{"op":"set","path":"self_energies.🪢","value":0.4}
+
+# ─── Rabi coupling corrections ───────────────────────────────────────────
+{"op":"set","path":"couplings.👘.🧷","value":0.3}
+
+# ─── Cross-axis moderations ──────────────────────────────────────────────
+# 🧵↔🪡: fac=3.134 → target 0.500
+{"op":"set","path":"couplings.🧵.🪡","value":-2.634}
+# 👘↔🪡: fac=1.255 → target 0.450
+{"op":"set","path":"couplings.👘.🪡","value":-0.805}
+# 🧵↔🪢: fac=1.221 → target 0.450
+{"op":"set","path":"couplings.🧵.🪢","value":-0.771}
+# 👘↔🧵: fac=1.151 → target 0.450
+{"op":"set","path":"couplings.👘.🧵","value":-0.701}

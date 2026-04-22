@@ -16,6 +16,7 @@ signal volume_changed(new_volume: float)
 signal track_changed(track_name: String)
 
 const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")
+const VerboseHelper = preload("res://Core/Config/VerboseHelper.gd")
 
 ## Track paths (relative to res://Assets/Audio/Music/)
 const TRACKS: Dictionary = {
@@ -152,6 +153,16 @@ var _disabled: bool = false
 ## Layer 3 intentional stop flag (prevents watchdog from restarting)
 var _layer3_stopped: bool = false
 
+## Hysteresis: require N consecutive "no evolution" observations before stopping.
+## At high sim speed the global icon map can briefly read empty between batches;
+## a single blip shouldn't kill the music.
+var _empty_observation_count: int = 0
+const EMPTY_OBSERVATIONS_TO_STOP: int = 3
+
+## Watchdog recovery failure counter (prevents spam when audio device unavailable)
+var _watchdog_recovery_failures: int = 0
+const MAX_WATCHDOG_FAILURES: int = 3
+
 ## IconMap-driven music mode
 var iconmap_mode_enabled: bool = true  # Enable quantum state-driven music selection
 
@@ -181,13 +192,13 @@ var _verbose: bool = false
 
 func _log_info(message: String) -> void:
 	if _verbose:
-		print("[MusicManager] %s" % message)
+		VerboseHelper.debug("audio", "music", message)
 
 
 func _ready() -> void:
 	_verbose = OS.get_environment("MUSIC_VERBOSE") == "1"
 	if _verbose:
-		print("[MusicManager] _ready() called")
+		_log_info("[MusicManager] _ready() called")
 
 	process_mode = Node.PROCESS_MODE_ALWAYS  # Volume control works when paused
 	_setup_audio_players()
@@ -198,7 +209,7 @@ func _ready() -> void:
 	# Monitor playback health - restart if it unexpectedly stops
 	set_process(true)
 	if _verbose:
-		print("[MusicManager] Ready - volume=%.1f, muted=%s" % [_volume, _muted])
+		_log_info("[MusicManager] Ready - volume=%.1f, muted=%s" % [_volume, _muted])
 
 
 func _process(delta: float) -> void:
@@ -216,7 +227,7 @@ func _process(delta: float) -> void:
 			if not _global_icon_map_has_data():
 				# Nothing evolving - this is correct, don't restart
 				if _verbose:
-					print("[MusicManager] Watchdog: dropout but nothing evolving - setting layer3_stopped")
+					_log_info("[MusicManager] Watchdog: dropout but nothing evolving - setting layer3_stopped")
 				_layer3_stopped = true
 			else:
 				# Something evolving - recover by re-evaluating IconMap
@@ -235,6 +246,14 @@ func _process(delta: float) -> void:
 							_active_player.stream = stream
 							_active_player.volume_db = _volume_to_db(_volume)
 							_active_player.play()
+				# Track consecutive failures (audio device unavailable, etc.)
+				if not _active_player.playing:
+					_watchdog_recovery_failures += 1
+					if _watchdog_recovery_failures >= MAX_WATCHDOG_FAILURES:
+						push_error("MusicManager: Audio unavailable after %d recovery attempts - suppressing watchdog" % _watchdog_recovery_failures)
+						_layer3_stopped = true
+				else:
+					_watchdog_recovery_failures = 0
 
 	# Global evolution check - pause music when nothing evolving anywhere
 	_last_register_check += delta
@@ -252,7 +271,7 @@ func _process(delta: float) -> void:
 
 
 func _unhandled_key_input(event: InputEvent) -> void:
-	"""Global controls: , = vol down, . = vol up, / = mute, M = play biome track"""
+	"""Global debug control: F9 = force biome track. Volume is driven by the Levels scope in the system menu."""
 	if _disabled:
 		return
 
@@ -260,25 +279,16 @@ func _unhandled_key_input(event: InputEvent) -> void:
 		return
 
 	match event.keycode:
-		KEY_COMMA:
-			set_volume(_volume - 0.1)
-			get_viewport().set_input_as_handled()
-		KEY_PERIOD:
-			set_volume(_volume + 0.1)
-			get_viewport().set_input_as_handled()
-		KEY_SLASH:
-			set_muted(not _muted)
-			get_viewport().set_input_as_handled()
 		KEY_F9:
 			# Manual music trigger for testing (F9 to avoid conflicts)
-			print("[MusicManager] F9 pressed - manual music trigger")
+			_log_info("[MusicManager] F9 pressed - manual music trigger")
 			debug_status()
-			if ActiveBiomeManager:
-				var biome = ActiveBiomeManager.get_active_biome()
-				print("[MusicManager] Force-playing track for: %s" % biome)
+			if _get_active_biome_manager():
+				var biome = _get_active_biome_manager().get_active_biome()
+				_log_info("[MusicManager] Force-playing track for: %s" % biome)
 				play_biome_track(biome)
 			else:
-				print("[MusicManager] No ActiveBiomeManager - playing fallback")
+				_log_info("[MusicManager] No ActiveBiomeManager - playing fallback")
 				crossfade_to(FALLBACK_TRACK)
 			get_viewport().set_input_as_handled()
 
@@ -303,18 +313,18 @@ func _setup_audio_players() -> void:
 
 func _connect_biome_manager() -> void:
 	# Connect to ActiveBiomeManager when available
-	if ActiveBiomeManager:
-		ActiveBiomeManager.active_biome_changed.connect(_on_biome_changed)
-		print("[MusicManager] Connected to ActiveBiomeManager.active_biome_changed")
+	if _get_active_biome_manager():
+		_get_active_biome_manager().active_biome_changed.connect(_on_biome_changed)
+		_log_info("[MusicManager] Connected to ActiveBiomeManager.active_biome_changed")
 	else:
-		print("[MusicManager] ActiveBiomeManager not ready, waiting...")
+		_log_info("[MusicManager] ActiveBiomeManager not ready, waiting...")
 		# Fallback: try connecting after tree is ready
 		await get_tree().process_frame
-		if ActiveBiomeManager:
-			ActiveBiomeManager.active_biome_changed.connect(_on_biome_changed)
-			print("[MusicManager] Connected to ActiveBiomeManager.active_biome_changed (deferred)")
+		if _get_active_biome_manager():
+			_get_active_biome_manager().active_biome_changed.connect(_on_biome_changed)
+			_log_info("[MusicManager] Connected to ActiveBiomeManager.active_biome_changed (deferred)")
 		else:
-			print("[MusicManager] ERROR: ActiveBiomeManager not available!")
+			_log_info("[MusicManager] ERROR: ActiveBiomeManager not available!")
 
 
 func _connect_farm_signals() -> void:
@@ -352,11 +362,11 @@ func _deferred_connect_farm() -> void:
 func _on_terminal_bound(grid_pos: Vector2i, terminal_id: String, _emoji_pair: Dictionary) -> void:
 	"""Called when a terminal is bound (bubble explored). Start music if not playing."""
 	if _verbose:
-		print("[MusicManager] SIGNAL: terminal_bound - %s at %s" % [terminal_id, grid_pos])
+		_log_info("[MusicManager] SIGNAL: terminal_bound - %s at %s" % [terminal_id, grid_pos])
 
 	if _active_player.playing:
 		if _verbose:
-			print("[MusicManager] Already playing - ignoring bound signal")
+			_log_info("[MusicManager] Already playing - ignoring bound signal")
 		return
 
 	# Music not playing - try IconMap evaluation first, fall back to biome track
@@ -373,8 +383,8 @@ func _on_terminal_bound(grid_pos: Vector2i, terminal_id: String, _emoji_pair: Di
 		var biome_name := ""
 		if terminal and terminal.get("bound_biome_name"):
 			biome_name = terminal.bound_biome_name
-		elif ActiveBiomeManager:
-			biome_name = ActiveBiomeManager.get_active_biome()
+		elif _get_active_biome_manager():
+			biome_name = _get_active_biome_manager().get_active_biome()
 		if not biome_name.is_empty():
 			_log_info("Terminal bound in %s - starting music (fallback)" % biome_name)
 			_layer3_stopped = false
@@ -382,8 +392,8 @@ func _on_terminal_bound(grid_pos: Vector2i, terminal_id: String, _emoji_pair: Di
 			return
 
 	# Last resort fallback
-	if ActiveBiomeManager:
-		var active_biome = ActiveBiomeManager.get_active_biome()
+	if _get_active_biome_manager():
+		var active_biome = _get_active_biome_manager().get_active_biome()
 		if not active_biome.is_empty():
 			_log_info("Terminal bound - starting music for active biome %s" % active_biome)
 			_layer3_stopped = false
@@ -393,14 +403,14 @@ func _on_terminal_bound(grid_pos: Vector2i, terminal_id: String, _emoji_pair: Di
 func _on_terminal_released(grid_pos: Vector2i, terminal_id: String, _credits: int) -> void:
 	"""Called when a terminal is released. Stop music if nothing evolving anywhere."""
 	if _verbose:
-		print("[MusicManager] SIGNAL: terminal_released - %s at %s" % [terminal_id, grid_pos])
+		_log_info("[MusicManager] SIGNAL: terminal_released - %s at %s" % [terminal_id, grid_pos])
 	_check_and_stop_if_empty()
 
 
 func _on_terminal_measured(grid_pos: Vector2i, terminal_id: String, outcome: String, _prob: float) -> void:
 	"""Called when a terminal is measured (reaped). Stop music if nothing evolving anywhere."""
 	if _verbose:
-		print("[MusicManager] SIGNAL: terminal_measured - %s at %s, outcome=%s" % [terminal_id, grid_pos, outcome])
+		_log_info("[MusicManager] SIGNAL: terminal_measured - %s at %s, outcome=%s" % [terminal_id, grid_pos, outcome])
 	_check_and_stop_if_empty()
 
 
@@ -409,16 +419,21 @@ func _check_and_stop_if_empty() -> void:
 	var has_evolution := _global_icon_map_has_data()
 	var is_playing := _active_player.playing
 	if _verbose:
-		print("[MusicManager] _check_and_stop_if_empty: has_evolution=%s, is_playing=%s" % [
+		_log_info("[MusicManager] _check_and_stop_if_empty: has_evolution=%s, is_playing=%s" % [
 			has_evolution, is_playing])
 
+	if has_evolution:
+		_empty_observation_count = 0
 	if not has_evolution and is_playing:
+		_empty_observation_count += 1
+		if _empty_observation_count < EMPTY_OBSERVATIONS_TO_STOP:
+			return
 		if _verbose:
-			print("[MusicManager] Nothing evolving globally - stopping music")
+			_log_info("[MusicManager] Nothing evolving globally - stopping music")
 		_stop_for_layer3()
 	elif has_evolution and not is_playing and not _layer3_stopped:
 		if _verbose:
-			print("[MusicManager] Evolution detected but music stopped - triggering evaluation")
+			_log_info("[MusicManager] Evolution detected but music stopped - triggering evaluation")
 		_evaluate_iconmap_decision()
 
 
@@ -431,21 +446,28 @@ func _check_register_state() -> void:
 	var has_evolution := _global_icon_map_has_data()
 	var is_playing: bool = _active_player.playing
 
-	if has_evolution and not is_playing and not _layer3_stopped:
-		# Something evolving but music stopped - trigger IconMap evaluation or fallback
-		if _verbose:
-			print("[MusicManager] Global evolution detected - starting music")
-		if _iconmap_sample_count >= 3:
-			_evaluate_iconmap_decision()
-		else:
-			# Not enough IconMap data yet - use highest-weight biome from global map
-			var best_biome := _get_best_biome_from_global_map()
-			if not best_biome.is_empty():
-				play_biome_track(best_biome)
+	if has_evolution:
+		_empty_observation_count = 0
+		# Evolution is back: if we previously stopped, clear the sticky flag so
+		# the watchdog / restart path can bring music back. Without this clear,
+		# a single empty blip permanently silenced music for the session.
+		if not is_playing and _layer3_stopped:
+			_layer3_stopped = false
+		if not is_playing:
+			if _verbose:
+				_log_info("[MusicManager] Global evolution detected - starting music")
+			if _iconmap_sample_count >= 3:
+				_evaluate_iconmap_decision()
+			else:
+				var best_biome := _get_best_biome_from_global_map()
+				if not best_biome.is_empty():
+					play_biome_track(best_biome)
 	elif not has_evolution and is_playing:
-		# Nothing evolving but music playing - stop
+		_empty_observation_count += 1
+		if _empty_observation_count < EMPTY_OBSERVATIONS_TO_STOP:
+			return
 		if _verbose:
-			print("[MusicManager] No global evolution - stopping music")
+			_log_info("[MusicManager] No global evolution - stopping music")
 		_stop_for_layer3()
 
 
@@ -517,8 +539,8 @@ func _stop_for_layer3() -> void:
 			var biome_name := ""
 			var evolution_count := 0
 
-			if ActiveBiomeManager:
-				biome_name = ActiveBiomeManager.get_active_biome()
+			if _get_active_biome_manager():
+				biome_name = _get_active_biome_manager().get_active_biome()
 				evolution_count = _get_biome_evolution_count(biome_name)
 
 			_track_positions[_current_track] = {
@@ -527,11 +549,23 @@ func _stop_for_layer3() -> void:
 				"biome_name": biome_name
 			}
 			if _verbose:
-				print("[MusicManager] Ghost timer: saved %s at %.1fs (evo=%d, biome=%s)" % [
+				_log_info("[MusicManager] Ghost timer: saved %s at %.1fs (evo=%d, biome=%s)" % [
 					_current_track, current_pos, evolution_count, biome_name])
 
-	# Stop BOTH players (in case crossfade was in progress)
-	_active_player.stop()
+	# Fade out over ~80ms before stopping to avoid a click (hard stop mid-sample
+	# cuts the waveform and produces a pop, especially at high sim speed).
+	const FADE_OUT_S: float = 0.08
+	var tree := get_tree()
+	if tree and _active_player.playing:
+		var fade := tree.create_tween()
+		var start_db: float = _active_player.volume_db
+		fade.tween_property(_active_player, "volume_db", -60.0, FADE_OUT_S)
+		fade.tween_callback(func():
+			_active_player.stop()
+			_active_player.volume_db = start_db
+		)
+	else:
+		_active_player.stop()
 	_inactive_player.stop()
 
 
@@ -571,14 +605,14 @@ func _biome_has_active_terminals(farm, biome_name: String) -> bool:
 
 	var has_active = active_count > 0
 	if _verbose:
-		print("[MusicManager] _biome_has_active_terminals(%s): active=%d, measured=%d, unbound=%d → %s" % [
+		_log_info("[MusicManager] _biome_has_active_terminals(%s): active=%d, measured=%d, unbound=%d → %s" % [
 			biome_name, active_count, measured_count, unbound_count, has_active])
 	return has_active
 
 
 func _on_biome_changed(new_biome: String, old_biome: String) -> void:
 	if _verbose:
-		print("[MusicManager] Biome changed: %s → %s (no musical action - global IconMap drives music)" % [old_biome, new_biome])
+		_log_info("[MusicManager] Biome changed: %s → %s (no musical action - global IconMap drives music)" % [old_biome, new_biome])
 
 
 func _accumulate_music_samples() -> void:
@@ -611,10 +645,10 @@ func _accumulate_music_samples() -> void:
 		_iconmap_sample_count += 1
 
 	# Verbose logging
-	if VerboseConfig:
+	if VerboseHelper.get_config():
 		var biome_name := ""
-		if ActiveBiomeManager:
-			biome_name = ActiveBiomeManager.get_active_biome()
+		if _get_active_biome_manager():
+			biome_name = _get_active_biome_manager().get_active_biome()
 		var top_emojis := _get_top_accumulated_emojis(3)
 		var sources: Array = []
 		if had_iconmap:
@@ -622,7 +656,7 @@ func _accumulate_music_samples() -> void:
 		if had_portfolio:
 			sources.append("Portfolio")
 		var mode_str := "+".join(sources) if not sources.is_empty() else "(no data)"
-		VerboseConfig.debug("music", "🎵", "%s sample #%d from %s: %s" % [
+		VerboseHelper.debug("music", "🎵", "%s sample #%d from %s: %s" % [
 			mode_str, _iconmap_sample_count, biome_name if not biome_name.is_empty() else "?", top_emojis
 		])
 
@@ -705,9 +739,9 @@ func _accumulate_portfolio_sample() -> bool:
 				_iconmap_accumulator[emoji] = normalized_weight
 			portfolio_emojis.append(emoji)
 
-	if VerboseConfig and not portfolio_emojis.is_empty():
+	if VerboseHelper.get_config() and not portfolio_emojis.is_empty():
 		var top_3 := _get_top_portfolio_emojis(resources, 3)
-		VerboseConfig.debug("music", "💰", "Portfolio contribution: %s (weight %.0f%%)" % [
+		VerboseHelper.debug("music", "💰", "Portfolio contribution: %s (weight %.0f%%)" % [
 			top_3, PORTFOLIO_BLEND_WEIGHT * 100
 		])
 
@@ -773,8 +807,8 @@ func _evaluate_iconmap_decision() -> void:
 	# Rate limit: check if enough time has passed since last switch
 	var now: float = Time.get_ticks_msec() / 1000.0
 	if now - _iconmap_last_switch_time < ICONMAP_MIN_SWITCH_INTERVAL:
-		if VerboseConfig:
-			VerboseConfig.debug("music", "⏳", "IconMap wants %s (%.1f%%) but rate-limited (%.1fs left)" % [
+		if VerboseHelper.get_config():
+			VerboseHelper.debug("music", "⏳", "IconMap wants %s (%.1f%%) but rate-limited (%.1fs left)" % [
 				best_track,
 				best["similarity"] * 100,
 				ICONMAP_MIN_SWITCH_INTERVAL - (now - _iconmap_last_switch_time)
@@ -784,9 +818,9 @@ func _evaluate_iconmap_decision() -> void:
 	# Switch!
 	_iconmap_last_switch_time = now
 
-	if VerboseConfig:
+	if VerboseHelper.get_config():
 		var top_emojis := _get_top_accumulated_emojis(4)
-		VerboseConfig.info("music", "🎶", "IconMap switch: %s → %s (%.1f%% via %s) | Top: %s" % [
+		VerboseHelper.info("music", "🎶", "IconMap switch: %s → %s (%.1f%% via %s) | Top: %s" % [
 			_current_track if not _current_track.is_empty() else "(none)",
 			best_track,
 			best["similarity"] * 100,
@@ -871,7 +905,7 @@ func play_biome_track(biome_name: String) -> void:
 	Fallback: entropy_garden
 	"""
 	if _verbose:
-		print("[MusicManager] play_biome_track(%s)" % biome_name)
+		_log_info("[MusicManager] play_biome_track(%s)" % biome_name)
 	if _disabled:
 		_log_info("DISABLED - skipping")
 		return
@@ -1019,7 +1053,7 @@ func play_track(track_key: String, instant: bool = false) -> void:
 func crossfade_to(track_key: String) -> void:
 	"""Crossfade to a new track"""
 	if _verbose:
-		print("[MusicManager] crossfade_to(%s)" % track_key)
+		_log_info("[MusicManager] crossfade_to(%s)" % track_key)
 	_layer3_stopped = false  # Clear intentional stop flag
 	if _disabled:
 		_log_info("DISABLED - skipping crossfade")
@@ -1047,7 +1081,7 @@ func crossfade_to(track_key: String) -> void:
 		return
 
 	if _verbose:
-		print("[MusicManager] Starting crossfade to '%s'" % track_key)
+		_log_info("[MusicManager] Starting crossfade to '%s'" % track_key)
 
 	var previous_track := _current_track
 
@@ -1058,8 +1092,8 @@ func crossfade_to(track_key: String) -> void:
 			var biome_name := ""
 			var evolution_count := 0
 
-			if ActiveBiomeManager:
-				biome_name = ActiveBiomeManager.get_active_biome()
+			if _get_active_biome_manager():
+				biome_name = _get_active_biome_manager().get_active_biome()
 				evolution_count = _get_biome_evolution_count(biome_name)
 
 			_track_positions[previous_track] = {
@@ -1123,9 +1157,9 @@ func crossfade_to(track_key: String) -> void:
 	track_changed.emit(track_key)
 
 	# Info log for all track changes
-	if VerboseConfig:
+	if VerboseHelper.get_config():
 		var from_str := previous_track if not previous_track.is_empty() else "(none)"
-		VerboseConfig.info("music", "🎶", "Now playing: %s (was: %s)" % [track_key, from_str])
+		VerboseHelper.info("music", "🎶", "Now playing: %s (was: %s)" % [track_key, from_str])
 
 
 func stop(fade_out: bool = true) -> void:
@@ -1197,8 +1231,8 @@ func play_menu_music() -> void:
 func clear_track_positions() -> void:
 	"""Clear all saved track positions - tracks will restart from beginning"""
 	_track_positions.clear()
-	if VerboseConfig:
-		VerboseConfig.debug("music", "🔄", "Cleared all saved track positions")
+	if VerboseHelper.get_config():
+		VerboseHelper.debug("music", "🔄", "Cleared all saved track positions")
 
 
 func reset() -> void:
@@ -1222,28 +1256,28 @@ func reset() -> void:
 
 func debug_test_audio() -> void:
 	"""DEBUG: Test if audio playback works. Call from console: MusicManager.debug_test_audio()"""
-	print("[MusicManager] DEBUG: Testing audio playback...")
-	print("[MusicManager] _disabled=%s, _active_player=%s" % [_disabled, _active_player != null])
+	_log_info("[MusicManager] DEBUG: Testing audio playback...")
+	_log_info("[MusicManager] _disabled=%s, _active_player=%s" % [_disabled, _active_player != null])
 	if _disabled:
-		print("[MusicManager] DISABLED - cannot play")
+		_log_info("[MusicManager] DISABLED - cannot play")
 		return
-	print("[MusicManager] Playing fallback track: %s" % FALLBACK_TRACK)
+	_log_info("[MusicManager] Playing fallback track: %s" % FALLBACK_TRACK)
 	crossfade_to(FALLBACK_TRACK)
 
 
 func debug_status() -> void:
 	"""DEBUG: Print current music manager status."""
-	print("[MusicManager] === STATUS ===")
-	print("  disabled: %s" % _disabled)
-	print("  current_track: '%s'" % _current_track)
-	print("  volume: %.2f (muted: %s)" % [_volume, _muted])
-	print("  active_player.playing: %s" % (_active_player.playing if _active_player else "N/A"))
-	print("  iconmap_mode: %s" % iconmap_mode_enabled)
-	print("  register_gating: %s" % stop_music_when_no_registers)
-	if ActiveBiomeManager:
-		print("  ActiveBiomeManager: connected, current='%s'" % ActiveBiomeManager.get_active_biome())
+	_log_info("[MusicManager] === STATUS ===")
+	_log_info("  disabled: %s" % _disabled)
+	_log_info("  current_track: '%s'" % _current_track)
+	_log_info("  volume: %.2f (muted: %s)" % [_volume, _muted])
+	_log_info("  active_player.playing: %s" % (_active_player.playing if _active_player else "N/A"))
+	_log_info("  iconmap_mode: %s" % iconmap_mode_enabled)
+	_log_info("  register_gating: %s" % stop_music_when_no_registers)
+	if _get_active_biome_manager():
+		_log_info("  ActiveBiomeManager: connected, current='%s'" % _get_active_biome_manager().get_active_biome())
 	else:
-		print("  ActiveBiomeManager: NOT AVAILABLE")
+		_log_info("  ActiveBiomeManager: NOT AVAILABLE")
 
 
 ## ============================================================================
@@ -1338,6 +1372,8 @@ func _is_headless() -> bool:
 const BIOMES_JSON_PATH := "res://Core/Biomes/data/biomes_merged.json"
 const FACTIONS_JSON_PATH := "res://Core/Factions/data/factions_merged.json"
 const CACHE_PATH := "user://cache/music_vectors.json"
+## Bump this when the vector-building logic changes to force cache invalidation
+const CACHE_VERSION := 2
 
 ## Cached data (loaded on demand, rebuilt when sources change)
 var _emoji_index: Array = []  # Unified emoji space
@@ -1362,6 +1398,8 @@ func _ensure_cache_loaded() -> void:
 		var cache := _load_cache()
 		if cache.is_empty():
 			needs_rebuild = true
+		elif cache.get("version", 0) != CACHE_VERSION:
+			needs_rebuild = true  # Logic changed - must rebuild
 		else:
 			_source_hashes = cache.get("source_hashes", {})
 			if _check_sources_changed():
@@ -1393,6 +1431,10 @@ func _check_sources_changed() -> bool:
 
 func _get_active_farm() -> Node:
 	return InstrumentLocator.resolve_active_farm(self)
+
+
+func _get_active_biome_manager() -> Node:
+	return InstrumentLocator.resolve_active_biome_manager(self)
 
 
 func _compute_file_hash(path: String) -> String:
@@ -1436,6 +1478,7 @@ func _save_cache() -> void:
 		DirAccess.make_dir_recursive_absolute(cache_dir)
 
 	var cache := {
+		"version": CACHE_VERSION,
 		"source_hashes": _source_hashes,
 		"emoji_index": _emoji_index,
 		"biome_vectors": _biome_vectors,
@@ -1451,7 +1494,7 @@ func _save_cache() -> void:
 
 func _rebuild_cache() -> void:
 	"""Rebuild vector cache from source JSON files."""
-	print("MusicManager: Rebuilding vector cache...")
+	_log_info("MusicManager: Rebuilding vector cache...")
 
 	# Reset
 	_emoji_index = []
@@ -1472,15 +1515,19 @@ func _rebuild_cache() -> void:
 
 	for biome in biomes:
 		for emoji in biome.get("emojis", []):
-			emoji_set[emoji] = true
+			if not emoji.is_empty() and not emoji.is_valid_identifier():
+				emoji_set[emoji] = true
 		for emoji in biome.get("icon_components", {}).keys():
-			emoji_set[emoji] = true
+			if not emoji.is_empty() and not emoji.is_valid_identifier():
+				emoji_set[emoji] = true
 
 	for faction in factions:
 		for emoji in faction.get("signature", []):
-			emoji_set[emoji] = true
+			if not emoji.is_empty() and not emoji.is_valid_identifier():
+				emoji_set[emoji] = true
 		for emoji in faction.get("hamiltonian", {}).keys():
-			emoji_set[emoji] = true
+			if not emoji.is_empty() and not emoji.is_valid_identifier():
+				emoji_set[emoji] = true
 
 	_emoji_index = emoji_set.keys()
 	_emoji_index.sort()
@@ -1551,7 +1598,7 @@ func _rebuild_cache() -> void:
 
 	# Save to disk
 	_save_cache()
-	print("MusicManager: Cache rebuilt - %d biomes, %d icons, %d emoji dimensions" % [
+	_log_info("MusicManager: Cache rebuilt - %d biomes, %d icons, %d emoji dimensions" % [
 		_biome_vectors.size(), _icon_vectors.size(), _emoji_index.size()
 	])
 
@@ -1561,13 +1608,16 @@ func _build_normalized_vector(emojis: Array, icon_components: Dictionary) -> Dic
 	var result_emojis: Array = []
 	var result_weights: Array = []
 
-	# Start with equal weights for all emojis
+	# Start with equal weights for all emojis (skip plain-ASCII placeholder keys like "everything")
 	var weight_map: Dictionary = {}
 	for emoji in emojis:
-		weight_map[emoji] = 1.0
+		if not emoji.is_empty() and not emoji.is_valid_identifier():
+			weight_map[emoji] = 1.0
 
 	# Override with self_energy from icon_components if available
 	for emoji in icon_components.keys():
+		if emoji.is_empty() or emoji.is_valid_identifier():
+			continue  # Skip placeholder keys
 		var comp = icon_components[emoji]
 		var weight := 1.0
 		if comp is Dictionary and comp.has("self_energy"):

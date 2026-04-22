@@ -1,0 +1,18 @@
+# ╔════════════════════════════════════════════════════════════════════════╗
+# ║  MeditationGarden Hamiltonian Profile — differential tuning layer     ║
+# ╚════════════════════════════════════════════════════════════════════════╝
+#
+# "Meditators and prayer beads find stillness; lanterns and candles hold the light."
+#
+# All values ADD to the normalized faction baseline (all 89 factions at 1.0).
+#
+# Axes:
+#   Q0: 🧘/📿 — Meditate/Beads — degenerate (49.8%), Rabi=0.833, Δ=+0.006, sine@13s driver
+#   Q1: 🏮/🕯 — Lantern/Candle — near-degenerate (44.9%), Rabi=2.069, Δ=-0.425
+#
+
+# ─── Self-energy corrections ─────────────────────────────────────────────
+{"op":"set","path":"self_energies.🧘","value":0.2}
+
+# ─── New cross-axis couplings ────────────────────────────────────────────
+{"op":"set","path":"couplings.🧘.🏮","value":0.3}

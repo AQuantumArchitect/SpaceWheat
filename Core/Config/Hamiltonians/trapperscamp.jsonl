@@ -1,0 +1,26 @@
+# ╔════════════════════════════════════════════════════════════════════════╗
+# ║  TrappersCamp Hamiltonian Profile — differential tuning layer         ║
+# ╚════════════════════════════════════════════════════════════════════════╝
+#
+# "Traps and hooks await prey; rabbits become bones."
+#
+# All values ADD to the normalized faction baseline (all 89 factions at 1.0).
+#
+# Axes:
+#   Q0: 🪤/🪝 — Trap/Hook — FROZEN, Δ=+0.061 (near-degenerate)
+#   Q1: 🐇/🦴 — Rabbit/Bone — FROZEN, Δ=-0.357
+#
+
+# ─── Self-energy corrections ─────────────────────────────────────────────
+{"op":"set","path":"self_energies.🪤","value":0.1}
+
+# ─── Rabi coupling corrections ───────────────────────────────────────────
+{"op":"set","path":"couplings.🪤.🪝","value":0.3}
+{"op":"set","path":"couplings.🐇.🦴","value":0.35}
+
+# ─── Cross-axis moderations ──────────────────────────────────────────────
+# 🐇↔🪤: fac=0.716 → target 0.400
+{"op":"set","path":"couplings.🐇.🪤","value":-0.316}
+
+# ─── New cross-axis couplings ────────────────────────────────────────────
+{"op":"set","path":"couplings.🪝.🦴","value":0.25}

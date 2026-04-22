@@ -1,18 +1,22 @@
 class_name BiomeEvolutionBatcher
 extends RefCounted
 
-## BiomeEvolutionBatcher - Rotational batch evolution for all biomes
+## BiomeEvolutionBatcher - native batched evolution for all biomes
 ##
-## Stage 2: Batched lookahead mode (single C++ call for all biomes × N steps)
-## Falls back to Stage 1 rotation if native engine unavailable.
+## Batched lookahead mode (single C++ call for all biomes × N steps)
 ##
 ## Performance Optimization: Skip evolution for biomes with no bound terminals
 ## ("Out of sight, out of mind" - don't evolve unpopulated biomes)
 
 const VerboseHelper = preload("res://Core/Config/VerboseHelper.gd")
+const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")
+const BiomeDeterministicStepperClass = preload("res://Core/Environment/BiomeDeterministicStepper.gd")
 
 func _log(level: String, category: String, emoji: String, message: String) -> void:
 	VerboseHelper.log(level, category, emoji, message)
+
+func _log_debug(message: String) -> void:
+	_log("debug", "biome", "batch", message)
 
 func _env_truthy(raw: String) -> bool:
 	var val = raw.strip_edges().to_lower()
@@ -32,6 +36,14 @@ func _env_float(key: String, default_value: float) -> float:
 		return default_value
 	return raw.to_float()
 
+func _env_int(key: String, default_value: int) -> int:
+	var raw = OS.get_environment(key)
+	if raw == "":
+		return default_value
+	if not raw.is_valid_int():
+		return default_value
+	return raw.to_int()
+
 func _rig_flags_enabled(headless: bool) -> bool:
 	# Only honor rig flags in headless, unless explicitly overridden.
 	if _env_flag("SW_DISABLE_HEADLESS_GUARD", false):
@@ -47,12 +59,10 @@ func _resolve_flag(rig_key: String, global_key: String, rig_enabled: bool) -> bo
 const _PC = preload("res://Core/Config/PhysicsConfig.gd")
 
 # Configuration
-const BIOMES_PER_FRAME = 2  # Evolve 2 biomes per frame (Stage 1 fallback)
 const EVOLUTION_INTERVAL = _PC.PHRAME_DT  # Phrame rate (see PhysicsConfig)
-const ENABLE_EVOLUTION = true  # Enable quantum evolution (GDScript fallback path)
 
 # Lookahead configuration (Stage 2)
-const ENABLE_LOOKAHEAD = true  # Enable native lookahead if available, else fallback to Stage 1
+const ENABLE_LOOKAHEAD = true   # C++ batched lookahead: fills per-biome position buffers consumed by QuantumForceGraph.
 const LOOKAHEAD_STEPS = 13  # 13 phrames × PHRAME_DT = ~2.2s lookahead (Fib[6])
 const LOOKAHEAD_DT = _PC.PHRAME_DT  # Time per phrame (see PhysicsConfig)
 const MAX_SUBSTEP_DT = _PC.MAX_SUBSTEP_DT  # Numerical stability limit
@@ -66,7 +76,6 @@ const LNN_HIDDEN_DIVISOR = 4  # hidden_size = dim / LNN_HIDDEN_DIVISOR
 
 # State
 var biomes: Array = []  # All registered biomes
-var current_index: int = 0
 var evolution_accumulator: float = 0.0
 
 # TerminalPool reference for bound terminal checks
@@ -75,7 +84,6 @@ var farm_ref = null
 
 # Stage 2: Lookahead engine and buffers
 var lookahead_engine = null  # MultiBiomeLookaheadEngine (C++)
-var lookahead_engine_mutex: Mutex = Mutex.new()  # Protect concurrent C++ access
 var lookahead_enabled: bool = false
 var lookahead_accumulator: float = 0.0
 var _lookahead_init_started: bool = false
@@ -85,18 +93,36 @@ var _disable_lookahead_env: bool = false
 var _disable_mi_env: bool = false
 var _disable_force_env: bool = false
 var _headless_env: bool = false
-var _stride_scales_resolution: bool = true
-var frame_buffers: Dictionary = {}  # biome_name -> Array[PackedFloat64Array]
-var buffer_cursors: Dictionary = {}  # biome_name -> int
-var mi_cache: Dictionary = {}  # biome_name -> PackedFloat64Array
-var mi_buffers: Dictionary = {}  # biome_name -> Array[PackedFloat64Array]
-var bloch_buffers: Dictionary = {}  # biome_name -> Array[PackedFloat64Array]
-var purity_buffers: Dictionary = {}  # biome_name -> Array[float]
-var position_buffers: Dictionary = {}  # biome_name -> Array[PackedVector2Array] (NEW: force positions)
-var velocity_buffers: Dictionary = {}  # biome_name -> Array[PackedVector2Array] (NEW: force velocities)
-var metadata_payloads: Dictionary = {}  # biome_name -> Dictionary
-var coupling_payloads: Dictionary = {}  # biome_name -> Dictionary
-var icon_map_payloads: Dictionary = {}  # biome_name -> Dictionary
+var _packet_pacing_delay_ms: int = 0
+var _max_packet_steps: int = FIB_SEQUENCE[FIB_SEQUENCE.size() - 1]
+
+class BiomeLookaheadBuffer:
+	var frames: Array = []  # Array[PackedFloat64Array]
+	var cursor: int = 0
+	var latest_mi: PackedFloat64Array = PackedFloat64Array()
+	var mi_steps: Array = []  # Array[PackedFloat64Array]
+	var bloch_steps: Array = []  # Array[PackedFloat64Array]
+	var purity_steps: Array = []  # Array[float]
+	var positions: Array = []  # Array[PackedVector2Array]
+	var metadata: Dictionary = {}
+	var couplings: Dictionary = {}
+	var icon_map: Dictionary = {}
+
+	func clear() -> void:
+		frames.clear()
+		cursor = 0
+		latest_mi = PackedFloat64Array()
+		mi_steps.clear()
+		bloch_steps.clear()
+		purity_steps.clear()
+		positions.clear()
+		metadata.clear()
+		couplings.clear()
+		icon_map.clear()
+
+
+var _lookahead_buffers: Dictionary = {}  # biome_name -> BiomeLookaheadBuffer
+var _deterministic_stepper = null
 
 # Native engine biome ID tracking (fixes index mismatch on unregister)
 # Maps biome_name -> engine_biome_id for correct result distribution
@@ -117,7 +143,17 @@ signal biome_ready(biome_name: String)
 
 # Pending biomes waiting for native engine to be ready
 var _pending_biomes: Array = []
+
+# Biome oval centers (world-space) pushed from QuantumForceGraph via update_biome_center().
+# Stored here so they can be re-applied once deferred native engine initialization finishes.
+var _biome_centers_cache: Dictionary = {}  # biome_name -> Vector2
 var _engine_ready: bool = false
+
+# Runtime activity ledger
+var _active_biome_names: Dictionary = {}  # biome_name -> true
+var _activity_refresh_needed: bool = true
+var _activity_poll_accumulator: float = 0.0
+const ACTIVITY_POLL_INTERVAL: float = 1.0
 
 # === ADAPTIVE FIBONACCI BATCHING ===
 # Two-state machine: RECOVERY (ramp up) and COAST (maintain)
@@ -127,19 +163,8 @@ var _engine_ready: bool = false
 enum BufferState { RECOVERY, COAST }
 
 const FIB_SEQUENCE: Array[int] = [1, 1, 2, 3, 5, 8, 13, 21]  # Fibonacci packet sizes (in phrames)
-const RECOVERY_THRESHOLD: int = 5   # Phrames - below this = RECOVERY mode
+const INITIAL_BIOME_FIB_INDEX: int = 6  # Fib[6] = 13, matching LOOKAHEAD_STEPS.
 const BATCH_TIME_SMOOTHING: float = 0.3  # EMA smoothing
-
-# Adaptive buffer state (global view - drives refill logic and diagnostics)
-var _buffer_state: BufferState = BufferState.RECOVERY
-var _fib_index: int = 4             # Used by COAST_TARGET getter
-var _emergency_refill: bool = false # Used in diagnostics dict
-
-# Computed constants (parametric, based on current Fibonacci index)
-var COAST_TARGET: int:
-	get:
-		var batch_size = FIB_SEQUENCE[mini(_fib_index, FIB_SEQUENCE.size() - 1)]
-		return batch_size * 2
 
 # === PER-BIOME ADAPTIVE STATE (Self-Balancing) ===
 # Each biome independently tracks its own RECOVERY/COAST state and Fibonacci index
@@ -148,29 +173,15 @@ var biome_fib_indices: Dictionary = {}    # biome_name -> int (Fibonacci index)
 var biome_emergency_refill: Dictionary = {}  # biome_name -> bool (hit depth=0)
 var biome_last_escalation_time: Dictionary = {}  # biome_name -> float (msec timestamp of last fib increment)
 
-# === PER-BIOME ASYNC PACKET QUEUES ===
-# Note: Marked for refactor to hybrid global queue, but still actively used
-var biome_packet_queues: Dictionary = {}  # Per-biome packet queue
-var biome_threads: Dictionary = {}        # Per-biome compute threads
-var biome_pending: Dictionary = {}        # biome_name -> bool (has queued packet)
-var biome_in_flight: Dictionary = {}      # biome_name -> bool (thread currently running)
+# === Runtime packet scheduler ===
 var biome_paused: Dictionary = {}         # biome_name -> bool (no peeked terminals, skip evolution)
+var biome_manual_paused: Dictionary = {}  # biome_name -> bool (explicit user/debug pause)
 var biome_evolution_counts: Dictionary = {}  # biome_name -> int (cumulative evolution steps, for music ghost timer)
-var biome_stride_dt_carry: Dictionary = {}  # biome_name -> float (accumulated dt until stride threshold)
-var active_flags: Array = []              # Which biomes are active (populated with terminals)
-
-# Legacy global queue (scheduled for removal after full per-biome migration)
-var lookahead_batch_queue: Array = []     # Legacy: Global pending packets
-var _batches_in_flight: Dictionary = {}  # Legacy: Global completed packets
-var _batch_thread: Thread = null          # Legacy: Global single thread
-var _batch_result_ready: Dictionary = {}  # OLD: Unused
-var _current_batch_request: Dictionary = {} # OLD: Global request tracking
+var _packet_queue: Array = []             # Pending synchronous native packet requests
+var _active_packet_request: Dictionary = {}
 
 # Physics frame guard (prevents duplicate calls in same frame)
 var _last_physics_frame: int = -1
-
-# CPU throttle: prevent packet processing from slamming CPU when catching up
-var _last_packet_completion_time: int = 0  # msec timestamp
 
 # Emergency rescue: Time-based starvation detection (Tier 1 - Tactical)
 const EMERGENCY_RESCUE_STEPS = 5           # Small packet: 5 phrames
@@ -178,7 +189,6 @@ const EMERGENCY_SAFETY_MARGIN = 1.5        # Trigger when buffer_time < batch_ti
 const EMERGENCY_CRITICAL_DEPTH = 2          # Only rescue when biome is critically low (<= 2 phrames)
 const EMERGENCY_COOLDOWN_MS = 600           # Prevent rescue-loop lock-in (global packet cooldown)
 const EMERGENCY_LOG_INTERVAL_MS = 5000      # Throttle repetitive starvation logs per-biome
-var _emergency_rescues: int = 0            # Track emergency packet count
 var _last_emergency_packet_time_ms: int = 0
 var _rescue_starving_state: Dictionary = {}  # biome_name -> bool
 var _rescue_last_log_ms: Dictionary = {}  # biome_name -> int
@@ -186,20 +196,22 @@ var _rescue_suppressed_logs: Dictionary = {}  # biome_name -> int
 
 # Statistics
 var total_evolutions: int = 0
-var skipped_evolutions: int = 0
 var last_batch_time_ms: float = 0.0
 var lookahead_refills: int = 0
-var _last_refill_time: int = 0
 const LOOKAHEAD_INIT_TIMEOUT_MS = 3000
 
 # Physics FPS tracking
 var _physics_frame_count: int = 0
 var _physics_fps_start_time: int = 0
 var physics_frames_per_second: float = 0.0
+var slices_consumed_per_second: float = 0.0  # total across all active biomes
+var active_biome_count: int = 0              # non-paused biomes in last window
+var _slices_consumed_count: int = 0          # accumulator for current window
+var fps_window_last_ms: int = 0              # wall-clock ms of last window close
 
 # Runtime pacing and stall watchdog
-var _max_phrame_hz_cap: float = 10.0
-var _min_phrame_interval_ms: float = 100.0
+var _max_phrame_hz_cap: float = 0.0
+var _min_phrame_interval_ms: float = 0.0
 var _last_phrame_wall_ms: int = 0
 var _throttled_phrame_skips: int = 0
 var _packet_started_at_ms: int = 0
@@ -207,11 +219,10 @@ var _packet_completed_at_ms: int = 0
 var _watchdog_last_log_ms: int = 0
 var _watchdog_stall_warnings: int = 0
 const WATCHDOG_LOG_INTERVAL_MS: int = 2000
-const WATCHDOG_STALL_MS: int = 12000
+const WATCHDOG_STALL_MS: int = 5000    # 5s before first stall warning (was 12s)
+const WATCHDOG_FALLBACK_THRESHOLD: int = 2  # 2 warnings × 2s interval = ~9s to fallback (was 3 × 12s)
 
 # Diagnostics
-var _visual_frames_since_refill: int = 0
-var _last_cursor_log_time: int = 0
 var _evolution_tick_count: int = 0
 
 # Frame timing
@@ -224,20 +235,8 @@ var _physics_frame_counter: int = 0
 func _notification(what: int) -> void:
 	"""Handle cleanup when object is freed."""
 	if what == NOTIFICATION_PREDELETE:
-		# Clean up C++ engine first (just null it - GDExtension objects are freed automatically)
 		if lookahead_engine and is_instance_valid(lookahead_engine):
 			lookahead_engine = null
-
-		# Ensure all worker threads finish before releasing references.
-		# This prevents "Thread object is being destroyed without completion".
-		if _batch_thread != null:
-			_batch_thread.wait_to_finish()
-			_batch_thread = null
-
-		for biome_name in biome_threads.keys():
-			if biome_threads[biome_name] != null:
-				biome_threads[biome_name].wait_to_finish()
-				biome_threads[biome_name] = null
 
 
 func _cleanup_lookahead_engine() -> void:
@@ -250,42 +249,37 @@ func _cleanup_lookahead_engine() -> void:
 		lookahead_engine = null
 
 
+func abort_for_quit() -> void:
+	"""Fast shutdown path for application exit: disable new work and free C++ engine.
+
+	The MultiBiomeLookaheadEngine destructor has no background workers to join,
+	so freeing immediately is safe and avoids ObjectDB leak warnings at exit.
+	"""
+	_teardown_runtime_state()
+
+
 func cleanup() -> void:
 	"""Explicit teardown for farm/session shutdown."""
+	_teardown_runtime_state()
+
+
+func _teardown_runtime_state() -> void:
 	lookahead_enabled = false
 	_engine_ready = false
 	_lookahead_init_started = false
 
-	if _batch_thread != null:
-		_batch_thread.wait_to_finish()
-		_batch_thread = null
-
-	for biome_name in biome_threads.keys():
-		var thread = biome_threads[biome_name]
-		if thread != null:
-			thread.wait_to_finish()
-		biome_threads[biome_name] = null
+	_disconnect_runtime_activity_signals()
 
 	_cleanup_lookahead_engine()
 
 	biomes.clear()
 	_pending_biomes.clear()
-	lookahead_batch_queue.clear()
-	_batches_in_flight.clear()
-	_batch_result_ready.clear()
-	_current_batch_request.clear()
+	_packet_queue.clear()
+	_active_packet_request.clear()
 
-	frame_buffers.clear()
-	buffer_cursors.clear()
-	mi_cache.clear()
-	mi_buffers.clear()
-	bloch_buffers.clear()
-	purity_buffers.clear()
-	position_buffers.clear()
-	velocity_buffers.clear()
-	metadata_payloads.clear()
-	coupling_payloads.clear()
-	icon_map_payloads.clear()
+	_lookahead_buffers.clear()
+	_active_biome_names.clear()
+	_biome_centers_cache.clear()
 	_biome_engine_ids.clear()
 	_engine_id_to_biome.clear()
 	_biome_engine_dims.clear()
@@ -294,22 +288,29 @@ func cleanup() -> void:
 	biome_last_good_purity.clear()
 	biome_dirty.clear()
 	biome_pending_reregister.clear()
-	biome_stride_dt_carry.clear()
 
 	biome_buffer_states.clear()
 	biome_fib_indices.clear()
 	biome_emergency_refill.clear()
 	biome_last_escalation_time.clear()
-	biome_packet_queues.clear()
-	biome_threads.clear()
-	biome_pending.clear()
-	biome_in_flight.clear()
 	biome_paused.clear()
+	biome_manual_paused.clear()
 	biome_evolution_counts.clear()
-	active_flags.clear()
+	_rescue_starving_state.clear()
+	_rescue_last_log_ms.clear()
+	_rescue_suppressed_logs.clear()
+	_activity_refresh_needed = true
+	_activity_poll_accumulator = 0.0
+	_last_phrame_wall_ms = 0
+	_throttled_phrame_skips = 0
+	_packet_started_at_ms = 0
+	_packet_completed_at_ms = 0
 
 	terminal_pool = null
 	farm_ref = null
+	if _deterministic_stepper and _deterministic_stepper.has_method("bind_batcher"):
+		_deterministic_stepper.bind_batcher(null)
+	_deterministic_stepper = null
 
 
 func initialize(biome_array: Array, p_terminal_pool = null, p_farm = null):
@@ -320,8 +321,13 @@ func initialize(biome_array: Array, p_terminal_pool = null, p_farm = null):
 		p_terminal_pool: Optional TerminalPool for bound terminal optimization
 		p_farm: Optional Farm reference for infrastructure-aware evolution checks
 	"""
+	_disconnect_runtime_activity_signals()
 	terminal_pool = p_terminal_pool
 	farm_ref = p_farm
+	if _deterministic_stepper == null:
+		_deterministic_stepper = BiomeDeterministicStepperClass.new(self)
+	else:
+		_deterministic_stepper.bind_batcher(self)
 
 	# Resolve runtime flags once per session.
 	_headless_env = DisplayServer.get_name() == "headless"
@@ -330,8 +336,11 @@ func initialize(biome_array: Array, p_terminal_pool = null, p_farm = null):
 	_disable_mi_env = _resolve_flag("RIG_DISABLE_MI", "SW_DISABLE_MI", rig_enabled)
 	_disable_force_env = _resolve_flag("RIG_DISABLE_FORCE_GRAPH", "SW_DISABLE_FORCE", rig_enabled) \
 		or _resolve_flag("RIG_DISABLE_FORCE", "SW_DISABLE_FORCE", rig_enabled)
-	_stride_scales_resolution = _env_flag("SW_STRIDE_SCALES_RESOLUTION", true)
-	var default_hz = 0.0 if _headless_env else 10.0  # headless: uncapped; GUI: 10 Hz
+	_packet_pacing_delay_ms = max(0, _env_int("SW_PACKET_PACING_DELAY_MS", 0))
+	_max_packet_steps = max(1, _env_int("SW_MAX_PACKET_STEPS", FIB_SEQUENCE[FIB_SEQUENCE.size() - 1]))
+	# Godot already drives Farm._physics_process at PhysicsConfig.PHYSICS_TICKS_HZ.
+	# A second wall-clock phrame cap drops jittery 99ms physics ticks and lowers PhHz.
+	var default_hz = 0.0
 	_max_phrame_hz_cap = max(0.0, _env_float("SW_MAX_PHRAME_HZ", default_hz))
 	if _max_phrame_hz_cap > 0.0:
 		_min_phrame_interval_ms = 1000.0 / _max_phrame_hz_cap
@@ -344,9 +353,12 @@ func initialize(biome_array: Array, p_terminal_pool = null, p_farm = null):
 	)
 	for biome in biomes:
 		var biome_name = _get_biome_name(biome)
-		biome_stride_dt_carry[biome_name] = 0.0
+		_initialize_biome_runtime_state(biome_name, true)
 
-	print("BiomeEvolutionBatcher: Registered %d biomes for batch evolution" % biomes.size())
+	_connect_runtime_activity_signals()
+	_refresh_runtime_activity(true)
+
+	_log_debug("BiomeEvolutionBatcher: Registered %d biomes for batch evolution" % biomes.size())
 
 	# Try to initialize Stage 2 lookahead engine
 	if ENABLE_LOOKAHEAD and not _disable_lookahead_env:
@@ -354,21 +366,84 @@ func initialize(biome_array: Array, p_terminal_pool = null, p_farm = null):
 	elif _disable_lookahead_env:
 		lookahead_enabled = false
 		lookahead_engine = null
-		print("  Lookahead disabled by environment flag(s) - using Stage 1 rotation")
+		_log_debug("  Lookahead disabled by environment flag(s) - native evolution stalled")
 
 	if lookahead_enabled:
-		print("  Mode: Batched lookahead (%d phrames × %.1fs = %.1fs buffer)" % [
+		_log_debug("  Mode: C++ batched lookahead (%d phrames × %.1fs = %.1fs buffer)" % [
 			LOOKAHEAD_STEPS, LOOKAHEAD_DT, LOOKAHEAD_STEPS * LOOKAHEAD_DT
 		])
 	else:
-		print("  Mode: Stage 1 rotation (%d biomes/frame at %.1fHz)" % [
-			BIOMES_PER_FRAME, 1.0 / EVOLUTION_INTERVAL
-		])
-		if ENABLE_LOOKAHEAD:
-			print("  Note: Lookahead engine initializing asynchronously (may activate shortly...)")
+		_log_debug("  Mode: Waiting for C++ engine initialization")
 
 	if terminal_pool:
-		print("  Optimization: Skip evolution for biomes with no bound terminals")
+		_log_debug("  Optimization: Skip evolution for biomes with no bound terminals")
+
+
+func _connect_runtime_activity_signals() -> void:
+	if terminal_pool:
+		if terminal_pool.has_signal("terminal_bound"):
+			InstrumentLocator.safe_connect(terminal_pool.terminal_bound, _on_terminal_pool_terminal_bound)
+		if terminal_pool.has_signal("terminal_unbound"):
+			InstrumentLocator.safe_connect(terminal_pool.terminal_unbound, _on_terminal_pool_terminal_unbound)
+		if terminal_pool.has_signal("terminal_measured"):
+			InstrumentLocator.safe_connect(terminal_pool.terminal_measured, _on_terminal_pool_terminal_measured)
+
+
+func _disconnect_runtime_activity_signals() -> void:
+	if terminal_pool:
+		if terminal_pool.has_signal("terminal_bound"):
+			InstrumentLocator.safe_disconnect(terminal_pool.terminal_bound, _on_terminal_pool_terminal_bound)
+		if terminal_pool.has_signal("terminal_unbound"):
+			InstrumentLocator.safe_disconnect(terminal_pool.terminal_unbound, _on_terminal_pool_terminal_unbound)
+		if terminal_pool.has_signal("terminal_measured"):
+			InstrumentLocator.safe_disconnect(terminal_pool.terminal_measured, _on_terminal_pool_terminal_measured)
+
+
+func _on_terminal_pool_terminal_bound(terminal: RefCounted, _register_id: int) -> void:
+	_mark_biome_activity_dirty(terminal.bound_biome_name if terminal else "")
+
+
+func _on_terminal_pool_terminal_unbound(terminal: RefCounted) -> void:
+	_mark_biome_activity_dirty(terminal.bound_biome_name if terminal else "")
+
+
+func _on_terminal_pool_terminal_measured(terminal: RefCounted, _outcome: String) -> void:
+	_mark_biome_activity_dirty(terminal.bound_biome_name if terminal else "")
+
+
+func _mark_biome_activity_dirty(_biome_name: String = "") -> void:
+	_activity_refresh_needed = true
+
+
+func _refresh_runtime_activity(force: bool = false) -> void:
+	if not force and not _activity_refresh_needed:
+		return
+
+	var next_active: Dictionary = {}
+	for biome in biomes:
+		if not _is_valid_biome(biome):
+			continue
+		var biome_name = _get_biome_name(biome)
+		var has_activity = not biome_manual_paused.get(biome_name, false)
+		has_activity = has_activity and biome.quantum_evolution_enabled and not biome.evolution_paused
+		if has_activity:
+			has_activity = _biome_has_bound_terminals(biome, true)
+		if has_activity:
+			next_active[biome_name] = true
+
+		var was_paused = biome_paused.get(biome_name, false)
+		var paused_now = not has_activity
+		biome_paused[biome_name] = paused_now
+
+		if was_paused != paused_now:
+			if has_activity:
+				_log_debug("[BiomeEvolution] %s: RESUMED (terminal bound)" % biome_name)
+			else:
+				_log_debug("[BiomeEvolution] %s: PAUSED (no bound terminals)" % biome_name)
+
+	_active_biome_names = next_active
+	_activity_refresh_needed = false
+	_activity_poll_accumulator = 0.0
 
 
 func register_biome(biome) -> void:
@@ -376,9 +451,11 @@ func register_biome(biome) -> void:
 
 	TERMINOLOGY: register_biome() adds biome to evolution tracking.
 	The batcher then "enrolls" it in the native engine (internal detail).
+	Registering also transfers _process ownership from the biome to this
+	batcher, so callers do not need to remember a second process-state ritual.
 
 	IDEMPOTENT: Safe to call multiple times. If biome is already registered,
-	this method returns early without side effects.
+	this method reasserts batch ownership and returns.
 
 	If native engine isn't ready yet, queues the biome for later registration.
 	Biome is only 'ready' after its 10-step lookahead buffers are primed.
@@ -388,47 +465,30 @@ func register_biome(biome) -> void:
 
 	if biomes.has(biome):
 		var biome_name = _get_biome_name(biome)
+		_claim_batched_evolution(biome)
 		_log("debug", "batcher", "ℹ️", "Biome '%s' already registered (idempotent)" % biome_name)
 		return
 
 	biomes.append(biome)
+	_claim_batched_evolution(biome)
 
 	var biome_name = _get_biome_name(biome)
 
-	# Initialize buffer structures (empty until primed)
-	frame_buffers[biome_name] = []
-	buffer_cursors[biome_name] = 0
-	mi_cache[biome_name] = PackedFloat64Array()
-	mi_buffers[biome_name] = []
-	position_buffers[biome_name] = []  # NEW: force positions
-	velocity_buffers[biome_name] = []  # NEW: force velocities
-	bloch_buffers[biome_name] = []
-	purity_buffers[biome_name] = []
-	metadata_payloads[biome_name] = _build_metadata_payload(biome)
-	coupling_payloads[biome_name] = _get_coupling_payload_from_viz_cache(biome)
-	icon_map_payloads[biome_name] = {}
+	# Initialize per-biome buffered native output (empty until primed)
+	var lookahead_buffer = _ensure_lookahead_buffer(biome_name)
+	lookahead_buffer.clear()
+	_sync_biome_structure_payload(biome)
 
-	# Initialize per-biome adaptive state (self-balancing Fibonacci)
-	biome_buffer_states[biome_name] = BufferState.RECOVERY  # Start in RECOVERY
-	biome_fib_indices[biome_name] = 4  # Start at Fib[4]=5
-	biome_emergency_refill[biome_name] = false
-	biome_last_escalation_time[biome_name] = 0.0  # Never escalated yet
-	biome_dirty[biome_name] = false
-	biome_pending_reregister[biome_name] = false
-	biome_stride_dt_carry[biome_name] = 0.0
+	_initialize_biome_runtime_state(biome_name, true)
+	_mark_biome_activity_dirty(biome_name)
 
 	# If native engine is ready, register and prime immediately
-	if _engine_ready and lookahead_engine and ENABLE_LOOKAHEAD:
+	if _engine_ready and lookahead_engine:
 		_register_and_prime_biome(biome)
-	elif ENABLE_LOOKAHEAD and not _engine_ready:
+	else:
 		# Queue for later - native engine still initializing
 		_pending_biomes.append(biome)
-		print("BiomeEvolutionBatcher: Queued biome '%s' (waiting for native engine)" % biome_name)
-	else:
-		# ENABLE_LOOKAHEAD is false - use GDScript fallback
-		_prime_single_biome_gdscript(biome)
-		print("BiomeEvolutionBatcher: Registered biome '%s' (GDScript mode)" % biome_name)
-		biome_ready.emit(biome_name)
+		_log_debug("BiomeEvolutionBatcher: Queued biome '%s' (waiting for native engine)" % biome_name)
 
 
 func unregister_biome(biome) -> void:
@@ -446,56 +506,111 @@ func unregister_biome(biome) -> void:
 
 	var biome_name = _get_biome_name(biome)
 
-	# CRITICAL: Stop in-flight threads and clear queue BEFORE cleanup
-	# Otherwise segfault when thread accesses freed memory
-	if biome_packet_queues.has(biome_name):
-		biome_packet_queues[biome_name].clear()
-		biome_pending[biome_name] = false
-
-	# Wait for in-flight thread to complete
-	if biome_threads.has(biome_name) and biome_threads[biome_name] != null:
-		var thread = biome_threads[biome_name]
-		if thread.is_alive():
-			thread.wait_to_finish()
-		biome_threads.erase(biome_name)
-		biome_in_flight[biome_name] = false
-
 	# Remove from biomes array
 	var idx = biomes.find(biome)
 	if idx >= 0:
 		biomes.remove_at(idx)
 
-	# Clean up buffer dictionaries
-	frame_buffers.erase(biome_name)
-	buffer_cursors.erase(biome_name)
-	mi_cache.erase(biome_name)
-	mi_buffers.erase(biome_name)
-	bloch_buffers.erase(biome_name)
-	purity_buffers.erase(biome_name)
-	position_buffers.erase(biome_name)
-	velocity_buffers.erase(biome_name)
-	metadata_payloads.erase(biome_name)
-	coupling_payloads.erase(biome_name)
-	icon_map_payloads.erase(biome_name)
+	# Clean up per-biome runtime state.
+	_erase_lookahead_buffer(biome_name)
+	_active_biome_names.erase(biome_name)
 	_biome_engine_dims.erase(biome_name)
-	biome_last_good_rho.erase(biome_name)
-	biome_last_good_bloch.erase(biome_name)
-	biome_last_good_purity.erase(biome_name)
-	biome_dirty.erase(biome_name)
-	biome_pending_reregister.erase(biome_name)
-	biome_stride_dt_carry.erase(biome_name)
-
-	# Clean up per-biome state
-	biome_packet_queues.erase(biome_name)
-	biome_pending.erase(biome_name)
-	biome_in_flight.erase(biome_name)
-	biome_paused.erase(biome_name)
+	_erase_biome_runtime_state(biome_name)
+	_mark_biome_activity_dirty(biome_name)
 
 	# NOTE: We do NOT remove from _biome_engine_ids or _engine_id_to_biome
 	# because the native engine still has this biome registered.
 	# The mapping is needed to correctly skip this biome during result processing.
 
-	print("BiomeEvolutionBatcher: Unregistered biome '%s' from batcher (engine id retained)" % biome_name)
+	_log_debug("BiomeEvolutionBatcher: Unregistered biome '%s' from batcher (engine id retained)" % biome_name)
+	_release_batched_evolution(biome)
+
+
+func _claim_batched_evolution(biome) -> void:
+	if not biome:
+		return
+	biome.set_meta("batched_evolution", true)
+	if biome.has_method("set_process"):
+		biome.set_process(false)
+
+
+func _release_batched_evolution(biome) -> void:
+	if not biome:
+		return
+	biome.set_meta("batched_evolution", false)
+
+
+func _initialize_biome_runtime_state(biome_name: String, assume_paused: bool) -> void:
+	if biome_name == "":
+		return
+
+	biome_buffer_states[biome_name] = BufferState.RECOVERY
+	biome_fib_indices[biome_name] = INITIAL_BIOME_FIB_INDEX
+	biome_emergency_refill[biome_name] = false
+	biome_last_escalation_time[biome_name] = 0.0
+	biome_dirty[biome_name] = false
+	biome_pending_reregister[biome_name] = false
+	biome_manual_paused[biome_name] = false
+	biome_paused[biome_name] = assume_paused
+	biome_evolution_counts[biome_name] = 0
+	_rescue_starving_state[biome_name] = false
+	_rescue_last_log_ms[biome_name] = 0
+	_rescue_suppressed_logs[biome_name] = 0
+
+
+func _erase_biome_runtime_state(biome_name: String) -> void:
+	if biome_name == "":
+		return
+
+	biome_last_good_rho.erase(biome_name)
+	biome_last_good_bloch.erase(biome_name)
+	biome_last_good_purity.erase(biome_name)
+	biome_dirty.erase(biome_name)
+	biome_pending_reregister.erase(biome_name)
+	biome_buffer_states.erase(biome_name)
+	biome_fib_indices.erase(biome_name)
+	biome_emergency_refill.erase(biome_name)
+	biome_last_escalation_time.erase(biome_name)
+	biome_paused.erase(biome_name)
+	biome_manual_paused.erase(biome_name)
+	biome_evolution_counts.erase(biome_name)
+	_rescue_starving_state.erase(biome_name)
+	_rescue_last_log_ms.erase(biome_name)
+	_rescue_suppressed_logs.erase(biome_name)
+	if _deterministic_stepper:
+		_deterministic_stepper.reset_stride_carry(biome_name)
+
+
+func _register_native_biome(biome) -> int:
+	"""Register one biome with the native engine and sync its structural payload."""
+	if not lookahead_engine or not _is_valid_biome(biome):
+		return -1
+
+	var qc = biome.quantum_computer
+	var dim = qc.register_map.dim()
+	var num_qubits = qc.register_map.num_qubits
+	var H_packed = qc.hamiltonian._to_packed() if qc.hamiltonian else PackedFloat64Array()
+
+	var lindblad_triplets: Array = []
+	for L in qc.lindblad_operators:
+		if L:
+			lindblad_triplets.append(_matrix_to_triplets(L))
+
+	var biome_id = lookahead_engine.register_biome(dim, H_packed, lindblad_triplets, num_qubits)
+	if biome_id < 0:
+		return biome_id
+
+	var biome_name = _get_biome_name(biome)
+	_biome_engine_ids[biome_name] = biome_id
+	_engine_id_to_biome[biome_id] = biome_name
+	_biome_engine_dims[biome_name] = dim
+	_sync_biome_structure_payload(biome, biome_id)
+
+	if use_phase_lnn and lookahead_engine.has_method("enable_biome_lnn"):
+		var hidden_size = max(4, dim / LNN_HIDDEN_DIVISOR)
+		lookahead_engine.enable_biome_lnn(biome_id, hidden_size)
+
+	return biome_id
 
 
 func _register_and_prime_biome(biome) -> void:
@@ -526,54 +641,37 @@ func _register_and_prime_biome(biome) -> void:
 		_biome_engine_dims[biome_name] = dim
 
 	if biome_id < 0:
-		# Not yet registered - register with native engine
-		var H_packed = qc.hamiltonian._to_packed() if qc.hamiltonian else PackedFloat64Array()
+		biome_id = _register_native_biome(biome)
 
-		var lindblad_triplets: Array = []
-		for L in qc.lindblad_operators:
-			if L:
-				lindblad_triplets.append(_matrix_to_triplets(L))
-
-		biome_id = lookahead_engine.register_biome(dim, H_packed, lindblad_triplets, num_qubits)
-
-		# Track biome_id mapping for correct result distribution on unregister
-		if biome_id >= 0:
-			_biome_engine_ids[biome_name] = biome_id
-			_engine_id_to_biome[biome_id] = biome_name
-			_biome_engine_dims[biome_name] = dim
-
-		if biome_id >= 0 and lookahead_engine.has_method("set_biome_metadata"):
-			var metadata = _build_metadata_payload(biome)
-			lookahead_engine.set_biome_metadata(biome_id, metadata)
-
-		# Enable phase-shadow LNN for this biome (if configured)
-		if biome_id >= 0 and use_phase_lnn and lookahead_engine.has_method("enable_biome_lnn"):
-			var hidden_size = max(4, dim / LNN_HIDDEN_DIVISOR)
-			lookahead_engine.enable_biome_lnn(biome_id, hidden_size)
+	if biome_id >= 0:
+		_sync_biome_structure_payload(biome, biome_id)
 
 	lookahead_enabled = (lookahead_engine.get_biome_count() > 0)
 	lookahead_accumulator = LOOKAHEAD_DT * LOOKAHEAD_STEPS
+
+	# Apply cached biome center (set by update_layout before or after engine init)
+	if biome_id >= 0 and lookahead_engine.has_method("set_biome_center"):
+		var cached_center = _biome_centers_cache.get(biome_name, Vector2.ZERO)
+		if cached_center != Vector2.ZERO:
+			lookahead_engine.set_biome_center(biome_id, cached_center)
 
 	# Prime the biome's 10-step lookahead buffers
 	if lookahead_enabled and biome_id >= 0:
 		_prime_single_biome(biome, biome_id)
 		biome_dirty[biome_name] = false
-		print("BiomeEvolutionBatcher: Registered biome '%s' (native id=%d, primed)" % [biome_name, biome_id])
+		_log_debug("BiomeEvolutionBatcher: Registered biome '%s' (native id=%d, primed)" % [biome_name, biome_id])
 		biome_ready.emit(biome_name)
 	else:
-		# Fallback if native registration failed
-		_prime_single_biome_gdscript(biome)
-		print("BiomeEvolutionBatcher: Registered biome '%s' (GDScript fallback)" % biome_name)
-		biome_ready.emit(biome_name)
+		push_warning("BiomeEvolutionBatcher: Native registration failed for '%s'. Biome will remain stalled until the C++ engine is available." % biome_name)
 
 
 func _setup_lookahead_engine():
 	"""Set up the native MultiBiomeLookaheadEngine if available."""
 	if ClassDB.class_exists("MultiBiomeLookaheadEngine"):
-		call_deferred("_create_lookahead_engine_async")
+		call_deferred("_create_lookahead_engine_deferred")
 		return
 
-	# Engine not yet available - wait up to timeout then fall back.
+	# Engine not yet available - wait up to timeout before reporting stalled native init.
 	if not _lookahead_init_started:
 		_lookahead_init_started = true
 		call_deferred("_await_lookahead_engine")
@@ -582,36 +680,35 @@ func _setup_lookahead_engine():
 func _await_lookahead_engine() -> void:
 	var tree = Engine.get_main_loop()
 	if not tree or not tree is SceneTree:
-		print("  MultiBiomeLookaheadEngine: No SceneTree available - using Stage 1 fallback")
+		push_warning("[BiomeEvolutionBatcher] No SceneTree — cannot initialize the C++ lookahead engine.")
 		_lookahead_init_started = false
-		_process_pending_biomes_gdscript()
 		return
 
 	var start_ms = Time.get_ticks_msec()
 	while Time.get_ticks_msec() - start_ms < LOOKAHEAD_INIT_TIMEOUT_MS:
 		if ClassDB.class_exists("MultiBiomeLookaheadEngine"):
-			await _create_lookahead_engine_async()
+			await _create_lookahead_engine_deferred()
 			_lookahead_init_started = false
 			return
 		await tree.process_frame
 
-	print("  MultiBiomeLookaheadEngine: Timeout waiting for native engine - using Stage 1 fallback")
+	push_warning("[BiomeEvolutionBatcher] Timeout waiting for the C++ lookahead engine. Evolution remains stalled.")
 	_lookahead_init_started = false
-	_process_pending_biomes_gdscript()
 
 
-func _create_lookahead_engine_async() -> void:
+func _create_lookahead_engine_deferred() -> void:
 	lookahead_engine = ClassDB.instantiate("MultiBiomeLookaheadEngine")
 	if not lookahead_engine:
-		print("  MultiBiomeLookaheadEngine: Failed to instantiate - using Stage 1 fallback")
-		_process_pending_biomes_gdscript()
+		push_warning("[BiomeEvolutionBatcher] Failed to instantiate the C++ lookahead engine. Evolution remains stalled.")
 		return
 	if _disable_mi_env and lookahead_engine.has_method("set_enable_mi"):
 		lookahead_engine.set_enable_mi(false)
 	if _disable_force_env and lookahead_engine.has_method("set_enable_force"):
 		lookahead_engine.set_enable_force(false)
+	if lookahead_engine.has_method("set_pacing_delay_ms"):
+		lookahead_engine.set_pacing_delay_ms(_packet_pacing_delay_ms)
 
-	print("  MultiBiomeLookaheadEngine: Engine created, processing pending biomes...")
+	_log_debug("  MultiBiomeLookaheadEngine: Engine created, processing pending biomes...")
 
 	# Process any biomes that were queued while waiting for engine
 	var biomes_to_register = _pending_biomes.duplicate()
@@ -628,58 +725,22 @@ func _create_lookahead_engine_async() -> void:
 	# Register each biome with the native engine
 	for biome in biomes_to_register:
 		if Time.get_ticks_msec() - start_ms > LOOKAHEAD_INIT_TIMEOUT_MS:
-			print("  MultiBiomeLookaheadEngine: Init timed out during registration - using Stage 1 fallback")
+			push_warning("[BiomeEvolutionBatcher] C++ engine init timed out during registration. Evolution remains stalled.")
 			lookahead_engine = null
 			lookahead_enabled = false
 			_engine_ready = false
-			_process_pending_biomes_gdscript()
 			return
 
 		if not _is_valid_biome(biome):
 			continue
 
-		var qc = biome.quantum_computer
-		# Get operators from QuantumComputer
-		var dim = qc.register_map.dim()
-		var num_qubits = qc.register_map.num_qubits
-		var H_packed = qc.hamiltonian._to_packed() if qc.hamiltonian else PackedFloat64Array()
-
-		# Convert Lindblad operators to triplet format
-		var lindblad_triplets: Array = []
-		for L in qc.lindblad_operators:
-			if L:
-				lindblad_triplets.append(_matrix_to_triplets(L))
-
-		# Register with lookahead engine
-		var biome_id = lookahead_engine.register_biome(dim, H_packed, lindblad_triplets, num_qubits)
 		var biome_name = _get_biome_name(biome)
+		var biome_id = _register_native_biome(biome)
 
-		# Track biome_id mapping for correct result distribution on unregister
-		if biome_id >= 0:
-			_biome_engine_ids[biome_name] = biome_id
-			_engine_id_to_biome[biome_id] = biome_name
-			_biome_engine_dims[biome_name] = dim
-
-		if biome_id >= 0 and lookahead_engine.has_method("set_biome_metadata"):
-			var metadata = _build_metadata_payload(biome)
-			lookahead_engine.set_biome_metadata(biome_id, metadata)
-
-		# Enable phase-shadow LNN for this biome (if configured)
-		if biome_id >= 0 and use_phase_lnn and lookahead_engine.has_method("enable_biome_lnn"):
-			var hidden_size = max(4, dim / LNN_HIDDEN_DIVISOR)
-			lookahead_engine.enable_biome_lnn(biome_id, hidden_size)
-
-		# Initialize buffers
-		frame_buffers[biome_name] = []
-		buffer_cursors[biome_name] = 0
-		mi_cache[biome_name] = PackedFloat64Array()
-		mi_buffers[biome_name] = []
-		position_buffers[biome_name] = []  # NEW: force positions
-		velocity_buffers[biome_name] = []  # NEW: force velocities
-		bloch_buffers[biome_name] = []
-		purity_buffers[biome_name] = []
-		metadata_payloads[biome_name] = _build_metadata_payload(biome)
-		coupling_payloads[biome_name] = _get_coupling_payload_from_viz_cache(biome)
+		# Initialize per-biome native output buffer
+		var lookahead_buffer = _ensure_lookahead_buffer(biome_name)
+		lookahead_buffer.clear()
+		_sync_biome_structure_payload(biome, biome_id)
 		biome_dirty[biome_name] = false
 		biome_pending_reregister[biome_name] = false
 
@@ -690,6 +751,9 @@ func _create_lookahead_engine_async() -> void:
 	_engine_ready = true
 	lookahead_enabled = (lookahead_engine.get_biome_count() > 0)
 	lookahead_accumulator = LOOKAHEAD_DT * LOOKAHEAD_STEPS
+
+	# Apply any oval centers that QuantumForceGraph pushed before the engine was ready.
+	_flush_cached_biome_centers()
 
 	# Prime all registered biomes at once using batched evolution
 	if lookahead_enabled and not registered_biomes.is_empty():
@@ -703,12 +767,12 @@ func _create_lookahead_engine_async() -> void:
 				lnn_count += 1
 
 	if lookahead_enabled:
-		print("  ✓ Lookahead engine ACTIVATED - Stage 2 batched evolution")
-		print("  MultiBiomeLookaheadEngine: %d biomes registered, %d with LNN" % [
+		_log_debug("  ✓ Lookahead engine ACTIVATED - native batched evolution")
+		_log_debug("  MultiBiomeLookaheadEngine: %d biomes registered, %d with LNN" % [
 			lookahead_engine.get_biome_count(), lnn_count
 		])
 	else:
-		print("  MultiBiomeLookaheadEngine: No biomes registered - falling back to Stage 1")
+		_log_debug("  MultiBiomeLookaheadEngine: No biomes registered")
 
 
 func _prime_all_biomes_native(biomes_to_prime: Array) -> void:
@@ -720,7 +784,7 @@ func _prime_all_biomes_native(biomes_to_prime: Array) -> void:
 	if not lookahead_engine or biomes_to_prime.is_empty():
 		return
 
-	print("  Priming %d biomes with %d-phrame lookahead..." % [biomes_to_prime.size(), LOOKAHEAD_STEPS])
+	_log_debug("  Priming %d biomes with %d-phrame lookahead..." % [biomes_to_prime.size(), LOOKAHEAD_STEPS])
 
 	# Collect current density matrices for all biomes
 	var biome_rhos: Array = []
@@ -733,8 +797,7 @@ func _prime_all_biomes_native(biomes_to_prime: Array) -> void:
 			# (C++ should check if array is empty before unpacking)
 			biome_rhos.append(PackedFloat64Array())
 
-	# Get actual granularity from first biome (all biomes share same granularity)
-	var actual_dt = biomes_to_prime[0].max_evolution_dt if biomes_to_prime.size() > 0 and "max_evolution_dt" in biomes_to_prime[0] else LOOKAHEAD_DT
+	var actual_dt = _get_packet_dt_for_biomes(biomes_to_prime)
 
 	# Batched evolution: all biomes × LOOKAHEAD_STEPS in one native call
 	# Pass actual_dt as BOTH dt and max_dt (no subcycling, max_dt is the timestep)
@@ -747,49 +810,38 @@ func _prime_all_biomes_native(biomes_to_prime: Array) -> void:
 	var bloch_steps = evo_result.get("bloch_steps", [])
 	var purity_steps = evo_result.get("purity_steps", [])
 	var mi_steps = evo_result.get("mi_steps", [])
+	var evo_position_steps = evo_result.get("position_steps", [])
 
 	for i in range(biomes_to_prime.size()):
 		var biome = biomes_to_prime[i]
 		var biome_name = _get_biome_name(biome)
+		var lookahead_buffer = _ensure_lookahead_buffer(biome_name)
 
 		# Fill buffers with evolution results
 		if i < results.size():
-			frame_buffers[biome_name] = results[i]
+			lookahead_buffer.frames = results[i]
 		if i < bloch_steps.size():
-			bloch_buffers[biome_name] = bloch_steps[i]
+			lookahead_buffer.bloch_steps = bloch_steps[i]
 		if i < purity_steps.size():
-			purity_buffers[biome_name] = purity_steps[i]
+			lookahead_buffer.purity_steps = purity_steps[i]
 		if i < mi_steps.size():
-			mi_buffers[biome_name] = mi_steps[i]
+			lookahead_buffer.mi_steps = mi_steps[i]
+			lookahead_buffer.latest_mi = mi_steps[i][mi_steps[i].size() - 1] if not mi_steps[i].is_empty() else PackedFloat64Array()
+		if i < evo_position_steps.size():
+			lookahead_buffer.positions = evo_position_steps[i]
 
 		# Reset cursor to start
-		buffer_cursors[biome_name] = 0
+		lookahead_buffer.cursor = 0
 
 		# Update viz_cache from first phrame
-		if biome.viz_cache and not frame_buffers[biome_name].is_empty():
+		if biome.viz_cache and not lookahead_buffer.frames.is_empty():
 			_apply_buffered_step(biome, false)
 
 		# Emit ready signal - this biome now has its N phrames buffered!
 		biome_ready.emit(biome_name)
 
 	lookahead_refills += 1
-	print("  ✓ All biomes primed and ready!")
-
-
-func _process_pending_biomes_gdscript() -> void:
-	"""Fallback: Process pending biomes using GDScript when native engine unavailable."""
-	if _pending_biomes.is_empty():
-		return
-
-	print("  Processing %d pending biomes with GDScript fallback..." % _pending_biomes.size())
-
-	for biome in _pending_biomes:
-		_prime_single_biome_gdscript(biome)
-		var biome_name = _get_biome_name(biome)
-		print("  → %s primed (GDScript)" % biome_name)
-		biome_ready.emit(biome_name)
-
-	_pending_biomes.clear()
+	_log_debug("  ✓ All biomes primed and ready!")
 
 
 func _matrix_to_triplets(mat) -> PackedFloat64Array:
@@ -808,6 +860,32 @@ func _matrix_to_triplets(mat) -> PackedFloat64Array:
 				triplets.append(c.im)
 
 	return triplets
+
+
+func _get_biome_evolution_dt(biome) -> float:
+	if biome and "max_evolution_dt" in biome:
+		return maxf(0.000001, float(biome.max_evolution_dt))
+	return LOOKAHEAD_DT
+
+
+func _get_packet_dt_for_biomes(packet_biomes: Array) -> float:
+	var actual_dt := INF
+	for biome in packet_biomes:
+		if _is_valid_biome(biome):
+			actual_dt = minf(actual_dt, _get_biome_evolution_dt(biome))
+	return LOOKAHEAD_DT if actual_dt == INF else actual_dt
+
+
+func _get_packet_dt_for_active_flags(active_flags_arr: Array) -> float:
+	var actual_dt := INF
+	for engine_id in range(active_flags_arr.size()):
+		if not bool(active_flags_arr[engine_id]):
+			continue
+		var biome_name = _engine_id_to_biome.get(engine_id, "")
+		var biome = _get_biome_by_name(biome_name)
+		if _is_valid_biome(biome):
+			actual_dt = minf(actual_dt, _get_biome_evolution_dt(biome))
+	return LOOKAHEAD_DT if actual_dt == INF else actual_dt
 
 
 func _build_metadata_payload(biome) -> Dictionary:
@@ -837,6 +915,8 @@ func _get_coupling_payload_from_viz_cache(biome) -> Dictionary:
 	"""Get coupling payload from biome's viz_cache (already populated from icons).
 
 	Returns: {
+		"self_energies": {emoji: base_self_energy, ...},
+		"self_energy_drivers": {emoji: {type, frequency, phase, amplitude}, ...},
 		"hamiltonian": {emoji_a: {emoji_b: coupling_strength, ...}, ...},
 		"lindblad": {emoji_a: {emoji_b: rate, ...}, ...}
 	}
@@ -845,8 +925,10 @@ func _get_coupling_payload_from_viz_cache(biome) -> Dictionary:
 	if not biome or not biome.viz_cache or not biome.quantum_computer or not biome.quantum_computer.register_map:
 		return {}
 
-	# viz_cache already has coupling data from icon metadata
+	# viz_cache already has Hamiltonian/Lindblad data from icon metadata
 	# Extract it by querying all emojis
+	var self_energies: Dictionary = {}
+	var self_energy_drivers: Dictionary = biome.viz_cache.get_self_energy_drivers()
 	var hamiltonian_couplings: Dictionary = {}
 	var lindblad_outgoing: Dictionary = {}
 	var sink_fluxes: Dictionary = {}
@@ -855,6 +937,7 @@ func _get_coupling_payload_from_viz_cache(biome) -> Dictionary:
 	var register_map = qc.register_map
 
 	for emoji in register_map.coordinates.keys():
+		self_energies[emoji] = biome.viz_cache.get_self_energy(emoji)
 		hamiltonian_couplings[emoji] = biome.viz_cache.get_hamiltonian_couplings(emoji)
 		var outgoing = biome.viz_cache.get_lindblad_outgoing(emoji)
 		lindblad_outgoing[emoji] = outgoing
@@ -866,19 +949,49 @@ func _get_coupling_payload_from_viz_cache(biome) -> Dictionary:
 			sink_fluxes[emoji] = total_rate
 
 	return {
+		"self_energies": self_energies,
+		"self_energy_drivers": self_energy_drivers,
 		"hamiltonian": hamiltonian_couplings,
 		"lindblad": lindblad_outgoing,
 		"sink_fluxes": sink_fluxes
 	}
 
 
+func _build_biome_structure_payload(biome) -> Dictionary:
+	"""Build the immutable structural payload owned by the biome/viz surface."""
+	return {
+		"metadata": _build_metadata_payload(biome),
+		"couplings": _get_coupling_payload_from_viz_cache(biome),
+	}
+
+
+func _sync_biome_structure_payload(biome, biome_id: int = -1) -> Dictionary:
+	"""Project biome-owned structure into the local buffer and native engine."""
+	if not _is_valid_biome(biome):
+		return {}
+
+	var biome_name = _get_biome_name(biome)
+	var payload = _build_biome_structure_payload(biome)
+	var metadata: Dictionary = payload.get("metadata", {})
+	var couplings: Dictionary = payload.get("couplings", {})
+
+	var lookahead_buffer = _ensure_lookahead_buffer(biome_name)
+	lookahead_buffer.metadata = metadata
+	lookahead_buffer.couplings = couplings
+
+	if biome_id >= 0 and lookahead_engine:
+		if lookahead_engine.has_method("set_biome_metadata"):
+			lookahead_engine.set_biome_metadata(biome_id, metadata)
+		if lookahead_engine.has_method("set_biome_couplings"):
+			lookahead_engine.set_biome_couplings(biome_id, couplings)
+
+	return payload
+
+
 var _first_tick_logged: bool = false
 
 func physics_process(delta: float):
-	"""Called at PhysicsConfig.PHYSICS_TICKS_HZ by physics loop (from Farm._physics_process()).
-
-	Routes to lookahead mode (Stage 2) or rotation mode (Stage 1).
-	"""
+	"""Called at PhysicsConfig.PHYSICS_TICKS_HZ by physics loop (from Farm._physics_process())."""
 	# GUARD: Prevent duplicate calls in same physics frame
 	var current_physics_frame = Engine.get_physics_frames()
 	if current_physics_frame == _last_physics_frame:
@@ -889,33 +1002,25 @@ func physics_process(delta: float):
 	if biomes.is_empty():
 		return
 
-	# One-time diagnostic: confirm lookahead status
+	# One-time diagnostic: confirm C++ lookahead status
 	if not _first_tick_logged:
 		_first_tick_logged = true
 		if lookahead_enabled:
-			print("[BiomeEvolutionBatcher] STAGE 2 ACTIVE: %d-phrame lookahead (%.1fs buffer, refill every %.1fs)" % [
-				LOOKAHEAD_STEPS, LOOKAHEAD_STEPS * LOOKAHEAD_DT, (LOOKAHEAD_DT * LOOKAHEAD_STEPS) * 0.8
+			_log_debug("[BiomeEvolutionBatcher] C++ LOOKAHEAD ACTIVE: %d-phrame buffer (%.1fs @ %dHz)" % [
+				LOOKAHEAD_STEPS, LOOKAHEAD_STEPS * LOOKAHEAD_DT, _PC.PHRAME_HZ
 			])
-			print("  → Visual interpolation ENABLED: smooth 60fps ticks between %dHz phrames" % _PC.PHRAME_HZ)
 		else:
-			print("[BiomeEvolutionBatcher] WARNING: Stage 1 fallback active (no native lookahead)")
-			print("  → This is SLOWER. Check if MultiBiomeLookaheadEngine loaded correctly.")
+			push_warning("[BiomeEvolutionBatcher] C++ lookahead NOT active. Evolution will stall until engine initializes.")
 
 	if lookahead_enabled:
 		_physics_process_lookahead(delta)
 	else:
-		_physics_process_rotation(delta)
+		push_warning("[BiomeEvolutionBatcher] C++ lookahead not active — evolution stalled. All computation must run in C++.")
+		return
 
-
-# Detailed physics timing
-var _phys_timing_time_track_us: int = 0
-var _phys_timing_consume_us: int = 0
-var _phys_timing_refill_us: int = 0
-var _phys_timing_packet_us: int = 0
-var _phys_timing_count: int = 0
 
 func _physics_process_lookahead(delta: float):
-	"""Stage 2: Lookahead mode - distributed C++ packet processing.
+	"""Lookahead mode: consume buffered phrames and run synchronous native packets.
 
 	Terminology:
 	- tick = visual frame (60 FPS from _process)
@@ -924,33 +1029,33 @@ func _physics_process_lookahead(delta: float):
 
 	Key: Refill check runs at phrame rate (consumption).
 	"""
-	var t0 = Time.get_ticks_usec()
-
 	# Track frame timing (for diagnostics only, not control logic)
 	var now_ms = Time.get_ticks_msec()
+	var tick_now_ms = now_ms
 	if _last_frame_time > 0:
 		var frame_delta_ms = now_ms - _last_frame_time
 		_avg_frame_time_ms = _smooth_metric(_avg_frame_time_ms, float(frame_delta_ms))
 	_last_frame_time = now_ms
 
-	# Update time trackers for all biomes (always)
-	for biome in biomes:
-		if biome and biome.time_tracker:
-			biome.time_tracker.update(delta)
-
 	# Handle pending re-registrations when safe (no in-flight packets)
 	if lookahead_enabled:
 		_process_pending_reregisters()
 
-	var t1 = Time.get_ticks_usec()
-	_phys_timing_time_track_us += (t1 - t0)
+	_poll_runtime_activity(delta)
+
+	if _any_active_biomes():
+		for biome in biomes:
+			if biome and biome.time_tracker and not biome_paused.get(_get_biome_name(biome), true):
+				biome.time_tracker.update(delta)
+	elif _packet_queue.is_empty() and _active_packet_request.is_empty():
+		evolution_accumulator = min(evolution_accumulator, EVOLUTION_INTERVAL)
+		_run_batcher_watchdog(tick_now_ms)
+		return
 
 	# === CONSUMPTION AND REFILL CYCLE (phrames) ===
 	# Advance buffer cursors at phrame rate (physics/evolution frames)
 	evolution_accumulator += delta
-	var tick_now_ms = Time.get_ticks_msec()
-
-	var t2 = Time.get_ticks_usec()
+	tick_now_ms = Time.get_ticks_msec()
 
 	if evolution_accumulator >= EVOLUTION_INTERVAL:
 		if _can_consume_phrame(tick_now_ms):
@@ -962,58 +1067,25 @@ func _physics_process_lookahead(delta: float):
 			# CONSUME: Advance all buffer cursors (1 phrame per biome)
 			_advance_all_buffers()
 
-			# Update buffer state based on consumption (GLOBAL - for compatibility)
-			# DISABLED: Using per-biome and simple 2x threshold escalation instead
-			# _update_buffer_state()
-
-			# Update PER-BIOME buffer states (self-balancing Fibonacci)
+			# Update per-biome buffer states (self-balancing Fibonacci)
 			for biome in biomes:
 				if _is_valid_biome(biome):
 					var biome_name = _get_biome_name(biome)
 					_update_biome_buffer_state(biome_name)
 
-			var t2b = Time.get_ticks_usec()
-			_phys_timing_consume_us += (t2b - t2)
-
-			# REFILL CHECK: Hybrid global packet with per-biome active_flags
-			# ONE packet evolves only biomes that need refill
-			# Per-biome buffer tracking + single C++ call = best of both worlds
-			if lookahead_enabled and lookahead_batch_queue.is_empty() and not _batch_thread:
+			# Queue one native packet that evolves only biomes that need refill.
+			if lookahead_enabled and _packet_queue.is_empty():
 				_trigger_hybrid_refill()
-
-			var t2c = Time.get_ticks_usec()
-			_phys_timing_refill_us += (t2c - t2b)
 		else:
 			# Keep accumulator bounded while throttled to avoid huge catch-up bursts.
 			evolution_accumulator = min(evolution_accumulator, EVOLUTION_INTERVAL * 2.0)
 			_throttled_phrame_skips += 1
 
-	var t3 = Time.get_ticks_usec()
-
 	# === PACKET PROCESSING (per physics frame) ===
-	# Process ONE global packet (non-threaded, C++ is serialized via mutex anyway)
-	if lookahead_enabled and (not lookahead_batch_queue.is_empty() or _batch_thread != null):
-		process_one_lookahead_packet()
+	# Process one queued native packet synchronously.
+	if lookahead_enabled and not _packet_queue.is_empty():
+		_process_next_packet()
 	_run_batcher_watchdog(tick_now_ms)
-
-	var t4 = Time.get_ticks_usec()
-	_phys_timing_packet_us += (t4 - t3)
-	_phys_timing_count += 1
-
-	# Report every 60 physics calls
-	if _phys_timing_count >= 60:
-		var n = float(_phys_timing_count)
-		_log("debug", "test", "⏱️", "time_track=%.2fms consume=%.2fms refill=%.2fms packet=%.2fms" % [
-			_phys_timing_time_track_us / 1000.0 / n,
-			_phys_timing_consume_us / 1000.0 / n,
-			_phys_timing_refill_us / 1000.0 / n,
-			_phys_timing_packet_us / 1000.0 / n
-		])
-		_phys_timing_time_track_us = 0
-		_phys_timing_consume_us = 0
-		_phys_timing_refill_us = 0
-		_phys_timing_packet_us = 0
-		_phys_timing_count = 0
 
 
 # =============================================================================
@@ -1034,6 +1106,23 @@ class BiomeBufferState:
 		cursor = cur
 		depth = buffer.size() - cursor
 		is_empty = depth <= 0
+
+
+func _ensure_lookahead_buffer(biome_name: String):
+	var existing = _lookahead_buffers.get(biome_name, null)
+	if existing != null:
+		return existing
+	var created = BiomeLookaheadBuffer.new()
+	_lookahead_buffers[biome_name] = created
+	return created
+
+
+func _get_lookahead_buffer(biome_name: String):
+	return _lookahead_buffers.get(biome_name, null)
+
+
+func _erase_lookahead_buffer(biome_name: String) -> void:
+	_lookahead_buffers.erase(biome_name)
 
 
 func _is_valid_biome(biome) -> bool:
@@ -1058,21 +1147,13 @@ func _get_biome_name(biome) -> String:
 func _get_biome_buffer_state(biome) -> BiomeBufferState:
 	"""Get buffer state for a single biome (centralized buffer access).
 
-	Eliminates redundant pattern: frame_buffers.get(biome_name, []) + buffer_cursors.get(biome_name, 0)
+	Eliminates redundant pattern: lookahead buffer frames + cursor lookups.
 	"""
 	var biome_name = _get_biome_name(biome)
-	var buffer = frame_buffers.get(biome_name, [])
-	var cursor = buffer_cursors.get(biome_name, 0)
+	var lookahead_buffer = _get_lookahead_buffer(biome_name)
+	var buffer = lookahead_buffer.frames if lookahead_buffer else []
+	var cursor = lookahead_buffer.cursor if lookahead_buffer else 0
 	return BiomeBufferState.new(biome_name, buffer, cursor)
-
-
-func _get_all_buffer_states() -> Array[BiomeBufferState]:
-	"""Get buffer states for all valid biomes."""
-	var states: Array[BiomeBufferState] = []
-	for biome in biomes:
-		if _is_valid_biome(biome):
-			states.append(_get_biome_buffer_state(biome))
-	return states
 
 
 func _get_minimum_buffer_depth() -> int:
@@ -1083,17 +1164,22 @@ func _get_minimum_buffer_depth() -> int:
 	"""
 	if biomes.is_empty():
 		return 0
+	if _active_biome_names.is_empty():
+		return LOOKAHEAD_STEPS
 
 	var min_depth = 999999  # Start with large number
 	for biome in biomes:
 		if not _is_valid_biome(biome):
+			continue
+		var biome_name = _get_biome_name(biome)
+		if not _active_biome_names.has(biome_name):
 			continue
 
 		var state = _get_biome_buffer_state(biome)
 		if state.depth < min_depth:
 			min_depth = state.depth
 
-	return min_depth if min_depth < 999999 else 0
+	return min_depth if min_depth < 999999 else LOOKAHEAD_STEPS
 
 
 func _create_frozen_buffer(rho_packed: PackedFloat64Array, steps: int) -> Array:
@@ -1106,21 +1192,6 @@ func _create_frozen_buffer(rho_packed: PackedFloat64Array, steps: int) -> Array:
 	for i in range(steps):
 		frozen_steps[i] = rho_packed
 	return frozen_steps
-
-
-func _extract_unconsumed_buffer(biome_name: String, buffer_dict: Dictionary) -> Array:
-	"""Extract unconsumed portion of a buffer (slice from cursor position).
-
-	Returns empty array if cursor is at or past end of buffer.
-	Eliminates redundant buffer slicing pattern in 4 locations.
-	"""
-	var buffer = buffer_dict.get(biome_name, [])
-	var cursor = buffer_cursors.get(biome_name, 0)
-
-	if cursor >= buffer.size():
-		return []
-
-	return buffer.slice(cursor)
 
 
 func _smooth_metric(current: float, new_value: float, alpha: float = BATCH_TIME_SMOOTHING) -> float:
@@ -1138,106 +1209,10 @@ func _get_biome_depth(biome_name: String) -> int:
 
 	Used by per-biome refill logic to check each biome independently.
 	"""
-	var buffer = frame_buffers.get(biome_name, [])
-	var cursor = buffer_cursors.get(biome_name, 0)
+	var lookahead_buffer = _get_lookahead_buffer(biome_name)
+	var buffer = lookahead_buffer.frames if lookahead_buffer else []
+	var cursor = lookahead_buffer.cursor if lookahead_buffer else 0
 	return buffer.size() - cursor
-
-
-func _get_observation_stride(biome) -> int:
-	if not _is_valid_biome(biome):
-		return 1
-	if "observation_stride" in biome:
-		return clampi(int(biome.observation_stride), 0, 256)
-	return 1
-
-
-func _get_base_max_dt(biome) -> float:
-	if not _is_valid_biome(biome):
-		return MAX_SUBSTEP_DT
-	if "max_evolution_dt" in biome:
-		return maxf(0.000001, float(biome.max_evolution_dt))
-	return MAX_SUBSTEP_DT
-
-
-func _get_effective_max_dt_for_stride(biome, stride: int) -> float:
-	var base_max_dt = _get_base_max_dt(biome)
-	if stride <= 1 or not _stride_scales_resolution:
-		return base_max_dt
-	return maxf(base_max_dt, base_max_dt * float(stride))
-
-
-func reset_stride_carry(biome_name: String = "") -> void:
-	"""Reset stride dt carry after runtime stride/resolution changes."""
-	if biome_name == "":
-		biome_stride_dt_carry.clear()
-		for biome in biomes:
-			if _is_valid_biome(biome):
-				biome_stride_dt_carry[_get_biome_name(biome)] = 0.0
-		return
-	biome_stride_dt_carry[biome_name] = 0.0
-
-
-func _collect_stride_evolution_packets(biome, incoming_dt: float) -> Array:
-	"""Convert incoming phrame dt into stride-aware evolution packets.
-
-	Returns Array[{dt, max_dt, stride}] and carries remainder per-biome.
-	"""
-	var packets: Array = []
-	if incoming_dt <= 0.0 or not _is_valid_biome(biome):
-		return packets
-
-	var biome_name = _get_biome_name(biome)
-	var stride = _get_observation_stride(biome)
-	if stride <= 0:
-		biome_stride_dt_carry[biome_name] = 0.0
-		return packets
-
-	var carry_dt = float(biome_stride_dt_carry.get(biome_name, 0.0)) + incoming_dt
-
-	if stride <= 1:
-		packets.append({
-			"dt": carry_dt,
-			"max_dt": _get_effective_max_dt_for_stride(biome, 1),
-			"stride": 1
-		})
-		biome_stride_dt_carry[biome_name] = 0.0
-		return packets
-
-	var stride_window_dt = EVOLUTION_INTERVAL * float(stride)
-	if stride_window_dt <= 0.0:
-		stride_window_dt = incoming_dt
-	var effective_max_dt = _get_effective_max_dt_for_stride(biome, stride)
-
-	while carry_dt + 1e-9 >= stride_window_dt:
-		packets.append({
-			"dt": stride_window_dt,
-			"max_dt": effective_max_dt,
-			"stride": stride
-		})
-		carry_dt -= stride_window_dt
-
-	biome_stride_dt_carry[biome_name] = maxf(0.0, carry_dt)
-	return packets
-
-
-func _flush_stride_packet(biome) -> Dictionary:
-	"""Flush remaining stride carry as one coarse packet (command-boundary use)."""
-	if not _is_valid_biome(biome):
-		return {}
-	var stride = _get_observation_stride(biome)
-	if stride <= 1:
-		return {}
-	var biome_name = _get_biome_name(biome)
-	var carry_dt = float(biome_stride_dt_carry.get(biome_name, 0.0))
-	if carry_dt <= 0.0:
-		return {}
-	biome_stride_dt_carry[biome_name] = 0.0
-	return {
-		"dt": carry_dt,
-		"max_dt": _get_effective_max_dt_for_stride(biome, stride),
-		"stride": stride,
-		"flushed": true
-	}
 
 
 func _get_biome_buffer_time_ms(biome_name: String) -> float:
@@ -1318,7 +1293,7 @@ func _process_pending_reregisters() -> void:
 		return
 	if lookahead_engine == null:
 		return
-	if _batch_thread != null or not lookahead_batch_queue.is_empty():
+	if not _active_packet_request.is_empty() or not _packet_queue.is_empty():
 		return
 
 	var pending_names = biome_pending_reregister.keys()
@@ -1362,30 +1337,18 @@ func _get_engine_id_for_biome(biome_name: String) -> int:
 
 
 func _update_biome_pause_states():
-	"""Update pause state for all biomes based on bound terminals.
+	"""Refresh the cached activity ledger on demand."""
+	_refresh_runtime_activity()
 
-	Paused biomes (no bubbles):
-	- Don't queue refill packets (saves computation)
-	- Don't consume buffer (freeze at current state)
-	- Can be unpaused when terminals are bound
 
-	Music and evolution should be in sync - both pause when no bubbles.
-	"""
-	for biome in biomes:
-		if not _is_valid_biome(biome):
-			continue
-
-		var biome_name = _get_biome_name(biome)
-		var has_activity = _biome_has_bound_terminals(biome, true)
-		var was_paused = biome_paused.get(biome_name, false)
-		biome_paused[biome_name] = not has_activity
-
-		# Log state changes
-		if was_paused != (not has_activity):
-			if has_activity:
-				print("[BiomeEvolution] %s: RESUMED (has activity)" % biome_name)
-			else:
-				print("[BiomeEvolution] %s: PAUSED (no activity)" % biome_name)
+func _poll_runtime_activity(delta: float) -> void:
+	"""Event-driven activity ledger with a slow integrity poll for infra changes."""
+	if _activity_refresh_needed:
+		_refresh_runtime_activity()
+		return
+	_activity_poll_accumulator += delta
+	if _activity_poll_accumulator >= ACTIVITY_POLL_INTERVAL:
+		_refresh_runtime_activity(true)
 
 
 func _biome_has_peeked_terminals(biome) -> bool:
@@ -1438,42 +1401,6 @@ func _should_trigger_biome_refill(biome_name: String, depth: int, rho_valid: boo
 	return buffer_time_ms < min_buffer_ms
 
 
-func _update_buffer_state() -> void:
-	"""Update RECOVERY/COAST state based on minimum buffer depth across all biomes.
-
-	Fixes Issue #2: Now checks ALL biomes, not just first.
-	"""
-	var depth = _get_minimum_buffer_depth()
-	var prev_state = _buffer_state
-
-	if depth <= 0:
-		_buffer_state = BufferState.RECOVERY
-		_emergency_refill = true
-		if prev_state == BufferState.COAST:
-			# Emergency: drop fib_index slightly to ramp up quickly (but don't reset to 0!)
-			_fib_index = maxi(2, _fib_index - 1)  # Minimum fib_index=2 (batch_size=2)
-			_log("info", "STATE", "🔥", "COAST→RECOVERY: buffer empty! (fib=%d)" % _fib_index)
-	elif depth < RECOVERY_THRESHOLD:
-		_buffer_state = BufferState.RECOVERY
-		if prev_state == BufferState.COAST:
-			# Maintain current fib_index - let escalation code handle ramping up
-			_log("info", "STATE", "⚠️", "COAST→RECOVERY: min_depth=%d < %d (fib=%d)" % [depth, RECOVERY_THRESHOLD, _fib_index])
-	else:
-		_buffer_state = BufferState.COAST
-		if prev_state == BufferState.RECOVERY:
-			_log("info", "STATE", "✅", "RECOVERY→COAST: min_depth=%d >= %d (fib=%d)" % [depth, RECOVERY_THRESHOLD, _fib_index])
-
-
-func _get_adaptive_batch_size() -> int:
-	"""Get batch size using Fibonacci escalation (GLOBAL - deprecated).
-
-	Always uses FIB_SEQUENCE[_fib_index].
-	RECOVERY: Advance index when buffer low (escalate)
-	COAST: Maintain index (stable batch size)
-	"""
-	return FIB_SEQUENCE[mini(_fib_index, FIB_SEQUENCE.size() - 1)]
-
-
 func _update_biome_buffer_state(biome_name: String) -> void:
 	"""Update RECOVERY/COAST state for a SINGLE biome based on its buffer depth.
 
@@ -1483,6 +1410,9 @@ func _update_biome_buffer_state(biome_name: String) -> void:
 	- COAST: buffer_time > MAX_BUFFER_MS → fib down (de-escalate)
 	- STABLE: MIN ≤ buffer_time ≤ MAX → maintain
 	"""
+	if biome_paused.get(biome_name, true):
+		return
+
 	var biome = _get_biome_by_name(biome_name)
 	var status = _get_biome_rho_status(biome_name, biome)
 	if not status.valid:
@@ -1490,7 +1420,7 @@ func _update_biome_buffer_state(biome_name: String) -> void:
 
 	var buffer_time_ms = _get_biome_buffer_time_ms(biome_name)
 	var prev_state = biome_buffer_states.get(biome_name, BufferState.RECOVERY)
-	var fib_index = biome_fib_indices.get(biome_name, 4)
+	var fib_index = biome_fib_indices.get(biome_name, INITIAL_BIOME_FIB_INDEX)
 	var min_buffer_ms = MIN_BUFFER_STEPS * EVOLUTION_INTERVAL * 1000.0
 	var max_buffer_ms = MAX_BUFFER_STEPS * EVOLUTION_INTERVAL * 1000.0
 
@@ -1516,106 +1446,16 @@ func _update_biome_buffer_state(biome_name: String) -> void:
 					biome_name, buffer_time_ms, min_buffer_ms, fib_index, new_fib
 				])
 
-	# COAST: buffer_time high → de-escalate
+	# COAST: buffer healthy — mark state but do NOT de-escalate.
+	# De-escalation caused fib oscillation: emergency frames pushed buffer past
+	# MAX_BUFFER_STEPS → coast → fib-1 → smaller batch → starvation → fib+1 → repeat.
+	# C++ batches are cheap — let fib grow to max and stay there.
 	elif buffer_time_ms > max_buffer_ms:
 		biome_buffer_states[biome_name] = BufferState.COAST
 		biome_emergency_refill[biome_name] = false
 
-		# De-escalate fib_index on transition to COAST
-		if prev_state == BufferState.RECOVERY:
-			var new_fib = maxi(fib_index - 1, 2)  # Min fib_index=2 (batch_size=2)
-			biome_fib_indices[biome_name] = new_fib
-			_log("info", "STATE", "📉", "%s: RECOVERY→COAST, buffer=%.0fms > %.0fms, fib %d→%d" % [
-				biome_name, buffer_time_ms, max_buffer_ms, fib_index, new_fib
-			])
-
 	# STABLE ZONE: MIN ≤ buffer_time ≤ MAX
 	# Keep current state and fib_index (no change)
-
-
-func _get_biome_batch_size(biome_name: String) -> int:
-	"""Get batch size for a SINGLE biome using its Fibonacci index.
-
-	Each biome maintains its own fib_index, allowing independent escalation/de-escalation.
-	"""
-	var fib_index = biome_fib_indices.get(biome_name, 4)
-	return FIB_SEQUENCE[mini(fib_index, FIB_SEQUENCE.size() - 1)]
-
-
-func _should_trigger_refill() -> bool:
-	"""Check if we should trigger a refill based on state.
-
-	RECOVERY: Always refill (urgent)
-	COAST: Only refill when buffer drops below 2x target
-	"""
-	if biomes.is_empty():
-		return false
-
-	var depth = _get_minimum_buffer_depth()
-
-	if depth <= 0:
-		return true  # Emergency
-
-	if _buffer_state == BufferState.RECOVERY:
-		return true  # Always refill in recovery
-
-	# COAST: refill when below 2× batch_size (lazy maintenance)
-	return depth < COAST_TARGET
-
-
-func _trigger_adaptive_refill() -> void:
-	"""Trigger a refill with adaptive batch sizing.
-
-	Uses minimum buffer depth to ensure no biome starves.
-
-	IMPORTANT: Collects rhos in ENGINE REGISTRATION ORDER (by biome_id), not
-	batcher.biomes order. This ensures correct result distribution even after
-	biomes are unregistered from batcher (native engine keeps all biomes).
-	"""
-	if not lookahead_engine:
-		return
-
-	var batch_size = _get_adaptive_batch_size()
-	var depth = _get_minimum_buffer_depth()
-
-	_emergency_refill = false
-
-	# Build a lookup of active biomes (those still in batcher.biomes)
-	var active_biome_names: Dictionary = {}
-	for biome in biomes:
-		if _is_valid_biome(biome):
-			var biome_name = _get_biome_name(biome)
-			active_biome_names[biome_name] = biome
-
-	# Collect rhos in ENGINE REGISTRATION ORDER (by biome_id)
-	# This ensures the native engine receives rhos in the order it expects
-	var engine_biome_count = lookahead_engine.get_biome_count()
-	var biome_rhos: Array = []
-	var refill_active_flags: Array = []
-
-	for engine_id in range(engine_biome_count):
-		var biome_name = _engine_id_to_biome.get(engine_id, "")
-		var biome = active_biome_names.get(biome_name, null)
-
-		if biome and _is_valid_biome(biome):
-			var biome_depth = _get_biome_depth(biome_name)
-			var status = _get_biome_rho_status(biome_name, biome)
-			biome_rhos.append(status.rho)
-			refill_active_flags.append(status.valid and _should_trigger_biome_refill(biome_name, biome_depth, status.valid))
-		else:
-			# Unregistered biome or unknown: skip calculation (empty array)
-			biome_rhos.append(PackedFloat64Array())
-			refill_active_flags.append(false)
-
-	# Queue packet with adaptive phrame count
-	_queue_adaptive_packet(biome_rhos, refill_active_flags, batch_size)
-	_visual_frames_since_refill = 0
-
-	# Only log refills in verbose mode (too noisy)
-	_log("trace", "REFILL", "🔄", "%s: packet=%d phrames, min_depth=%d, fib=%d, engine_biomes=%d, active=%d" % [
-		BufferState.keys()[_buffer_state], batch_size, depth, _fib_index,
-		engine_biome_count, active_biome_names.size()
-	])
 
 
 # === HYBRID GLOBAL PACKET WITH PER-BIOME BUFFER TRACKING ===
@@ -1736,7 +1576,7 @@ func _queue_emergency_packet(starving_biomes: Array) -> void:
 			continue
 
 		# Include starving biome (only if rho valid)
-		var biome = _find_biome_by_name(biome_name)
+		var biome = _get_biome_by_name(biome_name)
 		if biome and _is_valid_biome(biome):
 			var status = _get_biome_rho_status(biome_name, biome)
 			biome_rhos.append(status.rho)
@@ -1751,33 +1591,20 @@ func _queue_emergency_packet(starving_biomes: Array) -> void:
 		return  # No valid starving biomes
 
 	# Create emergency packet
-	# EMERGENCY_RESCUE_STEPS = 5 frames = FIB_SEQUENCE[4], so fib_index = 4
 	var packet = {
 		"biome_rhos": biome_rhos,
 		"active_flags": active_flags_arr,
 		"num_steps": EMERGENCY_RESCUE_STEPS,  # Small: 5 frames (consistent field name)
-		"batch_num": lookahead_refills,
-		"total_batches": 1,
 		"is_emergency": true,
-		"fib_index": 4,  # 5 frames = FIB_SEQUENCE[4] → delay = 5ms
 	}
 
 	# PRIORITY: Push to front of queue
-	lookahead_batch_queue.push_front(packet)
-	_emergency_rescues += 1
+	_packet_queue.push_front(packet)
 	_last_emergency_packet_time_ms = now_ms
 
 	_log("info", "RESCUE", "🚑",
 		"Emergency packet queued: %d biomes, %d frames (~%.0fms)" %
 		[rescued_count, EMERGENCY_RESCUE_STEPS, last_batch_time_ms * 0.3])
-
-
-func _find_biome_by_name(biome_name: String):
-	"""Helper to find biome by name."""
-	for biome in biomes:
-		if _is_valid_biome(biome) and _get_biome_name(biome) == biome_name:
-			return biome
-	return null
 
 
 func _trigger_hybrid_refill():
@@ -1788,7 +1615,7 @@ func _trigger_hybrid_refill():
 	the biomes that need it (via active_flags).
 
 	Benefits:
-	- Single C++ call (no threading issues)
+	- Single C++ call (no worker coordination)
 	- Per-biome buffer invalidation (independent depths)
 	- Efficient (frozen biomes don't evolve)
 
@@ -1798,6 +1625,8 @@ func _trigger_hybrid_refill():
 	"""
 	# Update pause states (check for peeked terminals)
 	_update_biome_pause_states()
+	if _active_biome_names.is_empty():
+		return
 
 	# TIER 1: Check for time-based starvation (emergency rescue)
 	var starving_biomes = _check_starving_by_time()
@@ -1858,7 +1687,6 @@ func _queue_hybrid_packet():
 	var biome_rhos: Array = []
 	var active_flags_arr: Array = []
 	var max_batch_size = 0
-	var max_fib_index = 0
 
 	for engine_id in range(engine_biome_count):
 		var biome_name = _engine_id_to_biome.get(engine_id, "")
@@ -1877,24 +1705,28 @@ func _queue_hybrid_packet():
 
 		var depth = _get_biome_depth(biome_name)
 		var status = _get_biome_rho_status(biome_name, biome)
-		biome_rhos.append(status.rho)
 
-		# Determine if this biome should evolve
+		# Determine if this biome should evolve.
 		var should_evolve = status.valid and _should_trigger_biome_refill(biome_name, depth, status.valid)
+
+		# C++ evolves ALL non-empty rhos regardless of active_flags; active_flags
+		# only gates the GDScript merge.
+		if should_evolve:
+			biome_rhos.append(status.rho)
+		else:
+			biome_rhos.append(PackedFloat64Array())
 		active_flags_arr.append(should_evolve)
 
-		# Track max batch size AND fib_index (C++ uses max, delay uses fib_index)
+		# Track max batch size.
 		if should_evolve:
-			var biome_fib_index = biome_fib_indices.get(biome_name, 4)
+			var biome_fib_index = biome_fib_indices.get(biome_name, INITIAL_BIOME_FIB_INDEX)
 			var biome_batch = FIB_SEQUENCE[mini(biome_fib_index, FIB_SEQUENCE.size() - 1)]
 			if biome_batch > max_batch_size:
 				max_batch_size = biome_batch
-				max_fib_index = biome_fib_index
 
 	# Use max batch size (some biomes may "overcook" but this avoids C++ API changes)
 	if max_batch_size == 0:
-		max_batch_size = FIB_SEQUENCE[4]  # Default if no biomes active
-		max_fib_index = 4
+		max_batch_size = FIB_SEQUENCE[INITIAL_BIOME_FIB_INDEX]
 
 	# Validate: don't queue packet if ALL biomes are inactive (no work to do)
 	var active_count = active_flags_arr.count(true)
@@ -1902,174 +1734,13 @@ func _queue_hybrid_packet():
 		_log("trace", "REFILL", "⏭️", "Skipping packet - all biomes inactive")
 		return
 
-	# Queue ONE global packet with active_flags and fib_index for delay calculation
-	_queue_adaptive_packet(biome_rhos, active_flags_arr, max_batch_size, max_fib_index)
+	# Queue ONE global packet with active_flags.
+	max_batch_size = mini(max_batch_size, _max_packet_steps)
+	_queue_adaptive_packet(biome_rhos, active_flags_arr, max_batch_size)
 
 	# Log which biomes are being evolved (with their individual batch sizes)
 	_log("trace", "REFILL", "🔄", "Global packet: batch=%d (max), %d/%d biomes active (engine_count=%d)" % [
 		max_batch_size, active_count, biomes.size(), engine_biome_count
-	])
-
-
-func process_all_biome_packets():
-	"""Process packets for ALL biomes in parallel (up to 6 threads).
-
-	Each biome has independent thread - allows maximum parallelism.
-	Replaces global process_one_lookahead_packet with per-biome dispatch.
-	"""
-	for biome_name in biome_packet_queues.keys():
-		_process_biome_packet(biome_name)
-
-
-func _process_biome_packet(biome_name: String):
-	"""Process packet for a SINGLE biome (non-blocking).
-
-	Manages thread lifecycle for this biome:
-	- Check if thread running (return if busy)
-	- If thread done, collect result and merge
-	- If queue has work, start new thread
-	"""
-	# Check if thread already running for this biome
-	if biome_threads.has(biome_name) and biome_threads[biome_name] != null:
-		var thread = biome_threads[biome_name]
-		if thread.is_alive():
-			return  # Thread still running, don't start another
-
-		# Thread finished - collect result
-		var result = thread.wait_to_finish()
-		_on_biome_packet_completed(biome_name, result)
-		biome_threads[biome_name] = null
-		biome_in_flight[biome_name] = false
-
-	# Check if queue has work for this biome
-	var queue = biome_packet_queues.get(biome_name, [])
-	if queue.is_empty():
-		biome_pending[biome_name] = false
-		return
-
-	# Dequeue next packet for this biome
-	var packet_req = queue.pop_front()
-
-	# Start thread for this biome
-	var thread = Thread.new()
-	thread.start(_run_biome_packet_in_thread.bind(packet_req))
-	biome_threads[biome_name] = thread
-	biome_in_flight[biome_name] = true
-
-
-func _run_biome_packet_in_thread(packet_req: Dictionary) -> Dictionary:
-	"""Compute packet for SINGLE biome (runs on worker thread).
-
-	Calls C++ evolve_all_lookahead with:
-	- Target biome: real rho (evolve)
-	- Other biomes: frozen rho (don't evolve)
-
-	All rhos are PRE-PACKED in main thread - worker thread only uses data.
-	"""
-	var biome_name = packet_req["biome_name"]
-	var all_biome_rhos = packet_req["all_biome_rhos"]  # Already packed!
-	var target_biome_index = packet_req["target_biome_index"]
-	var num_steps = packet_req["num_steps"]
-
-	# Call C++ (evolves ALL biomes - we filter results during merge)
-	# Note: C++ always evolves all biomes. The per-biome filtering happens in
-	# _on_biome_packet_completed() where we only save THIS biome's results.
-	#
-	# CRITICAL: Serialize C++ access with mutex - engine might not be thread-safe
-	# for concurrent calls even with different data.
-	lookahead_engine_mutex.lock()
-	var packet_start = Time.get_ticks_usec()
-	var result = lookahead_engine.evolve_all_lookahead(
-		all_biome_rhos, num_steps, LOOKAHEAD_DT, MAX_SUBSTEP_DT
-	)
-	var packet_end = Time.get_ticks_usec()
-	lookahead_engine_mutex.unlock()
-
-	# Add metadata
-	result["biome_name"] = biome_name
-	result["batch_time_us"] = packet_end - packet_start
-
-	return result
-
-
-func _on_biome_packet_completed(biome_name: String, result: Dictionary):
-	"""Merge packet results for a SINGLE biome.
-
-	Extracts only this biome's results from the C++ return value.
-	Other biomes' results are ignored (they were frozen).
-	"""
-	if not result or result.get("error", false):
-		push_error("BiomeEvolutionBatcher: Packet for %s failed!" % biome_name)
-		return
-
-	var results = result.get("results", [])
-	var mi_steps = result.get("mi_steps", [])
-	var bloch_steps = result.get("bloch_steps", [])
-	var purity_steps = result.get("purity_steps", [])
-	var position_steps = result.get("position_steps", [])
-	var velocity_steps = result.get("velocity_steps", [])
-	var batch_time_us = result.get("batch_time_us", 0)
-
-	# Find biome's engine ID
-	var engine_id = -1
-	for eid in _engine_id_to_biome.keys():
-		if _engine_id_to_biome[eid] == biome_name:
-			engine_id = eid
-			break
-
-	if engine_id < 0:
-		push_error("BiomeEvolutionBatcher: Unknown biome %s in packet result!" % biome_name)
-		return
-
-	# Extract THIS biome's results only
-	var biome_frames = results[engine_id] if engine_id < results.size() else []
-	var biome_mi = mi_steps[engine_id] if engine_id < mi_steps.size() else []
-	var biome_bloch = bloch_steps[engine_id] if engine_id < bloch_steps.size() else []
-	var biome_purity = purity_steps[engine_id] if engine_id < purity_steps.size() else []
-	var biome_positions = position_steps[engine_id] if engine_id < position_steps.size() else []
-	var biome_velocities = velocity_steps[engine_id] if engine_id < velocity_steps.size() else []
-
-	# Preserve unconsumed steps for THIS biome
-	var unconsumed_frames = _extract_unconsumed_buffer(biome_name, frame_buffers)
-	var unconsumed_mi = _extract_unconsumed_buffer(biome_name, mi_buffers)
-	var unconsumed_bloch = _extract_unconsumed_buffer(biome_name, bloch_buffers)
-	var unconsumed_purity = _extract_unconsumed_buffer(biome_name, purity_buffers)
-	var unconsumed_positions = _extract_unconsumed_buffer(biome_name, position_buffers)
-	var unconsumed_velocities = _extract_unconsumed_buffer(biome_name, velocity_buffers)
-
-	# Append new steps to unconsumed
-	var new_frames = unconsumed_frames.duplicate()
-	new_frames.append_array(biome_frames)
-	frame_buffers[biome_name] = new_frames
-	buffer_cursors[biome_name] = 0
-
-	var new_mi = unconsumed_mi.duplicate()
-	new_mi.append_array(biome_mi)
-	mi_buffers[biome_name] = new_mi
-
-	var new_bloch = unconsumed_bloch.duplicate()
-	new_bloch.append_array(biome_bloch)
-	bloch_buffers[biome_name] = new_bloch
-
-	var new_purity = unconsumed_purity.duplicate()
-	new_purity.append_array(biome_purity)
-	purity_buffers[biome_name] = new_purity
-
-	var new_positions = unconsumed_positions.duplicate()
-	new_positions.append_array(biome_positions)
-	position_buffers[biome_name] = new_positions
-
-	var new_velocities = unconsumed_velocities.duplicate()
-	new_velocities.append_array(biome_velocities)
-	velocity_buffers[biome_name] = new_velocities
-
-	# Update stats
-	last_batch_time_ms = batch_time_us / 1000.0
-	_avg_batch_time_ms = _smooth_metric(_avg_batch_time_ms, last_batch_time_ms)
-
-	var new_depth = new_frames.size()
-	_log("debug", "MERGE", "✅", "%s: merged %d phrames (depth: %d→%d, %.1fms)" % [
-		biome_name, biome_frames.size(), unconsumed_frames.size(), new_depth, last_batch_time_ms
 	])
 
 
@@ -2079,7 +1750,7 @@ func invalidate_biome_buffer(biome_name: String):
 	Clears:
 	- Pending packets in queue (purge)
 	- Current buffer contents
-	- Force positions/velocities
+	- Force positions
 
 	Does NOT affect other biomes (per-biome independence).
 	"""
@@ -2087,13 +1758,14 @@ func invalidate_biome_buffer(biome_name: String):
 	# Just clear this biome's buffers - next packet will refill it
 
 	# Clear buffers for this biome only (other biomes unaffected!)
-	frame_buffers[biome_name] = []
-	mi_buffers[biome_name] = []
-	bloch_buffers[biome_name] = []
-	purity_buffers[biome_name] = []
-	position_buffers[biome_name] = []
-	velocity_buffers[biome_name] = []
-	buffer_cursors[biome_name] = 0
+	var lookahead_buffer = _ensure_lookahead_buffer(biome_name)
+	lookahead_buffer.frames = []
+	lookahead_buffer.mi_steps = []
+	lookahead_buffer.bloch_steps = []
+	lookahead_buffer.purity_steps = []
+	lookahead_buffer.positions = []
+	lookahead_buffer.cursor = 0
+	lookahead_buffer.latest_mi = PackedFloat64Array()
 	biome_dirty[biome_name] = true
 
 	# Re-prime this biome from current state (frozen 13 phrames)
@@ -2120,19 +1792,19 @@ func decimate_biome_buffer(biome_name: String, decimation_factor: int) -> int:
 	Returns:
 		New buffer depth after decimation
 	"""
+	var lookahead_buffer = _get_lookahead_buffer(biome_name)
+	if lookahead_buffer == null:
+		return 0
 	if decimation_factor < 2:
-		return frame_buffers.get(biome_name, []).size()
+		return lookahead_buffer.frames.size()
 
 	# Decimate all 6 buffers in lockstep (from cursor position, not start)
-	var cursor = buffer_cursors.get(biome_name, 0)
-
-	# Get unconsumed portions
-	var frames = frame_buffers.get(biome_name, [])
-	var mi = mi_buffers.get(biome_name, [])
-	var bloch = bloch_buffers.get(biome_name, [])
-	var purity = purity_buffers.get(biome_name, [])
-	var positions = position_buffers.get(biome_name, [])
-	var velocities = velocity_buffers.get(biome_name, [])
+	var cursor = lookahead_buffer.cursor
+	var frames = lookahead_buffer.frames
+	var mi = lookahead_buffer.mi_steps
+	var bloch = lookahead_buffer.bloch_steps
+	var purity = lookahead_buffer.purity_steps
+	var positions = lookahead_buffer.positions
 
 	# Slice from cursor (unconsumed) then decimate
 	var unconsumed_frames = frames.slice(cursor) if cursor < frames.size() else []
@@ -2140,18 +1812,16 @@ func decimate_biome_buffer(biome_name: String, decimation_factor: int) -> int:
 	var unconsumed_bloch = bloch.slice(cursor) if cursor < bloch.size() else []
 	var unconsumed_purity = purity.slice(cursor) if cursor < purity.size() else []
 	var unconsumed_positions = positions.slice(cursor) if cursor < positions.size() else []
-	var unconsumed_velocities = velocities.slice(cursor) if cursor < velocities.size() else []
 
 	# Decimate: keep every Nth frame
-	frame_buffers[biome_name] = _decimate_array(unconsumed_frames, decimation_factor)
-	mi_buffers[biome_name] = _decimate_array(unconsumed_mi, decimation_factor)
-	bloch_buffers[biome_name] = _decimate_array(unconsumed_bloch, decimation_factor)
-	purity_buffers[biome_name] = _decimate_array(unconsumed_purity, decimation_factor)
-	position_buffers[biome_name] = _decimate_array(unconsumed_positions, decimation_factor)
-	velocity_buffers[biome_name] = _decimate_array(unconsumed_velocities, decimation_factor)
-	buffer_cursors[biome_name] = 0  # Reset cursor (we sliced unconsumed)
+	lookahead_buffer.frames = _decimate_array(unconsumed_frames, decimation_factor)
+	lookahead_buffer.mi_steps = _decimate_array(unconsumed_mi, decimation_factor)
+	lookahead_buffer.bloch_steps = _decimate_array(unconsumed_bloch, decimation_factor)
+	lookahead_buffer.purity_steps = _decimate_array(unconsumed_purity, decimation_factor)
+	lookahead_buffer.positions = _decimate_array(unconsumed_positions, decimation_factor)
+	lookahead_buffer.cursor = 0  # Reset cursor (we sliced unconsumed)
 
-	var new_depth = frame_buffers[biome_name].size()
+	var new_depth = lookahead_buffer.frames.size()
 	_log("info", "DECIMATE", "✂️", "%s: kept every %d frames → depth=%d" % [
 		biome_name, decimation_factor, new_depth
 	])
@@ -2185,8 +1855,9 @@ func _prime_single_biome_frozen(biome):
 		rho_packed = last_good
 
 	# Fill with frozen current state
-	frame_buffers[biome_name] = _create_frozen_buffer(rho_packed, LOOKAHEAD_STEPS)
-	buffer_cursors[biome_name] = 0
+	var lookahead_buffer = _ensure_lookahead_buffer(biome_name)
+	lookahead_buffer.frames = _create_frozen_buffer(rho_packed, LOOKAHEAD_STEPS)
+	lookahead_buffer.cursor = 0
 
 	# Export current Bloch and purity
 	var bloch_packet = qc.export_bloch_packet() if qc.has_method("export_bloch_packet") else biome_last_good_bloch.get(biome_name, PackedFloat64Array())
@@ -2195,17 +1866,17 @@ func _prime_single_biome_frozen(biome):
 		biome_last_good_bloch[biome_name] = bloch_packet
 	biome_last_good_purity[biome_name] = purity
 
-	bloch_buffers[biome_name] = _create_frozen_buffer(bloch_packet, LOOKAHEAD_STEPS)
+	lookahead_buffer.bloch_steps = _create_frozen_buffer(bloch_packet, LOOKAHEAD_STEPS)
 
 	var frozen_purity: Array = []
 	frozen_purity.resize(LOOKAHEAD_STEPS)
 	for i in range(LOOKAHEAD_STEPS):
 		frozen_purity[i] = purity
-	purity_buffers[biome_name] = frozen_purity
+	lookahead_buffer.purity_steps = frozen_purity
 
-	mi_buffers[biome_name] = []
-	position_buffers[biome_name] = []
-	velocity_buffers[biome_name] = []
+	lookahead_buffer.mi_steps = []
+	lookahead_buffer.latest_mi = PackedFloat64Array()
+	lookahead_buffer.positions = []
 
 
 func _advance_all_buffers():
@@ -2213,6 +1884,7 @@ func _advance_all_buffers():
 
 	Skips paused biomes (no peeked terminals) to save computation.
 	"""
+	var advanced: int = 0
 	for biome in biomes:
 		if not _is_valid_biome(biome):
 			continue
@@ -2230,22 +1902,22 @@ func _advance_all_buffers():
 
 		if stride > 1:
 			# Fast-forward: advance cursor by (stride-1) without applying, then apply final
-			var buf = bloch_buffers.get(biome_name, [])
-			var cursor = buffer_cursors.get(biome_name, 0)
+			var lookahead_buffer = _get_lookahead_buffer(biome_name)
+			var buf = lookahead_buffer.bloch_steps if lookahead_buffer else []
+			var cursor = lookahead_buffer.cursor if lookahead_buffer else 0
 			var skip_count = mini(stride - 1, buf.size() - cursor - 1)
 			if skip_count > 0:
-				buffer_cursors[biome_name] = cursor + skip_count
+				lookahead_buffer.cursor = cursor + skip_count
 
+		var had_data := _get_biome_depth(biome_name) > 0
 		_apply_buffered_step(biome)
+		if had_data:
+			advanced += 1
 
+	_slices_consumed_count += advanced
+	active_biome_count = advanced  # last-phrame snapshot; stable between phrames
+	total_evolutions += advanced
 
-# Timing for _apply_buffered_step breakdown
-var _abs_load_us: int = 0
-var _abs_mi_us: int = 0
-var _abs_bloch_us: int = 0
-var _abs_other_us: int = 0
-var _abs_post_us: int = 0
-var _abs_count: int = 0
 
 func _apply_buffered_step(biome, apply_post: bool = true) -> void:
 	"""Apply current buffered state to a single biome and update viz_cache."""
@@ -2254,13 +1926,14 @@ func _apply_buffered_step(biome, apply_post: bool = true) -> void:
 
 	var state = _get_biome_buffer_state(biome)
 	var biome_name = state.biome_name
+	var lookahead_buffer = _get_lookahead_buffer(biome_name)
 	var buffer = state.buffer
 	var cursor = state.cursor
 
-	if cursor >= buffer.size():
+	if lookahead_buffer == null or cursor >= buffer.size():
+		if lookahead_buffer != null and not biome_paused.get(biome_name, false):
+			_log_debug("[BUFFER_UNDERRUN] %s cursor=%d buf=%d" % [biome_name, cursor, buffer.size()])
 		return
-
-	var t0 = Time.get_ticks_usec()
 
 	# Update density matrix from buffer
 	var rho_packed = buffer[cursor]
@@ -2268,30 +1941,24 @@ func _apply_buffered_step(biome, apply_post: bool = true) -> void:
 	var dim = qc.register_map.dim()
 	qc.load_packed_state(rho_packed, dim, true)
 
-	var t1 = Time.get_ticks_usec()
-	_abs_load_us += (t1 - t0)
-
-	var metadata_payload = metadata_payloads.get(biome_name, {})
+	var metadata_payload = lookahead_buffer.metadata
 	var num_qubits = metadata_payload.get("num_qubits", 0)
 
 	if num_qubits > 0:
 		# Update MI cache for force graph (per-step)
-		var mi_steps = mi_buffers.get(biome_name, [])
+		var mi_steps = lookahead_buffer.mi_steps
 		if cursor < mi_steps.size():
 			var mi_step = mi_steps[cursor]
 			biome.viz_cache.update_mi_values(mi_step, num_qubits)
 			if not mi_step.is_empty():
 				qc._cached_mi_values = mi_step
-		elif mi_cache.has(biome_name):
-			var mi_cached = mi_cache[biome_name]
+		elif not lookahead_buffer.latest_mi.is_empty():
+			var mi_cached = lookahead_buffer.latest_mi
 			if mi_cached is PackedFloat64Array and not mi_cached.is_empty():
 				biome.viz_cache.update_mi_values(mi_cached, num_qubits)
 
-		var t2 = Time.get_ticks_usec()
-		_abs_mi_us += (t2 - t1)
-
 		# Update visualization cache from precomputed lookahead packets
-		var bloch_steps = bloch_buffers.get(biome_name, [])
+		var bloch_steps = lookahead_buffer.bloch_steps
 		if cursor < bloch_steps.size():
 			var bloch_packet = bloch_steps[cursor]
 			if bloch_packet.size() > 0 and Engine.get_process_frames() % 120 == 0:
@@ -2303,74 +1970,41 @@ func _apply_buffered_step(biome, apply_post: bool = true) -> void:
 			_log("debug", "test", "⚠️", "No bloch data for %s (cursor=%d, buffer size=%d)" % [
 				biome_name, cursor, bloch_steps.size()
 			])
-			# Detailed diagnostics
-			var frame_buffer = frame_buffers.get(biome_name, [])
-			var frame_cursor = buffer_cursors.get(biome_name, 0)
-			print("  → frame_buffer cursor=%d, size=%d" % [frame_cursor, frame_buffer.size()])
-
-		var t3 = Time.get_ticks_usec()
-		_abs_bloch_us += (t3 - t2)
-
-		var purity_steps = purity_buffers.get(biome_name, [])
+		var purity_steps = lookahead_buffer.purity_steps
 		if cursor < purity_steps.size():
+			# C++ compute_purity now returns Tr(ρ²)/Tr(ρ)² (already normalized).
+			# GDScript qc.get_purity() also normalizes. No correction needed.
 			biome.viz_cache.update_purity(purity_steps[cursor])
 		if metadata_payload:
 			biome.viz_cache.update_metadata_from_payload(metadata_payload)
-		var coupling_payload = coupling_payloads.get(biome_name, {})
+		var coupling_payload = lookahead_buffer.couplings
 		if coupling_payload:
 			biome.viz_cache.update_couplings_from_payload(coupling_payload)
 		var icon_map_payload = _decorate_icon_map_payload_with_flow(
 			biome_name,
 			biome,
-			icon_map_payloads.get(biome_name, {})
+			lookahead_buffer.icon_map
 		)
-		icon_map_payloads[biome_name] = icon_map_payload
+		lookahead_buffer.icon_map = icon_map_payload
 		if icon_map_payload:
 			biome.viz_cache.update_icon_map(icon_map_payload)
 
-		var t4 = Time.get_ticks_usec()
-		_abs_other_us += (t4 - t3)
-
-	buffer_cursors[biome_name] = cursor + 1
+	lookahead_buffer.cursor = cursor + 1
 
 	# Increment cumulative evolution count (for music ghost timer sync)
 	biome_evolution_counts[biome_name] = biome_evolution_counts.get(biome_name, 0) + 1
 
-	# Post-evolution updates
-	var t_post_start = Time.get_ticks_usec()
 	if apply_post and biome.quantum_evolution_enabled and not biome.evolution_paused:
 		_post_evolution_update(biome)
-	var t_post_end = Time.get_ticks_usec()
-	_abs_post_us += (t_post_end - t_post_start)
-
-	_abs_count += 1
-	if _abs_count >= 60:
-		var load_ms = _abs_load_us / 1000.0 / _abs_count
-		var mi_ms = _abs_mi_us / 1000.0 / _abs_count
-		var bloch_ms = _abs_bloch_us / 1000.0 / _abs_count
-		var other_ms = _abs_other_us / 1000.0 / _abs_count
-		var post_ms = _abs_post_us / 1000.0 / _abs_count
-		print("[ABS_TIMING] load_packed=%.2fms update_mi=%.2fms update_bloch=%.2fms other_viz=%.2fms post_evol=%.2fms" % [
-			load_ms, mi_ms, bloch_ms, other_ms, post_ms
-		])
-		_abs_load_us = 0
-		_abs_mi_us = 0
-		_abs_bloch_us = 0
-		_abs_other_us = 0
-		_abs_post_us = 0
-		_abs_count = 0
 
 
 func prime_lookahead_buffers() -> void:
 	"""Prime lookahead buffers immediately so viz_cache has payload before UI."""
 	if not lookahead_enabled:
 		return
+	_refresh_runtime_activity(true)
 	if not _any_active_biomes():
 		_prime_frozen_buffers_only()
-		for biome in biomes:
-			_apply_buffered_step(biome, false)
-		return
-	_refill_all_lookahead_buffers(false)
 	for biome in biomes:
 		_apply_buffered_step(biome, false)
 
@@ -2394,159 +2028,28 @@ func _prime_single_biome(biome, biome_id: int) -> void:
 		# Return early if no valid state - can't prime
 		_log("warn", "biome", "⚠️", "Cannot prime '%s' - density_matrix is null" % biome_name)
 		return
+	var actual_dt = _get_biome_evolution_dt(biome)
 	var result = lookahead_engine.evolve_single_biome(
-		biome_id, rho, LOOKAHEAD_STEPS, LOOKAHEAD_DT, MAX_SUBSTEP_DT
+		biome_id, rho, LOOKAHEAD_STEPS, actual_dt, actual_dt
 	)
 
-	frame_buffers[biome_name] = result.get("results", [])
-	buffer_cursors[biome_name] = 0
-	mi_buffers[biome_name] = result.get("mi_steps", [])
-	mi_cache[biome_name] = result.get("mi", PackedFloat64Array())
-	bloch_buffers[biome_name] = result.get("bloch_steps", [])
-	purity_buffers[biome_name] = result.get("purity_steps", [])
-	metadata_payloads[biome_name] = result.get("metadata", metadata_payloads.get(biome_name, {}))
-	coupling_payloads[biome_name] = result.get("couplings", coupling_payloads.get(biome_name, {}))
-	icon_map_payloads[biome_name] = _decorate_icon_map_payload_with_flow(
+	var lookahead_buffer = _ensure_lookahead_buffer(biome_name)
+	lookahead_buffer.frames = result.get("results", [])
+	lookahead_buffer.cursor = 0
+	lookahead_buffer.mi_steps = result.get("mi_steps", [])
+	lookahead_buffer.latest_mi = result.get("mi", PackedFloat64Array())
+	lookahead_buffer.bloch_steps = result.get("bloch_steps", [])
+	lookahead_buffer.purity_steps = result.get("purity_steps", [])
+	lookahead_buffer.positions = result.get("position_steps", [])
+	lookahead_buffer.metadata = result.get("metadata", lookahead_buffer.metadata)
+	lookahead_buffer.couplings = result.get("couplings", lookahead_buffer.couplings)
+	lookahead_buffer.icon_map = _decorate_icon_map_payload_with_flow(
 		biome_name,
 		biome,
-		result.get("icon_map", icon_map_payloads.get(biome_name, {}))
+		result.get("icon_map", lookahead_buffer.icon_map)
 	)
 
 	_apply_buffered_step(biome, false)
-
-
-func _prime_single_biome_gdscript(biome) -> void:
-	"""Prime viz_cache with GDScript evolution (fallback when native unavailable).
-
-	Runs a single evolution step to populate viz_cache with real Bloch data.
-	This prevents inanimate bubbles when native engine isn't ready yet.
-	"""
-	if not _is_valid_biome(biome):
-		return
-
-	var qc = biome.quantum_computer
-	var biome_name = _get_biome_name(biome)
-
-	_log("info", "biome", "🔄", "Priming '%s' viz_cache with GDScript evolution (native engine pending)" % biome_name)
-
-	# Run a single evolution step to get real phase/color data
-	qc.evolve(LOOKAHEAD_DT, MAX_SUBSTEP_DT, null)
-
-	# Export Bloch packet from quantum computer
-	var bloch_packet = qc.export_bloch_packet()
-	var purity = qc.get_purity()
-	var num_qubits = qc.register_map.num_qubits
-
-	# Populate viz_cache directly (bypass buffers since no native lookahead)
-	if biome.viz_cache:
-		biome.viz_cache.update_from_bloch_packet(bloch_packet, num_qubits)
-		biome.viz_cache.update_purity(purity)
-		_log("debug", "biome", "✓", "Primed '%s' viz_cache: %d qubits, purity=%.3f" % [
-			biome_name,
-			biome.viz_cache.get_num_qubits(),
-			purity
-		])
-	else:
-		_log("warn", "biome", "⚠️", "Biome '%s' has no viz_cache - cannot prime" % biome_name)
-
-
-func _refill_all_lookahead_buffers(force_all: bool = false):
-	"""Refill lookahead buffers with batched C++ call.
-
-	IMPORTANT: Collects rhos in ENGINE REGISTRATION ORDER (by biome_id), not
-	batcher.biomes order. This ensures correct result distribution even after
-	biomes are unregistered from batcher.
-	"""
-	var batch_start = Time.get_ticks_usec()
-	var now_ms = Time.get_ticks_msec()
-	var interval_ms = now_ms - _last_refill_time if _last_refill_time > 0 else 0
-	_last_refill_time = now_ms
-
-	# Check if native engine is available
-	if not lookahead_engine:
-		_log("warn", "test", "⚠️", "Lookahead engine is null - cannot refill buffers")
-		return
-
-	# Build a lookup of active biomes (those still in batcher.biomes)
-	var active_biome_names: Dictionary = {}
-	for biome in biomes:
-		if _is_valid_biome(biome):
-			var biome_name = _get_biome_name(biome)
-			active_biome_names[biome_name] = biome
-
-	# Collect rhos in ENGINE REGISTRATION ORDER (by biome_id)
-	var engine_biome_count = lookahead_engine.get_biome_count()
-	var biome_rhos: Array = []
-	var refill_active_flags: Array = []
-
-	for engine_id in range(engine_biome_count):
-		var biome_name = _engine_id_to_biome.get(engine_id, "")
-		var biome = active_biome_names.get(biome_name, null)
-
-		if biome and _is_valid_biome(biome):
-			var status = _get_biome_rho_status(biome_name, biome)
-			var active = status.valid
-			if not force_all:
-				if terminal_pool and not _biome_has_bound_terminals(biome, true):
-					active = false
-				if not biome.quantum_evolution_enabled or biome.evolution_paused:
-					active = false
-
-			biome_rhos.append(status.rho)
-			refill_active_flags.append(active)
-		else:
-			# Unregistered biome: skip calculation
-			biome_rhos.append(PackedFloat64Array())
-			refill_active_flags.append(false)
-
-	if biome_rhos.is_empty():
-		return
-	if not force_all and not _any_active_flags(refill_active_flags):
-		_prime_frozen_buffers_only(biome_rhos)
-		return
-
-	# NOTE: Metadata already pushed at registration time (static, never changes)
-
-	# === ADAPTIVE FIBONACCI PACKET SIZING ===
-	# Use adaptive packet sizing (number of phrames) based on current state
-	var packet_size = _get_adaptive_batch_size()
-	_queue_adaptive_packet(biome_rhos, refill_active_flags, packet_size)
-
-	# Initialize frozen buffers for inactive biomes immediately (only if buffer empty)
-	# PHASE 2 FIX: Preserve unconsumed frames instead of blindly overwriting
-	for engine_id in range(engine_biome_count):
-		var biome_name = _engine_id_to_biome.get(engine_id, "")
-		if biome_name == "" or not active_biome_names.has(biome_name):
-			continue
-		var biome = active_biome_names[biome_name]
-		if engine_id < refill_active_flags.size() and not refill_active_flags[engine_id]:
-			if _is_valid_biome(biome):
-				# Only create frozen buffer if buffer is empty (preserve unconsumed frames)
-				var current_depth = _get_biome_depth(biome_name)
-				if current_depth <= 0:
-					var rho = biome_rhos[engine_id] if engine_id < biome_rhos.size() else PackedFloat64Array()
-					frame_buffers[biome_name] = _create_frozen_buffer(rho, LOOKAHEAD_STEPS)
-					buffer_cursors[biome_name] = 0
-					mi_buffers[biome_name] = []
-					bloch_buffers[biome_name] = []
-					purity_buffers[biome_name] = []
-
-
-func _physics_process_rotation(delta: float):
-	"""Stage 1: Rotation mode - evolve BIOMES_PER_FRAME per tick."""
-	# No native lookahead -> clear viz caches so visuals go stale
-	for biome in biomes:
-		if biome and biome.viz_cache:
-			biome.viz_cache.clear()
-
-	evolution_accumulator += delta
-
-	if evolution_accumulator >= EVOLUTION_INTERVAL:
-		var actual_dt = evolution_accumulator
-		evolution_accumulator = 0.0
-
-		_evolve_batch(actual_dt)
-		current_index = (current_index + BIOMES_PER_FRAME) % biomes.size()
 
 
 func get_global_icon_map() -> Dictionary:
@@ -2558,8 +2061,9 @@ func get_global_icon_map() -> Dictionary:
 	var steps = 0
 	var biome_count = 0
 
-	for biome_name in icon_map_payloads.keys():
-		var payload = icon_map_payloads.get(biome_name, {})
+	for biome_name in _lookahead_buffers.keys():
+		var lookahead_buffer = _lookahead_buffers.get(biome_name, null)
+		var payload = lookahead_buffer.icon_map if lookahead_buffer else {}
 		if payload.is_empty():
 			continue
 		if payload.has("steps"):
@@ -2773,7 +2277,8 @@ func get_biome_icon_map(biome_name: String) -> Dictionary:
 	"""Return IconMap payload for a single biome (or empty dict if unavailable)."""
 	if biome_name == "":
 		return {}
-	var payload = icon_map_payloads.get(biome_name, {})
+	var lookahead_buffer = _get_lookahead_buffer(biome_name)
+	var payload = lookahead_buffer.icon_map if lookahead_buffer else {}
 	if payload is Dictionary:
 		return payload.duplicate(true)
 	return {}
@@ -2783,7 +2288,8 @@ func get_biome_sink_flux_rates(biome_name: String) -> Dictionary:
 	"""Return per-emoji sink flux rates for a biome from coupling payloads."""
 	if biome_name == "":
 		return {}
-	var payload = coupling_payloads.get(biome_name, {})
+	var lookahead_buffer = _get_lookahead_buffer(biome_name)
+	var payload = lookahead_buffer.couplings if lookahead_buffer else {}
 	if not (payload is Dictionary):
 		return {}
 	var sink_fluxes = payload.get("sink_fluxes", {})
@@ -2812,302 +2318,21 @@ func get_biome_probability_map(biome_name: String) -> Dictionary:
 
 
 func run_additional_cycles(cycles: int, biome_names: Array = []) -> Dictionary:
-	"""Run additional evolution cycles immediately.
-
-	Used by global REAP to fast-forward season evolution without waiting for
-	real-time physics ticks.
-
-	IMPORTANT: In lookahead mode this consumes precomputed buffered phrames only.
-	We intentionally avoid direct C++ evolve calls from synchronous gameplay
-	actions to prevent races with the async packet pipeline.
-	"""
-	var target_cycles = maxi(cycles, 0)
-	if target_cycles <= 0:
-		return {"success": true, "cycles": 0, "evolved_steps": 0}
-
-	var requested: Dictionary = {}
-	for biome_name in biome_names:
-		var key = str(biome_name)
-		if key != "":
-			requested[key] = true
-
-	var target_biomes: Array = []
-	for biome in biomes:
-		if not _is_valid_biome(biome):
-			continue
-		var biome_name = _get_biome_name(biome)
-		if not requested.is_empty() and not requested.has(biome_name):
-			continue
-		if not biome.quantum_evolution_enabled or biome.evolution_paused:
-			continue
-		target_biomes.append(biome)
-
-	if target_biomes.is_empty():
-		return {
-			"success": false,
-			"error": "no_target_biomes",
-			"message": "No eligible biomes for additional evolution cycles.",
-			"cycles": target_cycles,
-			"evolved_steps": 0
-		}
-
-	var evolved_steps = 0
-	var consumed_buffer_steps = 0
-	var direct_evolve_steps = 0
-	var skipped_due_empty_buffer = 0
-
-	for _i in range(target_cycles):
-		for biome in target_biomes:
-			var biome_name = _get_biome_name(biome)
-			if lookahead_enabled:
-				if _get_biome_depth(biome_name) > 0:
-					_apply_buffered_step(biome)
-					consumed_buffer_steps += 1
-					evolved_steps += 1
-				else:
-					skipped_due_empty_buffer += 1
-			else:
-				var packets = _collect_stride_evolution_packets(biome, LOOKAHEAD_DT)
-				if packets.is_empty():
-					skipped_due_empty_buffer += 1
-					continue
-				for packet in packets:
-					_run_direct_biome_cycle(
-						biome,
-						float(packet.get("dt", LOOKAHEAD_DT)),
-						float(packet.get("max_dt", _get_base_max_dt(biome)))
-					)
-					direct_evolve_steps += 1
-					evolved_steps += 1
-
-	return {
-		"success": true,
-		"cycles": target_cycles,
-		"biomes": target_biomes.size(),
-		"evolved_steps": evolved_steps,
-		"consumed_buffer_steps": consumed_buffer_steps,
-		"direct_evolve_steps": direct_evolve_steps,
-		"lookahead_enabled": lookahead_enabled,
-		"skipped_due_empty_buffer": skipped_due_empty_buffer
-	}
+	if _deterministic_stepper == null:
+		return {"success": false, "error": "no_stepper", "evolved_steps": 0}
+	return _deterministic_stepper.run_additional_cycles(cycles, biome_names)
 
 
 func run_time_skip_cycles(cycles: int, dt: float = LOOKAHEAD_DT, biome_names: Array = []) -> Dictionary:
-	"""Deterministic synchronous evolution for rig time-skip.
-
-	Uses C++ MultiBiomeLookaheadEngine when available (evolve_single_biome per
-	biome per stride packet). Falls back to GDScript direct evolution otherwise.
-	"""
-	var target_cycles = maxi(cycles, 0)
-	if target_cycles <= 0:
-		return {
-			"success": true,
-			"cycles": 0,
-			"biomes": 0,
-			"evolved_steps": 0,
-			"skipped_biomes": 0,
-			"mode": "direct"
-		}
-
-	var target_dt = maxf(0.000001, dt)
-	var debug_time_skip = _env_flag("RIG_DEBUG_TIMESKIP", false)
-	var require_activity = _env_flag("RIG_TIME_SKIP_REQUIRE_ACTIVITY", false)
-	var requested: Dictionary = {}
-	for biome_name in biome_names:
-		var key = str(biome_name)
-		if key != "":
-			requested[key] = true
-
-	var target_biomes: Array = []
-	var skipped_biomes = 0
-	for biome in biomes:
-		if not _is_valid_biome(biome):
-			continue
-		var biome_name = _get_biome_name(biome)
-		if not requested.is_empty() and not requested.has(biome_name):
-			continue
-		if not biome.quantum_evolution_enabled or biome.evolution_paused:
-			skipped_biomes += 1
-			continue
-		if require_activity and terminal_pool and not _biome_has_bound_terminals(biome, true):
-			skipped_biomes += 1
-			continue
-		target_biomes.append(biome)
-
-	if target_biomes.is_empty():
-		return {
-			"success": false,
-			"error": "no_target_biomes",
-			"message": "No eligible biomes for time-skip evolution.",
-			"cycles": target_cycles,
-			"biomes": 0,
-			"evolved_steps": 0,
-			"skipped_biomes": skipped_biomes,
-			"mode": "direct"
-		}
-
-	var use_native = lookahead_engine != null and _engine_ready
-	var mode_str = "native" if use_native else "direct"
-	var evolved_steps = 0
-	var stride_deferred_steps = 0
-	var stride_flushed_steps = 0
-	for _i in range(target_cycles):
-		for biome in target_biomes:
-			var packets = _collect_stride_evolution_packets(biome, target_dt)
-			if packets.is_empty():
-				stride_deferred_steps += 1
-				continue
-			if debug_time_skip:
-				var qc = biome.quantum_computer if biome else null
-				var reg_dim = int(qc.register_map.dim()) if qc and qc.register_map else -1
-				var rho_dim = int(qc.density_matrix.n) if qc and qc.density_matrix else -1
-				var h_dim = int(qc.hamiltonian.n) if qc and qc.hamiltonian else -1
-				var lindblad_count = int(qc.lindblad_operators.size()) if qc and "lindblad_operators" in qc else 0
-				print("[TIME_SKIP][BATCHER] cycle=%d biome=%s reg_dim=%d rho_dim=%d H_dim=%d L_count=%d max_dt=%.6f target_dt=%.6f mode=%s" % [
-					_i,
-					_get_biome_name(biome),
-					reg_dim,
-					rho_dim,
-					h_dim,
-					lindblad_count,
-					(biome.max_evolution_dt if "max_evolution_dt" in biome else -1.0),
-					target_dt,
-					mode_str
-				])
-			for packet in packets:
-				var packet_dt = float(packet.get("dt", target_dt))
-				var packet_max_dt = float(packet.get("max_dt", _get_base_max_dt(biome)))
-				var packet_stride = int(packet.get("stride", 1))
-				if use_native:
-					_run_native_biome_cycle(biome, packet_dt, packet_max_dt)
-				else:
-					_run_direct_biome_cycle(biome, packet_dt, packet_max_dt)
-				if debug_time_skip:
-					print("[TIME_SKIP][BATCHER] cycle=%d biome=%s evolve_ok stride=%d packet_dt=%.6f packet_max_dt=%.6f carry_dt=%.6f" % [
-						_i,
-						_get_biome_name(biome),
-						packet_stride,
-						packet_dt,
-						packet_max_dt,
-						float(biome_stride_dt_carry.get(_get_biome_name(biome), 0.0))
-					])
-				evolved_steps += 1
-
-	# Flush remaining carry once at command boundary so short waits still evolve.
-	for biome in target_biomes:
-		var flush_packet = _flush_stride_packet(biome)
-		if flush_packet.is_empty():
-			continue
-		var flush_dt = float(flush_packet.get("dt", 0.0))
-		if flush_dt <= 0.0:
-			continue
-		var flush_max_dt = float(flush_packet.get("max_dt", _get_base_max_dt(biome)))
-		if use_native:
-			_run_native_biome_cycle(biome, flush_dt, flush_max_dt)
-		else:
-			_run_direct_biome_cycle(biome, flush_dt, flush_max_dt)
-		stride_flushed_steps += 1
-		evolved_steps += 1
-		if debug_time_skip:
-			print("[TIME_SKIP][BATCHER] flush biome=%s stride=%d packet_dt=%.6f packet_max_dt=%.6f" % [
-				_get_biome_name(biome),
-				int(flush_packet.get("stride", 1)),
-				flush_dt,
-				flush_max_dt
-			])
-
-	# Refresh pause state after deterministic stepping.
-	_update_biome_pause_states()
-
-	return {
-		"success": true,
-		"cycles": target_cycles,
-		"biomes": target_biomes.size(),
-		"evolved_steps": evolved_steps,
-		"stride_deferred_steps": stride_deferred_steps,
-		"stride_flushed_steps": stride_flushed_steps,
-		"skipped_biomes": skipped_biomes,
-		"mode": mode_str,
-		"dt": target_dt,
-		"require_activity": require_activity
-	}
+	if _deterministic_stepper == null:
+		return {"success": false, "error": "no_stepper", "evolved_steps": 0}
+	return _deterministic_stepper.run_time_skip_cycles(cycles, dt, biome_names)
 
 
-func _run_direct_biome_cycle(biome, dt: float, max_dt_override: float = -1.0) -> void:
-	if not _is_valid_biome(biome):
+func reset_stride_carry(biome_name: String = "") -> void:
+	if _deterministic_stepper == null:
 		return
-	if not _ensure_biome_quantum_shapes(biome):
-		return
-
-	if biome.time_tracker:
-		biome.time_tracker.update(dt)
-
-	var max_dt = max_dt_override if max_dt_override > 0.0 else _get_base_max_dt(biome)
-	biome.quantum_computer.evolve(dt, max_dt, null)
-
-	if biome.viz_cache:
-		var packet = biome.quantum_computer.export_bloch_packet() if biome.quantum_computer.has_method("export_bloch_packet") else PackedFloat64Array()
-		var num_qubits = biome.quantum_computer.register_map.num_qubits if biome.quantum_computer.register_map else 0
-		if packet.size() > 0 and num_qubits > 0:
-			biome.viz_cache.update_from_bloch_packet(packet, num_qubits)
-	if biome.quantum_computer.has_method("get_purity"):
-		biome.viz_cache.update_purity(biome.quantum_computer.get_purity())
-
-	_post_evolution_update(biome)
-
-
-func _run_native_biome_cycle(biome, dt: float, max_dt_override: float = -1.0) -> void:
-	"""Evolve one biome for one step using C++ evolve_single_biome.
-
-	Falls back to GDScript if the biome isn't registered with the native engine.
-	"""
-	if not _is_valid_biome(biome):
-		return
-	if not _ensure_biome_quantum_shapes(biome):
-		return
-
-	var biome_name = _get_biome_name(biome)
-	var engine_id = _biome_engine_ids.get(biome_name, -1)
-	if engine_id < 0:
-		# Biome not registered with native engine — fall back to GDScript
-		_run_direct_biome_cycle(biome, dt, max_dt_override)
-		return
-
-	if biome.time_tracker:
-		biome.time_tracker.update(dt)
-
-	var qc = biome.quantum_computer
-	var rho_packed = qc.density_matrix._to_packed()
-	var max_dt = max_dt_override if max_dt_override > 0.0 else _get_base_max_dt(biome)
-	var dim = int(qc.register_map.dim())
-
-	# Guard: zero-trace density matrices (produced by probe_cycle measurement/projection)
-	# will SIGABRT in the C++ engine. Build fresh mixed state directly (same approach
-	# as _get_biome_rho_status guard: avoids stale _native_backend cache).
-	if dim > 0 and rho_packed.size() >= dim * dim * 2:
-		var tr = 0.0
-		for i in range(dim):
-			tr += rho_packed[i * (dim + 1) * 2]
-		if tr < 1e-10:
-			var fresh_packed = PackedFloat64Array()
-			fresh_packed.resize(dim * dim * 2)
-			var diag_val = 1.0 / float(dim)
-			for i in range(dim):
-				fresh_packed[i * (dim + 1) * 2] = diag_val
-			qc.density_matrix._from_packed(fresh_packed, dim)
-			rho_packed = fresh_packed
-
-	var result = lookahead_engine.evolve_single_biome(engine_id, rho_packed, 1, dt, max_dt)
-
-	# Write back evolved state
-	var results = result.get("results", [])
-	if results.size() > 0:
-		var final_rho = results[results.size() - 1]
-		if final_rho is PackedFloat64Array and final_rho.size() > 0:
-			qc.load_packed_state(final_rho, dim, true)
-
-	_post_evolution_update(biome)
-	biome_evolution_counts[biome_name] = biome_evolution_counts.get(biome_name, 0) + 1
+	_deterministic_stepper.reset_stride_carry(biome_name)
 
 
 func _quantum_shapes_valid(qc) -> bool:
@@ -3157,57 +2382,6 @@ func _ensure_biome_quantum_shapes(biome) -> bool:
 	return false
 
 
-func _evolve_batch(dt: float):
-	"""Evolve a batch of biomes (Stage 1: sequential fallback).
-
-	Args:
-		dt: Time step (accumulated since last evolution tick)
-	"""
-	var batch_start = Time.get_ticks_usec()
-	var evolved_count = 0
-	var skipped_count = 0
-
-	for i in range(BIOMES_PER_FRAME):
-		var idx = (current_index + i) % biomes.size()
-		var biome = biomes[idx]
-
-		if biome and biome.quantum_computer:
-			if not ENABLE_EVOLUTION:
-				skipped_count += 1
-				continue
-
-			if terminal_pool and not _biome_has_bound_terminals(biome, true):
-				skipped_count += 1
-				continue
-
-			if biome.quantum_evolution_enabled and not biome.evolution_paused:
-				if not _ensure_biome_quantum_shapes(biome):
-					skipped_count += 1
-					continue
-				var packets = _collect_stride_evolution_packets(biome, dt)
-				if packets.is_empty():
-					skipped_count += 1
-					continue
-				for packet in packets:
-					_run_direct_biome_cycle(
-						biome,
-						float(packet.get("dt", dt)),
-						float(packet.get("max_dt", _get_base_max_dt(biome)))
-					)
-					evolved_count += 1
-
-	var batch_end = Time.get_ticks_usec()
-	last_batch_time_ms = (batch_end - batch_start) / 1000.0
-	total_evolutions += evolved_count
-	skipped_evolutions += skipped_count
-
-	if total_evolutions % 60 == 0:
-		var skip_info = " (skipped %d)" % skipped_count if skipped_count > 0 else ""
-		_log("debug", "quantum", "⚡", "Evolved %d biomes in %.2fms%s" % [
-			evolved_count, last_batch_time_ms, skip_info
-		])
-
-
 func _biome_has_bound_terminals(biome, include_persistent_infra: bool = false) -> bool:
 	"""Check if a biome has any bound terminals (planted plots)."""
 	if not terminal_pool:
@@ -3248,13 +2422,6 @@ func _biome_has_persistent_lindblad_channels(biome) -> bool:
 	return false
 
 
-func _any_active_flags(flags: Array) -> bool:
-	for flag in flags:
-		if flag:
-			return true
-	return false
-
-
 # === PUBLIC API: Per-Biome Control ===
 
 func pause_biome(biome_name: String):
@@ -3262,19 +2429,22 @@ func pause_biome(biome_name: String):
 
 	Useful for debugging or performance optimization.
 	"""
+	biome_manual_paused[biome_name] = true
 	biome_paused[biome_name] = true
+	_active_biome_names.erase(biome_name)
 	_log("info", "CONTROL", "⏸️", "%s: manually paused" % biome_name)
 
 
 func resume_biome(biome_name: String):
 	"""Manually resume a paused biome (allow evolution and refills)."""
-	biome_paused[biome_name] = false
+	biome_manual_paused[biome_name] = false
+	_mark_biome_activity_dirty(biome_name)
 	_log("info", "CONTROL", "▶️", "%s: manually resumed" % biome_name)
 
 
 func is_biome_paused(biome_name: String) -> bool:
 	"""Check if a biome is currently paused."""
-	return biome_paused.get(biome_name, false)
+	return biome_paused.get(biome_name, false) or biome_manual_paused.get(biome_name, false)
 
 
 func get_biome_evolution_count(biome_name: String) -> int:
@@ -3292,17 +2462,15 @@ func get_biome_diagnostics(biome_name: String) -> Dictionary:
 	Returns:
 	- depth: Current buffer depth (unconsumed phrames)
 	- paused: Whether biome is paused (no evolution)
-	- pending: Whether biome has queued packet
-	- in_flight: Whether biome has running thread
-	- queue_size: Number of pending packets for this biome
+	- queue_size: Number of pending global packets
+	- active_packet: Whether the currently executing packet targets this biome
 	"""
 	return {
 		"biome_name": biome_name,
 		"depth": _get_biome_depth(biome_name),
-		"paused": biome_paused.get(biome_name, false),
-		"pending": biome_pending.get(biome_name, false),
-		"in_flight": biome_in_flight.get(biome_name, false),
-		"queue_size": biome_packet_queues.get(biome_name, []).size(),
+		"paused": is_biome_paused(biome_name),
+		"queue_size": _packet_queue.size(),
+		"active_packet": _packet_request_targets_biome(_active_packet_request, biome_name),
 	}
 
 
@@ -3319,16 +2487,26 @@ func get_all_biome_diagnostics() -> Dictionary:
 	return diagnostics
 
 
+func _packet_request_targets_biome(packet_request: Dictionary, biome_name: String) -> bool:
+	if packet_request.is_empty():
+		return false
+	var engine_id = _biome_engine_ids.get(biome_name, -1)
+	if engine_id < 0:
+		return false
+	var active_flags = packet_request.get("active_flags", [])
+	return engine_id < active_flags.size() and bool(active_flags[engine_id])
+
+
 func _any_active_biomes() -> bool:
-	for biome in biomes:
-		if not biome or not biome.quantum_computer:
-			continue
-		if not biome.quantum_evolution_enabled or biome.evolution_paused:
-			continue
-		if terminal_pool and not _biome_has_bound_terminals(biome, true):
-			continue
-		return true
-	return false
+	return not _active_biome_names.is_empty()
+
+
+func has_runtime_active_biomes() -> bool:
+	return _any_active_biomes()
+
+
+func is_runtime_dormant() -> bool:
+	return _active_biome_names.is_empty() and _packet_queue.is_empty() and _active_packet_request.is_empty()
 
 
 func _prime_frozen_buffers_only(biome_rhos: Array = []) -> void:
@@ -3357,29 +2535,25 @@ func _prime_frozen_buffers_only(biome_rhos: Array = []) -> void:
 		var purity = qc.get_purity()
 
 		# Fill buffers with frozen (repeated) values using helper
-		frame_buffers[biome_name] = _create_frozen_buffer(rho, LOOKAHEAD_STEPS)
-		buffer_cursors[biome_name] = 0
-		bloch_buffers[biome_name] = _create_frozen_buffer(bloch_packet, LOOKAHEAD_STEPS)
+		var lookahead_buffer = _ensure_lookahead_buffer(biome_name)
+		lookahead_buffer.frames = _create_frozen_buffer(rho, LOOKAHEAD_STEPS)
+		lookahead_buffer.cursor = 0
+		lookahead_buffer.bloch_steps = _create_frozen_buffer(bloch_packet, LOOKAHEAD_STEPS)
 		# Purity buffer is Array[float], not Array[PackedFloat64Array]
 		var frozen_purity: Array = []
 		frozen_purity.resize(LOOKAHEAD_STEPS)
 		for step_idx in range(LOOKAHEAD_STEPS):
 			frozen_purity[step_idx] = purity
-		purity_buffers[biome_name] = frozen_purity
-		mi_cache[biome_name] = PackedFloat64Array()
-		mi_buffers[biome_name] = []
-		metadata_payloads[biome_name] = _build_metadata_payload(biome)
-		coupling_payloads[biome_name] = _get_coupling_payload_from_viz_cache(biome)
-		icon_map_payloads[biome_name] = {}
+		lookahead_buffer.purity_steps = frozen_purity
+		lookahead_buffer.latest_mi = PackedFloat64Array()
+		lookahead_buffer.mi_steps = []
+		_sync_biome_structure_payload(biome)
+		lookahead_buffer.icon_map = {}
 
 
 func _post_evolution_update(biome):
 	"""Apply biome-specific post-evolution updates."""
-	if biome.has_method("_apply_semantic_drift"):
-		biome._apply_semantic_drift(EVOLUTION_INTERVAL)
-
-	if biome.has_method("_record_attractor_snapshot"):
-		biome._record_attractor_snapshot()
+	# Semantic drift + attractor tracking removed (semantic layer stripped)
 
 	if biome.dynamics_tracker and biome.has_method("_track_dynamics"):
 		biome._track_dynamics()
@@ -3401,7 +2575,8 @@ func _accumulate_sink_flux_from_couplings(biome, dt: float) -> void:
 	if not qc or not qc.has_method("accumulate_sink_flux_from_rates"):
 		return
 	var biome_name = _get_biome_name(biome)
-	var payload = coupling_payloads.get(biome_name, {})
+	var lookahead_buffer = _get_lookahead_buffer(biome_name)
+	var payload = lookahead_buffer.couplings if lookahead_buffer else {}
 	if payload.is_empty():
 		return
 	var sink_fluxes = payload.get("sink_fluxes", {})
@@ -3417,16 +2592,18 @@ func signal_user_action():
 	if lookahead_enabled:
 		# Force immediate refill on next physics tick
 		lookahead_accumulator = LOOKAHEAD_DT * LOOKAHEAD_STEPS
+		_mark_biome_activity_dirty()
 		user_action_detected.emit()
 
 
 func get_buffered_state(biome_name: String) -> PackedFloat64Array:
 	"""Get current buffered quantum state for a biome.
 
-	Used by visualization to read async from buffer instead of live state.
+	Used by visualization to read buffered native output instead of live state.
 	"""
-	var buffer = frame_buffers.get(biome_name, [])
-	var cursor = buffer_cursors.get(biome_name, 0)
+	var lookahead_buffer = _get_lookahead_buffer(biome_name)
+	var buffer = lookahead_buffer.frames if lookahead_buffer else []
+	var cursor = lookahead_buffer.cursor if lookahead_buffer else 0
 
 	if cursor < buffer.size():
 		return buffer[cursor]
@@ -3441,32 +2618,35 @@ func get_buffered_state_offset(biome_name: String, offset: int) -> PackedFloat64
 		biome_name: Biome identifier
 		offset: 0 = current, 1 = next frame, etc.
 	"""
-	var buffer = frame_buffers.get(biome_name, [])
+	var lookahead_buffer = _get_lookahead_buffer(biome_name)
+	var buffer = lookahead_buffer.frames if lookahead_buffer else []
 	if buffer.is_empty():
 		return PackedFloat64Array()
 
-	var cursor = buffer_cursors.get(biome_name, 0)
+	var cursor = lookahead_buffer.cursor if lookahead_buffer else 0
 	var target = clampi(cursor + offset, 0, buffer.size() - 1)
 	return buffer[target]
 
 
 func get_buffered_mi(biome_name: String) -> PackedFloat64Array:
 	"""Get cached mutual information for force graph."""
-	return mi_cache.get(biome_name, PackedFloat64Array())
+	var lookahead_buffer = _get_lookahead_buffer(biome_name)
+	return lookahead_buffer.latest_mi if lookahead_buffer else PackedFloat64Array()
 
 
 func get_viz_snapshot(biome_name: String, register_id: int, offset: int = 0) -> Dictionary:
 	"""Get visualization snapshot for a register at a lookahead offset.
 
 	Returns a dictionary compatible with QuantumVizCache.get_snapshot():
-	{p0, p1, r_xy, phi, purity}
+	{p0, p1, r_xy, phi, theta, purity}
 	"""
 	if register_id < 0:
 		return {}
-	var bloch_steps = bloch_buffers.get(biome_name, [])
+	var lookahead_buffer = _get_lookahead_buffer(biome_name)
+	var bloch_steps = lookahead_buffer.bloch_steps if lookahead_buffer else []
 	if bloch_steps.is_empty():
 		return {}
-	var cursor = buffer_cursors.get(biome_name, 0)
+	var cursor = lookahead_buffer.cursor if lookahead_buffer else 0
 	var idx = clampi(cursor + offset, 0, bloch_steps.size() - 1)
 	var packed = bloch_steps[idx]
 	var base = register_id * 8
@@ -3477,11 +2657,12 @@ func get_viz_snapshot(biome_name: String, register_id: int, offset: int = 0) -> 
 	var p1 = packed[base + 1]
 	var x = packed[base + 2]
 	var y = packed[base + 3]
+	var theta = packed[base + 6]
 	var phi = packed[base + 7]
 	var r_xy = clampf(sqrt(x * x + y * y), 0.0, 1.0)
 
 	var purity = -1.0
-	var purity_steps = purity_buffers.get(biome_name, [])
+	var purity_steps = lookahead_buffer.purity_steps if lookahead_buffer else []
 	if not purity_steps.is_empty() and idx < purity_steps.size():
 		purity = purity_steps[idx]
 
@@ -3490,6 +2671,7 @@ func get_viz_snapshot(biome_name: String, register_id: int, offset: int = 0) -> 
 		"p1": p1,
 		"r_xy": r_xy,
 		"phi": phi,
+		"theta": theta,
 		"purity": purity
 	}
 
@@ -3498,11 +2680,8 @@ func get_stats() -> Dictionary:
 	"""Get performance statistics for monitoring."""
 	return {
 		"biomes": biomes.size(),
-		"biomes_per_frame": BIOMES_PER_FRAME,
 		"evolution_interval": EVOLUTION_INTERVAL,
-		"current_batch_index": current_index,
 		"total_evolutions": total_evolutions,
-		"skipped_evolutions": skipped_evolutions,
 		"last_batch_time_ms": last_batch_time_ms,
 		"lookahead_enabled": lookahead_enabled,
 		"lookahead_refills": lookahead_refills,
@@ -3555,10 +2734,44 @@ func get_interpolated_snapshot(biome_name: String, register_id: int) -> Dictiona
 		"p0": lerpf(curr.get("p0", 0.5), next.get("p0", 0.5), t),
 		"p1": lerpf(curr.get("p1", 0.5), next.get("p1", 0.5), t),
 		"r_xy": lerpf(curr.get("r_xy", 0.0), next.get("r_xy", 0.0), t),
+		"theta": lerpf(curr.get("theta", PI / 2.0), next.get("theta", PI / 2.0), t),
 		"phi": _lerp_angle(curr.get("phi", 0.0), next.get("phi", 0.0), t),
 		"purity": lerpf(curr.get("purity", 1.0), next.get("purity", 1.0), t),
 		"t": t
 	}
+
+
+func update_biome_center(biome_name: String, center: Vector2) -> void:
+	"""Push the biome's visual oval center to the C++ ForceGraphEngine.
+
+	Call this after layout changes (viewport resize, active biome switch) so that purity-radial
+	and phase-angular forces are anchored to the correct screen position.
+
+	Always caches the center so it can be re-applied once deferred engine initialization finishes.
+	"""
+	_biome_centers_cache[biome_name] = center
+	if not lookahead_engine:
+		return
+	var biome_id: int = _biome_engine_ids.get(biome_name, -1)
+	if biome_id < 0:
+		return
+	if lookahead_engine.has_method("set_biome_center"):
+		lookahead_engine.set_biome_center(biome_id, center)
+
+
+func _flush_cached_biome_centers() -> void:
+	"""Apply every cached biome center to the native engine.
+
+	Called after deferred engine initialization, and after any biome registration that
+	assigns a new engine biome_id, so the force graph anchors to the correct oval centers
+	from the first evolved frame (not the default (960,540)).
+	"""
+	if not lookahead_engine or not lookahead_engine.has_method("set_biome_center"):
+		return
+	for biome_name in _biome_centers_cache:
+		var biome_id: int = _biome_engine_ids.get(biome_name, -1)
+		if biome_id >= 0:
+			lookahead_engine.set_biome_center(biome_id, _biome_centers_cache[biome_name])
 
 
 func get_interpolated_force_positions(biome_name: String) -> PackedVector2Array:
@@ -3567,8 +2780,9 @@ func get_interpolated_force_positions(biome_name: String) -> PackedVector2Array:
 	Returns interpolated positions between current phrame (t=0) and next phrame (t=1).
 	"""
 	var t = get_interpolation_factor()
-	var cursor = buffer_cursors.get(biome_name, 0)
-	var positions = position_buffers.get(biome_name, [])
+	var lookahead_buffer = _get_lookahead_buffer(biome_name)
+	var cursor = lookahead_buffer.cursor if lookahead_buffer else 0
+	var positions = lookahead_buffer.positions if lookahead_buffer else []
 
 	if positions.is_empty() or cursor >= positions.size():
 		return PackedVector2Array()
@@ -3597,13 +2811,23 @@ func get_force_positions(biome_name: String, lookahead: int = 0) -> PackedVector
 
 	Returns: PackedVector2Array of node positions
 	"""
-	var cursor = buffer_cursors.get(biome_name, 0)
-	var positions = position_buffers.get(biome_name, [])
+	var lookahead_buffer = _get_lookahead_buffer(biome_name)
+	var cursor = lookahead_buffer.cursor if lookahead_buffer else 0
+	var positions = lookahead_buffer.positions if lookahead_buffer else []
 
 	var index = cursor + lookahead
 	if index >= 0 and index < positions.size():
 		return positions[index]
 	return PackedVector2Array()
+
+
+func get_buffer_cursor(biome_name: String) -> int:
+	var lookahead_buffer = _get_lookahead_buffer(biome_name)
+	return lookahead_buffer.cursor if lookahead_buffer else 0
+
+
+func get_buffer_depth(biome_name: String) -> int:
+	return _get_biome_depth(biome_name)
 
 
 func _lerp_angle(a: float, b: float, t: float) -> float:
@@ -3626,7 +2850,10 @@ func _track_physics_fps() -> void:
 	var elapsed = now - _physics_fps_start_time
 	if elapsed >= 1000:
 		physics_frames_per_second = (_physics_frame_count * 1000.0) / elapsed
+		slices_consumed_per_second = (_slices_consumed_count * 1000.0) / elapsed
+		fps_window_last_ms = now
 		_physics_frame_count = 0
+		_slices_consumed_count = 0
 		_physics_fps_start_time = now
 
 
@@ -3640,30 +2867,42 @@ func _can_consume_phrame(now_ms: int) -> bool:
 
 
 func _run_batcher_watchdog(now_ms: int) -> void:
-	"""Emit low-rate health metrics and detect likely packet stalls."""
+	"""Emit low-rate health metrics and detect starvation in the packet pipeline."""
+	if _active_biome_names.is_empty() and _packet_queue.is_empty() and _active_packet_request.is_empty():
+		_watchdog_stall_warnings = 0
+		_watchdog_last_log_ms = now_ms
+		return
 	if _watchdog_last_log_ms <= 0:
 		_watchdog_last_log_ms = now_ms
 		return
 	if now_ms - _watchdog_last_log_ms < WATCHDOG_LOG_INTERVAL_MS:
 		return
 
-	var queued_packets = lookahead_batch_queue.size()
-	var packet_alive = (_batch_thread != null and _batch_thread.is_alive())
+	var queued_packets = _packet_queue.size()
+	var packet_active = not _active_packet_request.is_empty()
 	var min_depth = _get_minimum_buffer_depth()
-	var stalled = packet_alive and _packet_started_at_ms > 0 and (now_ms - _packet_started_at_ms) >= WATCHDOG_STALL_MS
-	if stalled and min_depth <= 1:
+	if min_depth <= 0 and _packet_completed_at_ms > 0 and (now_ms - _packet_completed_at_ms) > WATCHDOG_STALL_MS * WATCHDOG_FALLBACK_THRESHOLD:
+		# Buffer empty for extended period even though packets are being scheduled.
+		# At that point the native refill path is effectively starved.
 		_watchdog_stall_warnings += 1
-		_log("warn", "batcher", "stall", "Packet stall suspect: running=%dms queue=%d depth=%d last_complete=%dms ago" % [
-			now_ms - _packet_started_at_ms,
-			queued_packets,
-			min_depth,
-			now_ms - _packet_completed_at_ms if _packet_completed_at_ms > 0 else -1
+		_log("warn", "batcher", "stall", "Buffer starved: depth=0 for %dms, active_packet=%s (warning %d/%d)" % [
+			now_ms - _packet_completed_at_ms,
+			str(packet_active),
+			_watchdog_stall_warnings,
+			WATCHDOG_FALLBACK_THRESHOLD
 		])
+		if _watchdog_stall_warnings >= WATCHDOG_FALLBACK_THRESHOLD:
+			push_warning("[BiomeEvolutionBatcher] Buffer empty %dms. Retrying the native packet pipeline." % [
+				now_ms - _packet_completed_at_ms])
+			_watchdog_stall_warnings = 0
 	else:
-		_log("debug", "batcher", "perf", "pfps=%.2f queue=%d thread=%s depth=%d throttled=%d avg_batch=%.1fms" % [
+		# Healthy tick — only reset if buffer is actually filling
+		if min_depth > 1:
+			_watchdog_stall_warnings = 0
+		_log("debug", "batcher", "perf", "pfps=%.2f queue=%d active_packet=%s depth=%d throttled=%d avg_batch=%.1fms" % [
 			physics_frames_per_second,
 			queued_packets,
-			"alive" if packet_alive else "idle",
+			str(packet_active),
 			min_depth,
 			_throttled_phrame_skips,
 			_avg_batch_time_ms
@@ -3672,9 +2911,33 @@ func _run_batcher_watchdog(now_ms: int) -> void:
 	_watchdog_last_log_ms = now_ms
 
 
-func track_visual_frame() -> void:
-	"""Call this from render loop to count visual frames between refills."""
-	_visual_frames_since_refill += 1
+func _get_effective_fib_index() -> int:
+	var max_fib := INITIAL_BIOME_FIB_INDEX
+	for biome_name in biome_fib_indices.keys():
+		if not is_biome_paused(str(biome_name)):
+			max_fib = maxi(max_fib, int(biome_fib_indices.get(biome_name, INITIAL_BIOME_FIB_INDEX)))
+	return max_fib
+
+
+func _get_effective_batch_size() -> int:
+	var fib_index = mini(_get_effective_fib_index(), FIB_SEQUENCE.size() - 1)
+	return FIB_SEQUENCE[fib_index]
+
+
+func _get_effective_buffer_state_name() -> String:
+	for biome_name in biome_buffer_states.keys():
+		if is_biome_paused(str(biome_name)):
+			continue
+		if biome_buffer_states.get(biome_name, BufferState.RECOVERY) == BufferState.RECOVERY:
+			return "RECOVERY"
+	return "COAST"
+
+
+func _has_emergency_refill() -> bool:
+	for biome_name in biome_emergency_refill.keys():
+		if bool(biome_emergency_refill.get(biome_name, false)):
+			return true
+	return false
 
 
 func get_batching_diagnostics() -> Dictionary:
@@ -3686,16 +2949,17 @@ func get_batching_diagnostics() -> Dictionary:
 
 	if biomes.size() > 0 and biomes[0]:
 		first_biome_name = biomes[0].get_biome_type()
-		cursor = buffer_cursors.get(first_biome_name, -1)
-		var buffer = frame_buffers.get(first_biome_name, [])
+		var lookahead_buffer = _get_lookahead_buffer(first_biome_name)
+		cursor = lookahead_buffer.cursor if lookahead_buffer else -1
+		var buffer = lookahead_buffer.frames if lookahead_buffer else []
 		buffer_size = buffer.size()
 
-	var state_name = "RECOVERY" if _buffer_state == BufferState.RECOVERY else "COAST"
+	var fib_index = _get_effective_fib_index()
+	var adaptive_batch_size = _get_effective_batch_size()
 
 	return {
 		"lookahead_enabled": lookahead_enabled,
 		"evolution_tick": _evolution_tick_count,
-		"visual_frames_since_refill": _visual_frames_since_refill,
 		"refill_count": lookahead_refills,
 		"buffer_cursor": cursor,
 		"buffer_size": buffer_size,
@@ -3703,12 +2967,25 @@ func get_batching_diagnostics() -> Dictionary:
 		"interpolation_t": t,
 		"evolution_accumulator": evolution_accumulator,
 		"lookahead_accumulator": lookahead_accumulator,
-		"batch_queue_size": lookahead_batch_queue.size(),
-		# Fibonacci adaptive state
-		"buffer_state": state_name,
-		"fib_index": _fib_index,
-		"adaptive_batch_size": _get_adaptive_batch_size(),
+		"batch_queue_size": _packet_queue.size(),
+		# Aggregate view of the per-biome Fibonacci state.
+		"buffer_state": _get_effective_buffer_state_name(),
+		"fib_index": fib_index,
+		"adaptive_batch_size": adaptive_batch_size,
 	}
+
+
+func reset_performance_metrics() -> void:
+	"""Reset rolling timing counters so a new profiling phase starts cleanly."""
+	last_batch_time_ms = 0.0
+	_avg_batch_time_ms = 10.0
+	_avg_frame_time_ms = 16.67
+	_packet_started_at_ms = 0
+	_packet_completed_at_ms = 0
+	_watchdog_stall_warnings = 0
+	_throttled_phrame_skips = 0
+	for biome_name in biome_emergency_refill.keys():
+		biome_emergency_refill[biome_name] = false
 
 
 func get_performance_metrics() -> Dictionary:
@@ -3717,24 +2994,13 @@ func get_performance_metrics() -> Dictionary:
 	var buffer_depth = _get_minimum_buffer_depth()
 	var buffer_coverage_ms = buffer_depth * LOOKAHEAD_DT * 1000.0  # ms of coverage
 
-	# Get current adaptive batch size
-	var adaptive_batch_size = _get_adaptive_batch_size()
-	var state_name = "RECOVERY" if _buffer_state == BufferState.RECOVERY else "COAST"
+	var adaptive_batch_size = _get_effective_batch_size()
+	var coast_target = adaptive_batch_size * 2
+	var refill_threshold_ms = coast_target * 2 * LOOKAHEAD_DT * 1000.0
 
-	# Calculate refill threshold in milliseconds
-	var refill_threshold_ms = COAST_TARGET * 2 * LOOKAHEAD_DT * 1000.0
-
-	# Count per-biome threads and pending packets
-	var total_threads_running = 0
-	var total_packets_pending = 0
 	var total_biomes_paused = 0
-	for biome_name in biome_threads.keys():
-		var thread = biome_threads[biome_name]
-		if thread and thread.is_alive():
-			total_threads_running += 1
-		if biome_packet_queues.get(biome_name, []).size() > 0:
-			total_packets_pending += biome_packet_queues[biome_name].size()
-		if biome_paused.get(biome_name, false):
+	for biome_name in biome_paused.keys():
+		if is_biome_paused(biome_name):
 			total_biomes_paused += 1
 
 	return {
@@ -3743,30 +3009,26 @@ func get_performance_metrics() -> Dictionary:
 		"avg_batch_time_ms": _avg_batch_time_ms,
 		"avg_frame_time_ms": _avg_frame_time_ms,
 		# Adaptive Fibonacci Batching
-		"buffer_state": state_name,
-		"fib_index": _fib_index,
+		"buffer_state": _get_effective_buffer_state_name(),
+		"fib_index": _get_effective_fib_index(),
 		"adaptive_batch_size": adaptive_batch_size,
 		"batch_size": adaptive_batch_size,  # Alias for VisualBubbleTest compatibility
 		"batches_per_refill": 1,  # Always 1 in adaptive mode (variable size per batch)
-		"recovery_threshold": RECOVERY_THRESHOLD,
-		"coast_target": COAST_TARGET,
-		"emergency_refill": _emergency_refill,
+		"coast_target": coast_target,
+		"emergency_refill": _has_emergency_refill(),
 		"refill_threshold_ms": refill_threshold_ms,
-		# Per-Biome Queue State (Option A)
 		"biomes_total": biomes.size(),
 		"biomes_paused": total_biomes_paused,
 		"biomes_active": biomes.size() - total_biomes_paused,
-		"threads_running": total_threads_running,
-		"packets_pending": total_packets_pending,
+		"active_packet": not _active_packet_request.is_empty(),
+		"packets_pending": _packet_queue.size(),
 		"watchdog_stall_warnings": _watchdog_stall_warnings,
 		"phrame_cap_hz": _max_phrame_hz_cap,
 		"min_phrame_interval_ms": _min_phrame_interval_ms,
+		"packet_pacing_delay_ms": _packet_pacing_delay_ms,
+		"max_packet_steps": _max_packet_steps,
 		"packet_started_ms_ago": Time.get_ticks_msec() - _packet_started_at_ms if _packet_started_at_ms > 0 else -1,
 		"packet_completed_ms_ago": Time.get_ticks_msec() - _packet_completed_at_ms if _packet_completed_at_ms > 0 else -1,
-		# Legacy Queue State (DEPRECATED)
-		"batches_pending": lookahead_batch_queue.size(),
-		"batches_in_flight": 1 if (_batch_thread != null and _batch_thread.is_alive()) else 0,
-		"batches_accumulated": _batches_in_flight.size(),
 		# Buffer state (minimum across all biomes)
 		"buffer_depth": buffer_depth,
 		"buffer_coverage_ms": buffer_coverage_ms,
@@ -3780,26 +3042,18 @@ func get_performance_metrics() -> Dictionary:
 
 
 # ============================================================================
-# DISTRIBUTED LOOKAHEAD - Queue-based C++ packet processing (async compute)
+# LOOKAHEAD PACKETS - synchronous native packet queue
 # ============================================================================
 
-func _queue_adaptive_packet(biome_rhos: Array, active_flags_arr: Array, packet_size: int, fib_index: int = 4) -> void:
+func _queue_adaptive_packet(biome_rhos: Array, active_flags_arr: Array, packet_size: int) -> void:
 	"""Queue a SINGLE C++ packet with adaptive size (Fibonacci-based).
 
 	Terminology:
 	- phrame = physics/evolution frame (PhysicsConfig.PHRAME_HZ)
 	- packet = C++ batch result containing N phrames
 
-	RECOVERY: packet_size from Fibonacci sequence (1,1,2,3,5,8... phrames)
-	COAST: fixed size for maintenance
-
-	Args:
-		fib_index: Fibonacci index (0-based) for delay calculation (delay_ms = fib_index + 1)
-
-	IMPORTANT: active_flags_arr is stored IN THE PACKET REQUEST, not as global state.
-	This prevents race conditions when new biomes are registered while packets are in-flight.
-	The merge logic reads active_flags from _current_batch_request, ensuring array size matches
-	what was queued (not what exists now).
+	IMPORTANT: active_flags_arr is stored in the packet request so merge uses
+		the same engine-id ordering that was queued.
 	"""
 	if biome_rhos.is_empty():
 		return
@@ -3826,145 +3080,38 @@ func _queue_adaptive_packet(biome_rhos: Array, active_flags_arr: Array, packet_s
 				push_warning("BiomeEvolutionBatcher: Active biome '%s' has zero-trace rho. Marking inactive for this packet." % biome_name)
 				active_flags_arr[i] = false
 
-	# Clear any previous partial results
-	_batches_in_flight.clear()
-
 	# Queue SINGLE packet with adaptive phrame count
 	# active_flags stored IN packet request for correct merge behavior
 	var packet_request = {
-		"batch_num": 0,  # Legacy key name (packet number)
-		"start_step": 0,
 		"num_steps": packet_size,  # Number of phrames to compute
 		"biome_rhos": biome_rhos,
-		"active_flags": active_flags_arr,  # NEW: Per-packet active flags (engine_id order)
-		"total_batches": 1,  # Legacy key: always 1 packet per refill in adaptive mode
-		"fib_index": fib_index,  # For proportional delay calculation
+		"active_flags": active_flags_arr,  # Engine-id order
 	}
-	lookahead_batch_queue.append(packet_request)
+	_packet_queue.append(packet_request)
 
 
-func cleanup_async_packet() -> void:
-	"""Clean up any running C++ packet thread (call before destroying batcher).
-
-	This prevents "Thread destroyed without completion" warnings.
-	"""
-	if _batch_thread != null and _batch_thread.is_alive():
-		_log("debug", "PACKET", "🧹", "Waiting for packet thread to finish (cleanup)...")
-		var result = _batch_thread.wait_to_finish()
-		# Don't process result during cleanup, just wait for thread to finish
-		_batch_thread = null
-
-
-func process_one_lookahead_packet() -> void:
-	"""Process C++ packet in background thread (ASYNC - does not block main thread!).
-
-	Terminology:
-	- tick = visual frame (60 FPS)
-	- phrame = physics/evolution frame (PhysicsConfig.PHRAME_HZ)
-	- packet = C++ batch result containing N phrames
-
-	Uses Thread object for simpler async pattern with is_alive() checking.
-
-	Each call:
-	- Checks if previous packet thread still running (non-blocking)
-	- If done, gets result and processes it
-	- If queue not empty and no packet running, starts new packet in background
-	"""
-	# CHECK: Is previous packet thread still running?
-	if _batch_thread != null:
-		if _batch_thread.is_alive():
-			# Thread still running - don't start new one, don't block
-			return
-
-		# Thread finished - ALWAYS get result and merge (never skip this part!)
-		var result = _batch_thread.wait_to_finish()
-		var min_depth_before = _get_minimum_buffer_depth()
-		_on_packet_completed(result)
-		_batch_thread = null
-		_last_packet_completion_time = Time.get_ticks_msec()
-
-		# DIAGNOSTIC: Log packet completion
-		if OS.is_debug_build():
-			var min_depth_after = _get_minimum_buffer_depth()
-			var is_emergency = _current_batch_request.get("is_emergency", false)
-			var packet_time_ms = result.get("time_us", 0) / 1000.0
-			_log("debug", "test", "📦", "%s: %.1fms, depth %d→%d, queue=%d" % [
-				"EMERGENCY" if is_emergency else "NORMAL",
-				packet_time_ms, min_depth_before, min_depth_after,
-				lookahead_batch_queue.size()
-			])
-
-		# Proportional CPU throttle: 1ms delay per Fibonacci index
-		# fib_index: 0,1,2,3,4,5,6,7 → delay: 1,2,3,4,5,6,7,8ms
-		# Bigger batches did more work → more breathing room for game logic
-		# SKIP delay for emergency packets (urgent!)
-		var is_emergency = _current_batch_request.get("is_emergency", false)
-		if not is_emergency and _current_batch_request.has("fib_index"):
-			var fib_index = _current_batch_request["fib_index"]
-			var delay_ms = fib_index + 1  # 1-indexed delay (fib 0→1ms, fib 1→2ms, etc.)
-			OS.delay_msec(delay_ms)
-
-	# START: Queue not empty and no packet running?
-	if lookahead_batch_queue.is_empty():
+func _process_next_packet() -> void:
+	"""Run the next queued native packet synchronously on the main thread."""
+	if _packet_queue.is_empty():
 		return
 
-	# FRAME BUDGET: Only throttle when STARTING new threads, not when completing
-	# CRITICAL: Never skip if buffer can't cover 2× the expected packet completion time
-	var frame_time_ms = Performance.get_monitor(Performance.TIME_PROCESS) * 1000.0
-	var min_depth = _get_minimum_buffer_depth()
-
-	# Calculate buffer headroom: do we have enough buffer to wait?
-	# min_depth × 100ms (consumption rate) vs expected packet time
-	var buffer_time_ms = min_depth * EVOLUTION_INTERVAL * 1000.0  # Buffer in milliseconds
-	var expected_packet_ms = max(last_batch_time_ms, _avg_batch_time_ms)
-	var safety_margin = expected_packet_ms * 2.0  # Need 2× packet time for safety
-
-	# Only skip if: frame time high AND buffer has plenty of headroom
-	# Always process if buffer is running low (buffer_time < 2× packet_time)
-	if frame_time_ms > 10.0 and buffer_time_ms >= safety_margin:
-		return  # Skip starting new packet this frame (buffers have enough headroom)
-
-	# Dequeue next packet request
-	_current_batch_request = lookahead_batch_queue.pop_front()
-
-	# DIAGNOSTIC: Log packet start
-	if OS.is_debug_build():
-		var is_emergency = _current_batch_request.get("is_emergency", false)
-		var num_steps = _current_batch_request.get("num_steps", 0)
-		_log("debug", "test", "🚀", "%s: steps=%d, depth=%d, frame=%.1fms" % [
-			"EMERGENCY" if is_emergency else "NORMAL",
-			num_steps, min_depth, frame_time_ms
-		])
-
-	# Start packet computation in background thread (NON-BLOCKING!)
-	_batch_thread = Thread.new()
+	_active_packet_request = _packet_queue.pop_front()
 	_packet_started_at_ms = Time.get_ticks_msec()
-	_batch_thread.start(_run_packet_in_thread.bind(_current_batch_request))
+	var result = _compute_packet(_active_packet_request)
+	_merge_packet_result(_active_packet_request, result)
+	_active_packet_request.clear()
+	_packet_started_at_ms = 0
+	_packet_completed_at_ms = Time.get_ticks_msec()
 
 
-func _run_packet_in_thread(packet_req: Dictionary) -> Dictionary:
-	"""Runs on worker thread - DOES NOT BLOCK MAIN THREAD!
-
-	This function computes a C++ packet (N phrames of evolution) in the background
-	while the main thread continues rendering ticks at 60 FPS.
-
-	THREAD SAFETY:
-	- Input data (packet_req) is passed by value (copied to worker thread)
-	- lookahead_engine.evolve_all_lookahead() is assumed to be thread-safe
-	  (read-only access to engine state, no shared mutable data)
-	- Result dictionary is returned by value, processed on main thread
-	"""
-	var packet_num = packet_req.get("batch_num", -1)  # Legacy key name, means packet number
+func _compute_packet(packet_req: Dictionary) -> Dictionary:
+	"""Compute one native lookahead packet."""
 	var biome_rhos = packet_req["biome_rhos"]
 	var num_phrames = packet_req["num_steps"]  # Number of phrames (evolution frames) to compute
-	var total_packets = packet_req.get("total_batches", 1)  # Legacy key, means total packets
 
-	# Get actual granularity from first biome (all biomes share same granularity)
-	var actual_dt = biomes[0].max_evolution_dt if biomes.size() > 0 and "max_evolution_dt" in biomes[0] else LOOKAHEAD_DT
+	var actual_dt = _get_packet_dt_for_active_flags(packet_req.get("active_flags", []))
 
-	# Time the C++ call (this blocks the WORKER thread, not main thread)
 	var packet_start = Time.get_ticks_usec()
-	# Pass actual_dt as BOTH dt and max_dt (no subcycling, max_dt is the timestep)
 	var result = lookahead_engine.evolve_all_lookahead(
 		biome_rhos, num_phrames, actual_dt, actual_dt
 	)
@@ -3972,10 +3119,8 @@ func _run_packet_in_thread(packet_req: Dictionary) -> Dictionary:
 
 	# Error handling: check if result is valid
 	if result == null or not result is Dictionary:
-		push_error("BiomeEvolutionBatcher: Packet %d failed - C++ returned invalid result!" % packet_num)
+		push_error("BiomeEvolutionBatcher: Native packet failed - C++ returned invalid result!")
 		return {
-			"batch_num": packet_num,
-			"total_batches": total_packets,
 			"batch_time_us": packet_end - packet_start,
 			"error": true,
 			"results": [],
@@ -3986,76 +3131,26 @@ func _run_packet_in_thread(packet_req: Dictionary) -> Dictionary:
 
 	# Add metadata to result
 	result["batch_time_us"] = packet_end - packet_start
-	result["batch_num"] = packet_num
-	result["total_batches"] = total_packets
 	result["error"] = false
 
 	return result
 
 
-func _on_packet_completed(result: Dictionary) -> void:
-	"""Called on main thread when background C++ packet finishes computing."""
-	var packet_num = result.get("batch_num", 0)  # Legacy key name
+func _merge_packet_result(packet_request: Dictionary, result: Dictionary) -> void:
+	"""Merge one native packet result into the per-biome lookahead buffers."""
 	var packet_time_ms = result.get("batch_time_us", 0) / 1000.0
-	var total_packets = result.get("total_batches", 1)  # Legacy key name
 	var has_error = result.get("error", false)
 
-	# Check for errors from worker thread
 	if has_error:
-		push_error("BiomeEvolutionBatcher: Packet %d completed with errors - skipping merge" % packet_num)
-		# Clear queue to prevent stacking failed packets
-		lookahead_batch_queue.clear()
-		_batches_in_flight.clear()
+		push_error("BiomeEvolutionBatcher: Native packet completed with errors - skipping merge")
+		_packet_queue.clear()
 		return
 
-	# Update metrics
 	_avg_batch_time_ms = _smooth_metric(_avg_batch_time_ms, packet_time_ms)
 	last_batch_time_ms = packet_time_ms
 
-	# Store result in _batches_in_flight (accumulated results, waiting to merge)
-	_batches_in_flight[packet_num] = result
+	var depth_before = _get_minimum_buffer_depth()
 
-	# Check if all packets for this refill are done
-	# With adaptive batching, total_packets is always 1 (single variable-size packet per refill)
-	if lookahead_batch_queue.is_empty() and _batches_in_flight.size() == total_packets:
-		var depth_before = _get_minimum_buffer_depth()
-		_merge_accumulated_packets()
-		_batches_in_flight.clear()
-		lookahead_refills += 1
-		_packet_completed_at_ms = Time.get_ticks_msec()
-		var depth_after = _get_minimum_buffer_depth()
-
-		# REMOVED: Global escalation logic (System 3)
-		# Escalation is now handled per-biome in _update_biome_buffer_state()
-		# Called at phrame rate during consumption
-		# Each biome independently escalates at depth < 2×batch_size
-
-		# Log completion
-		_log("trace", "PACKET", "✓", "Complete: %.1fms, depth %d→%d, state=%s" % [
-			packet_time_ms, depth_before, depth_after, BufferState.keys()[_buffer_state]
-		])
-
-
-
-
-
-func _merge_accumulated_packets() -> void:
-	"""Merge all accumulated C++ packet results into the phrame buffers.
-
-	Handles both single-packet (adaptive) and multi-packet (legacy priming) modes.
-
-	IMPORTANT: Results come in ENGINE REGISTRATION ORDER (by biome_id), not
-	batcher.biomes order. Uses _engine_id_to_biome to correctly map results
-	to biome buffers even after biomes are unregistered from batcher.
-
-	Terminology:
-	- phrame = physics/evolution frame (PhysicsConfig.PHRAME_HZ)
-	- packet = C++ batch result containing N phrames
-
-	Performance: Yields to renderer every 5 biomes to prevent frame stuttering.
-	"""
-	var biomes_processed_since_yield = 0
-	const BIOMES_PER_YIELD = 5  # Yield to renderer every 5 biomes
 	# Build lookup of active biomes (those still in batcher.biomes)
 	var active_biome_lookup: Dictionary = {}
 	for biome in biomes:
@@ -4066,60 +3161,12 @@ func _merge_accumulated_packets() -> void:
 	# Get engine biome count for proper result array sizing
 	var engine_biome_count = lookahead_engine.get_biome_count() if lookahead_engine else 0
 
-	# Initialize accumulated phrames PER ENGINE BIOME ID (not per batcher.biomes index!)
-	var accumulated_frames: Dictionary = {}  # biome_name -> Array
-	var accumulated_mi_steps: Dictionary = {}
-	var accumulated_bloch_steps: Dictionary = {}
-	var accumulated_purity_steps: Dictionary = {}
-	var accumulated_position_steps: Dictionary = {}
-	var accumulated_velocity_steps: Dictionary = {}
-
-	for engine_id in range(engine_biome_count):
-		var biome_name = _engine_id_to_biome.get(engine_id, "")
-		if biome_name == "":
-			continue
-		accumulated_frames[biome_name] = []
-		accumulated_mi_steps[biome_name] = []
-		accumulated_bloch_steps[biome_name] = []
-		accumulated_purity_steps[biome_name] = []
-		accumulated_position_steps[biome_name] = []
-		accumulated_velocity_steps[biome_name] = []
-
-	# Merge packets in order (sort keys to ensure ordering)
-	var packet_nums = _batches_in_flight.keys()
-	packet_nums.sort()
-	for packet_num in packet_nums:
-		var packet_result = _batches_in_flight[packet_num]
-		var results = packet_result.get("results", [])
-		var mi_steps = packet_result.get("mi_steps", [])
-		var bloch_steps = packet_result.get("bloch_steps", [])
-		var purity_steps = packet_result.get("purity_steps", [])
-		var position_steps = packet_result.get("position_steps", [])
-		var velocity_steps = packet_result.get("velocity_steps", [])
-
-		# Results are in ENGINE ORDER (by engine_id), not batcher.biomes order!
-		for engine_id in range(mini(results.size(), engine_biome_count)):
-			var biome_name = _engine_id_to_biome.get(engine_id, "")
-			if biome_name == "" or not accumulated_frames.has(biome_name):
-				continue
-
-			if engine_id < results.size():
-				accumulated_frames[biome_name].append_array(results[engine_id])
-			if engine_id < mi_steps.size():
-				accumulated_mi_steps[biome_name].append_array(mi_steps[engine_id])
-			if engine_id < bloch_steps.size():
-				accumulated_bloch_steps[biome_name].append_array(bloch_steps[engine_id])
-			if engine_id < purity_steps.size():
-				accumulated_purity_steps[biome_name].append_array(purity_steps[engine_id])
-			if engine_id < position_steps.size():
-				accumulated_position_steps[biome_name].append_array(position_steps[engine_id])
-			if engine_id < velocity_steps.size():
-				accumulated_velocity_steps[biome_name].append_array(velocity_steps[engine_id])
-
-	# Get active_flags from the PACKET REQUEST (not global state!)
-	# This ensures we use the flags that were valid when the packet was queued,
-	# not the current global state which may have been modified by new biome registration.
-	var packet_active_flags = _current_batch_request.get("active_flags", [])
+	var results = result.get("results", [])
+	var mi_steps = result.get("mi_steps", [])
+	var bloch_steps = result.get("bloch_steps", [])
+	var purity_steps = result.get("purity_steps", [])
+	var position_steps = result.get("position_steps", [])
+	var packet_active_flags = packet_request.get("active_flags", [])
 
 	# Distribute to phrame buffers - ONLY for biomes still in batcher.biomes!
 	for engine_id in range(engine_biome_count):
@@ -4145,35 +3192,31 @@ func _merge_accumulated_packets() -> void:
 
 		# Check if this biome was marked active in the refill request
 		if packet_active_flags[engine_id]:
-			# Get unconsumed phrames from existing buffer using helper
-			var unconsumed_frames = _extract_unconsumed_buffer(biome_name, frame_buffers)
-			var unconsumed_mi = _extract_unconsumed_buffer(biome_name, mi_buffers)
-			var unconsumed_bloch = _extract_unconsumed_buffer(biome_name, bloch_buffers)
-			var unconsumed_purity = _extract_unconsumed_buffer(biome_name, purity_buffers)
-			var unconsumed_positions = _extract_unconsumed_buffer(biome_name, position_buffers)
-			var unconsumed_velocities = _extract_unconsumed_buffer(biome_name, velocity_buffers)
+			var lookahead_buffer = _ensure_lookahead_buffer(biome_name)
+			var unconsumed_frames = lookahead_buffer.frames.slice(lookahead_buffer.cursor) if lookahead_buffer.cursor < lookahead_buffer.frames.size() else []
+			var unconsumed_mi = lookahead_buffer.mi_steps.slice(lookahead_buffer.cursor) if lookahead_buffer.cursor < lookahead_buffer.mi_steps.size() else []
+			var unconsumed_bloch = lookahead_buffer.bloch_steps.slice(lookahead_buffer.cursor) if lookahead_buffer.cursor < lookahead_buffer.bloch_steps.size() else []
+			var unconsumed_purity = lookahead_buffer.purity_steps.slice(lookahead_buffer.cursor) if lookahead_buffer.cursor < lookahead_buffer.purity_steps.size() else []
+			var unconsumed_positions = lookahead_buffer.positions.slice(lookahead_buffer.cursor) if lookahead_buffer.cursor < lookahead_buffer.positions.size() else []
 
-			# APPEND new phrames to unconsumed directly (no duplicate!)
-			# This saves 6 array copies per biome (~40% faster merge)
-			unconsumed_frames.append_array(accumulated_frames.get(biome_name, []))
-			frame_buffers[biome_name] = unconsumed_frames
-			buffer_cursors[biome_name] = 0  # Reset cursor since we sliced
+			unconsumed_frames.append_array(results[engine_id] if engine_id < results.size() else [])
+			lookahead_buffer.frames = unconsumed_frames
+			lookahead_buffer.cursor = 0
 
-			unconsumed_mi.append_array(accumulated_mi_steps.get(biome_name, []))
-			mi_buffers[biome_name] = unconsumed_mi
+			var merged_mi_steps = mi_steps[engine_id] if engine_id < mi_steps.size() else []
+			unconsumed_mi.append_array(merged_mi_steps)
+			lookahead_buffer.mi_steps = unconsumed_mi
+			if not merged_mi_steps.is_empty():
+				lookahead_buffer.latest_mi = merged_mi_steps[merged_mi_steps.size() - 1]
 
-			unconsumed_bloch.append_array(accumulated_bloch_steps.get(biome_name, []))
-			bloch_buffers[biome_name] = unconsumed_bloch
+			unconsumed_bloch.append_array(bloch_steps[engine_id] if engine_id < bloch_steps.size() else [])
+			lookahead_buffer.bloch_steps = unconsumed_bloch
 
-			unconsumed_purity.append_array(accumulated_purity_steps.get(biome_name, []))
-			purity_buffers[biome_name] = unconsumed_purity
+			unconsumed_purity.append_array(purity_steps[engine_id] if engine_id < purity_steps.size() else [])
+			lookahead_buffer.purity_steps = unconsumed_purity
 
-			# Merge force positions/velocities
-			unconsumed_positions.append_array(accumulated_position_steps.get(biome_name, []))
-			position_buffers[biome_name] = unconsumed_positions
-
-			unconsumed_velocities.append_array(accumulated_velocity_steps.get(biome_name, []))
-			velocity_buffers[biome_name] = unconsumed_velocities
+			unconsumed_positions.append_array(position_steps[engine_id] if engine_id < position_steps.size() else [])
+			lookahead_buffer.positions = unconsumed_positions
 			biome_dirty[biome_name] = false
 		else:
 			# PHASE 2 FIX: Only create frozen buffer if buffer is empty
@@ -4186,99 +3229,12 @@ func _merge_accumulated_packets() -> void:
 				_prime_single_biome_frozen(biome)
 			# else: Keep existing buffer intact (has unconsumed frames)
 
-	# Emergency de-escalation removed (handled by normal per-biome escalation logic)
+	lookahead_refills += 1
+	var depth_after = _get_minimum_buffer_depth()
+	var num_steps = packet_request.get("num_steps", 0)
+	var is_emergency = packet_request.get("is_emergency", false)
+	var pkt_type = "EMERGENCY" if is_emergency else "BATCH"
 
-
-
-# ============================================================================
-# TEST HELPERS - Buffer manipulation for diagnostic tests
-# ============================================================================
-
-func drain_buffer_to(target_steps: int) -> void:
-	"""Reduce buffer to N steps for starvation recovery test."""
-	for biome_name in frame_buffers.keys():
-		var buffer = frame_buffers.get(biome_name, [])
-		if buffer.size() > target_steps:
-			# Keep only first N steps
-			var drained = buffer.slice(0, target_steps)
-			frame_buffers[biome_name] = drained
-			
-			# Also drain MI/Bloch buffers
-			if mi_buffers.has(biome_name):
-				var mi_buf = mi_buffers[biome_name]
-				if mi_buf.size() > target_steps:
-					mi_buffers[biome_name] = mi_buf.slice(0, target_steps)
-			
-			if bloch_buffers.has(biome_name):
-				var bloch_buf = bloch_buffers[biome_name]
-				if bloch_buf.size() > target_steps:
-					bloch_buffers[biome_name] = bloch_buf.slice(0, target_steps)
-			
-			if purity_buffers.has(biome_name):
-				var purity_buf = purity_buffers[biome_name]
-				if purity_buf.size() > target_steps:
-					purity_buffers[biome_name] = purity_buf.slice(0, target_steps)
-		
-		# Reset cursor to 0
-		buffer_cursors[biome_name] = 0
-	
-	_log("debug", "test", "🔽", "Buffer drained to %d steps (%.0fms coverage)" % [target_steps, target_steps * 100.0])
-
-
-func fill_buffer_to(target_steps: int) -> void:
-	"""Extend buffer to N steps for coast test (duplicates current state)."""
-	for biome in biomes:
-		if not _is_valid_biome(biome):
-			continue
-
-		var biome_name = _get_biome_name(biome)
-		var buffer = frame_buffers.get(biome_name, [])
-		
-		if buffer.is_empty():
-			continue
-		
-		# Duplicate last step to reach target size
-		var last_step = buffer[buffer.size() - 1]
-		while buffer.size() < target_steps:
-			buffer.append(last_step)
-		
-		frame_buffers[biome_name] = buffer
-		
-		# Also extend MI/Bloch buffers
-		if mi_buffers.has(biome_name):
-			var mi_buf = mi_buffers[biome_name]
-			if not mi_buf.is_empty():
-				var last_mi = mi_buf[mi_buf.size() - 1]
-				while mi_buf.size() < target_steps:
-					mi_buf.append(last_mi)
-				mi_buffers[biome_name] = mi_buf
-		
-		if bloch_buffers.has(biome_name):
-			var bloch_buf = bloch_buffers[biome_name]
-			if not bloch_buf.is_empty():
-				var last_bloch = bloch_buf[bloch_buf.size() - 1]
-				while bloch_buf.size() < target_steps:
-					bloch_buf.append(last_bloch)
-				bloch_buffers[biome_name] = bloch_buf
-		
-		if purity_buffers.has(biome_name):
-			var purity_buf = purity_buffers[biome_name]
-			if not purity_buf.is_empty():
-				var last_purity = purity_buf[purity_buf.size() - 1]
-				while purity_buf.size() < target_steps:
-					purity_buf.append(last_purity)
-				purity_buffers[biome_name] = purity_buf
-		
-		# Reset cursor to 0
-		buffer_cursors[biome_name] = 0
-	
-	_log("debug", "test", "🔼", "Buffer filled to %d steps (%.0fms coverage)" % [target_steps, target_steps * 100.0])
-
-
-func set_evolution_paused(paused: bool) -> void:
-	"""Pause/unpause evolution for coast test."""
-	lookahead_enabled = not paused
-	if paused:
-		_log("debug", "test", "⏸️", "Evolution PAUSED - coasting on buffer")
-	else:
-		_log("debug", "test", "▶️", "Evolution RESUMED")
+	_log("trace", "PACKET", "✓", "Complete: %.1fms, depth %d→%d, state=%s" % [
+		packet_time_ms, depth_before, depth_after, _get_effective_buffer_state_name()
+	])

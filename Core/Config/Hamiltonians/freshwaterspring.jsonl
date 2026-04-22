@@ -1,0 +1,23 @@
+# ╔════════════════════════════════════════════════════════════════════════╗
+# ║  FreshwaterSpring Hamiltonian Profile — differential tuning layer     ║
+# ╚════════════════════════════════════════════════════════════════════════╝
+#
+# "Water freezes and thaws; bubbles rise as tides pull."
+#
+# All values ADD to the normalized faction baseline (all 89 factions at 1.0).
+#
+# Axes:
+#   Q0: 💧/🧊 — Water/Ice — FROZEN, Δ=+0.437
+#   Q1: 🫧/🌊 — Bubbles/Waves — FROZEN, Δ=+0.098, has sine@25s driver
+#
+
+# ─── Self-energy corrections ─────────────────────────────────────────────
+{"op":"set","path":"self_energies.🫧","value":0.1}
+
+# ─── Rabi coupling corrections ───────────────────────────────────────────
+{"op":"set","path":"couplings.💧.🧊","value":0.35}
+{"op":"set","path":"couplings.🫧.🌊","value":0.3}
+
+# ─── New cross-axis couplings ────────────────────────────────────────────
+{"op":"set","path":"couplings.💧.🫧","value":0.3}
+{"op":"set","path":"couplings.🧊.🌊","value":0.25}

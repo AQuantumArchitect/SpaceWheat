@@ -1,0 +1,21 @@
+# ╔════════════════════════════════════════════════════════════════════════╗
+# ║  StellarSeed Hamiltonian Profile — differential tuning layer          ║
+# ╚════════════════════════════════════════════════════════════════════════╝
+#
+# "Shooting stars seed satellites; antennas catch cosmic sparkle."
+#
+# All values ADD to the normalized faction baseline (all 89 factions at 1.0).
+#
+# Axes:
+#   Q0: 🌠/🛰 — ShootingStar/Satellite — alive (31.9%), Rabi=0.566, Δ=+0.439
+#   Q1: 📡/✨ — Antenna/Sparkle — FROZEN, Δ=+0.100
+#
+
+# ─── Rabi coupling corrections ───────────────────────────────────────────
+{"op":"set","path":"couplings.📡.✨","value":0.3}
+
+# ─── Cross-axis moderations ──────────────────────────────────────────────
+# ✨↔🌠: fac=0.753 → target 0.400
+{"op":"set","path":"couplings.✨.🌠","value":-0.353}
+# 📡↔🛰: fac=0.850 → target 0.400
+{"op":"set","path":"couplings.📡.🛰","value":-0.450}

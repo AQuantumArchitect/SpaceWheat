@@ -1,0 +1,24 @@
+# ╔════════════════════════════════════════════════════════════════════════╗
+# ║  OrbitalStrike Hamiltonian Profile — differential tuning layer        ║
+# ╚════════════════════════════════════════════════════════════════════════╝
+#
+# "UFOs rain destruction; rockets chase dying stars."
+#
+# All values ADD to the normalized faction baseline (all 89 factions at 1.0).
+#
+# Axes:
+#   Q0: 🛸/💥 — UFO/Explosion — FROZEN, Δ=+0.222, 💥 orphan, sine@7s driver
+#   Q1: 🚀/⭐ — Rocket/Star — FROZEN, Δ=+1.082, pulse@25s driver
+#
+
+# ─── Self-energy corrections ─────────────────────────────────────────────
+{"op":"set","path":"self_energies.🚀","value":-0.3}
+{"op":"set","path":"self_energies.⭐","value":0.3}
+
+# ─── Rabi coupling corrections ───────────────────────────────────────────
+{"op":"set","path":"couplings.🛸.💥","value":0.3}
+{"op":"set","path":"couplings.🚀.⭐","value":0.35}
+
+# ─── New cross-axis couplings ────────────────────────────────────────────
+{"op":"set","path":"couplings.🛸.🚀","value":0.3}
+{"op":"set","path":"couplings.💥.⭐","value":0.25}

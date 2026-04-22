@@ -1,0 +1,23 @@
+# ╔════════════════════════════════════════════════════════════════════════╗
+# ║  ColdLab Hamiltonian Profile — differential tuning layer              ║
+# ╚════════════════════════════════════════════════════════════════════════╝
+#
+# "Frozen instruments probe the cosmos from a cryogenic vault."
+#
+# All values ADD to the normalized faction baseline (all 89 factions at 1.0).
+#
+# Axes:
+#   Q0: ❄/⚙ — Ice/Gears — FROZEN, Δ=-2.084 (⚙ dominates), has sine@30s driver
+#   Q1: 🔭/📡 — Telescope/Antenna — alive (36.7%), Rabi=0.508, Δ=-0.281
+#
+
+# ─── Self-energy corrections ─────────────────────────────────────────────
+{"op":"set","path":"self_energies.❄","value":0.8}
+{"op":"set","path":"self_energies.⚙","value":-0.8}
+
+# ─── Rabi coupling corrections ───────────────────────────────────────────
+{"op":"set","path":"couplings.❄.⚙","value":0.4}
+
+# ─── New cross-axis couplings ────────────────────────────────────────────
+{"op":"set","path":"couplings.❄.🔭","value":0.3}
+{"op":"set","path":"couplings.⚙.📡","value":0.25}

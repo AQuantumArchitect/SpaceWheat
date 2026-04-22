@@ -1,0 +1,29 @@
+# ╔════════════════════════════════════════════════════════════════════════╗
+# ║  PastoralCommons Hamiltonian Profile — differential tuning layer      ║
+# ╚════════════════════════════════════════════════════════════════════════╝
+#
+# "Sheep graze beside bees; porridge and honey jars fill hands gathering herbs."
+#
+# All values ADD to the normalized faction baseline (all 89 factions at 1.0).
+#
+# Axes:
+#   Q0: 🐑/🐝 — Sheep/Bee — FROZEN, Δ=+0.085 (near-degen)
+#   Q1: 🥣/🫙 — Porridge/Jar — FROZEN, Δ=-0.217
+#   Q2: 🤲/🌿 — Hands/Herbs — FROZEN, Δ=-0.218
+
+# ─── Self-energy corrections ─────────────────────────────────────────────
+{"op":"set","path":"self_energies.🐑","value":0.1}
+
+# ─── Rabi coupling corrections ───────────────────────────────────────────
+{"op":"set","path":"couplings.🐑.🐝","value":0.3}
+{"op":"set","path":"couplings.🥣.🫙","value":0.3}
+{"op":"set","path":"couplings.🤲.🌿","value":0.3}
+
+# ─── Cross-axis moderations ──────────────────────────────────────────────
+# 🌿↔🥣: fac=0.854 → target 0.400
+{"op":"set","path":"couplings.🌿.🥣","value":-0.454}
+# 🌿↔🫙: fac=0.849 → target 0.400
+{"op":"set","path":"couplings.🌿.🫙","value":-0.449}
+
+# ─── New cross-axis couplings ────────────────────────────────────────────
+{"op":"set","path":"couplings.🐑.🥣","value":0.25}

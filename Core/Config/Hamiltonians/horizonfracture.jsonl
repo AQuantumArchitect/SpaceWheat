@@ -1,0 +1,25 @@
+# ╔════════════════════════════════════════════════════════════════════════╗
+# ║  HorizonFracture Hamiltonian Profile — differential tuning layer      ║
+# ╚════════════════════════════════════════════════════════════════════════╝
+#
+# "Black holes bend planets; vortices warp compasses as maps fracture toward telescopes and fading stars."
+#
+# All values ADD to the normalized faction baseline (all 89 factions at 1.0).
+#
+# Axes:
+#   Q0: 🕳/🪐 — BlackHole/Planet — alive (43.9%), Rabi=0.479
+#   Q1: 🌀/⚫ — Vortex/Void — alive (28.1%), Rabi=0.479
+#   Q2: 🧭/📍 — Compass/Pin — alive (34.8%), Rabi=1.061, sine@7s
+#   Q3: 🗺/🔭 — Map/Telescope — alive (40.2%), Rabi=1.061
+#   Q4: 🌠/🫥 — ShootingStar/Void — FROZEN, Δ=+0.872
+
+# ─── Rabi coupling corrections ───────────────────────────────────────────
+{"op":"set","path":"couplings.🌠.🫥","value":0.6}
+
+# ─��─ Cross-axis moderations ──────────────────────────────────────────────
+# 🌠↔🔭: fac=1.842 → target 0.500
+{"op":"set","path":"couplings.🌠.🔭","value":-1.342}
+# 🗺↔🧭: fac=2.298 → target 0.500
+{"op":"set","path":"couplings.🗺.🧭","value":-1.798}
+# 📍↔🗺: fac=1.485 → target 0.450
+{"op":"set","path":"couplings.📍.🗺","value":-1.035}

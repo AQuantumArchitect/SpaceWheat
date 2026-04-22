@@ -1,0 +1,27 @@
+# ╔════════════════════════════════════════════════════════════════════════╗
+# ║  DemolitionSite Hamiltonian Profile — differential tuning layer       ║
+# ╚════════════════════════════════════════════════════════════════════════╝
+#
+# "Dynamite meets debris; rubble burns in the aftermath."
+#
+# All values ADD to the normalized faction baseline (all 89 factions at 1.0).
+#
+# Axes:
+#   Q0: 🧨/💥 — Dynamite/Explosion — FROZEN, Δ=+0.123, 💥 is orphan
+#   Q1: 🧱/🔥 — Brick/Fire — FROZEN, Δ=-0.962, has sine@30s driver
+#
+
+# ─── Self-energy corrections ─────────────────────────────────────────────
+{"op":"set","path":"self_energies.🧱","value":0.3}
+{"op":"set","path":"self_energies.🔥","value":-0.3}
+
+# ─── Rabi coupling corrections ───────────────────────────────────────────
+{"op":"set","path":"couplings.🧨.💥","value":0.3}
+{"op":"set","path":"couplings.🧱.🔥","value":0.35}
+
+# ─── Cross-axis moderations ──────────────────────────────────────────────
+# 🔥↔🧨: fac=2.156 → target 0.500
+{"op":"set","path":"couplings.🔥.🧨","value":-1.656}
+
+# ─── New cross-axis couplings ────────────────────────────────────────────
+{"op":"set","path":"couplings.🧱.💥","value":0.3}

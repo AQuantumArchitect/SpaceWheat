@@ -1,0 +1,23 @@
+# ╔════════════════════════════════════════════════════════════════════════╗
+# ║  AshPatch Hamiltonian Profile — differential tuning layer             ║
+# ╚════════════════════════════════════════════════════════════════════════╝
+#
+# "Fire chars the land; blood and heraldry emerge from embers."
+#
+# All values ADD to the normalized faction baseline (all 89 factions at 1.0).
+#
+# Axes:
+#   Q0: 🔥/⚫ — Fire/Char — FROZEN, Δ=+0.759, has sine@30s driver
+#   Q1: ⚜/🩸 — Heraldry/Blood — degenerate (49.3%), Rabi=0.546, Δ=+0.015
+#
+
+# ─── Self-energy corrections ─────────────────────────────────────────────
+{"op":"set","path":"self_energies.⚜","value":0.15}
+{"op":"set","path":"self_energies.🩸","value":-0.15}
+
+# ─── Rabi coupling corrections ───────────────────────────────────────────
+{"op":"set","path":"couplings.🔥.⚫","value":0.4}
+
+# ─── Cross-axis moderations ──────────────────────────────────────────────
+# ⚜↔⚫: fac=0.810 → target 0.400
+{"op":"set","path":"couplings.⚜.⚫","value":-0.410}

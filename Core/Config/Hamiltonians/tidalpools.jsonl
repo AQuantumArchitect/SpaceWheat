@@ -1,0 +1,36 @@
+# ╔════════════════════════════════════════════════════════════════════════╗
+# ║  TidalPools Hamiltonian Profile — differential tuning layer           ║
+# ╚════════════════════════════════════════════════════════════════════════╝
+#
+# "Waves erode rock; whirlpools trap crabs as octopi shelter in coral. Shells salt the pools where sparkle-fish watch and ancient scrolls dissolve."
+#
+# All values ADD to the normalized faction baseline (all 89 factions at 1.0).
+#
+# Axes:
+#   Q0: 🌊/🪨 — Wave/Rock — FROZEN, Δ=-0.384, sine@25s
+#   Q1: 🌀/🦀 — Whirlpool/Crab — FROZEN, Δ=+0.218
+#   Q2: 🐙/🪸 — Octopus/Coral — FROZEN, Δ=+0.057 (near-degen)
+#   Q3: 🐚/🧂 — Shell/Salt — alive (30.6%), Rabi=0.594
+#   Q4: ✨/🐠 — Sparkle/Fish — FROZEN, Δ=+1.129 (✨ dominates)
+#   Q5: 👁/📜 — Eye/Scroll — FROZEN, Δ=-0.519
+
+# ─── Self-energy corrections ─────────────────────────────────────────────
+{"op":"set","path":"self_energies.🐙","value":0.1}
+{"op":"set","path":"self_energies.✨","value":-0.3}
+{"op":"set","path":"self_energies.🐠","value":0.3}
+
+# ─── Rabi coupling corrections ───────────────────────────────────────────
+{"op":"set","path":"couplings.🌊.🪨","value":0.35}
+{"op":"set","path":"couplings.🌀.🦀","value":0.3}
+{"op":"set","path":"couplings.🐙.🪸","value":0.3}
+{"op":"set","path":"couplings.✨.🐠","value":0.35}
+{"op":"set","path":"couplings.👁.📜","value":0.35}
+
+# ─��─ Cross-axis moderations ──────────────────────────────────────────────
+# 🌊↔🪸: fac=0.792 → target 0.400
+{"op":"set","path":"couplings.🌊.🪸","value":-0.392}
+# 🐚↔📜: fac=0.743 → target 0.400
+{"op":"set","path":"couplings.🐚.📜","value":-0.343}
+
+# ─── New cross-axis couplings ────────────────────────────────────────────
+{"op":"set","path":"couplings.🌊.🦀","value":0.25}
