@@ -2280,6 +2280,8 @@
       "🧩"
     ],
     "native_factions": [
+      "Relay Lattice",
+      "Engram Freighters",
       "Symphony Smiths"
     ],
     "tags": [
@@ -2415,7 +2417,11 @@
       "📼",
       "🧩"
     ],
-    "native_factions": [],
+    "native_factions": [
+      "Cult of the Drowned Star",
+      "Engram Freighters",
+      "Memory Merchants"
+    ],
     "tags": [
       "orbital",
       "debris",
@@ -2520,7 +2526,10 @@
       "🧬"
     ],
     "native_factions": [
-      "Chop Docs"
+      "Helix Conservatory",
+      "Chop Docs",
+      "Quarantine Sealwrights",
+      "Bone Merchants"
     ],
     "tags": [
       "medical",
@@ -2654,7 +2663,10 @@
       "♻️"
     ],
     "native_factions": [
-      "Forgewright Union"
+      "Tinker Team",
+      "Gearwright Circle",
+      "Forgewright Union",
+      "Bone Merchants"
     ],
     "tags": [
       "labor",
@@ -2793,7 +2805,11 @@
       "🚧",
       "🧱"
     ],
-    "native_factions": [],
+    "native_factions": [
+      "Locusts",
+      "The Scavenged Psithurism",
+      "Tinker Team"
+    ],
     "tags": [
       "terminal",
       "waste",
@@ -3135,7 +3151,11 @@
       "📊",
       "💱"
     ],
-    "native_factions": [],
+    "native_factions": [
+      "Order of the Crimson Scale",
+      "Measure Scribes",
+      "Market Spirits"
+    ],
     "tags": [
       "finance",
       "speculation",
@@ -3690,7 +3710,10 @@
       "💀"
     ],
     "native_factions": [
-      "Brotherhood of Ash"
+      "Knot-Shriners",
+      "Brotherhood of Ash",
+      "Sacred Flame Keepers",
+      "Carrion Throne"
     ],
     "tags": [
       "death",
@@ -4718,6 +4741,9 @@
       "⚖"
     ],
     "native_factions": [
+      "The Indelible Precept",
+      "Measure Scribes",
+      "Ledger Bailiffs",
       "Chronicle Keepers"
     ],
     "tags": [
@@ -4848,7 +4874,11 @@
       "🏺",
       "🪨"
     ],
-    "native_factions": [],
+    "native_factions": [
+      "Market Spirits",
+      "Monolith Masons",
+      "Clan of the Hidden Root"
+    ],
     "tags": [
       "ruins",
       "decay",
@@ -4956,7 +4986,11 @@
       "🦅",
       "🥀"
     ],
-    "native_factions": [],
+    "native_factions": [
+      "The Indelible Precept",
+      "Carrion Throne",
+      "House of Thorns"
+    ],
     "tags": [
       "ruins",
       "aristocracy",
@@ -5060,7 +5094,11 @@
       "🧱",
       "🔥"
     ],
-    "native_factions": [],
+    "native_factions": [
+      "Wildfire",
+      "Fencebreakers",
+      "Children of the Ember"
+    ],
     "tags": [
       "destruction",
       "fast",
@@ -5766,7 +5804,11 @@
       "🌀",
       "📡"
     ],
-    "native_factions": [],
+    "native_factions": [
+      "Kilowatt Collective",
+      "Black Horizon",
+      "Engram Freighters"
+    ],
     "tags": [
       "anomaly",
       "physics",
@@ -6044,7 +6086,11 @@
       "🔭",
       "📡"
     ],
-    "native_factions": [],
+    "native_factions": [
+      "Helix Conservatory",
+      "Symphony Smiths",
+      "Star-Charter Enclave"
+    ],
     "tags": [
       "starter",
       "small",
@@ -6201,7 +6247,11 @@
       "📡",
       "✨"
     ],
-    "native_factions": [],
+    "native_factions": [
+      "Reality Midwives",
+      "Starforge Reliquary",
+      "Star-Charter Enclave"
+    ],
     "tags": [
       "starter",
       "small",
