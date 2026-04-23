@@ -89,26 +89,6 @@
       }
     },
     "description": "Salvage traders specializing in remains - not just bones, but artifacts, memories, the residue of ended things. The ⚱️ marks their connection to what persists after death. They know which relics carry power, which bones remember their owners, which ashes still warm with something like life. Their markets smell of dust and incense. Their customers know not to ask where the merchandise comes from.",
-    "gated_lindblad": {
-      "💰": [
-        {
-          "gate": "👥",
-          "inverse": false,
-          "power": 0.8,
-          "rate": 0.05,
-          "source": "🦴"
-        }
-      ],
-      "🦴": [
-        {
-          "gate": "🔧",
-          "inverse": false,
-          "power": 1.0,
-          "rate": 0.03,
-          "source": "👥"
-        }
-      ]
-    },
     "hamiltonian": {
       "💉": {
         "💰": 0.3,
@@ -118,18 +98,22 @@
       },
       "💰": {
         "💉": 0.3,
-        "🦴": 0.4
+        "🦴": 0.4,
+        "👥": 0.15
       },
       "🔧": {
         "⚙": 0.4,
         "💉": 0.4,
-        "🦴": 0.6
+        "🦴": 0.3
       },
       "🦴": {
         "👥": 0.5,
         "💉": 0.5,
         "💰": 0.4,
         "🔧": 0.6
+      },
+      "👥": {
+        "💰": 0.25
       }
     },
     "name": "Bone Merchants",
@@ -270,32 +254,13 @@
       }
     },
     "description": "The pattern that sustains itself through bureaucratic mass. It doesn't know it's a quantum phenomenon - it *is* the quantum phenomenon of order achieving critical density. Every form filed, every tax collected, every law enforced adds to its coherence. It feeds on documentation the way fire feeds on oxygen. The blood-law isn't cruelty - it's *binding*, literally anchoring probability into stable configurations. It cannot be fought directly, only starved of the order it requires. The player never meets it. The player always serves it.",
-    "gated_lindblad": {
-      "💰": [
-        {
-          "gate": "⚖",
-          "inverse": false,
-          "power": 1.0,
-          "rate": 0.08,
-          "source": "👥"
-        }
-      ],
-      "🩸": [
-        {
-          "gate": "⚜",
-          "inverse": false,
-          "power": 1.2,
-          "rate": 0.03,
-          "source": "👥"
-        }
-      ]
-    },
     "hamiltonian": {
       "⚖": {
         "⚜": 0.7,
         "👥": 0.6,
         "📜": 0.5,
-        "🩸": 0.4
+        "🩸": 0.4,
+        "💰": 0.3
       },
       "⚜": {
         "⚖": 0.7,
@@ -303,7 +268,7 @@
         "👥": 0.4,
         "📜": 0.6,
         "🦅": 0.6,
-        "🩸": 0.5
+        "🩸": 0.65
       },
       "🏰": {
         "⚖": 0.5,
@@ -333,6 +298,9 @@
         "⚜": 0.5,
         "👥": 0.6,
         "💀": 0.4
+      },
+      "💰": {
+        "⚖": 0.2
       }
     },
     "name": "Carrion Throne",
@@ -649,17 +617,6 @@
       }
     },
     "description": "Revolutionary militants who believe the current order must burn for something better to grow. They sabotage, they fight, they die for ideals they describe in terms that sound beautiful and vague. The Carrion Throne has tried to exterminate them for generations. They keep returning - not the same individuals, but the same ember, waiting for tinder. Some are heroes. Some are terrorists. History will decide, assuming history survives.",
-    "gated_lindblad": {
-      "✊": [
-        {
-          "gate": "🔥",
-          "inverse": false,
-          "power": 1.2,
-          "rate": 0.05,
-          "source": "🚩"
-        }
-      ]
-    },
     "hamiltonian": {
       "⚔": {
         "✊": 0.4,
@@ -668,12 +625,14 @@
       },
       "✊": {
         "⚔": 0.4,
-        "🚩": 0.6
+        "🚩": 0.6,
+        "🔥": 0.2
       },
       "🔥": {
         "⚔": 0.5,
         "🚩": 0.5,
-        "🧨": 0.6
+        "🧨": 0.6,
+        "✊": 0.35
       },
       "🚩": {
         "⚔": 0.4,
@@ -944,17 +903,6 @@
       }
     },
     "description": "Subterranean farmers who cultivate root vegetables, fungi, and cave-adapted crops in the spaces beneath settlements. Their tunnels connect in ways surface-dwellers don't fully understand. They trade in mushrooms, tubers, and information that travels through the underground faster than official channels. Not secretive by nature - just used to being overlooked.",
-    "gated_lindblad": {
-      "🌱": [
-        {
-          "gate": "⛏",
-          "inverse": false,
-          "power": 1.0,
-          "rate": 0.04,
-          "source": "🪨"
-        }
-      ]
-    },
     "hamiltonian": {
       "⛏": {
         "🌱": 0.5,
@@ -974,7 +922,7 @@
       "🪨": {
         "⛏": 0.7,
         "⛰": 0.5,
-        "🌱": 0.4
+        "🌱": 0.2
       }
     },
     "name": "Clan of the Hidden Root",
@@ -1173,21 +1121,11 @@
       }
     },
     "description": "Long-haul data transport between settlements too distant for real-time communication. They carry memory archives, legal records, cultural packages - anything too large or sensitive for standard relay. Their ships are flying libraries, their crews are notoriously well-read, and their delivery schedules are the subject of constant complaint. They do not discuss what happens to undelivered data.",
-    "gated_lindblad": {
-      "💾": [
-        {
-          "gate": "📶",
-          "inverse": false,
-          "power": 1.0,
-          "rate": 0.05,
-          "source": "🧩"
-        }
-      ]
-    },
     "hamiltonian": {
       "💾": {
         "📡": 0.5,
-        "🧩": 0.6
+        "🧩": 0.6,
+        "📶": 0.2
       },
       "📡": {
         "💾": 0.5,
@@ -1196,7 +1134,8 @@
       },
       "📶": {
         "📡": 0.7,
-        "🧩": 0.5
+        "🧩": 0.5,
+        "💾": 0.3
       },
       "🧩": {
         "💾": 0.6,
@@ -1256,17 +1195,6 @@
       }
     },
     "description": "Rural insurgents who sabotage infrastructure, raid estates, and fight against enclosure. Some are bandits. Some are idealists. Most are desperate people who watched the fences go up around land their families worked for generations. The Station Lords call them terrorists. The settlements they protect call them heroes. The truth is more complicated, but the axes they carry are simple enough.",
-    "gated_lindblad": {
-      "✊": [
-        {
-          "gate": "⛓",
-          "inverse": false,
-          "power": 1.0,
-          "rate": 0.04,
-          "source": "👥"
-        }
-      ]
-    },
     "hamiltonian": {
       "⚔": {
         "⛓": 0.5,
@@ -1276,11 +1204,13 @@
       "⛓": {
         "⚔": 0.5,
         "🧨": 0.6,
-        "🪓": 0.6
+        "🪓": 0.6,
+        "✊": 0.4
       },
       "✊": {
         "⚔": 0.4,
-        "🪓": 0.4
+        "🪓": 0.4,
+        "⛓": 0.25
       },
       "🔥": {
         "🧨": 0.7,
@@ -1296,6 +1226,9 @@
         "⛓": 0.6,
         "✊": 0.4,
         "🧨": 0.3
+      },
+      "👥": {
+        "✊": 0.3
       }
     },
     "name": "Fencebreakers",
@@ -1336,7 +1269,8 @@
       "🔥",
       "🪓",
       "✊",
-      "⛓"
+      "⛓",
+      "👥"
     ]
   },
   {
@@ -1353,17 +1287,6 @@
       }
     },
     "description": "Bio-engineers who sculpt living tissue into architecture, art, and things harder to categorize. They grow buildings from cultivated organs. They shape servants from willing (and unwilling) donors. Their creations pulse. Their creations breathe. Their creations sometimes ask questions their creators can't answer. The 🧵 marks their sewing - they stitch flesh like fabric. The results are beautiful. The results are disturbing. The results are very, very useful.",
-    "gated_lindblad": {
-      "🫀": [
-        {
-          "gate": "🩸",
-          "inverse": false,
-          "power": 1.2,
-          "rate": 0.05,
-          "source": "🧬"
-        }
-      ]
-    },
     "hamiltonian": {
       "🧫": {
         "🧬": 0.6,
@@ -1373,7 +1296,8 @@
       "🧬": {
         "🧫": 0.6,
         "🧵": 0.4,
-        "🫀": 0.5
+        "🫀": 0.5,
+        "🩸": 0.2
       },
       "🧵": {
         "🧫": 0.3,
@@ -1382,7 +1306,8 @@
       },
       "🩸": {
         "🧫": 0.4,
-        "🫀": 0.7
+        "🫀": 0.7,
+        "🧬": 0.3
       },
       "🫀": {
         "🧬": 0.5,
@@ -1766,24 +1691,13 @@
       }
     },
     "description": "Research institution dedicated to genomics, inheritance, and the deep patterns of biological information. Their work edges toward the philosophical - they study DNA like others study sacred texts, seeking meaning in the double helix. The 🕳 in their sigil isn't metaphorical. They've found something in the genome that points toward the void. They're still deciding whether to publish.",
-    "gated_lindblad": {
-      "🕳": [
-        {
-          "gate": "🔬",
-          "inverse": false,
-          "power": 1.5,
-          "rate": 0.02,
-          "source": "🧬"
-        }
-      ]
-    },
     "hamiltonian": {
       "⚗️": {
         "🧪": 0.7,
         "🧬": 0.4
       },
       "🔬": {
-        "🕳": 0.3,
+        "🕳": 0.45,
         "🧪": 0.5,
         "🧫": 0.6,
         "🧬": 0.7
@@ -1804,7 +1718,7 @@
       },
       "🧬": {
         "🔬": 0.7,
-        "🕳": 0.4,
+        "🕳": 0.25,
         "🧫": 0.5
       }
     },
@@ -2190,26 +2104,6 @@
       }
     },
     "description": "Twelve citizens who decide where water goes. Their judgments shape harvests, determine which settlements thrive, and settle disputes older than anyone's memory. The position is elected, unpaid, and considered a burden by most who hold it. Yet the Jury's decisions are respected even by Station Lords - because everyone needs water, and everyone knows what happens when the channels run dry.",
-    "gated_lindblad": {
-      "🌱": [
-        {
-          "gate": "⚖",
-          "inverse": false,
-          "power": 1.0,
-          "rate": 0.05,
-          "source": "💧"
-        }
-      ],
-      "🌾": [
-        {
-          "gate": "⚖",
-          "inverse": false,
-          "power": 1.0,
-          "rate": 0.04,
-          "source": "💧"
-        }
-      ]
-    },
     "hamiltonian": {
       "⚖": {
         "💧": 0.6,
@@ -2454,17 +2348,6 @@
       }
     },
     "description": "Oath-keepers who make promises permanent through ritual knot-work. Their knots bind agreements in ways that transcend documentation - break the oath, and the knot *pulls*. The 🗝 marks their secret knowledge: some knots unlock, some knots bind, some knots *hang*. They're consulted for treaties, marriages, and sworn vengeance. Their fee is always another secret tied into their collection.",
-    "gated_lindblad": {
-      "🗝": [
-        {
-          "gate": "🔔",
-          "inverse": false,
-          "power": 1.0,
-          "rate": 0.03,
-          "source": "🪢"
-        }
-      ]
-    },
     "hamiltonian": {
       "📿": {
         "🔔": 0.4,
@@ -2476,7 +2359,7 @@
         "🗝": 0.3
       },
       "🗝": {
-        "🔔": 0.3,
+        "🔔": 0.15,
         "🪢": 0.4
       },
       "🧵": {
@@ -2714,26 +2597,6 @@
       }
     },
     "description": "The enforcement arm of documentary reality. They collect what the ledgers say is owed - taxes, fines, debts, penalties. When the Measure Scribes define what exists, the Bailiffs ensure the Throne receives its share. Their methods are bureaucratic but forceful: garnished wages, seized property, documentary sanctions that make life impossible. The worst punishment isn't prison; it's ledger-death - the systematic removal of your documentary existence until you become legally invisible.",
-    "gated_lindblad": {
-      "💰": [
-        {
-          "gate": "📘",
-          "inverse": false,
-          "power": 1.0,
-          "rate": 0.06,
-          "source": "👥"
-        }
-      ],
-      "💸": [
-        {
-          "gate": "📒",
-          "inverse": false,
-          "power": 1.0,
-          "rate": 0.04,
-          "source": "👥"
-        }
-      ]
-    },
     "hamiltonian": {
       "⚖": {
         "📒": 0.5,
@@ -2742,11 +2605,12 @@
       },
       "💰": {
         "👥": 0.4,
-        "📒": 0.6
+        "📒": 0.6,
+        "📘": 0.15
       },
       "📒": {
         "💰": 0.6,
-        "💸": 0.7,
+        "💸": 0.25,
         "📘": 0.5,
         "🚔": 0.4
       },
@@ -2754,6 +2618,10 @@
         "⚖": 0.5,
         "👥": 0.5,
         "📒": 0.4
+      },
+      "📘": {
+        "💰": 0.3,
+        "👥": -0.2
       }
     },
     "name": "Ledger Bailiffs",
@@ -3134,17 +3002,6 @@
       }
     },
     "description": "Dealers in recorded experience - not just data, but the lived texture of memory itself. They buy recollections from the desperate, sell them to the curious, and archive everything that passes through their hands. The 🗝 marks the locked memories - things people paid to forget, things the Throne wants suppressed, things too dangerous to release. Somewhere in their vaults is every secret ever sold.",
-    "gated_lindblad": {
-      "💾": [
-        {
-          "gate": "🗝",
-          "inverse": false,
-          "power": 1.0,
-          "rate": 0.04,
-          "source": "📼"
-        }
-      ]
-    },
     "hamiltonian": {
       "💰": {
         "💾": 0.5,
@@ -3289,24 +3146,6 @@
       }
     },
     "description": "They operate the mills that grind grain into flour. Dusty work, loud work, essential work. The Union negotiates rates with the Granary Guilds, maintains equipment standards, and ensures every settlement has processing capacity. Their apprenticeship takes three years. Most millers have permanent hearing damage and strong opinions about grain moisture content.",
-    "gated_lindblad": {
-      "🍞": [
-        {
-          "gate": "👥",
-          "inverse": false,
-          "power": 0.8,
-          "rate": 0.08,
-          "source": "💨"
-        },
-        {
-          "gate": "⚙",
-          "inverse": false,
-          "power": 1.0,
-          "rate": 0.05,
-          "source": "🏭"
-        }
-      ]
-    },
     "hamiltonian": {
       "⚙": {
         "🏭": 0.7,
@@ -3315,7 +3154,8 @@
       },
       "🍞": {
         "🏭": 0.6,
-        "💨": 0.4
+        "💨": 0.4,
+        "👥": 0.15
       },
       "🏭": {
         "⚙": 0.7,
@@ -3329,6 +3169,9 @@
       "🔨": {
         "⚙": 0.5,
         "🏭": 0.3
+      },
+      "👥": {
+        "🍞": 0.25
       }
     },
     "name": "Millwright's Union",
@@ -3367,7 +3210,8 @@
       "🏭",
       "💨",
       "🍞",
-      "🔨"
+      "🔨",
+      "👥"
     ]
   },
   {
@@ -3601,17 +3445,6 @@
         "type": "sine"
       }
     },
-    "gated_lindblad": {
-      "🚪": [
-        {
-          "gate": "🗝",
-          "inverse": false,
-          "power": 1.2,
-          "rate": 0.04,
-          "source": "🚧"
-        }
-      ]
-    },
     "hamiltonian": {
       "📋": {
         "🚧": 0.4,
@@ -3773,17 +3606,6 @@
       }
     },
     "description": "Enforcers of trade agreements and contract law - with violence. When arbitration fails and payment is due, the Crimson Scale collects. Their symbol is the dragon because they weigh debts precisely and their punishment is fire. The 🩸 is literal; some contracts are signed in blood, and the Scale ensures those contracts are honored. Merchants fear them. Merchants also hire them.",
-    "gated_lindblad": {
-      "💱": [
-        {
-          "gate": "🐉",
-          "inverse": false,
-          "power": 1.3,
-          "rate": 0.05,
-          "source": "🩸"
-        }
-      ]
-    },
     "hamiltonian": {
       "⚔": {
         "🐉": 0.5,
@@ -3792,7 +3614,7 @@
       },
       "🐉": {
         "⚔": 0.5,
-        "💱": 0.4,
+        "💱": 0.55,
         "🩸": 0.6
       },
       "💱": {
@@ -3807,7 +3629,7 @@
       "🩸": {
         "⚔": 0.4,
         "🐉": 0.6,
-        "💱": 0.5
+        "💱": 0.3
       }
     },
     "name": "Order of the Crimson Scale",
@@ -3938,34 +3760,18 @@
       }
     },
     "description": "The invisible cullers. They thrive on density and crash on scarcity.",
-    "gated_lindblad": {
-      "💀": [
-        {
-          "gate": "🦠",
-          "power": 1.5,
-          "rate": 0.12,
-          "source": "🐇"
-        },
-        {
-          "gate": "🦠",
-          "power": 1.2,
-          "rate": 0.1,
-          "source": "🌾"
-        },
-        {
-          "gate": "🦠",
-          "power": 1.5,
-          "rate": 0.15,
-          "source": "🐝"
-        }
-      ]
-    },
     "hamiltonian": {
       "🦠": {
-        "🌾": 0.4,
-        "🐇": 0.5,
-        "🐝": 0.6,
-        "💀": 0.3
+        "🌾": -0.3,
+        "🐇": -0.3,
+        "🐝": -0.25,
+        "💀": 0.5
+      },
+      "🐇": {
+        "🦠": 0.25
+      },
+      "🌾": {
+        "🦠": 0.2
       }
     },
     "name": "Plague Vectors",
@@ -4010,27 +3816,21 @@
       }
     },
     "description": "The tiny workers without whom no seed sets. Their absence collapses agriculture.",
-    "gated_lindblad": {
-      "🌾": [
-        {
-          "gate": "🐝",
-          "power": 1.0,
-          "rate": 0.05,
-          "source": "🌿"
-        },
-        {
-          "gate": "🐝",
-          "power": 0.8,
-          "rate": 0.03,
-          "source": "🌱"
-        }
-      ]
-    },
     "hamiltonian": {
       "🐝": {
         "🌱": 0.3,
         "🌾": 0.4,
         "🌿": 0.5
+      },
+      "🌿": {
+        "🌾": 0.3
+      },
+      "🌾": {
+        "🌿": 0.2,
+        "🌱": 0.1
+      },
+      "🌱": {
+        "🌾": 0.2
       }
     },
     "name": "Pollinator Guild",
@@ -4165,21 +3965,10 @@
       }
     },
     "description": "Dockside operators who control the grey economy of every port. They know which ships carry what, which inspectors can be bought, which cargo manifests are fiction. Smuggling is their business, but information is their power. Cross them and your shipments develop problems. Work with them and logistics become remarkably smooth. They consider this fair.",
-    "gated_lindblad": {
-      "🚢": [
-        {
-          "gate": "⚓",
-          "inverse": false,
-          "power": 1.0,
-          "rate": 0.03,
-          "source": "💰"
-        }
-      ]
-    },
     "hamiltonian": {
       "⚓": {
         "💰": 0.3,
-        "🚢": 0.6,
+        "🚢": 0.7,
         "🪝": 0.5
       },
       "💰": {
@@ -4515,24 +4304,6 @@
       }
     },
     "description": "Technical school and manufacturing consortium for spacecraft propulsion and orbital mechanics. They train engineers, certify designs, and bridge the gap between laboratory research and the material needs of the fleet. Their graduates are in demand everywhere. Their bureaucracy is legendary. Getting a new propulsion system approved takes longer than designing it, but at least approved systems don't explode unexpectedly.",
-    "gated_lindblad": {
-      "🚀": [
-        {
-          "gate": "📋",
-          "inverse": false,
-          "power": 1.0,
-          "rate": 0.03,
-          "source": "🔬"
-        },
-        {
-          "gate": "📋",
-          "inverse": false,
-          "power": 1.0,
-          "rate": 0.02,
-          "source": "⚙"
-        }
-      ]
-    },
     "hamiltonian": {
       "⚙": {
         "🔬": 0.3,
@@ -4540,7 +4311,7 @@
       },
       "📋": {
         "🔬": 0.4,
-        "🚀": 0.5
+        "🚀": 0.6
       },
       "🔬": {
         "📋": 0.4,
@@ -4834,29 +4605,10 @@
       }
     },
     "description": "Canal smugglers who move contraband through waterways that official maps don't show. Salt is their cover cargo - always in demand, easy to explain, useful for hiding other things beneath. Their routes connect settlements that shouldn't be connected. Their knowledge of hidden passages makes them invaluable to anyone who needs to move without being seen. The Ledger Bailiffs hate them. The Bailiffs can't catch them.",
-    "gated_lindblad": {
-      "🛶": [
-        {
-          "gate": "⛓",
-          "inverse": false,
-          "power": 0.8,
-          "rate": 0.03,
-          "source": "🔓"
-        }
-      ],
-      "🧂": [
-        {
-          "gate": "💧",
-          "inverse": false,
-          "power": 1.0,
-          "rate": 0.04,
-          "source": "🛶"
-        }
-      ]
-    },
     "hamiltonian": {
       "⛓": {
-        "🔓": 0.7
+        "🔓": 0.7,
+        "🛶": -0.3
       },
       "💧": {
         "🛶": 0.4,
@@ -4874,7 +4626,8 @@
       "🛶": {
         "💧": 0.4,
         "🕵️": 0.4,
-        "🧂": 0.6
+        "🧂": 0.6,
+        "⛓": -0.2
       },
       "🧂": {
         "💧": 0.4,
@@ -5165,21 +4918,11 @@
       }
     },
     "description": "Navigators who map routes through probability-space. Where others see chaos, they see currents - stable paths between configurations that make travel possible. Their charts are closely guarded; their navigators are recruited young and trained for decades. Without them, every journey would be a gamble. With them, it's merely dangerous. They sense patterns they can't fully explain.",
-    "gated_lindblad": {
-      "🌠": [
-        {
-          "gate": "🌙",
-          "inverse": false,
-          "power": 1.0,
-          "rate": 0.04,
-          "source": "🔭"
-        }
-      ]
-    },
     "hamiltonian": {
       "🌠": {
         "🔭": 0.7,
-        "🛰": 0.4
+        "🛰": 0.4,
+        "🌙": 0.2
       },
       "📡": {
         "🔭": 0.3,
@@ -5194,6 +4937,9 @@
         "🌠": 0.4,
         "📡": 0.6,
         "🔭": 0.5
+      },
+      "🌙": {
+        "🌠": 0.3
       }
     },
     "name": "Star-Charter Enclave",
@@ -5255,17 +5001,6 @@
         "type": "sine"
       }
     },
-    "gated_lindblad": {
-      "🚀": [
-        {
-          "gate": "🌞",
-          "inverse": false,
-          "power": 1.0,
-          "rate": 0.04,
-          "source": "⚙"
-        }
-      ]
-    },
     "hamiltonian": {
       "⚙": {
         "🌀": 0.6,
@@ -5280,12 +5015,12 @@
       "🌞": {
         "⚙": 0.5,
         "🌀": 0.7,
-        "🚀": 0.4
+        "🚀": 0.3
       },
       "🚀": {
         "⚙": 0.6,
         "🌀": 0.5,
-        "🌞": 0.4
+        "🌞": 0.15
       }
     },
     "name": "Starforge Reliquary",
@@ -6103,25 +5838,14 @@
       }
     },
     "description": "Destitute remains of war and oppression gathering in the quiet corners. Not serfs (who are owned), not freemen (who are documented) - just the leftover. They cultivate the scraps of the Granary Guilds (🍞), surviving on what falls through the cracks. Their name is the sound of wind through ruins - the subtle whisper in the machinery of the state. The Station Lords pretend they don't exist. The Carrion Throne's ledgers have no category for them. This makes them, paradoxically, free.",
-    "gated_lindblad": {
-      "💀": [
-        {
-          "gate": "🗑",
-          "inverse": true,
-          "power": 1.2,
-          "rate": 0.06,
-          "source": "🧤"
-        }
-      ]
-    },
     "hamiltonian": {
       "💀": {
         "⚫": 0.5,
-        "🗑": 0.3,
+        "🗑": -0.2,
         "🧤": 0.4
       },
       "🗑": {
-        "💀": 0.3,
+        "💀": -0.4,
         "🧤": 0.6
       },
       "🧤": {
@@ -6182,22 +5906,12 @@
       }
     },
     "description": "The pharmaceutical and medical supply arm of imperial authority. They manufacture medicines, distribute supplies, and ensure that health infrastructure reaches every documented citizen. Their generosity comes with strings - dependency on their supply chains means dependency on the system. When settlements fall out of favor, shipments get delayed. When they comply, the medicine flows freely.",
-    "gated_lindblad": {
-      "💊": [
-        {
-          "gate": "📜",
-          "inverse": false,
-          "power": 0.8,
-          "rate": 0.05,
-          "source": "🧪"
-        }
-      ]
-    },
     "hamiltonian": {
       "💊": {
         "📦": 0.6,
         "🚛": 0.4,
-        "🧪": 0.7
+        "🧪": 0.7,
+        "📜": 0.15
       },
       "📦": {
         "💊": 0.6,
@@ -6211,6 +5925,9 @@
       "🧪": {
         "💊": 0.7,
         "📦": 0.4
+      },
+      "📜": {
+        "💊": 0.3
       }
     },
     "name": "The Sovereign Ukase",
@@ -7003,26 +6720,6 @@
         "type": "pulse"
       }
     },
-    "gated_lindblad": {
-      "✨": [
-        {
-          "gate": "🔥",
-          "inverse": false,
-          "power": 1.0,
-          "rate": 0.03,
-          "source": "🌫"
-        }
-      ],
-      "💎": [
-        {
-          "gate": "🔥",
-          "inverse": false,
-          "power": 1.5,
-          "rate": 0.02,
-          "source": "🪨"
-        }
-      ]
-    },
     "hamiltonian": {
       "✨": {
         "🌫": 0.2,
@@ -7041,17 +6738,19 @@
       },
       "💎": {
         "✨": 0.25,
-        "🪨": 0.15
+        "🪨": 0.3,
+        "🔥": 0.15
       },
       "🔥": {
         "✨": 0.35,
         "🌋": 0.4,
         "🌫": 0.3,
-        "🪨": 0.2
+        "🪨": 0.2,
+        "💎": 0.25
       },
       "🪨": {
         "🌋": 0.2,
-        "💎": 0.15,
+        "💎": 0.3,
         "🔥": 0.2
       }
     },
@@ -7181,27 +6880,11 @@
       }
     },
     "description": "The great destroyer and renewer. Burns hot, leaves fertility behind.",
-    "gated_lindblad": {
-      "🍂": [
-        {
-          "gate": "🔥",
-          "power": 1.2,
-          "rate": 0.2,
-          "source": "🌿"
-        },
-        {
-          "gate": "🔥",
-          "power": 1.0,
-          "rate": 0.08,
-          "source": "🌲"
-        }
-      ]
-    },
     "hamiltonian": {
       "🔥": {
         "🌬": 0.6,
-        "🌲": 0.4,
-        "🌿": 0.5,
+        "🌲": -0.4,
+        "🌿": -0.35,
         "🍂": 0.7,
         "🌱": -0.4
       },
@@ -7276,26 +6959,6 @@
       }
     },
     "description": "They read probability in fermentation - bubble patterns, rise timing, the behavior of cultures. But they're not passive seers. They understand that observation shapes outcome, so they *prepare* the substrate. The quest they give you, the marriage they arrange, the rumor they plant - these are initial conditions. By the time causality propagates, their preferred eigenstate has already won. They smell like fresh bread and speak in conditional futures. They are running state management on the quantum computer that underlies reality.",
-    "gated_lindblad": {
-      "🍞": [
-        {
-          "gate": "🫙",
-          "inverse": false,
-          "power": 1.0,
-          "rate": 0.04,
-          "source": "💨"
-        }
-      ],
-      "🥖": [
-        {
-          "gate": "🫙",
-          "inverse": false,
-          "power": 1.2,
-          "rate": 0.06,
-          "source": "🍞"
-        }
-      ]
-    },
     "hamiltonian": {
       "⛪": {
         "🌙": 0.3,
@@ -7320,7 +6983,11 @@
         "⛪": 0.4,
         "🍞": 0.6,
         "🥖": 0.7,
-        "🧪": 0.5
+        "🧪": 0.5,
+        "💨": 0.2
+      },
+      "💨": {
+        "🫙": 0.3
       }
     },
     "name": "Yeast Prophets",
@@ -7359,7 +7026,8 @@
       "🥖",
       "🧪",
       "⛪",
-      "🫙"
+      "🫙",
+      "💨"
     ]
   }
 ]
