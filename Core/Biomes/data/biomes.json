@@ -31,7 +31,11 @@
       "🍂",
       "💀"
     ],
-    "native_factions": [],
+    "native_factions": [
+      "Pollinator Guild",
+      "Mycelial Web",
+      "Celestial Archons"
+    ],
     "tags": [
       "ecosystem",
       "natural",
@@ -513,15 +517,34 @@
       "🧫",
       "🍂",
       "🌙",
-      "☀"
+      "☀",
+      "💀"
     ],
-    "native_factions": [],
+    "native_factions": [
+      "Celestial Archons",
+      "Locusts",
+      "Mycelial Web",
+      "Plague Vectors"
+    ],
     "tags": [
       "fungal",
       "network",
       "microbial"
     ],
-    "icon_components": {}
+    "icon_components": {
+      "💀": {
+        "self_energy": -0.1,
+        "lindblad_incoming": {
+          "🦠": 0.03,
+          "🐜": 0.015
+        },
+        "decay": {
+          "rate": 0.015,
+          "target": "🍂",
+          "comment": "death decomposes to detritus"
+        }
+      }
+    }
   },
   {
     "name": "HorizonFracture",
@@ -767,9 +790,17 @@
       "🌲",
       "🍂",
       "🌱",
-      "🌿"
+      "🌿",
+      "🍄"
     ],
-    "native_factions": [],
+    "native_factions": [
+      "Pack Lords",
+      "Swift Herd",
+      "Wildfire",
+      "Celestial Archons",
+      "Mycelial Web",
+      "Verdant Pulse"
+    ],
     "tags": [
       "starter",
       "forest",
@@ -780,6 +811,18 @@
         "decay": {
           "rate": 0.01,
           "target": "🐇"
+        }
+      },
+      "🍄": {
+        "self_energy": 0.05,
+        "lindblad_incoming": {
+          "🍂": 0.015,
+          "💀": 0.01
+        },
+        "decay": {
+          "rate": 0.02,
+          "target": "🌱",
+          "comment": "mushrooms decompose death → feed germination"
         }
       }
     }
@@ -816,7 +859,12 @@
       "🚀",
       "🛸"
     ],
-    "native_factions": [],
+    "native_factions": [
+      "Kilowatt Collective",
+      "Gearwright Circle",
+      "Rocketwright Institute",
+      "Starforge Reliquary"
+    ],
     "tags": [
       "industrial",
       "space",
@@ -858,7 +906,12 @@
       "💰",
       "🧺"
     ],
-    "native_factions": [],
+    "native_factions": [
+      "Millwright's Union",
+      "Hearth Keepers",
+      "Granary Guilds",
+      "Void Serfs"
+    ],
     "tags": [
       "starter",
       "civilization",
@@ -921,7 +974,11 @@
       "🌫",
       "✨"
     ],
-    "native_factions": [],
+    "native_factions": [
+      "The Gilded Legacy",
+      "Clan of the Hidden Root",
+      "Volcanic Foundry"
+    ],
     "tags": [
       "volcanic",
       "mineral",
@@ -3189,7 +3246,11 @@
       "🪢",
       "🪡"
     ],
-    "native_factions": [],
+    "native_factions": [
+      "Knot-Shriners",
+      "Seamstress Syndicate",
+      "Loom Priests"
+    ],
     "tags": [
       "textile",
       "craft",
@@ -3887,7 +3948,10 @@
       "🌾"
     ],
     "native_factions": [
-      "Yeast Prophets"
+      "Pollinator Guild",
+      "Yeast Prophets",
+      "Plague Vectors",
+      "Terrarium Collective"
     ],
     "tags": [
       "agricultural",
@@ -4004,7 +4068,11 @@
       "💧",
       "🧊"
     ],
-    "native_factions": [],
+    "native_factions": [
+      "Salt-Runners",
+      "Irrigation Jury",
+      "Quay Rooks"
+    ],
     "tags": [
       "maritime",
       "coastal",
@@ -4261,8 +4329,11 @@
       "⚱"
     ],
     "native_factions": [
+      "Iron Shepherds",
+      "Carrion Throne",
       "Brotherhood of Ash",
-      "Iron Shepherds"
+      "Pack Lords",
+      "Order of the Crimson Scale"
     ],
     "tags": [
       "warfare",
@@ -4393,9 +4464,15 @@
       "✊",
       "🚩",
       "📜",
-      "🗣"
+      "🗣",
+      "👥",
+      "⛓"
     ],
-    "native_factions": [],
+    "native_factions": [
+      "Children of the Ember",
+      "Fencebreakers",
+      "Void Serfs"
+    ],
     "tags": [
       "political",
       "revolution",
@@ -4457,6 +4534,21 @@
         "decay": {
           "rate": 0.05,
           "target": "🗑"
+        }
+      },
+      "👥": {
+        "self_energy": 0.05,
+        "lindblad_incoming": {
+          "⛓": 0.01
+        },
+        "comment": "chains flow into people — oppression accumulates"
+      },
+      "⛓": {
+        "self_energy": -0.05,
+        "decay": {
+          "rate": 0.015,
+          "target": "✊",
+          "comment": "chains decay into fists — resistance rises"
         }
       }
     },
@@ -6029,7 +6121,11 @@
       "🍞",
       "👥"
     ],
-    "native_factions": [],
+    "native_factions": [
+      "Hearth Keepers",
+      "Carrion Throne",
+      "Granary Guilds"
+    ],
     "tags": [
       "starter",
       "small",
