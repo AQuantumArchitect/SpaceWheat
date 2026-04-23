@@ -41,7 +41,24 @@
       "natural",
       "quantum"
     ],
-    "icon_components": {}
+    "icon_components": {},
+    "icons": [
+      {
+        "name": "CelestialCycle",
+        "pole_0": "☀",
+        "pole_1": "🌙"
+      },
+      {
+        "name": "Harvest",
+        "pole_0": "🌾",
+        "pole_1": "🍄"
+      },
+      {
+        "name": "Death",
+        "pole_0": "🍂",
+        "pole_1": "💀"
+      }
+    ]
   },
   {
     "name": "CyberDebtMegacity",
@@ -302,7 +319,39 @@
           "✊"
         ]
       }
-    }
+    },
+    "icons": [
+      {
+        "name": "Debt",
+        "pole_0": "💸",
+        "pole_1": "⛓"
+      },
+      {
+        "name": "Access",
+        "pole_0": "👥",
+        "pole_1": "🗝"
+      },
+      {
+        "name": "Surveillance",
+        "pole_0": "🕵",
+        "pole_1": "💀"
+      },
+      {
+        "name": "Sacrifice",
+        "pole_0": "🩸",
+        "pole_1": "🚀"
+      },
+      {
+        "name": "Capital",
+        "pole_0": "💰",
+        "pole_1": "⚙"
+      },
+      {
+        "name": "Revolt",
+        "pole_0": "✊",
+        "pole_1": "🚩"
+      }
+    ]
   },
   {
     "name": "EchoingChasm",
@@ -483,7 +532,34 @@
           "🫥"
         ]
       }
-    }
+    },
+    "icons": [
+      {
+        "name": "Resonance",
+        "pole_0": "🎶",
+        "pole_1": "🔔"
+      },
+      {
+        "name": "Absence",
+        "pole_0": "🫥",
+        "pole_1": "🪦"
+      },
+      {
+        "name": "Vigil",
+        "pole_0": "🕸",
+        "pole_1": "🕯"
+      },
+      {
+        "name": "Silence",
+        "pole_0": "🔇",
+        "pole_1": "🌑"
+      },
+      {
+        "name": "Vertigo",
+        "pole_0": "💫",
+        "pole_1": "🌀"
+      }
+    ]
   },
   {
     "name": "FungalNetworks",
@@ -544,7 +620,29 @@
           "comment": "death decomposes to detritus"
         }
       }
-    }
+    },
+    "icons": [
+      {
+        "name": "Insect",
+        "pole_0": "🦗",
+        "pole_1": "🐜"
+      },
+      {
+        "name": "Mycelium",
+        "pole_0": "🍄",
+        "pole_1": "🦠"
+      },
+      {
+        "name": "Culture",
+        "pole_0": "🧫",
+        "pole_1": "🍂"
+      },
+      {
+        "name": "NightCycle",
+        "pole_0": "🌙",
+        "pole_1": "☀"
+      }
+    ]
   },
   {
     "name": "HorizonFracture",
@@ -750,7 +848,34 @@
           "⚫"
         ]
       }
-    }
+    },
+    "icons": [
+      {
+        "name": "Void",
+        "pole_0": "🕳",
+        "pole_1": "🪐"
+      },
+      {
+        "name": "Singularity",
+        "pole_0": "🌀",
+        "pole_1": "⚫"
+      },
+      {
+        "name": "Navigation",
+        "pole_0": "🧭",
+        "pole_1": "📍"
+      },
+      {
+        "name": "Exploration",
+        "pole_0": "🗺",
+        "pole_1": "🔭"
+      },
+      {
+        "name": "Mirage",
+        "pole_0": "🌠",
+        "pole_1": "🫥"
+      }
+    ]
   },
   {
     "name": "StarterForest",
@@ -825,7 +950,34 @@
           "comment": "mushrooms decompose death → feed germination"
         }
       }
-    }
+    },
+    "icons": [
+      {
+        "name": "CelestialCycle",
+        "pole_0": "☀",
+        "pole_1": "🌙"
+      },
+      {
+        "name": "PackHerd",
+        "pole_0": "🐺",
+        "pole_1": "🦌"
+      },
+      {
+        "name": "Raptor",
+        "pole_0": "🦅",
+        "pole_1": "🐇"
+      },
+      {
+        "name": "Succession",
+        "pole_0": "🌱",
+        "pole_1": "🌲"
+      },
+      {
+        "name": "Humus",
+        "pole_0": "🍂",
+        "pole_1": "🌿"
+      }
+    ]
   },
   {
     "name": "StellarForges",
@@ -870,7 +1022,24 @@
       "space",
       "quantum"
     ],
-    "icon_components": {}
+    "icon_components": {},
+    "icons": [
+      {
+        "name": "Power",
+        "pole_0": "⚡",
+        "pole_1": "🔋"
+      },
+      {
+        "name": "Machinery",
+        "pole_0": "⚙",
+        "pole_1": "🔩"
+      },
+      {
+        "name": "Fleet",
+        "pole_0": "🚀",
+        "pole_1": "🛸"
+      }
+    ]
   },
   {
     "name": "Village",
@@ -940,7 +1109,29 @@
           "target": "🧺"
         }
       }
-    }
+    },
+    "icons": [
+      {
+        "name": "Hearth",
+        "pole_0": "🔥",
+        "pole_1": "❄️"
+      },
+      {
+        "name": "Labor",
+        "pole_0": "👥",
+        "pole_1": "🍞"
+      },
+      {
+        "name": "WindMill",
+        "pole_0": "⚙️",
+        "pole_1": "💨"
+      },
+      {
+        "name": "Commerce",
+        "pole_0": "🧺",
+        "pole_1": "💰"
+      }
+    ]
   },
   {
     "name": "VolcanicWorlds",
@@ -984,7 +1175,24 @@
       "mineral",
       "harsh"
     ],
-    "icon_components": {}
+    "icon_components": {},
+    "icons": [
+      {
+        "name": "Magma",
+        "pole_0": "🔥",
+        "pole_1": "🪨"
+      },
+      {
+        "name": "Ore",
+        "pole_0": "💎",
+        "pole_1": "⛏"
+      },
+      {
+        "name": "Ash",
+        "pole_0": "🌫",
+        "pole_1": "✨"
+      }
+    ]
   },
   {
     "name": "TidalPools",
@@ -1196,7 +1404,39 @@
         }
       }
     },
-    "cross_biome_flows": {}
+    "cross_biome_flows": {},
+    "icons": [
+      {
+        "name": "Tide",
+        "pole_0": "🌊",
+        "pole_1": "🪨"
+      },
+      {
+        "name": "Current",
+        "pole_0": "🌀",
+        "pole_1": "🦀"
+      },
+      {
+        "name": "Depth",
+        "pole_0": "🐙",
+        "pole_1": "🪸"
+      },
+      {
+        "name": "Shell",
+        "pole_0": "🐚",
+        "pole_1": "🧂"
+      },
+      {
+        "name": "Shimmer",
+        "pole_0": "✨",
+        "pole_1": "🐠"
+      },
+      {
+        "name": "Oracle",
+        "pole_0": "👁",
+        "pole_1": "📜"
+      }
+    ]
   },
   {
     "name": "BureaucraticAbyss",
@@ -1369,7 +1609,34 @@
           "💀"
         ]
       }
-    }
+    },
+    "icons": [
+      {
+        "name": "Decree",
+        "pole_0": "📜",
+        "pole_1": "🖋"
+      },
+      {
+        "name": "Archive",
+        "pole_0": "🗃",
+        "pole_1": "♟"
+      },
+      {
+        "name": "Masses",
+        "pole_0": "👥",
+        "pole_1": "⛓"
+      },
+      {
+        "name": "Mortality",
+        "pole_0": "🕰",
+        "pole_1": "🪦"
+      },
+      {
+        "name": "Reckoning",
+        "pole_0": "💀",
+        "pole_1": "📖"
+      }
+    ]
   },
   {
     "name": "GildedRot",
@@ -1578,7 +1845,34 @@
           "⚜"
         ]
       }
-    }
+    },
+    "icons": [
+      {
+        "name": "Crown",
+        "pole_0": "👑",
+        "pole_1": "⚜"
+      },
+      {
+        "name": "Decadence",
+        "pole_0": "🍷",
+        "pole_1": "🌹"
+      },
+      {
+        "name": "Masque",
+        "pole_0": "🎭",
+        "pole_1": "💃"
+      },
+      {
+        "name": "Predation",
+        "pole_0": "🦅",
+        "pole_1": "🩸"
+      },
+      {
+        "name": "Decline",
+        "pole_0": "📜",
+        "pole_1": "🥀"
+      }
+    ]
   },
   {
     "name": "_orphan_lindblads",
@@ -2245,7 +2539,8 @@
           "target": "🗑"
         }
       }
-    }
+    },
+    "icons": []
   },
   {
     "name": "BroadcastTower",
@@ -2385,7 +2680,24 @@
           "📡"
         ]
       }
-    }
+    },
+    "icons": [
+      {
+        "name": "Signal",
+        "pole_0": "📡",
+        "pole_1": "📶"
+      },
+      {
+        "name": "Voice",
+        "pole_0": "🔊",
+        "pole_1": "🗣"
+      },
+      {
+        "name": "Broadcast",
+        "pole_0": "🎵",
+        "pole_1": "🧩"
+      }
+    ]
   },
   {
     "name": "SatelliteGraveyard",
@@ -2491,7 +2803,19 @@
           "🛰"
         ]
       }
-    }
+    },
+    "icons": [
+      {
+        "name": "Orbit",
+        "pole_0": "🛰",
+        "pole_1": "⭐"
+      },
+      {
+        "name": "Memory",
+        "pole_0": "📼",
+        "pole_1": "🧩"
+      }
+    ]
   },
   {
     "name": "Clinic",
@@ -2628,7 +2952,24 @@
           "🧫"
         ]
       }
-    }
+    },
+    "icons": [
+      {
+        "name": "Medicine",
+        "pole_0": "💉",
+        "pole_1": "💊"
+      },
+      {
+        "name": "Diagnosis",
+        "pole_0": "🩺",
+        "pole_1": "🚫"
+      },
+      {
+        "name": "Research",
+        "pole_0": "🧪",
+        "pole_1": "🧬"
+      }
+    ]
   },
   {
     "name": "Workshop",
@@ -2771,7 +3112,24 @@
           "🔌"
         ]
       }
-    }
+    },
+    "icons": [
+      {
+        "name": "Tools",
+        "pole_0": "🔧",
+        "pole_1": "🔨"
+      },
+      {
+        "name": "Repair",
+        "pole_0": "🪛",
+        "pole_1": "🧰"
+      },
+      {
+        "name": "Circuit",
+        "pole_0": "🔌",
+        "pole_1": "♻️"
+      }
+    ]
   },
   {
     "name": "ScrapYard",
@@ -2913,7 +3271,24 @@
           "♻️"
         ]
       }
-    }
+    },
+    "icons": [
+      {
+        "name": "Waste",
+        "pole_0": "♻️",
+        "pole_1": "🗑"
+      },
+      {
+        "name": "Labor",
+        "pole_0": "🧤",
+        "pole_1": "🏭"
+      },
+      {
+        "name": "Ruin",
+        "pole_0": "🚧",
+        "pole_1": "🧱"
+      }
+    ]
   },
   {
     "name": "MarketDistrict",
@@ -3119,7 +3494,29 @@
           "⛓"
         ]
       }
-    }
+    },
+    "icons": [
+      {
+        "name": "Currency",
+        "pole_0": "💰",
+        "pole_1": "💳"
+      },
+      {
+        "name": "Goods",
+        "pole_0": "📦",
+        "pole_1": "🏷️"
+      },
+      {
+        "name": "Exchange",
+        "pole_0": "💱",
+        "pole_1": "🕴️"
+      },
+      {
+        "name": "Sentiment",
+        "pole_0": "🐂",
+        "pole_1": "🐻"
+      }
+    ]
   },
   {
     "name": "TradingFloor",
@@ -3232,7 +3629,19 @@
           "🐻"
         ]
       }
-    }
+    },
+    "icons": [
+      {
+        "name": "Sentiment",
+        "pole_0": "🐂",
+        "pole_1": "🐻"
+      },
+      {
+        "name": "Flow",
+        "pole_0": "📊",
+        "pole_1": "💱"
+      }
+    ]
   },
   {
     "name": "WeaversLoft",
@@ -3360,7 +3769,24 @@
           "🧵"
         ]
       }
-    }
+    },
+    "icons": [
+      {
+        "name": "Thread",
+        "pole_0": "🧵",
+        "pole_1": "🧶"
+      },
+      {
+        "name": "Garment",
+        "pole_0": "👘",
+        "pole_1": "🧷"
+      },
+      {
+        "name": "Knot",
+        "pole_0": "🪢",
+        "pole_1": "🪡"
+      }
+    ]
   },
   {
     "name": "BindingCircle",
@@ -3393,7 +3819,9 @@
       "🧵"
     ],
     "native_factions": [
-      "Knot-Shriners"
+      "Knot-Shriners",
+      "Loom Priests",
+      "Brotherhood of Ash"
     ],
     "tags": [
       "occult",
@@ -3468,7 +3896,19 @@
           "🧵"
         ]
       }
-    }
+    },
+    "icons": [
+      {
+        "name": "Bond",
+        "pole_0": "🪢",
+        "pole_1": "📿"
+      },
+      {
+        "name": "Ritual",
+        "pole_0": "🕯",
+        "pole_1": "🧵"
+      }
+    ]
   },
   {
     "name": "MeditationGarden",
@@ -3571,7 +4011,19 @@
           "🏮"
         ]
       }
-    }
+    },
+    "icons": [
+      {
+        "name": "Practice",
+        "pole_0": "🧘",
+        "pole_1": "📿"
+      },
+      {
+        "name": "Lantern",
+        "pole_0": "🏮",
+        "pole_1": "🕯"
+      }
+    ]
   },
   {
     "name": "OccultSanctum",
@@ -3677,7 +4129,19 @@
           "⚱"
         ]
       }
-    }
+    },
+    "icons": [
+      {
+        "name": "Ward",
+        "pole_0": "🧿",
+        "pole_1": "🏮"
+      },
+      {
+        "name": "Offering",
+        "pole_0": "🕯",
+        "pole_1": "⚱"
+      }
+    ]
   },
   {
     "name": "ShrineOfAshes",
@@ -3781,7 +4245,19 @@
           "⚱"
         ]
       }
-    }
+    },
+    "icons": [
+      {
+        "name": "Memorial",
+        "pole_0": "⚱",
+        "pole_1": "🕯"
+      },
+      {
+        "name": "Relic",
+        "pole_0": "📿",
+        "pole_1": "💀"
+      }
+    ]
   },
   {
     "name": "PastoralCommons",
@@ -3938,7 +4414,24 @@
           "🧵"
         ]
       }
-    }
+    },
+    "icons": [
+      {
+        "name": "Pastoral",
+        "pole_0": "🐑",
+        "pole_1": "🐝"
+      },
+      {
+        "name": "Harvest",
+        "pole_0": "🥣",
+        "pole_1": "🫙"
+      },
+      {
+        "name": "Tending",
+        "pole_0": "🤲",
+        "pole_1": "🌿"
+      }
+    ]
   },
   {
     "name": "Apiary",
@@ -4057,7 +4550,19 @@
           "🌾"
         ]
       }
-    }
+    },
+    "icons": [
+      {
+        "name": "Hive",
+        "pole_0": "🐝",
+        "pole_1": "🫙"
+      },
+      {
+        "name": "Bloom",
+        "pole_0": "🌿",
+        "pole_1": "🌾"
+      }
+    ]
   },
   {
     "name": "Harbor",
@@ -4189,7 +4694,24 @@
           "💧"
         ]
       }
-    }
+    },
+    "icons": [
+      {
+        "name": "Mooring",
+        "pole_0": "⚓",
+        "pole_1": "🪝"
+      },
+      {
+        "name": "Ferry",
+        "pole_0": "🛶",
+        "pole_1": "🪣"
+      },
+      {
+        "name": "Water",
+        "pole_0": "💧",
+        "pole_1": "🧊"
+      }
+    ]
   },
   {
     "name": "FreshwaterSpring",
@@ -4317,7 +4839,19 @@
           "💧"
         ]
       }
-    }
+    },
+    "icons": [
+      {
+        "name": "Phase",
+        "pole_0": "💧",
+        "pole_1": "🧊"
+      },
+      {
+        "name": "Flow",
+        "pole_0": "🫧",
+        "pole_1": "🌊"
+      }
+    ]
   },
   {
     "name": "Battlefield",
@@ -4457,7 +4991,24 @@
           "💥"
         ]
       }
-    }
+    },
+    "icons": [
+      {
+        "name": "Combat",
+        "pole_0": "⚔",
+        "pole_1": "🛡"
+      },
+      {
+        "name": "Violence",
+        "pole_0": "💥",
+        "pole_1": "🩸"
+      },
+      {
+        "name": "Aftermath",
+        "pole_0": "💀",
+        "pole_1": "⚱"
+      }
+    ]
   },
   {
     "name": "RevolutionSquare",
@@ -4586,7 +5137,24 @@
           "🗣"
         ]
       }
-    }
+    },
+    "icons": [
+      {
+        "name": "Uprising",
+        "pole_0": "✊",
+        "pole_1": "🚩"
+      },
+      {
+        "name": "Manifesto",
+        "pole_0": "📜",
+        "pole_1": "🗣"
+      },
+      {
+        "name": "Liberation",
+        "pole_0": "👥",
+        "pole_1": "⛓"
+      }
+    ]
   },
   {
     "name": "OrbitalStrike",
@@ -4706,7 +5274,19 @@
           "🚀"
         ]
       }
-    }
+    },
+    "icons": [
+      {
+        "name": "Impact",
+        "pole_0": "🛸",
+        "pole_1": "💥"
+      },
+      {
+        "name": "Trajectory",
+        "pole_0": "🚀",
+        "pole_1": "⭐"
+      }
+    ]
   },
   {
     "name": "Archives",
@@ -4842,7 +5422,24 @@
           "📒"
         ]
       }
-    }
+    },
+    "icons": [
+      {
+        "name": "Record",
+        "pole_0": "📒",
+        "pole_1": "📋"
+      },
+      {
+        "name": "Reference",
+        "pole_0": "📘",
+        "pole_1": "📐"
+      },
+      {
+        "name": "Measure",
+        "pole_0": "🧮",
+        "pole_1": "⚖"
+      }
+    ]
   },
   {
     "name": "AbandonedQuarter",
@@ -4954,7 +5551,19 @@
           "🪨"
         ]
       }
-    }
+    },
+    "icons": [
+      {
+        "name": "Ruin",
+        "pole_0": "🏚️",
+        "pole_1": "🏛"
+      },
+      {
+        "name": "Remnant",
+        "pole_0": "🏺",
+        "pole_1": "🪨"
+      }
+    ]
   },
   {
     "name": "ForgottenCastle",
@@ -5062,7 +5671,19 @@
           "🏰"
         ]
       }
-    }
+    },
+    "icons": [
+      {
+        "name": "Heritage",
+        "pole_0": "🏰",
+        "pole_1": "📜"
+      },
+      {
+        "name": "Fading",
+        "pole_0": "🦅",
+        "pole_1": "🥀"
+      }
+    ]
   },
   {
     "name": "DemolitionSite",
@@ -5175,7 +5796,19 @@
           "🧱"
         ]
       }
-    }
+    },
+    "icons": [
+      {
+        "name": "Demolition",
+        "pole_0": "🧨",
+        "pole_1": "💥"
+      },
+      {
+        "name": "Burning",
+        "pole_0": "🧱",
+        "pole_1": "🔥"
+      }
+    ]
   },
   {
     "name": "Woodlot",
@@ -5301,7 +5934,19 @@
           "🪵"
         ]
       }
-    }
+    },
+    "icons": [
+      {
+        "name": "Timber",
+        "pole_0": "🪵",
+        "pole_1": "🌲"
+      },
+      {
+        "name": "Clearing",
+        "pole_0": "🪓",
+        "pole_1": "🔥"
+      }
+    ]
   },
   {
     "name": "MirrorChamber",
@@ -5334,7 +5979,9 @@
       "🌑"
     ],
     "native_factions": [
-      "Memory Weavers"
+      "Memory Weavers",
+      "Lantern Cant",
+      "Chorus of Oblivion"
     ],
     "tags": [
       "liminal",
@@ -5404,7 +6051,19 @@
           "🫥"
         ]
       }
-    }
+    },
+    "icons": [
+      {
+        "name": "Reflection",
+        "pole_0": "🪞",
+        "pole_1": "👤"
+      },
+      {
+        "name": "Darkness",
+        "pole_0": "🕯",
+        "pole_1": "🌑"
+      }
+    ]
   },
   {
     "name": "TrappersCamp",
@@ -5540,7 +6199,24 @@
           "🦴"
         ]
       }
-    }
+    },
+    "icons": [
+      {
+        "name": "Snare",
+        "pole_0": "🪤",
+        "pole_1": "🪝"
+      },
+      {
+        "name": "Prey",
+        "pole_0": "🐇",
+        "pole_1": "🦴"
+      },
+      {
+        "name": "Cycle",
+        "pole_0": "💀",
+        "pole_1": "🌱"
+      }
+    ]
   },
   {
     "name": "EnforcementPost",
@@ -5656,7 +6332,19 @@
           "📋"
         ]
       }
-    }
+    },
+    "icons": [
+      {
+        "name": "Authority",
+        "pole_0": "🚔",
+        "pole_1": "🔓"
+      },
+      {
+        "name": "Compliance",
+        "pole_0": "⛓",
+        "pole_1": "📋"
+      }
+    ]
   },
   {
     "name": "PowerStation",
@@ -5772,7 +6460,19 @@
           "🔋"
         ]
       }
-    }
+    },
+    "icons": [
+      {
+        "name": "Circuit",
+        "pole_0": "🔌",
+        "pole_1": "⚡"
+      },
+      {
+        "name": "Storage",
+        "pole_0": "🔋",
+        "pole_1": "⚙"
+      }
+    ]
   },
   {
     "name": "MagneticAnomaly",
@@ -5885,7 +6585,19 @@
           "📡"
         ]
       }
-    }
+    },
+    "icons": [
+      {
+        "name": "Force",
+        "pole_0": "🧲",
+        "pole_1": "⚡"
+      },
+      {
+        "name": "Field",
+        "pole_0": "🌀",
+        "pole_1": "📡"
+      }
+    ]
   },
   {
     "name": "AntimatterFoundry",
@@ -6054,7 +6766,24 @@
           "🕳"
         ]
       }
-    }
+    },
+    "icons": [
+      {
+        "name": "Antimatter",
+        "pole_0": "⚫",
+        "pole_1": "✨"
+      },
+      {
+        "name": "Annihilation",
+        "pole_0": "💥",
+        "pole_1": "🌀"
+      },
+      {
+        "name": "Singularity",
+        "pole_0": "🕳",
+        "pole_1": "⚡"
+      }
+    ]
   },
   {
     "name": "ColdLab",
@@ -6135,7 +6864,19 @@
     "cross_biome_flows": {
       "incoming": {},
       "outgoing": {}
-    }
+    },
+    "icons": [
+      {
+        "name": "Cryogenic",
+        "pole_0": "❄️",
+        "pole_1": "⚙"
+      },
+      {
+        "name": "Observation",
+        "pole_0": "🔭",
+        "pole_1": "📡"
+      }
+    ]
   },
   {
     "name": "VillagePocket",
@@ -6215,7 +6956,19 @@
     "cross_biome_flows": {
       "incoming": {},
       "outgoing": {}
-    }
+    },
+    "icons": [
+      {
+        "name": "Commerce",
+        "pole_0": "🧺",
+        "pole_1": "💰"
+      },
+      {
+        "name": "Community",
+        "pole_0": "🍞",
+        "pole_1": "👥"
+      }
+    ]
   },
   {
     "name": "StellarSeed",
@@ -6295,7 +7048,19 @@
     "cross_biome_flows": {
       "incoming": {},
       "outgoing": {}
-    }
+    },
+    "icons": [
+      {
+        "name": "Seed",
+        "pole_0": "🌠",
+        "pole_1": "🛰"
+      },
+      {
+        "name": "Signal",
+        "pole_0": "📡",
+        "pole_1": "✨"
+      }
+    ]
   },
   {
     "name": "AshPatch",
@@ -6377,6 +7142,18 @@
     "cross_biome_flows": {
       "incoming": {},
       "outgoing": {}
-    }
+    },
+    "icons": [
+      {
+        "name": "Pyre",
+        "pole_0": "🔥",
+        "pole_1": "⚫"
+      },
+      {
+        "name": "Nobility",
+        "pole_0": "⚜",
+        "pole_1": "🩸"
+      }
+    ]
   }
 ]
