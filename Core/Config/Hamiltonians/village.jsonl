@@ -6,36 +6,35 @@
 # The JSONL is the single source of truth for the Village energy landscape.
 #
 # Four quantum axes:
-#   Q0: fire/ice   — Hearth (externally driven at 0.0667 Hz, 30s real cycle)
+#   Q0: fire/ice    — Hearth (driven at 0.0667 Hz, 30s wall cycle)
 #   Q1: people/bread — Labor/Bread (orphan axis: Rabi fully defined here)
-#   Q2: gears/wind — Gears/Wind (Millwright's Union drives gears)
-#   Q3: gold/basket — Commerce (Granary Guilds baseline)
+#   Q2: gears/wind  — Gears/Wind; wind also driven at 0.050 Hz (40s wall)
+#   Q3: gold/basket — Commerce (near critical: Δ=0.08 vs J=0.400)
 #
-# 300s ground-state-init time averages (targets):
-#   🔥 fire   ~31%  (25–45%)  hearth cycle
-#   ❄ ice    ~69%  (55–75%)  cold baseline
-#   👥 people ~43%  (30–55%)  labor active
-#   🍞 bread  ~58%  (45–70%)  sustenance
-#   ⚙ gears  ~43%  (35–60%)  machinery running
-#   💨 wind   ~57%  (40–65%)  wind power
-#   💰 gold   ~28%  (15–40%)  commerce
-#   🧺 basket ~72%  (60–85%)  storage
+# 600s ground-state-init time averages (targets):
+#   🔥 fire   ~37%  (25–50%)  hearth cycle, competes with cold pump
+#   ❄ ice    ~63%  (50–75%)  cold is natural attractor
+#   👥 people ~45%  (25–55%)  labor; drained by people→bread Lindblad
+#   🍞 bread  ~55%  (45–75%)  sustained by fire and gold
+#   ⚙ gears  ~47%  (35–65%)  two-rhythm beat with wind
+#   💨 wind   ~53%  (40–65%)  second driven rhythm
+#   💰 gold   ~42%  (25–65%)  near critical: market is noisy and sensitive
+#   🧺 basket ~58%  (35–75%)  near critical: anti-correlated with gold
 #
-# Self-energy detunings (tuned for balanced economy):
-#   Q1 people/bread: Δ=0.15 → people ~43%, bread ~57%
-#   Q2 gears/wind:   Δ=0.10 → gears ~43%, wind ~57%
-#   Q3 gold/basket:  Δ=0.23 → gold ~28%, basket ~72%
-# Rabi timescales (wall-time at 0.5x real-time):
-#   fire<->ice   30s  (driven cosine at 0.0667 Hz)
-#   people<->bread  ~9s  (Rabi=0.700, small detuning)
-#   gears<->wind ~13s (Rabi=0.500, near resonance)
-#   gold<->basket ~16s (Rabi=0.400, Δ=0.23)
+# Beating: fire 0.0667 Hz + wind 0.050 Hz → beat period ~60s sim (120s wall)
+# Self-energy detunings:
+#   Q1 people/bread: Δ=0.15  Q2 gears/wind: Δ=0.10  Q3 gold/basket: Δ=0.08
 #
-# Cross-axis topology (9 couplings):
-#   HOT phase:  fire->workers->gears->gold->bread->(Q1)->workers
-#               fire->bread (direct baking shortcut)
-#   COLD phase: ice->baskets->workers (harvest sustains through winter)
-#               ice->gold (cold preserves commerce)
+# Lindblad (in biomes.json icon_components):
+#   👥 decay→🍞 rate=0.015  (workers exhaust; creates bread demand)
+#   🔥 lindblad_outgoing→❄ rate=0.008  (cold pump; fire cools naturally)
+#
+# Production chain:
+#   FIRE: fire -> bread (direct baking)
+#   LABOR: bread -> people (via Rabi); people -> gears
+#   WIND: wind (driven) -> gears (via Rabi)
+#   COMMERCE: gears -> gold -> bread (buys food), gold <-> basket
+#   WINTER: ice -> baskets (harvest), baskets -> people (stored food)
 # ══════════════════════════════════════════════════════════════════════════
 
 # ─── Q0: fire/ice self-energies ──────────────────────────────────────────────
@@ -50,59 +49,68 @@
 {"op":"set","path":"drivers.🔥.amplitude","value":1.0}
 
 # ─── Q0: fire<->ice Rabi coupling ───────────────────────────────────────────
-# Target Rabi = 0.800 (set both directions; hermitianization averages them)
 {"op":"set","path":"couplings.🔥.❄","value":0.800}
 {"op":"set","path":"couplings.❄.🔥","value":0.800}
 
 # ─── Q1: people/bread self-energies ─────────────────────────────────────────
-{"op":"set","path":"self_energies.👥","value":0.1}
+# Small detuning Δ=0.15 → people ~45% (Lindblad drain suppresses slightly)
+{"op":"set","path":"self_energies.👥","value":0.10}
 {"op":"set","path":"self_energies.🍞","value":-0.05}
 
 # ─── Q1: people<->bread Rabi coupling ───────────────────────────────────────
-# No faction coverage (people is orphan). Full value here. Target = 0.700.
+# Full definition here (👥 is an orphan emoji). Rabi=0.700.
 {"op":"set","path":"couplings.👥.🍞","value":0.700}
 {"op":"set","path":"couplings.🍞.👥","value":0.700}
 
 # ─── Q2: gears/wind self-energies ───────────────────────────────────────────
+# Near resonance Δ=0.10 → balanced ~47%/53% split
 {"op":"set","path":"self_energies.⚙","value":0.05}
 {"op":"set","path":"self_energies.💨","value":-0.05}
 
+# ─── Q2: wind driver — second rhythm ────────────────────────────────────────
+# 0.050 Hz -> T_sim=20s -> T_real=40s. Beats with fire at ~120s wall period.
+{"op":"set","path":"drivers.💨.type","value":"cosine"}
+{"op":"set","path":"drivers.💨.frequency","value":0.050}
+{"op":"set","path":"drivers.💨.phase","value":0.0}
+{"op":"set","path":"drivers.💨.amplitude","value":0.8}
+
 # ─── Q2: gears<->wind Rabi coupling ─────────────────────────────────────────
-# Target = 0.500 (Millwright's Union: wind drives gears)
 {"op":"set","path":"couplings.⚙.💨","value":0.500}
 {"op":"set","path":"couplings.💨.⚙","value":0.500}
 
 # ─── Q3: gold/basket self-energies ──────────────────────────────────────────
-{"op":"set","path":"self_energies.💰","value":0.2}
+# Near critical: Δ=0.08 vs J=0.400. Market is noisy, sensitive to perturbations.
+{"op":"set","path":"self_energies.💰","value":0.05}
 {"op":"set","path":"self_energies.🧺","value":-0.03}
 
 # ─── Q3: gold<->basket Rabi coupling ────────────────────────────────────────
-# Target = 0.400 (Granary Guilds backbone)
 {"op":"set","path":"couplings.💰.🧺","value":0.400}
 {"op":"set","path":"couplings.🧺.💰","value":0.400}
 
-# ─── Cross-axis: fire drives labor ──────────────────────────────────────────
-# When hearth is active, workers are active. Target = 0.350.
-{"op":"set","path":"couplings.🔥.👥","value":0.350}
-# Cold suppresses commerce (ice -> baskets pile up empty). Target = 0.220.
-{"op":"set","path":"couplings.❄.🧺","value":0.220}
+# ─── Cross-axis: fire drives production ──────────────────────────────────────
+# Fire motivates workers slightly (warmth helps labor). Value = 0.100.
+{"op":"set","path":"couplings.🔥.👥","value":0.100}
+# Fire bakes bread (main production path). Value = 0.400.
+{"op":"set","path":"couplings.🔥.🍞","value":0.400}
 
-# ─── Cross-axis: labor runs the machines ─────────────────────────────────────
-# People run gears. Target = 0.280.
+# ─── Cross-axis: cold phase ───────────────────────────────────────────────────
+# Cold = harvest stored in baskets. Value = 0.280 (strengthened).
+{"op":"set","path":"couplings.❄.🧺","value":0.280}
+# Cold preserves commerce. Value = 0.140.
+{"op":"set","path":"couplings.❄.💰","value":0.140}
+
+# ─── Cross-axis: labor and machinery ─────────────────────────────────────────
+# Workers run gears. Value = 0.280.
 {"op":"set","path":"couplings.👥.⚙","value":0.280}
+# Fed workers run machines. Value = 0.220 (strengthened from 0.160).
+{"op":"set","path":"couplings.🍞.⚙","value":0.220}
 
-# ─── Cross-axis: production chain ────────────────────────────────────────────
+# ─── Cross-axis: commerce chain ──────────────────────────────────────────────
 # Gears produce gold. Value = 0.220.
 {"op":"set","path":"couplings.⚙.💰","value":0.220}
-# Gold buys bread. Value = 0.200 (reduced from 0.950 — prevents gold drain).
+# Gold buys bread. Value = 0.200.
 {"op":"set","path":"couplings.💰.🍞","value":0.200}
-# Bread powers gears (fed workers run machines). Value = 0.160.
-{"op":"set","path":"couplings.🍞.⚙","value":0.160}
-# Fire bakes bread (direct shortcut). Value = 0.200 (reduced from 0.740 — preserve chain).
-{"op":"set","path":"couplings.🔥.🍞","value":0.200}
 
-# ─── Cross-axis: cold/harvest phase ─────────────────────────────────────────
-# Cold preserves gold (commerce doesn't spoil). Target = 0.140.
-{"op":"set","path":"couplings.❄.💰","value":0.140}
-# Baskets sustain workers through winter. Target = 0.160.
-{"op":"set","path":"couplings.🧺.👥","value":0.160}
+# ─── Cross-axis: winter sustenance ───────────────────────────────────────────
+# Stored food enables labor. Value = 0.300 (strengthened from 0.160).
+{"op":"set","path":"couplings.🧺.👥","value":0.300}

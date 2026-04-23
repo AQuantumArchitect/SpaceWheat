@@ -6,53 +6,51 @@
     "music_path": "res://Assets/Audio/Music/Peripheral Arbor.mp3",
     "discovered": true,
     "plot_layout": [
-      {"x": 0.5, "y": 0.38},
-      {"x": 0.62, "y": 0.5},
-      {"x": 0.5, "y": 0.62},
-      {"x": 0.38, "y": 0.5},
-      {"x": 0.5, "y": 0.5}
+      {
+        "x": 0.5,
+        "y": 0.38
+      },
+      {
+        "x": 0.62,
+        "y": 0.5
+      },
+      {
+        "x": 0.5,
+        "y": 0.62
+      },
+      {
+        "x": 0.38,
+        "y": 0.5
+      },
+      {
+        "x": 0.5,
+        "y": 0.5
+      }
     ],
     "emojis": [
-      "☀", "🌙",
-      "🐺", "🦌",
-      "🦅", "🐇",
-      "🌲", "🍂",
-      "🌱", "🌿"
+      "☀",
+      "🌙",
+      "🐺",
+      "🦌",
+      "🦅",
+      "🐇",
+      "🌲",
+      "🍂",
+      "🌱",
+      "🌿"
     ],
     "native_factions": [],
-    "tags": ["starter", "forest", "ecosystem"],
+    "tags": [
+      "starter",
+      "forest",
+      "ecosystem"
+    ],
     "icon_components": {
-      "☀": {
-        "lindblad_outgoing": {"🌱": 0.025, "🌲": 0.012}
-      },
-      "🌙": {
-        "lindblad_outgoing": {"🐺": 0.018}
-      },
-      "🌱": {
-        "lindblad_outgoing": {"🌲": 0.010, "🌿": 0.006, "🐇": 0.008}
-      },
-      "🌿": {
-        "lindblad_outgoing": {"🌱": 0.005, "🦌": 0.010}
-      },
-      "🌲": {
-        "lindblad_outgoing": {"🍂": 0.012}
-      },
-      "🍂": {
-        "lindblad_outgoing": {"🌱": 0.010}
-      },
-      "🦌": {
-        "lindblad_outgoing": {"🐺": 0.014},
-        "decay": {"rate": 0.005, "target": "🌿"}
-      },
-      "🐇": {
-        "lindblad_outgoing": {"🐺": 0.016, "🦅": 0.008},
-        "decay": {"rate": 0.006, "target": "🌱"}
-      },
-      "🐺": {
-        "decay": {"rate": 0.004, "target": "🌲"}
-      },
       "🦅": {
-        "decay": {"rate": 0.025, "target": "🐇"}
+        "decay": {
+          "rate": 0.01,
+          "target": "🐇"
+        }
       }
     }
   },
@@ -96,7 +94,19 @@
       "civilization",
       "domestic"
     ],
-    "icon_components": {}
+    "icon_components": {
+      "👥": {
+        "decay": {
+          "rate": 0.015,
+          "target": "🍞"
+        }
+      },
+      "🔥": {
+        "lindblad_outgoing": {
+          "❄": 0.008
+        }
+      }
+    }
   },
   {
     "name": "BioticFlux",
