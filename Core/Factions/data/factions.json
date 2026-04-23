@@ -573,15 +573,15 @@
     "drivers": {
       "☀": {
         "amp": 1.0,
-        "freq": 0.05,
+        "freq": 0.04,
         "phase": 0.0,
-        "type": "sine"
+        "type": "cosine"
       },
       "🌙": {
         "amp": 1.0,
-        "freq": 0.05,
+        "freq": 0.04,
         "phase": 3.14159265358979,
-        "type": "sine"
+        "type": "cosine"
       }
     },
     "hamiltonian": {
@@ -629,7 +629,7 @@
     "self_energies": {
       "☀": 1.0,
       "⛰": 0.2,
-      "🌙": 0.8,
+      "🌙": -0.8,
       "🌬": 0.1,
       "💧": 0.3,
       "🔥": 0.6
@@ -745,7 +745,7 @@
     "self_energies": {
       "⚔": 0.15,
       "✊": 0.3,
-      "🔥": 0.25,
+      "🔥": -0.15,
       "🚩": 0.2,
       "🧨": 0.05
     },
@@ -1454,12 +1454,12 @@
     "description": "The mechanics' guild. They certify equipment, standardize part specifications, and maintain the manufacturing protocols that keep machines compatible across settlements. Their stamp on a component means it meets spec. Their refusal to stamp means you're gambling with your harvest. Bureaucratic, fussy, and absolutely essential.",
     "hamiltonian": {
       "⚙": {
-        "🏷️": 0.5,
+        "🏷": 0.5,
         "🔩": 0.5,
         "🛠": 0.6,
         "🧰": 0.4
       },
-      "🏷️": {
+      "🏷": {
         "⚙": 0.5,
         "🛠": 0.3
       },
@@ -1483,7 +1483,7 @@
         "🔩": 0.04,
         "🛠": 0.03
       },
-      "🏷️": {
+      "🏷": {
         "⚙": 0.03
       }
     },
@@ -1496,7 +1496,7 @@
     "ring": "center",
     "self_energies": {
       "⚙": 0.2,
-      "🏷️": 0.25,
+      "🏷": 0.25,
       "🔩": 0.1,
       "🛠": 0.15,
       "🧰": 0.2
@@ -1506,7 +1506,7 @@
       "🛠",
       "🔩",
       "🧰",
-      "🏷️"
+      "🏷"
     ],
     "tags": [
       "infrastructure",
@@ -1618,7 +1618,7 @@
   {
     "description": "The tenders of flame and dough. Where wheat becomes bread.",
     "drivers": {
-      "❄️": {
+      "❄": {
         "amp": 1.0,
         "freq": 0.0666666666666667,
         "phase": 3.14159265358979,
@@ -1632,29 +1632,33 @@
       }
     },
     "hamiltonian": {
-      "❄️": {
+      "❄": {
         "💧": 0.3,
         "🔥": 0.8
       },
       "🍞": {
+        "👥": 0.6,
         "💧": 0.3,
         "💨": 0.4,
         "🔥": 0.4
       },
-      "🏜️": {
+      "🏜": {
         "🔥": 0.3
       },
+      "👥": {
+        "🍞": 0.6
+      },
       "💧": {
-        "❄️": 0.3,
+        "❄": 0.3,
         "🍞": 0.3,
-        "🏜️": 0.0,
+        "🏜": 0.0,
         "🔥": 0.2
       },
       "💨": {
         "🍞": 0.4
       },
       "🔥": {
-        "❄️": 0.8,
+        "❄": 0.8,
         "🍞": 0.5,
         "💧": 0.2
       }
@@ -1672,20 +1676,21 @@
     "name": "Hearth Keepers",
     "ring": "center",
     "self_energies": {
-      "❄️": -0.3,
+      "❄": -0.3,
       "🍞": 0.0,
-      "🏜️": 0.0,
+      "🏜": 0.0,
       "💧": 0.0,
       "💨": 0.1,
       "🔥": 0.8
     },
     "signature": [
       "🔥",
-      "❄️",
+      "❄",
       "💧",
-      "🏜️",
+      "🏜",
       "💨",
-      "🍞"
+      "🍞",
+      "👥"
     ],
     "tags": [
       "kitchen",
@@ -1853,7 +1858,7 @@
       ]
     },
     "hamiltonian": {
-      "⚗️": {
+      "⚗": {
         "🧪": 0.7,
         "🧬": 0.4
       },
@@ -1868,7 +1873,7 @@
         "🧬": 0.4
       },
       "🧪": {
-        "⚗️": 0.7,
+        "⚗": 0.7,
         "🔬": 0.5,
         "🧫": 0.6
       },
@@ -1885,14 +1890,14 @@
     },
     "lindblad_incoming": {
       "🧬": {
-        "⚗️": 0.02,
+        "⚗": 0.02,
         "🧫": 0.03
       }
     },
     "name": "Helix Conservatory",
     "ring": "second",
     "self_energies": {
-      "⚗️": 0.2,
+      "⚗": 0.2,
       "🔬": 0.3,
       "🕳": -0.15,
       "🧪": 0.2,
@@ -1904,7 +1909,7 @@
       "🔬",
       "🧬",
       "🧫",
-      "⚗️",
+      "⚗",
       "🕳"
     ],
     "tags": [
@@ -3028,7 +3033,7 @@
     },
     "description": "Biological salvage crews who break down dead things - organisms, ecosystems, sometimes entire failed settlements. They're not killers; they're cleaners. They arrive after catastrophe, consume what's left, and convert it to resources the living can use. The process is disturbing to watch. The results feed thousands. The 🦠 in their sigil isn't metaphorical. Their bodies have been... modified for the work.",
     "hamiltonian": {
-      "♻️": {
+      "♻": {
         "🐜": 0.5,
         "🦗": 0.5,
         "🧫": 0.4
@@ -3038,12 +3043,12 @@
         "🦗": 0.4
       },
       "🐜": {
-        "♻️": 0.5,
+        "♻": 0.5,
         "🦗": 0.6,
         "🦠": 0.3
       },
       "🦗": {
-        "♻️": 0.5,
+        "♻": 0.5,
         "🐜": 0.6,
         "🧫": 0.4
       },
@@ -3052,7 +3057,7 @@
         "🧫": 0.5
       },
       "🧫": {
-        "♻️": 0.4,
+        "♻": 0.4,
         "🦗": 0.4,
         "🦠": 0.5
       }
@@ -3062,7 +3067,7 @@
         "🧫": 0.04
       },
       "🦗": {
-        "♻️": 0.03,
+        "♻": 0.03,
         "🧫": 0.05
       },
       "🦠": {
@@ -3071,16 +3076,16 @@
     },
     "lindblad_outgoing": {
       "🌱": {
-        "♻️": 0.05
+        "♻": 0.05
       },
       "🌾": {
-        "♻️": 0.06
+        "♻": 0.06
       }
     },
     "name": "Locusts",
     "ring": "second",
     "self_energies": {
-      "♻️": 0.2,
+      "♻": 0.2,
       "⚔": 0.05,
       "🐜": 0.15,
       "🦗": 0.1,
@@ -3091,7 +3096,7 @@
       "🦗",
       "🐜",
       "⚔",
-      "♻️",
+      "♻",
       "🧫",
       "🦠"
     ],
@@ -3241,27 +3246,27 @@
       }
     },
     "hamiltonian": {
-      "🏚️": {
-        "🏛️": 0.7,
+      "🏚": {
+        "🏛": 0.7,
         "🐻": 0.4
       },
-      "🏛️": {
-        "🏚️": 0.7,
+      "🏛": {
+        "🏚": 0.7,
         "🐂": 0.2,
         "💰": 0.3
       },
       "🐂": {
-        "🏛️": 0.3,
+        "🏛": 0.3,
         "🐻": 0.9,
         "💰": 0.4
       },
       "🐻": {
-        "🏚️": 0.3,
+        "🏚": 0.3,
         "🐂": 0.9,
         "📦": 0.4
       },
       "💰": {
-        "🏛️": 0.2,
+        "🏛": 0.2,
         "🐂": 0.3,
         "📦": 0.6
       },
@@ -3279,8 +3284,8 @@
       }
     },
     "lindblad_outgoing": {
-      "🏚️": {
-        "🏛️": 0.03
+      "🏚": {
+        "🏛": 0.03
       },
       "💰": {
         "📦": 0.05
@@ -3292,8 +3297,8 @@
     "name": "Market Spirits",
     "ring": "second",
     "self_energies": {
-      "🏚️": -0.1,
-      "🏛️": 0.2,
+      "🏚": -0.1,
+      "🏛": 0.2,
       "🐂": 0.5,
       "🐻": -0.5,
       "💰": 0.1,
@@ -3304,8 +3309,8 @@
       "🐻",
       "💰",
       "📦",
-      "🏛️",
-      "🏚️"
+      "🏛",
+      "🏚"
     ],
     "tags": [
       "market",
@@ -3610,7 +3615,7 @@
     "name": "Millwright's Union",
     "ring": "center",
     "self_energies": {
-      "⚙": 0.15,
+      "⚙": 0.5,
       "🍞": 0.1,
       "🏭": 0.25,
       "💨": 0.1,
@@ -4055,16 +4060,16 @@
     "hamiltonian": {
       "⛓": {
         "📘": 0.4,
-        "🕴️": 0.5,
+        "🕴": 0.5,
         "🪨": 0.5
       },
       "📘": {
         "⛓": 0.4,
-        "🕴️": 0.5,
+        "🕴": 0.5,
         "🧱": 0.4,
         "🪨": 0.3
       },
-      "🕴️": {
+      "🕴": {
         "⛓": 0.5,
         "📘": 0.5
       },
@@ -4080,7 +4085,7 @@
     },
     "lindblad_incoming": {
       "📘": {
-        "🕴️": 0.03
+        "🕴": 0.03
       },
       "🧱": {
         "⛓": 0.03,
@@ -4092,7 +4097,7 @@
     "self_energies": {
       "⛓": 0.1,
       "📘": 0.3,
-      "🕴️": 0.2,
+      "🕴": 0.2,
       "🧱": 0.25,
       "🪨": 0.35
     },
@@ -4101,7 +4106,7 @@
       "⛓",
       "🧱",
       "📘",
-      "🕴️"
+      "🕴"
     ],
     "tags": [
       "discipline",
@@ -5188,7 +5193,7 @@
     "ring": "second",
     "self_energies": {
       "⛪": 0.3,
-      "🔥": 0.35,
+      "🔥": 0.05,
       "🕯": 0.25,
       "🧯": 0.2,
       "🪵": 0.15
@@ -5277,16 +5282,16 @@
       },
       "🔓": {
         "⛓": 0.7,
-        "🕵️": 0.5,
+        "🕵": 0.5,
         "🛶": 0.3
       },
-      "🕵️": {
+      "🕵": {
         "🔓": 0.5,
         "🛶": 0.4
       },
       "🛶": {
         "💧": 0.7,
-        "🕵️": 0.4,
+        "🕵": 0.4,
         "🧂": 0.6
       },
       "🧂": {
@@ -5296,7 +5301,7 @@
     },
     "lindblad_incoming": {
       "🔓": {
-        "🕵️": 0.03
+        "🕵": 0.03
       }
     },
     "lindblad_outgoing": {
@@ -5310,7 +5315,7 @@
       "⛓": 0.05,
       "💧": 0.1,
       "🔓": 0.25,
-      "🕵️": 0.15,
+      "🕵": 0.15,
       "🛶": 0.2,
       "🧂": 0.15
     },
@@ -5320,7 +5325,7 @@
       "💧",
       "⛓",
       "🔓",
-      "🕵️"
+      "🕵"
     ],
     "tags": [
       "smuggling",
@@ -6243,45 +6248,45 @@
     },
     "description": "Ecological engineers who design self-sustaining habitats. They build the life-support systems, waste recyclers, and atmospheric processors that let settlements exist in hostile probability-spaces. Their work is unglamorous - sewage treatment, air filtration, nutrient cycling - but without them, every habitat would be three failures away from death.",
     "hamiltonian": {
-      "♻️": {
+      "♻": {
         "🌿": 0.4,
         "💧": 0.6,
         "🫙": 0.5
       },
       "🌿": {
-        "♻️": 0.4,
+        "♻": 0.4,
         "💧": 0.7,
         "🫙": 0.6
       },
       "💧": {
-        "♻️": 0.6,
+        "♻": 0.6,
         "🌿": 0.7,
         "🫙": 0.5
       },
       "🫙": {
-        "♻️": 0.5,
+        "♻": 0.5,
         "🌿": 0.6,
         "💧": 0.5
       }
     },
     "lindblad_incoming": {
       "🌿": {
-        "♻️": 0.03,
+        "♻": 0.03,
         "💧": 0.04
       },
       "💧": {
-        "♻️": 0.04
+        "♻": 0.04
       }
     },
     "lindblad_outgoing": {
       "🌿": {
-        "♻️": 0.03
+        "♻": 0.03
       }
     },
     "name": "Terrarium Collective",
     "ring": "center",
     "self_energies": {
-      "♻️": 0.15,
+      "♻": 0.15,
       "🌿": 0.2,
       "💧": 0.1,
       "🫙": 0.3
@@ -6289,7 +6294,7 @@
     "signature": [
       "🌿",
       "🫙",
-      "♻️",
+      "♻",
       "💧"
     ],
     "tags": [
@@ -7153,7 +7158,7 @@
     },
     "description": "Traveling repair crews in battered vans full of salvaged parts. They fix what others throw away, know every back road between settlements, and trade gossip as readily as gaskets. Not glamorous work, but a Tinker Team showing up means your harvest won't rot because the cooling unit died. They take payment in food, fuel, or future favors.",
     "hamiltonian": {
-      "♻️": {
+      "♻": {
         "🗑": 0.5,
         "🧰": 0.3,
         "🪛": 0.4
@@ -7168,33 +7173,33 @@
         "🧰": 0.4
       },
       "🧰": {
-        "♻️": 0.3,
+        "♻": 0.3,
         "🔌": 0.4,
         "🪛": 0.5
       },
       "🪛": {
-        "♻️": 0.4,
+        "♻": 0.4,
         "🔌": 0.6,
         "🧰": 0.5
       }
     },
     "lindblad_incoming": {
       "🔌": {
-        "♻️": 0.04
+        "♻": 0.04
       },
       "🧰": {
         "🪛": 0.02
       }
     },
     "lindblad_outgoing": {
-      "♻️": {
+      "♻": {
         "🗑": 0.03
       }
     },
     "name": "Tinker Team",
     "ring": "center",
     "self_energies": {
-      "♻️": 0.05,
+      "♻": 0.05,
       "🔌": 0.1,
       "🚐": 0.2,
       "🧰": 0.25,
@@ -7204,7 +7209,7 @@
       "🧰",
       "🪛",
       "🔌",
-      "♻️",
+      "♻",
       "🚐"
     ],
     "tags": [
@@ -7273,16 +7278,16 @@
       },
       "🌑": {
         "💰": 0.4,
-        "🕵️": 0.6,
+        "🕵": 0.6,
         "🗝": 0.5,
         "🧿": 0.5
       },
       "💰": {
         "⛓": 0.5,
         "🌑": 0.4,
-        "🕵️": 0.5
+        "🕵": 0.5
       },
-      "🕵️": {
+      "🕵": {
         "🌑": 0.6,
         "💰": 0.5,
         "🗝": 0.6,
@@ -7290,18 +7295,18 @@
       },
       "🗝": {
         "🌑": 0.5,
-        "🕵️": 0.6,
+        "🕵": 0.6,
         "🧿": 0.5
       },
       "🧿": {
         "🌑": 0.5,
-        "🕵️": 0.4,
+        "🕵": 0.4,
         "🗝": 0.5
       }
     },
     "lindblad_incoming": {
       "🗝": {
-        "🕵️": 0.04
+        "🕵": 0.04
       },
       "🧿": {
         "🌑": 0.02
@@ -7313,13 +7318,13 @@
       "⛓": 0.05,
       "🌑": 0.2,
       "💰": 0.25,
-      "🕵️": 0.15,
+      "🕵": 0.15,
       "🗝": 0.2,
       "🧿": 0.1
     },
     "signature": [
       "🌑",
-      "🕵️",
+      "🕵",
       "💰",
       "🗝",
       "🧿",
@@ -7371,18 +7376,18 @@
     "description": "A covert sisterhood that moves through every level of society - servants, courtiers, merchants, magistrates. They share information, protect their own, and occasionally arrange for problems to solve themselves. Not assassins, though they know some. Not spies, though they see everything. More like... a mutual aid society that operates in the shadows. The 🧿 marks their sight. The 🪞 marks their true faces - hidden even from each other.",
     "hamiltonian": {
       "👤": {
-        "🕵️": 0.5,
+        "🕵": 0.5,
         "🤫": 0.7,
         "🪞": 0.4
       },
-      "🕵️": {
+      "🕵": {
         "👤": 0.5,
         "🤫": 0.6,
         "🧿": 0.5
       },
       "🤫": {
         "👤": 0.7,
-        "🕵️": 0.6,
+        "🕵": 0.6,
         "🧷": 0.4
       },
       "🧷": {
@@ -7390,7 +7395,7 @@
         "🤫": 0.4
       },
       "🧿": {
-        "🕵️": 0.5,
+        "🕵": 0.5,
         "🪞": 0.5
       },
       "🪞": {
@@ -7404,11 +7409,11 @@
         "🧷": 0.02
       },
       "🧿": {
-        "🕵️": 0.03
+        "🕵": 0.03
       }
     },
     "lindblad_outgoing": {
-      "🕵️": {
+      "🕵": {
         "💀": 0.02
       }
     },
@@ -7416,7 +7421,7 @@
     "ring": "second",
     "self_energies": {
       "👤": 0.15,
-      "🕵️": 0.15,
+      "🕵": 0.15,
       "🤫": 0.2,
       "🧷": 0.2,
       "🧿": 0.15,
@@ -7425,7 +7430,7 @@
     "signature": [
       "👤",
       "🤫",
-      "🕵️",
+      "🕵",
       "🪞",
       "🧷",
       "🧿"
@@ -7545,10 +7550,10 @@
     "name": "Verdant Pulse",
     "ring": "center",
     "self_energies": {
-      "🌱": 0.05,
+      "🌱": 0.3,
       "🌲": 0.3,
       "🌾": 0.1,
-      "🌿": 0.1,
+      "🌿": -0.2,
       "🍂": 0.0
     },
     "signature": [
