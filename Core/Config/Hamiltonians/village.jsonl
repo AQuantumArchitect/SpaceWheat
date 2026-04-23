@@ -11,15 +11,15 @@
 #   Q2: gears/wind  — Gears/Wind; wind also driven at 0.050 Hz (40s wall)
 #   Q3: gold/basket — Commerce (near critical: Δ=0.08 vs J=0.400)
 #
-# 600s ground-state-init time averages (targets):
-#   🔥 fire   ~37%  (25–50%)  hearth cycle, competes with cold pump
-#   ❄ ice    ~63%  (50–75%)  cold is natural attractor
-#   👥 people ~45%  (25–55%)  labor; drained by people→bread Lindblad
-#   🍞 bread  ~55%  (45–75%)  sustained by fire and gold
-#   ⚙ gears  ~47%  (35–65%)  two-rhythm beat with wind
-#   💨 wind   ~53%  (40–65%)  second driven rhythm
-#   💰 gold   ~42%  (25–65%)  near critical: market is noisy and sensitive
-#   🧺 basket ~58%  (35–75%)  near critical: anti-correlated with gold
+# 600s ground-state-init time averages (4 Lindblad operators):
+#   🔥 fire   ~39%  (20–50%)  hearth fights cold pump γ=0.015
+#   ❄ ice    ~61%  (50–80%)  cold is natural attractor
+#   👥 people ~46%  (20–55%)  labor drained γ=0.015; fed by bread/baskets
+#   🍞 bread  ~54%  (45–80%)  fire bakes; workers eat
+#   ⚙ gears  ~48%  (25–60%)  wind rhythm + gears drain γ=0.010
+#   💨 wind   ~52%  (40–75%)  idle state pumped by gears drain
+#   💰 gold   ~45%  (30–60%)  near critical; gold leaks γ=0.012
+#   🧺 basket ~55%  (40–70%)  anti-correlated with gold; sustains labor
 #
 # Beating: fire 0.0667 Hz + wind 0.050 Hz → beat period ~60s sim (120s wall)
 # Self-energy detunings:
@@ -27,7 +27,9 @@
 #
 # Lindblad (in biomes.json icon_components):
 #   👥 decay→🍞 rate=0.015  (workers exhaust; creates bread demand)
-#   🔥 lindblad_outgoing→❄ rate=0.008  (cold pump; fire cools naturally)
+#   🔥 outgoing→❄ rate=0.015  (cold pump; fire must be actively maintained)
+#   ⚙  outgoing→💨 rate=0.010  (gears stop; wind is the natural idle state)
+#   💰 decay→🧺  rate=0.012  (gold leaks; commerce doesn't hold passively)
 #
 # Production chain:
 #   FIRE: fire -> bread (direct baking)
