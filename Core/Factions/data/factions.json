@@ -379,33 +379,31 @@
     "description": "Nomadic explorers who chart probability-space - not just where things are, but where they might be, where they were, where they could become. Their maps show routes that only exist sometimes, destinations that move, shortcuts through configurations that shouldn't connect. They trade in coordinates the way others trade in currency. The map they don't sell is the one that shows the way to the Black Horizon.",
     "hamiltonian": {
       "📍": {
-        "🔭": 0.4,
-        "🗺": -0.25,
-        "🧭": 0.5
-      },
-      "🔭": {
-        "📍": 0.4,
-        "🗺": 0.5,
-        "🧭": -0.15
-      },
-      "🗺": {
-        "📍": -0.25,
-        "🔭": 0.5,
-        "🧭": 0.6
+        "🧭": 0.55,
+        "🗺": -0.22
       },
       "🧭": {
-        "📍": 0.5,
-        "🔭": -0.15,
+        "📍": 0.55,
+        "🔭": 0.55,
+        "🗺": -0.2
+      },
+      "🔭": {
+        "🧭": 0.55,
         "🗺": 0.6
+      },
+      "🗺": {
+        "🧭": -0.2,
+        "🔭": 0.6,
+        "📍": -0.22
       }
     },
     "name": "Cartographers",
     "ring": "second",
     "self_energies": {
-      "📍": 0.15,
-      "🔭": 0.2,
-      "🗺": 0.25,
-      "🧭": 0.3
+      "📍": 0.12,
+      "🧭": 0.22,
+      "🔭": 0.3,
+      "🗺": 0.4
     },
     "tags": [
       "exploration",
@@ -721,31 +719,27 @@
     "ring": "third",
     "motto": "We fix what breaks. We break what pays.",
     "self_energies": {
-      "⚙️": 0.15,
-      "💉": 0.15,
-      "🔧": 0.15,
-      "🦴": 0.2
+      "⚙️": 0.18,
+      "🔧": 0.18,
+      "💉": 0.22,
+      "🦴": 0.22
     },
     "hamiltonian": {
       "⚙️": {
-        "💉": -0.2,
-        "🔧": 0.5,
-        "🦴": 0.4
-      },
-      "💉": {
-        "⚙️": -0.2,
-        "🦴": 0.5,
-        "🔧": 0.4
+        "🔧": 0.65,
+        "💉": -0.25
       },
       "🔧": {
-        "⚙️": 0.5,
-        "💉": 0.4,
-        "🦴": -0.15
+        "⚙️": 0.65,
+        "💉": -0.25
+      },
+      "💉": {
+        "⚙️": -0.25,
+        "🦴": 0.65,
+        "🔧": -0.25
       },
       "🦴": {
-        "⚙️": 0.4,
-        "💉": 0.5,
-        "🔧": -0.15
+        "💉": 0.65
       }
     },
     "alignment_couplings": {},
@@ -869,31 +863,27 @@
     "ring": "third",
     "motto": "We remember what you filed.",
     "self_energies": {
-      "🗃": 0.1,
-      "🪦": 0.15,
-      "🕰": 0.2,
-      "📖": 0.25
+      "🕰": 0.1,
+      "🗃": 0.2,
+      "🪦": 0.3,
+      "📖": 0.4
     },
     "hamiltonian": {
+      "🕰": {
+        "🗃": 0.55,
+        "📖": -0.28
+      },
       "🗃": {
-        "🪦": 0.5,
-        "🕰": -0.2,
-        "📖": 0.55
+        "🕰": 0.55,
+        "🪦": 0.55
       },
       "🪦": {
-        "🗃": 0.5,
-        "📖": 0.45,
-        "🕰": 0.45
-      },
-      "🕰": {
-        "🗃": -0.2,
-        "📖": 0.2,
-        "🪦": 0.45
+        "🗃": 0.55,
+        "📖": 0.6
       },
       "📖": {
-        "🗃": 0.55,
-        "🪦": 0.45,
-        "🕰": 0.2
+        "🪦": 0.6,
+        "🕰": -0.28
       }
     },
     "drivers": {
@@ -929,31 +919,33 @@
     "description": "Subterranean farmers who cultivate root vegetables, fungi, and cave-adapted crops in the spaces beneath settlements. Their tunnels connect in ways surface-dwellers don't fully understand. They trade in mushrooms, tubers, and information that travels through the underground faster than official channels. Not secretive by nature - just used to being overlooked.",
     "hamiltonian": {
       "⛏": {
-        "🪨": 0.55,
-        "🌱": -0.32
+        "🪨": 0.6,
+        "🪤": 0.4,
+        "🌱": -0.35
       },
       "🪨": {
-        "⛏": 0.55,
-        "🌱": -0.2,
-        "🪤": 0.35
-      },
-      "🌱": {
-        "⛏": -0.32,
-        "🪨": -0.2,
-        "🪤": 0.28
+        "⛏": 0.6,
+        "🪤": 0.35,
+        "🌱": -0.22
       },
       "🪤": {
+        "⛏": 0.4,
         "🪨": 0.35,
-        "🌱": 0.28
+        "🌱": 0.3
+      },
+      "🌱": {
+        "⛏": -0.35,
+        "🪨": -0.22,
+        "🪤": 0.3
       }
     },
     "name": "Clan of the Hidden Root",
     "ring": "center",
     "self_energies": {
-      "⛏": 0.25,
-      "🪨": 0.2,
-      "🌱": 0.15,
-      "🪤": 0.1
+      "⛏": 0.3,
+      "🪨": 0.25,
+      "🪤": 0.18,
+      "🌱": -0.05
     },
     "tags": [
       "underground",
@@ -1309,41 +1301,39 @@
     },
     "description": "Bio-engineers who sculpt living tissue into architecture, art, and things harder to categorize. They grow buildings from cultivated organs. They shape servants from willing (and unwilling) donors. Their creations pulse. Their creations breathe. Their creations sometimes ask questions their creators can't answer. The 🧵 marks their sewing - they stitch flesh like fabric. The results are beautiful. The results are disturbing. The results are very, very useful.",
     "hamiltonian": {
-      "🧫": {
-        "🧬": 0.6,
-        "🧵": 0.3,
-        "🩸": -0.18
-      },
       "🧬": {
-        "🧫": 0.6,
-        "🧵": 0.4,
-        "🫀": 0.5,
-        "🩸": 0.2
+        "🧫": 0.65,
+        "🫀": 0.45,
+        "🧵": -0.22
+      },
+      "🧫": {
+        "🧬": 0.65,
+        "🧵": 0.3
+      },
+      "🫀": {
+        "🧬": 0.45,
+        "🩸": 0.7,
+        "🧵": -0.25
+      },
+      "🩸": {
+        "🫀": 0.7,
+        "🧵": 0.3
       },
       "🧵": {
         "🧫": 0.3,
-        "🧬": 0.4,
-        "🫀": -0.24
-      },
-      "🩸": {
-        "🧫": -0.18,
-        "🫀": 0.7,
-        "🧬": 0.3
-      },
-      "🫀": {
-        "🧬": 0.5,
-        "🧵": -0.24,
-        "🩸": 0.7
+        "🩸": 0.3,
+        "🧬": -0.22,
+        "🫀": -0.25
       }
     },
     "name": "Flesh Architects",
     "ring": "third",
     "self_energies": {
-      "🧫": 0.2,
-      "🧬": 0.25,
-      "🧵": 0.15,
-      "🩸": 0.15,
-      "🫀": 0.2
+      "🧬": 0.3,
+      "🧫": 0.22,
+      "🫀": 0.28,
+      "🩸": 0.18,
+      "🧵": 0.12
     },
     "tags": [
       "biology",
@@ -1650,41 +1640,53 @@
     },
     "description": "Domestic mystics who work magic through cooking, cleaning, and the small rituals of household life. Their tea tells futures. Their soups heal wounds that medicine can't touch. Their swept floors create barriers against things that shouldn't enter. The 🧿 watches from their kitchens - protective sight woven into everyday life. The Carrion Throne considers them superstition. The Throne is wrong.",
     "hamiltonian": {
-      "🌿": {
-        "🥣": 0.5,
-        "🧿": -0.2,
-        "🫖": 0.6
-      },
-      "🕯": {
-        "🧿": 0.5,
-        "🫖": 0.4,
-        "🥣": -0.16
-      },
-      "🥣": {
-        "🌿": 0.5,
-        "🧿": 0.3,
-        "🫖": 0.5,
-        "🕯": -0.16
-      },
-      "🧿": {
-        "🌿": -0.2,
-        "🕯": 0.5,
-        "🥣": 0.3
-      },
       "🫖": {
         "🌿": 0.6,
-        "🕯": 0.4,
-        "🥣": 0.5
+        "🥣": 0.5,
+        "🧿": [
+          0.25,
+          0.3
+        ],
+        "🕯": 0.45
+      },
+      "🌿": {
+        "🫖": 0.6,
+        "🥣": 0.45,
+        "🧿": -0.22
+      },
+      "🥣": {
+        "🫖": 0.5,
+        "🌿": 0.45,
+        "🕯": -0.18
+      },
+      "🧿": {
+        "🫖": [
+          0.25,
+          -0.3
+        ],
+        "🕯": [
+          0.3,
+          0.25
+        ],
+        "🌿": -0.22
+      },
+      "🕯": {
+        "🫖": 0.45,
+        "🧿": [
+          0.3,
+          -0.25
+        ],
+        "🥣": -0.18
       }
     },
     "name": "Hearth Witches",
     "ring": "second",
     "self_energies": {
+      "🫖": 0.35,
+      "🕯": 0.28,
+      "🥣": 0.22,
       "🌿": 0.2,
-      "🕯": 0.25,
-      "🥣": 0.2,
-      "🧿": 0.25,
-      "🫖": 0.3
+      "🧿": 0.3
     },
     "tags": [
       "domestic",
@@ -1968,40 +1970,35 @@
     "hamiltonian": {
       "⛪": {
         "📿": 0.6,
-        "🤖": 0.5,
+        "🤖": -0.25,
         "🧘": 0.4
       },
       "📿": {
         "⛪": 0.6,
-        "🤖": 0.4,
         "🧘": 0.5
       },
-      "🗝": {
-        "⛪": 0.3,
-        "🤖": 0.5,
-        "🧘": -0.16
-      },
       "🤖": {
-        "⛪": 0.5,
-        "📿": 0.4,
-        "🗝": 0.5,
-        "🧘": -0.32
+        "⛪": -0.25,
+        "🗝": 0.55
       },
       "🧘": {
-        "⛪": 0.4,
         "📿": 0.5,
-        "🤖": -0.32,
-        "🗝": -0.16
+        "🗝": 0.4,
+        "⛪": 0.4
+      },
+      "🗝": {
+        "🤖": 0.55,
+        "🧘": 0.4
       }
     },
     "name": "Iron Confessors",
     "ring": "second",
     "self_energies": {
-      "⛪": 0.3,
-      "📿": 0.2,
-      "🗝": 0.2,
-      "🤖": 0.25,
-      "🧘": 0.25
+      "⛪": 0.35,
+      "📿": 0.22,
+      "🧘": 0.28,
+      "🤖": 0.22,
+      "🗝": 0.15
     },
     "tags": [
       "machine",
@@ -2515,33 +2512,33 @@
     },
     "hamiltonian": {
       "🏮": {
-        "🔦": 0.5,
-        "🕯": 0.6,
-        "🧿": 0.4
+        "🔦": 0.55,
+        "🕯": 0.55,
+        "🧿": 0.35
       },
       "🔦": {
-        "🏮": 0.5,
-        "🕯": -0.22,
-        "🧿": 0.5
+        "🏮": 0.55,
+        "🕯": -0.4,
+        "🧿": 0.3
       },
       "🕯": {
-        "🏮": 0.6,
-        "🔦": -0.22,
-        "🧿": 0.55
+        "🏮": 0.55,
+        "🔦": -0.4,
+        "🧿": 0.3
       },
       "🧿": {
-        "🏮": 0.4,
-        "🔦": 0.5,
-        "🕯": 0.55
+        "🏮": 0.35,
+        "🔦": 0.3,
+        "🕯": 0.3
       }
     },
     "name": "Lantern Cant",
     "ring": "second",
     "self_energies": {
-      "🏮": 0.32,
-      "🔦": 0.18,
-      "🕯": 0.22,
-      "🧿": 0.25
+      "🏮": 0.42,
+      "🔦": 0.16,
+      "🕯": 0.16,
+      "🧿": 0.28
     },
     "tags": [
       "communication",
@@ -2847,40 +2844,46 @@
     },
     "description": "Elite mystical tailors who weave fate into fabric. Their garments confer status that others instinctively recognize - not through symbols, but through something in the thread itself. They dress House of Thorns, clothe Station Lords, and occasionally make burial shrouds that ensure the dead stay dead. Their needles are never quite where you expect them. Their thread comes from sources they don't discuss.",
     "hamiltonian": {
-      "👘": {
-        "🧵": 0.5,
-        "🪡": 0.5,
-        "🪢": -0.15
-      },
       "🧵": {
-        "👘": 0.5,
-        "🪡": 0.6,
         "🪢": [
-          0.300000011920929,
-          0.200000002980232
-        ]
-      },
-      "🪡": {
-        "👘": 0.5,
-        "🧵": 0.6,
-        "🪢": 0.4
+          0.35,
+          0.25
+        ],
+        "🪡": 0.6,
+        "👘": 0.5
       },
       "🪢": {
         "🧵": [
-          0.300000011920929,
-          -0.200000002980232
+          0.35,
+          -0.25
         ],
-        "🪡": 0.4,
-        "👘": -0.15
+        "👘": [
+          0.3,
+          0.3
+        ],
+        "🪡": 0.4
+      },
+      "🪡": {
+        "🧵": 0.6,
+        "👘": 0.5,
+        "🪢": 0.4
+      },
+      "👘": {
+        "🧵": 0.5,
+        "🪢": [
+          0.3,
+          -0.3
+        ],
+        "🪡": 0.5
       }
     },
     "name": "Loom Priests",
     "ring": "second",
     "self_energies": {
+      "🪢": 0.38,
       "👘": 0.3,
-      "🧵": 0.2,
-      "🪡": 0.25,
-      "🪢": 0.35
+      "🪡": 0.22,
+      "🧵": 0.18
     },
     "tags": [
       "fate",
@@ -3015,40 +3018,35 @@
     },
     "description": "Pure auditors who define the units of existence. They standardize weights, certify measurements, and ensure that a bushel means the same thing everywhere. No currency passes through their hands - that's the Bailiffs' work. The Scribes simply determine what things *are*. Whoever defines measurement defines reality. The Carrion Throne relies on them without knowing it - their consistency is part of what makes the Throne stable.",
     "hamiltonian": {
-      "📊": {
-        "📋": -0.25,
-        "📐": 0.5,
-        "🧮": 0.5
-      },
-      "📋": {
-        "📊": -0.25,
-        "📘": 0.3,
-        "🧮": 0.3
-      },
       "📐": {
-        "📊": 0.5,
-        "📘": -0.15,
-        "🧮": 0.6
-      },
-      "📘": {
-        "📋": 0.3,
-        "📐": -0.15,
-        "🧮": 0.5
+        "🧮": 0.65,
+        "📋": -0.3
       },
       "🧮": {
-        "📊": 0.5,
-        "📐": 0.6,
-        "📘": 0.5
+        "📐": 0.65,
+        "📊": 0.6
+      },
+      "📊": {
+        "🧮": 0.6,
+        "📘": 0.55
+      },
+      "📘": {
+        "📊": 0.55,
+        "📋": 0.4
+      },
+      "📋": {
+        "📘": 0.4,
+        "📐": -0.3
       }
     },
     "name": "Measure Scribes",
     "ring": "first",
     "self_energies": {
-      "📊": 0.25,
-      "📋": 0.15,
-      "📐": 0.3,
-      "📘": 0.35,
-      "🧮": 0.2
+      "📐": 0.12,
+      "🧮": 0.22,
+      "📊": 0.3,
+      "📘": 0.38,
+      "📋": 0.18
     },
     "tags": [
       "bureaucracy",
@@ -3393,33 +3391,41 @@
     "description": "Fringe mystics who communicate with non-human biologics - fungal networks, bacterial colonies, the distributed intelligence of ecosystems. The 🧿 lets them see the signals; the 🦠 marks their connection to the microbial world. They broker deals between farmers and the living systems that support agriculture. The Helix Conservatory considers them unscientific. The crops don't seem to care.",
     "hamiltonian": {
       "🌿": {
-        "🦠": 0.6,
-        "🧫": 0.5,
-        "🧿": -0.16
-      },
-      "🦠": {
-        "🌿": 0.6,
-        "🧫": 0.7,
-        "🧿": -0.24
-      },
-      "🧫": {
-        "🌿": 0.5,
-        "🦠": 0.7,
-        "🧿": 0.3
+        "🧿": -0.18
       },
       "🧿": {
-        "🌿": -0.16,
-        "🧫": 0.3,
-        "🦠": -0.24
+        "🌿": -0.18,
+        "🦠": [
+          0.25,
+          -0.35
+        ],
+        "🧫": [
+          0.2,
+          0.3
+        ]
+      },
+      "🦠": {
+        "🧫": 0.6,
+        "🧿": [
+          0.25,
+          0.35
+        ]
+      },
+      "🧫": {
+        "🦠": 0.6,
+        "🧿": [
+          0.2,
+          -0.3
+        ]
       }
     },
     "name": "Mossline Brokers",
     "ring": "second",
     "self_energies": {
-      "🌿": 0.25,
-      "🦠": 0.15,
-      "🧫": 0.2,
-      "🧿": 0.2
+      "🌿": 0.28,
+      "🦠": 0.2,
+      "🧫": 0.24,
+      "🧿": 0.22
     },
     "tags": [
       "communication",
@@ -3546,40 +3552,45 @@
       }
     },
     "hamiltonian": {
-      "📋": {
-        "🚧": 0.4,
-        "🚪": 0.3,
-        "🛂": 0.6
-      },
       "🗝": {
-        "🚧": 0.3,
-        "🚪": 0.7,
+        "🚪": [
+          0.6,
+          0.3
+        ],
         "🛂": -0.22
       },
-      "🚧": {
-        "📋": 0.4,
-        "🚪": -0.32,
-        "🛂": 0.5
-      },
       "🚪": {
-        "📋": 0.3,
-        "🗝": 0.7,
-        "🚧": -0.32
+        "🗝": [
+          0.6,
+          -0.3
+        ],
+        "🚧": -0.35,
+        "📋": 0.3
+      },
+      "🚧": {
+        "🚪": -0.35,
+        "🛂": 0.55,
+        "📋": 0.4
+      },
+      "📋": {
+        "🚪": 0.3,
+        "🚧": 0.4,
+        "🛂": 0.6
       },
       "🛂": {
+        "🚧": 0.55,
         "📋": 0.6,
-        "🗝": -0.22,
-        "🚧": 0.5
+        "🗝": -0.22
       }
     },
     "name": "Nexus Wardens",
     "ring": "first",
     "self_energies": {
-      "📋": 0.15,
-      "🗝": 0.3,
-      "🚧": 0.2,
-      "🚪": 0.1,
-      "🛂": 0.25
+      "🚪": 0.08,
+      "🗝": 0.35,
+      "🚧": 0.22,
+      "🛂": 0.28,
+      "📋": 0.15
     },
     "tags": [
       "transit",
@@ -3946,29 +3957,27 @@
     "description": "The tiny workers without whom no seed sets. Their absence collapses agriculture.",
     "hamiltonian": {
       "🐝": {
-        "🌱": 0.3,
-        "🌾": 0.5,
-        "🌿": 0.5
-      },
-      "🌿": {
-        "🌾": 0.3
+        "🌾": 0.6,
+        "🌿": 0.55,
+        "🌱": 0.4
       },
       "🌾": {
-        "🌿": 0.2,
-        "🌱": 0.1,
-        "🐝": 0.5
+        "🐝": 0.6
+      },
+      "🌿": {
+        "🐝": 0.55
       },
       "🌱": {
-        "🌾": 0.2
+        "🐝": 0.4
       }
     },
     "name": "Pollinator Guild",
     "ring": "center",
     "self_energies": {
-      "🐝": 0.32,
-      "🌾": 0.22,
-      "🌿": 0.18,
-      "🌱": 0.1
+      "🐝": 0.55,
+      "🌾": 0.18,
+      "🌿": 0.14,
+      "🌱": 0.08
     },
     "tags": [
       "fauna",
@@ -4366,42 +4375,57 @@
       }
     },
     "hamiltonian": {
-      "🎼": {
-        "💃": 0.7,
-        "🔊": 0.6,
-        "🩰": 0.4
-      },
       "💃": {
-        "🎼": 0.7,
-        "🔊": 0.4,
-        "🩰": 0.6
+        "🎼": [
+          0.5,
+          0.4
+        ],
+        "🩰": [
+          0.55,
+          0.35
+        ],
+        "📡": -0.24
       },
-      "📡": {
-        "🎼": 0.3,
-        "🔊": 0.5,
-        "🩰": -0.28
+      "🎼": {
+        "💃": [
+          0.5,
+          -0.4
+        ],
+        "🔊": 0.6,
+        "🩰": [
+          0.3,
+          -0.35
+        ]
+      },
+      "🩰": {
+        "💃": [
+          0.55,
+          -0.35
+        ],
+        "🎼": [
+          0.3,
+          0.35
+        ],
+        "🔊": -0.2
       },
       "🔊": {
         "🎼": 0.6,
-        "💃": 0.4,
         "📡": 0.5,
-        "🩰": -0.16
+        "🩰": -0.2
       },
-      "🩰": {
-        "🎼": 0.4,
-        "💃": 0.6,
-        "📡": -0.28,
-        "🔊": -0.16
+      "📡": {
+        "🔊": 0.5,
+        "💃": -0.24
       }
     },
     "name": "Resonance Dancers",
     "ring": "third",
     "self_energies": {
+      "💃": 0.32,
       "🎼": 0.25,
-      "💃": 0.3,
-      "📡": 0.2,
+      "🩰": 0.25,
       "🔊": 0.2,
-      "🩰": 0.25
+      "📡": 0.18
     },
     "tags": [
       "dance",
@@ -4852,33 +4876,33 @@
     "description": "Estate guards who protect agricultural land from raiders, pests, and less obvious threats. They ride the boundaries, settle land disputes with measured force, and maintain the peace that lets farmers farm. Professional soldiers without imperial ambitions - they fight for the fields, not for glory. The Carrion Throne considers them quaint. The settlements consider them essential.",
     "hamiltonian": {
       "⚔": {
-        "🏇": 0.5,
+        "🏇": 0.55,
         "🛡": 0.6,
-        "🌱": -0.38
-      },
-      "🌱": {
-        "🏇": -0.22,
-        "🛡": 0.5,
-        "⚔": -0.38
+        "🌱": -0.35
       },
       "🏇": {
-        "⚔": 0.5,
-        "🌱": -0.22,
-        "🛡": 0.4
+        "⚔": 0.55,
+        "🛡": 0.45,
+        "🌱": -0.25
       },
       "🛡": {
         "⚔": 0.6,
-        "🌱": 0.5,
-        "🏇": 0.4
+        "🏇": 0.45,
+        "🌱": 0.5
+      },
+      "🌱": {
+        "🛡": 0.5,
+        "⚔": -0.35,
+        "🏇": -0.25
       }
     },
     "name": "Scythe Provosts",
     "ring": "first",
     "self_energies": {
-      "⚔": 0.2,
-      "🌱": 0.1,
-      "🏇": 0.15,
-      "🛡": 0.25
+      "⚔": 0.28,
+      "🏇": 0.18,
+      "🛡": 0.35,
+      "🌱": 0.08
     },
     "tags": [
       "military",
@@ -5003,43 +5027,39 @@
     },
     "description": "Keepers of the genetic archive. They maintain backup copies of every crop strain, every useful organism, every biological pattern that sustains civilization. Their vaults are climate-controlled, radiation-shielded, and incredibly boring to visit. When blight strikes or species collapse, the Curators have the restore point. They do not discuss what else they store in the deep vaults.",
     "hamiltonian": {
-      "🌱": {
-        "🔬": -0.12,
+      "🧬": {
         "🧫": 0.6,
-        "🧬": 0.5,
-        "🧪": -0.22
-      },
-      "🔬": {
-        "🧪": 0.4,
-        "🧫": 0.5,
-        "🧬": 0.7,
-        "🌱": -0.12
-      },
-      "🧪": {
-        "🔬": 0.4,
-        "🧫": 0.5,
-        "🧬": 0.4,
-        "🌱": -0.22
+        "🔬": 0.55,
+        "🌱": 0.45,
+        "🧪": -0.35
       },
       "🧫": {
-        "🌱": 0.6,
-        "🔬": 0.5,
-        "🧬": 0.6
+        "🧬": 0.6,
+        "🔬": 0.45
       },
-      "🧬": {
-        "🌱": 0.5,
-        "🔬": 0.7,
-        "🧫": 0.6
+      "🔬": {
+        "🧬": 0.55,
+        "🧫": 0.45,
+        "🧪": 0.3
+      },
+      "🌱": {
+        "🧬": 0.45,
+        "🧪": -0.28
+      },
+      "🧪": {
+        "🧬": -0.35,
+        "🔬": 0.3,
+        "🌱": -0.28
       }
     },
     "name": "Seedvault Curators",
     "ring": "center",
     "self_energies": {
+      "🧬": 0.42,
+      "🧫": 0.28,
+      "🔬": 0.22,
       "🌱": 0.1,
-      "🔬": 0.3,
-      "🧪": 0.2,
-      "🧫": 0.25,
-      "🧬": 0.35
+      "🧪": -0.18
     },
     "tags": [
       "preservation",
@@ -5086,40 +5106,39 @@
     },
     "description": "Navigators who map routes through probability-space. Where others see chaos, they see currents - stable paths between configurations that make travel possible. Their charts are closely guarded; their navigators are recruited young and trained for decades. Without them, every journey would be a gamble. With them, it's merely dangerous. They sense patterns they can't fully explain.",
     "hamiltonian": {
-      "🌠": {
-        "🔭": 0.7,
-        "🛰": 0.4,
-        "🌙": -0.15
-      },
-      "📡": {
-        "🔭": 0.3,
-        "🛰": 0.6,
-        "🌙": -0.15
-      },
       "🔭": {
-        "🌠": 0.7,
-        "📡": 0.3,
-        "🛰": 0.5
+        "🌠": 0.65,
+        "🛰": 0.5,
+        "📡": 0.35
+      },
+      "🌠": {
+        "🔭": 0.65,
+        "🌙": -0.22,
+        "🛰": 0.35
       },
       "🛰": {
-        "🌠": 0.4,
-        "📡": 0.6,
         "🔭": 0.5,
-        "🌙": -0.2
+        "📡": 0.55,
+        "🌙": -0.28,
+        "🌠": 0.35
+      },
+      "📡": {
+        "🔭": 0.35,
+        "🛰": 0.55
       },
       "🌙": {
-        "🌠": -0.15,
-        "🛰": -0.2,
-        "📡": -0.15
+        "🛰": -0.28,
+        "🌠": -0.22
       }
     },
     "name": "Star-Charter Enclave",
     "ring": "second",
     "self_energies": {
-      "🌠": 0.2,
+      "🔭": 0.42,
+      "🌠": 0.22,
+      "🛰": 0.25,
       "📡": 0.15,
-      "🔭": 0.3,
-      "🛰": 0.25
+      "🌙": -0.15
     },
     "tags": [
       "navigation",
@@ -5272,29 +5291,31 @@
     "ring": "second",
     "motto": "The sky has a toll.",
     "self_energies": {
-      "🚀": 0.38,
-      "🏢": 0.28,
-      "💰": 0.3,
-      "🛂": 0.2
+      "💰": 0.35,
+      "🏢": 0.3,
+      "🛂": 0.2,
+      "🚀": -0.2
     },
     "hamiltonian": {
-      "🛂": {
-        "💰": 0.58,
-        "🏢": 0.48,
-        "🚀": -0.35
-      },
       "💰": {
-        "🛂": 0.58,
-        "🏢": 0.52
+        "🏢": 0.6,
+        "🛂": 0.55,
+        "🚀": 0.35
       },
       "🏢": {
-        "🛂": 0.48,
-        "💰": 0.52,
-        "🚀": -0.25
+        "💰": 0.6,
+        "🛂": 0.45,
+        "🚀": -0.3
+      },
+      "🛂": {
+        "💰": 0.55,
+        "🏢": 0.45,
+        "🚀": -0.4
       },
       "🚀": {
-        "🛂": -0.35,
-        "🏢": -0.25
+        "💰": 0.35,
+        "🏢": -0.3,
+        "🛂": -0.4
       }
     },
     "drivers": {
@@ -5478,40 +5499,43 @@
     },
     "description": "Criminal oligarchs who deal in precision surveillance and blackmail. Their mirrors show what people hide. Their crystals record what people forget. Information is their product, leverage is their method, and absolute discretion is their brand. They know secrets about the Carrion Throne. They're smart enough not to use them. No mysticism, no occult sight - just very, very good optics and an institutional memory that never forgets.",
     "hamiltonian": {
-      "💎": {
-        "💰": 0.6,
-        "🧊": 0.5,
-        "🪞": 0.5
-      },
-      "💰": {
-        "💎": 0.6,
-        "🪞": 0.4,
-        "🧊": -0.24
-      },
       "🔍": {
-        "💰": 0.3,
-        "🧊": 0.4,
-        "🪞": -0.3
-      },
-      "🧊": {
-        "💎": 0.5,
-        "🔍": 0.4,
-        "💰": -0.24
+        "🪞": 0.6,
+        "🧊": 0.55,
+        "💎": 0.45,
+        "💰": 0.35
       },
       "🪞": {
+        "🔍": 0.6,
+        "💎": 0.4,
+        "💰": -0.25
+      },
+      "🧊": {
+        "🔍": 0.55,
         "💎": 0.5,
-        "💰": 0.4,
-        "🔍": -0.3
+        "💰": -0.3
+      },
+      "💎": {
+        "🔍": 0.45,
+        "🪞": 0.4,
+        "🧊": 0.5,
+        "💰": 0.5
+      },
+      "💰": {
+        "🔍": 0.35,
+        "🪞": -0.25,
+        "💎": 0.5,
+        "🧊": -0.3
       }
     },
     "name": "Syndicate of Glass",
     "ring": "second",
     "self_energies": {
       "💎": 0.35,
-      "💰": 0.25,
-      "🔍": 0.15,
+      "💰": 0.28,
+      "🔍": 0.12,
       "🧊": 0.2,
-      "🪞": 0.2
+      "🪞": 0.22
     },
     "tags": [
       "criminal",
@@ -5559,33 +5583,31 @@
     "description": "Ecological engineers who design self-sustaining habitats. They build the life-support systems, waste recyclers, and atmospheric processors that let settlements exist in hostile probability-spaces. Their work is unglamorous - sewage treatment, air filtration, nutrient cycling - but without them, every habitat would be three failures away from death.",
     "hamiltonian": {
       "♻️": {
-        "🌿": -0.18,
-        "💧": 0.6,
-        "🫙": 0.5
-      },
-      "🌿": {
-        "♻️": -0.18,
-        "💧": 0.7,
-        "🫙": 0.35
+        "💧": 0.65,
+        "🫙": -0.3,
+        "🌿": -0.22
       },
       "💧": {
-        "♻️": 0.6,
-        "🌿": 0.7,
-        "🫙": -0.3
+        "♻️": 0.65,
+        "🌿": 0.38
       },
       "🫙": {
-        "♻️": 0.5,
-        "🌿": 0.35,
-        "💧": -0.3
+        "♻️": -0.3,
+        "🌿": 0.6
+      },
+      "🌿": {
+        "🫙": 0.6,
+        "♻️": -0.22,
+        "💧": 0.38
       }
     },
     "name": "Terrarium Collective",
     "ring": "center",
     "self_energies": {
-      "♻️": 0.15,
-      "🌿": 0.2,
-      "💧": 0.1,
-      "🫙": 0.3
+      "♻️": 0.22,
+      "💧": 0.18,
+      "🌿": 0.25,
+      "🫙": 0.35
     },
     "tags": [
       "ecology",
@@ -5795,33 +5817,29 @@
     },
     "hamiltonian": {
       "📡": {
-        "📶": 0.6,
-        "📻": 0.5,
-        "🗣": -0.24
+        "📶": 0.65,
+        "🗣": -0.32
       },
       "📶": {
-        "📡": 0.6,
-        "📻": -0.16,
-        "🗣": 0.4
+        "📡": 0.65,
+        "📻": 0.55
       },
       "📻": {
-        "📡": 0.5,
-        "📶": -0.16,
+        "📶": 0.55,
         "🗣": 0.5
       },
       "🗣": {
-        "📶": 0.4,
         "📻": 0.5,
-        "📡": -0.24
+        "📡": -0.32
       }
     },
     "name": "The Liminal Osmosis",
     "ring": "second",
     "self_energies": {
-      "📡": 0.25,
-      "📶": 0.15,
-      "📻": 0.2,
-      "🗣": 0.1
+      "📡": 0.35,
+      "📶": 0.22,
+      "📻": 0.16,
+      "🗣": 0.08
     },
     "tags": [
       "broadcast",
@@ -6225,31 +6243,43 @@
     "ring": "third",
     "motto": "What connects, persists.",
     "self_energies": {
-      "🌊": 0.1,
-      "🪸": 0.2,
-      "🦀": 0.25,
-      "🐠": 0.15
+      "🌊": 0.15,
+      "🪸": 0.25,
+      "🐠": 0.22,
+      "🦀": 0.28
     },
     "hamiltonian": {
       "🌊": {
-        "🪸": -0.25,
-        "🦀": 0.4,
-        "🐠": -0.12
+        "🪸": [
+          0.35,
+          0.4
+        ],
+        "🐠": [
+          0.25,
+          -0.3
+        ],
+        "🦀": 0.4
       },
       "🪸": {
-        "🌊": -0.25,
-        "🦀": 0.3,
+        "🌊": [
+          0.35,
+          -0.4
+        ],
+        "🦀": 0.45,
         "🐠": 0.5
+      },
+      "🐠": {
+        "🌊": [
+          0.25,
+          0.3
+        ],
+        "🪸": 0.5,
+        "🦀": -0.25
       },
       "🦀": {
         "🌊": 0.4,
-        "🪸": 0.3,
-        "🐠": -0.2
-      },
-      "🐠": {
-        "🌊": -0.12,
-        "🪸": 0.5,
-        "🦀": -0.2
+        "🪸": 0.45,
+        "🐠": -0.25
       }
     },
     "drivers": {
@@ -6297,31 +6327,31 @@
     },
     "description": "Elite mathematicians mapping the deep curvatures of probability-space. They observe the simulation's boundaries with a crystalline, unblinking focus that edges toward the absolute. Their equations describe curvatures that shouldn't exist. Their instruments detect patterns at the edge of perception. The ones who return from their calculations have answers. The ones who don't have found something that doesn't allow return.",
     "hamiltonian": {
-      "📐": {
-        "🔬": 0.5,
-        "🔭": 0.4,
-        "🧮": 0.6,
-        "🧲": -0.22
+      "🧮": {
+        "📐": 0.65,
+        "🔭": 0.45,
+        "🔬": 0.4,
+        "🧲": -0.3
       },
-      "🔬": {
-        "📐": 0.5,
-        "🔭": -0.16,
-        "🧲": 0.4
+      "📐": {
+        "🧮": 0.65,
+        "🔭": 0.5,
+        "🧲": -0.28
       },
       "🔭": {
-        "📐": 0.4,
-        "🔬": -0.16,
-        "🧮": 0.4
+        "🧮": 0.45,
+        "📐": 0.5,
+        "🔬": 0.35
       },
-      "🧮": {
-        "📐": 0.6,
-        "🔭": 0.4,
-        "🧲": 0.3
+      "🔬": {
+        "🧮": 0.4,
+        "🔭": 0.35,
+        "🧲": 0.25
       },
       "🧲": {
-        "🔬": 0.4,
-        "🧮": 0.3,
-        "📐": -0.22
+        "🧮": -0.3,
+        "📐": -0.28,
+        "🔬": 0.25
       }
     },
     "measurement_behavior": {
@@ -6339,11 +6369,11 @@
     "name": "The Vitreous Scrutiny",
     "ring": "third",
     "self_energies": {
-      "📐": 0.25,
-      "🔬": 0.2,
-      "🔭": 0.2,
-      "🧮": 0.2,
-      "🧲": 0.15
+      "🧮": 0.28,
+      "📐": 0.3,
+      "🔭": 0.25,
+      "🔬": 0.22,
+      "🧲": -0.1
     },
     "tags": [
       "observation",
