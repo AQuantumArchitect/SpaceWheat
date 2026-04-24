@@ -931,33 +931,31 @@
     "description": "Subterranean farmers who cultivate root vegetables, fungi, and cave-adapted crops in the spaces beneath settlements. Their tunnels connect in ways surface-dwellers don't fully understand. They trade in mushrooms, tubers, and information that travels through the underground faster than official channels. Not secretive by nature - just used to being overlooked.",
     "hamiltonian": {
       "⛏": {
-        "🌱": 0.5,
-        "🪤": 0.3,
-        "🪨": 0.7
-      },
-      "🌱": {
-        "⛏": 0.5,
-        "🪤": 0.2,
-        "🪨": 0.4
-      },
-      "🪤": {
-        "⛏": 0.3,
-        "🌱": 0.2,
-        "🐇": 0.4
+        "🪨": 0.55,
+        "🌱": -0.32
       },
       "🪨": {
-        "⛏": 0.7,
-        "⛰": 0.5,
-        "🌱": 0.2
+        "⛏": 0.55,
+        "🌱": -0.2,
+        "🪤": 0.35
+      },
+      "🌱": {
+        "⛏": -0.32,
+        "🪨": -0.2,
+        "🪤": 0.28
+      },
+      "🪤": {
+        "🪨": 0.35,
+        "🌱": 0.28
       }
     },
     "name": "Clan of the Hidden Root",
     "ring": "center",
     "self_energies": {
-      "⛏": 0.2,
-      "🌱": 0.1,
-      "🪤": 0.15,
-      "🪨": 0.25
+      "⛏": 0.25,
+      "🪨": 0.2,
+      "🌱": 0.15,
+      "🪤": 0.1
     },
     "tags": [
       "underground",
@@ -1005,37 +1003,37 @@
     "description": "Worshippers of something that collapsed into the void - a star, a civilization, a god, something that fell and kept falling. They conduct rituals at the edge of the Black Horizon, send offerings into the depths, and wait for signals from below. The bubbles (🫧) are their communication - messages rising from the drowned. The ⚱️ holds ashes of those who went deeper. The ashes sometimes move. No occult sight needed - what they worship is too deep for eyes to reach.",
     "hamiltonian": {
       "⚱": {
-        "⭐": 0.3,
-        "🕳": 0.4
+        "⭐": 0.6,
+        "🕳": 0.45
       },
       "⭐": {
-        "⚱": 0.3,
+        "⚱": 0.6,
+        "🫧": -0.3,
         "🕳": [
-          0.600000023841858,
-          0.5
-        ],
-        "🫧": 0.4
-      },
-      "🕳": {
-        "⚱": 0.4,
-        "⭐": [
-          0.600000023841858,
-          -0.5
-        ],
-        "🫧": 0.5
+          0.25,
+          0.45
+        ]
       },
       "🫧": {
-        "⭐": 0.4,
-        "🕳": 0.5
+        "⭐": -0.3,
+        "🕳": 0.38
+      },
+      "🕳": {
+        "⚱": 0.45,
+        "🫧": 0.38,
+        "⭐": [
+          0.25,
+          -0.45
+        ]
       }
     },
     "name": "Cult of the Drowned Star",
     "ring": "third",
     "self_energies": {
-      "⚱": 0.2,
-      "⭐": -0.1,
-      "🕳": 0.3,
-      "🫧": 0.15
+      "🕳": 0.4,
+      "⚱": 0.25,
+      "🫧": 0.15,
+      "⭐": -0.4
     },
     "tags": [
       "cult",
@@ -1093,30 +1091,33 @@
     "ring": "third",
     "motto": "What is owed will be paid.",
     "self_energies": {
-      "⛓": 0.1,
-      "💸": -0.3,
-      "👥": 0.02,
-      "💀": 0.1
+      "⛓": 0.15,
+      "💀": 0.1,
+      "👥": -0.1,
+      "💸": -0.35
     },
     "hamiltonian": {
       "⛓": {
-        "👥": 0.7,
-        "💸": 0.6,
-        "💀": 0.35
-      },
-      "💸": {
-        "⛓": 0.6,
-        "👥": 0.5,
-        "💰": -0.8
+        "👥": 0.55,
+        "💀": 0.4,
+        "💸": -0.3
       },
       "👥": {
-        "⛓": 0.7,
-        "💸": 0.5,
-        "💀": 0.3
+        "⛓": 0.55,
+        "💸": -0.45
       },
       "💀": {
         "⛓": 0.4,
-        "👥": 0.3
+        "💸": 0.35
+      },
+      "💸": {
+        "⛓": -0.3,
+        "💀": 0.35,
+        "👥": -0.45,
+        "💰": -0.65
+      },
+      "💰": {
+        "💸": -0.65
       }
     },
     "alignment_couplings": {
@@ -1148,34 +1149,30 @@
     },
     "description": "Long-haul data transport between settlements too distant for real-time communication. They carry memory archives, legal records, cultural packages - anything too large or sensitive for standard relay. Their ships are flying libraries, their crews are notoriously well-read, and their delivery schedules are the subject of constant complaint. They do not discuss what happens to undelivered data.",
     "hamiltonian": {
-      "💾": {
-        "📡": 0.5,
-        "🧩": 0.6,
-        "📶": 0.2
-      },
       "📡": {
-        "💾": 0.5,
-        "📶": 0.7,
-        "🧩": 0.4
+        "📶": 0.62,
+        "💾": 0.5
       },
       "📶": {
-        "📡": 0.7,
-        "🧩": 0.5,
-        "💾": 0.3
+        "📡": 0.62,
+        "🧩": -0.2
+      },
+      "💾": {
+        "📡": 0.5,
+        "🧩": 0.42
       },
       "🧩": {
-        "💾": 0.6,
-        "📡": 0.4,
-        "📶": 0.5
+        "💾": 0.42,
+        "📶": -0.2
       }
     },
     "name": "Engram Freighters",
     "ring": "first",
     "self_energies": {
       "💾": 0.3,
-      "📡": 0.25,
-      "📶": 0.1,
-      "🧩": 0.15
+      "📡": 0.28,
+      "📶": 0.12,
+      "🧩": 0.38
     },
     "tags": [
       "transport",
@@ -1830,36 +1827,32 @@
     },
     "description": "The aristocratic court that surrounds the Station Lords and reaches toward the Carrion Throne. They deal in marriages, alliances, favors, and elegant betrayals. Their gardens are famous; their parties are legendary; their enemies tend to suffer unfortunate accidents. Joining them means access to real power - and accepting that you are now part of the pattern that sustains the Throne. The rose has thorns for a reason.",
     "hamiltonian": {
-      "⚖": {
-        "🌹": 0.4,
-        "📜": 0.4,
-        "🪞": 0.3
-      },
       "🌹": {
-        "⚖": 0.4,
-        "⚜": 0.5,
-        "🍷": 0.6,
-        "🪞": 0.5
-      },
-      "🍷": {
-        "⚖": 0.3,
-        "🌹": 0.6,
-        "💰": 0.5,
-        "🪞": 0.4
+        "🪞": 0.6,
+        "🍷": 0.55,
+        "⚖": -0.38
       },
       "🪞": {
-        "⚖": 0.3,
-        "🌹": 0.5,
+        "🌹": 0.6,
         "🍷": 0.4
+      },
+      "🍷": {
+        "🌹": 0.55,
+        "🪞": 0.4,
+        "⚖": -0.28
+      },
+      "⚖": {
+        "🌹": -0.38,
+        "🍷": -0.28
       }
     },
     "name": "House of Thorns",
     "ring": "second",
     "self_energies": {
-      "⚖": 0.2,
-      "🌹": 0.25,
+      "🌹": 0.45,
       "🍷": 0.3,
-      "🪞": 0.2
+      "🪞": 0.25,
+      "⚖": -0.25
     },
     "tags": [
       "aristocracy",
@@ -1917,31 +1910,25 @@
     "ring": "third",
     "motto": "Sign here.",
     "self_energies": {
-      "🖋": 0.15,
-      "📜": 0.2,
-      "🗃": -0.1,
-      "⛓": 0.25
+      "⛓": 0.3,
+      "🖋": 0.2,
+      "📜": 0.15,
+      "🗃": -0.2
     },
     "hamiltonian": {
+      "⛓": {
+        "🖋": 0.62
+      },
       "🖋": {
-        "📜": 0.6,
-        "🗃": 0.5,
-        "⛓": 0.4
+        "⛓": 0.62,
+        "📜": 0.58
       },
       "📜": {
-        "🖋": 0.6,
-        "🗃": 0.45,
-        "⛓": 0.5
+        "🖋": 0.58,
+        "🗃": -0.4
       },
       "🗃": {
-        "🖋": 0.5,
-        "📜": 0.45,
-        "🪦": 0.3
-      },
-      "⛓": {
-        "🖋": 0.4,
-        "📜": 0.5,
-        "👥": 0.55
+        "📜": -0.4
       }
     },
     "alignment_couplings": {
@@ -2237,37 +2224,31 @@
     },
     "description": "Censors who hunt dangerous information - not political secrets, but knowledge that damages reality when transmitted. They jam frequencies that shouldn't exist, burn books that hurt readers, and silence speakers who've learned things that can't be safely known. The Symphony Smiths fear them. The Black Horizon generated them. They don't suppress truth - they quarantine contagion. Sometimes the contagion looks like a poem.",
     "hamiltonian": {
-      "📵": {
-        "🔇": 0.5,
-        "🛑": 0.5
-      },
-      "🔇": {
-        "📵": 0.5,
-        "🤫": 0.7,
-        "🧘": 0.5
-      },
-      "🛑": {
-        "📵": 0.5,
-        "🤫": 0.4
+      "🧘": {
+        "🤫": 0.7
       },
       "🤫": {
-        "🔇": 0.7,
-        "🛑": 0.4,
-        "🧘": 0.4
+        "🧘": 0.7
       },
-      "🧘": {
-        "🔇": 0.5,
-        "🤫": 0.4
+      "🔇": {
+        "📵": 0.35,
+        "🛑": -0.28
+      },
+      "📵": {
+        "🔇": 0.35
+      },
+      "🛑": {
+        "🔇": -0.28
       }
     },
     "name": "Keepers of Silence",
     "ring": "third",
     "self_energies": {
-      "📵": 0.2,
-      "🔇": 0.3,
-      "🛑": 0.25,
-      "🤫": 0.25,
-      "🧘": 0.2
+      "🧘": 0.55,
+      "🤫": 0.35,
+      "🔇": 0.2,
+      "📵": 0.1,
+      "🛑": -0.22
     },
     "tags": [
       "censorship",
@@ -2619,43 +2600,48 @@
     "ring": "second",
     "motto": "Isn't it all just delicious?",
     "self_energies": {
-      "🎭": 0.3,
+      "🎭": 0.35,
+      "😂": 0.4,
       "🍷": 0.25,
       "💃": 0.2,
-      "😂": 0.35
+      "🌹": 0.15,
+      "🩸": 0.1,
+      "📋": -0.35
     },
     "hamiltonian": {
       "🎭": {
-        "🍷": 0.6,
-        "💃": 0.55,
-        "😂": 0.5,
-        "🩸": -0.3,
-        "🌹": -0.22
-      },
-      "🍷": {
-        "🎭": 0.6,
+        "🩸": 0.6,
+        "😂": 0.55,
         "💃": 0.5,
-        "🌹": 0.4
-      },
-      "💃": {
-        "🎭": 0.55,
-        "🍷": 0.5,
-        "😂": 0.45
-      },
-      "😂": {
-        "🎭": 0.5,
-        "💃": 0.45,
-        "🩸": 0.3,
-        "🌹": -0.18
-      },
-      "🌹": {
-        "🍷": 0.4,
-        "🎭": -0.22,
-        "😂": -0.18
+        "🌹": 0.45,
+        "📋": -0.42
       },
       "🩸": {
-        "😂": 0.3,
-        "🎭": -0.3
+        "🎭": 0.6,
+        "🍷": 0.45,
+        "😂": 0.4
+      },
+      "😂": {
+        "🎭": 0.55,
+        "🩸": 0.4,
+        "📋": -0.3
+      },
+      "💃": {
+        "🎭": 0.5,
+        "🍷": 0.5
+      },
+      "🍷": {
+        "🩸": 0.45,
+        "💃": 0.5,
+        "🌹": 0.35
+      },
+      "🌹": {
+        "🎭": 0.45,
+        "🍷": 0.35
+      },
+      "📋": {
+        "🎭": -0.42,
+        "😂": -0.3
       }
     },
     "alignment_couplings": {
@@ -3107,39 +3093,37 @@
     },
     "description": "Dealers in recorded experience - not just data, but the lived texture of memory itself. They buy recollections from the desperate, sell them to the curious, and archive everything that passes through their hands. The 🗝 marks the locked memories - things people paid to forget, things the Throne wants suppressed, things too dangerous to release. Somewhere in their vaults is every secret ever sold.",
     "hamiltonian": {
-      "💰": {
-        "💾": 0.5,
-        "📼": 0.4,
-        "🗝": 0.5
-      },
       "💾": {
-        "💰": 0.5,
-        "📼": 0.6,
-        "🧩": 0.5
-      },
-      "📼": {
-        "💰": 0.4,
-        "💾": 0.6,
-        "🧩": 0.5
-      },
-      "🗝": {
-        "💰": 0.5,
-        "🧩": 0.4
+        "🧩": 0.4,
+        "📼": -0.22,
+        "🗝": 0.45
       },
       "🧩": {
-        "💾": 0.5,
-        "📼": 0.5,
-        "🗝": 0.4
+        "💾": 0.4,
+        "📼": 0.35
+      },
+      "📼": {
+        "🧩": 0.35,
+        "💾": -0.22,
+        "💰": -0.2
+      },
+      "💰": {
+        "🗝": 0.55,
+        "📼": -0.2
+      },
+      "🗝": {
+        "💰": 0.55,
+        "💾": 0.45
       }
     },
     "name": "Memory Merchants",
     "ring": "second",
     "self_energies": {
-      "💰": 0.2,
       "💾": 0.3,
-      "📼": 0.15,
-      "🗝": 0.25,
-      "🧩": 0.15
+      "📼": 0.12,
+      "🧩": 0.2,
+      "🗝": 0.32,
+      "💰": 0.25
     },
     "tags": [
       "commerce",
@@ -3340,33 +3324,29 @@
     "description": "Architects who construct buildings that remain stable across probability fluctuations. Their structures use geometries inherited from civilizations that no longer exist, mathematics that seems to predate mathematics. The buildings work - they don't change when reality shifts around them. The Masons don't fully understand why. They've learned to stop asking and just follow the ancient blueprints.",
     "hamiltonian": {
       "🏛": {
-        "🏺": 0.5,
-        "📐": 0.6,
+        "🏺": 0.55,
+        "📐": 0.52,
         "🧱": 0.6
       },
       "🏺": {
-        "🏛": 0.5,
-        "📐": 0.4,
-        "🧱": 0.3
+        "🏛": 0.55
       },
       "📐": {
-        "🏛": 0.6,
-        "🏺": 0.4,
-        "🧱": 0.5
+        "🏛": 0.52,
+        "🧱": -0.25
       },
       "🧱": {
         "🏛": 0.6,
-        "🏺": 0.3,
-        "📐": 0.5
+        "📐": -0.25
       }
     },
     "name": "Monolith Masons",
     "ring": "second",
     "self_energies": {
-      "🏛": 0.5,
+      "🏛": 0.52,
       "🏺": 0.35,
-      "📐": 0.4,
-      "🧱": 0.3
+      "📐": 0.38,
+      "🧱": 0.28
     },
     "tags": [
       "construction",
@@ -4279,38 +4259,34 @@
     },
     "hamiltonian": {
       "📡": {
-        "📶": 0.7,
-        "🗺": 0.4,
-        "🧩": 0.5
+        "📶": 0.55,
+        "🗺": 0.42,
+        "🧩": 0.48,
+        "🧭": 0.38
       },
       "📶": {
-        "📡": 0.7,
-        "🧩": 0.6,
-        "🧭": 0.4
+        "📡": 0.55
       },
       "🗺": {
-        "📡": 0.4,
-        "🧩": 0.5,
-        "🧭": 0.6
+        "📡": 0.42,
+        "🧭": -0.22
       },
       "🧩": {
-        "📡": 0.5,
-        "📶": 0.6,
-        "🗺": 0.5
+        "📡": 0.48
       },
       "🧭": {
-        "📶": 0.4,
-        "🗺": 0.6
+        "📡": 0.38,
+        "🗺": -0.22
       }
     },
     "name": "Relay Lattice",
     "ring": "center",
     "self_energies": {
-      "📡": 0.3,
-      "📶": 0.1,
+      "📡": 0.35,
+      "📶": 0.15,
       "🗺": 0.2,
-      "🧩": 0.15,
-      "🧭": 0.2
+      "🧩": 0.18,
+      "🧭": 0.22
     },
     "tags": [
       "communication",
@@ -4546,34 +4522,34 @@
     "ring": "second",
     "motto": "Every bloom has its price.",
     "self_energies": {
-      "🌹": 0.25,
-      "🥀": 0.15,
+      "🌹": 0.35,
       "🌺": 0.2,
-      "⚔": 0.3
+      "⚔": 0.3,
+      "💀": -0.2,
+      "🥀": -0.1
     },
     "hamiltonian": {
       "🌹": {
-        "🥀": 0.5,
-        "🌺": 0.4,
-        "⚔": 0.35
-      },
-      "🥀": {
-        "🌹": 0.5,
-        "💀": 0.45,
-        "⚔": 0.4
+        "🌺": 0.55,
+        "🥀": -0.32,
+        "💀": -0.25
       },
       "🌺": {
-        "🌹": 0.4,
-        "🍷": 0.3
+        "🌹": 0.55
       },
       "⚔": {
-        "🌹": 0.35,
-        "🥀": 0.4,
-        "💀": 0.5
+        "💀": 0.45,
+        "🥀": 0.5
       },
       "💀": {
-        "🥀": 0.45,
-        "⚔": 0.5
+        "⚔": 0.45,
+        "🥀": 0.4,
+        "🌹": -0.25
+      },
+      "🥀": {
+        "⚔": 0.5,
+        "💀": 0.4,
+        "🌹": -0.32
       }
     },
     "alignment_couplings": {
@@ -5277,29 +5253,29 @@
     "ring": "second",
     "motto": "The sky has a toll.",
     "self_energies": {
-      "🚀": 0.3,
-      "🏢": 0.25,
+      "🚀": 0.38,
+      "🏢": 0.28,
       "💰": 0.3,
       "🛂": 0.2
     },
     "hamiltonian": {
-      "🚀": {
-        "🏢": 0.5,
-        "💰": 0.4,
-        "🛂": 0.6
-      },
-      "🏢": {
-        "🚀": 0.5,
-        "💰": 0.45,
-        "🛂": 0.4
+      "🛂": {
+        "💰": 0.58,
+        "🏢": 0.48,
+        "🚀": -0.35
       },
       "💰": {
-        "🚀": 0.4,
-        "🏢": 0.45
+        "🛂": 0.58,
+        "🏢": 0.52
       },
-      "🛂": {
-        "🚀": 0.6,
-        "🏢": 0.4
+      "🏢": {
+        "🛂": 0.48,
+        "💰": 0.52,
+        "🚀": -0.25
+      },
+      "🚀": {
+        "🛂": -0.35,
+        "🏢": -0.25
       }
     },
     "drivers": {
@@ -6483,34 +6459,27 @@
     "ring": "second",
     "motto": "Everyone has a price. We know yours.",
     "self_energies": {
-      "🗝": 0.3,
-      "🕵️": 0.2,
-      "💀": 0.1,
-      "💰": 0.3
+      "🗝": 0.4,
+      "💰": 0.28,
+      "🕵️": 0.22,
+      "💀": -0.25
     },
     "hamiltonian": {
+      "💰": {
+        "🗝": 0.58,
+        "💀": -0.25
+      },
       "🗝": {
-        "🕵️": 0.5,
-        "💀": 0.3,
-        "⛓": 0.5,
-        "💰": 0.5
+        "💰": 0.58,
+        "🕵️": 0.52
       },
       "🕵️": {
-        "🗝": 0.5,
-        "💀": 0.4,
-        "⛓": 0.3,
-        "💰": 0.5
+        "🗝": 0.52,
+        "💀": -0.38
       },
       "💀": {
-        "🗝": 0.3,
-        "🕵️": 0.4,
-        "⛓": 0.4
-      },
-      "💰": {
-        "🗝": 0.5,
-        "🕵️": 0.5,
-        "⛓": 0.5,
-        "💸": 0.5
+        "🕵️": -0.38,
+        "💰": -0.25
       }
     },
     "alignment_couplings": {
