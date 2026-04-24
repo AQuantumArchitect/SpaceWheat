@@ -103,7 +103,8 @@
       "Umbra Exchange",
       "Station Lords",
       "Fencebreakers",
-      "Chop Docs"
+      "Chop Docs",
+      "Obsidian Will"
     ],
     "tags": [
       "cyberpunk",
@@ -600,7 +601,9 @@
       "Celestial Archons",
       "Locusts",
       "Mycelial Web",
-      "Plague Vectors"
+      "Plague Vectors",
+      "Mossline Brokers",
+      "Flesh Architects"
     ],
     "tags": [
       "fungal",
@@ -682,7 +685,8 @@
     ],
     "native_factions": [
       "Black Horizon",
-      "Cartographers of the Impossible"
+      "Cartographers of the Impossible",
+      "Void Emperors"
     ],
     "tags": [
       "boundary",
@@ -1675,8 +1679,8 @@
       "🥀"
     ],
     "native_factions": [
-      "The Laughing Court",
-      "Rose Wardens"
+      "Rose Wardens",
+      "Laughing Court"
     ],
     "tags": [
       "aristocracy",
@@ -2577,7 +2581,9 @@
     "native_factions": [
       "Relay Lattice",
       "Engram Freighters",
-      "Symphony Smiths"
+      "Symphony Smiths",
+      "Resonance Dancers",
+      "The Liminal Osmosis"
     ],
     "tags": [
       "signal",
@@ -2732,7 +2738,8 @@
     "native_factions": [
       "Cult of the Drowned Star",
       "Engram Freighters",
-      "Memory Merchants"
+      "Memory Merchants",
+      "Cartographers"
     ],
     "tags": [
       "orbital",
@@ -2853,7 +2860,8 @@
       "Helix Conservatory",
       "Chop Docs",
       "Quarantine Sealwrights",
-      "Bone Merchants"
+      "Bone Merchants",
+      "Flesh Architects"
     ],
     "tags": [
       "medical",
@@ -3335,7 +3343,8 @@
     "native_factions": [
       "Debt Wardens",
       "Bone Merchants",
-      "Umbra Exchange"
+      "Umbra Exchange",
+      "The Sovereign Ukase"
     ],
     "tags": [
       "commerce",
@@ -3821,7 +3830,8 @@
     "native_factions": [
       "Knot-Shriners",
       "Loom Priests",
-      "Brotherhood of Ash"
+      "Brotherhood of Ash",
+      "The Liminal Taper"
     ],
     "tags": [
       "occult",
@@ -3941,7 +3951,9 @@
       "🕯"
     ],
     "native_factions": [
-      "Keepers of Silence"
+      "Keepers of Silence",
+      "Hearth Witches",
+      "Iron Confessors"
     ],
     "tags": [
       "spiritual",
@@ -4057,7 +4069,8 @@
     ],
     "native_factions": [
       "Lantern Cant",
-      "Memory Weavers"
+      "Memory Weavers",
+      "Veiled Sisters"
     ],
     "tags": [
       "occult",
@@ -4296,7 +4309,8 @@
       "Pollinator Guild",
       "Verdant Pulse",
       "Yeast Prophets",
-      "Swift Herd"
+      "Swift Herd",
+      "Scythe Provosts"
     ],
     "tags": [
       "pastoral",
@@ -5187,7 +5201,8 @@
       "⭐"
     ],
     "native_factions": [
-      "Iron Shepherds"
+      "Iron Shepherds",
+      "The Opalescent Hegemon"
     ],
     "tags": [
       "space",
@@ -5981,7 +5996,9 @@
     "native_factions": [
       "Memory Weavers",
       "Lantern Cant",
-      "Chorus of Oblivion"
+      "Chorus of Oblivion",
+      "Syndicate of Glass",
+      "Veiled Sisters"
     ],
     "tags": [
       "liminal",
@@ -6249,7 +6266,9 @@
       "📋"
     ],
     "native_factions": [
-      "Debt Wardens"
+      "Debt Wardens",
+      "Nexus Wardens",
+      "Iron Confessors"
     ],
     "tags": [
       "enforcement",
@@ -6377,7 +6396,9 @@
       "⚙"
     ],
     "native_factions": [
-      "Kilowatt Collective"
+      "Kilowatt Collective",
+      "The Sovereign Ukase",
+      "Resonance Dancers"
     ],
     "tags": [
       "infrastructure",
@@ -6632,7 +6653,9 @@
       "⚡"
     ],
     "native_factions": [
-      "Black Horizon"
+      "Black Horizon",
+      "Void Emperors",
+      "The Opalescent Hegemon"
     ],
     "tags": [
       "physics",
@@ -6818,7 +6841,9 @@
     "native_factions": [
       "Helix Conservatory",
       "Symphony Smiths",
-      "Star-Charter Enclave"
+      "Star-Charter Enclave",
+      "Seedvault Curators",
+      "The Vitreous Scrutiny"
     ],
     "tags": [
       "starter",
@@ -7003,7 +7028,8 @@
     "native_factions": [
       "Reality Midwives",
       "Starforge Reliquary",
-      "Star-Charter Enclave"
+      "Star-Charter Enclave",
+      "Seedvault Curators"
     ],
     "tags": [
       "starter",
