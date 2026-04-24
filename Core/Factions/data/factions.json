@@ -181,37 +181,37 @@
     },
     "description": "Mercenaries who specialize in clean endings - not just killing, but ensuring nothing remains. They burn what needs burning, scatter what needs scattering, and perform the funeral rites that let the dead rest properly. Some call them soldiers. Some call them priests. Their targets don't call them anything, because the Brotherhood ensures there's nothing left to speak. The ⚱️ is both product and payment.",
     "hamiltonian": {
-      "⚔": {
-        "⚱": 0.5,
-        "🌫": 0.4
-      },
       "⚱": {
-        "⚔": 0.5,
         "🌫": 0.6,
-        "🩹": 0.4
+        "⚔": 0.5,
+        "🩹": 0.45
       },
       "🌫": {
-        "⚔": 0.4,
         "⚱": 0.6,
-        "🧯": 0.4
+        "🧯": 0.48
       },
-      "🧯": {
-        "🌫": 0.4,
-        "🩹": 0.4
+      "⚔": {
+        "⚱": 0.5,
+        "🩹": -0.3,
+        "🧯": -0.22
       },
       "🩹": {
-        "⚱": 0.4,
-        "🧯": 0.4
+        "⚱": 0.45,
+        "⚔": -0.3
+      },
+      "🧯": {
+        "🌫": 0.48,
+        "⚔": -0.22
       }
     },
     "name": "Brotherhood of Ash",
     "ring": "second",
     "self_energies": {
-      "⚔": 0.15,
-      "⚱": 0.25,
-      "🌫": 0.2,
+      "⚱": 0.3,
+      "🌫": 0.22,
       "🧯": 0.2,
-      "🩹": 0.15
+      "⚔": 0.15,
+      "🩹": 0.12
     },
     "tags": [
       "cremation",
@@ -463,30 +463,32 @@
     "motto": "If it can be reached, it can be charted.",
     "self_energies": {
       "🧭": 0.3,
-      "📍": 0.15,
-      "🗺": 0.25,
-      "🔭": 0.2
+      "🗺": 0.28,
+      "🔭": 0.22,
+      "📍": -0.2
     },
     "hamiltonian": {
       "🧭": {
-        "📍": 0.5,
-        "🗺": 0.6,
-        "🔭": 0.4
-      },
-      "📍": {
-        "🧭": 0.5,
-        "🗺": 0.7,
+        "🗺": 0.55,
         "🔭": 0.4
       },
       "🗺": {
-        "🧭": 0.6,
-        "📍": 0.7,
-        "🔭": 0.5
+        "🧭": 0.55,
+        "📍": -0.3,
+        "🔭": [
+          0.3,
+          0.45
+        ]
+      },
+      "📍": {
+        "🗺": -0.3
       },
       "🔭": {
-        "🧭": 0.4,
-        "📍": 0.4,
-        "🗺": 0.5
+        "🗺": [
+          0.3,
+          -0.45
+        ],
+        "🧭": 0.4
       }
     },
     "drivers": {
@@ -631,40 +633,41 @@
     },
     "description": "Revolutionary militants who believe the current order must burn for something better to grow. They sabotage, they fight, they die for ideals they describe in terms that sound beautiful and vague. The Carrion Throne has tried to exterminate them for generations. They keep returning - not the same individuals, but the same ember, waiting for tinder. Some are heroes. Some are terrorists. History will decide, assuming history survives.",
     "hamiltonian": {
-      "⚔": {
-        "✊": 0.4,
-        "🔥": 0.5,
-        "🚩": 0.4
-      },
       "✊": {
-        "⚔": 0.4,
-        "🚩": 0.6,
-        "🔥": 0.2
-      },
-      "🔥": {
-        "⚔": 0.5,
-        "🚩": 0.5,
-        "🧨": 0.6,
-        "✊": 0.35
+        "🚩": 0.65,
+        "⚔": -0.25
       },
       "🚩": {
-        "⚔": 0.4,
-        "✊": 0.6,
+        "✊": 0.65,
         "🔥": 0.5
       },
+      "🔥": {
+        "🚩": 0.5,
+        "⚔": 0.45,
+        "🧨": [
+          0.25,
+          -0.5
+        ]
+      },
+      "⚔": {
+        "🔥": 0.45,
+        "✊": -0.25
+      },
       "🧨": {
-        "⚔": 0.3,
-        "🔥": 0.6
+        "🔥": [
+          0.25,
+          0.5
+        ]
       }
     },
     "name": "Children of the Ember",
     "ring": "second",
     "self_energies": {
+      "✊": 0.35,
+      "🚩": 0.25,
+      "🔥": 0.22,
       "⚔": 0.15,
-      "✊": 0.3,
-      "🔥": 0.25,
-      "🚩": 0.2,
-      "🧨": 0.05
+      "🧨": 0.08
     },
     "tags": [
       "revolution",
@@ -1484,32 +1487,30 @@
     },
     "description": "They set grain prices, maintain storage standards, and arbitrate harvest disputes. Boring work that feeds everyone. The Yeast Prophets sometimes consult with senior Guild members about fermentation techniques - a professional courtesy that the Guild considers entirely mundane. When crop failures threaten, the Guilds decide who eats. This makes them more powerful than any army, though they rarely think of it that way.",
     "hamiltonian": {
-      "🌱": {
-        "💰": 0.3,
-        "🧺": 0.5
+      "💰": {
+        "🍞": 0.58,
+        "🧺": 0.5,
+        "🌱": 0.32
       },
       "🍞": {
-        "💰": 0.5,
-        "🧺": 0.6
-      },
-      "💰": {
-        "🌱": 0.3,
-        "🍞": 0.5,
-        "🧺": 0.4
+        "💰": 0.58,
+        "🧺": 0.55
       },
       "🧺": {
-        "🌱": 0.5,
-        "🍞": 0.6,
-        "💰": 0.4
+        "💰": 0.5,
+        "🍞": 0.55
+      },
+      "🌱": {
+        "💰": 0.32
       }
     },
     "name": "Granary Guilds",
     "ring": "center",
     "self_energies": {
-      "🌱": 0.05,
-      "🍞": 0.1,
-      "💰": 0.3,
-      "🧺": 0.2
+      "💰": 0.38,
+      "🧺": 0.22,
+      "🍞": 0.15,
+      "🌱": 0.05
     },
     "tags": [
       "storage",
@@ -2067,38 +2068,35 @@
       }
     },
     "hamiltonian": {
+      "🛡": {
+        "⚔": 0.68,
+        "🐑": 0.58,
+        "🛸": -0.28
+      },
       "⚔": {
-        "🐑": 0.4,
-        "🛡": 0.7
+        "🛡": 0.68
       },
       "🐑": {
-        "⚔": 0.4,
-        "🛡": 0.6,
-        "🛸": 0.5
-      },
-      "🛡": {
-        "⚔": 0.7,
-        "🐑": 0.6,
-        "🛸": 0.4
+        "🛡": 0.58,
+        "🛸": -0.35
       },
       "🛸": {
-        "🐑": 0.5,
-        "🛡": 0.4,
-        "🧭": 0.6
+        "🧭": 0.55,
+        "🐑": -0.35,
+        "🛡": -0.28
       },
       "🧭": {
-        "🛡": 0.3,
-        "🛸": 0.6
+        "🛸": 0.55
       }
     },
     "name": "Iron Shepherds",
     "ring": "second",
     "self_energies": {
-      "⚔": 0.2,
-      "🐑": 0.1,
-      "🛡": 0.35,
-      "🛸": 0.2,
-      "🧭": 0.25
+      "🛡": 0.38,
+      "🧭": 0.25,
+      "🛸": 0.22,
+      "⚔": 0.18,
+      "🐑": 0.12
     },
     "tags": [
       "protection",
@@ -2524,25 +2522,27 @@
       },
       "🔦": {
         "🏮": 0.5,
-        "🕯": 0.4,
+        "🕯": -0.22,
         "🧿": 0.5
       },
       "🕯": {
         "🏮": 0.6,
-        "🔦": 0.4
+        "🔦": -0.22,
+        "🧿": 0.55
       },
       "🧿": {
         "🏮": 0.4,
-        "🔦": 0.5
+        "🔦": 0.5,
+        "🕯": 0.55
       }
     },
     "name": "Lantern Cant",
     "ring": "second",
     "self_energies": {
-      "🏮": 0.3,
-      "🔦": 0.2,
-      "🕯": 0.15,
-      "🧿": 0.2
+      "🏮": 0.32,
+      "🔦": 0.18,
+      "🕯": 0.22,
+      "🧿": 0.25
     },
     "tags": [
       "communication",
@@ -3240,41 +3240,42 @@
     },
     "description": "They operate the mills that grind grain into flour. Dusty work, loud work, essential work. The Union negotiates rates with the Granary Guilds, maintains equipment standards, and ensures every settlement has processing capacity. Their apprenticeship takes three years. Most millers have permanent hearing damage and strong opinions about grain moisture content.",
     "hamiltonian": {
+      "💨": {
+        "⚙": 0.6,
+        "🏭": 0.52
+      },
       "⚙": {
-        "🏭": 0.7,
-        "💨": 0.3,
+        "💨": 0.6,
+        "🏭": 0.65,
         "🔨": 0.5
       },
-      "🍞": {
-        "🏭": 0.6,
-        "💨": 0.4,
-        "👥": 0.15
-      },
       "🏭": {
-        "⚙": 0.7,
-        "🍞": 0.6,
-        "💨": 0.5
-      },
-      "💨": {
-        "🍞": 0.4,
-        "🏭": 0.5
+        "💨": 0.52,
+        "⚙": 0.65,
+        "🍞": 0.55,
+        "👥": -0.2
       },
       "🔨": {
-        "⚙": 0.5,
-        "🏭": 0.3
+        "⚙": 0.5
+      },
+      "🍞": {
+        "🏭": 0.55,
+        "👥": 0.45
       },
       "👥": {
-        "🍞": 0.25
+        "🏭": -0.2,
+        "🍞": 0.45
       }
     },
     "name": "Millwright's Union",
     "ring": "center",
     "self_energies": {
-      "⚙": 0.15,
-      "🍞": 0.1,
-      "🏭": 0.25,
-      "💨": 0.1,
-      "🔨": 0.1
+      "🏭": 0.28,
+      "⚙": 0.2,
+      "💨": 0.25,
+      "🔨": 0.15,
+      "🍞": 0.12,
+      "👥": 0.05
     },
     "tags": [
       "industrial",
@@ -3461,33 +3462,36 @@
     "description": "The hidden network beneath. Moon-touched, death-fed, eternal recyclers. Spooky symbiosis with death itself.",
     "hamiltonian": {
       "🌙": {
-        "🍄": 0.6
-      },
-      "🍂": {
-        "🍄": 0.5,
-        "💀": 0.3
+        "🍄": 0.65,
+        "💀": -0.28
       },
       "🍄": {
-        "🌙": 0.6,
-        "🍂": 0.5,
-        "💀": 0.4,
+        "🌙": 0.65,
+        "🍂": 0.52,
+        "💀": 0.45,
         "🌱": 0.3
       },
+      "🍂": {
+        "🍄": 0.52,
+        "🌱": 0.35
+      },
       "💀": {
-        "🍂": 0.3,
-        "🍄": 0.4
+        "🍄": 0.45,
+        "🌙": -0.28
       },
       "🌱": {
-        "🍄": 0.15
+        "🍄": 0.3,
+        "🍂": 0.35
       }
     },
     "name": "Mycelial Web",
     "ring": "center",
     "self_energies": {
-      "🍂": 0.0,
-      "🍄": 0.05,
-      "💀": -0.1,
-      "🌱": 0.05
+      "🌙": 0.28,
+      "🍄": 0.15,
+      "🍂": 0.05,
+      "🌱": 0.08,
+      "💀": -0.22
     },
     "tags": [
       "decomposer",
@@ -3875,22 +3879,30 @@
     "description": "The invisible cullers. They thrive on density and crash on scarcity.",
     "hamiltonian": {
       "🦠": {
-        "🌾": -0.3,
+        "🌾": -0.32,
         "🐇": -0.3,
-        "🐝": -0.25,
-        "💀": 0.5
-      },
-      "🐇": {
-        "🦠": 0.25
+        "🐝": -0.28,
+        "💀": 0.52
       },
       "🌾": {
-        "🦠": 0.2
+        "🦠": -0.32
+      },
+      "🐇": {
+        "🦠": -0.3
+      },
+      "🐝": {
+        "🦠": -0.28
+      },
+      "💀": {
+        "🦠": 0.52
       }
     },
     "name": "Plague Vectors",
     "ring": "second",
     "self_energies": {
-      "🦠": -0.05
+      "🦠": -0.05,
+      "💀": 0.15,
+      "🐝": -0.15
     },
     "tags": [
       "disease",
@@ -3932,7 +3944,7 @@
     "hamiltonian": {
       "🐝": {
         "🌱": 0.3,
-        "🌾": 0.4,
+        "🌾": 0.5,
         "🌿": 0.5
       },
       "🌿": {
@@ -3940,7 +3952,8 @@
       },
       "🌾": {
         "🌿": 0.2,
-        "🌱": 0.1
+        "🌱": 0.1,
+        "🐝": 0.5
       },
       "🌱": {
         "🌾": 0.2
@@ -3949,7 +3962,10 @@
     "name": "Pollinator Guild",
     "ring": "center",
     "self_energies": {
-      "🐝": 0.02
+      "🐝": 0.32,
+      "🌾": 0.22,
+      "🌿": 0.18,
+      "🌱": 0.1
     },
     "tags": [
       "fauna",
@@ -5298,24 +5314,24 @@
     "description": "The gentle grazers. They eat the green and feed the strong.",
     "hamiltonian": {
       "🌿": {
-        "🐇": 0.5,
-        "🦌": 0.6
+        "🐇": 0.55,
+        "🦌": 0.62
       },
       "🐇": {
-        "🌿": 0.5,
-        "🦌": 0.3
+        "🌿": 0.55,
+        "🦌": -0.2
       },
       "🦌": {
-        "🌿": 0.6,
-        "🐇": 0.3
+        "🌿": 0.62,
+        "🐇": -0.2
       }
     },
     "name": "Swift Herd",
     "ring": "center",
     "self_energies": {
-      "🌿": 0.1,
-      "🐇": 0.02,
-      "🦌": 0.01
+      "🌿": 0.2,
+      "🐇": 0.08,
+      "🦌": 0.05
     },
     "tags": [
       "fauna",
@@ -6619,11 +6635,13 @@
       },
       "🌲": {
         "🌱": -0.2,
-        "🍂": 0.2
+        "🍂": 0.2,
+        "🌾": -0.2
       },
       "🌾": {
         "🌱": 0.3,
-        "🍂": 0.5
+        "🍂": 0.5,
+        "🌲": -0.2
       },
       "🌿": {
         "🌱": 0.6,
@@ -6644,7 +6662,7 @@
       "🌲": 0.3,
       "🌾": 0.1,
       "🌿": 0.1,
-      "🍂": 0.0
+      "🍂": -0.05
     },
     "tags": [
       "flora",
@@ -7187,44 +7205,42 @@
     },
     "description": "They read probability in fermentation - bubble patterns, rise timing, the behavior of cultures. But they're not passive seers. They understand that observation shapes outcome, so they *prepare* the substrate. The quest they give you, the marriage they arrange, the rumor they plant - these are initial conditions. By the time causality propagates, their preferred eigenstate has already won. They smell like fresh bread and speak in conditional futures. They are running state management on the quantum computer that underlies reality.",
     "hamiltonian": {
-      "⛪": {
-        "🌙": 0.3,
-        "🧪": 0.3,
-        "🫙": 0.4
+      "🫙": {
+        "🍞": 0.62,
+        "🥖": 0.58,
+        "🧪": 0.5,
+        "⛪": 0.45,
+        "💨": 0.35
       },
       "🍞": {
-        "🥖": 0.5,
-        "🫙": 0.6
+        "🫙": 0.62,
+        "🥖": 0.48
       },
       "🥖": {
-        "🍞": 0.5,
-        "🫙": 0.7
+        "🫙": 0.58,
+        "🍞": 0.48
       },
       "🧪": {
-        "🍄": 0.4,
-        "🍞": 0.4,
-        "🥖": 0.5,
-        "🫙": 0.5
+        "🫙": 0.5,
+        "⛪": -0.28
       },
-      "🫙": {
-        "⛪": 0.4,
-        "🍞": 0.6,
-        "🥖": 0.7,
-        "🧪": 0.5,
-        "💨": 0.2
+      "⛪": {
+        "🫙": 0.45,
+        "🧪": -0.28
       },
       "💨": {
-        "🫙": 0.3
+        "🫙": 0.35
       }
     },
     "name": "Yeast Prophets",
     "ring": "third",
     "self_energies": {
-      "⛪": 0.3,
-      "🍞": 0.1,
-      "🥖": 0.12,
-      "🧪": 0.15,
-      "🫙": 0.2
+      "🫙": 0.35,
+      "⛪": 0.28,
+      "🍞": 0.15,
+      "🥖": 0.15,
+      "🧪": 0.12,
+      "💨": 0.08
     },
     "tags": [
       "fermentation",
