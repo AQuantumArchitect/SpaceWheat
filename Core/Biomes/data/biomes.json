@@ -565,6 +565,48 @@
           "rate": 0.015,
           "target": "🍂"
         }
+      },
+      "🍄": {
+        "lindblad_incoming": {
+          "🍂": 0.02,
+          "💀": 0.015
+        }
+      },
+      "🍂": {
+        "lindblad_incoming": {
+          "💀": 0.015
+        },
+        "lindblad_outgoing": {
+          "🍄": 0.02
+        }
+      },
+      "🦠": {
+        "lindblad_incoming": {
+          "🧫": 0.03
+        },
+        "lindblad_outgoing": {
+          "💀": 0.03
+        }
+      },
+      "🧫": {
+        "lindblad_incoming": {
+          "🦠": 0.02
+        }
+      },
+      "🐜": {
+        "lindblad_outgoing": {
+          "💀": 0.015
+        },
+        "decay": {
+          "rate": 0.02,
+          "target": "🗑"
+        }
+      },
+      "🦗": {
+        "decay": {
+          "rate": 0.025,
+          "target": "🗑"
+        }
       }
     },
     "icons": [
@@ -1760,8 +1802,8 @@
     "icon_components": {
       "📡": {
         "lindblad_outgoing": {
-          "📶": 0.08,
-          "🧩": 0.03
+          "📶": 0.1,
+          "🗣": 0.03
         },
         "decay": {
           "rate": 0.008,
@@ -1770,48 +1812,48 @@
       },
       "📶": {
         "lindblad_incoming": {
-          "📡": 0.08,
-          "📻": 0.04
+          "📡": 0.1
         },
         "lindblad_outgoing": {
-          "🧩": 0.04
+          "🗣": 0.06
         },
         "decay": {
-          "rate": 0.06,
+          "rate": 0.02,
+          "target": "🗑"
+        }
+      },
+      "🗣": {
+        "lindblad_incoming": {
+          "📶": 0.06,
+          "📡": 0.03
+        },
+        "lindblad_outgoing": {
+          "🔊": 0.06
+        },
+        "decay": {
+          "rate": 0.03,
           "target": "🗑"
         }
       },
       "🔊": {
         "lindblad_incoming": {
-          "🗣": 0.05,
+          "🗣": 0.06,
           "🎵": 0.04
         },
         "lindblad_outgoing": {
-          "🔇": 0.06
+          "🎵": 0.03
         },
         "decay": {
           "rate": 0.04,
           "target": "🗑"
         }
       },
-      "🗣": {
-        "lindblad_outgoing": {
-          "🔊": 0.05,
-          "📶": 0.03
-        },
-        "decay": {
-          "rate": 0.05,
-          "target": "🗑"
-        }
-      },
       "🎵": {
         "lindblad_incoming": {
-          "⚙": 0.02,
-          "🔨": 0.03
+          "🔊": 0.03
         },
         "lindblad_outgoing": {
-          "🔊": 0.04,
-          "🔇": 0.02
+          "🧩": 0.04
         },
         "decay": {
           "rate": 0.03,
@@ -1820,8 +1862,7 @@
       },
       "🧩": {
         "lindblad_incoming": {
-          "📡": 0.03,
-          "📶": 0.04
+          "🎵": 0.04
         },
         "decay": {
           "rate": 0.02,
@@ -3535,57 +3576,54 @@
     "icon_components": {
       "🐝": {
         "lindblad_incoming": {
-          "🌿": 0.06,
-          "🌾": 0.03
+          "🌿": 0.08,
+          "🌾": 0.06,
+          "☀": 0.04
         },
         "lindblad_outgoing": {
           "🫙": 0.05
         },
         "decay": {
-          "rate": 0.05,
+          "rate": 0.02,
           "target": "🍂"
         }
       },
       "🫙": {
         "lindblad_incoming": {
           "🐝": 0.05,
-          "🍞": 0.02,
-          "💧": 0.03
-        },
-        "lindblad_outgoing": {
-          "🍞": 0.03
+          "🍞": 0.04,
+          "💧": 0.05
         },
         "decay": {
-          "rate": 0.03,
+          "rate": 0.015,
           "target": "🍂"
         }
       },
       "🌿": {
         "lindblad_incoming": {
-          "♻️": 0.03,
-          "💧": 0.04,
-          "🍂": 0.04
+          "♻️": 0.04,
+          "💧": 0.06,
+          "🍂": 0.05,
+          "☀": 0.03
         },
         "lindblad_outgoing": {
-          "🐝": 0.06,
-          "♻️": 0.03
+          "🐝": 0.08
         },
         "decay": {
-          "rate": 0.025,
+          "rate": 0.015,
           "target": "🍂"
         }
       },
       "🌾": {
         "lindblad_incoming": {
-          "🍂": 0.02
+          "🍂": 0.04,
+          "💧": 0.03
         },
         "lindblad_outgoing": {
-          "🐝": 0.03,
-          "♻️": 0.06,
-          "💨": 0.05
+          "🐝": 0.06
         },
         "decay": {
-          "rate": 0.02,
+          "rate": 0.012,
           "target": "🍂"
         }
       }
@@ -4831,27 +4869,10 @@
       "cycle"
     ],
     "icon_components": {
-      "🪵": {
-        "lindblad_incoming": {
-          "🌲": 0.04,
-          "🪓": 0.05
-        },
-        "lindblad_outgoing": {
-          "🔥": 0.04
-        },
-        "decay": {
-          "rate": 0.01,
-          "target": "🗑"
-        }
-      },
       "🌲": {
-        "lindblad_incoming": {
-          "🌬": 0.02,
-          "🍂": 0.01
-        },
         "lindblad_outgoing": {
-          "🪵": 0.04,
-          "🍂": 0.08
+          "🪵": 0.08,
+          "🍂": 0.04
         },
         "decay": {
           "rate": 0.005,
@@ -4860,21 +4881,33 @@
       },
       "🪓": {
         "lindblad_outgoing": {
-          "🪵": 0.05,
+          "🪵": 0.08,
           "🌲": 0.03
         },
         "decay": {
-          "rate": 0.02,
+          "rate": 0.03,
+          "target": "🗑"
+        }
+      },
+      "🪵": {
+        "lindblad_incoming": {
+          "🌲": 0.08,
+          "🪓": 0.08
+        },
+        "lindblad_outgoing": {
+          "🔥": 0.09
+        },
+        "decay": {
+          "rate": 0.015,
           "target": "🗑"
         }
       },
       "🔥": {
         "lindblad_incoming": {
-          "🪵": 0.04,
-          "🍂": 0.1
+          "🪵": 0.09
         },
         "lindblad_outgoing": {
-          "🍂": 0.08
+          "🍂": 0.12
         },
         "decay": {
           "rate": 0.1,
@@ -4883,11 +4916,11 @@
       },
       "🍂": {
         "lindblad_incoming": {
-          "🌲": 0.008,
-          "🔥": 0.025
+          "🌲": 0.04,
+          "🔥": 0.12
         },
         "decay": {
-          "rate": 0.008,
+          "rate": 0.01,
           "target": "🌱"
         }
       }
@@ -5462,44 +5495,40 @@
     ],
     "icon_components": {
       "🧲": {
+        "lindblad_incoming": {
+          "⚡": 0.08,
+          "🌀": 0.05
+        },
         "lindblad_outgoing": {
+          "📡": 0.03
+        }
+      },
+      "⚡": {
+        "lindblad_incoming": {
+          "🔌": 0.1,
+          "🔋": 0.06
+        },
+        "lindblad_outgoing": {
+          "🧲": 0.08,
+          "🌀": 0.04
+        }
+      },
+      "🌀": {
+        "lindblad_incoming": {
           "⚡": 0.04,
-          "🌀": 0.03
+          "🧲": 0.05
         },
         "decay": {
           "rate": 0.02,
           "target": "🗑"
         }
       },
-      "⚡": {
-        "lindblad_incoming": {
-          "🧲": 0.04
-        },
-        "lindblad_outgoing": {
-          "📡": 0.03
-        }
-      },
-      "🌀": {
-        "lindblad_incoming": {
-          "🧲": 0.03,
-          "🌞": 0.03
-        },
-        "lindblad_outgoing": {
-          "⚙": 0.02
-        }
-      },
       "📡": {
         "lindblad_incoming": {
-          "⚡": 0.03,
-          "🔊": 0.04,
-          "👘": 0.02
-        },
-        "lindblad_outgoing": {
-          "🔇": 0.05,
-          "📶": 0.03
+          "🧲": 0.03
         },
         "decay": {
-          "rate": 0.008,
+          "rate": 0.015,
           "target": "🗑"
         }
       }

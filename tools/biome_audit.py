@@ -312,10 +312,9 @@ def compute_signature(biome: dict, factions: list[dict]) -> dict:
 
 
 def detect_cascade(lind: dict, se: dict, emojis: list[str]) -> bool:
-    """Cascade: directed Lindblad flow (drains + decays) forms a path of
-    length >= 3 through biome emojis with monotonically-decreasing SE.
+    """Cascade: acyclic directed drain path of length >= 3 through biome emojis
+    with an end-to-end SE drop (source SE > sink SE by >= 0.1).
     """
-    # Build directed flow graph from drains + decays restricted to biome emojis
     edges = []
     for s, t, r in lind.get('drains', []):
         if s in emojis and t in emojis and r > 0.02:
@@ -325,21 +324,20 @@ def detect_cascade(lind: dict, se: dict, emojis: list[str]) -> bool:
             edges.append((s, t))
     if len(edges) < 3:
         return False
-    # Find longest monotonic-SE path
     adj = {}
     for a, b in edges:
         adj.setdefault(a, []).append(b)
-    def dfs(node, visited, depth):
-        best = depth
+    # Find an acyclic path of length >= 3 with SE[start] > SE[end] + 0.1
+    def dfs(node, start, visited, depth):
+        if depth >= 3 and se.get(start, 0.0) - se.get(node, 0.0) >= 0.1:
+            return True
         for nxt in adj.get(node, []):
             if nxt in visited: continue
-            # require monotonic SE descent along the path
-            if se.get(nxt, 0) > se.get(node, 0) + 0.05:
-                continue
-            best = max(best, dfs(nxt, visited | {nxt}, depth + 1))
-        return best
+            if dfs(nxt, start, visited | {nxt}, depth + 1):
+                return True
+        return False
     for src in adj:
-        if dfs(src, {src}, 1) >= 3:
+        if dfs(src, src, {src}, 1):
             return True
     return False
 
@@ -359,13 +357,15 @@ def detect_loop_current(emojis: list[str], couplings_imag: dict, couplings_re: d
     def search(start, node, visited, path_signs, depth):
         if depth > 6: return False
         for nxt, im in adj.get(node, []):
-            if nxt == start and depth >= 3 and len(path_signs) >= 3:
-                # Check consistency: all positive or all negative
-                if all(s > 0 for s in path_signs + [im]) or all(s < 0 for s in path_signs + [im]):
+            # Closing the cycle: at least 2 edges accumulated, closing edge makes it a 3+ cycle
+            if nxt == start and len(path_signs) >= 2:
+                closing = path_signs + [im]
+                if all(s > 0 for s in closing) or all(s < 0 for s in closing):
                     return True
+                continue
             if nxt in visited: continue
             if path_signs and ((path_signs[-1] > 0) != (im > 0)):
-                continue  # sign flipped, not a consistent current
+                continue
             if search(start, nxt, visited | {nxt}, path_signs + [im], depth + 1):
                 return True
         return False
@@ -425,8 +425,8 @@ def classify_archetype(sig: dict) -> str:
     if sig['se_neg_frac'] >= 0.5:
         return 'Dark'
 
-    # 6. Clock: many active Rabi pairs, low cross structure
-    if sig['rabi_active_frac'] >= 0.5 and sig['n_couplings'] <= sig['rabi_active_frac'] * len(sig['emojis']):
+    # 7. Clock: most pairs actively Rabi-oscillating
+    if sig['rabi_active_frac'] >= 0.6 and chiral < 0.2:
         return 'Clock'
 
     # 7. Stone: coherent but near-frozen (low rabi, low chirality)
