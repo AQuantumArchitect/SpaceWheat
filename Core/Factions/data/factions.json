@@ -88,6 +88,23 @@
       "🌀",
       "☀",
       "⚡"
+    ],
+    "icons": [
+      {
+        "name": "Void",
+        "pole_0": "🕳",
+        "pole_1": "🪐"
+      },
+      {
+        "name": "Singularity",
+        "pole_0": "🌀",
+        "pole_1": "⚫"
+      },
+      {
+        "name": "Singularity",
+        "pole_0": "🕳",
+        "pole_1": "⚡"
+      }
     ]
   },
   {
@@ -164,7 +181,8 @@
       "💉",
       "🔧",
       "💰"
-    ]
+    ],
+    "icons": []
   },
   {
     "alignment_couplings": {
@@ -241,7 +259,8 @@
       "⚱",
       "🩹",
       "🧯"
-    ]
+    ],
+    "icons": []
   },
   {
     "alignment_couplings": {
@@ -360,6 +379,23 @@
       "🩸",
       "🏰",
       "📜"
+    ],
+    "icons": [
+      {
+        "name": "Predation",
+        "pole_0": "🦅",
+        "pole_1": "🩸"
+      },
+      {
+        "name": "Heritage",
+        "pole_0": "🏰",
+        "pole_1": "📜"
+      },
+      {
+        "name": "Nobility",
+        "pole_0": "⚜",
+        "pole_1": "🩸"
+      }
     ]
   },
   {
@@ -432,6 +468,18 @@
       "🧭",
       "🔭",
       "📍"
+    ],
+    "icons": [
+      {
+        "name": "Navigation",
+        "pole_0": "🧭",
+        "pole_1": "📍"
+      },
+      {
+        "name": "Exploration",
+        "pole_0": "🗺",
+        "pole_1": "🔭"
+      }
     ]
   },
   {
@@ -516,7 +564,8 @@
       "📍",
       "🗺",
       "🔭"
-    ]
+    ],
+    "icons": []
   },
   {
     "description": "The eternal substrate. Sun and moon, the four elements. The abiotic foundation.",
@@ -614,6 +663,18 @@
       "💧",
       "⛰",
       "🌬"
+    ],
+    "icons": [
+      {
+        "name": "CelestialCycle",
+        "pole_0": "☀",
+        "pole_1": "🌙"
+      },
+      {
+        "name": "NightCycle",
+        "pole_0": "🌙",
+        "pole_1": "☀"
+      }
     ]
   },
   {
@@ -690,6 +751,13 @@
       "✊",
       "🚩",
       "🧨"
+    ],
+    "icons": [
+      {
+        "name": "Revolt",
+        "pole_0": "✊",
+        "pole_1": "🚩"
+      }
     ]
   },
   {
@@ -748,7 +816,8 @@
       "💉",
       "🔧",
       "🦴"
-    ]
+    ],
+    "icons": []
   },
   {
     "name": "Chorus of Oblivion",
@@ -834,6 +903,13 @@
       "🔔",
       "🫥",
       "🕯"
+    ],
+    "icons": [
+      {
+        "name": "Resonance",
+        "pole_0": "🎶",
+        "pole_1": "🔔"
+      }
     ]
   },
   {
@@ -900,6 +976,13 @@
       "🪦",
       "🕰",
       "📖"
+    ],
+    "icons": [
+      {
+        "name": "Mortality",
+        "pole_0": "🕰",
+        "pole_1": "🪦"
+      }
     ]
   },
   {
@@ -974,7 +1057,8 @@
       "⛏",
       "🪨",
       "🪤"
-    ]
+    ],
+    "icons": []
   },
   {
     "alignment_couplings": {
@@ -1052,7 +1136,8 @@
       "🫧",
       "🕳",
       "⚱"
-    ]
+    ],
+    "icons": []
   },
   {
     "name": "Debt Wardens",
@@ -1124,6 +1209,18 @@
       "💸",
       "👥",
       "💀"
+    ],
+    "icons": [
+      {
+        "name": "Debt",
+        "pole_0": "💸",
+        "pole_1": "⛓"
+      },
+      {
+        "name": "Liberation",
+        "pole_0": "👥",
+        "pole_1": "⛓"
+      }
     ]
   },
   {
@@ -1191,6 +1288,13 @@
       "💾",
       "🧩",
       "📶"
+    ],
+    "icons": [
+      {
+        "name": "Signal",
+        "pole_0": "📡",
+        "pole_1": "📶"
+      }
     ]
   },
   {
@@ -1284,6 +1388,13 @@
       "✊",
       "⛓",
       "👥"
+    ],
+    "icons": [
+      {
+        "name": "Clearing",
+        "pole_0": "🪓",
+        "pole_1": "🔥"
+      }
     ]
   },
   {
@@ -1363,7 +1474,8 @@
       "🩸",
       "🧫",
       "🧵"
-    ]
+    ],
+    "icons": []
   },
   {
     "alignment_couplings": {
@@ -1457,7 +1569,8 @@
       "💎",
       "🪨",
       "⚡"
-    ]
+    ],
+    "icons": []
   },
   {
     "alignment_couplings": {
@@ -1524,6 +1637,13 @@
       "🍞",
       "💰",
       "🧺"
+    ],
+    "icons": [
+      {
+        "name": "Commerce",
+        "pole_0": "🧺",
+        "pole_1": "💰"
+      }
     ]
   },
   {
@@ -1618,6 +1738,13 @@
       "💨",
       "🍞",
       "👥"
+    ],
+    "icons": [
+      {
+        "name": "Hearth",
+        "pole_0": "🔥",
+        "pole_1": "❄️"
+      }
     ]
   },
   {
@@ -1716,7 +1843,8 @@
       "🫖",
       "🥣",
       "🧿"
-    ]
+    ],
+    "icons": []
   },
   {
     "alignment_couplings": {
@@ -1805,7 +1933,8 @@
       "🧫",
       "⚗️",
       "🕳"
-    ]
+    ],
+    "icons": []
   },
   {
     "alignment_couplings": {
@@ -1879,6 +2008,13 @@
       "🪞",
       "🍷",
       "⚖"
+    ],
+    "icons": [
+      {
+        "name": "Decadence",
+        "pole_0": "🍷",
+        "pole_1": "🌹"
+      }
     ]
   },
   {
@@ -1943,6 +2079,13 @@
       "📜",
       "🗃",
       "⛓"
+    ],
+    "icons": [
+      {
+        "name": "Decree",
+        "pole_0": "📜",
+        "pole_1": "🖋"
+      }
     ]
   },
   {
@@ -2028,6 +2171,13 @@
       "📿",
       "🗝",
       "🧘"
+    ],
+    "icons": [
+      {
+        "name": "Practice",
+        "pole_0": "🧘",
+        "pole_1": "📿"
+      }
     ]
   },
   {
@@ -2120,7 +2270,8 @@
       "🐑",
       "🛸",
       "🧭"
-    ]
+    ],
+    "icons": []
   },
   {
     "alignment_couplings": {
@@ -2193,7 +2344,8 @@
       "💧",
       "⚖",
       "🪣"
-    ]
+    ],
+    "icons": []
   },
   {
     "alignment_couplings": {
@@ -2272,7 +2424,8 @@
       "🧘",
       "🛑",
       "📵"
-    ]
+    ],
+    "icons": []
   },
   {
     "alignment_couplings": {
@@ -2376,6 +2529,23 @@
       "🌫",
       "🌋",
       "🌞"
+    ],
+    "icons": [
+      {
+        "name": "Power",
+        "pole_0": "⚡",
+        "pole_1": "🔋"
+      },
+      {
+        "name": "Circuit",
+        "pole_0": "🔌",
+        "pole_1": "⚡"
+      },
+      {
+        "name": "Storage",
+        "pole_0": "🔋",
+        "pole_1": "⚙"
+      }
     ]
   },
   {
@@ -2475,6 +2645,13 @@
       "🔔",
       "🪡",
       "🗝"
+    ],
+    "icons": [
+      {
+        "name": "Bond",
+        "pole_0": "🪢",
+        "pole_1": "📿"
+      }
     ]
   },
   {
@@ -2567,6 +2744,18 @@
       "🔦",
       "🕯",
       "🧿"
+    ],
+    "icons": [
+      {
+        "name": "Lantern",
+        "pole_0": "🏮",
+        "pole_1": "🕯"
+      },
+      {
+        "name": "Ward",
+        "pole_0": "🧿",
+        "pole_1": "🏮"
+      }
     ]
   },
   {
@@ -2654,6 +2843,13 @@
       "🍷",
       "💃",
       "😂"
+    ],
+    "icons": [
+      {
+        "name": "Masque",
+        "pole_0": "🎭",
+        "pole_1": "💃"
+      }
     ]
   },
   {
@@ -2737,7 +2933,8 @@
       "📒",
       "📘",
       "🚔"
-    ]
+    ],
+    "icons": []
   },
   {
     "alignment_couplings": {
@@ -2830,6 +3027,13 @@
       "🧫",
       "🦠",
       "🌾"
+    ],
+    "icons": [
+      {
+        "name": "Insect",
+        "pole_0": "🦗",
+        "pole_1": "🐜"
+      }
     ]
   },
   {
@@ -2914,6 +3118,13 @@
       "🪡",
       "👘",
       "🪢"
+    ],
+    "icons": [
+      {
+        "name": "Knot",
+        "pole_0": "🪢",
+        "pole_1": "🪡"
+      }
     ]
   },
   {
@@ -3000,6 +3211,13 @@
       "📦",
       "🏛️",
       "🏚️"
+    ],
+    "icons": [
+      {
+        "name": "Sentiment",
+        "pole_0": "🐂",
+        "pole_1": "🐻"
+      }
     ]
   },
   {
@@ -3076,6 +3294,13 @@
       "🧮",
       "📘",
       "📋"
+    ],
+    "icons": [
+      {
+        "name": "Reference",
+        "pole_0": "📘",
+        "pole_1": "📐"
+      }
     ]
   },
   {
@@ -3150,6 +3375,13 @@
       "📼",
       "🧩",
       "🗝"
+    ],
+    "icons": [
+      {
+        "name": "Memory",
+        "pole_0": "📼",
+        "pole_1": "🧩"
+      }
     ]
   },
   {
@@ -3222,6 +3454,13 @@
       "🫥",
       "🪦",
       "🌑"
+    ],
+    "icons": [
+      {
+        "name": "Absence",
+        "pole_0": "🫥",
+        "pole_1": "🪦"
+      }
     ]
   },
   {
@@ -3303,6 +3542,18 @@
       "🍞",
       "🔨",
       "👥"
+    ],
+    "icons": [
+      {
+        "name": "Labor",
+        "pole_0": "👥",
+        "pole_1": "🍞"
+      },
+      {
+        "name": "Community",
+        "pole_0": "🍞",
+        "pole_1": "👥"
+      }
     ]
   },
   {
@@ -3373,7 +3624,8 @@
       "🏛",
       "🏺",
       "📐"
-    ]
+    ],
+    "icons": []
   },
   {
     "alignment_couplings": {
@@ -3454,7 +3706,8 @@
       "🦠",
       "🧫",
       "🧿"
-    ]
+    ],
+    "icons": []
   },
   {
     "alignment_couplings": {
@@ -3546,6 +3799,18 @@
       "🌙",
       "💀",
       "🌱"
+    ],
+    "icons": [
+      {
+        "name": "Death",
+        "pole_0": "🍂",
+        "pole_1": "💀"
+      },
+      {
+        "name": "Cycle",
+        "pole_0": "💀",
+        "pole_1": "🌱"
+      }
     ]
   },
   {
@@ -3640,7 +3905,8 @@
       "🚧",
       "🗝",
       "🚪"
-    ]
+    ],
+    "icons": []
   },
   {
     "alignment_couplings": {
@@ -3732,7 +3998,8 @@
       "🕴️",
       "⚙",
       "⚡"
-    ]
+    ],
+    "icons": []
   },
   {
     "alignment_couplings": {
@@ -3816,7 +4083,8 @@
       "🩸",
       "💱",
       "🛡"
-    ]
+    ],
+    "icons": []
   },
   {
     "description": "The hunters. They cull the weak and shepherd death.",
@@ -3899,6 +4167,18 @@
       "💀",
       "🌱",
       "🌾"
+    ],
+    "icons": [
+      {
+        "name": "PackHerd",
+        "pole_0": "🐺",
+        "pole_1": "🦌"
+      },
+      {
+        "name": "Raptor",
+        "pole_0": "🦅",
+        "pole_1": "🐇"
+      }
     ]
   },
   {
@@ -3965,7 +4245,8 @@
       "🌾",
       "🐝",
       "💀"
-    ]
+    ],
+    "icons": []
   },
   {
     "alignment_couplings": {
@@ -4026,6 +4307,13 @@
       "🌿",
       "🌾",
       "🌱"
+    ],
+    "icons": [
+      {
+        "name": "Bloom",
+        "pole_0": "🌿",
+        "pole_1": "🌾"
+      }
     ]
   },
   {
@@ -4113,6 +4401,13 @@
       "🚫",
       "🩺",
       "🧬"
+    ],
+    "icons": [
+      {
+        "name": "Diagnosis",
+        "pole_0": "🩺",
+        "pole_1": "🚫"
+      }
     ]
   },
   {
@@ -4187,6 +4482,13 @@
       "⚓",
       "💰",
       "🪝"
+    ],
+    "icons": [
+      {
+        "name": "Mooring",
+        "pole_0": "⚓",
+        "pole_1": "🪝"
+      }
     ]
   },
   {
@@ -4283,7 +4585,8 @@
       "🤲",
       "🍼",
       "⚡"
-    ]
+    ],
+    "icons": []
   },
   {
     "alignment_couplings": {
@@ -4364,7 +4667,8 @@
       "🗺",
       "📶",
       "🧭"
-    ]
+    ],
+    "icons": []
   },
   {
     "alignment_couplings": {
@@ -4475,6 +4779,13 @@
       "🔊",
       "📡",
       "🩰"
+    ],
+    "icons": [
+      {
+        "name": "Dance",
+        "pole_0": "💃",
+        "pole_1": "🎼"
+      }
     ]
   },
   {
@@ -4556,7 +4867,8 @@
       "⚙",
       "📋",
       "💎"
-    ]
+    ],
+    "icons": []
   },
   {
     "name": "Rose Wardens",
@@ -4630,7 +4942,8 @@
       "🥀",
       "🌺",
       "⚔"
-    ]
+    ],
+    "icons": []
   },
   {
     "alignment_couplings": {
@@ -4716,7 +5029,8 @@
       "🪵",
       "🧯",
       "🍂"
-    ]
+    ],
+    "icons": []
   },
   {
     "name": "Salt Scribes",
@@ -4791,6 +5105,13 @@
       "🐚",
       "🪨",
       "📜"
+    ],
+    "icons": [
+      {
+        "name": "Shell",
+        "pole_0": "🐚",
+        "pole_1": "🧂"
+      }
     ]
   },
   {
@@ -4877,7 +5198,8 @@
       "⛓",
       "🔓",
       "🕵️"
-    ]
+    ],
+    "icons": []
   },
   {
     "alignment_couplings": {
@@ -4951,6 +5273,13 @@
       "⚔",
       "🛡",
       "🏇"
+    ],
+    "icons": [
+      {
+        "name": "Combat",
+        "pole_0": "⚔",
+        "pole_1": "🛡"
+      }
     ]
   },
   {
@@ -5030,6 +5359,13 @@
       "🧶",
       "📡",
       "👘"
+    ],
+    "icons": [
+      {
+        "name": "Thread",
+        "pole_0": "🧵",
+        "pole_1": "🧶"
+      }
     ]
   },
   {
@@ -5109,6 +5445,13 @@
       "🧪",
       "🧫",
       "🧬"
+    ],
+    "icons": [
+      {
+        "name": "Research",
+        "pole_0": "🧪",
+        "pole_1": "🧬"
+      }
     ]
   },
   {
@@ -5187,6 +5530,18 @@
       "🌠",
       "🛰",
       "📡"
+    ],
+    "icons": [
+      {
+        "name": "Observation",
+        "pole_0": "🔭",
+        "pole_1": "📡"
+      },
+      {
+        "name": "Seed",
+        "pole_0": "🌠",
+        "pole_1": "🛰"
+      }
     ]
   },
   {
@@ -5282,7 +5637,8 @@
       "🚀",
       "🌙",
       "⚡"
-    ]
+    ],
+    "icons": []
   },
   {
     "name": "Station Lords",
@@ -5352,7 +5708,8 @@
       "🏢",
       "💰",
       "🛂"
-    ]
+    ],
+    "icons": []
   },
   {
     "description": "The gentle grazers. They eat the green and feed the strong.",
@@ -5402,7 +5759,8 @@
       "🐇",
       "🦌",
       "🌿"
-    ]
+    ],
+    "icons": []
   },
   {
     "alignment_couplings": {
@@ -5501,7 +5859,8 @@
       "❄",
       "🔇",
       "💎"
-    ]
+    ],
+    "icons": []
   },
   {
     "alignment_couplings": {
@@ -5585,7 +5944,8 @@
       "🪞",
       "🔍",
       "🧊"
-    ]
+    ],
+    "icons": []
   },
   {
     "alignment_couplings": {
@@ -5656,7 +6016,8 @@
       "🫙",
       "♻️",
       "💧"
-    ]
+    ],
+    "icons": []
   },
   {
     "alignment_couplings": {
@@ -5737,6 +6098,13 @@
       "✨",
       "⚡",
       "🪨"
+    ],
+    "icons": [
+      {
+        "name": "Ore",
+        "pole_0": "💎",
+        "pole_1": "⛏"
+      }
     ]
   },
   {
@@ -5814,7 +6182,8 @@
       "💳",
       "⚖",
       "📜"
-    ]
+    ],
+    "icons": []
   },
   {
     "alignment_couplings": {
@@ -5888,7 +6257,8 @@
       "📻",
       "📡",
       "🗣"
-    ]
+    ],
+    "icons": []
   },
   {
     "alignment_couplings": {
@@ -5998,6 +6368,18 @@
       "🧵",
       "🪡",
       "🏮"
+    ],
+    "icons": [
+      {
+        "name": "Ritual",
+        "pole_0": "🕯",
+        "pole_1": "🧵"
+      },
+      {
+        "name": "Flame",
+        "pole_0": "🧵",
+        "pole_1": "🕯"
+      }
     ]
   },
   {
@@ -6090,7 +6472,8 @@
       "⚫",
       "🌠",
       "⚖"
-    ]
+    ],
+    "icons": []
   },
   {
     "alignment_couplings": {
@@ -6158,7 +6541,8 @@
       "🧤",
       "🗑",
       "💀"
-    ]
+    ],
+    "icons": []
   },
   {
     "alignment_couplings": {
@@ -6234,7 +6618,8 @@
       "💊",
       "📦",
       "🚛"
-    ]
+    ],
+    "icons": []
   },
   {
     "name": "The Submersed",
@@ -6324,7 +6709,8 @@
       "🪸",
       "🦀",
       "🐠"
-    ]
+    ],
+    "icons": []
   },
   {
     "alignment_couplings": {
@@ -6423,7 +6809,8 @@
       "📐",
       "🧮",
       "🔭"
-    ]
+    ],
+    "icons": []
   },
   {
     "alignment_couplings": {
@@ -6501,6 +6888,18 @@
       "🔌",
       "♻️",
       "🚐"
+    ],
+    "icons": [
+      {
+        "name": "Repair",
+        "pole_0": "🪛",
+        "pole_1": "🧰"
+      },
+      {
+        "name": "Circuit",
+        "pole_0": "🔌",
+        "pole_1": "♻️"
+      }
     ]
   },
   {
@@ -6568,7 +6967,8 @@
       "🕵️",
       "💀",
       "💰"
-    ]
+    ],
+    "icons": []
   },
   {
     "alignment_couplings": {
@@ -6656,6 +7056,13 @@
       "🪞",
       "🧷",
       "🧿"
+    ],
+    "icons": [
+      {
+        "name": "Reflection",
+        "pole_0": "🪞",
+        "pole_1": "👤"
+      }
     ]
   },
   {
@@ -6746,6 +7153,18 @@
       "🌾",
       "🌲",
       "🍂"
+    ],
+    "icons": [
+      {
+        "name": "Succession",
+        "pole_0": "🌱",
+        "pole_1": "🌲"
+      },
+      {
+        "name": "Humus",
+        "pole_0": "🍂",
+        "pole_1": "🌿"
+      }
     ]
   },
   {
@@ -6833,7 +7252,8 @@
       "⚜",
       "♟",
       "🕰"
-    ]
+    ],
+    "icons": []
   },
   {
     "name": "Void Serfs",
@@ -6893,7 +7313,8 @@
       "⛓",
       "💸",
       "💀"
-    ]
+    ],
+    "icons": []
   },
   {
     "name": "Void Troubadours",
@@ -6978,7 +7399,8 @@
       "🎼",
       "💫",
       "🏮"
-    ]
+    ],
+    "icons": []
   },
   {
     "alignment_couplings": {
@@ -7084,6 +7506,13 @@
       "🌫",
       "✨",
       "⚡"
+    ],
+    "icons": [
+      {
+        "name": "Ash",
+        "pole_0": "🌫",
+        "pole_1": "✨"
+      }
     ]
   },
   {
@@ -7169,7 +7598,8 @@
       "✨",
       "👁",
       "🌋"
-    ]
+    ],
+    "icons": []
   },
   {
     "alignment_couplings": {
@@ -7243,7 +7673,8 @@
       "🍂": 0.0,
       "🔥": 0.35,
       "🌬": 0.1
-    }
+    },
+    "icons": []
   },
   {
     "alignment_couplings": {
@@ -7330,7 +7761,8 @@
       "⛪",
       "🫙",
       "💨"
-    ]
+    ],
+    "icons": []
   },
   {
     "name": "Forgewright Union",
@@ -7406,6 +7838,382 @@
       0,
       1,
       0
+    ],
+    "icons": [
+      {
+        "name": "Machinery",
+        "pole_0": "⚙",
+        "pole_1": "🔩"
+      },
+      {
+        "name": "Magma",
+        "pole_0": "🔥",
+        "pole_1": "🪨"
+      },
+      {
+        "name": "Tools",
+        "pole_0": "🔧",
+        "pole_1": "🔨"
+      }
     ]
+  },
+  {
+    "name": "Lamplighters",
+    "description": "A secret guild of signal-fire tenders. Each keeper attends one beacon in a chain that runs from the shore to the keep. When the tower sees the enemy, the horn sounds, the lamp is lit, the bridge fires, and the flag rises. The spacing between stations alternates — one tight pair, one open gap, one tight pair, one open gap — and because of that alternation a message arriving at either endpoint is trapped there: by the time it has found its way through the loose links, it has forgotten how to leave. The Lamplighters call this 'topological patience.' Scholars of the order call it chiral symmetry.",
+    "ring": "third",
+    "domain": "Infrastructure",
+    "motto": "One lamp lit, five hearts beat.",
+    "sig": [
+      "🌉",
+      "🪔",
+      "📯",
+      "🗼",
+      "🏁"
+    ],
+    "bits": [
+      1,
+      0,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0,
+      1,
+      0,
+      0,
+      1
+    ],
+    "tags": [
+      "chain",
+      "signal",
+      "infrastructure",
+      "topological"
+    ],
+    "self_energies": {
+      "🌉": 0.0,
+      "🪔": 0.0,
+      "📯": 0.0,
+      "🗼": 0.0,
+      "🏁": 0.0
+    },
+    "hamiltonian": {
+      "🌉": {
+        "🪔": 0.3
+      },
+      "🪔": {
+        "🌉": 0.3,
+        "📯": 0.8
+      },
+      "📯": {
+        "🪔": 0.8,
+        "🗼": 0.3
+      },
+      "🗼": {
+        "📯": 0.3,
+        "🏁": 0.8
+      },
+      "🏁": {
+        "🗼": 0.8
+      }
+    },
+    "alignment_couplings": {},
+    "icons": [
+      {
+        "name": "Crossing",
+        "pole_0": "🌉",
+        "pole_1": "🪔"
+      },
+      {
+        "name": "Relay",
+        "pole_0": "📯",
+        "pole_1": "🗼"
+      },
+      {
+        "name": "Keep",
+        "pole_0": "🏁",
+        "pole_1": "🏁"
+      },
+      {
+        "name": "Relay",
+        "pole_0": "🪔",
+        "pole_1": "📯"
+      }
+    ]
+  },
+  {
+    "name": "Timekeepers",
+    "description": "The quiet order that attends the turning of hours. Three glasses on a wheel: the full one, the pouring one, and the rung one. The sand moves only one way around the wheel — never backwards, never across the center shortcut. Scholars call the ordering 'broken time-reversal symmetry' and measure it in units of the little Greek letter π. The Timekeepers call it respect.",
+    "ring": "third",
+    "domain": "Chronology",
+    "motto": "Forward is the only sand.",
+    "sig": [
+      "⌛",
+      "⏳",
+      "⏰"
+    ],
+    "bits": [
+      1,
+      1,
+      0,
+      0,
+      1,
+      0,
+      1,
+      1,
+      0,
+      0,
+      0,
+      1
+    ],
+    "tags": [
+      "chiral",
+      "clock",
+      "ring",
+      "chronology"
+    ],
+    "self_energies": {
+      "⌛": 0.0,
+      "⏳": 0.0,
+      "⏰": 0.0
+    },
+    "hamiltonian": {
+      "⌛": {
+        "⏳": [
+          0.6062177826491071,
+          0.3499999999999999
+        ],
+        "⏰": [
+          0.6062177826491071,
+          -0.3499999999999999
+        ]
+      },
+      "⏳": {
+        "⌛": [
+          0.6062177826491071,
+          -0.3499999999999999
+        ],
+        "⏰": [
+          0.6062177826491071,
+          0.3499999999999999
+        ]
+      },
+      "⏰": {
+        "⏳": [
+          0.6062177826491071,
+          -0.3499999999999999
+        ],
+        "⌛": [
+          0.6062177826491071,
+          0.3499999999999999
+        ]
+      }
+    },
+    "alignment_couplings": {},
+    "icons": [
+      {
+        "name": "Waiting",
+        "pole_0": "⌛",
+        "pole_1": "⏳"
+      },
+      {
+        "name": "Ringing",
+        "pole_0": "⏰",
+        "pole_1": "⏰"
+      }
+    ]
+  },
+  {
+    "name": "Prismatic Cascade",
+    "description": "A cult of light-mathematicians who believe color is the residue of thought. They teach that a sparkler (💥) is raw energy, a rainbow (🌈) is its first coherent expression, and a star (🌟) is where the remainder comes to rest. Between the rainbow and the star they hold a single taut string — the lasing transition — on which a seed of amplitude can grow arbitrarily large if the sparkler above keeps burning. The cult is indifferent to the pump and the sink; they attend only to the string.",
+    "ring": "second",
+    "domain": "Emission",
+    "motto": "The rainbow waits for a whisper.",
+    "sig": [
+      "🌟",
+      "🌈",
+      "💥"
+    ],
+    "bits": [
+      1,
+      1,
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      1,
+      1,
+      0,
+      1
+    ],
+    "tags": [
+      "gain",
+      "laser",
+      "emission",
+      "optics"
+    ],
+    "self_energies": {
+      "🌟": 0.0,
+      "🌈": 0.0,
+      "💥": 0.5
+    },
+    "hamiltonian": {
+      "🌟": {
+        "🌈": 0.15
+      },
+      "🌈": {
+        "🌟": 0.15
+      },
+      "💥": {}
+    },
+    "alignment_couplings": {},
+    "icons": [
+      {
+        "name": "Cavity",
+        "pole_0": "🌟",
+        "pole_1": "🌈"
+      },
+      {
+        "name": "Pump",
+        "pole_0": "💥",
+        "pole_1": "💥"
+      }
+    ]
+  },
+  {
+    "name": "Phase Keepers",
+    "description": "A monastic order that tends the two faces of the moon. They teach that bright and dim are not points on a line but SEPARATE STATES, and that the moon will sit in whichever one it woke up in — even under the same sky, even under the same pull of the tide. The order has no Hamiltonian to speak of: they supply only the two faces and the acknowledgement that they exist. Every other force on the moon comes from the weather of the place.",
+    "ring": "third",
+    "domain": "Threshold",
+    "motto": "The same sky, two answers.",
+    "sig": [
+      "🌕",
+      "🌘"
+    ],
+    "bits": [
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      1,
+      0,
+      0
+    ],
+    "tags": [
+      "bistable",
+      "phase",
+      "threshold"
+    ],
+    "self_energies": {
+      "🌕": 0.1,
+      "🌘": 0.1
+    },
+    "hamiltonian": {
+      "🌕": {},
+      "🌘": {}
+    },
+    "alignment_couplings": {},
+    "icons": [
+      {
+        "name": "Faces",
+        "pole_0": "🌕",
+        "pole_1": "🌘"
+      }
+    ]
+  },
+  {
+    "name": "Archivists",
+    "description": "A silent order that maintains two independent ledgers. The red book and the green book do not speak to each other. Each has its own lock and its own empty twin, and each can be written or erased without disturbing the other. The order itself contributes no Hamiltonian — it supplies only the four sigils, and the promise that neither pair will hear the other's pages turn.",
+    "ring": "third",
+    "domain": "Memory",
+    "motto": "Two ledgers. Two silences.",
+    "sig": [
+      "📕",
+      "🔑",
+      "📗",
+      "📓"
+    ],
+    "bits": [
+      1,
+      0,
+      0,
+      0,
+      1,
+      1,
+      1,
+      1,
+      1,
+      0,
+      1,
+      1
+    ],
+    "tags": [
+      "memory",
+      "bistable",
+      "latch",
+      "independent"
+    ],
+    "self_energies": {
+      "📕": 0.1,
+      "🔑": 0.1,
+      "📗": 0.1,
+      "📓": 0.1
+    },
+    "hamiltonian": {
+      "📕": {},
+      "🔑": {},
+      "📗": {},
+      "📓": {}
+    },
+    "alignment_couplings": {}
+  },
+  {
+    "name": "CycleKeepers",
+    "description": "An unlikely coalition of three watchers, none of whom can admit to being more important than the others. The butterfly watches the caterpillar, the caterpillar watches the spider, the spider watches the butterfly — not out of suspicion but out of theology. They contribute no Hamiltonian; the only thing they teach the ecosystem is *how to eat each other in the same direction forever*.",
+    "ring": "third",
+    "domain": "Ecology",
+    "motto": "Someone above. Someone below. Forever.",
+    "sig": [
+      "🦋",
+      "🕷",
+      "🐛"
+    ],
+    "bits": [
+      1,
+      0,
+      0,
+      0,
+      1,
+      0,
+      1,
+      1,
+      0,
+      0,
+      0,
+      0
+    ],
+    "tags": [
+      "ecology",
+      "cycle",
+      "predator-prey"
+    ],
+    "self_energies": {
+      "🦋": 0.0,
+      "🕷": 0.0,
+      "🐛": 0.0
+    },
+    "hamiltonian": {
+      "🦋": {},
+      "🕷": {},
+      "🐛": {}
+    },
+    "alignment_couplings": {}
   }
 ]

@@ -570,6 +570,10 @@
         "lindblad_incoming": {
           "🍂": 0.02,
           "💀": 0.015
+        },
+        "decay": {
+          "rate": 0.02,
+          "target": "🌱"
         }
       },
       "🍂": {
@@ -778,7 +782,8 @@
             "power": 1.0,
             "inverse": false
           }
-        ]
+        ],
+        "lindblad_incoming": {}
       },
       "🫥": {
         "lindblad_incoming": {
@@ -911,7 +916,7 @@
           "💀": 0.01
         },
         "decay": {
-          "rate": 0.02,
+          "rate": 0.15,
           "target": "🌱"
         }
       }
@@ -1032,10 +1037,10 @@
     ],
     "emojis": [
       "🔥",
-      "❄️",
+      "❄",
       "👥",
       "🍞",
-      "⚙️",
+      "⚙",
       "💨",
       "💰",
       "🧺"
@@ -1053,15 +1058,28 @@
     ],
     "icon_components": {
       "👥": {
+        "lindblad_incoming": {
+          "🗑": 0.3
+        },
         "decay": {
-          "rate": 0.015,
+          "rate": 0.05,
           "target": "🍞"
         }
       },
       "🔥": {
-        "lindblad_outgoing": {
-          "❄": 0.015
-        }
+        "decay": {
+          "rate": 0.25,
+          "target": "🗑"
+        },
+        "gated_lindblad_source": [
+          {
+            "target": "🗑",
+            "gate": "❄",
+            "rate": 25.0,
+            "power": 1,
+            "inverse": false
+          }
+        ]
       },
       "⚙": {
         "lindblad_outgoing": {
@@ -1073,6 +1091,49 @@
           "rate": 0.012,
           "target": "🧺"
         }
+      },
+      "❄": {
+        "decay": {
+          "rate": 0.25,
+          "target": "🗑"
+        },
+        "gated_lindblad_source": [
+          {
+            "target": "🗑",
+            "gate": "🔥",
+            "rate": 25.0,
+            "power": 1,
+            "inverse": false
+          }
+        ]
+      },
+      "🍞": {
+        "lindblad_incoming": {
+          "🗑": 3.0
+        },
+        "gated_lindblad_source": [
+          {
+            "target": "🔥",
+            "gate": "🔥",
+            "rate": 60.0,
+            "power": 2,
+            "inverse": false
+          }
+        ]
+      },
+      "🧺": {
+        "lindblad_incoming": {
+          "🗑": 3.0
+        },
+        "gated_lindblad_source": [
+          {
+            "target": "❄",
+            "gate": "❄",
+            "rate": 60.0,
+            "power": 2,
+            "inverse": false
+          }
+        ]
       }
     },
     "icons": [
@@ -1647,14 +1708,15 @@
         "gated_lindblad_source": [
           {
             "target": "🥀",
-            "gate": "🩸",
-            "rate": 0.04,
-            "power": 0.8,
-            "inverse": true
+            "gate": "🥀",
+            "rate": 15.0,
+            "power": 2,
+            "inverse": false
           }
         ],
         "lindblad_incoming": {
-          "🍷": 0.002
+          "🍷": 0.002,
+          "🗑": 1.5
         }
       },
       "🦅": {
@@ -1707,7 +1769,7 @@
       },
       "🥀": {
         "decay": {
-          "rate": 0.001,
+          "rate": 0.3,
           "target": "🗑"
         }
       }
@@ -2092,7 +2154,7 @@
           "📋": 0.03
         },
         "decay": {
-          "rate": 0.01,
+          "rate": 3.0,
           "target": "🗑"
         }
       },
@@ -2352,14 +2414,30 @@
     "icon_components": {
       "♻️": {
         "lindblad_incoming": {
-          "🗑": 0.02,
+          "🗑": 0.15,
           "🌾": 0.06
         },
         "lindblad_outgoing": {
           "🗑": 0.03,
           "🦗": 0.03,
           "💧": 0.04
-        }
+        },
+        "gated_lindblad_source": [
+          {
+            "target": "🧱",
+            "gate": "🏭",
+            "rate": 0.4,
+            "power": 1.5,
+            "inverse": false
+          },
+          {
+            "target": "🗑",
+            "gate": "🚧",
+            "rate": 0.3,
+            "power": 2,
+            "inverse": true
+          }
+        ]
       },
       "🗑": {
         "lindblad_incoming": {
@@ -2384,11 +2462,21 @@
         "decay": {
           "rate": 0.03,
           "target": "💀"
-        }
+        },
+        "gated_lindblad_source": [
+          {
+            "target": "🚧",
+            "gate": "🏭",
+            "rate": 0.3,
+            "power": 0.8,
+            "inverse": true
+          }
+        ]
       },
       "🏭": {
         "lindblad_incoming": {
-          "⚙": 0.02
+          "⚙": 0.02,
+          "🗑": 0.15
         },
         "lindblad_outgoing": {
           "🗑": 0.05,
@@ -2397,7 +2485,16 @@
         "decay": {
           "rate": 0.005,
           "target": "🗑"
-        }
+        },
+        "gated_lindblad_source": [
+          {
+            "target": "♻️",
+            "gate": "🗑",
+            "rate": 0.5,
+            "power": 1.2,
+            "inverse": false
+          }
+        ]
       },
       "🚧": {
         "lindblad_outgoing": {
@@ -2415,7 +2512,8 @@
         },
         "lindblad_outgoing": {
           "🗑": 0.02,
-          "🪨": 0.01
+          "🪨": 0.01,
+          "🏭": 0.08
         },
         "decay": {
           "rate": 0.005,
@@ -3080,17 +3178,17 @@
           "🔇": 0.02
         },
         "decay": {
-          "rate": 0.005,
+          "rate": 0.001,
           "target": "🗑"
         }
       },
       "📿": {
         "lindblad_incoming": {
           "⛪": 0.03,
-          "🪢": 0.02
+          "🪢": 0.15
         },
         "lindblad_outgoing": {
-          "🧘": 0.02
+          "🧘": 0.1
         },
         "decay": {
           "rate": 0.015,
@@ -3300,14 +3398,12 @@
     ],
     "icon_components": {
       "⚱": {
-        "lindblad_incoming": {
-          "💀": 0.09
-        },
+        "lindblad_incoming": {},
         "lindblad_outgoing": {
           "🌱": 0.01
         },
         "decay": {
-          "rate": 0.002,
+          "rate": 0.5,
           "target": "🗑"
         }
       },
@@ -3334,9 +3430,19 @@
         }
       },
       "💀": {
-        "lindblad_outgoing": {
-          "⚱": 0.09
-        }
+        "lindblad_outgoing": {},
+        "lindblad_incoming": {
+          "🗑": 2.5
+        },
+        "gated_lindblad_source": [
+          {
+            "target": "⚱",
+            "gate": "⚱",
+            "rate": 25.0,
+            "power": 2,
+            "inverse": false
+          }
+        ]
       }
     },
     "cross_biome_flows": {
@@ -3417,38 +3523,38 @@
       "🐑": {
         "lindblad_incoming": {
           "👥": 0.02,
-          "🌿": 0.03
+          "🌿": 0.2
         },
         "lindblad_outgoing": {
           "🧵": 0.02
         },
         "decay": {
-          "rate": 0.015,
+          "rate": 0.04,
           "target": "💀"
         }
       },
       "🐝": {
         "lindblad_incoming": {
-          "🌿": 0.06
+          "🌿": 0.3
         },
         "lindblad_outgoing": {
           "🫙": 0.04
         },
         "decay": {
-          "rate": 0.06,
+          "rate": 0.08,
           "target": "🍂"
         }
       },
       "🥣": {
         "lindblad_incoming": {
-          "🌿": 0.04,
+          "🌿": 0.25,
           "🫖": 0.03
         },
         "lindblad_outgoing": {
           "👥": 0.02
         },
         "decay": {
-          "rate": 0.04,
+          "rate": 0.06,
           "target": "🍂"
         }
       },
@@ -3473,7 +3579,8 @@
         "lindblad_incoming": {
           "♻️": 0.03,
           "💧": 0.04,
-          "🍂": 0.04
+          "🍂": 0.04,
+          "🗑": 0.6
         },
         "lindblad_outgoing": {
           "🥣": 0.04,
@@ -3482,7 +3589,7 @@
           "♻️": 0.03
         },
         "decay": {
-          "rate": 0.025,
+          "rate": 0.01,
           "target": "🍂"
         }
       },
@@ -3841,14 +3948,16 @@
       "💧": {
         "lindblad_incoming": {
           "🧊": 0.05,
-          "🌧": 0.05,
-          "♻️": 0.04,
           "🌊": 0.02
         },
         "lindblad_outgoing": {
           "🔥": 0.08,
           "🌿": 0.04,
           "🌊": 0.03
+        },
+        "decay": {
+          "rate": 0.08,
+          "target": "🗑"
         }
       },
       "🧊": {
@@ -3862,7 +3971,6 @@
       },
       "🫧": {
         "lindblad_incoming": {
-          "🕳": 0.04,
           "💧": 0.02
         },
         "decay": {
@@ -3876,6 +3984,10 @@
         },
         "lindblad_outgoing": {
           "💧": 0.02
+        },
+        "decay": {
+          "rate": 0.05,
+          "target": "🗑"
         }
       },
       "🌿": {
@@ -4206,7 +4318,7 @@
   },
   {
     "name": "OrbitalStrike",
-    "description": "Space warfare at its most brutal. Warships hunt cargo vessels among the stars. Explosions bloom in vacuum silence. What the 🛸 destroy, the 🚀 cannot deliver. The distant stars bear witness to commerce interrupted by fire.",
+    "description": "A space combat biome armed by the presence of a carrier (🛸). When the strike (💥) detonates, it consumes the carrier as its trigger: the Lindblad feedback 🛸→void gated by 💥² is self-erasing. After a single firing, the biome's primary reservoir is gone; the biome cannot re-arm without external resupply. One-shot weapon, reloaded only from outside. A quest that triggers OrbitalStrike is consumable — the biome is a different biome after the fight.",
     "image_path": "res://Assets/Biomes/OrbitalStrike.png",
     "music_path": "res://Assets/Audio/Music/OrbitalStrike.mp3",
     "discovered": false,
@@ -4247,12 +4359,23 @@
     "icon_components": {
       "🛸": {
         "lindblad_outgoing": {
-          "💥": 0.08,
-          "🚀": 0.04
+          "🚀": 0.02
         },
         "decay": {
           "rate": 0.015,
           "target": "🗑"
+        },
+        "gated_lindblad_source": [
+          {
+            "target": "🗑",
+            "gate": "💥",
+            "rate": 15.0,
+            "power": 2,
+            "inverse": false
+          }
+        ],
+        "lindblad_incoming": {
+          "🗑": 0.3
         }
       },
       "💥": {
@@ -4264,7 +4387,7 @@
           "🛰": 0.02
         },
         "decay": {
-          "rate": 0.2,
+          "rate": 0.5,
           "target": "🗑"
         }
       },
@@ -5496,22 +5619,36 @@
     "icon_components": {
       "🧲": {
         "lindblad_incoming": {
-          "⚡": 0.08,
-          "🌀": 0.05
+          "⚡": 0.001,
+          "🌀": 0.001
         },
         "lindblad_outgoing": {
           "📡": 0.03
+        },
+        "decay": {
+          "rate": 0.25,
+          "target": "🗑"
         }
       },
       "⚡": {
         "lindblad_incoming": {
-          "🔌": 0.1,
-          "🔋": 0.06
+          "🔌": 0.001,
+          "🔋": 0.001,
+          "🗑": 4.0
         },
         "lindblad_outgoing": {
-          "🧲": 0.08,
+          "🧲": 0.001,
           "🌀": 0.04
-        }
+        },
+        "gated_lindblad_source": [
+          {
+            "target": "🧲",
+            "gate": "🧲",
+            "rate": 60.0,
+            "power": 2,
+            "inverse": false
+          }
+        ]
       },
       "🌀": {
         "lindblad_incoming": {
@@ -5763,7 +5900,7 @@
       }
     ],
     "emojis": [
-      "❄️",
+      "❄",
       "⚙",
       "🔭",
       "📡"
@@ -5782,12 +5919,6 @@
       "engineering"
     ],
     "icon_components": {
-      "❄️": {
-        "lindblad_outgoing": {
-          "⚙": 0.04,
-          "🔭": 0.03
-        }
-      },
       "⚙": {
         "lindblad_incoming": {
           "❄️": 0.03
@@ -5808,7 +5939,27 @@
       "📡": {
         "lindblad_incoming": {
           "🔭": 0.05,
-          "⚙": 0.02
+          "⚙": 0.02,
+          "🗑": 3.0
+        },
+        "gated_lindblad_source": [
+          {
+            "target": "❄",
+            "gate": "❄",
+            "rate": 50.0,
+            "power": 2,
+            "inverse": false
+          }
+        ]
+      },
+      "❄": {
+        "lindblad_outgoing": {
+          "⚙": 0.04,
+          "🔭": 0.03
+        },
+        "decay": {
+          "rate": 0.2,
+          "target": "🗑"
         }
       }
     },
@@ -6398,7 +6549,7 @@
       },
       "🎼": {
         "decay": {
-          "rate": 0.01,
+          "rate": 0.15,
           "target": "🗑"
         }
       },
@@ -6441,6 +6592,819 @@
         "name": "Spark",
         "pole_0": "💫",
         "pole_1": "🔊"
+      }
+    ]
+  },
+  {
+    "name": "NullingChamber",
+    "description": "A stargazer's null-detector. The telescope lens is lossy — it leaks photons to the void. But when the Cartographers' map-coupling and the Opalescent void-coupling arrive with phases that interfere destructively, the amplitude on the lens cancels and the light stays trapped between map and anchor forever. A two-faction EIT (dark-state) circuit: if and only if the chiral phases match, the biome goes dark.",
+    "image_path": "res://Assets/Biomes/Nulling_Chamber.png",
+    "music_path": "res://Assets/Audio/Music/Null.mp3",
+    "discovered": false,
+    "plot_layout": [
+      {
+        "x": 0.3,
+        "y": 0.5
+      },
+      {
+        "x": 0.7,
+        "y": 0.5
+      },
+      {
+        "x": 0.5,
+        "y": 0.3
+      },
+      {
+        "x": 0.5,
+        "y": 0.7
+      }
+    ],
+    "emojis": [
+      "🗺",
+      "🔭",
+      "⚫",
+      "📍"
+    ],
+    "native_factions": [
+      "Cartographers of the Impossible",
+      "The Opalescent Hegemon"
+    ],
+    "tags": [
+      "detector",
+      "quantum",
+      "lab",
+      "eit"
+    ],
+    "icon_components": {
+      "🔭": {
+        "decay": {
+          "rate": 0.15,
+          "target": "🗑"
+        }
+      },
+      "🗺": {
+        "lindblad_outgoing": {
+          "📍": 0.005
+        }
+      },
+      "⚫": {
+        "lindblad_outgoing": {
+          "🕳": 0.005,
+          "🌑": 0.003
+        }
+      },
+      "📍": {
+        "lindblad_incoming": {
+          "🧭": 0.004
+        }
+      }
+    },
+    "icons": [
+      {
+        "name": "Mapping",
+        "pole_0": "🗺",
+        "pole_1": "🔭"
+      },
+      {
+        "name": "Anchoring",
+        "pole_0": "⚫",
+        "pole_1": "📍"
+      }
+    ]
+  },
+  {
+    "name": "Lanternfall",
+    "description": "The coastal watchtower chain. Five lights in a row, spaced by the Lamplighters' alternating rhythm: close-far-close-far. Population pumped in at the flag (🏁) is supposed to flow back down the chain — but doesn't. The chain's bond pattern has a topologically protected zero-energy mode localized at the bridge (🌉), and any amplitude that reaches that eigenstate *stays there*, even when a drain pulls at the other end. The biome is a Su-Schrieffer-Heeger edge-state detector: it reports whether the chain is in its nontrivial topological phase by whether the bridge lantern stays lit.",
+    "image_path": "res://Assets/Biomes/Lanternfall.png",
+    "music_path": "res://Assets/Audio/Music/Beacon.mp3",
+    "discovered": false,
+    "plot_layout": [
+      {
+        "x": 0.15,
+        "y": 0.5
+      },
+      {
+        "x": 0.32,
+        "y": 0.5
+      },
+      {
+        "x": 0.5,
+        "y": 0.5
+      },
+      {
+        "x": 0.68,
+        "y": 0.5
+      },
+      {
+        "x": 0.85,
+        "y": 0.5
+      }
+    ],
+    "emojis": [
+      "🌉",
+      "🪔",
+      "📯",
+      "🗼",
+      "🏁"
+    ],
+    "native_factions": [
+      "Lamplighters"
+    ],
+    "tags": [
+      "detector",
+      "quantum",
+      "lab",
+      "ssh",
+      "topological"
+    ],
+    "icon_components": {
+      "🏁": {
+        "lindblad_incoming": {
+          "🗑": 0.05
+        },
+        "decay": {
+          "rate": 0.08,
+          "target": "🗑"
+        },
+        "lindblad_outgoing": {
+          "🚩": 0.004
+        }
+      },
+      "🌉": {
+        "lindblad_outgoing": {
+          "🏚": 0.002
+        }
+      },
+      "🪔": {
+        "lindblad_outgoing": {
+          "🌫": 0.003
+        }
+      }
+    },
+    "icons": [
+      {
+        "name": "Crossing",
+        "pole_0": "🌉",
+        "pole_1": "🪔"
+      },
+      {
+        "name": "Relay",
+        "pole_0": "📯",
+        "pole_1": "🗼"
+      },
+      {
+        "name": "Keep",
+        "pole_0": "🏁",
+        "pole_1": "🏁"
+      }
+    ]
+  },
+  {
+    "name": "ZenoLatch",
+    "description": "A single strong link from the Lamplighters' signal chain — the oil-lamp and the horn, coupled by the guild's tightest bond. The horn has a ferocious drain: every puff of breath it carries is lost to the open air. Classical intuition says this drain should accelerate the depletion of the lamp. Quantum mechanics says the opposite: the faster the horn drains, the MORE STRONGLY the lamp's population is pinned in place. Deep in the Zeno regime (Γ/Ω ≈ 15), what should be a full Rabi oscillation is frozen: the lamp stays lit because the universe is watching too closely to let it transfer. In the Lamplighters' ledger this is the 🪔 ↔ 📯 section — one tight chord with a little weather drifting through it.",
+    "image_path": "res://Assets/Biomes/ZenoLatch.png",
+    "music_path": "res://Assets/Audio/Music/Stillness.mp3",
+    "discovered": false,
+    "plot_layout": [
+      {
+        "x": 0.35,
+        "y": 0.5
+      },
+      {
+        "x": 0.65,
+        "y": 0.5
+      }
+    ],
+    "emojis": [
+      "🪔",
+      "📯"
+    ],
+    "native_factions": [
+      "Lamplighters"
+    ],
+    "tags": [
+      "detector",
+      "quantum",
+      "lab",
+      "zeno"
+    ],
+    "icon_components": {
+      "📯": {
+        "decay": {
+          "rate": 10.0,
+          "target": "🗑"
+        },
+        "lindblad_outgoing": {
+          "🌬": 0.01
+        },
+        "lindblad_incoming": {
+          "🎵": 0.005
+        }
+      },
+      "🪔": {
+        "lindblad_outgoing": {
+          "🌫": 0.01,
+          "💨": 0.008
+        }
+      }
+    },
+    "icons": [
+      {
+        "name": "Relay",
+        "pole_0": "🪔",
+        "pole_1": "📯"
+      }
+    ]
+  },
+  {
+    "name": "WheelOfHours",
+    "description": "Three glasses turning on a single wheel, attended by the Timekeepers' one-way sand. A slow pump fills the empty hourglass (⌛), and a slow drain empties the alarm (⏰). Between them, the flowing glass (⏳) sits on the forward path. Because the ring's loop phase is π/2, the current takes the long way around — through the flowing glass, in the direction the guild insists upon — rather than jumping straight across. A built-in clock for the biome, running on chirality.",
+    "image_path": "res://Assets/Biomes/WheelOfHours.png",
+    "music_path": "res://Assets/Audio/Music/Turning.mp3",
+    "discovered": false,
+    "plot_layout": [
+      {
+        "x": 0.35,
+        "y": 0.65
+      },
+      {
+        "x": 0.65,
+        "y": 0.65
+      },
+      {
+        "x": 0.5,
+        "y": 0.3
+      }
+    ],
+    "emojis": [
+      "⌛",
+      "⏳",
+      "⏰"
+    ],
+    "native_factions": [
+      "Timekeepers"
+    ],
+    "tags": [
+      "detector",
+      "quantum",
+      "lab",
+      "chiral",
+      "clock"
+    ],
+    "icon_components": {
+      "⌛": {
+        "lindblad_incoming": {
+          "🗑": 0.05
+        },
+        "lindblad_outgoing": {
+          "🕰": 0.003
+        }
+      },
+      "⏰": {
+        "decay": {
+          "rate": 0.05,
+          "target": "🗑"
+        },
+        "lindblad_outgoing": {
+          "🔔": 0.002
+        }
+      },
+      "⏳": {
+        "lindblad_outgoing": {
+          "⏱": 0.003
+        }
+      }
+    },
+    "icons": [
+      {
+        "name": "Waiting",
+        "pole_0": "⌛",
+        "pole_1": "⏳"
+      },
+      {
+        "name": "Ringing",
+        "pole_0": "⏰",
+        "pole_1": "⏰"
+      }
+    ]
+  },
+  {
+    "name": "LaserGlint",
+    "description": "A three-level laser cavity. An external pump feeds sparks (💥) from the void. Each spark tumbles fast into the rainbow (🌈) — this is why the air above the glint always shimmers with colour. But the rainbow's only path downward is through the single taut string that the Prismatic Cascade holds: the coherent 🌈↔🌟 transition. And the star (🌟) at the bottom is bled off into the void as quickly as it arrives. The result is POPULATION INVERSION — more amplitude sitting on the rainbow than on the star — a condition no passive medium can maintain. Seed a whisper of amplitude on the star and it comes back amplified.",
+    "image_path": "res://Assets/Biomes/LaserGlint.png",
+    "music_path": "res://Assets/Audio/Music/Emission.mp3",
+    "discovered": false,
+    "plot_layout": [
+      {
+        "x": 0.25,
+        "y": 0.5
+      },
+      {
+        "x": 0.5,
+        "y": 0.5
+      },
+      {
+        "x": 0.75,
+        "y": 0.5
+      }
+    ],
+    "emojis": [
+      "🌟",
+      "🌈",
+      "💥"
+    ],
+    "native_factions": [
+      "Prismatic Cascade"
+    ],
+    "tags": [
+      "detector",
+      "quantum",
+      "lab",
+      "gain",
+      "laser"
+    ],
+    "icon_components": {
+      "💥": {
+        "lindblad_incoming": {
+          "🗑": 1.0
+        },
+        "lindblad_outgoing": {
+          "🌈": 1.5,
+          "💫": 0.004,
+          "🎆": 0.002
+        }
+      },
+      "🌟": {
+        "decay": {
+          "rate": 2.0,
+          "target": "🗑"
+        },
+        "lindblad_outgoing": {
+          "✨": 0.006,
+          "🌠": 0.003
+        }
+      },
+      "🌈": {
+        "lindblad_outgoing": {
+          "🎨": 0.003
+        }
+      }
+    },
+    "icons": [
+      {
+        "name": "Cavity",
+        "pole_0": "🌟",
+        "pole_1": "🌈"
+      },
+      {
+        "name": "Pump",
+        "pole_0": "💥",
+        "pole_1": "💥"
+      }
+    ]
+  },
+  {
+    "name": "TwofacedTide",
+    "description": "A coastal flat where the moon hangs in one of two fixed postures, bright or dim, and switches only when someone pushes. The tide reinforces whichever face already dominates: where the full moon already stands, the waters help it hold; where the waning crescent stands, the waters refuse to kindle anything brighter. Below a critical weather the biome is always dim. Above a critical weather, both postures become simultaneously stable — and the biome SITS IN WHICHEVER ONE IT WAS IN. A push is required to flip it. In gameplay this makes the TwofacedTide a switchable mission gate: quests can ask whether the tide is currently bright or dim, and answering requires knowing its history.",
+    "image_path": "res://Assets/Biomes/TwofacedTide.png",
+    "music_path": "res://Assets/Audio/Music/Threshold.mp3",
+    "discovered": false,
+    "plot_layout": [
+      {
+        "x": 0.3,
+        "y": 0.5
+      },
+      {
+        "x": 0.7,
+        "y": 0.5
+      }
+    ],
+    "emojis": [
+      "🌕",
+      "🌘"
+    ],
+    "native_factions": [
+      "Phase Keepers"
+    ],
+    "tags": [
+      "detector",
+      "quantum",
+      "lab",
+      "bistable",
+      "phase-transition"
+    ],
+    "icon_components": {
+      "🌘": {
+        "lindblad_incoming": {
+          "🗑": 1.0
+        },
+        "gated_lindblad_source": [
+          {
+            "target": "🌕",
+            "gate": "🌕",
+            "rate": 5.0,
+            "power": 2,
+            "inverse": false
+          }
+        ],
+        "lindblad_outgoing": {
+          "🌑": 0.003
+        }
+      },
+      "🌕": {
+        "decay": {
+          "rate": 0.5,
+          "target": "🗑"
+        },
+        "lindblad_outgoing": {
+          "🌖": 0.004
+        }
+      }
+    },
+    "icons": [
+      {
+        "name": "Faces",
+        "pole_0": "🌕",
+        "pole_1": "🌘"
+      }
+    ]
+  },
+  {
+    "name": "BrittleDawn",
+    "description": "A moon tuned to the knife edge between bright and dim. TwofacedTide has a confident two-phase personality; BrittleDawn has it by the thinnest margin. The pump rate sits just barely above the saddle-node threshold, so the bright phase exists but its stability eigenvalue is nearly zero. Any perturbation takes forever to decay, and a push near the threshold can transition the biome through a corridor of divergent response times. A CRITICAL POINT biome — sensitive to every breath.",
+    "image_path": "res://Assets/Biomes/BrittleDawn.png",
+    "music_path": "res://Assets/Audio/Music/KnifeEdge.mp3",
+    "discovered": false,
+    "plot_layout": [
+      {
+        "x": 0.3,
+        "y": 0.5
+      },
+      {
+        "x": 0.7,
+        "y": 0.5
+      }
+    ],
+    "emojis": [
+      "🌕",
+      "🌘"
+    ],
+    "native_factions": [
+      "Phase Keepers"
+    ],
+    "tags": [
+      "detector",
+      "quantum",
+      "lab",
+      "critical",
+      "slowdown"
+    ],
+    "icon_components": {
+      "🌘": {
+        "lindblad_incoming": {
+          "🗑": 0.38
+        },
+        "gated_lindblad_source": [
+          {
+            "target": "🌕",
+            "gate": "🌕",
+            "rate": 5.0,
+            "power": 2,
+            "inverse": false
+          }
+        ],
+        "lindblad_outgoing": {
+          "🌑": 0.003,
+          "🌒": 0.002
+        }
+      },
+      "🌕": {
+        "decay": {
+          "rate": 0.5,
+          "target": "🗑"
+        },
+        "lindblad_outgoing": {
+          "🌖": 0.004,
+          "🌗": 0.003
+        }
+      }
+    },
+    "icons": [
+      {
+        "name": "KnifeEdge",
+        "pole_0": "🌕",
+        "pole_1": "🌘"
+      }
+    ]
+  },
+  {
+    "name": "MnemonicHive",
+    "description": "A stone shelf with two ledgers, bound in red and green. Their pages are kept by the same silence: whatever is written on one must also be written on the other. The ledgers have a single BISTABLE memory between them — both closed (pens full, books blank) or both open (books inked, pens empty) — and a push on EITHER ledger flips both. One bit of persistent state, worn in two colors. The Archivists insist this is a feature; the red entries and the green entries mean different things, even though they are the same entry. A mission that writes the hive's memory writes it twice.",
+    "image_path": "res://Assets/Biomes/MnemonicHive.png",
+    "music_path": "res://Assets/Audio/Music/Ledger.mp3",
+    "discovered": false,
+    "plot_layout": [
+      {
+        "x": 0.3,
+        "y": 0.35
+      },
+      {
+        "x": 0.7,
+        "y": 0.35
+      },
+      {
+        "x": 0.3,
+        "y": 0.65
+      },
+      {
+        "x": 0.7,
+        "y": 0.65
+      }
+    ],
+    "emojis": [
+      "📕",
+      "🔑",
+      "📗",
+      "📓"
+    ],
+    "native_factions": [
+      "Archivists"
+    ],
+    "tags": [
+      "detector",
+      "quantum",
+      "lab",
+      "bistable",
+      "memory",
+      "multistate"
+    ],
+    "icon_components": {
+      "🔑": {
+        "lindblad_incoming": {
+          "🗑": 1.5
+        },
+        "gated_lindblad_source": [
+          {
+            "target": "📕",
+            "gate": "📕",
+            "rate": 20.0,
+            "power": 2,
+            "inverse": false
+          }
+        ],
+        "decay": {
+          "rate": 0.5,
+          "target": "🗑"
+        },
+        "lindblad_outgoing": {
+          "🗝": 0.002
+        }
+      },
+      "📕": {
+        "decay": {
+          "rate": 0.4,
+          "target": "🗑"
+        },
+        "lindblad_outgoing": {
+          "📜": 0.003
+        }
+      },
+      "📓": {
+        "lindblad_incoming": {
+          "🗑": 1.5
+        },
+        "gated_lindblad_source": [
+          {
+            "target": "📗",
+            "gate": "📗",
+            "rate": 20.0,
+            "power": 2,
+            "inverse": false
+          }
+        ],
+        "decay": {
+          "rate": 0.5,
+          "target": "🗑"
+        },
+        "lindblad_outgoing": {
+          "📜": 0.002
+        }
+      },
+      "📗": {
+        "decay": {
+          "rate": 0.4,
+          "target": "🗑"
+        },
+        "lindblad_outgoing": {
+          "📜": 0.003
+        }
+      }
+    },
+    "icons": [
+      {
+        "name": "RedLedger",
+        "pole_0": "📕",
+        "pole_1": "🔑"
+      },
+      {
+        "name": "GreenLedger",
+        "pole_0": "📗",
+        "pole_1": "📓"
+      }
+    ]
+  },
+  {
+    "name": "MothGarden",
+    "description": "A hedge where three appetites contest for the same air. Pump each of them from outside — sun for the butterflies, leaves for the caterpillars, crickets for the spiders — and the populations settle into a rotating dance. The butterflies bloom, the caterpillars suppress the butterflies, the spiders suppress the caterpillars, the butterflies bloom again. The cycle never fully damps: a WATERCLOCK carved out of teeth. In the Lindbladian this is a rock-paper-scissors ring of gated drains, identical in form — the *loop* is the only asymmetry.",
+    "image_path": "res://Assets/Biomes/MothGarden.png",
+    "music_path": "res://Assets/Audio/Music/Cycle.mp3",
+    "discovered": false,
+    "plot_layout": [
+      {
+        "x": 0.35,
+        "y": 0.65
+      },
+      {
+        "x": 0.65,
+        "y": 0.65
+      },
+      {
+        "x": 0.5,
+        "y": 0.25
+      }
+    ],
+    "emojis": [
+      "🦋",
+      "🕷",
+      "🐛"
+    ],
+    "native_factions": [
+      "CycleKeepers"
+    ],
+    "tags": [
+      "oscillator",
+      "cycle",
+      "ecology",
+      "waterclock"
+    ],
+    "icon_components": {
+      "🦋": {
+        "lindblad_incoming": {
+          "🗑": 0.6
+        },
+        "gated_lindblad_source": [
+          {
+            "target": "🗑",
+            "gate": "🐛",
+            "rate": 30.0,
+            "power": 2,
+            "inverse": false
+          }
+        ]
+      },
+      "🕷": {
+        "lindblad_incoming": {
+          "🗑": 0.6
+        },
+        "gated_lindblad_source": [
+          {
+            "target": "🗑",
+            "gate": "🦋",
+            "rate": 30.0,
+            "power": 2,
+            "inverse": false
+          }
+        ]
+      },
+      "🐛": {
+        "lindblad_incoming": {
+          "🗑": 0.6
+        },
+        "gated_lindblad_source": [
+          {
+            "target": "🗑",
+            "gate": "🕷",
+            "rate": 30.0,
+            "power": 2,
+            "inverse": false
+          }
+        ]
+      }
+    },
+    "icons": [
+      {
+        "name": "Butterfly",
+        "pole_0": "🦋",
+        "pole_1": "🕷"
+      },
+      {
+        "name": "Crawler",
+        "pole_0": "🐛",
+        "pole_1": "🐛"
+      }
+    ]
+  },
+  {
+    "name": "SporeLibrary",
+    "description": "A shelf of mushrooms tuned to two different thresholds. The pale register ignites at the faintest disturbance; the orange register demands a stronger push. A weak breath through the library leaves only the pale register lit. A louder breath lights both. Once lit, each register sustains itself; the biome remembers which breath was strongest. Three distinguishable states: silent, whispered, spoken.",
+    "image_path": "res://Assets/Biomes/SporeLibrary.png",
+    "music_path": "res://Assets/Audio/Music/Spore.mp3",
+    "discovered": false,
+    "plot_layout": [
+      {
+        "x": 0.2,
+        "y": 0.5
+      },
+      {
+        "x": 0.4,
+        "y": 0.5
+      },
+      {
+        "x": 0.6,
+        "y": 0.5
+      },
+      {
+        "x": 0.8,
+        "y": 0.5
+      }
+    ],
+    "emojis": [
+      "🪸",
+      "🪵",
+      "🌰",
+      "🫚"
+    ],
+    "native_factions": [
+      "Archivists"
+    ],
+    "tags": [
+      "detector",
+      "quantum",
+      "lab",
+      "memory",
+      "gradient",
+      "mushroom"
+    ],
+    "icon_components": {
+      "🪵": {
+        "lindblad_incoming": {
+          "🗑": 1.5
+        },
+        "decay": {
+          "rate": 0.5,
+          "target": "🗑"
+        },
+        "gated_lindblad_source": [
+          {
+            "target": "🪸",
+            "gate": "🪸",
+            "rate": 20.0,
+            "power": 2,
+            "inverse": false
+          }
+        ]
+      },
+      "🪸": {
+        "decay": {
+          "rate": 0.4,
+          "target": "🗑"
+        }
+      },
+      "🫚": {
+        "lindblad_incoming": {
+          "🗑": 1.5
+        },
+        "decay": {
+          "rate": 0.5,
+          "target": "🗑"
+        },
+        "gated_lindblad_source": [
+          {
+            "target": "🌰",
+            "gate": "🌰",
+            "rate": 100.0,
+            "power": 4,
+            "inverse": false
+          }
+        ]
+      },
+      "🌰": {
+        "decay": {
+          "rate": 0.4,
+          "target": "🗑"
+        }
+      }
+    },
+    "icons": [
+      {
+        "name": "Pale",
+        "pole_0": "🪸",
+        "pole_1": "🪵"
+      },
+      {
+        "name": "Orange",
+        "pole_0": "🌰",
+        "pole_1": "🫚"
       }
     ]
   },
