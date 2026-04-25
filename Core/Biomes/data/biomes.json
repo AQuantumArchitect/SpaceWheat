@@ -904,10 +904,51 @@
       "ecosystem"
     ],
     "atom_components": {
+      "🌲": {
+        "lindblad_incoming": {
+          "🗑": 0.3
+        }
+      },
+      "🐇": {
+        "decay": {
+          "rate": 0.25,
+          "target": "🗑"
+        }
+      },
       "🦅": {
         "decay": {
-          "rate": 0.01,
+          "rate": 0.05,
           "target": "🐇"
+        }
+      },
+      "🐺": {
+        "decay": {
+          "rate": 0.04,
+          "target": "🦌"
+        }
+      },
+      "🦌": {
+        "decay": {
+          "rate": 0.03,
+          "target": "🌿"
+        }
+      },
+      "🌿": {
+        "decay": {
+          "rate": 0.04,
+          "target": "🍂"
+        }
+      },
+      "🍂": {
+        "decay": {
+          "rate": 0.05,
+          "target": "🌱"
+        }
+      },
+      "🌱": {
+        "decay": {
+          "rate": 0.04,
+          "target": "🌲"
         }
       },
       "🍄": {
@@ -918,6 +959,16 @@
         "decay": {
           "rate": 0.15,
           "target": "🌱"
+        }
+      },
+      "☀": {
+        "lindblad_outgoing": {
+          "🌙": 0.05
+        }
+      },
+      "🌙": {
+        "lindblad_outgoing": {
+          "☀": 0.05
         }
       }
     },
