@@ -126,7 +126,7 @@ def main() -> int:
 
     biome_map = {b["name"]: b for b in biomes}
     for biome in biomes:
-        biome.setdefault("icon_components", {})
+        biome.setdefault("atom_components", {})
 
     # Create orphan collector if needed
     orphan_lindblads = {"outgoing": {}, "incoming": {}, "decay": {}}
@@ -163,7 +163,7 @@ def main() -> int:
                             )
                 continue
             for biome_name in assigned:
-                comp = biome_map[biome_name]["icon_components"].setdefault(emoji, {})
+                comp = biome_map[biome_name]["atom_components"].setdefault(emoji, {})
                 for target, rate in targets.items():
                     _merge_outgoing(comp, target, float(rate))
                     moved_counts[biome_name]["out"] += 1
@@ -187,7 +187,7 @@ def main() -> int:
                             )
                 continue
             for biome_name in assigned:
-                comp = biome_map[biome_name]["icon_components"].setdefault(emoji, {})
+                comp = biome_map[biome_name]["atom_components"].setdefault(emoji, {})
                 for source, rate in sources.items():
                     _merge_incoming(comp, source, float(rate))
                     moved_counts[biome_name]["in"] += 1
@@ -210,7 +210,7 @@ def main() -> int:
                             orphan_lindblads["decay"][emoji] = {"rate": rate, "target": target}
                 continue
             for biome_name in assigned:
-                comp = biome_map[biome_name]["icon_components"].setdefault(emoji, {})
+                comp = biome_map[biome_name]["atom_components"].setdefault(emoji, {})
                 prev_rate, new_rate = _merge_decay(comp, decay_spec)
                 if new_rate > prev_rate:
                     moved_counts[biome_name]["decay"] += 1
@@ -231,21 +231,21 @@ def main() -> int:
             "name": ORPHAN_BIOME,
             "description": "Collected Lindblad terms for emojis not found in any biome",
             "emojis": [],
-            "icon_components": {},
+            "atom_components": {},
         }
-        # Populate orphan icon_components
+        # Populate orphan atom_components
         for emoji, targets in orphan_lindblads["outgoing"].items():
-            comp = orphan_biome["icon_components"].setdefault(emoji, {})
+            comp = orphan_biome["atom_components"].setdefault(emoji, {})
             comp["lindblad_outgoing"] = targets
             if emoji not in orphan_biome["emojis"]:
                 orphan_biome["emojis"].append(emoji)
         for emoji, sources in orphan_lindblads["incoming"].items():
-            comp = orphan_biome["icon_components"].setdefault(emoji, {})
+            comp = orphan_biome["atom_components"].setdefault(emoji, {})
             comp["lindblad_incoming"] = sources
             if emoji not in orphan_biome["emojis"]:
                 orphan_biome["emojis"].append(emoji)
         for emoji, decay_spec in orphan_lindblads["decay"].items():
-            comp = orphan_biome["icon_components"].setdefault(emoji, {})
+            comp = orphan_biome["atom_components"].setdefault(emoji, {})
             comp["decay"] = decay_spec
             if emoji not in orphan_biome["emojis"]:
                 orphan_biome["emojis"].append(emoji)

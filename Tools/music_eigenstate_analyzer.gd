@@ -72,8 +72,8 @@ func _build_emoji_index():
 		for emoji in emojis:
 			emoji_set[emoji] = true
 
-		# Also include emojis from icon_components (they have weights!)
-		var components = biome.get("icon_components", {})
+		# Also include emojis from atom_components (they have weights!)
+		var components = biome.get("atom_components", {})
 		for emoji in components.keys():
 			emoji_set[emoji] = true
 
@@ -94,7 +94,7 @@ func _create_biome_vectors():
 	for biome in biomes:
 		var name = biome.get("name", "Unknown")
 		var emojis = biome.get("emojis", [])
-		var components = biome.get("icon_components", {})
+		var components = biome.get("atom_components", {})
 
 		# Create vector
 		var vec = PackedFloat64Array()
@@ -107,7 +107,7 @@ func _create_biome_vectors():
 			if emoji_to_idx.has(emoji):
 				vec[emoji_to_idx[emoji]] = 1.0
 
-		# Method 2: Use self_energy from icon_components as weight (if available)
+		# Method 2: Use self_energy from atom_components as weight (if available)
 		for emoji in components.keys():
 			if emoji_to_idx.has(emoji):
 				var comp = components[emoji]

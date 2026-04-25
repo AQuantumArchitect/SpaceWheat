@@ -1517,7 +1517,7 @@ func _rebuild_cache() -> void:
 		for emoji in biome.get("emojis", []):
 			if not emoji.is_empty() and not emoji.is_valid_identifier():
 				emoji_set[emoji] = true
-		for emoji in biome.get("icon_components", {}).keys():
+		for emoji in biome.get("atom_components", {}).keys():
 			if not emoji.is_empty() and not emoji.is_valid_identifier():
 				emoji_set[emoji] = true
 
@@ -1540,7 +1540,7 @@ func _rebuild_cache() -> void:
 
 		var vec := _build_normalized_vector(
 			biome.get("emojis", []),
-			biome.get("icon_components", {})
+			biome.get("atom_components", {})
 		)
 		_biome_vectors[name] = vec
 
@@ -1603,8 +1603,8 @@ func _rebuild_cache() -> void:
 	])
 
 
-func _build_normalized_vector(emojis: Array, icon_components: Dictionary) -> Dictionary:
-	"""Build a normalized vector from emoji list and icon_components weights."""
+func _build_normalized_vector(emojis: Array, atom_components: Dictionary) -> Dictionary:
+	"""Build a normalized vector from emoji list and atom_components weights."""
 	var result_emojis: Array = []
 	var result_weights: Array = []
 
@@ -1614,11 +1614,11 @@ func _build_normalized_vector(emojis: Array, icon_components: Dictionary) -> Dic
 		if not emoji.is_empty() and not emoji.is_valid_identifier():
 			weight_map[emoji] = 1.0
 
-	# Override with self_energy from icon_components if available
-	for emoji in icon_components.keys():
+	# Override with self_energy from atom_components if available
+	for emoji in atom_components.keys():
 		if emoji.is_empty() or emoji.is_valid_identifier():
 			continue  # Skip placeholder keys
-		var comp = icon_components[emoji]
+		var comp = atom_components[emoji]
 		var weight := 1.0
 		if comp is Dictionary and comp.has("self_energy"):
 			weight = abs(float(comp["self_energy"])) + 0.1

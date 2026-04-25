@@ -176,7 +176,7 @@ def compute_faction_baselines(factions: list[dict], emojis: list[str], norms: di
 # ── Archetype classification ────────────────────────────────────────────────
 
 def extract_biome_lindblad(biome: dict) -> dict:
-    """Read biome Lindblad spec from icon_components.
+    """Read biome Lindblad spec from atom_components.
 
     Returns: {
         'pumps': [(source, target, rate)],
@@ -186,7 +186,7 @@ def extract_biome_lindblad(biome: dict) -> dict:
     }
     """
     out = {'pumps': [], 'drains': [], 'decays': [], 'gated': []}
-    ic = biome.get('icon_components', {}) or {}
+    ic = biome.get('atom_components', {}) or {}
     for emoji, comp in ic.items():
         if not isinstance(comp, dict):
             continue

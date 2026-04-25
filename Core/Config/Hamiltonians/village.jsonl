@@ -25,7 +25,7 @@
 # Self-energy detunings:
 #   Q1 people/bread: Δ=0.15  Q2 gears/wind: Δ=0.10  Q3 gold/basket: Δ=0.08
 #
-# Lindblad (in biomes.json icon_components):
+# Lindblad (in biomes.json atom_components):
 #   👥 decay→🍞 rate=0.015  (workers exhaust; creates bread demand)
 #   🔥 outgoing→❄ rate=0.015  (cold pump; fire must be actively maintained)
 #   ⚙  outgoing→💨 rate=0.010  (gears stop; wind is the natural idle state)

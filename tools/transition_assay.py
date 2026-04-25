@@ -118,7 +118,7 @@ def build_jumps(biome: dict, emojis: list[str]) -> list[dict]:
     """
     idx = {e: i for i, e in enumerate(emojis)}
     jumps = []
-    for emoji, comp in (biome.get('icon_components') or {}).items():
+    for emoji, comp in (biome.get('atom_components') or {}).items():
         if not isinstance(comp, dict) or emoji not in idx:
             continue
         i = idx[emoji]

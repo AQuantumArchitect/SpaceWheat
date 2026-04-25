@@ -81,7 +81,7 @@ static func build_from_registry(
 	This method:
 	1. Loads biome definition from BiomeRegistry
 	2. Extracts emoji pairs from biome.emojis
-	3. Builds Lindblad spec from biome.icon_components
+	3. Builds Lindblad spec from biome.atom_components
 	4. Calls build_biome_quantum_system() to create QuantumComputer
 	5. Creates DynamicBiome node with viz_cache
 	6. Adds biome to parent_node
@@ -153,7 +153,7 @@ static func build_from_spec(
 		result.error = "No emoji pairs for biome '%s'" % biome_name
 		return result
 
-	# Build Lindblad spec from biome icon_components
+	# Build Lindblad spec from biome atom_components
 	var lindblad_spec = _build_lindblad_spec_from_biome(biome_def)
 
 	# Auto-load biome Hamiltonian profile (biome-crafter surface).
@@ -265,13 +265,13 @@ static func _spec_get(spec, key: String, default_value = null):
 
 ## INTERNAL: Build BiomeLindblad spec from Biome definition
 static func _build_lindblad_spec_from_biome(biome_def) -> BiomeLindblad:
-	"""Extract Lindblad dissipation spec from biome icon_components.
+	"""Extract Lindblad dissipation spec from biome atom_components.
 
-	Converts biome.icon_components into BiomeLindblad format.
+	Converts biome.atom_components into BiomeLindblad format.
 	"""
 	var spec = BiomeLindblad.new()
 
-	var components = _spec_get(biome_def, "icon_components", {})
+	var components = _spec_get(biome_def, "atom_components", {})
 	# Extract Lindblad terms from each emoji's icon_component
 	for emoji in components:
 		var component = components[emoji]

@@ -57,7 +57,7 @@ For each biome we:
         faction contributions.
 
     2.  Build the full Lindblad jump set from the biome's
-        icon_components (pumps, drains, decays).
+        atom_components (pumps, drains, decays).
 
     3.  Time-evolve the density matrix from ρ = 0 using a 4th-order
         Runge-Kutta Lindblad integrator until it reaches steady state
@@ -124,7 +124,7 @@ def build_H(emojis: list[str], se: dict, cre: dict, cim: dict) -> np.ndarray:
 def build_jumps(biome: dict, emojis: list[str]) -> list[tuple]:
     idx = {e: i for i, e in enumerate(emojis)}
     jumps = []
-    for emoji, comp in (biome.get('icon_components') or {}).items():
+    for emoji, comp in (biome.get('atom_components') or {}).items():
         if not isinstance(comp, dict) or emoji not in idx:
             continue
         i = idx[emoji]

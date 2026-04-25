@@ -182,7 +182,18 @@
       "🔧",
       "💰"
     ],
-    "icons": []
+    "icons": [
+      {
+        "name": "Salvage",
+        "pole_0": "🦴",
+        "pole_1": "💰"
+      },
+      {
+        "name": "Repair",
+        "pole_0": "🔧",
+        "pole_1": "💉"
+      }
+    ]
   },
   {
     "alignment_couplings": {
@@ -260,7 +271,18 @@
       "🩹",
       "🧯"
     ],
-    "icons": []
+    "icons": [
+      {
+        "name": "Cleansing",
+        "pole_0": "⚔",
+        "pole_1": "🧯"
+      },
+      {
+        "name": "Aftermath",
+        "pole_0": "⚱",
+        "pole_1": "🌫"
+      }
+    ]
   },
   {
     "alignment_couplings": {
@@ -565,7 +587,18 @@
       "🗺",
       "🔭"
     ],
-    "icons": []
+    "icons": [
+      {
+        "name": "Charting",
+        "pole_0": "🗺",
+        "pole_1": "🧭"
+      },
+      {
+        "name": "Sighting",
+        "pole_0": "🔭",
+        "pole_1": "📍"
+      }
+    ]
   },
   {
     "description": "The eternal substrate. Sun and moon, the four elements. The abiotic foundation.",
@@ -817,7 +850,18 @@
       "🔧",
       "🦴"
     ],
-    "icons": []
+    "icons": [
+      {
+        "name": "Mend",
+        "pole_0": "💉",
+        "pole_1": "🦴"
+      },
+      {
+        "name": "Fitting",
+        "pole_0": "⚙️",
+        "pole_1": "🔧"
+      }
+    ]
   },
   {
     "name": "Chorus of Oblivion",
@@ -1058,7 +1102,18 @@
       "🪨",
       "🪤"
     ],
-    "icons": []
+    "icons": [
+      {
+        "name": "Underground",
+        "pole_0": "🌱",
+        "pole_1": "⛏"
+      },
+      {
+        "name": "Snare",
+        "pole_0": "🪨",
+        "pole_1": "🪤"
+      }
+    ]
   },
   {
     "alignment_couplings": {
@@ -1137,7 +1192,18 @@
       "🕳",
       "⚱"
     ],
-    "icons": []
+    "icons": [
+      {
+        "name": "Pressure",
+        "pole_0": "⭐",
+        "pole_1": "🕳"
+      },
+      {
+        "name": "Drowning",
+        "pole_0": "🫧",
+        "pole_1": "⚱"
+      }
+    ]
   },
   {
     "name": "Debt Wardens",
@@ -1475,7 +1541,18 @@
       "🧫",
       "🧵"
     ],
-    "icons": []
+    "icons": [
+      {
+        "name": "Tissue",
+        "pole_0": "🫀",
+        "pole_1": "🧬"
+      },
+      {
+        "name": "Suture",
+        "pole_0": "🩸",
+        "pole_1": "🧵"
+      }
+    ]
   },
   {
     "alignment_couplings": {
@@ -1570,7 +1647,23 @@
       "🪨",
       "⚡"
     ],
-    "icons": []
+    "icons": [
+      {
+        "name": "Mechanism",
+        "pole_0": "⚙",
+        "pole_1": "🔩"
+      },
+      {
+        "name": "Toolset",
+        "pole_0": "🛠",
+        "pole_1": "🧰"
+      },
+      {
+        "name": "Spark",
+        "pole_0": "💎",
+        "pole_1": "⚡"
+      }
+    ]
   },
   {
     "alignment_couplings": {
@@ -1844,7 +1937,18 @@
       "🥣",
       "🧿"
     ],
-    "icons": []
+    "icons": [
+      {
+        "name": "Kitchen",
+        "pole_0": "🫖",
+        "pole_1": "🥣"
+      },
+      {
+        "name": "Ward",
+        "pole_0": "🕯",
+        "pole_1": "🧿"
+      }
+    ]
   },
   {
     "alignment_couplings": {
@@ -1934,7 +2038,18 @@
       "⚗️",
       "🕳"
     ],
-    "icons": []
+    "icons": [
+      {
+        "name": "Inheritance",
+        "pole_0": "🧬",
+        "pole_1": "🧫"
+      },
+      {
+        "name": "Probe",
+        "pole_0": "🔬",
+        "pole_1": "🕳"
+      }
+    ]
   },
   {
     "alignment_couplings": {
@@ -2271,7 +2386,18 @@
       "🛸",
       "🧭"
     ],
-    "icons": []
+    "icons": [
+      {
+        "name": "Guard",
+        "pole_0": "⚔",
+        "pole_1": "🛡"
+      },
+      {
+        "name": "Patrol",
+        "pole_0": "🐑",
+        "pole_1": "🛸"
+      }
+    ]
   },
   {
     "alignment_couplings": {
@@ -2345,7 +2471,18 @@
       "⚖",
       "🪣"
     ],
-    "icons": []
+    "icons": [
+      {
+        "name": "Allotment",
+        "pole_0": "💧",
+        "pole_1": "⚖"
+      },
+      {
+        "name": "Furrow",
+        "pole_0": "🌱",
+        "pole_1": "🪣"
+      }
+    ]
   },
   {
     "alignment_couplings": {
@@ -2425,7 +2562,18 @@
       "🛑",
       "📵"
     ],
-    "icons": []
+    "icons": [
+      {
+        "name": "Hush",
+        "pole_0": "🔇",
+        "pole_1": "🤫"
+      },
+      {
+        "name": "Embargo",
+        "pole_0": "🛑",
+        "pole_1": "📵"
+      }
+    ]
   },
   {
     "alignment_couplings": {
@@ -2934,7 +3082,18 @@
       "📘",
       "🚔"
     ],
-    "icons": []
+    "icons": [
+      {
+        "name": "Levy",
+        "pole_0": "💰",
+        "pole_1": "⚖"
+      },
+      {
+        "name": "Writ",
+        "pole_0": "📒",
+        "pole_1": "🚔"
+      }
+    ]
   },
   {
     "alignment_couplings": {
@@ -3625,7 +3784,18 @@
       "🏺",
       "📐"
     ],
-    "icons": []
+    "icons": [
+      {
+        "name": "Course",
+        "pole_0": "🧱",
+        "pole_1": "🏛"
+      },
+      {
+        "name": "Plumb",
+        "pole_0": "📐",
+        "pole_1": "🏺"
+      }
+    ]
   },
   {
     "alignment_couplings": {
@@ -3707,7 +3877,18 @@
       "🧫",
       "🧿"
     ],
-    "icons": []
+    "icons": [
+      {
+        "name": "Translation",
+        "pole_0": "🌿",
+        "pole_1": "🦠"
+      },
+      {
+        "name": "Witness",
+        "pole_0": "🧫",
+        "pole_1": "🧿"
+      }
+    ]
   },
   {
     "alignment_couplings": {
@@ -3906,7 +4087,18 @@
       "🗝",
       "🚪"
     ],
-    "icons": []
+    "icons": [
+      {
+        "name": "Crossing",
+        "pole_0": "🚪",
+        "pole_1": "🗝"
+      },
+      {
+        "name": "Manifest",
+        "pole_0": "🛂",
+        "pole_1": "📋"
+      }
+    ]
   },
   {
     "alignment_couplings": {
@@ -3999,7 +4191,18 @@
       "⚙",
       "⚡"
     ],
-    "icons": []
+    "icons": [
+      {
+        "name": "Discipline",
+        "pole_0": "⛓",
+        "pole_1": "🪨"
+      },
+      {
+        "name": "Foreman",
+        "pole_0": "🧱",
+        "pole_1": "🕴️"
+      }
+    ]
   },
   {
     "alignment_couplings": {
@@ -4084,7 +4287,18 @@
       "💱",
       "🛡"
     ],
-    "icons": []
+    "icons": [
+      {
+        "name": "Arbitration",
+        "pole_0": "⚔",
+        "pole_1": "💱"
+      },
+      {
+        "name": "Wyrm",
+        "pole_0": "🐉",
+        "pole_1": "🩸"
+      }
+    ]
   },
   {
     "description": "The hunters. They cull the weak and shepherd death.",
@@ -4246,7 +4460,18 @@
       "🐝",
       "💀"
     ],
-    "icons": []
+    "icons": [
+      {
+        "name": "Contagion",
+        "pole_0": "🦠",
+        "pole_1": "💀"
+      },
+      {
+        "name": "Density",
+        "pole_0": "🐝",
+        "pole_1": "🐇"
+      }
+    ]
   },
   {
     "alignment_couplings": {
@@ -4586,7 +4811,18 @@
       "🍼",
       "⚡"
     ],
-    "icons": []
+    "icons": [
+      {
+        "name": "Birth",
+        "pole_0": "🍼",
+        "pole_1": "✨"
+      },
+      {
+        "name": "Reception",
+        "pole_0": "🤲",
+        "pole_1": "💫"
+      }
+    ]
   },
   {
     "alignment_couplings": {
@@ -4668,7 +4904,18 @@
       "📶",
       "🧭"
     ],
-    "icons": []
+    "icons": [
+      {
+        "name": "Uplink",
+        "pole_0": "📡",
+        "pole_1": "📶"
+      },
+      {
+        "name": "Mesh",
+        "pole_0": "🧩",
+        "pole_1": "🗺"
+      }
+    ]
   },
   {
     "alignment_couplings": {
@@ -4868,7 +5115,18 @@
       "📋",
       "💎"
     ],
-    "icons": []
+    "icons": [
+      {
+        "name": "Ascent",
+        "pole_0": "🚀",
+        "pole_1": "⚙"
+      },
+      {
+        "name": "Specification",
+        "pole_0": "📋",
+        "pole_1": "🔬"
+      }
+    ]
   },
   {
     "name": "Rose Wardens",
@@ -4943,7 +5201,18 @@
       "🌺",
       "⚔"
     ],
-    "icons": []
+    "icons": [
+      {
+        "name": "Bloom",
+        "pole_0": "🌹",
+        "pole_1": "🥀"
+      },
+      {
+        "name": "Thorn",
+        "pole_0": "🌺",
+        "pole_1": "⚔"
+      }
+    ]
   },
   {
     "alignment_couplings": {
@@ -5030,7 +5299,18 @@
       "🧯",
       "🍂"
     ],
-    "icons": []
+    "icons": [
+      {
+        "name": "Vigil",
+        "pole_0": "🕯",
+        "pole_1": "🔥"
+      },
+      {
+        "name": "Quench",
+        "pole_0": "🪵",
+        "pole_1": "🧯"
+      }
+    ]
   },
   {
     "name": "Salt Scribes",
@@ -5199,7 +5479,18 @@
       "🔓",
       "🕵️"
     ],
-    "icons": []
+    "icons": [
+      {
+        "name": "Channel",
+        "pole_0": "🛶",
+        "pole_1": "💧"
+      },
+      {
+        "name": "Contraband",
+        "pole_0": "🧂",
+        "pole_1": "🔓"
+      }
+    ]
   },
   {
     "alignment_couplings": {
@@ -5638,7 +5929,18 @@
       "🌙",
       "⚡"
     ],
-    "icons": []
+    "icons": [
+      {
+        "name": "Forgework",
+        "pole_0": "🌞",
+        "pole_1": "⚙"
+      },
+      {
+        "name": "Orbit",
+        "pole_0": "🌀",
+        "pole_1": "🌙"
+      }
+    ]
   },
   {
     "name": "Station Lords",
@@ -5709,7 +6011,18 @@
       "💰",
       "🛂"
     ],
-    "icons": []
+    "icons": [
+      {
+        "name": "Toll",
+        "pole_0": "🚀",
+        "pole_1": "💰"
+      },
+      {
+        "name": "Berth",
+        "pole_0": "🏢",
+        "pole_1": "🛂"
+      }
+    ]
   },
   {
     "description": "The gentle grazers. They eat the green and feed the strong.",
@@ -5760,7 +6073,18 @@
       "🦌",
       "🌿"
     ],
-    "icons": []
+    "icons": [
+      {
+        "name": "Graze",
+        "pole_0": "🦌",
+        "pole_1": "🌿"
+      },
+      {
+        "name": "Flight",
+        "pole_0": "🐇",
+        "pole_1": "🌿"
+      }
+    ]
   },
   {
     "alignment_couplings": {
@@ -5860,7 +6184,23 @@
       "🔇",
       "💎"
     ],
-    "icons": []
+    "icons": [
+      {
+        "name": "Tone",
+        "pole_0": "🎵",
+        "pole_1": "🔊"
+      },
+      {
+        "name": "Forge",
+        "pole_0": "🔨",
+        "pole_1": "⚙"
+      },
+      {
+        "name": "Silence",
+        "pole_0": "🔇",
+        "pole_1": "❄"
+      }
+    ]
   },
   {
     "alignment_couplings": {
@@ -5945,7 +6285,18 @@
       "🔍",
       "🧊"
     ],
-    "icons": []
+    "icons": [
+      {
+        "name": "Mirror",
+        "pole_0": "🪞",
+        "pole_1": "🔍"
+      },
+      {
+        "name": "Cold Coin",
+        "pole_0": "💎",
+        "pole_1": "🧊"
+      }
+    ]
   },
   {
     "alignment_couplings": {
@@ -6017,7 +6368,18 @@
       "♻️",
       "💧"
     ],
-    "icons": []
+    "icons": [
+      {
+        "name": "Closed Loop",
+        "pole_0": "🫙",
+        "pole_1": "♻️"
+      },
+      {
+        "name": "Sustain",
+        "pole_0": "🌿",
+        "pole_1": "💧"
+      }
+    ]
   },
   {
     "alignment_couplings": {
@@ -6183,7 +6545,18 @@
       "⚖",
       "📜"
     ],
-    "icons": []
+    "icons": [
+      {
+        "name": "Decree",
+        "pole_0": "📜",
+        "pole_1": "⚖"
+      },
+      {
+        "name": "Filing",
+        "pole_0": "📋",
+        "pole_1": "💳"
+      }
+    ]
   },
   {
     "alignment_couplings": {
@@ -6258,7 +6631,18 @@
       "📡",
       "🗣"
     ],
-    "icons": []
+    "icons": [
+      {
+        "name": "Slip-Frequency",
+        "pole_0": "📻",
+        "pole_1": "📶"
+      },
+      {
+        "name": "Casting",
+        "pole_0": "📡",
+        "pole_1": "🗣"
+      }
+    ]
   },
   {
     "alignment_couplings": {
@@ -6473,7 +6857,18 @@
       "🌠",
       "⚖"
     ],
-    "icons": []
+    "icons": [
+      {
+        "name": "Distant Eye",
+        "pole_0": "🔭",
+        "pole_1": "⚫"
+      },
+      {
+        "name": "Imposed Order",
+        "pole_0": "🌠",
+        "pole_1": "⚖"
+      }
+    ]
   },
   {
     "alignment_couplings": {
@@ -6542,7 +6937,18 @@
       "🗑",
       "💀"
     ],
-    "icons": []
+    "icons": [
+      {
+        "name": "Gleaning",
+        "pole_0": "🧤",
+        "pole_1": "🗑"
+      },
+      {
+        "name": "Wheat-Dust",
+        "pole_0": "💀",
+        "pole_1": "🗑"
+      }
+    ]
   },
   {
     "alignment_couplings": {
@@ -6619,7 +7025,18 @@
       "📦",
       "🚛"
     ],
-    "icons": []
+    "icons": [
+      {
+        "name": "Decree",
+        "pole_0": "💊",
+        "pole_1": "📦"
+      },
+      {
+        "name": "Distribution",
+        "pole_0": "🧪",
+        "pole_1": "🚛"
+      }
+    ]
   },
   {
     "name": "The Submersed",
@@ -6710,7 +7127,18 @@
       "🦀",
       "🐠"
     ],
-    "icons": []
+    "icons": [
+      {
+        "name": "Reef",
+        "pole_0": "🪸",
+        "pole_1": "🦀"
+      },
+      {
+        "name": "Tide",
+        "pole_0": "🌊",
+        "pole_1": "🐠"
+      }
+    ]
   },
   {
     "alignment_couplings": {
@@ -6810,7 +7238,18 @@
       "🧮",
       "🔭"
     ],
-    "icons": []
+    "icons": [
+      {
+        "name": "Curvature",
+        "pole_0": "📐",
+        "pole_1": "🧮"
+      },
+      {
+        "name": "Far Sight",
+        "pole_0": "🔭",
+        "pole_1": "🔬"
+      }
+    ]
   },
   {
     "alignment_couplings": {
@@ -6968,7 +7407,18 @@
       "💀",
       "💰"
     ],
-    "icons": []
+    "icons": [
+      {
+        "name": "Leverage",
+        "pole_0": "🗝",
+        "pole_1": "💰"
+      },
+      {
+        "name": "Shadow",
+        "pole_0": "🕵️",
+        "pole_1": "💀"
+      }
+    ]
   },
   {
     "alignment_couplings": {
@@ -7253,7 +7703,18 @@
       "♟",
       "🕰"
     ],
-    "icons": []
+    "icons": [
+      {
+        "name": "Abandoned Crown",
+        "pole_0": "⚫",
+        "pole_1": "⚜"
+      },
+      {
+        "name": "Slow Reign",
+        "pole_0": "♟",
+        "pole_1": "🕰"
+      }
+    ]
   },
   {
     "name": "Void Serfs",
@@ -7314,7 +7775,18 @@
       "💸",
       "💀"
     ],
-    "icons": []
+    "icons": [
+      {
+        "name": "Processing",
+        "pole_0": "👥",
+        "pole_1": "⛓"
+      },
+      {
+        "name": "Discount",
+        "pole_0": "💸",
+        "pole_1": "💀"
+      }
+    ]
   },
   {
     "name": "Void Troubadours",
@@ -7400,7 +7872,18 @@
       "💫",
       "🏮"
     ],
-    "icons": []
+    "icons": [
+      {
+        "name": "Lyric",
+        "pole_0": "🎸",
+        "pole_1": "🎼"
+      },
+      {
+        "name": "Lantern",
+        "pole_0": "💫",
+        "pole_1": "🏮"
+      }
+    ]
   },
   {
     "alignment_couplings": {
@@ -7599,7 +8082,18 @@
       "👁",
       "🌋"
     ],
-    "icons": []
+    "icons": [
+      {
+        "name": "Spiral",
+        "pole_0": "🌀",
+        "pole_1": "🐙"
+      },
+      {
+        "name": "Sight",
+        "pole_0": "👁",
+        "pole_1": "✨"
+      }
+    ]
   },
   {
     "alignment_couplings": {
@@ -7674,7 +8168,18 @@
       "🔥": 0.35,
       "🌬": 0.1
     },
-    "icons": []
+    "icons": [
+      {
+        "name": "Burn",
+        "pole_0": "🔥",
+        "pole_1": "🍂"
+      },
+      {
+        "name": "Renewal",
+        "pole_0": "🌿",
+        "pole_1": "🌱"
+      }
+    ]
   },
   {
     "alignment_couplings": {
@@ -7762,7 +8267,18 @@
       "🫙",
       "💨"
     ],
-    "icons": []
+    "icons": [
+      {
+        "name": "Rising",
+        "pole_0": "🍞",
+        "pole_1": "💨"
+      },
+      {
+        "name": "Ferment",
+        "pole_0": "🧪",
+        "pole_1": "🫙"
+      }
+    ]
   },
   {
     "name": "Forgewright Union",
@@ -8172,7 +8688,19 @@
       "📗": {},
       "📓": {}
     },
-    "alignment_couplings": {}
+    "alignment_couplings": {},
+    "icons": [
+      {
+        "name": "Red Book",
+        "pole_0": "📕",
+        "pole_1": "🔑"
+      },
+      {
+        "name": "Green Book",
+        "pole_0": "📗",
+        "pole_1": "📓"
+      }
+    ]
   },
   {
     "name": "CycleKeepers",
@@ -8214,6 +8742,18 @@
       "🕷": {},
       "🐛": {}
     },
-    "alignment_couplings": {}
+    "alignment_couplings": {},
+    "icons": [
+      {
+        "name": "Above",
+        "pole_0": "🦋",
+        "pole_1": "🕷"
+      },
+      {
+        "name": "Below",
+        "pole_0": "🐛",
+        "pole_1": "🕷"
+      }
+    ]
   }
 ]

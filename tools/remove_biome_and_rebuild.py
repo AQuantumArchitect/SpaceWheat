@@ -41,7 +41,7 @@ def _remove_by_name(rows: List[Dict[str, Any]], biome_name: str) -> Tuple[List[D
 def _validate_registry_shape(rows: List[Dict[str, Any]]) -> List[str]:
     errors: List[str] = []
     names: set[str] = set()
-    required = ("name", "description", "plot_layout", "emojis", "native_factions", "tags", "icon_components")
+    required = ("name", "description", "plot_layout", "emojis", "native_factions", "tags", "atom_components")
     for idx, row in enumerate(rows):
         ctx = f"index={idx}"
         name = str(row.get("name", "")).strip()

@@ -40,7 +40,7 @@ var emojis: Array = []
 ##   "decay": {rate, target},
 ##   ... (other quantum fields)
 ## }
-var icon_components: Dictionary = {}
+var atom_components: Dictionary = {}
 
 ## Cross-biome couplings (within this biome, between emojis)
 ## Format: [{source: emoji, target: emoji, type: str, rate: float}]
@@ -71,10 +71,10 @@ func get_all_emojis() -> Array:
 
 
 ## Get quantum component for an emoji
-func get_icon_component(emoji: String) -> Dictionary:
+func get_atom_component(emoji: String) -> Dictionary:
 	if not emoji in emojis:
 		return {}
-	return icon_components.get(emoji, {})
+	return atom_components.get(emoji, {})
 
 
 ## Validate that all couplings reference defined emojis
@@ -93,14 +93,14 @@ func validate() -> bool:
 		else:
 			seen_emojis[emoji] = true
 
-	# Check icon_components reference valid emojis
-	for emoji in icon_components:
+	# Check atom_components reference valid emojis
+	for emoji in atom_components:
 		if emoji not in emojis:
 			push_warning("Biome %s: auxiliary icon_component %s is not in emojis list" % [name, emoji])
 
 	# Check hamiltonian targets are in biome
-	for emoji in icon_components:
-		var component = icon_components[emoji]
+	for emoji in atom_components:
+		var component = atom_components[emoji]
 		var h = component.get("hamiltonian", {})
 		for target in h:
 			if target not in emojis:
@@ -134,7 +134,7 @@ func to_dict() -> Dictionary:
 		"discovered": discovered,
 		"plot_layout": plot_layout,
 		"emojis": emojis,
-		"icon_components": icon_components,
+		"atom_components": atom_components,
 		"tags": tags,
 	}
 
@@ -157,15 +157,15 @@ func load_from_dict(data: Dictionary) -> void:
 	plot_layout = data.get("plot_layout", [])
 	# Normalize variation selectors so emoji keys match faction sig strings
 	emojis = EmojiUtil.normalize_array(data.get("emojis", []))
-	icon_components = _normalize_icon_components(data.get("icon_components", {}))
+	atom_components = _normalize_atom_components(data.get("atom_components", {}))
 	cross_couplings = data.get("cross_couplings", [])
 	native_factions = data.get("native_factions", [])
 	tags = data.get("tags", [])
 
 
-## Normalize all emoji keys inside icon_components.
+## Normalize all emoji keys inside atom_components.
 ## Structure: {emoji: {field: {emoji: value} | scalar | {rate, target}}}
-static func _normalize_icon_components(raw: Dictionary) -> Dictionary:
+static func _normalize_atom_components(raw: Dictionary) -> Dictionary:
 	if raw.is_empty():
 		return raw
 	var result: Dictionary = {}

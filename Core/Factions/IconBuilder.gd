@@ -668,7 +668,7 @@ static func build_biome_with_factions(
 	# Build each emoji: biome_component + (faction_contributions × standing)
 	var icons: Dictionary = {}
 	for emoji in all_emojis:
-		var biome_component = biome.get_icon_component(emoji)
+		var biome_component = biome.get_atom_component(emoji)
 		var faction_factions = get_factions_for_emoji(emoji)
 
 		# Filter factions to only those in faction_standings (or all if empty)

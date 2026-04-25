@@ -41,7 +41,7 @@
       "natural",
       "quantum"
     ],
-    "icon_components": {},
+    "atom_components": {},
     "icons": [
       {
         "name": "CelestialCycle",
@@ -113,7 +113,7 @@
       "criminal",
       "debt"
     ],
-    "icon_components": {
+    "atom_components": {
       "🚀": {
         "decay": {
           "rate": 0.001,
@@ -375,7 +375,7 @@
       "ethereal",
       "memory"
     ],
-    "icon_components": {
+    "atom_components": {
       "🔇": {
         "lindblad_incoming": {
           "🤫": 0.003
@@ -555,7 +555,7 @@
       "network",
       "microbial"
     ],
-    "icon_components": {
+    "atom_components": {
       "💀": {
         "lindblad_incoming": {
           "🦠": 0.03,
@@ -683,7 +683,7 @@
       "nomadic",
       "probabilistic"
     ],
-    "icon_components": {
+    "atom_components": {
       "🌠": {
         "lindblad_incoming": {
           "💫": 0.003
@@ -903,7 +903,7 @@
       "forest",
       "ecosystem"
     ],
-    "icon_components": {
+    "atom_components": {
       "🦅": {
         "decay": {
           "rate": 0.01,
@@ -992,7 +992,7 @@
       "space",
       "quantum"
     ],
-    "icon_components": {},
+    "atom_components": {},
     "icons": [
       {
         "name": "Power",
@@ -1056,7 +1056,7 @@
       "civilization",
       "domestic"
     ],
-    "icon_components": {
+    "atom_components": {
       "👥": {
         "lindblad_incoming": {
           "🗑": 0.3
@@ -1201,7 +1201,7 @@
       "mineral",
       "harsh"
     ],
-    "icon_components": {},
+    "atom_components": {},
     "icons": [
       {
         "name": "Magma",
@@ -1269,7 +1269,7 @@
       "coastal",
       "quantum"
     ],
-    "icon_components": {
+    "atom_components": {
       "🌊": {
         "lindblad_incoming": {
           "💧": 0.003
@@ -1485,7 +1485,7 @@
       "processing",
       "machine"
     ],
-    "icon_components": {
+    "atom_components": {
       "📜": {
         "decay": {
           "rate": 0.003,
@@ -1659,7 +1659,7 @@
       "beauty",
       "cruelty"
     ],
-    "icon_components": {
+    "atom_components": {
       "⚜": {
         "lindblad_outgoing": {
           "📜": 0.006
@@ -1861,7 +1861,7 @@
       "transmission",
       "decay"
     ],
-    "icon_components": {
+    "atom_components": {
       "📡": {
         "lindblad_outgoing": {
           "📶": 0.1,
@@ -2002,7 +2002,7 @@
       "decay",
       "cosmic"
     ],
-    "icon_components": {
+    "atom_components": {
       "🛰": {
         "lindblad_incoming": {
           "📡": 0.02
@@ -2120,7 +2120,7 @@
       "sterile",
       "diagnosis"
     ],
-    "icon_components": {
+    "atom_components": {
       "💉": {
         "lindblad_incoming": {
           "🧪": 0.04
@@ -2266,7 +2266,7 @@
       "industry",
       "repair"
     ],
-    "icon_components": {
+    "atom_components": {
       "🔧": {
         "lindblad_incoming": {
           "⚙": 0.02,
@@ -2411,7 +2411,7 @@
       "recycling",
       "labor"
     ],
-    "icon_components": {
+    "atom_components": {
       "♻️": {
         "lindblad_incoming": {
           "🗑": 0.15,
@@ -2609,7 +2609,7 @@
       "trade",
       "finance"
     ],
-    "icon_components": {
+    "atom_components": {
       "💰": {
         "lindblad_incoming": {
           "🚀": 0.04,
@@ -2814,7 +2814,7 @@
       "volatile",
       "markets"
     ],
-    "icon_components": {
+    "atom_components": {
       "🐂": {
         "lindblad_incoming": {
           "💰": 0.08
@@ -2920,7 +2920,7 @@
       "binding",
       "labor"
     ],
-    "icon_components": {
+    "atom_components": {
       "🧵": {
         "lindblad_incoming": {
           "🧶": 0.04,
@@ -3056,7 +3056,7 @@
       "oath",
       "ritual"
     ],
-    "icon_components": {
+    "atom_components": {
       "🪢": {
         "lindblad_incoming": {
           "🧵": 0.07,
@@ -3171,7 +3171,7 @@
       "peace",
       "attractor"
     ],
-    "icon_components": {
+    "atom_components": {
       "🧘": {
         "lindblad_incoming": {
           "📿": 0.02,
@@ -3282,7 +3282,7 @@
       "protection",
       "ritual"
     ],
-    "icon_components": {
+    "atom_components": {
       "🧿": {
         "lindblad_incoming": {
           "🕯": 0.03,
@@ -3396,7 +3396,7 @@
       "memorial",
       "terminus"
     ],
-    "icon_components": {
+    "atom_components": {
       "⚱": {
         "lindblad_incoming": {},
         "lindblad_outgoing": {
@@ -3519,7 +3519,7 @@
       "agricultural",
       "vulnerable"
     ],
-    "icon_components": {
+    "atom_components": {
       "🐑": {
         "lindblad_incoming": {
           "👥": 0.02,
@@ -3680,7 +3680,7 @@
       "fermentation",
       "focused"
     ],
-    "icon_components": {
+    "atom_components": {
       "🐝": {
         "lindblad_incoming": {
           "🌿": 0.08,
@@ -3805,7 +3805,7 @@
       "waiting",
       "rust"
     ],
-    "icon_components": {
+    "atom_components": {
       "⚓": {
         "lindblad_outgoing": {
           "🪝": 0.03
@@ -3944,7 +3944,7 @@
       "fundamental",
       "flow"
     ],
-    "icon_components": {
+    "atom_components": {
       "💧": {
         "lindblad_incoming": {
           "🧊": 0.05,
@@ -4076,7 +4076,7 @@
       "death",
       "fast"
     ],
-    "icon_components": {
+    "atom_components": {
       "⚔": {
         "lindblad_outgoing": {
           "💀": 0.06,
@@ -4223,7 +4223,7 @@
       "movement",
       "volatile"
     ],
-    "icon_components": {
+    "atom_components": {
       "✊": {
         "lindblad_incoming": {
           "⛓": 0.05
@@ -4356,7 +4356,7 @@
       "destruction",
       "orbital"
     ],
-    "icon_components": {
+    "atom_components": {
       "🛸": {
         "lindblad_outgoing": {
           "🚀": 0.02
@@ -4491,7 +4491,7 @@
       "bureaucratic",
       "persistence"
     ],
-    "icon_components": {
+    "atom_components": {
       "📒": {
         "lindblad_incoming": {
           "📘": 0.03
@@ -4634,7 +4634,7 @@
       "slow",
       "geological"
     ],
-    "icon_components": {
+    "atom_components": {
       "🏚️": {
         "lindblad_incoming": {
           "🏰": 0.01,
@@ -4754,7 +4754,7 @@
       "faded",
       "slow"
     ],
-    "icon_components": {
+    "atom_components": {
       "🏰": {
         "lindblad_incoming": {
           "⚜": 0.01
@@ -4869,7 +4869,7 @@
       "violent",
       "clearing"
     ],
-    "icon_components": {
+    "atom_components": {
       "🧨": {
         "lindblad_outgoing": {
           "💥": 0.1,
@@ -4991,7 +4991,7 @@
       "harvest",
       "cycle"
     ],
-    "icon_components": {
+    "atom_components": {
       "🌲": {
         "lindblad_outgoing": {
           "🪵": 0.08,
@@ -5119,7 +5119,7 @@
       "reflection",
       "measurement"
     ],
-    "icon_components": {
+    "atom_components": {
       "🪞": {
         "lindblad_outgoing": {
           "👤": 0.04,
@@ -5232,7 +5232,7 @@
       "patience",
       "death"
     ],
-    "icon_components": {
+    "atom_components": {
       "🪤": {
         "gated_lindblad_source": [
           {
@@ -5373,7 +5373,7 @@
       "authority",
       "processing"
     ],
-    "icon_components": {
+    "atom_components": {
       "🚔": {
         "lindblad_incoming": {
           "📒": 0.02
@@ -5498,7 +5498,7 @@
       "grid",
       "energy"
     ],
-    "icon_components": {
+    "atom_components": {
       "🔌": {
         "lindblad_incoming": {
           "♻️": 0.04
@@ -5616,7 +5616,7 @@
       "strange",
       "electromagnetic"
     ],
-    "icon_components": {
+    "atom_components": {
       "🧲": {
         "lindblad_incoming": {
           "⚡": 0.001,
@@ -5741,7 +5741,7 @@
       "dangerous",
       "energy"
     ],
-    "icon_components": {
+    "atom_components": {
       "⚫": {
         "lindblad_incoming": {
           "🌑": 0.03,
@@ -5918,7 +5918,7 @@
       "measurement",
       "engineering"
     ],
-    "icon_components": {
+    "atom_components": {
       "⚙": {
         "lindblad_incoming": {
           "❄️": 0.03
@@ -6021,7 +6021,7 @@
       "economy",
       "quests"
     ],
-    "icon_components": {
+    "atom_components": {
       "💰": {
         "lindblad_outgoing": {
           "🧺": 0.05,
@@ -6110,7 +6110,7 @@
       "cosmic",
       "exploration"
     ],
-    "icon_components": {
+    "atom_components": {
       "🌠": {
         "lindblad_outgoing": {
           "🛰": 0.05,
@@ -6199,7 +6199,7 @@
       "stress",
       "dissipation"
     ],
-    "icon_components": {
+    "atom_components": {
       "🔥": {
         "lindblad_outgoing": {
           "⚫": 0.05,
@@ -6300,7 +6300,7 @@
       "void",
       "precession"
     ],
-    "icon_components": {
+    "atom_components": {
       "⚫": {
         "lindblad_outgoing": {
           "🕳": 0.02
@@ -6411,7 +6411,7 @@
       "domestic",
       "fiber"
     ],
-    "icon_components": {
+    "atom_components": {
       "🕯": {
         "lindblad_outgoing": {
           "🔥": 0.04
@@ -6536,7 +6536,7 @@
       "rotation",
       "sound"
     ],
-    "icon_components": {
+    "atom_components": {
       "🔊": {
         "lindblad_incoming": {
           "🗣": 0.03
@@ -6635,7 +6635,7 @@
       "lab",
       "eit"
     ],
-    "icon_components": {
+    "atom_components": {
       "🔭": {
         "decay": {
           "rate": 0.15,
@@ -6717,7 +6717,7 @@
       "ssh",
       "topological"
     ],
-    "icon_components": {
+    "atom_components": {
       "🏁": {
         "lindblad_incoming": {
           "🗑": 0.05
@@ -6788,7 +6788,7 @@
       "lab",
       "zeno"
     ],
-    "icon_components": {
+    "atom_components": {
       "📯": {
         "decay": {
           "rate": 10.0,
@@ -6851,7 +6851,7 @@
       "chiral",
       "clock"
     ],
-    "icon_components": {
+    "atom_components": {
       "⌛": {
         "lindblad_incoming": {
           "🗑": 0.05
@@ -6923,7 +6923,7 @@
       "gain",
       "laser"
     ],
-    "icon_components": {
+    "atom_components": {
       "💥": {
         "lindblad_incoming": {
           "🗑": 1.0
@@ -6993,7 +6993,7 @@
       "bistable",
       "phase-transition"
     ],
-    "icon_components": {
+    "atom_components": {
       "🌘": {
         "lindblad_incoming": {
           "🗑": 1.0
@@ -7059,7 +7059,7 @@
       "critical",
       "slowdown"
     ],
-    "icon_components": {
+    "atom_components": {
       "🌘": {
         "lindblad_incoming": {
           "🗑": 0.38
@@ -7138,7 +7138,7 @@
       "memory",
       "multistate"
     ],
-    "icon_components": {
+    "atom_components": {
       "🔑": {
         "lindblad_incoming": {
           "🗑": 1.5
@@ -7247,7 +7247,7 @@
       "ecology",
       "waterclock"
     ],
-    "icon_components": {
+    "atom_components": {
       "🦋": {
         "lindblad_incoming": {
           "🗑": 0.6
@@ -7345,7 +7345,7 @@
       "gradient",
       "mushroom"
     ],
-    "icon_components": {
+    "atom_components": {
       "🪵": {
         "lindblad_incoming": {
           "🗑": 1.5
@@ -7493,7 +7493,7 @@
       "🪛",
       "🧷"
     ],
-    "icon_components": {
+    "atom_components": {
       "🧨": {
         "lindblad_outgoing": {
           "🔥": 0.01

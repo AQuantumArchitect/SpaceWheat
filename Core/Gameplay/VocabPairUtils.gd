@@ -44,3 +44,12 @@ static func biome_has_emoji(biome, emoji: String) -> bool:
 	if biome.viz_cache and biome.viz_cache.has_metadata():
 		return biome.viz_cache.get_qubit(emoji) >= 0
 	return false
+
+
+## Build the "discovered pair-key set" from a farm/game-state ref. Pass the
+## result to IconLexicon.is_pair_discovered / filter_discovered_records. Empty
+## set if no vocabulary system is wired up yet (e.g. during boot).
+static func discovered_pair_set(farm_ref) -> Dictionary:
+	var pairs = collect_known_pairs(farm_ref)
+	var IconLexiconScript = load("res://Core/Factions/IconLexicon.gd")
+	return IconLexiconScript.discovered_set_from_vocabulary(pairs)

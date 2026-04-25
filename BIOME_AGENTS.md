@@ -30,6 +30,27 @@ Lindbladian and the physics takes care of the rest.
 
 ---
 
+## Vocabulary: atoms vs. pair-icons
+
+Two layers, different jobs:
+
+- **Atoms** (single emojis like `⚱`, `🪔`, `💀`) are the *physics* primitives:
+  basis states the simulator integrates. They are the keys of every H, L,
+  `self_energies`, `atom_components`, faction `sig`, biome `emojis`. ~227 unique.
+- **Pair-icons** (`{name, pole_0, pole_1}` like `{Combat, ⚔, ⚱}`) are the
+  *named* two-state axes the player ever sees by name. They live in faction
+  `icons[]` and biome `icons[]`, registered in `IconLexicon`. ~166 pairs /
+  ~160 names. Every faction now carries pair-icons.
+
+The word "icon" is reserved for pair-icons. The single-emoji-keyed Lindblad
+spec on each biome is `atom_components` (formerly `icon_components`).
+Player-facing vocab discovery flows through pair-icons via
+`IconLexicon.is_pair_discovered(p0, p1, discovered_set)` —
+`VocabularyEvolution.discovered_vocabulary` is the source of truth for which
+pairs the player has seen.
+
+---
+
 ## The two data files that matter
 
 Everything interesting lives in:
@@ -81,7 +102,7 @@ Each biome has:
   "name": "ShrineOfAshes",
   "emojis": ["⚱", "🕯", "📿", "💀"],
   "native_factions": ["Memory Merchants", "..."],
-  "icon_components": {
+  "atom_components": {
     "💀": {
       "lindblad_incoming": {"🗑": 2.5},
       "gated_lindblad_source": [
@@ -100,7 +121,7 @@ Lindblad operator types (on each emoji):
 - `gated_lindblad_source: [{target, gate, rate, power, inverse}]` —
   rate-modulated jump from `emoji` to `target`, where effective rate = `rate · ρ_gate^power`. This is the **nonlinearity** that makes bistability, tristability, oscillators, and gradient memories possible.
 
-**Variation selectors matter.** `biome_audit.strip_fe0f` removes `️` from the biome's `emojis` list on load, but NOT from inner dict keys/values. If you write `❄️` in `icon_components` it won't match the stripped `❄` — so always use bare codepoints (`❄`, `⚙`, etc.) for emoji keys inside Lindblad specs.
+**Variation selectors matter.** `biome_audit.strip_fe0f` removes `️` from the biome's `emojis` list on load, but NOT from inner dict keys/values. If you write `❄️` in `atom_components` it won't match the stripped `❄` — so always use bare codepoints (`❄`, `⚙`, etc.) for emoji keys inside Lindblad specs.
 
 ---
 
@@ -132,7 +153,7 @@ absolute magnitudes matter).
 
 1. **Pick a biome.** Something that already has a "near-miss" score on one of
    the assays. Run `python3 tools/<assay>.py --top 10` to find candidates.
-2. **Read its current `icon_components`.** Don't destroy the existing lore;
+2. **Read its current `atom_components`.** Don't destroy the existing lore;
    add or tune, don't delete unless necessary.
 3. **Edit `Core/Biomes/data/biomes.json`** (via a Python script — the file
    is large and editing by hand is error-prone). Surgical changes: raising a
@@ -144,7 +165,7 @@ absolute magnitudes matter).
 ### What works and what doesn't (observed empirically)
 
 - **Simple biomes mutate cleanly; crufty ones resist.** Biomes with few
-  `icon_components` tune well. Biomes with lots of pre-existing gated
+  `atom_components` tune well. Biomes with lots of pre-existing gated
   Lindblads (TidalPools, HorizonFracture, GildedRot) have tangled
   fixed-point landscapes where one-knob mutations get absorbed into noise.
   For those, either strip their gated structure first or leave them alone.
