@@ -6946,8 +6946,9 @@
     ],
     "emojis": [
       "⌛",
+      "⏰",
       "⏳",
-      "⏰"
+      "🕰"
     ],
     "native_factions": [
       "Timekeepers"
@@ -6981,18 +6982,27 @@
         "lindblad_outgoing": {
           "⏱": 0.003
         }
+      },
+      "🕰": {
+        "lindblad_incoming": {
+          "⌛": 0.003
+        },
+        "decay": {
+          "rate": 0.01,
+          "target": "🗑"
+        }
       }
     },
     "icons": [
       {
-        "name": "Waiting",
+        "name": "Cycle",
         "pole_0": "⌛",
-        "pole_1": "⏳"
+        "pole_1": "⏰"
       },
       {
-        "name": "Ringing",
-        "pole_0": "⏰",
-        "pole_1": "⏰"
+        "name": "Witness",
+        "pole_0": "⏳",
+        "pole_1": "🕰"
       }
     ]
   },
