@@ -536,11 +536,12 @@
       "🐜",
       "🍄",
       "🦠",
-      "🧫",
       "🍂",
+      "💀",
       "🌙",
       "☀",
-      "💀"
+      "🌧",
+      "🧫"
     ],
     "native_factions": [
       "Celestial Archons",
@@ -611,6 +612,15 @@
           "rate": 0.025,
           "target": "🗑"
         }
+      },
+      "🌧": {
+        "lindblad_incoming": {
+          "🗑": 0.4
+        },
+        "lindblad_outgoing": {
+          "🦠": 0.06,
+          "🍄": 0.02
+        }
       }
     },
     "icons": [
@@ -620,19 +630,24 @@
         "pole_1": "🐜"
       },
       {
-        "name": "Mycelium",
+        "name": "Kingdom",
         "pole_0": "🍄",
         "pole_1": "🦠"
       },
       {
-        "name": "Culture",
-        "pole_0": "🧫",
-        "pole_1": "🍂"
+        "name": "Decompose",
+        "pole_0": "🍂",
+        "pole_1": "💀"
       },
       {
-        "name": "NightCycle",
+        "name": "Sky",
         "pole_0": "🌙",
         "pole_1": "☀"
+      },
+      {
+        "name": "Bath",
+        "pole_0": "🌧",
+        "pole_1": "🧫"
       }
     ]
   },
