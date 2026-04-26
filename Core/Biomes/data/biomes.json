@@ -888,7 +888,8 @@
       "🍂",
       "🌱",
       "🌿",
-      "🍄"
+      "🍄",
+      "💀"
     ],
     "native_factions": [
       "Pack Lords",
@@ -3550,11 +3551,12 @@
     ],
     "emojis": [
       "🐑",
+      "🐺",
       "🐝",
+      "🌿",
       "🥣",
       "🫙",
       "🤲",
-      "🌿",
       "🌾"
     ],
     "native_factions": [
@@ -3653,6 +3655,16 @@
           "rate": 0.02,
           "target": "🍂"
         }
+      },
+      "🐺": {
+        "lindblad_incoming": {
+          "🗑": 0.03,
+          "🐑": 0.04
+        },
+        "decay": {
+          "rate": 0.05,
+          "target": "🗑"
+        }
       }
     },
     "cross_biome_flows": {
@@ -3673,9 +3685,14 @@
     },
     "icons": [
       {
-        "name": "Pastoral",
+        "name": "Predation",
         "pole_0": "🐑",
-        "pole_1": "🐝"
+        "pole_1": "🐺"
+      },
+      {
+        "name": "Pollination",
+        "pole_0": "🐝",
+        "pole_1": "🌿"
       },
       {
         "name": "Harvest",
@@ -3683,9 +3700,9 @@
         "pole_1": "🫙"
       },
       {
-        "name": "Tending",
+        "name": "Commons",
         "pole_0": "🤲",
-        "pole_1": "🌿"
+        "pole_1": "🌾"
       }
     ]
   },
@@ -3977,10 +3994,11 @@
       }
     ],
     "emojis": [
-      "💧",
       "🧊",
-      "🫧",
+      "🔥",
+      "💧",
       "🌊",
+      "🫧",
       "🌿"
     ],
     "native_factions": [
@@ -4049,6 +4067,15 @@
           "rate": 0.015,
           "target": "🍂"
         }
+      },
+      "🔥": {
+        "lindblad_outgoing": {
+          "💧": 0.04
+        },
+        "decay": {
+          "rate": 0.06,
+          "target": "🗑"
+        }
       }
     },
     "cross_biome_flows": {
@@ -4072,13 +4099,18 @@
     "icons": [
       {
         "name": "Phase",
-        "pole_0": "💧",
-        "pole_1": "🧊"
+        "pole_0": "🧊",
+        "pole_1": "🔥"
       },
       {
-        "name": "Flow",
-        "pole_0": "🫧",
+        "name": "Scale",
+        "pole_0": "💧",
         "pole_1": "🌊"
+      },
+      {
+        "name": "Cycle",
+        "pole_0": "🫧",
+        "pole_1": "🌿"
       }
     ]
   },
@@ -5025,9 +5057,10 @@
       }
     ],
     "emojis": [
-      "🪵",
       "🌲",
+      "🌱",
       "🪓",
+      "🪵",
       "🔥",
       "🍂"
     ],
@@ -5097,6 +5130,15 @@
           "rate": 0.01,
           "target": "🌱"
         }
+      },
+      "🌱": {
+        "lindblad_outgoing": {
+          "🌲": 0.03
+        },
+        "decay": {
+          "rate": 0.01,
+          "target": "🗑"
+        }
       }
     },
     "cross_biome_flows": {
@@ -5116,14 +5158,19 @@
     },
     "icons": [
       {
-        "name": "Timber",
-        "pole_0": "🪵",
-        "pole_1": "🌲"
+        "name": "Lifestage",
+        "pole_0": "🌲",
+        "pole_1": "🌱"
       },
       {
-        "name": "Clearing",
+        "name": "Labor",
         "pole_0": "🪓",
-        "pole_1": "🔥"
+        "pole_1": "🪵"
+      },
+      {
+        "name": "Decompose",
+        "pole_0": "🔥",
+        "pole_1": "🍂"
       }
     ]
   },
@@ -6756,7 +6803,8 @@
       "🪔",
       "📯",
       "🗼",
-      "🏁"
+      "🏁",
+      "🧂"
     ],
     "native_factions": [
       "Lamplighters"
@@ -6790,6 +6838,15 @@
         "lindblad_outgoing": {
           "🌫": 0.003
         }
+      },
+      "🧂": {
+        "lindblad_incoming": {
+          "🗑": 0.02
+        },
+        "decay": {
+          "rate": 0.04,
+          "target": "🗑"
+        }
       }
     },
     "icons": [
@@ -6804,9 +6861,9 @@
         "pole_1": "🗼"
       },
       {
-        "name": "Keep",
+        "name": "Contraband",
         "pole_0": "🏁",
-        "pole_1": "🏁"
+        "pole_1": "🧂"
       }
     ]
   },
@@ -6960,9 +7017,10 @@
       }
     ],
     "emojis": [
+      "💥",
       "🌟",
-      "🌈",
-      "💥"
+      "✨",
+      "🌈"
     ],
     "native_factions": [
       "Prismatic Cascade"
@@ -6999,18 +7057,26 @@
         "lindblad_outgoing": {
           "🎨": 0.003
         }
+      },
+      "✨": {
+        "lindblad_incoming": {
+          "💥": 0.3
+        },
+        "lindblad_outgoing": {
+          "🌈": 0.15
+        }
       }
     },
     "icons": [
       {
-        "name": "Cavity",
-        "pole_0": "🌟",
-        "pole_1": "🌈"
+        "name": "Inversion",
+        "pole_0": "💥",
+        "pole_1": "🌟"
       },
       {
-        "name": "Pump",
-        "pole_0": "💥",
-        "pole_1": "💥"
+        "name": "Lasing",
+        "pole_0": "✨",
+        "pole_1": "🌈"
       }
     ]
   },
@@ -7286,6 +7352,7 @@
     ],
     "emojis": [
       "🦋",
+      "🌸",
       "🕷",
       "🐛"
     ],
@@ -7340,17 +7407,26 @@
             "inverse": false
           }
         ]
+      },
+      "🌸": {
+        "lindblad_incoming": {
+          "🗑": 0.4
+        },
+        "lindblad_outgoing": {
+          "🦋": 0.05,
+          "🐛": 0.05
+        }
       }
     },
     "icons": [
       {
-        "name": "Butterfly",
+        "name": "Mutualism",
         "pole_0": "🦋",
-        "pole_1": "🕷"
+        "pole_1": "🌸"
       },
       {
-        "name": "Crawler",
-        "pole_0": "🐛",
+        "name": "Predation",
+        "pole_0": "🕷",
         "pole_1": "🐛"
       }
     ]
