@@ -1,6 +1,6 @@
 ## PlayerShell - Player-level UI layer
 ## Handles:
-## - Overlay/menu system (ESC menu, V vocabulary, C contracts, etc)
+## - Overlay/menu system (ESC menu, V signature, C contracts, etc)
 ## - Player inventory/resource panel
 ## - Keyboard help, settings
 ## - Farm loading/switching (when implemented)
@@ -24,6 +24,7 @@ const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.
 # QuantumHUDPanel REMOVED - content merged into InspectorOverlay (N key)
 const QuantumModeStatusIndicator = preload("res://UI/Widgets/QuantumModeStatusIndicator.gd")
 const BiomeSelectionRowClass = preload("res://UI/Widgets/BiomeSelectionRow.gd")
+const FpsDisplay = preload("res://UI/HUD/FpsDisplay.gd")
 
 var current_farm_ui = null  # FarmUI instance (from scene)
 var overlay_manager = null
@@ -41,17 +42,38 @@ var advanced_mode_enabled: bool = false
 # quantum_hud_panel REMOVED - content merged into InspectorOverlay (N key)
 var quantum_mode_indicator: QuantumModeStatusIndicator = null  # Current quantum mode display
 var biome_tab_bar: BiomeSelectionRowClass = null  # Top bar for biome selection
+var fps_display: Control = null  # Top-left FPS projection display
 var _quest_biome_connected: bool = false
 var _overlay_open_frame: Dictionary = {}  # overlay_name -> Engine frame opened
 
 ## Unified Overlay Stack Management (replaces modal_stack)
 var overlay_stack: OverlayStackManager = null
 
+## Global pause flag — driven by E (pause) / F (resume) peek in _input.
+## See UI/Core/KEYBOARD_GRAMMAR.md "Mechanics — side-effect peek".
+## Read by Farm._physics_process to short-circuit sim evolution.
+var paused: bool = false
+signal paused_changed(is_paused: bool)
+
 
 func _input(event: InputEvent) -> void:
-	"""Layer 1: High-priority input routing (overlays + shell actions)"""
+	"""Layer 1: High-priority input routing (overlays + shell actions).
+
+	Before the exclusive consume-or-fall-through chain runs, we peek at
+	E and F as side-effects (pause / resume). The peek does NOT consume
+	the event — primary verbs still fire through normal dispatch. See
+	UI/Core/KEYBOARD_GRAMMAR.md "Mechanics — side-effect peek".
+	"""
 	if not event is InputEventKey or not event.pressed or event.echo:
 		return
+
+	# Side-effect peek: E pauses, F resumes. No set_input_as_handled,
+	# no return — fall through to normal dispatch so tools/menus still
+	# receive their primary E/F verb.
+	if event.keycode == KEY_E:
+		_set_global_paused(true)
+	elif event.keycode == KEY_F:
+		_set_global_paused(false)
 
 	var stack_size = overlay_stack.size() if overlay_stack else 0
 	_verbose.debug("input", "⌨️", "PlayerShell._input() KEY: %s, overlay_stack: %d" % [event.keycode, stack_size])
@@ -81,6 +103,15 @@ func _mark_input_handled() -> void:
 	var vp := get_viewport()
 	if vp:
 		vp.set_input_as_handled()
+
+
+func _set_global_paused(value: bool) -> void:
+	"""Set the global sim-pause flag. Idempotent. Read by Farm._physics_process."""
+	if paused == value:
+		return
+	paused = value
+	paused_changed.emit(paused)
+	_verbose.info("input", "⏸" if value else "▶", "Sim %s" % ("paused" if value else "resumed"))
 
 
 func _handle_shell_action(event: InputEvent) -> bool:
@@ -113,6 +144,31 @@ func _handle_shell_action(event: InputEvent) -> bool:
 			_toggle_shell_menu(overlay_name)
 		return true
 
+	# , / . — cycle previous/next top-level menu (mirror of [ / ] for biomes).
+	if keycode == KEY_COMMA:
+		_cycle_menu_overlay(-1)
+		return true
+	if keycode == KEY_PERIOD:
+		_cycle_menu_overlay(1)
+		return true
+
+	# [ / ] — universal tab cycle. When a Surface is open, cycle its frame_ids;
+	# otherwise cycle the active biome in the main game.
+	if keycode == KEY_BRACKETLEFT:
+		if _any_menu_open():
+			if _cycle_active_surface_frame(-1):
+				return true
+			return false
+		_cycle_active_biome(-1)
+		return true
+	if keycode == KEY_BRACKETRIGHT:
+		if _any_menu_open():
+			if _cycle_active_surface_frame(1):
+				return true
+			return false
+		_cycle_active_biome(1)
+		return true
+
 	# TAB only works when no menu is active
 	if _any_menu_open():
 		return false
@@ -121,7 +177,59 @@ func _handle_shell_action(event: InputEvent) -> bool:
 		_cycle_current_tool_mode_alias()
 		return true
 
+	# WASD — crawl the biome × plot grid. Mirrors menu navigation so the
+	# same fingers move the same way in main game and in any open surface.
+	#   A/D = prev/next plot in the active biome
+	#   W/S = prev/next biome (cycles ActiveBiomeManager)
+	if keycode == KEY_A:
+		_step_active_plot(-1)
+		return true
+	if keycode == KEY_D:
+		_step_active_plot(1)
+		return true
+	if keycode == KEY_W:
+		_cycle_active_biome(-1)
+		return true
+	if keycode == KEY_S:
+		_cycle_active_biome(1)
+		return true
+
 	return false
+
+
+func _step_active_plot(delta: int) -> void:
+	if input_handler and input_handler.has_method("step_active_plot"):
+		input_handler.step_active_plot(delta)
+
+
+func _cycle_active_surface_frame(step: int) -> bool:
+	"""Cycle the frame_ids of the topmost Surface overlay. Returns true if a
+	cycle was performed, false if no Surface with frame_ids is on top."""
+	if not overlay_stack or overlay_stack.is_empty():
+		return false
+	var top = overlay_stack.get_top()
+	if top == null:
+		return false
+	if not top.has_method("cycle_frame"):
+		return false
+	if not ("frame_ids" in top):
+		return false
+	var ids = top.frame_ids
+	if not (ids is Array) or ids.is_empty():
+		return false
+	top.cycle_frame(step)
+	return true
+
+
+func _cycle_active_biome(delta: int) -> void:
+	"""Cycle to the previous/next biome via ActiveBiomeManager."""
+	var abm = InstrumentLocator.resolve_active_biome_manager(self)
+	if not abm:
+		return
+	if delta > 0 and abm.has_method("cycle_next"):
+		abm.cycle_next()
+	elif delta < 0 and abm.has_method("cycle_prev"):
+		abm.cycle_prev()
 
 
 # =============================================================================
@@ -164,18 +272,6 @@ func _toggle_shell_menu(menu_name: String) -> void:
 		"escape_menu":
 			overlay_manager.toggle_overlay("escape_menu")
 
-		"balance_workbench":
-			advanced_mode_enabled = _resolve_advanced_mode()
-			if overlay_manager.has_overlay("balance_workbench"):
-				var wb = overlay_manager.get_overlay("balance_workbench")
-				if wb and wb.has_method("set_advanced_mode"):
-					wb.set_advanced_mode(advanced_mode_enabled)
-				if wb and wb.has_method("set_snapshot_service"):
-					wb.set_snapshot_service(snapshot_service)
-				if wb and wb.has_method("set_quantum_instrument"):
-					wb.set_quantum_instrument(quantum_instrument)
-			overlay_manager.toggle_overlay("balance_workbench")
-
 		"controls":
 			overlay_manager.toggle_overlay("controls")
 
@@ -203,48 +299,68 @@ func _toggle_farm_overlay(overlay_name: String) -> void:
 	else:
 		_overlay_open_frame.erase(overlay_name)
 
-func _cycle_current_tool_mode_alias() -> void:
-	"""Cycle the current tool group from TAB.
+func _cycle_menu_overlay(delta: int) -> void:
+	"""Cycle to the previous/next top-level menu (, and . keys).
 
-	TAB is kept as a keyboard alias because Godot focus handling intercepts it
-	before the gameplay input layer sees it.
+	Mirrors the [ / ] biome-cycle pattern. If no top-level menu is currently
+	open, the first (delta>0) or last (delta<0) menu opens for discoverability.
+	"""
+	if not overlay_manager or not overlay_stack:
+		return
+
+	var menus = MenuRegistry.get_top_level_menus()
+	if menus.is_empty():
+		return
+
+	var current_idx := -1
+	for i in range(menus.size()):
+		var entry_name = str(menus[i].get("overlay_name", ""))
+		if entry_name == "" or not overlay_manager.has_overlay(entry_name):
+			continue
+		var entry_overlay = overlay_manager.get_overlay(entry_name)
+		if entry_overlay and overlay_stack.has_overlay(entry_overlay):
+			current_idx = i
+			break
+
+	var n = menus.size()
+	var next_idx: int = 0 if delta > 0 else n - 1
+	if current_idx >= 0:
+		next_idx = (current_idx + delta + n) % n
+
+	var next_entry = menus[next_idx]
+	var next_name = str(next_entry.get("overlay_name", ""))
+	var next_group = str(next_entry.get("menu_group", ""))
+	if next_name == "":
+		return
+	if next_group == "game":
+		_toggle_farm_overlay(next_name)
+	else:
+		_toggle_shell_menu(next_name)
+
+
+func _cycle_current_tool_mode_alias() -> void:
+	"""Cycle the active archetype frame's sub-mode (Tab).
+
+	Canonical mode-cycle key after the keyboard-grammar refactor (used to
+	be F). TAB is kept because Godot focus handling intercepts it before
+	the gameplay input layer sees it, so PlayerShell intercepts first.
+	Direct selection is also available on number keys 1/2/3.
 	"""
 	const ToolConfig = preload("res://Core/GameState/ToolConfig.gd")
 
-	var group = ToolConfig.get_current_group()
-	var new_mode_idx = ToolConfig.cycle_group_mode(group)
-	var new_mode = ToolConfig.get_group_mode_name(group)
+	var frame_name: String = ToolConfig.get_current_frame()
+	if frame_name == ToolConfig.FRAME_ACE:
+		return
+	var new_mode_idx = ToolConfig.cycle_frame_mode(frame_name)
+	if new_mode_idx < 0:
+		return
+	var new_mode = ToolConfig.get_frame_mode_name(frame_name)
 	_verbose.info("input", "⇥",
-		"TAB alias cycled tool %d to %s" % [group, new_mode])
+		"TAB cycled frame %s → %s" % [frame_name, new_mode])
+	# Notify QuantumInstrumentInput so action-bar listeners refresh.
+	if input_handler and input_handler.has_method("_on_mode_changed"):
+		input_handler._on_mode_changed(frame_name, new_mode_idx)
 
-	# QuantumInstrumentInput handles mode changes for gameplay
-
-
-func _on_restart_pressed() -> void:
-	"""Handle R or Shift+R - reload the most recently saved or loaded game.
-
-	Delegates to GameStateManager.request_restart(), which sets pending_restart_slot
-	and triggers reload_current_scene(). FarmView picks up the slot on next _ready().
-	"""
-	_verbose.info("ui", "🔄", "Restart - requesting reload of last active save")
-
-	# Reset music before the scene goes away
-	var music = InstrumentLocator.resolve_music_manager(self)
-	if music and music.has_method("reset"):
-		music.reset()
-
-	var gsm = InstrumentLocator.resolve_game_state_manager(self)
-	if gsm and gsm.has_method("request_restart"):
-		gsm.request_restart()
-	else:
-		# Fallback: plain scene change (no save context)
-		get_tree().paused = false
-		get_tree().change_scene_to_file("res://scenes/FarmView.tscn")
-
-
-func _on_dev_restart_pressed() -> void:
-	# Dev restart is handled entirely by OverlayManager (hard reset path)
-	pass
 
 
 func _ready() -> void:
@@ -342,10 +458,15 @@ func _ready() -> void:
 	biome_tab_bar.name = "BiomeSelectionRow"
 	overlay_layer.add_child(biome_tab_bar)
 	_verbose.info("ui", "✅", "Biome tab bar created")
+
+	# Create FPS display (top-left projection display)
+	fps_display = FpsDisplay.new()
+	fps_display.name = "FpsDisplay"
+	overlay_layer.add_child(fps_display)
+	_verbose.info("ui", "✅", "FPS display created")
 	_apply_top_strip_layout()
 	if layout_manager and layout_manager.has_signal("layout_changed"):
-		if not layout_manager.layout_changed.is_connected(_on_layout_changed):
-			layout_manager.layout_changed.connect(_on_layout_changed)
+		InstrumentLocator.safe_connect(layout_manager.layout_changed, _on_layout_changed)
 
 	# Connect overlay signals
 	_connect_overlay_signals()
@@ -401,6 +522,11 @@ func _apply_top_strip_layout() -> void:
 	biome_tab_bar.offset_left = side_inset
 	biome_tab_bar.offset_right = -side_inset
 
+	if fps_display:
+		fps_display.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+		fps_display.offset_right = -8
+		fps_display.offset_top = 4
+
 
 func _connect_overlay_signals() -> void:
 	"""Connect non-toolbar overlay signals that still matter at the shell layer."""
@@ -412,12 +538,6 @@ func _connect_overlay_signals() -> void:
 		overlay_manager.escape_menu.quantum_settings_pressed.connect(func():
 			if overlay_manager.quantum_config_ui:
 				overlay_manager.toggle_quantum_config_ui()
-		)
-		overlay_manager.escape_menu.restart_pressed.connect(func():
-			_on_restart_pressed()
-		)
-		overlay_manager.escape_menu.dev_restart_pressed.connect(func():
-			_on_dev_restart_pressed()
 		)
 		_verbose.info("ui", "✅", "Escape menu signals connected")
 
@@ -493,8 +613,7 @@ func _connect_quest_manager_to_biomes(farm_ui: Control) -> void:
 
 	if abm and abm.has_signal("active_biome_changed"):
 		var biome_callable = Callable(self, "_handle_active_biome_change").bind(farm_ref)
-		if not abm.active_biome_changed.is_connected(biome_callable):
-			abm.active_biome_changed.connect(biome_callable)
+		InstrumentLocator.safe_connect(abm.active_biome_changed, biome_callable)
 		var active_biome = abm.get_active_biome() if abm.has_method("get_active_biome") else "StarterForest"
 		biome_callable.call(active_biome, "")
 	else:

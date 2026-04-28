@@ -10,17 +10,20 @@ extends Node
 ## operations fuse into a single system. Creates a fractal address to game
 ## state through hierarchical navigation.
 ##
-## Key Layout:
-##   1 2 3 [4]    = Tool groups (time scale ratchet)
+## Key Layout (Archetype Frames grammar — see docs/ARCHETYPE_FRAMES.md):
+##   4 5 6 7 8 9 0 = Archetype hat row (Spark/Icon/Socialite/Captain/
+##                   Scientist/Operator/Druid). Re-press the active hat
+##                   toggles back to Ace (no frame).
+##   1 2 3         = Sub-mode within the active frame
 ##
-##   T Y U I O P  = Biome selection (6 spindle slots)
-##   J K L ; ' H G = Homerow plot selection (up to 7 plots in current biome)
-##   M , . /      = Reserved for future subspace navigation
+##   T Y U I O P   = Biome selection (6 spindle slots)
+##   G H J K L ;   = Homerow plot selection (up to 6 plots in current biome)
+##   M , . /       = Reserved for future subspace navigation
 ##
 ##   Q = DOWN action (dig into, bind, construct)
 ##   E = NEUTRAL action (observe, balance, transfer)
 ##   R = UP action (extract, harvest, remove)
-##   F = Mode cycling within tool group
+##   F = Drill out / cancel pending
 ##
 ##   - = Decrease stride and sim speed together
 ##   = = Increase stride and sim speed together
@@ -60,6 +63,13 @@ var _submenu_page: int = 0  # Local UI cache for signal emission
 signal action_performed(action: String, result: Dictionary)
 signal selection_changed(plot_idx: int, biome: String)
 signal biome_switched(old_biome: String, new_biome: String)
+## New canonical signals — frame-keyed.
+signal frame_changed(frame: String)
+signal frame_mode_changed(frame: String, mode_index: int, mode_label: String)
+## Legacy alias signals — kept so existing display layers (UIContextController,
+## etc.) continue to receive a refresh notification while they migrate. Each
+## fires alongside its frame-keyed counterpart, with the int derived via
+## ToolConfig.FRAME_TO_GROUP.
 signal tool_group_changed(group: int)
 signal mode_cycled(group: int, mode_index: int, mode_label: String)
 signal submenu_changed(submenu_name: String, submenu_actions: Dictionary)
@@ -146,9 +156,27 @@ func _unhandled_key_input(event: InputEvent) -> void:
 	if _instrument.is_in_submenu() and key not in ["Q", "E", "R", "F"]:
 		_close_submenu()
 
-	# Tool group selection: 1, 2, 3, 4
-	if key in ["1", "2", "3", "4"]:
-		_select_tool_group(int(key))
+	# Archetype hat row: 4, 5, 6, 7, 8, 9, 0 → frame.
+	# Re-pressing the active hat toggles back to Ace (no frame).
+	if ToolConfig.HAT_KEY_TO_FRAME.has(key):
+		var hat_frame: String = ToolConfig.HAT_KEY_TO_FRAME[key]
+		var target_frame: String = ToolConfig.FRAME_ACE if ToolConfig.get_current_frame() == hat_frame else hat_frame
+		_select_frame_hat(target_frame)
+		get_viewport().set_input_as_handled()
+		return
+
+	# Direct sub-mode select within current frame: 1, 2, 3 → modes 0..2
+	if key in ["1", "2", "3"]:
+		var slot_idx := int(key) - 1
+		var current_frame_name: String = ToolConfig.get_current_frame()
+		if current_frame_name == ToolConfig.FRAME_ACE:
+			# No active frame → no sub-mode to set; surface the keypress
+			# as a frame default (Scientist) for legacy ergonomics.
+			current_frame_name = ToolConfig.FRAME_SCIENTIST
+			_select_frame_hat(current_frame_name)
+		var applied = ToolConfig.set_frame_mode(current_frame_name, slot_idx)
+		if applied >= 0:
+			_on_mode_changed(current_frame_name, applied)
 		get_viewport().set_input_as_handled()
 		return
 
@@ -180,24 +208,36 @@ func _unhandled_key_input(event: InputEvent) -> void:
 					_perform_action(key)
 			get_viewport().set_input_as_handled()
 		"F":
+			# F = "drill out / cancel pending" (keyboard-grammar refactor).
+			# Mode cycling moved to Tab + direct keys 1/2/3; F now closes any
+			# open submenu/picker, otherwise dispatches a frame-defined F verb
+			# if one exists, otherwise no-op.
 			if _instrument.is_in_submenu():
-				_cycle_submenu_page()
-			elif ToolConfig.has_f_cycling(ToolConfig.get_current_group()):
-				_cycle_mode()
+				_close_submenu()
 			else:
-				var f_action = ToolConfig.get_action(ToolConfig.get_current_group(), "F")
+				var f_action = ToolConfig.get_action(ToolConfig.get_current_frame(), "F")
 				if not f_action.is_empty():
 					_perform_action("F")
 			get_viewport().set_input_as_handled()
 
 
-func _input(event: InputEvent) -> void:
-	"""Handle InputMap actions for biome/plot/subspace selection."""
+func _unhandled_input(event: InputEvent) -> void:
+	"""Handle InputMap actions for biome/plot/subspace selection.
+
+	Uses `_unhandled_input` (not `_input`) so that any overlay that consumes
+	an event via `Viewport.set_input_as_handled()` — e.g. the X system menu
+	while it's open — reliably shields gameplay selection. This is the
+	standard Godot pattern for gameplay-layer input that should defer to UI.
+	"""
 	if _handle_biome_row_input(event):
 		get_viewport().set_input_as_handled()
 		return
 
 	if _handle_plot_row_input(event):
+		get_viewport().set_input_as_handled()
+		return
+
+	if _handle_select_all_toggle(event):
 		get_viewport().set_input_as_handled()
 		return
 
@@ -234,6 +274,14 @@ func _handle_plot_row_input(event: InputEvent) -> bool:
 	return false
 
 
+func _handle_select_all_toggle(event: InputEvent) -> bool:
+	if not event.is_action_pressed(InputBindingRegistry.SELECT_ALL_ACTION):
+		return false
+	if plot_grid_display and plot_grid_display.has_method("toggle_select_all_across_biomes"):
+		plot_grid_display.toggle_select_all_across_biomes()
+	return true
+
+
 func _handle_subspace_row_input(event: InputEvent) -> bool:
 	for i in range(InputBindingRegistry.SUBSPACE_ACTIONS.size()):
 		if not event.is_action_pressed(InputBindingRegistry.SUBSPACE_ACTIONS[i]):
@@ -246,34 +294,50 @@ func _handle_subspace_row_input(event: InputEvent) -> bool:
 
 
 ## ============================================================================
-## TOOL GROUP MANAGEMENT
+## ARCHETYPE FRAME MANAGEMENT
 ## ============================================================================
 
-func _select_tool_group(group_num: int) -> void:
-	"""Select a tool group (1-4)."""
-	ToolConfig.select_group(group_num)
-	tool_group_changed.emit(group_num)
+func _select_frame_hat(frame_name: String) -> void:
+	"""Select an archetype frame (hat row 4-0). Empty string = Ace."""
+	ToolConfig.select_frame(frame_name)
+	frame_changed.emit(frame_name)
+	# Legacy alias signal — display layer compat during transition.
+	tool_group_changed.emit(int(ToolConfig.FRAME_TO_GROUP.get(frame_name, 0)))
 
-	var group_name = ToolConfig.get_group_name(group_num)
-	var mode_label = ToolConfig.get_group_mode_label(group_num)
-	var display = group_name
+	if frame_name == ToolConfig.FRAME_ACE:
+		_verbose.info("input", "~", "Frame: Ace (default toolkit)")
+		return
+	var label = ToolConfig.get_frame_name_label(frame_name)
+	var mode_label = ToolConfig.get_frame_mode_label(frame_name)
+	var display = label
 	if mode_label != "":
-		display = "%s [%s]" % [group_name, mode_label]
-	_verbose.info("input", "~", "Tool: %s" % display)
+		display = "%s [%s]" % [label, mode_label]
+	_verbose.info("input", "~", "Frame: %s" % display)
 
 
 func _cycle_mode() -> void:
-	"""Cycle F-mode for current tool group."""
-	var current_group = ToolConfig.get_current_group()
-	if not ToolConfig.has_f_cycling(current_group):
-		_verbose.debug("input", "~", "No F-cycling for group %d" % current_group)
+	"""Cycle to the next sub-mode in the current frame. Bound to Tab in
+	PlayerShell."""
+	var frame_name: String = ToolConfig.get_current_frame()
+	if frame_name == ToolConfig.FRAME_ACE:
+		_verbose.debug("input", "~", "No active frame to cycle")
 		return
+	var new_index = ToolConfig.cycle_frame_mode(frame_name)
+	if new_index < 0:
+		_verbose.debug("input", "~", "No mode cycle for frame %s (single mode)" % frame_name)
+		return
+	_on_mode_changed(frame_name, new_index)
 
-	var new_index = ToolConfig.cycle_group_mode(current_group)
-	var mode_label = ToolConfig.get_group_mode_label(current_group)
-	var mode_emoji = ToolConfig.get_group_mode_emoji(current_group)
 
-	mode_cycled.emit(current_group, new_index, mode_label)
+func _on_mode_changed(frame_or_group, mode_index: int) -> void:
+	"""Shared mode-change emission. Accepts either a frame string (preferred)
+	or a legacy int group number for back-compat with PlayerShell's Tab path."""
+	var frame_name: String = ToolConfig.resolve_frame(frame_or_group)
+	var mode_label = ToolConfig.get_frame_mode_label(frame_name)
+	var mode_emoji = ToolConfig.get_frame_mode_emoji(frame_name)
+	frame_mode_changed.emit(frame_name, mode_index, mode_label)
+	# Legacy alias signal — display layer compat during transition.
+	mode_cycled.emit(int(ToolConfig.FRAME_TO_GROUP.get(frame_name, 0)), mode_index, mode_label)
 	_verbose.info("input", "~", "Mode: %s (%s)" % [mode_label, mode_emoji])
 
 
@@ -320,8 +384,8 @@ func _open_submenu_for_action(action_info: Dictionary) -> void:
 	_submenu_page = 0
 
 	# Emit signals and log
-	if submenu_name == "vocab_injection":
-		_verbose.info("input", "📋", "Opened vocab injection submenu")
+	if submenu_name == "icon_injection":
+		_verbose.info("input", "📋", "Opened icon injection submenu")
 		var submenu_actions = submenu_data.get("actions", {})
 		submenu_changed.emit(submenu_name, submenu_actions)
 
@@ -356,8 +420,8 @@ func _open_submenu_for_action(action_info: Dictionary) -> void:
 
 
 func _generate_vocab_injection_submenu() -> Dictionary:
-	"""Generate the vocab injection submenu dynamically."""
-	var VocabInjectionSubmenu = preload("res://UI/Core/Submenus/VocabInjectionSubmenu.gd")
+	"""Generate the icon injection submenu dynamically."""
+	var IconInjectionSubmenu = preload("res://UI/Core/Submenus/IconInjectionSubmenu.gd")
 	if not farm:
 		_verbose.warn("input", "📋", "Farm not available")
 		return {}
@@ -367,7 +431,7 @@ func _generate_vocab_injection_submenu() -> Dictionary:
 		_verbose.warn("input", "📋", "No current biome")
 		return {}
 
-	return VocabInjectionSubmenu.generate_submenu(biome, farm, _submenu_page)
+	return IconInjectionSubmenu.generate_submenu(biome, farm, _submenu_page)
 
 
 func _generate_gate_selection_submenu() -> Dictionary:
@@ -448,13 +512,13 @@ func _handle_submenu_action(action_key: String) -> void:
 
 	var action = action_data.get("action", "")
 
-	# Handle vocab_injection submenu actions
+	# Handle icon_injection submenu actions
 	if action == "inject_vocabulary":
-		var vocab_pair = action_data.get("vocab_pair", {})
+		var icon = action_data.get("icon", {})
 		var label = action_data.get("label", "")
-		if not vocab_pair.is_empty():
+		if not icon.is_empty():
 			_verbose.info("input", "📋", "You selected: %s - injecting..." % label)
-			_execute_inject_vocabulary(vocab_pair)
+			_execute_inject_vocabulary(icon)
 
 	# Handle gate_selection submenu actions
 	elif action == "build_gate":
@@ -467,37 +531,40 @@ func _handle_submenu_action(action_key: String) -> void:
 	_close_submenu()
 
 
-func _execute_inject_vocabulary(vocab_pair: Dictionary) -> void:
-	"""Execute vocabulary injection with user-selected pair.
+func _execute_inject_vocabulary(icon: Dictionary) -> void:
+	"""Execute signature injection with user-selected pair.
 
 	Args:
-		vocab_pair: {north: String, south: String}
+		icon: {north: String, south: String}
 	"""
 	var biome = _get_current_biome()
 	if not biome:
-		_verbose.warn("input", "+", "No biome for vocab injection")
+		_verbose.warn("input", "+", "No biome for icon injection")
 		return
-	var result = _instrument.action_inject_vocabulary_pair(biome.get_biome_type(), vocab_pair)
+	var result = MacroActions.dispatch(_instrument, MacroActions.KIND_INJECT_VOCABULARY_PAIR, {
+		"biome_name": biome.get_biome_type(),
+		"icon": icon,
+	})
 	var cost = result.get("cost", {})
 	if result.get("success", false):
-		_verbose.info("input", "+", "Injected vocab %s/%s into %s" % [
-			vocab_pair.get("north", ""),
-			vocab_pair.get("south", ""),
+		_verbose.info("input", "+", "Injected icon %s/%s into %s" % [
+			icon.get("north", ""),
+			icon.get("south", ""),
 			biome.name
 		])
 
-		# Invalidate buffer (vocab injection adds qubits, modifies density matrix)
+		# Invalidate buffer (icon injection adds qubits, modifies density matrix)
 		_invalidate_biome_buffer_for_action("inject_vocabulary")
 
 		action_performed.emit("inject_vocabulary", {
 			"success": true,
-			"north_emoji": vocab_pair.get("north", ""),
-			"south_emoji": vocab_pair.get("south", ""),
+			"north_emoji": icon.get("north", ""),
+			"south_emoji": icon.get("south", ""),
 			"cost": cost,
 			"biome": biome.name
 		})
 	else:
-		_verbose.warn("input", "+", "Vocab injection failed: %s" % result.get("message", result.get("error", "unknown")))
+		_verbose.warn("input", "+", "Icon injection failed: %s" % result.get("message", result.get("error", "unknown")))
 		action_performed.emit("inject_vocabulary", result)
 
 
@@ -655,6 +722,27 @@ func _select_plot(plot_idx: int, key: String) -> void:
 
 
 ## ============================================================================
+## CRAWL STEP — WASD plot navigation in main game.
+## ============================================================================
+
+func step_active_plot(delta: int) -> void:
+	"""Advance the active plot by ±1, wrapping within the active biome's
+	register count. Mirrors the direct GHJKL; jump but in delta form so
+	WASD can crawl horizontally."""
+	if not _instrument:
+		return
+	var register_count := _get_active_biome_register_count()
+	if register_count <= 0:
+		return
+	var current_idx: int = int(_instrument.current_plot_idx)
+	if current_idx < 0:
+		current_idx = 0
+	var new_idx := wrapi(current_idx + delta, 0, register_count)
+	var key_label := "D" if delta > 0 else "A"
+	_select_plot(new_idx, key_label)
+
+
+## ============================================================================
 ## MULTI-SELECT SYSTEM (Checkboxes)
 ## ============================================================================
 
@@ -741,27 +829,22 @@ func _select_subspace(subspace_idx: int, key: String) -> void:
 	"""
 	_verbose.debug("input", "~", "Subspace selection reserved for future (idx: %d)" % subspace_idx)
 
-	# Update current selection to track subspace
-	_instrument.current_subspace_idx = subspace_idx
-
-	# TODO: Implement subspace navigation when needed
-
 
 ## ============================================================================
 ## ACTION EXECUTION
 ## ============================================================================
 
 func _perform_action(action_key: String) -> void:
-	"""Execute the action mapped to Q/E/R for current tool group.
+	"""Execute the action mapped to Q/E/R for the current archetype frame.
 
 	Args:
 		action_key: "Q" (DOWN), "E" (NEUTRAL), or "R" (UP)
 	"""
-	var current_group = ToolConfig.get_current_group()
-	var action_info = ToolConfig.get_action(current_group, action_key)
+	var current_frame_name: String = ToolConfig.get_current_frame()
+	var action_info = ToolConfig.get_action(current_frame_name, action_key)
 
 	if action_info.is_empty():
-		_verbose.debug("input", "~", "No action for %s in group %d" % [action_key, current_group])
+		_verbose.debug("input", "~", "No action for %s in frame %s" % [action_key, current_frame_name])
 		return
 
 	var emoji = action_info.get("emoji", "")
@@ -789,23 +872,7 @@ func _perform_action(action_key: String) -> void:
 	_run_action(action_name, emoji if emoji != "" else action_name, action_info.get("label", action_name))
 
 
-func _get_block_reason(action_name: String) -> String:
-	"""Return a human-readable reason why an action is blocked, or '' if unknown."""
-	if action_name != "explore" or not farm:
-		return ""
-	var grid = farm.get("grid")
-	var biome = grid.get_biome_for_plot(_get_grid_position()) if grid else null
-	if not biome:
-		return ""
-	var terminal_pool = farm.get("terminal_pool")
-	var free = biome.get_available_registers(terminal_pool) if biome.has_method("get_available_registers") and terminal_pool else []
-	if free.is_empty():
-		var name = biome.get_biome_type() if biome.has_method("get_biome_type") else "biome"
-		var total = biome.get_total_register_count() if biome.has_method("get_total_register_count") else -1
-		var used = total - free.size() if total >= 0 else -1
-		if total >= 0 and used >= 0:
-			return ": %s full (%d/%d registers in use) — empty plots are just sockets; pop a terminal to free a register" % [name, used, total]
-		return ": %s full — empty plots are just sockets; pop a terminal to free a register" % name
+func _get_block_reason(_action_name: String) -> String:
 	return ""
 
 
@@ -815,8 +882,8 @@ func _perform_shift_key_action(action_key: String) -> void:
 	For gate actions (Tool 1: Unitary), uses batch injection with single buffer invalidation.
 	Selection order is preserved - gates are applied in the order plots were checked.
 	"""
-	var current_group = ToolConfig.get_current_group()
-	var action_info = ToolConfig.get_action(current_group, action_key)
+	var current_frame_name: String = ToolConfig.get_current_frame()
+	var action_info = ToolConfig.get_action(current_frame_name, action_key)
 	if action_info.is_empty():
 		return
 
@@ -851,12 +918,6 @@ func _perform_shift_key_action(action_key: String) -> void:
 		if not ActionValidator.can_execute_action_name(
 			action_name, farm, _get_selected_positions(), _get_grid_position()
 		):
-			# For explore: if biome is full, stop iterating (all remaining plots will also fail)
-			if action_name == "explore":
-				var reason = _get_block_reason(action_name)
-				if reason != "":
-					_verbose.info("input", "•", "%s blocked%s" % [log_label, reason])
-					break
 			continue
 		if action_name == "pop":
 			_run_cleanup_action(action_name, symbol, log_label)
@@ -943,8 +1004,8 @@ func _get_gate_name_for_action(action_name: String) -> String:
 		"hadamard":
 			return "H"
 		"rotate_up", "rotate_down":
-			# Get axis from Tool 1 mode (X, Y, or Z)
-			var axis = ToolConfig.get_group_mode_name(1)
+			# Get axis from Spark frame's sub-mode (X, Y, or Z)
+			var axis = ToolConfig.get_frame_mode_name(ToolConfig.FRAME_SPARK)
 			if axis == "":
 				axis = "X"
 			return "R" + axis.to_lower()  # Rx, Ry, or Rz
@@ -1044,11 +1105,8 @@ func _invalidate_biome_buffer_for_action(action_name: String) -> void:
 		return
 
 	# Invalidate buffer (triggers emergency refill with high priority)
-	if batcher.has_method("invalidate_biome_buffer"):
-		batcher.invalidate_biome_buffer(biome_name)
-		_verbose.info("input", "🔄", "Buffer invalidated for %s (action: %s)" % [biome_name, action_name])
-	else:
-		_verbose.warn("input", "⚠️", "Batcher missing invalidate_biome_buffer() method")
+	batcher.invalidate_biome_buffer(biome_name)
+	_verbose.info("input", "🔄", "Buffer invalidated for %s (action: %s)" % [biome_name, action_name])
 
 
 func _get_target_biome_for_granularity() -> Dictionary:
@@ -1058,12 +1116,12 @@ func _get_target_biome_for_granularity() -> Dictionary:
 
 	Logic:
 	- Main game: ActiveBiomeManager.get_active_biome() (currently selected biome)
-	- VisualBubbleTest: get_last_generated_biome_name() (last biome created)
+	- Generator/test scene with get_last_generated_biome_name(): last biome created
 	"""
 	if not farm or not farm.grid:
 		return {"biome": null, "name": "", "reason": "no_farm"}
 
-	# Check if we're in VisualBubbleTest (has get_last_generated_biome_name method)
+	# Support generator/test scenes that expose the last created biome.
 	var scene_root = get_tree().current_scene
 	if scene_root and scene_root.has_method("get_last_generated_biome_name"):
 		var last_biome_name = scene_root.get_last_generated_biome_name()
@@ -1101,10 +1159,6 @@ func _invalidate_single_biome_buffer(biome_name: String, reason: String) -> void
 		_verbose.debug("input", "🔄", "No batcher available for buffer invalidation")
 		return
 
-	if not batcher.has_method("invalidate_biome_buffer"):
-		_verbose.warn("input", "⚠️", "Batcher missing invalidate_biome_buffer() method")
-		return
-
 	batcher.invalidate_biome_buffer(biome_name)
 	_verbose.debug("input", "🔄", "[%s] Buffer invalidated: %s" % [biome_name, reason])
 
@@ -1120,12 +1174,6 @@ func _decimate_single_biome_buffer(biome_name: String, decimation_factor: int) -
 		_verbose.debug("input", "✂️", "No batcher available for buffer decimation")
 		return
 
-	if not batcher.has_method("decimate_biome_buffer"):
-		# Coarser granularity still needs buffer refresh even without decimation support.
-		_verbose.warn("input", "⚠️", "Batcher missing decimate_biome_buffer() - invalidating biome buffer instead")
-		_invalidate_single_biome_buffer(biome_name, "granularity_increase_refresh")
-		return
-
 	var new_depth = batcher.decimate_biome_buffer(biome_name, decimation_factor)
 	_verbose.debug("input", "✂️", "[%s] Buffer decimated (1/%d) - preserved %d frames" % [
 		biome_name, decimation_factor, new_depth
@@ -1137,7 +1185,7 @@ func _reset_single_biome_stride_carry(biome_name: String) -> void:
 	if not farm:
 		return
 	var batcher = farm.biome_evolution_batcher if "biome_evolution_batcher" in farm else null
-	if batcher and batcher.has_method("reset_stride_carry"):
+	if batcher:
 		batcher.reset_stride_carry(biome_name)
 
 
@@ -1158,11 +1206,6 @@ func _invalidate_all_biome_buffers(reason: String) -> void:
 	var batcher = farm.biome_evolution_batcher if "biome_evolution_batcher" in farm else null
 	if not batcher:
 		_verbose.debug("input", "🔄", "No batcher available for buffer invalidation")
-		return
-
-	# Check if batcher has the method
-	if not batcher.has_method("invalidate_biome_buffer"):
-		_verbose.warn("input", "⚠️", "Batcher missing invalidate_biome_buffer() method")
 		return
 
 	# Invalidate ALL biomes
@@ -1190,12 +1233,6 @@ func _decimate_all_biome_buffers(decimation_factor: int) -> void:
 	var batcher = farm.biome_evolution_batcher if "biome_evolution_batcher" in farm else null
 	if not batcher:
 		_verbose.debug("input", "✂️", "No batcher available for buffer decimation")
-		return
-
-	if not batcher.has_method("decimate_biome_buffer"):
-		# Coarser granularity still needs buffer refresh even without decimation support.
-		_verbose.warn("input", "⚠️", "Batcher missing decimate_biome_buffer() - invalidating all biome buffers instead")
-		_invalidate_all_biome_buffers("granularity_increase_refresh")
 		return
 
 	var biome_count = 0
@@ -1257,17 +1294,17 @@ func _execute_action(action_name: String) -> Dictionary:
 		"remove_gates":
 			result = _instrument.action_remove_gates(positions)
 		"inject_vocabulary":
-			result = _instrument.action_inject_vocabulary(biome_name)
+			result = MacroActions.dispatch(_instrument, MacroActions.KIND_INJECT_VOCABULARY, {"biome_name": biome_name})
 		"discover_biome":
-			result = _instrument.action_discover_biome()
+			result = MacroActions.dispatch(_instrument, MacroActions.KIND_DISCOVER_BIOME)
 			if result.get("success", false):
-				_select_tool_group(3)
+				_select_frame_hat(ToolConfig.FRAME_SCIENTIST)
 		"cycle_biome", "toggle_view":
 			result = _instrument.action_cycle_biome()
 		"remove_vocabulary":
-			result = _instrument.action_remove_vocabulary(biome_name, grid_pos)
+			result = MacroActions.dispatch(_instrument, MacroActions.KIND_REMOVE_VOCABULARY, {"biome_name": biome_name, "grid_pos": grid_pos})
 		"remove_biome":
-			result = _instrument.action_remove_biome()
+			result = MacroActions.dispatch(_instrument, MacroActions.KIND_REMOVE_BIOME)
 		_:
 			_verbose.warn("input", "?", "Unknown action: %s" % action_name)
 			return {"success": false, "error": "unknown_action", "message": "Unknown action: %s" % action_name}
@@ -1497,6 +1534,42 @@ func get_actions_for_current_group() -> Dictionary:
 
 
 ## ============================================================================
+## GLASS OVERLAY API
+## Called from overlays (e.g. BiomeInspectorOverlay) to sync selection and
+## dispatch quantum actions without requiring homerow key presses.
+## ============================================================================
+
+func set_active_selection(plot_idx: int, biome_name: String) -> void:
+	"""Set the active plot/biome selection without visual checkbox side-effects.
+
+	Called from glass overlays when the user navigates qubit cards with WASD.
+	Updates instrument state so subsequent dispatch_action() fires on the
+	correct qubit.
+	"""
+	current_selection = {"plot_idx": plot_idx, "biome": biome_name, "subspace_idx": -1}
+	if _instrument:
+		_instrument.current_plot_idx = plot_idx
+		_instrument.current_biome = biome_name
+	selection_changed.emit(plot_idx, biome_name)
+
+
+func dispatch_action(key: String) -> void:
+	"""Dispatch a Q/E/R/F quantum action from a glass overlay.
+
+	Equivalent to the player pressing the key in the main gameplay view.
+	The overlay must have called set_active_selection() first so the correct
+	plot/biome is targeted.
+	"""
+	if key == "F":
+		# F cycles the tool group — handle separately so overlays can call it too
+		var result = _instrument.action_cycle_group() if _instrument and _instrument.has_method("action_cycle_group") else {}
+		if not result.is_empty():
+			_verbose.info("input", "🔄", "Tool group cycled from overlay")
+		return
+	_perform_action(key)
+
+
+## ============================================================================
 ## TIMESCALE CONTROLS (stride + resolution)
 ## ============================================================================
 
@@ -1566,7 +1639,7 @@ func _decrease_stride() -> void:
 
 	PER-BIOME CONTROL:
 	- Main game: Affects only the currently selected biome (ActiveBiomeManager)
-	- VisualBubbleTest: Affects only the last biome that was generated
+	- Generator/test scene: affects only the last biome that was generated
 	"""
 	if not farm or not farm.grid:
 		_verbose.warn("input", "⚠️", "Cannot adjust stride - no farm/grid")
@@ -1597,7 +1670,7 @@ func _increase_stride() -> void:
 
 	PER-BIOME CONTROL:
 	- Main game: Affects only the currently selected biome (ActiveBiomeManager)
-	- VisualBubbleTest: Affects only the last biome that was generated
+	- Generator/test scene: affects only the last biome that was generated
 	"""
 	if not farm or not farm.grid:
 		_verbose.warn("input", "⚠️", "Cannot adjust stride - no farm/grid")
@@ -1628,7 +1701,7 @@ func _decrease_resolution() -> void:
 
 	PER-BIOME CONTROL:
 	- Main game: Affects only the currently selected biome (ActiveBiomeManager)
-	- VisualBubbleTest: Affects only the last biome that was generated
+	- Generator/test scene: affects only the last biome that was generated
 	"""
 	if not farm or not farm.grid:
 		_verbose.warn("input", "⚠️", "Cannot adjust resolution - no farm/grid")
@@ -1663,7 +1736,7 @@ func _increase_resolution() -> void:
 
 	PER-BIOME CONTROL:
 	- Main game: Affects only the currently selected biome (ActiveBiomeManager)
-	- VisualBubbleTest: Affects only the last biome that was generated
+	- Generator/test scene: affects only the last biome that was generated
 	"""
 	if not farm or not farm.grid:
 		_verbose.warn("input", "⚠️", "Cannot adjust resolution - no farm/grid")

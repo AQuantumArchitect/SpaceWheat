@@ -16,7 +16,7 @@ const GateActionHandler = preload("res://Core/Instrumentation/Handlers/GateActio
 const LindbladHandler = preload("res://Core/Instrumentation/Handlers/LindbladHandler.gd")
 const EconomyConstants = preload("res://Core/GameMechanics/EconomyConstants.gd")
 const ActionCostRuntime = preload("res://Core/GameMechanics/ActionCostRuntime.gd")
-const VocabPairUtils = preload("res://Core/Gameplay/VocabPairUtils.gd")
+const IconUtils = preload("res://Core/Gameplay/IconUtils.gd")
 const PhysicsConfig = preload("res://Core/Config/PhysicsConfig.gd")
 const GranularityController = preload("res://Core/Utils/GranularityController.gd")
 const GameStateSerializerClass = preload("res://Core/GameState/GameStateSerializer.gd")
@@ -24,6 +24,7 @@ const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.
 const BalanceService = preload("res://Core/GameMechanics/BalanceService.gd")
 const VerboseHelper = preload("res://Core/Config/VerboseHelper.gd")
 const GridSentinel = preload("res://Core/GameState/GridSentinel.gd")
+const ToolConfig = preload("res://Core/GameState/ToolConfig.gd")
 
 ## Fallback biome pool used when ObservationFrame.get_loadable_biomes() is unavailable.
 const DEFAULT_BIOME_POOL: Array[String] = [
@@ -68,9 +69,9 @@ var current_submenu_name: String = ""
 var current_submenu_data: Dictionary = {}
 var submenu_page: int = 0
 
-## Tool state
-var current_tool_group: int = 3
-var tool_mode_indices: Dictionary = {}
+## Active archetype frame (hat row 4-0). Empty = Ace (no hat / default toolkit).
+## Defaults to Scientist to preserve the legacy boot-into-group-3 behaviour.
+var current_frame: String = ToolConfig.FRAME_SCIENTIST
 var _timescale_objective: Dictionary = DEFAULT_TIMESCALE_OBJECTIVE.duplicate(true)
 
 ## Cached autoload references
@@ -172,9 +173,9 @@ func set_checked_plots(positions: Array) -> void:
 func enter_submenu(name: String, context: Dictionary) -> Dictionary:
 	submenu_page = 0
 	current_submenu_name = name
-	if name == "vocab_injection":
-		var VocabInjectionSubmenu = load("res://UI/Core/Submenus/VocabInjectionSubmenu.gd")
-		current_submenu_data = VocabInjectionSubmenu.generate_submenu(
+	if name == "icon_injection":
+		var IconInjectionSubmenu = load("res://UI/Core/Submenus/IconInjectionSubmenu.gd")
+		current_submenu_data = IconInjectionSubmenu.generate_submenu(
 			context.biome, context.farm, submenu_page
 		)
 	elif name == "gate_selection":
@@ -214,19 +215,19 @@ func is_in_submenu() -> bool:
 # TOOL MANAGEMENT
 # ============================================================================
 
-func set_tool_group(group: int) -> Dictionary:
-	var old_group = current_tool_group
-	current_tool_group = group
-	return {"group": group, "changed": old_group != group}
+func set_frame(frame_name: String) -> Dictionary:
+	var old_frame = current_frame
+	ToolConfig.select_frame(frame_name)
+	current_frame = ToolConfig.get_current_frame()
+	return {"frame": current_frame, "changed": old_frame != current_frame}
 
 
-func cycle_tool_mode() -> Dictionary:
-	var ToolConfig = load("res://Core/GameState/ToolConfig.gd")
-	var new_index = ToolConfig.cycle_group_mode(current_tool_group)
-	var mode_label = ToolConfig.get_group_mode_label(current_tool_group)
+func cycle_frame_mode() -> Dictionary:
+	var new_index = ToolConfig.cycle_frame_mode(current_frame)
+	var mode_label = ToolConfig.get_frame_mode_label(current_frame)
 	return {
 		"mode_cycled": true,
-		"group": current_tool_group,
+		"frame": current_frame,
 		"mode_index": new_index,
 		"mode_label": mode_label
 	}
@@ -249,33 +250,40 @@ func _action_guard(positions: Array[Vector2i]) -> Dictionary:
 	return {}
 
 
-func action_rotate(positions: Array[Vector2i], direction: int) -> Dictionary:
+func _cost_action(action_name: String, positions: Array[Vector2i], executor: Callable, context: Dictionary = {}) -> Dictionary:
 	var guard = _action_guard(positions)
 	if not guard.is_empty(): return guard
-
-	var ToolConfig = load("res://Core/GameState/ToolConfig.gd")
-	var axis = ToolConfig.get_group_mode_name(1)
-	if axis == "":
-		axis = "X"
-
-	var result: Dictionary
-	match axis:
-		"X": result = GateActionHandler.apply_rx_gate(farm, positions)
-		"Y": result = GateActionHandler.apply_ry_gate(farm, positions)
-		"Z": result = GateActionHandler.apply_rz_gate(farm, positions)
-		_: result = {"success": true, "axis": axis, "direction": direction}
-
-	action_performed.emit("rotate_up" if direction > 0 else "rotate_down", result)
+	var gate = preflight_action_cost(action_name, context)
+	if not gate.get("ok", true):
+		return {"success": false, "error": "insufficient_resources", "message": gate.get("message", "Cannot afford %s" % action_name), "cost": gate.get("cost", {})}
+	var result: Dictionary = executor.call()
+	if result.get("success", false):
+		commit_action_cost(action_name, context, action_name)
 	return result
+
+
+func action_rotate(positions: Array[Vector2i], direction: int) -> Dictionary:
+	var action_name = "rotate_up" if direction > 0 else "rotate_down"
+	return _cost_action(action_name, positions, func():
+		var axis = ToolConfig.get_frame_mode_name(ToolConfig.FRAME_SPARK)
+		if axis == "": axis = "X"
+		var result: Dictionary
+		match axis:
+			"X": result = GateActionHandler.apply_rx_gate(farm, positions)
+			"Y": result = GateActionHandler.apply_ry_gate(farm, positions)
+			"Z": result = GateActionHandler.apply_rz_gate(farm, positions)
+			_: result = {"success": true, "axis": axis, "direction": direction}
+		action_performed.emit(action_name, result)
+		return result
+	)
 
 
 func action_hadamard(positions: Array[Vector2i]) -> Dictionary:
-	var guard = _action_guard(positions)
-	if not guard.is_empty(): return guard
-
-	var result = GateActionHandler.apply_hadamard(farm, positions)
-	action_performed.emit("hadamard", result)
-	return result
+	return _cost_action("hadamard", positions, func():
+		var result = GateActionHandler.apply_hadamard(farm, positions)
+		action_performed.emit("hadamard", result)
+		return result
+	)
 
 
 # ============================================================================
@@ -294,9 +302,17 @@ func action_drain(positions: Array[Vector2i]) -> Dictionary:
 func action_transfer(positions: Array[Vector2i]) -> Dictionary:
 	var guard = _action_guard(positions)
 	if not guard.is_empty(): return guard
-
+	var context: Dictionary = {}
+	if positions.size() >= 2:
+		context["north_emoji"] = LindbladHandler._resolve_north_emoji(farm, positions[0])
+		context["south_emoji"] = LindbladHandler._resolve_north_emoji(farm, positions[1])
+	var gate = preflight_action_cost("lindblad_transfer", context)
+	if not gate.get("ok", true):
+		return {"success": false, "error": "insufficient_resources", "message": gate.get("message", "Cannot afford transfer"), "cost": gate.get("cost", {})}
 	var result = LindbladHandler.lindblad_transfer(farm, positions)
 	action_performed.emit("transfer", result)
+	if result.get("success", false):
+		commit_action_cost("lindblad_transfer", context, "lindblad_transfer")
 	return result
 
 
@@ -324,12 +340,24 @@ func action_explore(biome_name: String, grid_pos: Vector2i = GridSentinel.INVALI
 	if not biome:
 		return {"success": false, "error": "no_biome", "message": "Biome '%s' not found" % biome_name}
 
-	var result = ProbeActions.action_explore(terminal_pool, biome, economy)
-	# Attach terminal to its grid plot
+	# Invariant: plot_idx ≡ register_id. The column the player highlighted IS
+	# the register they're exploring — no random mapping. Fall back to -1 only
+	# when called without a grid position (headless/diagnostic paths).
+	var target_register_id = grid_pos.x if grid_pos != GridSentinel.INVALID_POSITION else -1
+
+	var result = ProbeActions.action_explore(terminal_pool, biome, economy, target_register_id)
+	# Attach terminal to its grid plot. Under the plot_idx ≡ register_id
+	# invariant, the canonical grid position for any register is always
+	# (register_id, biome_row). If the caller supplied a grid_pos, use it
+	# (should match anyway); otherwise derive.
 	if result.get("success", false):
 		var terminal = result.get("terminal", null)
-		if terminal and grid_pos != GridSentinel.INVALID_POSITION:
-			terminal.grid_position = grid_pos
+		if terminal:
+			var bound_register = int(result.get("register_id", -1))
+			if grid_pos != GridSentinel.INVALID_POSITION:
+				terminal.grid_position = grid_pos
+			elif bound_register >= 0:
+				terminal.grid_position = _derive_grid_position_for_register(biome_name, bound_register)
 		_attach_terminal_to_plot(terminal)
 	_emit_farm_action("explore", result, grid_pos)
 	action_performed.emit("explore", result)
@@ -355,7 +383,7 @@ func action_measure(grid_pos: Vector2i) -> Dictionary:
 	if not biome:
 		return {"success": false, "error": "no_biome", "message": "Biome '%s' not found" % biome_name, "blocked": true}
 
-	var result = ProbeActions.action_measure(terminal, biome, economy)
+	var result = ProbeActions.action_measure(terminal, biome, economy, farm)
 	_emit_farm_action("measure", result, grid_pos)
 	action_performed.emit("measure", result)
 	return result
@@ -421,25 +449,19 @@ func action_build_gate(positions: Array[Vector2i]) -> Dictionary:
 
 
 func action_inspect(positions: Array[Vector2i]) -> Dictionary:
-	if not farm:
-		return {"success": false, "error": "no_farm", "message": "Farm not initialized"}
-	if positions.is_empty():
-		return {"success": false, "error": "no_selection", "message": "No plot selected"}
-
-	var result = GateActionHandler.inspect_entanglement(farm, positions)
-	action_performed.emit("inspect", result)
-	return result
+	return _cost_action("inspect", positions, func():
+		var result = GateActionHandler.inspect_entanglement(farm, positions)
+		action_performed.emit("inspect", result)
+		return result
+	)
 
 
 func action_remove_gates(positions: Array[Vector2i]) -> Dictionary:
-	if not farm:
-		return {"success": false, "error": "no_farm", "message": "Farm not initialized"}
-	if positions.is_empty():
-		return {"success": false, "error": "no_selection", "message": "No plot selected"}
-
-	var result = GateActionHandler.disentangle(farm, positions)
-	action_performed.emit("remove_gates", result)
-	return result
+	return _cost_action("remove_gates", positions, func():
+		var result = GateActionHandler.disentangle(farm, positions)
+		action_performed.emit("remove_gates", result)
+		return result
+	)
 
 
 # ============================================================================
@@ -463,10 +485,10 @@ func action_inject_vocabulary(biome_name: String) -> Dictionary:
 			"message": "Biome is at max capacity (%d qubits)" % max_qubits
 		}
 
-	var candidate_pairs = VocabPairUtils.collect_injectable_pairs(farm, biome)
+	var candidate_pairs = IconUtils.collect_injectable_pairs(farm, biome)
 	var pair = _pick_injectable_pair(candidate_pairs, biome)
 	if pair.is_empty():
-		return {"success": false, "error": "no_available_pair", "message": "No injectable vocab pair for this biome"}
+		return {"success": false, "error": "no_available_pair", "message": "No injectable icon for this biome"}
 	return action_inject_vocabulary_pair(biome_name, pair)
 
 
@@ -483,7 +505,7 @@ func action_inject_vocabulary_pair(biome_name: String, pair: Dictionary) -> Dict
 	var north_emoji = str(pair.get("north", ""))
 	var south_emoji = str(pair.get("south", ""))
 	if north_emoji == "" or south_emoji == "" or north_emoji == south_emoji:
-		return {"success": false, "error": "invalid_pair", "message": "Invalid vocabulary pair"}
+		return {"success": false, "error": "invalid_pair", "message": "Invalid icon"}
 	if biome.viz_cache.get_qubit(north_emoji) >= 0:
 		return {"success": false, "error": "already_in_biome", "message": "%s already in biome" % north_emoji}
 	if biome.viz_cache.get_qubit(south_emoji) >= 0:
@@ -504,13 +526,13 @@ func action_inject_vocabulary_pair(biome_name: String, pair: Dictionary) -> Dict
 		return {
 			"success": false,
 			"error": "insufficient_funds",
-			"message": "Insufficient resources for vocab injection (%s)" % [gate.get("cost", {})]
+			"message": "Insufficient resources for icon injection (%s)" % [gate.get("cost", {})]
 		}
 
 	var result = biome.expand_quantum_system(north_emoji, south_emoji)
 	if result.get("success", false):
 		if not bool(commit_action_cost("inject_vocabulary", context, "inject_vocabulary").get("ok", false)):
-			return {"success": false, "error": "cost_commit_failed", "message": "Vocab injection failed: unable to spend cost."}
+			return {"success": false, "error": "cost_commit_failed", "message": "Icon injection failed: unable to spend cost."}
 		if farm and farm.has_method("discover_pair"):
 			farm.discover_pair(north_emoji, south_emoji)
 		result["north_emoji"] = north_emoji
@@ -533,7 +555,7 @@ func action_remove_vocabulary(biome_name: String, grid_pos: Vector2i) -> Diction
 	var rm = qc.register_map
 
 	if rm.num_qubits < 2:
-		return {"success": false, "error": "minimum_reached", "message": "Cannot remove last vocab pair"}
+		return {"success": false, "error": "minimum_reached", "message": "Cannot remove last icon"}
 
 	var target_qubit = rm.num_qubits - 1
 	var pair_to_remove = {}
@@ -544,27 +566,28 @@ func action_remove_vocabulary(biome_name: String, grid_pos: Vector2i) -> Diction
 		target_qubit = terminal.bound_register_id
 	pair_to_remove = _get_pair_for_qubit(rm, target_qubit)
 
-	var cost_gate = preflight_action_cost("remove_vocabulary")
+	var removal_context = {"north_emoji": pair_to_remove.get("north", ""), "south_emoji": pair_to_remove.get("south", "")}
+	var cost_gate = preflight_action_cost("remove_vocabulary", removal_context)
 	if not cost_gate.get("ok", true):
 		var cost = cost_gate.get("cost", {})
 		return {
 			"success": false,
 			"error": "insufficient_resources",
-			"message": "Need %d %s to remove vocabulary." % [cost.values()[0], cost.keys()[0]] if not cost.is_empty() else "Insufficient resources"
+			"message": "Need %d %s to remove signature." % [cost.values()[0], cost.keys()[0]] if not cost.is_empty() else "Insufficient resources"
 		}
 
 	if pair_to_remove.is_empty():
-		return {"success": false, "error": "no_pair_found", "message": "Could not find vocab pair to remove"}
+		return {"success": false, "error": "no_pair_found", "message": "Could not find icon to remove"}
 
 	_unbind_terminals_for_register(biome, target_qubit)
 
 	var result = _shrink_quantum_system(biome, target_qubit, pair_to_remove)
 
 	if result.get("success", false):
-		if not bool(commit_action_cost("remove_vocabulary", {}, "remove_vocabulary").get("ok", false)):
-			return {"success": false, "error": "cost_commit_failed", "message": "Remove vocabulary failed: unable to spend cost."}
+		if not bool(commit_action_cost("remove_vocabulary", removal_context, "remove_vocabulary").get("ok", false)):
+			return {"success": false, "error": "cost_commit_failed", "message": "Remove signature failed: unable to spend cost."}
 		_reindex_bound_terminals(biome, target_qubit)
-		_log("info", "instrument", "-", "Removed vocab %s/%s from %s" % [
+		_log("info", "instrument", "-", "Removed icon %s/%s from %s" % [
 			pair_to_remove.get("north", "?"), pair_to_remove.get("south", "?"), biome_name
 		])
 
@@ -1050,10 +1073,15 @@ func gate_inject(gate_name: String, positions: Array[Vector2i]) -> Dictionary:
 	var gate_callable = _GATE_DISPATCH[gate_name] as Callable
 	if gate_callable == null or not gate_callable.is_valid():
 		return {"ok": false, "error": "invalid_gate_dispatch", "gate": gate_name}
+	var cost_check = preflight_action_cost(gate_name)
+	if not cost_check.get("ok", true):
+		return {"ok": false, "success": false, "error": "insufficient_resources", "message": cost_check.get("message", "Cannot afford %s" % gate_name), "cost": cost_check.get("cost", {})}
 	var result = gate_callable.call(farm, positions)
 	result["gate"] = gate_name
 	action_performed.emit("gate_inject", result)
 	_notify_quest_projection("gate_inject:%s" % gate_name, result)
+	if result.get("success", false) or result.get("ok", false):
+		commit_action_cost(gate_name, {}, gate_name)
 	return result
 
 
@@ -1111,11 +1139,15 @@ func probe_cycle(biome_name: String) -> Dictionary:
 		var explore_fail = {"success": false, "stage": "explore", "details": explore}
 		return explore_fail
 	var terminal = explore.get("terminal", null)
+	if terminal:
+		var reg = int(explore.get("register_id", -1))
+		if reg >= 0:
+			terminal.grid_position = _derive_grid_position_for_register(biome_name, reg)
 	_attach_terminal_to_plot(terminal)
 	# Emit explore signal so bubbles appear during bot runs
 	_emit_farm_action("explore", explore)
 
-	var measure = ProbeActions.action_measure(terminal, biome, economy)
+	var measure = ProbeActions.action_measure(terminal, biome, economy, farm)
 	if not measure.get("success", false):
 		var measure_fail = {"success": false, "stage": "measure", "details": measure}
 		return measure_fail
@@ -1154,7 +1186,12 @@ func victory_lap() -> Dictionary:
 			var explore = ProbeActions.action_explore(terminal_pool, biome, economy)
 			if explore.get("success", false):
 				explore_total += 1
-				_attach_terminal_to_plot(explore.get("terminal"))
+				var t = explore.get("terminal", null)
+				if t:
+					var reg = int(explore.get("register_id", -1))
+					if reg >= 0:
+						t.grid_position = _derive_grid_position_for_register(biome_name, reg)
+				_attach_terminal_to_plot(t)
 				_emit_farm_action("explore", explore)
 				continue
 			var reason = str(explore.get("error", "unknown"))
@@ -1178,7 +1215,7 @@ func victory_lap() -> Dictionary:
 		if not biome:
 			measure_failures.append({"terminal": terminal.terminal_id, "error": "unknown_biome", "biome": t_biome_name})
 			continue
-		var measure = ProbeActions.action_measure(terminal, biome, economy)
+		var measure = ProbeActions.action_measure(terminal, biome, economy, farm)
 		if measure.get("success", false):
 			measure_total += 1
 			_emit_farm_action("measure", measure)
@@ -1307,6 +1344,20 @@ func _emit_farm_action(action: String, result: Dictionary, pos: Vector2i = GridS
 		farm.emit_action_signal(action, result, pos)
 
 
+func _derive_grid_position_for_register(biome_name: String, register_id: int) -> Vector2i:
+	"""Under plot_idx ≡ register_id, a register's canonical grid position is
+	(register_id, biome_row). Returns INVALID_POSITION when the biome row
+	lookup fails."""
+	if not farm or register_id < 0:
+		return GridSentinel.INVALID_POSITION
+	if not farm.has_method("get_biome_row"):
+		return GridSentinel.INVALID_POSITION
+	var row = int(farm.get_biome_row(biome_name))
+	if row < 0:
+		return GridSentinel.INVALID_POSITION
+	return Vector2i(register_id, row)
+
+
 func _attach_terminal_to_plot(t) -> void:
 	if t and t.grid_position != GridSentinel.INVALID_POSITION and farm and farm.grid:
 		var plot = farm.grid.get_plot(t.grid_position)
@@ -1391,7 +1442,7 @@ func set_observation_stride(biome_name: String, stride: int) -> Dictionary:
 	var old_stride = _biome_stride(biome)
 	biome.observation_stride = clamped
 	var batcher = farm.biome_evolution_batcher if farm and "biome_evolution_batcher" in farm else null
-	if batcher and batcher.has_method("reset_stride_carry"):
+	if batcher:
 		batcher.reset_stride_carry(biome_name)
 	var result = {"ok": true, "biome": biome_name, "old_stride": old_stride, "new_stride": clamped, "locked": clamped == 0}
 	action_performed.emit("set_observation_stride", result)
@@ -1407,7 +1458,7 @@ func set_resolution(biome_name: String, dt: float) -> Dictionary:
 	var old_dt = _biome_dt(biome)
 	biome.max_evolution_dt = clamped
 	var batcher = farm.biome_evolution_batcher if farm and "biome_evolution_batcher" in farm else null
-	if batcher and batcher.has_method("reset_stride_carry"):
+	if batcher:
 		batcher.reset_stride_carry(biome_name)
 	var result = {"ok": true, "biome": biome_name, "old_dt": old_dt, "new_dt": clamped}
 	action_performed.emit("set_resolution", result)
@@ -1488,8 +1539,7 @@ func get_timescale_projection(biome_name: String, top_k: int = -1) -> Dictionary
 	var payload: Dictionary = {}
 	if farm and "biome_evolution_batcher" in farm and farm.biome_evolution_batcher:
 		var batcher = farm.biome_evolution_batcher
-		if batcher.has_method("get_biome_probability_map"):
-			payload = batcher.get_biome_probability_map(biome_name)
+		payload = batcher.get_biome_probability_map(biome_name)
 	var weights = _extract_emoji_weights(payload)
 	var ranked: Array = []
 	var floors: Dictionary = _timescale_objective.get("resource_floors", {})
@@ -1621,9 +1671,9 @@ func _pick_injectable_pair(pairs: Array, biome) -> Dictionary:
 		var south = pair.get("south", "")
 		if north == "" or south == "":
 			continue
-		if VocabPairUtils.biome_has_emoji(biome, north):
+		if IconUtils.biome_has_emoji(biome, north):
 			continue
-		if VocabPairUtils.biome_has_emoji(biome, south):
+		if IconUtils.biome_has_emoji(biome, south):
 			continue
 		return {"north": north, "south": south}
 	return {}
@@ -1770,9 +1820,9 @@ func _reindex_entanglement_graph(quantum_computer, removed_qubit: int) -> void:
 
 func _rebuild_operators_after_shrink(biome) -> void:
 	var qc = biome.quantum_computer
-	var _icon_reg = _get_autoload("IconRegistry")
+	var _icon_reg = _get_autoload("EmojiPhysicsRegistry")
 	if not _icon_reg:
-		push_warning("_rebuild_operators_after_shrink: IconRegistry not available")
+		push_warning("_rebuild_operators_after_shrink: EmojiPhysicsRegistry not available")
 		return
 
 	var all_icons = {}
