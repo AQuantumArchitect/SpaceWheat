@@ -25,6 +25,7 @@ const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.
 const QuantumModeStatusIndicator = preload("res://UI/Widgets/QuantumModeStatusIndicator.gd")
 const BiomeSelectionRowClass = preload("res://UI/Widgets/BiomeSelectionRow.gd")
 const FpsDisplay = preload("res://UI/HUD/FpsDisplay.gd")
+const HintToast = preload("res://UI/Widgets/HintToast.gd")
 
 var current_farm_ui = null  # FarmUI instance (from scene)
 var overlay_manager = null
@@ -43,6 +44,7 @@ var advanced_mode_enabled: bool = false
 var quantum_mode_indicator: QuantumModeStatusIndicator = null  # Current quantum mode display
 var biome_tab_bar: BiomeSelectionRowClass = null  # Top bar for biome selection
 var fps_display: Control = null  # Top-left FPS projection display
+var _hint_toast_stack: VBoxContainer = null  # Bottom-right stack of ephemeral hint toasts
 var _quest_biome_connected: bool = false
 var _overlay_open_frame: Dictionary = {}  # overlay_name -> Engine frame opened
 
@@ -103,6 +105,17 @@ func _mark_input_handled() -> void:
 	var vp := get_viewport()
 	if vp:
 		vp.set_input_as_handled()
+
+
+## Spawn an ephemeral corner-toast with bbcode text. Used by the Socialite
+## "Tip" verb (and any future quick-feedback action) to whisper a hint to
+## the player without blocking input or stealing focus.
+func show_hint(bbcode_text: String) -> void:
+	if not _hint_toast_stack or not is_inside_tree():
+		return
+	var toast := HintToast.new()
+	_hint_toast_stack.add_child(toast)
+	toast.show_text(bbcode_text)
 
 
 func _set_global_paused(value: bool) -> void:
@@ -464,6 +477,19 @@ func _ready() -> void:
 	fps_display.name = "FpsDisplay"
 	overlay_layer.add_child(fps_display)
 	_verbose.info("ui", "✅", "FPS display created")
+
+	# Hint-toast stack (bottom-right corner; ephemeral pop-ups)
+	_hint_toast_stack = VBoxContainer.new()
+	_hint_toast_stack.name = "HintToastStack"
+	_hint_toast_stack.alignment = BoxContainer.ALIGNMENT_END
+	_hint_toast_stack.add_theme_constant_override("separation", 6)
+	_hint_toast_stack.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_hint_toast_stack.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+	_hint_toast_stack.offset_left = -340
+	_hint_toast_stack.offset_top = -260
+	_hint_toast_stack.offset_right = -16
+	_hint_toast_stack.offset_bottom = -120
+	overlay_layer.add_child(_hint_toast_stack)
 	_apply_top_strip_layout()
 	if layout_manager and layout_manager.has_signal("layout_changed"):
 		InstrumentLocator.safe_connect(layout_manager.layout_changed, _on_layout_changed)

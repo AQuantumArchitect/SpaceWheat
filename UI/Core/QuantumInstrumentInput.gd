@@ -1305,11 +1305,52 @@ func _execute_action(action_name: String) -> Dictionary:
 			result = MacroActions.dispatch(_instrument, MacroActions.KIND_REMOVE_VOCABULARY, {"biome_name": biome_name, "grid_pos": grid_pos})
 		"remove_biome":
 			result = MacroActions.dispatch(_instrument, MacroActions.KIND_REMOVE_BIOME)
+		"socialite_hint":
+			result = _execute_socialite_hint()
+		"socialite_placeholder":
+			result = {"success": true, "placeholder": true, "message": "Socialite verbs are placeholders for now."}
 		_:
 			_verbose.warn("input", "?", "Unknown action: %s" % action_name)
 			return {"success": false, "error": "unknown_action", "message": "Unknown action: %s" % action_name}
 
 	return result
+
+
+## Rotating pool of one-line hints the Socialite "Tip" verb whispers into
+## the corner toast. Lightweight by design — the social/quest layer can
+## replace this with context-aware lines later.
+const SOCIALITE_HINTS: Array[String] = [
+	"[b]Spark (4)[/b] casts Lindblad pulses — try [b]R[/b] (Pump) on a hot register, but bring [b]✨[/b].",
+	"[b]Druid (0)[/b] holds the unitary gates. Tab through X / Y / Z and [b]E[/b] for Hadamard.",
+	"[b]Operator (9)[/b] is where you wire entangling gates. Check two plots, press [b]Q[/b].",
+	"[b]Scientist (8)[/b] is the probe loop: [b]Q[/b] explore → [b]E[/b] measure → [b]R[/b] pop.",
+	"[b]Captain (7)[/b] discovers and culls biomes. Watch the cost on the cull.",
+	"[b]Icon (5)[/b] injects a dual-emoji qubit from your own faction signature.",
+	"Re-press the active hat key to drop back to [b]Ace[/b] — the unfocused default.",
+	"Tab cycles a frame's sub-mode. [b]F[/b] is reserved for play; it isn't a navigation key.",
+	"Hold [b]Shift[/b] while pressing Q/E/R to apply the verb to every checked plot at once.",
+]
+
+var _socialite_hint_idx: int = 0
+
+
+func _execute_socialite_hint() -> Dictionary:
+	"""Whisper a Socialite tip into the corner-toast stack. Cycles through
+	SOCIALITE_HINTS so repeated F presses give fresh lines."""
+	if SOCIALITE_HINTS.is_empty():
+		return {"success": false, "error": "no_hints", "message": "No Socialite hints loaded"}
+	var hint_text: String = SOCIALITE_HINTS[_socialite_hint_idx % SOCIALITE_HINTS.size()]
+	_socialite_hint_idx += 1
+	var shell := _resolve_player_shell()
+	if shell and shell.has_method("show_hint"):
+		shell.show_hint("[color=#cfe6ff]🤝 Socialite:[/color] " + hint_text)
+		return {"success": true, "hint": hint_text}
+	return {"success": false, "error": "no_player_shell", "message": "PlayerShell unavailable for hint toast"}
+
+
+func _resolve_player_shell() -> Node:
+	var nodes := get_tree().get_nodes_in_group("player_shell") if is_inside_tree() else []
+	return nodes[0] if not nodes.is_empty() else null
 
 
 func _get_current_biome_name() -> String:

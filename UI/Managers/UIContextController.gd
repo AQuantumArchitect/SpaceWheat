@@ -179,11 +179,13 @@ func _on_action_pressed(action_key: String) -> void:
 		return
 
 	if action_key == "F":
+		# F is no longer a mode-cycle key (Tab handles cycling). The on-screen
+		# F button only fires when the active frame defines an explicit F
+		# action; pagination inside a submenu still routes through F here.
 		if quantum_input.has_method("_cycle_submenu_page") and quantum_input.is_in_submenu():
 			quantum_input._cycle_submenu_page()
-		elif quantum_input.has_method("_cycle_mode"):
-			quantum_input._cycle_mode()
-		elif quantum_input.has_method("_perform_action"):
+			return
+		if quantum_input.has_method("_perform_action"):
 			quantum_input._perform_action(action_key)
 		return
 
@@ -311,7 +313,6 @@ func _project_action_info(action_info: Dictionary) -> Dictionary:
 		"cost": {},
 		"shift_label": str(action_info.get("shift_label", "")),
 		"shift_action": str(action_info.get("shift_action", "")),
-		"icon": action_info.get("icon", {}),
 	}
 
 
@@ -327,7 +328,11 @@ func _apply_runtime_state(actions: Dictionary) -> void:
 			continue
 
 		if action_key == "F":
-			action_info.available = true
+			# F sits unused unless the active frame defines an explicit
+			# F action. Mode cycling lives on Tab, never on F.
+			var f_action_name := str(action_info.get("action", ""))
+			action_info.available = f_action_name != ""
+			action_info.disabled = f_action_name == ""
 		else:
 			action_info.available = runtime_availability.get(action_key, false)
 		action_info.cost = _get_cost_for_action(action_info)

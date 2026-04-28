@@ -202,20 +202,26 @@ const ARCHETYPE_FRAMES: Dictionary = {
 		"emoji": "🤝",
 		"icon": "res://Assets/UI/Icon/Icon.svg",
 		"time_scale": "discrete",
-		"description": "Faction politics / quest layer (not yet wired)",
+		"description": "Faction politics / quest layer (placeholder verbs)",
 		"has_f_cycling": false,
-		"modes": ["quest"],
-		"mode_labels": ["Q"],
-		"mode_emojis": ["Q"],
+		"modes": ["mingle"],
+		"mode_labels": ["🤝"],
+		"mode_emojis": ["🤝"],
 		"pauses_sim": true,
 		"actions": {
-			"quest": {
-				"Q": {"action": "", "label": "-", "emoji": "", "icon": "",
-					  "hint": "Reserved (Socialite quest)", "disabled": true},
-				"E": {"action": "", "label": "-", "emoji": "", "icon": "",
-					  "hint": "Reserved", "disabled": true},
-				"R": {"action": "", "label": "-", "emoji": "", "icon": "",
-					  "hint": "Reserved", "disabled": true}
+			"mingle": {
+				"Q": {"action": "socialite_placeholder", "label": "Greet", "emoji": "👋",
+					  "icon": "",
+					  "hint": "Wave hello (placeholder; no mechanical effect yet)"},
+				"E": {"action": "socialite_placeholder", "label": "Mingle", "emoji": "🍷",
+					  "icon": "",
+					  "hint": "Mingle with whoever's around (placeholder)"},
+				"R": {"action": "socialite_placeholder", "label": "Charm", "emoji": "✨",
+					  "icon": "",
+					  "hint": "Try to charm the room (placeholder)"},
+				"F": {"action": "socialite_hint", "label": "Tip", "emoji": "💬",
+					  "icon": "",
+					  "hint": "Whisper a hint to the player"}
 			}
 		}
 	},
@@ -502,8 +508,12 @@ static func reset_frame_modes() -> void:
 # =============================================================================
 
 static func get_action(frame_or_group, key: String) -> Dictionary:
-	"""Get action definition for a frame and key (Q/E/R/F). For F-cycling
-	frames, returns the action from the current sub-mode."""
+	"""Get action definition for a frame and key (Q/E/R/F).
+
+	F is NOT auto-filled with mode-cycle info — mode cycling lives on Tab.
+	If a frame wants to bind F to something specific (e.g. Socialite hint),
+	it declares an explicit F slot under its current sub-mode. Otherwise
+	F returns {} and the action bar shows it sitting unused."""
 	var frame_name := resolve_frame(frame_or_group)
 	var def := get_frame(frame_name)
 	if def.is_empty():
@@ -511,8 +521,6 @@ static func get_action(frame_or_group, key: String) -> Dictionary:
 
 	var mode_name := ""
 	if def.get("has_f_cycling", false):
-		if key == "F":
-			return get_cycle_action_info(frame_name)
 		mode_name = get_frame_mode_name(frame_name)
 	else:
 		var modes: Array = def.get("modes", [])
