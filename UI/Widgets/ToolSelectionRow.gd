@@ -1,19 +1,35 @@
 class_name ToolSelectionRow
 extends "res://UI/Widgets/SelectionButtonRow.gd"
 
-## Physical keyboard layout UI - Bottom row with tool selection buttons [1-4]
-## Each button shows the keyboard shortcut and highlights when selected
-## Current architecture: 4 tool groups driven directly by ToolConfig.
-## Uses BtnBtmMidl.svg from Assets/UI/Chrome for sci-fi aesthetic
+## Bottom-row archetype hat selector. One button per archetype frame, in
+## hat-row order (4=Spark .. 0=Druid). The keyboard shortcut is the matching
+## hat key. See `docs/ARCHETYPE_FRAMES.md`.
+##
+## SelectionButtonRow's button IDs are integers, so we use the hat-row index
+## (0..6) as the button id and translate to/from frame name via FRAME_ORDER.
 
-# Tool definitions from shared config (single source of truth)
 const ToolConfig = preload("res://Core/GameState/ToolConfig.gd")
 
+## Hat-row left → right: Spark, Icon, Socialite, Captain, Scientist, Operator, Druid.
+const FRAME_ORDER: Array = [
+	ToolConfig.FRAME_SPARK,
+	ToolConfig.FRAME_ICON,
+	ToolConfig.FRAME_SOCIALITE,
+	ToolConfig.FRAME_CAPTAIN,
+	ToolConfig.FRAME_SCIENTIST,
+	ToolConfig.FRAME_OPERATOR,
+	ToolConfig.FRAME_DRUID,
+]
 
-var current_tool: int = 3  # Default to tool 3 (matches ToolConfig.current_group)
+const HAT_KEYS: Array = ["4", "5", "6", "7", "8", "9", "0"]
 
-# Signal
+## Active archetype frame name. Empty string = Ace (no hat).
+var current_frame: String = ToolConfig.FRAME_SCIENTIST
+
+# Legacy alias signal kept so any older int-listener stays wired.
 signal tool_selected(tool_num: int)
+# New canonical signal — fired alongside the legacy one.
+signal frame_selected(frame_name: String)
 
 
 func _ready():
@@ -21,87 +37,99 @@ func _ready():
 	z_index = 5
 	super._ready()
 	_rebuild_buttons()
+	select_frame(ToolConfig.get_current_frame())
 
-	# Select tool from ToolConfig (single source of truth)
-	var initial_tool = ToolConfig.get_current_group()
-	select_tool(initial_tool)
-
-	print("🛠️  ToolSelectionRow initialized with BtnBtmMidl textures (4 tools, starting at %d)" % initial_tool)
 
 func _rebuild_buttons() -> void:
 	var button_specs: Array[Dictionary] = []
-	for tool_num in range(1, 5):
-		var tool_info = ToolConfig.get_group(tool_num)
-		var tool_name = tool_info.get("name", "Unknown")
-		var tool_emoji = tool_info.get("emoji", "")
-		var icon_path = tool_info.get("icon", "")
-		var label_text = ""
+	for i in range(FRAME_ORDER.size()):
+		var frame_name: String = FRAME_ORDER[i]
+		var def: Dictionary = ToolConfig.get_frame(frame_name)
+		var label_name := str(def.get("name", frame_name))
+		var emoji := str(def.get("emoji", ""))
+		var icon_path := str(def.get("icon", ""))
+		var hat_key: String = HAT_KEYS[i]
+		var label_text := ""
 		if icon_path != "":
-			label_text = "[%d] %s" % [tool_num, tool_name]
+			label_text = "[%s] %s" % [hat_key, label_name]
 		else:
-			label_text = "[%d] %s %s" % [tool_num, tool_emoji, tool_name]
+			label_text = "[%s] %s %s" % [hat_key, emoji, label_name]
 		button_specs.append({
-			"id": tool_num,
+			"id": i,
 			"text": label_text,
 			"icon_path": icon_path,
-			"enabled": true
+			"enabled": true,
 		})
 	build_buttons(button_specs)
 	if not button_selected.is_connected(_on_button_selected):
 		button_selected.connect(_on_button_selected)
 
 
-func _on_button_selected(tool_num: int) -> void:
-	select_tool(tool_num)
-	tool_selected.emit(tool_num)
-	var tool_info = ToolConfig.get_group(tool_num)
-	print("⌨️  Tool %d selected [%s button]" % [tool_num, tool_info.get("name", "Unknown")])
-
-
-func select_tool(tool_num: int) -> void:
-	"""Select a tool and update button styling."""
-	if tool_num < 1 or tool_num > 4:
+func _on_button_selected(idx: int) -> void:
+	var frame_name: String = _frame_for_index(idx)
+	if frame_name == "":
 		return
+	select_frame(frame_name)
+	frame_selected.emit(frame_name)
+	tool_selected.emit(int(ToolConfig.FRAME_TO_GROUP.get(frame_name, 0)))
 
-	current_tool = tool_num
-	set_selected(tool_num)
+
+## Select a frame by name. Empty string = Ace (no button highlighted).
+func select_frame(frame_name: String) -> void:
+	if frame_name == ToolConfig.FRAME_ACE:
+		current_frame = frame_name
+		set_selected(-1)
+		return
+	if not ToolConfig.ARCHETYPE_FRAMES.has(frame_name):
+		return
+	current_frame = frame_name
+	var idx := FRAME_ORDER.find(frame_name)
+	if idx >= 0:
+		set_selected(idx)
 
 
-func set_tool_enabled(tool_num: int, enabled: bool) -> void:
-	"""Enable or disable a specific tool button."""
-	set_button_enabled(tool_num, enabled)
+## Legacy int-keyed entry point used by ActionBarManager and overlays that
+## still think in tool group numbers. Translates via GROUP_TO_FRAME.
+func select_tool(tool_num: int) -> void:
+	var frame_name: String = ToolConfig.GROUP_TO_FRAME.get(tool_num, "")
+	if frame_name != "":
+		select_frame(frame_name)
 
-func _print_corners() -> void:
-	"""DEBUG: Print actual corner positions of toolbar."""
-	var tl = position
-	var tr = position + Vector2(size.x, 0)
-	var bl = position + Vector2(0, size.y)
-	var br = position + size
 
-	print("\n🎯 ToolSelectionRow CORNERS:")
-	print("  Top-Left:     (%.1f, %.1f)" % [tl.x, tl.y])
-	print("  Top-Right:    (%.1f, %.1f)" % [tr.x, tr.y])
-	print("  Bottom-Left:  (%.1f, %.1f)" % [bl.x, bl.y])
-	print("  Bottom-Right: (%.1f, %.1f)" % [br.x, br.y])
-	print("  Size: %.1f × %.1f" % [size.x, size.y])
-	print("  Parent size: %.1f × %.1f" % [get_parent().size.x, get_parent().size.y])
-	print()
+func set_tool_enabled(frame_or_tool, enabled: bool) -> void:
+	"""Enable or disable a specific frame button. Accepts a frame name or a
+	legacy tool group number."""
+	var frame_name: String = ""
+	if frame_or_tool is String:
+		frame_name = frame_or_tool
+	elif frame_or_tool is int:
+		frame_name = ToolConfig.GROUP_TO_FRAME.get(frame_or_tool, "")
+	if frame_name == "":
+		return
+	var idx := FRAME_ORDER.find(frame_name)
+	if idx >= 0:
+		set_button_enabled(idx, enabled)
+
+
+func _frame_for_index(idx: int) -> String:
+	if idx < 0 or idx >= FRAME_ORDER.size():
+		return ""
+	return FRAME_ORDER[idx]
 
 
 func debug_layout() -> String:
 	"""Return detailed layout debug information for F3 display."""
 	var debug_text = ""
-	debug_text += "ToolSelectionRow (1-4 toolbar):\n"
+	debug_text += "ToolSelectionRow (archetype hat row):\n"
 	debug_text += "  Position: (%.0f, %.0f)\n" % [position.x, position.y]
 	debug_text += "  Actual size: %.0f × %.0f\n" % [size.x, size.y]
 	debug_text += "  Custom min size: %s\n" % custom_minimum_size
-	debug_text += "  Size flags H: %d (3=EXPAND_FILL)\n" % size_flags_horizontal
-	debug_text += "  Size flags V: %d\n" % size_flags_vertical
-	debug_text += "  Buttons: %d total (BtnBtmMidl style)\n" % buttons.size()
+	debug_text += "  Active frame: %s\n" % (current_frame if current_frame != "" else "Ace")
+	debug_text += "  Buttons: %d total\n" % buttons.size()
 
 	var button_widths = []
 	for btn_data in buttons:
 		button_widths.append("%.0f" % btn_data.container.size.x)
-	debug_text += "  Button widths: [%s] (should be equal for stretch)\n" % ", ".join(button_widths)
+	debug_text += "  Button widths: [%s]\n" % ", ".join(button_widths)
 
 	return debug_text

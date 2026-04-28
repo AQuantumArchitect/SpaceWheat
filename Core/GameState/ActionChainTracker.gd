@@ -1,5 +1,8 @@
 extends Node
 
+const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")
+const ToolConfig = preload("res://Core/GameState/ToolConfig.gd")
+
 ## ActionChainTracker - Tracks observation history with fractal addresses
 ##
 ## Records player actions to build a chain of observations through the
@@ -9,7 +12,7 @@ extends Node
 ## - biome: Which biome the plot belongs to
 ## - direction: -1 (DOWN), 0 (NEUTRAL), +1 (UP)
 ## - timestamp: When the action occurred
-## - tool_group: Which tool group was active
+## - frame: Which archetype frame was active
 ## - address: Current fractal address path
 
 ## The observation chain
@@ -39,7 +42,7 @@ func record_observation(key: String, plot_idx: int, biome: String, direction: in
 		"biome": biome,
 		"direction": direction,
 		"timestamp": Time.get_ticks_msec(),
-		"tool_group": _get_current_tool_group(),
+		"frame": _get_current_frame(),
 		"address": _compute_address()
 	}
 
@@ -122,13 +125,9 @@ func _compute_address() -> Array:
 	return address
 
 
-## Get the current tool group from ToolConfig (new time scale system)
-func _get_current_tool_group() -> int:
-	# Access via the ToolConfig singleton pattern
-	var tool_config_script = load("res://Core/GameState/ToolConfig.gd")
-	if tool_config_script:
-		return tool_config_script.current_group
-	return 1
+## Get the active archetype frame from the live tool state.
+func _get_current_frame() -> String:
+	return ToolConfig.get_current_frame()
 
 
 ## Get statistics about the chain
@@ -154,4 +153,3 @@ func get_stats() -> Dictionary:
 		"first_timestamp": chain[0].timestamp,
 		"last_timestamp": chain[chain.size() - 1].timestamp
 	}
-const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")

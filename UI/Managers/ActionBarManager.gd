@@ -8,6 +8,8 @@ extends RefCounted
 ##
 ## Layout: Delegates sizing to UILayoutManager for consistent responsive behavior.
 
+const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")
+const VerboseHelper = preload("res://Core/Config/VerboseHelper.gd")
 const ToolSelectionRow = preload("res://UI/Widgets/ToolSelectionRow.gd")
 const ActionPreviewRow = preload("res://UI/Widgets/ActionPreviewRow.gd")
 const ToolConfig = preload("res://Core/GameState/ToolConfig.gd")
@@ -25,8 +27,7 @@ func set_layout_manager(manager: Node) -> void:
 	"""
 	layout_manager = manager
 	if layout_manager and layout_manager.has_signal("layout_changed"):
-		if not layout_manager.layout_changed.is_connected(_on_layout_changed):
-			layout_manager.layout_changed.connect(_on_layout_changed)
+		InstrumentLocator.safe_connect(layout_manager.layout_changed, _on_layout_changed)
 
 
 func _on_layout_changed(_data: Dictionary) -> void:
@@ -77,16 +78,15 @@ func create_action_bars(parent: Control) -> void:
 
 	# GODOT 4 BEST PRACTICE: Connect to parent's resized signal
 	# This is the CORRECT way to handle anchor-based positioning
-	if not parent.resized.is_connected(_on_parent_resized):
-		parent.resized.connect(_on_parent_resized)
+	InstrumentLocator.safe_connect(parent.resized, _on_parent_resized)
 
 	# Also position immediately in case parent already has size
 	_on_parent_resized()
 
-	# Initialize action bars to show current tool from ToolConfig (single source of truth)
-	var initial_tool = ToolConfig.get_current_group()
-	select_tool(initial_tool)
-	print("ActionBarManager: Initialized with tool %d" % initial_tool)
+	# Initialize action bars to show current frame from ToolConfig (single source of truth)
+	var initial_frame := ToolConfig.get_current_frame()
+	select_frame(initial_frame)
+	VerboseHelper.debug("ui", "toolbar", "ActionBarManager initialized with frame %s" % initial_frame)
 
 
 func _on_parent_resized() -> void:
@@ -164,10 +164,17 @@ func get_action_row() -> Control:
 	return action_preview_row
 
 
+func select_frame(frame_name: String) -> void:
+	"""Update archetype frame selection display."""
+	if tool_selection_row and tool_selection_row.has_method("select_frame"):
+		tool_selection_row.select_frame(frame_name)
+
+
 func select_tool(tool_num: int) -> void:
-	"""Update tool selection display only."""
-	if tool_selection_row and tool_selection_row.has_method("select_tool"):
-		tool_selection_row.select_tool(tool_num)
+	"""Legacy int-keyed entry point — translates to a frame via GROUP_TO_FRAME."""
+	var frame_name: String = ToolConfig.GROUP_TO_FRAME.get(tool_num, "")
+	if frame_name != "":
+		select_frame(frame_name)
 
 func render_action_projection(projection: Dictionary) -> void:
 	"""Render the projected Q/E/R/F action state."""

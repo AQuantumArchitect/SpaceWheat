@@ -13,7 +13,7 @@ extends RefCounted
 const ToolConfig = preload("res://Core/GameState/ToolConfig.gd")
 const ActionCostRuntime = preload("res://Core/GameMechanics/ActionCostRuntime.gd")
 const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")
-const VocabPairUtils = preload("res://Core/Gameplay/VocabPairUtils.gd")
+const IconUtils = preload("res://Core/Gameplay/IconUtils.gd")
 
 
 ## ============================================================================
@@ -22,7 +22,7 @@ const VocabPairUtils = preload("res://Core/Gameplay/VocabPairUtils.gd")
 
 static func can_execute_action(
 	action_key: String,
-	current_tool: int,
+	current_tool,
 	current_submenu: String,
 	cached_submenu: Dictionary,
 	farm,
@@ -35,7 +35,9 @@ static func can_execute_action(
 
 	Args:
 		action_key: "Q", "E", or "R"
-		current_tool: Active tool number (1-4)
+		current_tool: Active archetype frame name (String) or legacy
+			tool group number (int). Both flow through ToolConfig's
+			Variant-accepting lookup methods.
 		current_submenu: Active submenu name (empty = no submenu)
 		cached_submenu: Cached submenu data for dynamic menus
 		farm: Farm instance
@@ -89,7 +91,7 @@ static func can_execute_action_name(
 
 static func _can_execute_tool_action(
 	action_key: String,
-	current_tool: int,
+	current_tool,
 	farm,
 	selected_plots: Array[Vector2i],
 	current_selection: Vector2i
@@ -205,29 +207,9 @@ static func _can_execute_explore(farm, current_selection: Vector2i) -> bool:
 	if not terminal_pool:
 		return false
 
-	# Need unbound terminals
-	if terminal_pool.get_unbound_count() == 0:
-		return false
-
-	# Get biome from current selection
-	var grid = farm.get("grid") if farm else null
-	if not grid:
-		return false
-
-	var biome = grid.get_biome_for_plot(current_selection)
-	if not biome:
-		return false
-
-	# Must have unbound registers
-	var available_registers = biome.get_available_registers(terminal_pool) if biome.has_method("get_available_registers") else []
-	var has_unbound = not available_registers.is_empty()
-
-	# Debug: Log availability
-	var verbose = InstrumentLocator.resolve_verbose_config_main_loop()
-	if verbose and not has_unbound:
-		verbose.debug("input", "🔍", "EXPLORE button disabled: no unbound registers in %s" % biome.get_biome_type())
-
-	return has_unbound
+	# Explore is always available when unbound terminals exist — re-exploring a bound
+	# terminal is valid, so we don't check register availability here.
+	return terminal_pool.get_unbound_count() > 0
 
 
 static func _can_execute_measure(farm, selected_plots: Array[Vector2i]) -> bool:
@@ -342,7 +324,7 @@ static func has_measured_terminal_at(farm, pos: Vector2i) -> bool:
 
 
 static func _can_execute_inject_vocabulary(farm, current_selection: Vector2i) -> bool:
-	"""Check if there is at least one vocab pair not yet in the biome."""
+	"""Check if there is at least one icon not yet in the biome."""
 	var grid = farm.get("grid") if farm else null
 	if not grid:
 		return false
@@ -355,7 +337,7 @@ static func _can_execute_inject_vocabulary(farm, current_selection: Vector2i) ->
 	if _get_qubit_count(biome) >= ActionCostRuntime.get_max_biome_qubits(farm):
 		return false
 
-	var pairs = VocabPairUtils.collect_injectable_pairs(farm, biome)
+	var pairs = IconUtils.collect_injectable_pairs(farm, biome)
 	if pairs.is_empty():
 		return false
 		
@@ -395,9 +377,9 @@ static func _can_execute_icon_assign(farm, selected_plots: Array[Vector2i], acti
 	if _get_qubit_count(biome) >= ActionCostRuntime.get_max_biome_qubits(farm):
 		return false
 
-	if VocabPairUtils.biome_has_emoji(biome, north):
+	if IconUtils.biome_has_emoji(biome, north):
 		return false
-	if VocabPairUtils.biome_has_emoji(biome, south):
+	if IconUtils.biome_has_emoji(biome, south):
 		return false
 
 	return true

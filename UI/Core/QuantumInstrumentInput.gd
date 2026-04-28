@@ -1500,7 +1500,7 @@ func can_execute_action(action_key: String) -> bool:
 	var current_pos = _get_grid_position()
 	return ActionValidator.can_execute_action(
 		action_key,
-		ToolConfig.get_current_group(),
+		ToolConfig.get_current_frame(),
 		"",
 		{},
 		farm,
@@ -1509,8 +1509,13 @@ func can_execute_action(action_key: String) -> bool:
 	)
 
 
+func get_current_frame() -> String:
+	"""Get the active archetype frame name. Empty string = Ace."""
+	return ToolConfig.get_current_frame()
+
+
 func get_current_tool_group() -> int:
-	"""Get current tool group number."""
+	"""Legacy int-keyed accessor — translates current frame via FRAME_TO_GROUP."""
 	return ToolConfig.get_current_group()
 
 

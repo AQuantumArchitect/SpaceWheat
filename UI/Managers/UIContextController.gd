@@ -17,19 +17,20 @@ var overlay_stack = null
 var overlay_manager = null
 var quantum_input = null
 var current_farm_ui: Control = null
-var current_tool: int = ToolConfig.get_current_group()
+var current_frame: String = ToolConfig.get_current_frame()
 var current_submenu_name: String = ""
 var current_submenu_actions: Dictionary = {}
 var _observed_overlays: Array = []
 const ACTION_KEYS = ["Q", "E", "R", "F"]
 
 
+const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")
+
 func setup(action_bar_mgr, stack_mgr, overlay_mgr = null) -> void:
 	action_bar_manager = action_bar_mgr
 	overlay_stack = stack_mgr
 	if overlay_stack and overlay_stack.has_signal("stack_changed"):
-		if not overlay_stack.stack_changed.is_connected(refresh):
-			overlay_stack.stack_changed.connect(refresh)
+		InstrumentLocator.safe_connect(overlay_stack.stack_changed, refresh)
 
 	_connect_toolbar_inputs()
 	if overlay_mgr:
@@ -40,14 +41,19 @@ func setup(action_bar_mgr, stack_mgr, overlay_mgr = null) -> void:
 
 func reset() -> void:
 	"""Reset runtime UI context references for shutdown or restart."""
-	if overlay_stack and overlay_stack.has_signal("stack_changed") and overlay_stack.stack_changed.is_connected(refresh):
-		overlay_stack.stack_changed.disconnect(refresh)
+	if overlay_stack and overlay_stack.has_signal("stack_changed"):
+		InstrumentLocator.safe_disconnect(overlay_stack.stack_changed, refresh)
+	if quantum_input:
+		for sig_name in ["frame_changed", "frame_mode_changed", "submenu_changed", "action_performed"]:
+			var cb = Callable(self, "_on_" + sig_name)
+			if quantum_input.has_signal(sig_name):
+				InstrumentLocator.safe_disconnect(Signal(quantum_input, sig_name), cb)
 	action_bar_manager = null
 	overlay_stack = null
 	overlay_manager = null
 	quantum_input = null
 	current_farm_ui = null
-	current_tool = ToolConfig.get_current_group()
+	current_frame = ToolConfig.get_current_frame()
 	current_submenu_name = ""
 	current_submenu_actions.clear()
 	_observed_overlays.clear()
@@ -67,23 +73,16 @@ func bind_quantum_input(input_handler) -> void:
 		return
 
 	quantum_input = input_handler
-	current_tool = _resolve_current_tool()
+	current_frame = _resolve_current_frame()
 
-	if quantum_input.has_signal("tool_group_changed"):
-		if not quantum_input.tool_group_changed.is_connected(_on_tool_group_changed):
-			quantum_input.tool_group_changed.connect(_on_tool_group_changed)
-
-	if quantum_input.has_signal("mode_cycled"):
-		if not quantum_input.mode_cycled.is_connected(_on_mode_cycled):
-			quantum_input.mode_cycled.connect(_on_mode_cycled)
-
-	if quantum_input.has_signal("submenu_changed"):
-		if not quantum_input.submenu_changed.is_connected(_on_submenu_changed):
-			quantum_input.submenu_changed.connect(_on_submenu_changed)
-
-	if quantum_input.has_signal("action_performed"):
-		if not quantum_input.action_performed.is_connected(_on_action_performed):
-			quantum_input.action_performed.connect(_on_action_performed)
+	for pair in [
+		["frame_changed", _on_frame_changed],
+		["frame_mode_changed", _on_frame_mode_changed],
+		["submenu_changed", _on_submenu_changed],
+		["action_performed", _on_action_performed],
+	]:
+		if quantum_input.has_signal(pair[0]):
+			InstrumentLocator.safe_connect(Signal(quantum_input, pair[0]), pair[1])
 
 	refresh()
 
@@ -97,12 +96,9 @@ func bind_farm_ui(farm_ui: Control) -> void:
 	var plot_grid = current_farm_ui.plot_grid_display if "plot_grid_display" in current_farm_ui else null
 
 	if plot_grid and plot_grid.has_signal("selection_count_changed"):
-		if not plot_grid.selection_count_changed.is_connected(_on_selection_count_changed):
-			plot_grid.selection_count_changed.connect(_on_selection_count_changed)
-
+		InstrumentLocator.safe_connect(plot_grid.selection_count_changed, _on_selection_count_changed)
 	if farm and farm.economy and farm.economy.has_signal("resource_changed"):
-		if not farm.economy.resource_changed.is_connected(_on_resource_changed):
-			farm.economy.resource_changed.connect(_on_resource_changed)
+		InstrumentLocator.safe_connect(farm.economy.resource_changed, _on_resource_changed)
 
 	refresh()
 
@@ -111,7 +107,10 @@ func refresh() -> void:
 	if not action_bar_manager:
 		return
 
-	action_bar_manager.select_tool(current_tool)
+	if action_bar_manager.has_method("select_frame"):
+		action_bar_manager.select_frame(current_frame)
+	else:
+		action_bar_manager.select_tool(int(ToolConfig.FRAME_TO_GROUP.get(current_frame, 0)))
 	action_bar_manager.render_action_projection(_build_action_projection())
 
 
@@ -120,14 +119,14 @@ func _connect_toolbar_inputs() -> void:
 		return
 
 	var tool_row = action_bar_manager.get_tool_row()
-	if tool_row and tool_row.has_signal("tool_selected"):
-		if not tool_row.tool_selected.is_connected(_on_tool_selected):
-			tool_row.tool_selected.connect(_on_tool_selected)
-
+	if tool_row:
+		if tool_row.has_signal("frame_selected"):
+			InstrumentLocator.safe_connect(tool_row.frame_selected, _on_frame_button_selected)
+		elif tool_row.has_signal("tool_selected"):
+			InstrumentLocator.safe_connect(tool_row.tool_selected, _on_tool_selected)
 	var action_row = action_bar_manager.get_action_row()
 	if action_row and action_row.has_signal("action_pressed"):
-		if not action_row.action_pressed.is_connected(_on_action_pressed):
-			action_row.action_pressed.connect(_on_action_pressed)
+		InstrumentLocator.safe_connect(action_row.action_pressed, _on_action_pressed)
 
 
 func _observe_overlay(overlay) -> void:
@@ -135,43 +134,44 @@ func _observe_overlay(overlay) -> void:
 		return
 
 	_observed_overlays.append(overlay)
-
-	if overlay.has_signal("selection_changed"):
-		if not overlay.selection_changed.is_connected(_refresh_from_overlay_signal):
-			overlay.selection_changed.connect(_refresh_from_overlay_signal)
-
-	if overlay.has_signal("action_performed"):
-		if not overlay.action_performed.is_connected(_refresh_from_overlay_signal):
-			overlay.action_performed.connect(_refresh_from_overlay_signal)
-
-	if overlay.has_signal("slot_selection_changed"):
-		if not overlay.slot_selection_changed.is_connected(_refresh_from_overlay_signal):
-			overlay.slot_selection_changed.connect(_refresh_from_overlay_signal)
+	for sig_name in ["selection_changed", "action_performed", "slot_selection_changed", "action_labels_changed"]:
+		if overlay.has_signal(sig_name):
+			InstrumentLocator.safe_connect(Signal(overlay, sig_name), _refresh_from_overlay_signal)
 
 
 func _refresh_action_availability() -> void:
 	refresh()
 
 
-func _resolve_current_tool() -> int:
-	if quantum_input and quantum_input.has_method("get_current_tool_group"):
-		return quantum_input.get_current_tool_group()
-	return ToolConfig.get_current_group()
+func _resolve_current_frame() -> String:
+	if quantum_input and quantum_input.has_method("get_current_frame"):
+		return quantum_input.get_current_frame()
+	return ToolConfig.get_current_frame()
 
 
-func _on_tool_selected(tool_num: int) -> void:
-	ToolConfig.select_group(tool_num)
-	current_tool = tool_num
+func _on_frame_button_selected(frame_name: String) -> void:
+	ToolConfig.select_frame(frame_name)
+	current_frame = frame_name
 
-	if current_farm_ui and current_farm_ui.has_method("_on_tool_selected"):
-		current_farm_ui._on_tool_selected(tool_num)
+	if current_farm_ui and current_farm_ui.has_method("_on_frame_selected"):
+		current_farm_ui._on_frame_selected(frame_name)
+	elif current_farm_ui and current_farm_ui.has_method("_on_tool_selected"):
+		# Legacy hook still expects an int.
+		current_farm_ui._on_tool_selected(int(ToolConfig.FRAME_TO_GROUP.get(frame_name, 0)))
 
-	if quantum_input and quantum_input.has_signal("tool_group_changed"):
-		quantum_input.tool_group_changed.emit(tool_num)
+	if quantum_input and quantum_input.has_signal("frame_changed"):
+		quantum_input.frame_changed.emit(frame_name)
 	else:
 		current_submenu_name = ""
 		current_submenu_actions = {}
 		refresh()
+
+
+func _on_tool_selected(tool_num: int) -> void:
+	"""Legacy int-keyed handler kept for any toolbar that still emits int."""
+	var frame_name: String = ToolConfig.GROUP_TO_FRAME.get(tool_num, "")
+	if frame_name != "":
+		_on_frame_button_selected(frame_name)
 
 
 func _on_action_pressed(action_key: String) -> void:
@@ -191,15 +191,15 @@ func _on_action_pressed(action_key: String) -> void:
 		quantum_input._perform_action(action_key)
 
 
-func _on_tool_group_changed(group: int) -> void:
-	current_tool = group
+func _on_frame_changed(frame_name: String) -> void:
+	current_frame = frame_name
 	current_submenu_name = ""
 	current_submenu_actions = {}
 	refresh()
 
 
-func _on_mode_cycled(_group: int, _mode_idx: int, _mode_label: String) -> void:
-	current_tool = _resolve_current_tool()
+func _on_frame_mode_changed(_frame: String, _mode_idx: int, _mode_label: String) -> void:
+	current_frame = _resolve_current_frame()
 	refresh()
 
 
@@ -227,8 +227,9 @@ func _refresh_from_overlay_signal(_a = null, _b = null) -> void:
 
 func _build_action_projection() -> Dictionary:
 	var projection := {
-		"context": "tool",
-		"tool": current_tool,
+		"context": "frame",
+		"frame": current_frame,
+		"tool": int(ToolConfig.FRAME_TO_GROUP.get(current_frame, 0)),
 		"submenu_name": "",
 		"actions": {}
 	}
@@ -245,17 +246,17 @@ func _build_action_projection() -> Dictionary:
 		projection.actions = _build_submenu_actions()
 		return projection
 
-	projection.actions = _build_tool_actions(current_tool)
+	projection.actions = _build_frame_actions(current_frame)
 	return projection
 
 
-func _build_tool_actions(tool_num: int) -> Dictionary:
+func _build_frame_actions(frame_name: String) -> Dictionary:
 	var actions: Dictionary = {}
 	for action_key in ACTION_KEYS:
-		var action_info = ToolConfig.get_action(tool_num, action_key)
+		var action_info = ToolConfig.get_action(frame_name, action_key)
 		actions[action_key] = _project_action_info(action_info)
 
-	if tool_num == 3 and ToolConfig.get_group_mode_name(tool_num) == "probe":
+	if frame_name == ToolConfig.FRAME_SCIENTIST and ToolConfig.get_frame_mode_name(frame_name) == "probe":
 		_apply_probe_preview(actions)
 
 	_apply_runtime_state(actions)
@@ -310,7 +311,7 @@ func _project_action_info(action_info: Dictionary) -> Dictionary:
 		"cost": {},
 		"shift_label": str(action_info.get("shift_label", "")),
 		"shift_action": str(action_info.get("shift_action", "")),
-		"vocab_pair": action_info.get("vocab_pair", {}),
+		"icon": action_info.get("icon", {}),
 	}
 
 
@@ -409,7 +410,7 @@ func _get_cost_for_action(action_info: Dictionary) -> Dictionary:
 func _get_cost_for_action_name(action_name: String, action_info: Dictionary) -> Dictionary:
 	match action_name:
 		"inject_vocabulary":
-			var pair = action_info.get("vocab_pair", {})
+			var pair = action_info.get("icon", {})
 			return _get_runtime_action_cost(action_name, {"south_emoji": pair.get("south", "")})
 		"drain", "pump":
 			var pair = _resolve_selected_axis_pair()
