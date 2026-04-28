@@ -134,7 +134,19 @@ func _init() -> void:
 	call_deferred("_bootstrap")
 
 
+func _resolve_rig_path(env_name: String, default_path: String) -> String:
+	var override_path := OS.get_environment(env_name).strip_edges()
+	if override_path == "":
+		return default_path
+	return override_path
+
+
 func _bootstrap() -> void:
+	_queue_path = _resolve_rig_path("RIG_QUEUE_PATH", _queue_path)
+	_result_path = _resolve_rig_path("RIG_RESULT_PATH", _result_path)
+	_bridge_sentinel_path = _resolve_rig_path("RIG_BRIDGE_SENTINEL_PATH", _bridge_sentinel_path)
+	_heartbeat_path = _resolve_rig_path("RIG_HEARTBEAT_PATH", _heartbeat_path)
+
 	var boot_manager = get_root().get_node_or_null("BootManager")
 	if not boot_manager:
 		print("❌ BootManager not found; cannot start rig")
@@ -2030,16 +2042,20 @@ func _close_player_overlays_via_input(max_presses: int = 4) -> void:
 		await _press_key(KEY_ESCAPE, false, 2)
 
 
+## Map a legacy tool group number (1-4) to the archetype-hat keycode that
+## now selects the equivalent frame: Group 1 → Spark (4), Group 2 → Druid
+## (0), Group 3 → Scientist (8), Group 4 → Captain (7). Mirrors
+## ToolConfig.GROUP_TO_FRAME paired with ToolConfig.HAT_KEY_TO_FRAME.
 func _tool_group_keycode(group_num: int) -> int:
 	match group_num:
 		1:
-			return KEY_1
+			return KEY_4   # Spark
 		2:
-			return KEY_2
+			return KEY_0   # Druid
 		3:
-			return KEY_3
+			return KEY_8   # Scientist
 		4:
-			return KEY_4
+			return KEY_7   # Captain
 	return KEY_UNKNOWN
 
 
@@ -2051,9 +2067,10 @@ func _ensure_tool_group_mode(group_num: int, mode_name: String = "") -> Dictiona
 		await _press_key(keycode, false, 2)
 	if mode_name == "" or not ToolConfig.has_f_cycling(group_num):
 		return {"ok": ToolConfig.get_current_group() == group_num, "group": group_num}
+	# Mode cycling moved from F to Tab in the keyboard-grammar refactor.
 	var guard = 0
 	while ToolConfig.get_group_mode_name(group_num) != mode_name and guard < 8:
-		await _press_key(KEY_F, false, 2)
+		await _press_key(KEY_TAB, false, 2)
 		guard += 1
 	return {
 		"ok": ToolConfig.get_current_group() == group_num and ToolConfig.get_group_mode_name(group_num) == mode_name,

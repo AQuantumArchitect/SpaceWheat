@@ -1520,22 +1520,29 @@ func get_current_tool_group() -> int:
 
 
 func get_current_tool_info() -> Dictionary:
-	"""Get info about current tool group."""
-	var group = ToolConfig.get_current_group()
+	"""Get info about the active archetype frame. Includes the legacy
+	`group` int for any consumer still keyed on tool group numbers."""
+	var frame_name: String = ToolConfig.get_current_frame()
 	return {
-		"group": group,
-		"name": ToolConfig.get_group_name(group),
-		"emoji": ToolConfig.get_group_emoji(group),
-		"time_scale": ToolConfig.get_group_time_scale(group),
-		"mode": ToolConfig.get_group_mode_name(group),
-		"mode_label": ToolConfig.get_group_mode_label(group),
-		"mode_emoji": ToolConfig.get_group_mode_emoji(group)
+		"frame": frame_name,
+		"group": int(ToolConfig.FRAME_TO_GROUP.get(frame_name, 0)),
+		"name": ToolConfig.get_frame_name_label(frame_name),
+		"emoji": ToolConfig.get_frame_emoji(frame_name),
+		"time_scale": ToolConfig.get_frame_time_scale(frame_name),
+		"mode": ToolConfig.get_frame_mode_name(frame_name),
+		"mode_label": ToolConfig.get_frame_mode_label(frame_name),
+		"mode_emoji": ToolConfig.get_frame_mode_emoji(frame_name)
 	}
 
 
+func get_actions_for_current_frame() -> Dictionary:
+	"""Get current action slots for the active archetype frame."""
+	return ToolConfig.get_all_actions(ToolConfig.get_current_frame())
+
+
 func get_actions_for_current_group() -> Dictionary:
-	"""Get current action slots for the active tool group."""
-	return ToolConfig.get_all_actions(ToolConfig.get_current_group())
+	"""Legacy alias kept for any caller still using the old name."""
+	return get_actions_for_current_frame()
 
 
 ## ============================================================================
