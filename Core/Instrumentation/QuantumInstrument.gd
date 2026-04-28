@@ -265,7 +265,7 @@ func _cost_action(action_name: String, positions: Array[Vector2i], executor: Cal
 func action_rotate(positions: Array[Vector2i], direction: int) -> Dictionary:
 	var action_name = "rotate_up" if direction > 0 else "rotate_down"
 	return _cost_action(action_name, positions, func():
-		var axis = ToolConfig.get_frame_mode_name(ToolConfig.FRAME_SPARK)
+		var axis = ToolConfig.get_frame_mode_name(ToolConfig.FRAME_DRUID)
 		if axis == "": axis = "X"
 		var result: Dictionary
 		match axis:

@@ -512,13 +512,13 @@ func _guide_core_loop() -> void:
 
 func _guide_four_tools() -> void:
 	_body_box.add_child(_make_section_header("the seven archetype frames (4-0)"))
-	_body_box.add_child(_make_action_row("4", "Spark",     "Reversible rotations. 1/2/3 = X / Y / Z."))
-	_body_box.add_child(_make_action_row("5", "Icon",      "Pattern embodiment (placeholder)."))
+	_body_box.add_child(_make_action_row("4", "Spark",     "Lindbladian: drain / transfer / pump. 1/2/3 = thermal / dephase / damp."))
+	_body_box.add_child(_make_action_row("5", "Icon",      "Inject a dual-emoji qubit from your faction signature."))
 	_body_box.add_child(_make_action_row("6", "Socialite", "Faction politics (placeholder)."))
-	_body_box.add_child(_make_action_row("7", "Captain",   "Q=add icon, R=remove. Tab cycles signature / biomes."))
-	_body_box.add_child(_make_action_row("8", "Scientist", "Q=explore E=measure R=pop. Tab cycles probe / gate."))
-	_body_box.add_child(_make_action_row("9", "Operator",  "Topology craft (placeholder)."))
-	_body_box.add_child(_make_action_row("0", "Druid",     "Dissipative ops: drain / transfer / pump."))
+	_body_box.add_child(_make_action_row("7", "Captain",   "Biome lifecycle: Q=discover, R=cull."))
+	_body_box.add_child(_make_action_row("8", "Scientist", "Probe: Q=explore, E=measure, R=pop."))
+	_body_box.add_child(_make_action_row("9", "Operator",  "Gate building: Q=build, E=inspect, R=break."))
+	_body_box.add_child(_make_action_row("0", "Druid",     "Unitary rotations + Hadamard. 1/2/3 = X / Y / Z."))
 	_body_box.add_child(_make_spacer(4))
 	_body_box.add_child(_make_body(
 		"Re-press the active hat to toggle back to Ace (default toolkit). "
@@ -539,8 +539,8 @@ func _guide_biomes_economy() -> void:
 
 func _guide_things_to_try() -> void:
 	_body_box.add_child(_make_section_header("a few experiments"))
-	_body_box.add_child(_make_body("Make a Bell pair: Scientist (8) → Tab to gate mode → pick two plots → Q. Measure one, watch the other collapse."))
-	_body_box.add_child(_make_body("Hadamard everything: Spark (4) → E → measure. Repeat — watch 50/50 emerge."))
+	_body_box.add_child(_make_body("Make a Bell pair: Operator (9) → pick two plots → Q. Then Scientist (8) → measure one, watch the other collapse."))
+	_body_box.add_child(_make_body("Hadamard everything: Druid (0) → E → measure. Repeat — watch 50/50 emerge."))
 	_body_box.add_child(_make_body("Open N: apply a Hadamard, watch off-diagonal terms appear; measure, watch them vanish."))
 	_body_box.add_child(_make_body("Build a GHZ: entangle A↔B, then B↔C. Measure any one — all collapse."))
 

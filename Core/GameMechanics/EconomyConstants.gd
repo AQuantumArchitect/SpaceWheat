@@ -35,12 +35,12 @@ const ACTION_COSTS: Dictionary = {
 	"reap": {MIDWIFE_EMOJI: 1}, # Seasonal reap (actual cost resolved by sequence)
 	"quest_reroll": {"🐇": 1},   # Reroll quest slot
 	"quest_lock": {"🌲": 1},     # Lock quest slot
-	"discover_biome": {"🦅": 4}, # Scout new biome (reduced for 1:1 quantum mass economy)
-	"remove_biome": {"💀": 8},  # Cull biome: pay skulls, then liquidate the biome's live state
-	"remove_vocabulary": {"🐺": 20}, # Remove vocabulary: penalize with wolf cost
-	"lindblad_pump": {"🌱": 8},  # Axis-aware dynamic cost adds north emoji
+	"discover_biome": {"🦅": 21}, # Scout new biome
+	"remove_biome": {"💀": 34},  # Cull biome: pay skulls, then liquidate the biome's live state
+	"remove_vocabulary": {"🐺": 13}, # Remove signature base cost (N+S pole costs added dynamically)
+	"lindblad_pump": {"💨": 8},  # Axis-aware dynamic cost adds north emoji; wind drives energy in
 	"lindblad_drain": {"⚙": 2}  # Axis-aware dynamic cost adds south emoji
-	# vocab_injection is dynamic - use get_action_cost()
+	# icon_injection and remove_vocabulary are dynamic - use get_action_cost()
 }
 
 ## ===========================================
@@ -57,24 +57,51 @@ const GATE_COSTS: Dictionary = {
 
 	# Other single-qubit gates
 	"hadamard": {"🔥": 1},       # Fire - superposition
-	"s_gate": {"🌱": 1},         # Sprout - phase rotation
+	"s_gate": {"🌀": 1},         # Vortex - π/2 phase rotation
 	"t_gate": {"🌿": 1},         # Herb - π/8 phase
 
 	# Two-qubit gates - entanglement and control
 	"cnot": {"🍄": 1},           # Mushroom - entanglement (mycelial networks)
 	"cz": {"🦌": 1},             # Deer - controlled-phase
-	"swap": {"🐺": 1},           # Wolf - swap qubits
+	"swap": {"⚖": 1},           # Scales - equal exchange (village commerce, 1-hop via 💰)
 }
 
-## Vocab injection dynamic costs (LOWERED to 4 for 1:1 quantum mass economy)
-const VOCAB_INJECTION_SOUTH_COST: int = 4
-const VOCAB_INJECTION_SPROUT_COST: Dictionary = {"🌱": 10}
+## ===========================================
+## UNITARY ROTATION COSTS
+## ===========================================
+## Continuous Bloch sphere rotations (Group 1). One cost per click.
+
+const ROTATION_COSTS: Dictionary = {
+	"rotate_up":   {"⛰": 1},    # Mountain - ascending/north pole (1-hop via ☀/Celestial Archons)
+	"rotate_down": {"🏜": 1},    # Desert - descending/south pole (1-hop via ❄/Hearth Keepers)
+}
+
+## ===========================================
+## GATE-MODE ACTION COSTS
+## ===========================================
+## Gate-mode instrument actions (inspect, remove_gates). Not per-gate costs.
+
+const GATE_ACTION_COSTS: Dictionary = {
+	"inspect":      {"🔬": 1},   # Microscope - observe entanglement (1-hop via ⚙/Rocketwright)
+	"remove_gates": {"⚔": 1},   # Sword - break bonds (1-hop via 🔥/Children of the Ember)
+}
+
+## Icon injection dynamic costs
+const ICON_INJECTION_SOUTH_COST: int = 13
+const ICON_INJECTION_SPROUT_COST: Dictionary = {"🌱": 5}
+
+## Icon removal dynamic costs (wolf base + 3 of each pole emoji)
+const ICON_REMOVAL_WOLF_COST: int = 13
+const ICON_REMOVAL_POLE_COST: int = 3
 
 ## Lindblad axis-aware costs
-const LINDBLAD_PUMP_SPROUT_COST: int = 8
-const LINDBLAD_PUMP_NORTH_COST: int = 32
+const LINDBLAD_PUMP_WIND_COST: int = 8   # 💨 wind drives energy in
+const LINDBLAD_PUMP_NORTH_COST: int = 32 # large draw on the axis north pole
+const LINDBLAD_PUMP_SPARK_COST: int = 13 # ✨ — the Spark frame's cast-pulse cost
 const LINDBLAD_DRAIN_GEAR_COST: int = 2
 const LINDBLAD_DRAIN_SOUTH_COST: int = 8
+const LINDBLAD_TRANSFER_SOURCE_COST: int = 21  # 💧 north (source) emoji
+const LINDBLAD_TRANSFER_DRAIN_COST: int = 13   # south (destination) emoji
 
 ## Hard cap on biome qubits (enforced by actions, not by the quantum computer)
 const MAX_BIOME_QUBITS: int = 12
@@ -132,7 +159,7 @@ static func quantum_to_credits(probability: float, economy = null) -> int:
 
 
 static func get_vocab_injection_cost(south_emoji: String) -> Dictionary:
-	"""Get cost dictionary for vocabulary injection.
+	"""Get cost dictionary for signature injection.
 
 	Cost = 4 of south-pole emoji + 10 sprouts (🌱) - scaled for 1:1 quantum mass economy
 	Returns dictionary of {emoji: amount} for costs.
@@ -141,17 +168,17 @@ static func get_vocab_injection_cost(south_emoji: String) -> Dictionary:
 		south_emoji: The south pole emoji of the pair being injected
 	"""
 	if south_emoji == "":
-		return VOCAB_INJECTION_SPROUT_COST.duplicate()
+		return ICON_INJECTION_SPROUT_COST.duplicate()
 
-	var cost = VOCAB_INJECTION_SPROUT_COST.duplicate()
-	cost[south_emoji] = VOCAB_INJECTION_SOUTH_COST
+	var cost = ICON_INJECTION_SPROUT_COST.duplicate()
+	cost[south_emoji] = ICON_INJECTION_SOUTH_COST
 	return cost
 
 
 static func get_lindblad_injection_cost(action: String = ActionIds.LINDBLAD_PUMP, context: Dictionary = {}) -> Dictionary:
 	"""Get axis-aware Lindblad costs.
 
-	Pump: 8 🌱 + 32 north-pole emoji
+	Pump: 8 💨 + 32 north-pole emoji
 	Drain: 2 ⚙ + 8 south-pole emoji
 	"""
 	var normalized_action = normalize_action_id(action)
@@ -163,10 +190,35 @@ static func get_lindblad_injection_cost(action: String = ActionIds.LINDBLAD_PUMP
 			cost[south_emoji] = LINDBLAD_DRAIN_SOUTH_COST
 		return cost
 
-	cost["🌱"] = LINDBLAD_PUMP_SPROUT_COST
+	# Transfer: 21× source (north) + 13× destination (south)
+	if normalized_action == "lindblad_transfer":
+		var north = str(context.get("north_emoji", ""))
+		var south = str(context.get("south_emoji", ""))
+		cost["💧"] = 1  # base water token marks the transfer intent
+		if north != "":
+			cost[north] = LINDBLAD_TRANSFER_SOURCE_COST
+		if south != "" and south != north:
+			cost[south] = LINDBLAD_TRANSFER_DRAIN_COST
+		return cost
+
+	cost["💨"] = LINDBLAD_PUMP_WIND_COST
+	cost["✨"] = LINDBLAD_PUMP_SPARK_COST
 	var north_emoji = str(context.get("north_emoji", ""))
 	if north_emoji != "":
 		cost[north_emoji] = LINDBLAD_PUMP_NORTH_COST
+	return cost
+
+
+static func get_vocab_removal_cost(north_emoji: String = "", south_emoji: String = "") -> Dictionary:
+	"""Get cost for removing a icon.
+
+	Base: 13 🐺 + 3 of each pole emoji (when known).
+	"""
+	var cost = {"🐺": ICON_REMOVAL_WOLF_COST}
+	if north_emoji != "":
+		cost[north_emoji] = ICON_REMOVAL_POLE_COST
+	if south_emoji != "" and south_emoji != north_emoji:
+		cost[south_emoji] = ICON_REMOVAL_POLE_COST
 	return cost
 
 
@@ -240,12 +292,18 @@ static func get_action_cost(action: String, context: Dictionary = {}) -> Diction
 	var normalized_action = normalize_action_id(action)
 	if normalized_action == ActionIds.INJECT_VOCAB:
 		return get_vocab_injection_cost(context.get("south_emoji", ""))
-	if normalized_action == ActionIds.LINDBLAD_PUMP or normalized_action == ActionIds.LINDBLAD_DRAIN:
+	if normalized_action == "remove_vocabulary" and (context.has("north_emoji") or context.has("south_emoji")):
+		return get_vocab_removal_cost(context.get("north_emoji", ""), context.get("south_emoji", ""))
+	if normalized_action in [ActionIds.LINDBLAD_PUMP, ActionIds.LINDBLAD_DRAIN, "lindblad_transfer"]:
 		return get_lindblad_injection_cost(normalized_action, context)
 	if ACTION_COSTS.has(normalized_action):
 		return ACTION_COSTS[normalized_action]
 	if GATE_COSTS.has(normalized_action):
 		return GATE_COSTS[normalized_action]
+	if ROTATION_COSTS.has(normalized_action):
+		return ROTATION_COSTS[normalized_action]
+	if GATE_ACTION_COSTS.has(normalized_action):
+		return GATE_ACTION_COSTS[normalized_action]
 	return {}
 
 

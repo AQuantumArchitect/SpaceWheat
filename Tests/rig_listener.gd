@@ -2043,15 +2043,18 @@ func _close_player_overlays_via_input(max_presses: int = 4) -> void:
 
 
 ## Map a legacy tool group number (1-4) to the archetype-hat keycode that
-## now selects the equivalent frame: Group 1 → Spark (4), Group 2 → Druid
-## (0), Group 3 → Scientist (8), Group 4 → Captain (7). Mirrors
-## ToolConfig.GROUP_TO_FRAME paired with ToolConfig.HAT_KEY_TO_FRAME.
+## now selects the equivalent frame. After the 2026-04-28 redistribution:
+##   Group 1 (Unitary)  → Druid     (KEY_0)
+##   Group 2 (Lindblad) → Spark     (KEY_4)
+##   Group 3 (Measure)  → Scientist (KEY_8)
+##   Group 4 (Meta)     → Captain   (KEY_7)
+## Mirrors ToolConfig.GROUP_TO_FRAME paired with ToolConfig.HAT_KEY_TO_FRAME.
 func _tool_group_keycode(group_num: int) -> int:
 	match group_num:
 		1:
-			return KEY_4   # Spark
+			return KEY_0   # Druid (was Spark before the redistribution)
 		2:
-			return KEY_0   # Druid
+			return KEY_4   # Spark (was Druid before the redistribution)
 		3:
 			return KEY_8   # Scientist
 		4:

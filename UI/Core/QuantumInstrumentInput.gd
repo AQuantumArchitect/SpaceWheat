@@ -1004,8 +1004,8 @@ func _get_gate_name_for_action(action_name: String) -> String:
 		"hadamard":
 			return "H"
 		"rotate_up", "rotate_down":
-			# Get axis from Spark frame's sub-mode (X, Y, or Z)
-			var axis = ToolConfig.get_frame_mode_name(ToolConfig.FRAME_SPARK)
+			# Get axis from Druid frame's sub-mode (X, Y, or Z)
+			var axis = ToolConfig.get_frame_mode_name(ToolConfig.FRAME_DRUID)
 			if axis == "":
 				axis = "X"
 			return "R" + axis.to_lower()  # Rx, Ry, or Rz

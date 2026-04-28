@@ -18,9 +18,14 @@ the bindings drift, fix the bindings, not this doc.
 
 - **`4`–`9, 0`** select the **archetype frame** (the outermost level of the
   keyboard hierarchy — see `docs/ARCHETYPE_FRAMES.md`):
-  `4`=Spark, `5`=Icon, `6`=Socialite, `7`=Captain, `8`=Scientist,
-  `9`=Operator, `0`=Druid. Re-pressing the active hat toggles back to
-  **Ace** (no hat = default toolkit).
+  `4`=Spark (Lindbladian: drain/transfer/pump),
+  `5`=Icon (icon-injection from your faction signature),
+  `6`=Socialite (placeholder),
+  `7`=Captain (biome lifecycle: discover/cull),
+  `8`=Scientist (probe: explore/measure/pop),
+  `9`=Operator (gate building: build/inspect/break),
+  `0`=Druid (Unitary: X/Y/Z rotations, Hadamard).
+  Re-pressing the active hat toggles back to **Ace** (no hat = default toolkit).
 - **`1`–`3`** select the **sub-mode within the current frame**.
   Frames with fewer sub-modes ignore unused slots; frames with more
   expose the rest via Tab.
@@ -105,18 +110,17 @@ Item axis, unchanged from the prior pass:
 ### Live-frame QERF (per `Core/GameState/ToolConfig.gd`)
 
 The table is descriptive, not prescriptive — when a verb is empty,
-that's fine; E still pauses regardless. Frames not listed (Icon,
-Socialite, Operator) are placeholders today — their hat keys select
-the frame but Q/E/R sit empty until wired.
+that's fine; E still pauses regardless. Socialite is a placeholder
+today — its hat key selects the frame but Q/E/R sit empty until wired.
 
-| Frame | Sub-mode | Q (less) | E (pause + inspect) | R (more) | F (play / pulse) |
-|---|---|---|---|---|---|
-| 4 Spark     | X / Y / Z              | rot−       | Hadamard             | rot+        | (global F) |
-| 0 Druid     | thermal/dephase/damp   | drain      | Transfer             | pump        | (global F) |
-| 8 Scientist | probe                  | Explore    | Measure              | Pop         | (global F) |
-| 8 Scientist | gate                   | Build gate | Inspect              | Break gate  | (global F) |
-| 7 Captain   | signature              | Add icon   | (open picker; pause) | Remove      | (global F) |
-| 7 Captain   | biomes                 | Discover   | (open picker; pause) | Cull        | (global F) |
+| Hat | Frame      | Sub-mode               | Q (less)   | E (pause + inspect)  | R (more)    | F (play) |
+|----|------------|------------------------|------------|----------------------|-------------|----------|
+| 4  | Spark      | thermal / dephase / damp | drain    | Transfer             | Pump        | (global F) |
+| 5  | Icon       | inject                 | Add Icon   | (open picker; pause) | Trim Icon   | (global F) |
+| 7  | Captain    | biomes                 | Discover   | (open picker; pause) | Cull        | (global F) |
+| 8  | Scientist  | probe                  | Explore    | Measure              | Pop         | (global F) |
+| 9  | Operator   | gate                   | Build gate | Inspect              | Break gate  | (global F) |
+| 0  | Druid      | X / Y / Z              | rot−       | Hadamard             | rot+        | (global F) |
 
 F is handled globally by PlayerShell — frames don't define a per-mode F
 verb. The only way a per-frame F appears is if a frame genuinely has a

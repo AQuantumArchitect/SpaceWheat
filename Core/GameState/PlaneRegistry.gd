@@ -227,15 +227,15 @@ static func plane_id_from_tool_group(group_num: int) -> String:
 		_: return ""
 
 
-## Map active archetype frame to surface plane.
-## - Spark / Icon / Operator → coherent (unitary or topology craft)
-## - Druid → dissipative (Lindblad ops)
-## - Scientist → probe (measure / explore / harvest)
-## - Captain / Socialite → "" (meta / quest layer, owned by M / C)
+## Map active archetype frame to surface plane (post 2026-04-28 redistribution).
+## - Druid / Operator → coherent (unitary gates + entangling-gate craft)
+## - Spark → dissipative (Lindblad drain / transfer / pump)
+## - Scientist → probe (explore / measure / harvest)
+## - Icon / Captain / Socialite → "" (meta / quest layer, owned by M / C)
 ## - Ace ("") → ""
 static func plane_id_from_frame(frame_name: String) -> String:
 	match frame_name:
-		"spark", "icon", "operator": return PLANE_COHERENT
-		"druid": return PLANE_DISSIPATIVE
+		"druid", "operator": return PLANE_COHERENT
+		"spark": return PLANE_DISSIPATIVE
 		"scientist": return PLANE_PROBE
 		_: return ""

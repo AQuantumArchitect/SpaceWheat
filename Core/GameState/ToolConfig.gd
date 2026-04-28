@@ -6,15 +6,15 @@ extends RefCounted
 ## Each hat picks a frame; 1/2/3 picks a sub-mode within that frame; QERF
 ## remains the axial verb cross. See `docs/ARCHETYPE_FRAMES.md`.
 ##
-## | Hat | Archetype  | Old tool-group equivalent              |
-## |-----|------------|----------------------------------------|
-## |  4  | Spark      | Tool 1 (Unitary X/Y/Z gates)           |
-## |  5  | Icon       | (new — placeholder, no live actions)   |
-## |  6  | Socialite  | (new — placeholder, no live actions)   |
-## |  7  | Captain    | Tool 4 (Meta: biomes, signature)       |
-## |  8  | Scientist  | Tool 3 (Measure: probe, gate)          |
-## |  9  | Operator   | (new — placeholder, no live actions)   |
-## |  0  | Druid      | Tool 2 (Lindblad: thermal/dephase/damp)|
+## | Hat | Archetype  | Live wiring                                    |
+## |-----|------------|------------------------------------------------|
+## |  4  | Spark      | Lindbladian (thermal/dephase/damp)             |
+## |  5  | Icon       | Icon injection (player faction signature)      |
+## |  6  | Socialite  | (placeholder — no live actions)                |
+## |  7  | Captain    | Biomes lifecycle (discover / cull)             |
+## |  8  | Scientist  | Measure / probe (explore / measure / pop)      |
+## |  9  | Operator   | Gate building (build / inspect / break)        |
+## |  0  | Druid      | Unitary (X/Y/Z rotations, Hadamard)            |
 ##
 ## Ace = no hat pressed = default toolkit (currently routed to Scientist).
 ##
@@ -55,29 +55,31 @@ const HAT_KEY_TO_FRAME: Dictionary = {
 	"0": FRAME_DRUID,
 }
 
-## Transitional map: legacy tool group (1-4) → archetype frame.
-## Tool 1's mode set splits across Spark + Icon eventually, and Tool 4 splits
-## across Captain + Operator + Socialite, but for compat we route the live
-## wiring to a single archetype each: Tool 1 → Spark, Tool 4 → Captain.
+## Transitional map: legacy tool group (1-4) → archetype frame holding the
+## equivalent live wiring after the 2026-04-28 redistribution:
+## - Tool 1 (Unitary)  → Druid     (X/Y/Z rotations + Hadamard)
+## - Tool 2 (Lindblad) → Spark     (thermal/dephase/damp drain/transfer/pump)
+## - Tool 3 (Measure)  → Scientist (probe only — gate moved to Operator)
+## - Tool 4 (Meta)     → Captain   (biomes only — signature moved to Icon)
 const GROUP_TO_FRAME: Dictionary = {
-	1: FRAME_SPARK,
-	2: FRAME_DRUID,
+	1: FRAME_DRUID,
+	2: FRAME_SPARK,
 	3: FRAME_SCIENTIST,
 	4: FRAME_CAPTAIN,
 }
 
-## Reverse: archetype frame → legacy group number for callers that still want
-## an int. Frames that didn't have a live tool group in the old scheme map to
-## their nearest neighbour (Icon→1, Socialite/Operator→4) so display layers
-## get a stable answer.
+## Reverse: archetype frame → legacy group number for callers that still
+## want an int. Icon (icon-injection) and Operator (gate building) inherit
+## the legacy group of their parent meta tool: Icon → 4 (was Captain.signature),
+## Operator → 3 (was Scientist.gate). Socialite has no legacy group.
 const FRAME_TO_GROUP: Dictionary = {
-	FRAME_SPARK: 1,
-	FRAME_ICON: 1,
+	FRAME_SPARK: 2,
+	FRAME_ICON: 4,
 	FRAME_SOCIALITE: 4,
 	FRAME_CAPTAIN: 4,
 	FRAME_SCIENTIST: 3,
-	FRAME_OPERATOR: 4,
-	FRAME_DRUID: 2,
+	FRAME_OPERATOR: 3,
+	FRAME_DRUID: 1,
 }
 
 # =============================================================================
@@ -106,230 +108,16 @@ static var frame_mode_indices: Dictionary = {
 
 const ARCHETYPE_FRAMES: Dictionary = {
 	# =========================================================================
-	# SPARK (S, Q, P) — casting moment. Was Tool 1 (Unitary).
+	# SPARK (S, Q, P) — casting moment. Holds the Lindbladian wiring after
+	# the 2026-04-28 redistribution: drain / transfer / pump act as the
+	# player's instant-cast energy events into the dissipative bath.
 	# =========================================================================
 	FRAME_SPARK: {
 		"name": "Spark",
 		"emoji": "⚡",
-		"icon": "res://Assets/UI/Q-Bit/Unitary.svg",
-		"time_scale": "continuous",
-		"description": "Casting moment — reversible quantum gates",
-		"has_f_cycling": true,
-		"modes": ["X", "Y", "Z"],
-		"mode_labels": ["X", "Y", "Z"],
-		"mode_emojis": ["X", "Y", "Z"],
-		"pauses_sim": false,
-		"actions": {
-			"X": {
-				"Q": {"action": "rotate_down", "label": "-", "emoji": "-",
-					  "icon": "res://Assets/UI/Q-Bit/Pauli-X.svg",
-					  "hint": "Rotate X axis down"},
-				"E": {"action": "hadamard", "label": "H", "emoji": "H",
-					  "icon": "res://Assets/UI/Q-Bit/Hadamard.svg",
-					  "hint": "Hadamard superposition"},
-				"R": {"action": "rotate_up", "label": "+", "emoji": "+",
-					  "icon": "res://Assets/UI/Q-Bit/Pauli-X.svg",
-					  "hint": "Rotate X axis up"}
-			},
-			"Y": {
-				"Q": {"action": "rotate_down", "label": "-", "emoji": "-",
-					  "icon": "res://Assets/UI/Q-Bit/Pauli-Y.svg",
-					  "hint": "Rotate Y axis down"},
-				"E": {"action": "hadamard", "label": "H", "emoji": "H",
-					  "icon": "res://Assets/UI/Q-Bit/Hadamard.svg",
-					  "hint": "Hadamard superposition"},
-				"R": {"action": "rotate_up", "label": "+", "emoji": "+",
-					  "icon": "res://Assets/UI/Q-Bit/Pauli-Y.svg",
-					  "hint": "Rotate Y axis up"}
-			},
-			"Z": {
-				"Q": {"action": "rotate_down", "label": "-", "emoji": "-",
-					  "icon": "res://Assets/UI/Q-Bit/Pauli-Z.svg",
-					  "hint": "Rotate Z axis down"},
-				"E": {"action": "hadamard", "label": "H", "emoji": "H",
-					  "icon": "res://Assets/UI/Q-Bit/Hadamard.svg",
-					  "hint": "Hadamard superposition"},
-				"R": {"action": "rotate_up", "label": "+", "emoji": "+",
-					  "icon": "res://Assets/UI/Q-Bit/Pauli-Z.svg",
-					  "hint": "Rotate Z axis up"}
-			}
-		}
-	},
-
-	# =========================================================================
-	# ICON (S, Q, F) — pattern embodiment. Placeholder; no live actions yet.
-	# =========================================================================
-	FRAME_ICON: {
-		"name": "Icon",
-		"emoji": "📖",
-		"icon": "res://Assets/UI/Icon/Icon.svg",
-		"time_scale": "continuous",
-		"description": "Pattern embodiment (not yet wired)",
-		"has_f_cycling": false,
-		"modes": ["hamiltonian"],
-		"mode_labels": ["H"],
-		"mode_emojis": ["H"],
-		"pauses_sim": false,
-		"actions": {
-			"hamiltonian": {
-				"Q": {"action": "", "label": "-", "emoji": "", "icon": "",
-					  "hint": "Reserved (Icon hamiltonian)", "disabled": true},
-				"E": {"action": "", "label": "-", "emoji": "", "icon": "",
-					  "hint": "Reserved", "disabled": true},
-				"R": {"action": "", "label": "-", "emoji": "", "icon": "",
-					  "hint": "Reserved", "disabled": true}
-			}
-		}
-	},
-
-	# =========================================================================
-	# SOCIALITE (S, C, F) — faction politics. Placeholder; no live actions yet.
-	# =========================================================================
-	FRAME_SOCIALITE: {
-		"name": "Socialite",
-		"emoji": "🤝",
-		"icon": "res://Assets/UI/Icon/Icon.svg",
-		"time_scale": "discrete",
-		"description": "Faction politics / quest layer (not yet wired)",
-		"has_f_cycling": false,
-		"modes": ["quest"],
-		"mode_labels": ["Q"],
-		"mode_emojis": ["Q"],
-		"pauses_sim": true,
-		"actions": {
-			"quest": {
-				"Q": {"action": "", "label": "-", "emoji": "", "icon": "",
-					  "hint": "Reserved (Socialite quest)", "disabled": true},
-				"E": {"action": "", "label": "-", "emoji": "", "icon": "",
-					  "hint": "Reserved", "disabled": true},
-				"R": {"action": "", "label": "-", "emoji": "", "icon": "",
-					  "hint": "Reserved", "disabled": true}
-			}
-		}
-	},
-
-	# =========================================================================
-	# CAPTAIN (W, C, F) — strategic decree. Inherits Tool 4 (Meta) wiring.
-	# Eventually will hold biome lifecycle / faction levers / fiefdom plans;
-	# for now exposes the live "signature" + "biomes" sub-modes.
-	# =========================================================================
-	FRAME_CAPTAIN: {
-		"name": "Captain",
-		"emoji": "*",
-		"icon": "res://Assets/UI/Icon/Icon.svg",
-		"time_scale": "meta",
-		"description": "Strategic decree — biome and signature lifecycle",
-		"has_f_cycling": true,
-		"modes": ["signature", "biomes"],
-		"mode_labels": ["Icon", "Biomes"],
-		"mode_emojis": ["📖", "🌍"],
-		"pauses_sim": true,
-		"actions": {
-			"signature": {
-				"Q": {"action": "inject_vocabulary", "label": "Add Icon", "emoji": "+",
-					  "icon": "res://Assets/UI/Biome/BiomeAssign.svg",
-					  "hint": "Inject a icon into the active biome",
-					  "submenu": "icon_injection"},
-				"E": {"action": "", "label": "-", "emoji": "",
-					  "icon": "",
-					  "hint": "Reserved",
-					  "disabled": true},
-				"R": {"action": "remove_vocabulary", "label": "Trim Icon", "emoji": "-",
-					  "icon": "res://Assets/UI/Biome/BiomeClear.svg",
-					  "hint": "Remove a icon from the active biome"}
-			},
-			"biomes": {
-				"Q": {"action": "discover_biome", "label": "Add Biome", "emoji": "🗺️",
-					  "icon": "res://Assets/UI/Science/Explore.svg",
-					  "hint": "Discover and load a new biome into the spindle"},
-				"E": {"action": "", "label": "-", "emoji": "",
-					  "icon": "",
-					  "hint": "Reserved",
-					  "disabled": true},
-				"R": {"action": "remove_biome", "label": "Cull Biome", "emoji": "💀",
-					  "icon": "res://Assets/UI/Biome/BiomeClear.svg",
-					  "hint": "Liquidate the active biome from its live quantum state and return it to the unexplored pool"}
-			}
-		}
-	},
-
-	# =========================================================================
-	# SCIENTIST (W, C, P) — audit / discovery. Was Tool 3 (Measure).
-	# =========================================================================
-	FRAME_SCIENTIST: {
-		"name": "Scientist",
-		"emoji": "O",
-		"icon": "res://Assets/UI/Science/Measure.svg",
-		"time_scale": "discrete",
-		"description": "Collapse, harvest, entangle",
-		"has_f_cycling": true,
-		"modes": ["probe", "gate"],
-		"mode_labels": ["?", ")("],
-		"mode_emojis": ["?", ")("],
-		"pauses_sim": true,
-		"actions": {
-			"probe": {
-				"Q": {"action": "explore", "label": "Explore", "emoji": "?",
-					  "icon": "res://Assets/UI/Science/Explore.svg",
-					  "hint": "Bind terminal (dig DOWN)"},
-				"E": {"action": "measure", "label": "Measure", "emoji": "!",
-					  "icon": "res://Assets/UI/Science/Measure.svg",
-					  "hint": "Collapse state (observe)"},
-				"R": {"action": "pop", "label": "Pop", "emoji": "^",
-					  "icon": "res://Assets/UI/Science/Pop-Harvest.svg",
-					  "hint": "Pop terminal (auto-measures if only explored)",
-					  "shift_action": "pop", "shift_label": "Mass Pop"}
-			},
-			"gate": {
-				"Q": {"action": "build_gate", "label": "Gate", "emoji": ")(",
-					  "icon": "res://Assets/UI/Q-Bit/CNOT.svg",
-					  "hint": "Build entangling gate",
-					  "submenu": "gate_selection"},
-				"E": {"action": "inspect", "label": "Inspect", "emoji": "[]",
-					  "icon": "res://Assets/UI/Science/Explore.svg",
-					  "hint": "Inspect entanglement"},
-				"R": {"action": "remove_gates", "label": "Break", "emoji": "X",
-					  "icon": "res://Assets/UI/Biome/BiomeClear.svg",
-					  "hint": "Break entanglement"}
-			}
-		}
-	},
-
-	# =========================================================================
-	# OPERATOR (W, Q, F) — topology craft. Placeholder; no live actions yet.
-	# =========================================================================
-	FRAME_OPERATOR: {
-		"name": "Operator",
-		"emoji": "⚙",
-		"icon": "res://Assets/UI/Icon/Icon.svg",
-		"time_scale": "continuous",
-		"description": "Topology craft (not yet wired)",
-		"has_f_cycling": false,
-		"modes": ["topology"],
-		"mode_labels": ["T"],
-		"mode_emojis": ["T"],
-		"pauses_sim": false,
-		"actions": {
-			"topology": {
-				"Q": {"action": "", "label": "-", "emoji": "", "icon": "",
-					  "hint": "Reserved (Operator topology)", "disabled": true},
-				"E": {"action": "", "label": "-", "emoji": "", "icon": "",
-					  "hint": "Reserved", "disabled": true},
-				"R": {"action": "", "label": "-", "emoji": "", "icon": "",
-					  "hint": "Reserved", "disabled": true}
-			}
-		}
-	},
-
-	# =========================================================================
-	# DRUID (W, Q, P) — quantum priesthood. Was Tool 2 (Lindblad).
-	# =========================================================================
-	FRAME_DRUID: {
-		"name": "Druid",
-		"emoji": "V",
 		"icon": "res://Assets/UI/Tools/Lindblad/Lindblad.svg",
 		"time_scale": "dissipative",
-		"description": "Energy exchange with environment",
+		"description": "Casting moment — Lindbladian energy exchange",
 		"has_f_cycling": true,
 		"modes": ["thermal", "dephase", "damp"],
 		"mode_labels": ["~", ".", "|"],
@@ -369,6 +157,210 @@ const ARCHETYPE_FRAMES: Dictionary = {
 				"R": {"action": "pump", "label": "Pump", "emoji": "^",
 					  "icon": "res://Assets/UI/Tools/Lindblad/Drive.svg",
 					  "hint": "Amplitude damping pump"}
+			}
+		}
+	},
+
+	# =========================================================================
+	# ICON (S, Q, F) — pattern embodiment. Holds the icon-injection wiring
+	# (formerly Captain.signature). The player inserts dual-emoji-qubit
+	# icons drawn from their own faction signature into the active biome.
+	# =========================================================================
+	FRAME_ICON: {
+		"name": "Icon",
+		"emoji": "📖",
+		"icon": "res://Assets/UI/Icon/Icon.svg",
+		"time_scale": "meta",
+		"description": "Icon injection — dual-emoji qubits from your faction signature",
+		"has_f_cycling": false,
+		"modes": ["inject"],
+		"mode_labels": ["Icon"],
+		"mode_emojis": ["📖"],
+		"pauses_sim": true,
+		"actions": {
+			"inject": {
+				"Q": {"action": "inject_vocabulary", "label": "Add Icon", "emoji": "+",
+					  "icon": "res://Assets/UI/Biome/BiomeAssign.svg",
+					  "hint": "Inject an icon (dual-emoji qubit from your signature) into the active biome",
+					  "submenu": "icon_injection"},
+				"E": {"action": "", "label": "-", "emoji": "",
+					  "icon": "",
+					  "hint": "Reserved",
+					  "disabled": true},
+				"R": {"action": "remove_vocabulary", "label": "Trim Icon", "emoji": "-",
+					  "icon": "res://Assets/UI/Biome/BiomeClear.svg",
+					  "hint": "Remove an icon from the active biome"}
+			}
+		}
+	},
+
+	# =========================================================================
+	# SOCIALITE (S, C, F) — faction politics. Placeholder; no live actions yet.
+	# =========================================================================
+	FRAME_SOCIALITE: {
+		"name": "Socialite",
+		"emoji": "🤝",
+		"icon": "res://Assets/UI/Icon/Icon.svg",
+		"time_scale": "discrete",
+		"description": "Faction politics / quest layer (not yet wired)",
+		"has_f_cycling": false,
+		"modes": ["quest"],
+		"mode_labels": ["Q"],
+		"mode_emojis": ["Q"],
+		"pauses_sim": true,
+		"actions": {
+			"quest": {
+				"Q": {"action": "", "label": "-", "emoji": "", "icon": "",
+					  "hint": "Reserved (Socialite quest)", "disabled": true},
+				"E": {"action": "", "label": "-", "emoji": "", "icon": "",
+					  "hint": "Reserved", "disabled": true},
+				"R": {"action": "", "label": "-", "emoji": "", "icon": "",
+					  "hint": "Reserved", "disabled": true}
+			}
+		}
+	},
+
+	# =========================================================================
+	# CAPTAIN (W, C, F) — strategic decree. Now holds biome lifecycle only;
+	# the signature/icon-injection sub-mode moved to Icon (5).
+	# =========================================================================
+	FRAME_CAPTAIN: {
+		"name": "Captain",
+		"emoji": "*",
+		"icon": "res://Assets/UI/Icon/Icon.svg",
+		"time_scale": "meta",
+		"description": "Strategic decree — biome lifecycle (discover / cull)",
+		"has_f_cycling": false,
+		"modes": ["biomes"],
+		"mode_labels": ["Biomes"],
+		"mode_emojis": ["🌍"],
+		"pauses_sim": true,
+		"actions": {
+			"biomes": {
+				"Q": {"action": "discover_biome", "label": "Add Biome", "emoji": "🗺️",
+					  "icon": "res://Assets/UI/Science/Explore.svg",
+					  "hint": "Discover and load a new biome into the spindle"},
+				"E": {"action": "", "label": "-", "emoji": "",
+					  "icon": "",
+					  "hint": "Reserved",
+					  "disabled": true},
+				"R": {"action": "remove_biome", "label": "Cull Biome", "emoji": "💀",
+					  "icon": "res://Assets/UI/Biome/BiomeClear.svg",
+					  "hint": "Liquidate the active biome from its live quantum state and return it to the unexplored pool"}
+			}
+		}
+	},
+
+	# =========================================================================
+	# SCIENTIST (W, C, P) — audit / discovery. Now holds the probe sub-mode
+	# only; the gate sub-mode moved to Operator (9).
+	# =========================================================================
+	FRAME_SCIENTIST: {
+		"name": "Scientist",
+		"emoji": "O",
+		"icon": "res://Assets/UI/Science/Measure.svg",
+		"time_scale": "discrete",
+		"description": "Probe — explore, measure, harvest",
+		"has_f_cycling": false,
+		"modes": ["probe"],
+		"mode_labels": ["?"],
+		"mode_emojis": ["?"],
+		"pauses_sim": true,
+		"actions": {
+			"probe": {
+				"Q": {"action": "explore", "label": "Explore", "emoji": "?",
+					  "icon": "res://Assets/UI/Science/Explore.svg",
+					  "hint": "Bind terminal (dig DOWN)"},
+				"E": {"action": "measure", "label": "Measure", "emoji": "!",
+					  "icon": "res://Assets/UI/Science/Measure.svg",
+					  "hint": "Collapse state (observe)"},
+				"R": {"action": "pop", "label": "Pop", "emoji": "^",
+					  "icon": "res://Assets/UI/Science/Pop-Harvest.svg",
+					  "hint": "Pop terminal (auto-measures if only explored)",
+					  "shift_action": "pop", "shift_label": "Mass Pop"}
+			}
+		}
+	},
+
+	# =========================================================================
+	# OPERATOR (W, Q, F) — topology craft. Holds gate-building actions
+	# (formerly Scientist.gate): build / inspect / break entangling gates.
+	# =========================================================================
+	FRAME_OPERATOR: {
+		"name": "Operator",
+		"emoji": "⚙",
+		"icon": "res://Assets/UI/Q-Bit/CNOT.svg",
+		"time_scale": "discrete",
+		"description": "Topology craft — build, inspect, and break entangling gates",
+		"has_f_cycling": false,
+		"modes": ["gate"],
+		"mode_labels": [")("],
+		"mode_emojis": [")("],
+		"pauses_sim": true,
+		"actions": {
+			"gate": {
+				"Q": {"action": "build_gate", "label": "Gate", "emoji": ")(",
+					  "icon": "res://Assets/UI/Q-Bit/CNOT.svg",
+					  "hint": "Build entangling gate",
+					  "submenu": "gate_selection"},
+				"E": {"action": "inspect", "label": "Inspect", "emoji": "[]",
+					  "icon": "res://Assets/UI/Science/Explore.svg",
+					  "hint": "Inspect entanglement"},
+				"R": {"action": "remove_gates", "label": "Break", "emoji": "X",
+					  "icon": "res://Assets/UI/Biome/BiomeClear.svg",
+					  "hint": "Break entanglement"}
+			}
+		}
+	},
+
+	# =========================================================================
+	# DRUID (W, Q, P) — quantum priesthood. Holds the Unitary wiring after
+	# the 2026-04-28 redistribution: X/Y/Z rotations + Hadamard.
+	# =========================================================================
+	FRAME_DRUID: {
+		"name": "Druid",
+		"emoji": "V",
+		"icon": "res://Assets/UI/Q-Bit/Unitary.svg",
+		"time_scale": "continuous",
+		"description": "Quantum priesthood — reversible unitary gates",
+		"has_f_cycling": true,
+		"modes": ["X", "Y", "Z"],
+		"mode_labels": ["X", "Y", "Z"],
+		"mode_emojis": ["X", "Y", "Z"],
+		"pauses_sim": false,
+		"actions": {
+			"X": {
+				"Q": {"action": "rotate_down", "label": "-", "emoji": "-",
+					  "icon": "res://Assets/UI/Q-Bit/Pauli-X.svg",
+					  "hint": "Rotate X axis down"},
+				"E": {"action": "hadamard", "label": "H", "emoji": "H",
+					  "icon": "res://Assets/UI/Q-Bit/Hadamard.svg",
+					  "hint": "Hadamard superposition"},
+				"R": {"action": "rotate_up", "label": "+", "emoji": "+",
+					  "icon": "res://Assets/UI/Q-Bit/Pauli-X.svg",
+					  "hint": "Rotate X axis up"}
+			},
+			"Y": {
+				"Q": {"action": "rotate_down", "label": "-", "emoji": "-",
+					  "icon": "res://Assets/UI/Q-Bit/Pauli-Y.svg",
+					  "hint": "Rotate Y axis down"},
+				"E": {"action": "hadamard", "label": "H", "emoji": "H",
+					  "icon": "res://Assets/UI/Q-Bit/Hadamard.svg",
+					  "hint": "Hadamard superposition"},
+				"R": {"action": "rotate_up", "label": "+", "emoji": "+",
+					  "icon": "res://Assets/UI/Q-Bit/Pauli-Y.svg",
+					  "hint": "Rotate Y axis up"}
+			},
+			"Z": {
+				"Q": {"action": "rotate_down", "label": "-", "emoji": "-",
+					  "icon": "res://Assets/UI/Q-Bit/Pauli-Z.svg",
+					  "hint": "Rotate Z axis down"},
+				"E": {"action": "hadamard", "label": "H", "emoji": "H",
+					  "icon": "res://Assets/UI/Q-Bit/Hadamard.svg",
+					  "hint": "Hadamard superposition"},
+				"R": {"action": "rotate_up", "label": "+", "emoji": "+",
+					  "icon": "res://Assets/UI/Q-Bit/Pauli-Z.svg",
+					  "hint": "Rotate Z axis up"}
 			}
 		}
 	}
