@@ -2,10 +2,10 @@ class_name QuestRewards
 extends RefCounted
 
 ## Quest Reward System
-## Handles reward generation and vocabulary teaching for completed quests
+## Handles reward generation and icon teaching for completed quests
 
 const FactionDatabase = preload("res://Core/Quests/FactionDatabaseV2.gd")
-const VocabularyPairing = preload("res://Core/Quests/VocabularyPairing.gd")
+const IconPairing = preload("res://Core/Quests/IconPairing.gd")
 const FactionRegistry = preload("res://Core/Factions/FactionRegistry.gd")
 
 static var _faction_registry_cache = null
@@ -22,7 +22,7 @@ const QUEST_REWARD_TUNING_DEFAULTS: Dictionary = {
 	"resource_reward_base_ratio": RESOURCE_REWARD_BASE_RATIO
 	,
 	"biome_novelty_multiplier": 1.10,
-	"vocab_novelty_multiplier": 1.10,
+	"icon_novelty_multiplier": 1.10,
 	"novelty_multiplier_cap": 1.20
 }
 
@@ -56,16 +56,18 @@ class QuestReward:
 	var money_amount: int = 0  # 💰-credits reward (no universal currency!)
 	var resource_rewards: Dictionary = {}  # {emoji: credits} primary payout
 	var learned_vocabulary: Array[String] = []  # Emojis player learned (both north and south)
-	var learned_pairs: Array = []  # Array of {north, south, weight, probability} - paired vocabulary
-	var reputation_gain: int = 0  # Future: faction reputation
+	var learned_pairs: Array = []  # Array of {north, south, weight, probability} - paired icon
+	var reputation_gain: int = 0  # Legacy scalar (kept for save-file compat); see standing_deltas
 	var bonus_multiplier: float = 1.0  # From alignment
 	var icon_modifications: Array = []  # Array[IconModification] - physics changes
+	var faction_name: String = ""  # Which faction owns this reward (for standing application)
+	var standing_deltas: Dictionary = {}  # Per-channel deltas to apply on grant. Keys: trust/debt/attention/access/legitimacy/entanglement
 
 
 static func generate_reward(quest: Dictionary, bath, player_vocab: Array) -> QuestReward:
 	"""Generate rewards for quest completion
 
-	Uses PRE-ROLLED vocabulary pair from quest creation time (not rolled now).
+	Uses PRE-ROLLED icon from quest creation time (not rolled now).
 	This ensures player sees the same pair in preview and actual reward.
 
 	Args:
@@ -74,7 +76,7 @@ static func generate_reward(quest: Dictionary, bath, player_vocab: Array) -> Que
 		player_vocab: Player's known emojis
 
 	Returns:
-		QuestReward with vocabulary (no universal 💰 currency!)
+		QuestReward with signature (no universal 💰 currency!)
 	"""
 	var reward = QuestReward.new()
 
@@ -83,14 +85,14 @@ static func generate_reward(quest: Dictionary, bath, player_vocab: Array) -> Que
 	reward.money_amount = 0  # No universal currency
 	reward.bonus_multiplier = quest.get("reward_multiplier", 1.0)
 
-	# Use PRE-ROLLED vocabulary pair from quest creation.
-	# Quests give EITHER vocab OR resources — not both.
+	# Use PRE-ROLLED icon from quest creation.
+	# Quests give EITHER icon OR resources — not both.
 	var north = quest.get("reward_vocab_north", "")
 	var south = quest.get("reward_vocab_south", "")
 	var faction_name = quest.get("faction", "")
 	var faction_dict = _get_faction_by_name(faction_name)
 
-	# Primary payout: faction-shaped resource rewards (only for non-vocab quests)
+	# Primary payout: faction-shaped resource rewards (only for non-icon quests)
 	if north == "":
 		var pre_rolled_resources = quest.get("reward_resources", {})
 		if pre_rolled_resources is Dictionary and not pre_rolled_resources.is_empty():
@@ -119,15 +121,52 @@ static func generate_reward(quest: Dictionary, bath, player_vocab: Array) -> Que
 		var mod = generate_icon_modification(faction_dict, quest)
 		reward.icon_modifications.append(mod)
 
+	# Faction standing wiring (Phase 2 rep channels)
+	reward.faction_name = faction_name
+	reward.standing_deltas = _standing_deltas_for_quest(quest, true)
+
 	return reward
+
+
+static func _standing_deltas_for_quest(quest: Dictionary, success: bool) -> Dictionary:
+	"""Per-channel reputation deltas based on quest type and outcome.
+	Modest defaults; expected to be tuned. Channels:
+	  trust 🤝 / debt 🩸 / attention 🧿 / access 🗝 / legitimacy ⚖ / entanglement 🕸
+	"""
+	var qtype: int = int(quest.get("type", 0))
+	if success:
+		match qtype:
+			0:  # DELIVERY — bread-and-butter; build trust + small access
+				return {"trust": 0.05, "access": 0.02, "attention": 0.01}
+			1, 2, 3:  # SHAPE_*, EVOLUTION — competence, signals legitimacy
+				return {"trust": 0.04, "legitimacy": 0.03, "attention": 0.02}
+			4:  # ENTANGLEMENT — spooky cooperation; raises entanglement edge
+				return {"trust": 0.03, "entanglement": 0.05, "attention": 0.03}
+			5, 6:  # ACHIEVE_EIGENSTATE, MAINTAIN_COHERENCE — quantum mastery
+				return {"trust": 0.04, "legitimacy": 0.06, "access": 0.03}
+			7:  # INDUCE_BELL_STATE — high entanglement payoff
+				return {"trust": 0.04, "entanglement": 0.08, "legitimacy": 0.03}
+			8, 9:  # PREVENT_DECOHERENCE, COLLAPSE_DELIBERATELY — careful work
+				return {"trust": 0.05, "legitimacy": 0.04}
+			_:
+				return {"trust": 0.03, "attention": 0.01}
+	else:
+		# Failure: debt + attention. Larger penalties for high-trust quests.
+		match qtype:
+			0:
+				return {"debt": 0.06, "attention": 0.03, "trust": -0.02}
+			4, 7:  # entanglement-flavored failures leave residue
+				return {"debt": 0.05, "attention": 0.04, "entanglement": 0.03}
+			_:
+				return {"debt": 0.04, "attention": 0.04, "trust": -0.01}
 
 
 static func plan_resource_rewards(quest: Dictionary, faction: Dictionary = {}, icon_map: Dictionary = {}) -> Dictionary:
 	"""Pre-roll resource rewards at quest creation time for deterministic UI/claim.
 
-	Vocab-teaching quests give no resource rewards — vocab OR resources, not both.
+	Icon-teaching quests give no resource rewards — icon OR resources, not both.
 	"""
-	# Vocab-teaching quests give no resource rewards
+	# Icon-teaching quests give no resource rewards
 	if quest.get("reward_vocab_north", "") != "":
 		return {}
 	return _build_resource_reward_plan(quest, faction, false, icon_map)
@@ -246,7 +285,7 @@ static func _apply_reward_tuning(rewards: Dictionary, quest: Dictionary) -> Dict
 	if bool(quest.get("biome_new", false)):
 		multiplier += float(tuning.get("biome_novelty_multiplier", 1.10)) - 1.0
 	if bool(quest.get("contains_new_vocab", false)):
-		multiplier += float(tuning.get("vocab_novelty_multiplier", 1.10)) - 1.0
+		multiplier += float(tuning.get("icon_novelty_multiplier", 1.10)) - 1.0
 	var cap = float(tuning.get("novelty_multiplier_cap", 1.20))
 	multiplier = min(multiplier, cap)
 	if multiplier <= 1.0:
@@ -335,15 +374,6 @@ static func _compute_hamiltonian_reward_profile(faction_data: Dictionary) -> Dic
 			matrix[src_i][tgt_i] += _hamiltonian_magnitude(edges[target])
 
 	var self_energies = faction_data.get("self_energies", {})
-	var lindblad_outgoing = faction_data.get("lindblad_outgoing", {})
-	var production_bias: Dictionary = {}
-	for emoji in signature:
-		var out_strength = 0.0
-		var outgoing_map = lindblad_outgoing.get(emoji, {})
-		if outgoing_map is Dictionary:
-			for target in outgoing_map.keys():
-				out_strength += abs(float(outgoing_map[target]))
-		production_bias[emoji] = 1.0 + min(out_strength * 2.5, 1.25)
 
 	var vector: Array = []
 	for _i in range(n):
@@ -359,7 +389,6 @@ static func _compute_hamiltonian_reward_profile(faction_data: Dictionary) -> Dic
 			var emoji = signature[i]
 			var self_energy = max(0.0, float(self_energies.get(emoji, 0.0)))
 			accum += self_energy * 0.3 * float(vector[i])
-			accum *= float(production_bias.get(emoji, 1.0))
 			next_vec.append(accum)
 			total += accum
 		if total <= 0.00001:
@@ -387,8 +416,7 @@ static func _compute_hamiltonian_reward_profile(faction_data: Dictionary) -> Dic
 		var emoji = signature[i]
 		var base = max(0.0001, float(vector[i]))
 		var self_term = max(0.0, float(self_energies.get(emoji, 0.0))) * 0.15
-		var prod_term = (float(production_bias.get(emoji, 1.0)) - 1.0) * 0.5
-		var weight = base + self_term + prod_term
+		var weight = base + self_term
 		weights[emoji] = max(0.0001, weight)
 		weight_total += float(weights[emoji])
 
@@ -725,7 +753,7 @@ static func select_vocabulary_reward(faction: Dictionary, bath, player_vocab: Ar
 	"""Choose which emoji from faction signature to teach
 
 	Strategy:
-	1. Get faction signature vocabulary
+	1. Get faction signature signature
 	2. Filter to emojis player doesn't know
 	3. Get bath probabilities for unknown emojis (quantum-weighted!)
 	4. Sample weighted by probability
@@ -742,7 +770,7 @@ static func select_vocabulary_reward(faction: Dictionary, bath, player_vocab: Ar
 	# Faction data uses "sig" key (short for signature)
 	var signature = faction.get("sig", faction.get("signature", []))
 
-	# Filter to unknown vocabulary
+	# Filter to unknown signature
 	var unknown = []
 	for emoji in signature:
 		if emoji not in player_vocab:
@@ -750,7 +778,7 @@ static func select_vocabulary_reward(faction: Dictionary, bath, player_vocab: Ar
 
 	# Already know everything?
 	if unknown.is_empty():
-		return ""  # No vocabulary to teach
+		return ""  # No signature to teach
 
 	# Get bath probabilities for unknown emojis (quantum-informed selection!)
 	if bath and bath.get("_density_matrix"):
@@ -799,7 +827,7 @@ static func _get_faction_by_name(faction_name: String) -> Dictionary:
 static func format_reward_text(reward: QuestReward) -> String:
 	"""Generate human-readable reward text for UI
 
-	No universal 💰 currency - just vocab pairs!
+	No universal 💰 currency - just icons!
 	"""
 	var lines = []
 
@@ -808,7 +836,7 @@ static func format_reward_text(reward: QuestReward) -> String:
 		for emoji in reward.resource_rewards.keys():
 			lines.append("🎁 +%d %s" % [int(reward.resource_rewards[emoji]), emoji])
 
-	# Vocabulary pairs (primary reward)
+	# Signature pairs (primary reward)
 	if reward.learned_pairs.size() > 0:
 		for pair in reward.learned_pairs:
 			var north = pair.get("north", "?")
@@ -819,7 +847,7 @@ static func format_reward_text(reward: QuestReward) -> String:
 		for emoji in reward.learned_vocabulary:
 			lines.append("📖 Learned: %s (solo)" % emoji)
 	else:
-		lines.append("📖 (No new vocabulary)")
+		lines.append("📖 (No new signature)")
 
 	# Icon modifications
 	for mod in reward.icon_modifications:
@@ -831,7 +859,7 @@ static func format_reward_text(reward: QuestReward) -> String:
 static func preview_possible_rewards(quest: Dictionary, player_vocab: Array) -> String:
 	"""Preview what rewards will be earned (shows pre-rolled pair)
 
-	No universal 💰 currency - just vocab pairs from quantum physics.
+	No universal 💰 currency - just icons from quantum physics.
 	"""
 	var lines = []
 
@@ -843,7 +871,7 @@ static func preview_possible_rewards(quest: Dictionary, player_vocab: Array) -> 
 		for emoji in resource_rewards.keys():
 			lines.append("🎁 +%d %s" % [int(resource_rewards[emoji]), emoji])
 
-	# Show PRE-ROLLED vocabulary pair
+	# Show PRE-ROLLED icon
 	var north = quest.get("reward_vocab_north", "")
 	var south = quest.get("reward_vocab_south", "")
 
@@ -853,7 +881,7 @@ static func preview_possible_rewards(quest: Dictionary, player_vocab: Array) -> 
 		else:
 			lines.append("📖 Learn: %s (solo)" % north)
 	else:
-		lines.append("📖 (No new vocabulary)")
+		lines.append("📖 (No new signature)")
 
 	return "\n".join(lines)
 

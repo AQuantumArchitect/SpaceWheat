@@ -1,26 +1,32 @@
 class_name IconBuilder
 extends RefCounted
 
-## IconBuilder: Merges faction contributions into unified Icons
+## IconBuilder: Assembles per-emoji physics objects from faction contributions.
 ##
-## Each Icon is the ADDITIVE UNION of all faction contributions.
-## An emoji that belongs to many factions (like 👥) will have
-## many coupling terms from many sources.
+## Factions define the emoji web — self-energies, couplings, Lindblad terms —
+## at the individual emoji level. IconBuilder merges all faction contributions
+## for a given emoji into a single physics object (also called Icon internally).
+##
+## These per-emoji objects are the building blocks. The player-facing Icon
+## concept is a named emoji PAIR (pole_0 / pole_1) defined in biomes.json.
+## The rabi_coupling field on the resulting object records the symmetric
+## coupling between that emoji and its paired pole (set by BiomeBuilder after
+## the JSONL profile is applied — it IS the axis heartbeat).
 ##
 ## Usage:
-##   var icons = IconBuilder.build_all_icons(CoreFactions.get_all())
-##   for icon in icons:
-##       registry.register_icon(icon)
-##
-## Or for a specific biome:
-##   var biome_factions = [celestial, verdant, mycelial]
 ##   var icons = IconBuilder.build_icons_for_factions(biome_factions)
+##   # returns Dictionary[emoji] → Icon (per-emoji physics object)
 
 const Faction = preload("res://Core/Factions/Faction.gd")
 const FactionRegistry = preload("res://Core/Factions/FactionRegistry.gd")
 const Biome = preload("res://Core/Biomes/Biome.gd")
 const BiomeRegistry = preload("res://Core/Biomes/BiomeRegistry.gd")
 const IconScript = preload("res://Core/QuantumSubstrate/Icon.gd")
+
+## ── Faction Hamiltonian normalization + standings ─────────────────────────────
+## Canonical source: HamiltonianConfig.gd (single source of truth)
+const HamiltonianConfig = preload("res://Core/Config/HamiltonianConfig.gd")
+const FACTION_DIRECTION_NORMALIZATION: bool = HamiltonianConfig.FACTION_DIRECTION_NORMALIZATION
 
 # Cached registry instance for biome presets
 static var _registry: FactionRegistry = null
@@ -148,26 +154,6 @@ static func _build_icon_from_factions(emoji: String, faction_list: Array) :
 			var incoming = h_couplings[target]
 			icon.hamiltonian_couplings[target] = _add_hamiltonian_values(current, incoming)
 		
-		# Merge lindblad_outgoing (additive per target)
-		var l_out = contribution.get("lindblad_outgoing", {})
-		for target in l_out:
-			var current = icon.lindblad_outgoing.get(target, 0.0)
-			icon.lindblad_outgoing[target] = current + l_out[target]
-		
-		# Merge lindblad_incoming (additive per source)
-		var l_in = contribution.get("lindblad_incoming", {})
-		for source in l_in:
-			var current = icon.lindblad_incoming.get(source, 0.0)
-			icon.lindblad_incoming[source] = current + l_in[source]
-		
-		# Collect gated_lindblad (list of gate configs)
-		var gated = contribution.get("gated_lindblad", [])
-		for gate_config in gated:
-			# Add faction name for debugging
-			var config_copy = gate_config.duplicate()
-			config_copy["faction"] = faction.name
-			all_gated.append(config_copy)
-
 		# Collect bell_activated_features
 		var bell = contribution.get("bell_activated_features", {})
 		if bell.size() > 0:
@@ -201,11 +187,6 @@ static func _build_icon_from_factions(emoji: String, faction_list: Array) :
 			icon.driver_phase = driver.get("phase", 0.0)
 			icon.driver_amplitude = driver.get("amp", 1.0)
 	
-	# Store gated lindblad as metadata (runtime needs to handle this)
-	# Format: Array of {source, rate, gate, power, inverse, faction}
-	if all_gated.size() > 0:
-		icon.set_meta("gated_lindblad", all_gated)
-
 	# Store bell_activated_features as metadata
 	# Format: Array of {faction: String, features: {latent_lindblad, latent_hamiltonian, description}}
 	if all_bell_features.size() > 0:
@@ -326,217 +307,6 @@ static func build_biome_icons(factions: Array, cross_couplings: Array = []) -> D
 	return icons
 
 ## ========================================
-## Standard Biome Presets
-## ========================================
-
-## Forest Biome: The complete forest ecosystem
-## Celestial + Verdant + Mycelial + Swift + Pack + Pollinators + Plague + Wildfire
-static func build_forest_biome() -> Dictionary:
-	var factions = _get_factions_by_names([
-		"Celestial Archons",
-		"Verdant Pulse",
-		"Mycelial Web",
-		"Swift Herd",
-		"Pack Lords",
-		"Pollinator Guild",
-		"Plague Vectors",
-		"Wildfire",
-	])
-	
-	# Cross-faction couplings (where faction boundaries interact)
-	var cross = [
-		# === CELESTIAL → VERDANT (sun/water drive plant growth) ===
-		{"source": "🌾", "target": "☀", "type": "lindblad_in", "rate": 0.027},
-		{"source": "🌿", "target": "☀", "type": "lindblad_in", "rate": 0.05},
-		{"source": "🌱", "target": "☀", "type": "lindblad_in", "rate": 0.03},
-		{"source": "🌲", "target": "☀", "type": "lindblad_in", "rate": 0.02},
-		
-		{"source": "🌾", "target": "💧", "type": "lindblad_in", "rate": 0.017},
-		{"source": "🌿", "target": "💧", "type": "lindblad_in", "rate": 0.04},
-		{"source": "🌱", "target": "💧", "type": "lindblad_in", "rate": 0.05},
-		{"source": "🌲", "target": "💧", "type": "lindblad_in", "rate": 0.015},
-		
-		{"source": "🌾", "target": "⛰", "type": "lindblad_in", "rate": 0.007},
-		{"source": "🌿", "target": "⛰", "type": "lindblad_in", "rate": 0.02},
-		{"source": "🌲", "target": "⛰", "type": "lindblad_in", "rate": 0.025},
-		
-		# === CELESTIAL → MYCELIAL (moon/water drive mushrooms, SUN KILLS) ===
-		{"source": "🍄", "target": "🌙", "type": "lindblad_in", "rate": 0.06},
-		{"source": "🍄", "target": "💧", "type": "lindblad_in", "rate": 0.05},  # Wet = mushrooms!
-		{"source": "🍄", "target": "☀", "type": "lindblad_out", "rate": 0.08},  # Sun withers
-		
-		# === PACK → MYCELIAL (death feeds decomposition) ===
-		{"source": "🍂", "target": "💀", "type": "lindblad_in", "rate": 0.08},
-		
-		# === VERDANT → CELESTIAL (trees drink air, decay becomes earth) ===
-		{"source": "🌲", "target": "🌬", "type": "lindblad_in", "rate": 0.02},
-		{"source": "🍂", "target": "⛰", "type": "lindblad_out", "rate": 0.005},
-		
-		# === POLLINATOR cross-links ===
-		{"source": "🐝", "target": "☀", "type": "lindblad_in", "rate": 0.03},
-		
-		# === WILDFIRE cross-links ===
-		{"source": "🔥", "target": "🍂", "type": "lindblad_in", "rate": 0.10},
-		
-		# === DISEASE cross-links ===
-		{"source": "🦠", "target": "💧", "type": "lindblad_in", "rate": 0.04},
-		
-		# === Hamiltonian cross-couplings ===
-		{"source": "🌾", "target": "☀", "type": "hamiltonian", "coupling": 0.5},
-		{"source": "🌾", "target": "💧", "type": "hamiltonian", "coupling": 0.4},
-		{"source": "🌿", "target": "☀", "type": "hamiltonian", "coupling": 0.6},
-		{"source": "🌿", "target": "💧", "type": "hamiltonian", "coupling": 0.5},
-		{"source": "🌲", "target": "☀", "type": "hamiltonian", "coupling": 0.4},
-		{"source": "🌲", "target": "💧", "type": "hamiltonian", "coupling": 0.3},
-		{"source": "🌲", "target": "🌬", "type": "hamiltonian", "coupling": 0.5},
-		{"source": "🐝", "target": "🌿", "type": "hamiltonian", "coupling": 0.6},
-		{"source": "🦠", "target": "🐇", "type": "hamiltonian", "coupling": 0.5},
-	]
-	
-	return build_biome_icons(factions, cross)
-
-## Kitchen Biome: Hearth Keepers (+ Verdant for 🌾 input)
-static func build_kitchen_biome() -> Dictionary:
-	var factions = _get_factions_by_names([
-		"Hearth Keepers",
-		"Verdant Pulse",  # For 🌾
-	])
-	
-	# Cross-faction couplings
-	var cross = [
-		# Wheat → Flour (Verdant → Hearth)
-		{"source": "💨", "target": "🌾", "type": "lindblad_in", "rate": 0.08},
-	]
-	
-	return build_biome_icons(factions, cross)
-
-## Market Biome: Market Spirits (standalone for now)
-static func build_market_biome() -> Dictionary:
-	var factions = _get_factions_by_names([
-		"Market Spirits",
-	])
-
-	return build_biome_icons(factions, [])
-
-
-## ========================================
-## Civilization Biomes
-## ========================================
-
-## Starter Biome: Minimal 🍞👥 starting point
-## Just Hearth + one civilization faction
-static func build_starter_biome() -> Dictionary:
-	var factions = _get_factions_by_names([
-		"Hearth Keepers",
-		"Granary Guilds",
-	])
-	
-	var cross = [
-		# Basic bread-to-storage
-		{"source": "🧺", "target": "🍞", "type": "lindblad_in", "rate": 0.03},
-	]
-	
-	return build_biome_icons(factions, cross)
-
-
-## Village Biome: Early civilization expansion
-## Hearth + Granary + Millwrights + basic Verdant
-static func build_village_biome() -> Dictionary:
-	var factions = _get_factions_by_names([
-		"Celestial Archons",
-		"Verdant Pulse",
-		"Hearth Keepers",
-		"Granary Guilds",
-		"Millwright's Union",
-		"Yeast Prophets",
-	])
-	
-	var cross = [
-		# Celestial → Verdant (sun/water)
-		{"source": "🌾", "target": "☀", "type": "lindblad_in", "rate": 0.027},
-		{"source": "🌾", "target": "💧", "type": "lindblad_in", "rate": 0.017},
-		
-		# Verdant → Hearth (wheat to flour)
-		{"source": "💨", "target": "🌾", "type": "lindblad_in", "rate": 0.06},
-		
-		# Hearth → Civilization (flour to bread)
-		{"source": "🍞", "target": "💨", "type": "lindblad_in", "rate": 0.05},
-		
-		# Granary storage
-		{"source": "🧺", "target": "🍞", "type": "lindblad_in", "rate": 0.03},
-		{"source": "🧺", "target": "🌱", "type": "lindblad_in", "rate": 0.02},
-		
-		# Millwright needs flour
-		{"source": "🏭", "target": "💨", "type": "hamiltonian", "coupling": 0.4},
-		
-		# Yeast Prophet starter needs water/warmth
-		{"source": "🫙", "target": "💧", "type": "lindblad_in", "rate": 0.02},
-		{"source": "🫙", "target": "🔥", "type": "alignment", "value": 0.15},
-	]
-	
-	return build_biome_icons(factions, cross)
-
-
-## Imperial Biome: Full civilization with extraction
-static func build_imperial_biome() -> Dictionary:
-	var factions = _get_factions_by_names([
-		"Market Spirits",
-		"Granary Guilds",
-		"Millwright's Union",
-		"Station Lords",
-		"Void Serfs",
-		"Carrion Throne",
-	])
-	
-	var cross = [
-		# Market ↔ Granary (trade flows)
-		{"source": "💰", "target": "🧺", "type": "lindblad_in", "rate": 0.03},
-		{"source": "💰", "target": "🏛", "type": "hamiltonian", "coupling": 0.5},
-		
-		# Station Lords control flows
-		{"source": "🛂", "target": "📋", "type": "lindblad_in", "rate": 0.04},
-		{"source": "🚢", "target": "💰", "type": "lindblad_in", "rate": 0.03},
-		
-		# Imperial extraction
-		{"source": "🩸", "target": "👥", "type": "lindblad_in", "rate": 0.02},
-		{"source": "⚜", "target": "💰", "type": "lindblad_in", "rate": 0.02},
-		
-		# Void grows from exploitation
-		{"source": "🌑", "target": "💸", "type": "lindblad_in", "rate": 0.03},
-		{"source": "🌑", "target": "⛓", "type": "lindblad_in", "rate": 0.02},
-		
-		# Order/chaos dynamics
-		{"source": "🏛", "target": "⚜", "type": "alignment", "value": 0.25},
-		{"source": "🏚", "target": "⚜", "type": "alignment", "value": -0.20},
-	]
-	
-	return build_biome_icons(factions, cross)
-
-
-## Scavenger Biome: Waste economy
-static func build_scavenger_biome() -> Dictionary:
-	var factions = _get_factions_by_names([
-		"Hearth Keepers",
-		"Scavenged Psithurism",
-		"Millwright's Union",
-	])
-	
-	var cross = [
-		# Waste accumulation
-		{"source": "🗑", "target": "🍞", "type": "lindblad_in", "rate": 0.02},
-		{"source": "🗑", "target": "🔩", "type": "lindblad_in", "rate": 0.03},
-		
-		# Recycling to parts
-		{"source": "🔩", "target": "♻", "type": "lindblad_in", "rate": 0.04},
-		{"source": "⚙", "target": "🔩", "type": "lindblad_in", "rate": 0.02},
-		
-		# Tools from salvage
-		{"source": "🛠", "target": "🔩", "type": "lindblad_in", "rate": 0.03},
-	]
-	
-	return build_biome_icons(factions, cross)
-
-## ========================================
 ## Debug Utilities
 ## ========================================
 
@@ -558,33 +328,6 @@ static func debug_print_icon(icon) -> void:
 				print("    → %s: %.3f + %.3fi (complex)" % [target, val.x, val.y])
 			else:
 				print("    → %s: %.3f" % [target, val])
-	
-	if icon.lindblad_incoming.size() > 0:
-		print("  Lindblad incoming:")
-		for source in icon.lindblad_incoming:
-			print("    ← %s: %.3f" % [source, icon.lindblad_incoming[source]])
-	
-	if icon.lindblad_outgoing.size() > 0:
-		print("  Lindblad outgoing:")
-		for target in icon.lindblad_outgoing:
-			print("    → %s: %.3f" % [target, icon.lindblad_outgoing[target]])
-	
-	# Show gated lindblad (multiplicative dependencies)
-	if icon.has_meta("gated_lindblad"):
-		var gated = icon.get_meta("gated_lindblad")
-		print("  GATED Lindblad (multiplicative):")
-		for g in gated:
-			var inverse = g.get("inverse", false)
-			var gate_str = "P(%s)" % g.get("gate", "?")
-			if inverse:
-				gate_str = "(1-P(%s))" % g.get("gate", "?")
-			print("    ← %s: %.3f × %s^%.1f [%s]%s" % [
-				g.get("source", "?"),
-				g.get("rate", 0),
-				gate_str,
-				g.get("power", 1.0),
-				g.get("faction", "?"),
-				" ⚠️INVERSE" if inverse else ""])
 	
 	# Show measurement behavior
 	if icon.has_meta("measurement_behavior"):
@@ -665,23 +408,19 @@ static func build_biome_with_factions(
 	var faction_list = faction_registry.get_all()
 	build_faction_index(faction_list)
 
-	# Build each emoji: biome_component + (faction_contributions × standing)
+	# Pre-pass: Frobenius norm of each faction's H contribution across all biome emojis.
+	var faction_norms: Dictionary = {}
+	if FACTION_DIRECTION_NORMALIZATION:
+		faction_norms = _compute_faction_h_norms(faction_list, all_emojis)
+
+	# Build each emoji: biome_component + (direction-normalized faction_contributions × standing)
 	var icons: Dictionary = {}
 	for emoji in all_emojis:
 		var biome_component = biome.get_atom_component(emoji)
 		var faction_factions = get_factions_for_emoji(emoji)
 
-		# Filter factions to only those in faction_standings (or all if empty)
-		var relevant_factions: Array = []
-		if faction_standings.size() > 0:
-			for faction in faction_factions:
-				if faction.name in faction_standings:
-					relevant_factions.append(faction)
-		else:
-			relevant_factions = faction_factions
-
 		var icon = _build_icon_from_biome_and_factions(
-			emoji, biome_component, relevant_factions, faction_standings
+			emoji, biome_component, faction_factions, faction_standings, faction_norms
 		)
 
 		if icon:
@@ -694,12 +433,34 @@ static func build_biome_with_factions(
 	return icons
 
 
+## Compute Frobenius norm of each faction's H contribution to these emojis.
+## Canonical implementation — BiomeBuilder delegates here.
+static func _compute_faction_h_norms(factions: Array, emojis: Array) -> Dictionary:
+	var norms: Dictionary = {}
+	for faction in factions:
+		var norm_sq: float = 0.0
+		for emoji in emojis:
+			if not faction.speaks(emoji):
+				continue
+			var contribution = faction.get_icon_contribution(emoji)
+			var se: float = contribution.get("self_energy", 0.0)
+			norm_sq += se * se
+			var h = contribution.get("hamiltonian_couplings", {})
+			for val in h.values():
+				var v: float = val.length() if val is Vector2 else float(val)
+				norm_sq += v * v
+		if norm_sq > 0.0:
+			norms[faction.name] = sqrt(norm_sq)
+	return norms
+
+
 ## Internal: Build a single icon from biome component + weighted faction contributions
 static func _build_icon_from_biome_and_factions(
 	emoji: String,
 	biome_component: Dictionary,
 	faction_list: Array,
-	faction_standings: Dictionary
+	faction_standings: Dictionary,
+	faction_norms: Dictionary = {}
 ) -> IconScript:
 	## Start with biome component, then addively merge faction contributions
 	## Each faction is weighted by its standing (0.0 = ignored, 1.0 = full strength)
@@ -741,46 +502,36 @@ static func _build_icon_from_biome_and_factions(
 	var total_decoherence: float = 0.0
 
 	for faction in faction_list:
-		var standing = faction_standings.get(faction.name, 1.0)
+		# Default 1.0 means full participation; FactionStanding integration may
+		# pass faction_standings = {name: scalar()} where 0 silences a faction.
+		var standing: float = faction_standings.get(faction.name, 1.0)
 		if standing <= 0.0:
-			continue  # Skip muted factions
+			continue
+
+		# Frobenius normalization: unit rotation axis vote per faction.
+		var h_norm: float = 1.0
+		if not faction_norms.is_empty():
+			if not faction_norms.has(faction.name):
+				continue  # No H contribution to this biome — skip
+			h_norm = faction_norms[faction.name]
+
+		var weight: float = standing / h_norm
 
 		contributing_sources.append(faction.name)
 		var contribution = faction.get_icon_contribution(emoji)
 
-		# Merge self_energy (weighted by standing)
-		icon.self_energy += contribution.get("self_energy", 0.0) * standing
+		# H terms: direction-normalized (weight = standing / h_norm)
+		icon.self_energy += contribution.get("self_energy", 0.0) * weight
 
-		# Merge hamiltonian_couplings (weighted)
 		var h_couplings = contribution.get("hamiltonian_couplings", {})
 		for target in h_couplings:
 			var current = icon.hamiltonian_couplings.get(target, null)
 			var incoming = h_couplings[target]
 			if incoming is Vector2:
-				incoming = Vector2(incoming.x * standing, incoming.y * standing)
+				incoming = Vector2(incoming.x * weight, incoming.y * weight)
 			else:
-				incoming = incoming * standing
+				incoming = incoming * weight
 			icon.hamiltonian_couplings[target] = _add_hamiltonian_values(current, incoming)
-
-		# Merge lindblad_outgoing (weighted)
-		var l_out = contribution.get("lindblad_outgoing", {})
-		for target in l_out:
-			var current = icon.lindblad_outgoing.get(target, 0.0)
-			icon.lindblad_outgoing[target] = current + (l_out[target] * standing)
-
-		# Merge lindblad_incoming (weighted)
-		var l_in = contribution.get("lindblad_incoming", {})
-		for source in l_in:
-			var current = icon.lindblad_incoming.get(source, 0.0)
-			icon.lindblad_incoming[source] = current + (l_in[source] * standing)
-
-		# Collect gated_lindblad
-		var gated = contribution.get("gated_lindblad", [])
-		for gate_config in gated:
-			var config_copy = gate_config.duplicate()
-			config_copy["faction"] = faction.name
-			config_copy["standing_weight"] = standing
-			all_gated.append(config_copy)
 
 		# Collect bell_activated_features
 		var bell = contribution.get("bell_activated_features", {})
@@ -791,7 +542,7 @@ static func _build_icon_from_biome_and_factions(
 				"features": bell.duplicate(true)
 			})
 
-		# Merge decoherence_coupling (weighted)
+		# Merge decoherence_coupling (weighted by standing, not H-normalized)
 		var decoh = contribution.get("decoherence_coupling", 0.0)
 		total_decoherence += decoh * standing
 
@@ -818,9 +569,6 @@ static func _build_icon_from_biome_and_factions(
 			icon.driver_amplitude = driver.get("amp", 1.0) * standing
 
 	# Store metadata
-	if all_gated.size() > 0:
-		icon.set_meta("gated_lindblad", all_gated)
-
 	if all_bell_features.size() > 0:
 		icon.set_meta("bell_activated_features", all_bell_features)
 

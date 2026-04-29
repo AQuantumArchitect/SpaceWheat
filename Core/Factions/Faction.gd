@@ -1,6 +1,8 @@
 class_name Faction
 extends RefCounted
 
+const AffinityGraphCls = preload("res://Core/Affinity/AffinityGraph.gd")
+
 ## Faction: A closed dynamical system over 3-7 signature emojis
 ##
 ## Factions define coupling terms between their signature emojis ONLY.
@@ -24,6 +26,21 @@ var ring: String = "center"  # "center", "second", "third", "outer"
 ## The ONLY emojis this faction speaks (3-7 ideal)
 var signature: Array = []
 
+## 12-bit axial tag in conceptual space (see data/temp_faction_lore.json axial_spine).
+## Axes: Random/Deterministic, Material/Mystical, Common/Elite, Local/Cosmic,
+## Instant/Eternal, Physical/Mental, Crystalline/Fluid, Direct/Subtle,
+## Consumptive/Providing, Monochrome/Prismatic, Emergent/Imposed, Scattered/Focused.
+##
+## `bits` is the *initial corner* — load-time configuration. The live axial
+## stance lives on `affinity` (an AffinityGraph initialized at |bits⟩⟨bits|).
+## Consumers should read via `get_axial_bits()` so future evolution shows up.
+var bits: PackedByteArray = PackedByteArray()
+
+## Live 12-qubit affinity substrate. At load time this is the corner state
+## |bits⟩⟨bits|; future phases will let it rotate / mix under settlement and
+## inter-faction dynamics. See Core/Affinity/AffinityGraph.gd.
+var affinity = null
+
 ## ========================================
 ## Hamiltonian Terms (Unitary Evolution)
 ## ========================================
@@ -41,24 +58,6 @@ var hamiltonian: Dictionary = {}
 ## {emoji: {type: "cosine"|"sine"|"pulse", freq: float, phase: float, amp: float}}
 var drivers: Dictionary = {}
 
-## ========================================
-## Lindblad Terms (Dissipative Evolution)
-## ========================================
-
-## Outgoing transfers: source loses amplitude to target
-## {source_emoji: {target_emoji: float}}
-var lindblad_outgoing: Dictionary = {}
-
-## Incoming transfers: target gains amplitude from source
-## {target_emoji: {source_emoji: float}}
-var lindblad_incoming: Dictionary = {}
-
-## Gated Lindblad: transfers that REQUIRE a catalyst emoji
-## {target_emoji: [{source: emoji, rate: float, gate: emoji, power: float, inverse: bool}]}
-## Normal: effective_rate = base_rate × P(gate)^power
-## Inverse (inverse=true): effective_rate = base_rate × (1 - P(gate))^power
-## Use inverse for "starvation" mechanics where LOW gate = HIGH transfer
-var gated_lindblad: Dictionary = {}
 
 ## Measurement behavior: how this emoji responds to measurement/observation
 ## {emoji: {inverts: bool}}
@@ -135,6 +134,23 @@ var tags: Array = []
 func speaks(emoji: String) -> bool:
 	return emoji in signature
 
+
+## Canonical axial-bits accessor. Reads through the AffinityGraph so future
+## evolution surfaces correctly; falls back to raw `bits` only when the
+## substrate hasn't been built yet (e.g. mid-load from legacy saves).
+func get_axial_bits() -> PackedByteArray:
+	if affinity != null:
+		return affinity.principal_bits()
+	return bits
+
+
+func _rebuild_affinity_from_bits() -> void:
+	if bits.size() != AffinityGraphCls.AXIS_COUNT:
+		# Defer; load_from_dict for legacy/partial data may leave this empty.
+		affinity = null
+		return
+	affinity = AffinityGraphCls.from_corner(bits)
+
 ## Get all emojis this faction contributes to (including decay targets)
 func get_all_emojis() -> Array:
 	var result: Array = signature.duplicate()
@@ -158,26 +174,6 @@ func validate() -> bool:
 				push_error("Faction %s: hamiltonian target %s not in signature" % [name, target])
 				valid = false
 	
-	# Check lindblad outgoing
-	for source in lindblad_outgoing:
-		if source not in signature:
-			push_error("Faction %s: lindblad_outgoing source %s not in signature" % [name, source])
-			valid = false
-		for target in lindblad_outgoing[source]:
-			if target not in signature:
-				push_error("Faction %s: lindblad_outgoing target %s not in signature" % [name, target])
-				valid = false
-	
-	# Check lindblad incoming
-	for target in lindblad_incoming:
-		if target not in signature:
-			push_error("Faction %s: lindblad_incoming target %s not in signature" % [name, target])
-			valid = false
-		for source in lindblad_incoming[target]:
-			if source not in signature:
-				push_error("Faction %s: lindblad_incoming source %s not in signature" % [name, source])
-				valid = false
-	
 	# Decay targets CAN be outside signature (that's how we connect to other factions)
 	# So we don't validate decay targets
 	
@@ -192,9 +188,6 @@ func get_icon_contribution(emoji: String) -> Dictionary:
 		"faction": name,
 		"self_energy": self_energies.get(emoji, 0.0),
 		"hamiltonian_couplings": hamiltonian.get(emoji, {}),
-		"lindblad_outgoing": lindblad_outgoing.get(emoji, {}),
-		"lindblad_incoming": lindblad_incoming.get(emoji, {}),
-		"gated_lindblad": gated_lindblad.get(emoji, []),
 		"decay": decay.get(emoji, {}),
 		"driver": drivers.get(emoji, {}),
 		"alignment_couplings": alignment_couplings.get(emoji, {}),
@@ -236,15 +229,6 @@ func to_dict() -> Dictionary:
 	if not drivers.is_empty():
 		data["drivers"] = drivers
 
-	if not lindblad_outgoing.is_empty():
-		data["lindblad_outgoing"] = lindblad_outgoing
-
-	if not lindblad_incoming.is_empty():
-		data["lindblad_incoming"] = lindblad_incoming
-
-	if not gated_lindblad.is_empty():
-		data["gated_lindblad"] = gated_lindblad
-
 	if not measurement_behavior.is_empty():
 		data["measurement_behavior"] = measurement_behavior
 
@@ -271,6 +255,12 @@ func load_from_dict(data: Dictionary) -> void:
 	# Normalize variation selectors so "⚙️" and "⚙" resolve to the same key
 	signature = EmojiUtil.normalize_array(_coerce_string_array(data.get("signature", data.get("sig", []))))
 	tags = _coerce_string_array(data.get("tags", []))
+	var raw_bits = data.get("bits", [])
+	bits = PackedByteArray()
+	if raw_bits is Array:
+		for b in raw_bits:
+			bits.append(1 if int(b) != 0 else 0)
+	_rebuild_affinity_from_bits()
 
 	self_energies = EmojiUtil.normalize_keys(data.get("self_energies", {}))
 
@@ -278,9 +268,6 @@ func load_from_dict(data: Dictionary) -> void:
 	hamiltonian = _deserialize_hamiltonian(EmojiUtil.normalize_nested_keys(data.get("hamiltonian", {})))
 
 	drivers = EmojiUtil.normalize_keys(data.get("drivers", {}))
-	lindblad_outgoing = EmojiUtil.normalize_nested_keys(data.get("lindblad_outgoing", {}))
-	lindblad_incoming = EmojiUtil.normalize_nested_keys(data.get("lindblad_incoming", {}))
-	gated_lindblad = EmojiUtil.normalize_gated_lindblad(data.get("gated_lindblad", {}))
 	measurement_behavior = EmojiUtil.normalize_keys(data.get("measurement_behavior", {}))
 	decay = EmojiUtil.normalize_decay(data.get("decay", {}))
 	alignment_couplings = EmojiUtil.normalize_nested_keys(data.get("alignment_couplings", {}))
