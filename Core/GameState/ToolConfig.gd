@@ -8,9 +8,9 @@ extends RefCounted
 ##
 ## | Hat | Archetype  | Live wiring                                    |
 ## |-----|------------|------------------------------------------------|
-## |  4  | Spark      | Lindbladian (thermal/dephase/damp)             |
+## |  4  | Spark      | Pole shift (spend pole emoji → shove qubit)    |
 ## |  5  | Icon       | Icon injection (player faction signature)      |
-## |  6  | Socialite  | (placeholder — no live actions)                |
+## |  6  | Socialite  | Faction contracts (drain/transfer/pump)        |
 ## |  7  | Captain    | Biomes lifecycle (discover / cull)             |
 ## |  8  | Scientist  | Measure / probe (explore / measure / pop)      |
 ## |  9  | Operator   | Gate building (build / inspect / break)        |
@@ -108,55 +108,34 @@ static var frame_mode_indices: Dictionary = {
 
 const ARCHETYPE_FRAMES: Dictionary = {
 	# =========================================================================
-	# SPARK (S, Q, P) — casting moment. Holds the Lindbladian wiring after
-	# the 2026-04-28 redistribution: drain / transfer / pump act as the
-	# player's instant-cast energy events into the dissipative bath.
+	# SPARK (S, Q, P) — casting moment. Spend one pole emoji to instantly
+	# shove the qubit toward that pole (strong one-shot Lindblad drive/decay).
+	# No extra fees: the pole emoji IS the cost.
+	# Q = push toward south pole  |  R = push toward north pole
 	# =========================================================================
 	FRAME_SPARK: {
 		"name": "Spark",
 		"emoji": "⚡",
 		"icon": "res://Assets/UI/Tools/Lindblad/Lindblad.svg",
 		"time_scale": "dissipative",
-		"description": "Casting moment — Lindbladian energy exchange",
-		"has_f_cycling": true,
-		"modes": ["thermal", "dephase", "damp"],
-		"mode_labels": ["~", ".", "|"],
-		"mode_emojis": ["~", ".", "|"],
+		"description": "Casting moment — spend a pole emoji to shift the qubit toward that pole",
+		"has_f_cycling": false,
+		"modes": ["shift"],
+		"mode_labels": ["⚡"],
+		"mode_emojis": ["⚡"],
 		"pauses_sim": false,
 		"held_context": true,
 		"actions": {
-			"thermal": {
-				"Q": {"action": "drain", "label": "Drain", "emoji": "v",
+			"shift": {
+				"Q": {"action": "spark_south", "label": "S.Pole", "emoji": "↓",
 					  "icon": "res://Assets/UI/Tools/Lindblad/Decay.svg",
-					  "hint": "Dissipate excess to classical"},
-				"E": {"action": "transfer", "label": "Xfer", "emoji": "<>",
-					  "icon": "res://Assets/UI/Tools/Lindblad/Transfer.svg",
-					  "hint": "Transfer population between qubits"},
-				"R": {"action": "pump", "label": "Pump", "emoji": "^",
+					  "hint": "Spend 1× south-pole emoji — jolt qubit toward its south pole"},
+				"E": {"action": "", "label": "Cost?", "emoji": "?",
+					  "icon": "res://Assets/UI/Science/Measure.svg",
+					  "hint": "Inspect pole cost (pause; preview what each shift will spend)"},
+				"R": {"action": "spark_north", "label": "N.Pole", "emoji": "↑",
 					  "icon": "res://Assets/UI/Tools/Lindblad/Drive.svg",
-					  "hint": "Drive energy into quantum state"}
-			},
-			"dephase": {
-				"Q": {"action": "drain", "label": "Drain", "emoji": "v",
-					  "icon": "res://Assets/UI/Tools/Lindblad/Decay.svg",
-					  "hint": "Dephasing drain"},
-				"E": {"action": "transfer", "label": "Xfer", "emoji": "<>",
-					  "icon": "res://Assets/UI/Tools/Lindblad/Transfer.svg",
-					  "hint": "Dephasing transfer"},
-				"R": {"action": "pump", "label": "Pump", "emoji": "^",
-					  "icon": "res://Assets/UI/Tools/Lindblad/Drive.svg",
-					  "hint": "Dephasing pump"}
-			},
-			"damp": {
-				"Q": {"action": "drain", "label": "Drain", "emoji": "v",
-					  "icon": "res://Assets/UI/Tools/Lindblad/Decay.svg",
-					  "hint": "Amplitude damping drain"},
-				"E": {"action": "transfer", "label": "Xfer", "emoji": "<>",
-					  "icon": "res://Assets/UI/Tools/Lindblad/Transfer.svg",
-					  "hint": "Amplitude damping transfer"},
-				"R": {"action": "pump", "label": "Pump", "emoji": "^",
-					  "icon": "res://Assets/UI/Tools/Lindblad/Drive.svg",
-					  "hint": "Amplitude damping pump"}
+					  "hint": "Spend 1× north-pole emoji — jolt qubit toward its north pole"}
 			}
 		}
 	},
@@ -195,33 +174,62 @@ const ARCHETYPE_FRAMES: Dictionary = {
 	},
 
 	# =========================================================================
-	# SOCIALITE (S, C, F) — faction politics. Placeholder; no live actions yet.
+	# SOCIALITE (S, C, F) — faction networking. Sets up Lindbladian
+	# drain/transfer/pump as abstracted faction contracts with other factions
+	# (treaties, brokerages, tribute). Costs use social resources: basket 🧺,
+	# handshake 🤝, scroll 📜. F=Tip is live across all sub-modes.
+	# Sub-modes (1/2/3): thermal / dephase / damp — flavor only, same verbs.
 	# =========================================================================
 	FRAME_SOCIALITE: {
 		"name": "Socialite",
 		"emoji": "🤝",
 		"icon": "res://Assets/UI/Icon/Icon.svg",
 		"time_scale": "discrete",
-		"description": "Faction politics / quest layer (placeholder verbs)",
+		"description": "Faction networking — drain/transfer/pump as contracts (treaty/broker/tribute)",
 		"has_f_cycling": false,
-		"modes": ["mingle"],
-		"mode_labels": ["🤝"],
-		"mode_emojis": ["🤝"],
+		"modes": ["thermal", "dephase", "damp"],
+		"mode_labels": ["~", ".", "|"],
+		"mode_emojis": ["🌡", "💨", "🌊"],
 		"pauses_sim": true,
 		"actions": {
-			"mingle": {
-				"Q": {"action": "socialite_placeholder", "label": "Greet", "emoji": "👋",
-					  "icon": "",
-					  "hint": "Wave hello (placeholder; no mechanical effect yet)"},
-				"E": {"action": "socialite_placeholder", "label": "Mingle", "emoji": "🍷",
-					  "icon": "",
-					  "hint": "Mingle with whoever's around (placeholder)"},
-				"R": {"action": "socialite_placeholder", "label": "Charm", "emoji": "✨",
-					  "icon": "",
-					  "hint": "Try to charm the room (placeholder)"},
+			"thermal": {
+				"Q": {"action": "drain", "label": "Treaty", "emoji": "🧺",
+					  "icon": "res://Assets/UI/Tools/Lindblad/Decay.svg",
+					  "hint": "Thermal treaty — drain population to a faction partner (costs 🧺 + south-pole)"},
+				"E": {"action": "transfer", "label": "Broker", "emoji": "🤝",
+					  "icon": "res://Assets/UI/Tools/Lindblad/Transfer.svg",
+					  "hint": "Thermal brokerage — transfer population between two plots (costs 🤝 + poles)"},
+				"R": {"action": "pump", "label": "Tribute", "emoji": "📜",
+					  "icon": "res://Assets/UI/Tools/Lindblad/Drive.svg",
+					  "hint": "Thermal tribute — pump energy into the quantum state (costs 📜 + north-pole)"},
 				"F": {"action": "socialite_hint", "label": "Tip", "emoji": "💬",
-					  "icon": "",
-					  "hint": "Whisper a hint to the player"}
+					  "icon": "", "hint": "Whisper a hint to the player"}
+			},
+			"dephase": {
+				"Q": {"action": "drain", "label": "Treaty", "emoji": "🧺",
+					  "icon": "res://Assets/UI/Tools/Lindblad/Decay.svg",
+					  "hint": "Dephasing treaty — drain coherence (costs 🧺 + south-pole)"},
+				"E": {"action": "transfer", "label": "Broker", "emoji": "🤝",
+					  "icon": "res://Assets/UI/Tools/Lindblad/Transfer.svg",
+					  "hint": "Dephasing brokerage — transfer coherence between plots (costs 🤝 + poles)"},
+				"R": {"action": "pump", "label": "Tribute", "emoji": "📜",
+					  "icon": "res://Assets/UI/Tools/Lindblad/Drive.svg",
+					  "hint": "Dephasing tribute — pump energy via phase noise (costs 📜 + north-pole)"},
+				"F": {"action": "socialite_hint", "label": "Tip", "emoji": "💬",
+					  "icon": "", "hint": "Whisper a hint to the player"}
+			},
+			"damp": {
+				"Q": {"action": "drain", "label": "Treaty", "emoji": "🧺",
+					  "icon": "res://Assets/UI/Tools/Lindblad/Decay.svg",
+					  "hint": "Amplitude-damping treaty — drain population to vacuum (costs 🧺 + south-pole)"},
+				"E": {"action": "transfer", "label": "Broker", "emoji": "🤝",
+					  "icon": "res://Assets/UI/Tools/Lindblad/Transfer.svg",
+					  "hint": "Amplitude-damping brokerage — transfer to vacuum mode (costs 🤝 + poles)"},
+				"R": {"action": "pump", "label": "Tribute", "emoji": "📜",
+					  "icon": "res://Assets/UI/Tools/Lindblad/Drive.svg",
+					  "hint": "Amplitude-damping tribute — counter-rotate back toward excited (costs 📜 + north-pole)"},
+				"F": {"action": "socialite_hint", "label": "Tip", "emoji": "💬",
+					  "icon": "", "hint": "Whisper a hint to the player"}
 			}
 		}
 	},

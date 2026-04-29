@@ -35,11 +35,11 @@ ESC             unwind
 Self-face on the left of the row, World-face on the right. The two
 Quantum-Pulse vertices (Spark, Druid) bookend — cast-pulse on both ends.
 
-| Key | Archetype | Cube coords    | Live wiring                                |
-|-----|-----------|----------------|--------------------------------------------|
-| `4` | Spark     | (Self, Q, P)   | Lindbladian (drain / transfer / pump)      |
-| `5` | Icon      | (Self, Q, F)   | Icon injection (faction-signature qubits)  |
-| `6` | Socialite | (Self, C, F)   | (placeholder — quest layer)                |
+| Key | Archetype | Cube coords    | Live wiring                                          |
+|-----|-----------|----------------|------------------------------------------------------|
+| `4` | Spark     | (Self, Q, P)   | Pole shift (spend pole emoji → one-shot shove)       |
+| `5` | Icon      | (Self, Q, F)   | Icon injection (faction-signature qubits)            |
+| `6` | Socialite | (Self, C, F)   | Faction contracts (drain=treaty / transfer=broker / pump=tribute) |
 | `7` | Captain   | (World, C, F)  | Biome lifecycle (discover / cull)          |
 | `8` | Scientist | (World, C, P)  | Probe (explore / measure / pop)            |
 | `9` | Operator  | (World, Q, F)  | Gate building (build / inspect / break)    |
@@ -47,11 +47,11 @@ Quantum-Pulse vertices (Spark, Druid) bookend — cast-pulse on both ends.
 
 ## What each frame currently exposes
 
-| Frame     | Sub-modes               | Q          | E (pause + inspect)  | R           |
-|-----------|-------------------------|------------|----------------------|-------------|
-| Spark     | thermal / dephase / damp | drain     | Transfer             | Pump (✨ + N pole + 💨) |
-| Icon      | inject                  | Add icon   | (open picker; pause) | Trim icon   |
-| Socialite | quest (placeholder)     | —          | —                    | —           |
+| Frame     | Sub-modes               | Q             | E (pause + inspect)       | R              | F       |
+|-----------|-------------------------|---------------|---------------------------|----------------|---------|
+| Spark     | shift                   | S.Pole (↓1×)  | Cost preview (pause)      | N.Pole (↑1×)   | —       |
+| Icon      | inject                  | Add icon      | (open picker; pause)      | Trim icon      | —       |
+| Socialite | thermal / dephase / damp | Treaty 🧺   | Broker 🤝                 | Tribute 📜     | Tip 💬  |
 | Captain   | biomes                  | Discover   | (reserved)           | Cull        |
 | Scientist | probe                   | Explore    | Measure              | Pop         |
 | Operator  | gate                    | Build gate | Inspect              | Break gate  |

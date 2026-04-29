@@ -8,9 +8,11 @@ const LINDBLAD_PUMP := "lindblad_pump"
 const LINDBLAD_DRAIN := "lindblad_drain"
 const DISCOVER_BIOME := "discover_biome"
 const REMOVE_BIOME := "remove_biome"
+const SPARK_NORTH := "spark_north"
+const SPARK_SOUTH := "spark_south"
 
 const ACTION_ALIASES: Dictionary = {
-	"vocab_injection": INJECT_VOCAB,
+	"icon_injection": INJECT_VOCAB,
 	"pump": LINDBLAD_PUMP,
 	"drain": LINDBLAD_DRAIN,
 	"lindblad_drive": LINDBLAD_PUMP,

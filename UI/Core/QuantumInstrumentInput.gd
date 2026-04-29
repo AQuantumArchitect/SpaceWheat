@@ -79,7 +79,9 @@ signal plot_checked(grid_pos: Vector2i, is_checked: bool)  # Multi-select checkb
 const BUFFER_INVALIDATING_ACTIONS: Array[String] = [
 	# Tool 1: Unitary gates (apply gates to density matrix)
 	"rotate_up", "rotate_down", "hadamard",
-	# Tool 2: Lindbladian (energy exchange modifies state)
+	# Spark frame: instant pole shifts (strong one-shot drive/decay)
+	"spark_north", "spark_south",
+	# Socialite frame: persistent Lindbladian contracts
 	"drain", "transfer", "pump",
 	# Tool 3: Measure (collapse wavefunction + build entangled states)
 	"measure", "build_gate", "remove_gates",
@@ -1264,6 +1266,14 @@ func _execute_action(action_name: String) -> Dictionary:
 			result = _instrument.action_rotate(positions, -1)
 		"hadamard":
 			result = _instrument.action_hadamard(positions)
+		"spark_north":
+			result = _instrument.action_spark_north(positions)
+			if result.get("success", false):
+				_refresh_plot_tiles(positions)
+		"spark_south":
+			result = _instrument.action_spark_south(positions)
+			if result.get("success", false):
+				_refresh_plot_tiles(positions)
 		"drain":
 			result = _instrument.action_drain(positions)
 			if result.get("success", false):

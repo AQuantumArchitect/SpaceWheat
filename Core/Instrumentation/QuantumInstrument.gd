@@ -287,7 +287,51 @@ func action_hadamard(positions: Array[Vector2i]) -> Dictionary:
 
 
 # ============================================================================
-# GROUP 2: LINDBLADIAN ACTIONS
+# SPARK FRAME: INSTANT POLE-SHIFT ACTIONS
+# ============================================================================
+# Strong one-shot Lindblad pulse costing 1× pole emoji. No persistent channel.
+
+func action_spark_north(positions: Array[Vector2i]) -> Dictionary:
+	var guard = _action_guard(positions)
+	if not guard.is_empty(): return guard
+	var context: Dictionary = {}
+	if not positions.is_empty():
+		context["north_emoji"] = LindbladHandler._resolve_north_emoji(farm, positions[0])
+	var gate = preflight_action_cost("spark_north", context)
+	if not gate.get("ok", true):
+		return {"success": false, "error": "insufficient_resources",
+				"message": gate.get("message", "Need the north-pole emoji to spark"),
+				"cost": gate.get("cost", {})}
+	var result = LindbladHandler.lindblad_drive(farm, positions)
+	action_performed.emit("spark_north", result)
+	if result.get("success", false):
+		commit_action_cost("spark_north", context, "spark_north")
+	return result
+
+
+func action_spark_south(positions: Array[Vector2i]) -> Dictionary:
+	var guard = _action_guard(positions)
+	if not guard.is_empty(): return guard
+	var context: Dictionary = {}
+	if not positions.is_empty():
+		var north = LindbladHandler._resolve_north_emoji(farm, positions[0])
+		# south emoji is derived from the plot's south binding (complement of north)
+		context["north_emoji"] = north
+		context["south_emoji"] = LindbladHandler._resolve_south_emoji(farm, positions[0])
+	var gate = preflight_action_cost("spark_south", context)
+	if not gate.get("ok", true):
+		return {"success": false, "error": "insufficient_resources",
+				"message": gate.get("message", "Need the south-pole emoji to spark"),
+				"cost": gate.get("cost", {})}
+	var result = LindbladHandler.lindblad_decay(farm, positions)
+	action_performed.emit("spark_south", result)
+	if result.get("success", false):
+		commit_action_cost("spark_south", context, "spark_south")
+	return result
+
+
+# ============================================================================
+# GROUP 2: LINDBLADIAN ACTIONS (Socialite frame)
 # ============================================================================
 
 func action_drain(positions: Array[Vector2i]) -> Dictionary:

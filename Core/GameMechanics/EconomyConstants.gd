@@ -38,8 +38,10 @@ const ACTION_COSTS: Dictionary = {
 	"discover_biome": {"🦅": 21}, # Scout new biome
 	"remove_biome": {"💀": 34},  # Cull biome: pay skulls, then liquidate the biome's live state
 	"remove_vocabulary": {"🐺": 13}, # Remove signature base cost (N+S pole costs added dynamically)
-	"lindblad_pump": {"💨": 8},  # Axis-aware dynamic cost adds north emoji; wind drives energy in
-	"lindblad_drain": {"⚙": 2}  # Axis-aware dynamic cost adds south emoji
+	"lindblad_pump": {"📜": 4},   # Socialite tribute contract; +north pole emoji added dynamically
+	"lindblad_drain": {"🧺": 4},  # Socialite treaty / village basket; +south pole emoji added dynamically
+	"spark_north": {},            # Spark pole shift — cost is 1× north pole emoji, added dynamically
+	"spark_south": {}             # Spark pole shift — cost is 1× south pole emoji, added dynamically
 	# icon_injection and remove_vocabulary are dynamic - use get_action_cost()
 }
 
@@ -94,14 +96,24 @@ const ICON_INJECTION_SPROUT_COST: Dictionary = {"🌱": 5}
 const ICON_REMOVAL_WOLF_COST: int = 13
 const ICON_REMOVAL_POLE_COST: int = 3
 
-## Lindblad axis-aware costs
-const LINDBLAD_PUMP_WIND_COST: int = 8   # 💨 wind drives energy in
-const LINDBLAD_PUMP_NORTH_COST: int = 32 # large draw on the axis north pole
-const LINDBLAD_PUMP_SPARK_COST: int = 13 # ✨ — the Spark frame's cast-pulse cost
-const LINDBLAD_DRAIN_GEAR_COST: int = 2
-const LINDBLAD_DRAIN_SOUTH_COST: int = 8
-const LINDBLAD_TRANSFER_SOURCE_COST: int = 21  # 💧 north (source) emoji
-const LINDBLAD_TRANSFER_DRAIN_COST: int = 13   # south (destination) emoji
+## Lindblad axis-aware costs (Socialite networking — drain/transfer/pump as
+## faction-contract abstraction; basket/handshake/scroll mark the social
+## instrument, pole emojis are the resource swung in the deal).
+const LINDBLAD_PUMP_SCROLL_COST: int = 4   # 📜 tribute contract
+const LINDBLAD_PUMP_NORTH_COST: int = 21   # north pole resource staked in pact
+const LINDBLAD_DRAIN_BASKET_COST: int = 4  # 🧺 village-basket treaty
+const LINDBLAD_DRAIN_SOUTH_COST: int = 8   # south pole emoji extracted by treaty
+const LINDBLAD_TRANSFER_HANDSHAKE_COST: int = 2  # 🤝 brokered exchange
+const LINDBLAD_TRANSFER_SOURCE_COST: int = 13    # source (north) emoji
+const LINDBLAD_TRANSFER_DRAIN_COST: int = 8      # destination (south) emoji
+
+## Transitional aliases for older cost names still used by some callers/tests.
+const LINDBLAD_DRAIN_GEAR_COST: int = LINDBLAD_DRAIN_BASKET_COST
+const LINDBLAD_PUMP_WIND_COST: int = LINDBLAD_PUMP_SCROLL_COST
+const LINDBLAD_PUMP_SPARK_COST: int = SPARK_POLE_COST
+
+## Spark pole-shift cost: just the pole emoji itself (no fee).
+const SPARK_POLE_COST: int = 1
 
 ## Hard cap on biome qubits (enforced by actions, not by the quantum computer)
 const MAX_BIOME_QUBITS: int = 12
@@ -176,37 +188,58 @@ static func get_vocab_injection_cost(south_emoji: String) -> Dictionary:
 
 
 static func get_lindblad_injection_cost(action: String = ActionIds.LINDBLAD_PUMP, context: Dictionary = {}) -> Dictionary:
-	"""Get axis-aware Lindblad costs.
+	"""Get axis-aware Lindblad costs (Socialite networking frame).
 
-	Pump: 8 💨 + 32 north-pole emoji
-	Drain: 2 ⚙ + 8 south-pole emoji
+	Pump (tribute contract):  4 📜 + 21 north-pole emoji
+	Drain (village treaty):   4 🧺 + 8 south-pole emoji
+	Transfer (brokered deal): 2 🤝 + 13 source emoji + 8 destination emoji
 	"""
 	var normalized_action = normalize_action_id(action)
 	var cost: Dictionary = {}
 	if normalized_action == ActionIds.LINDBLAD_DRAIN:
-		cost["⚙"] = LINDBLAD_DRAIN_GEAR_COST
+		cost["🧺"] = LINDBLAD_DRAIN_BASKET_COST
 		var south_emoji = str(context.get("south_emoji", ""))
 		if south_emoji != "":
 			cost[south_emoji] = LINDBLAD_DRAIN_SOUTH_COST
 		return cost
 
-	# Transfer: 21× source (north) + 13× destination (south)
+	# Transfer: 2 🤝 + 13× source (north) + 8× destination (south)
 	if normalized_action == "lindblad_transfer":
 		var north = str(context.get("north_emoji", ""))
 		var south = str(context.get("south_emoji", ""))
-		cost["💧"] = 1  # base water token marks the transfer intent
+		cost["🤝"] = LINDBLAD_TRANSFER_HANDSHAKE_COST
 		if north != "":
 			cost[north] = LINDBLAD_TRANSFER_SOURCE_COST
 		if south != "" and south != north:
 			cost[south] = LINDBLAD_TRANSFER_DRAIN_COST
 		return cost
 
-	cost["💨"] = LINDBLAD_PUMP_WIND_COST
-	cost["✨"] = LINDBLAD_PUMP_SPARK_COST
+	# Pump: 4 📜 + 21 north-pole emoji
+	cost["📜"] = LINDBLAD_PUMP_SCROLL_COST
 	var north_emoji = str(context.get("north_emoji", ""))
 	if north_emoji != "":
 		cost[north_emoji] = LINDBLAD_PUMP_NORTH_COST
 	return cost
+
+
+static func get_spark_cost(action: String, context: Dictionary = {}) -> Dictionary:
+	"""Get cost for a Spark pole-shift: 1× the pole emoji being shifted toward.
+
+	spark_north → 1× north_emoji
+	spark_south → 1× south_emoji
+	"""
+	var normalized_action = normalize_action_id(action)
+	if normalized_action == ActionIds.SPARK_NORTH:
+		var north = str(context.get("north_emoji", ""))
+		if north != "":
+			return {north: SPARK_POLE_COST}
+		return {}
+	if normalized_action == ActionIds.SPARK_SOUTH:
+		var south = str(context.get("south_emoji", ""))
+		if south != "":
+			return {south: SPARK_POLE_COST}
+		return {}
+	return {}
 
 
 static func get_vocab_removal_cost(north_emoji: String = "", south_emoji: String = "") -> Dictionary:
@@ -296,6 +329,8 @@ static func get_action_cost(action: String, context: Dictionary = {}) -> Diction
 		return get_vocab_removal_cost(context.get("north_emoji", ""), context.get("south_emoji", ""))
 	if normalized_action in [ActionIds.LINDBLAD_PUMP, ActionIds.LINDBLAD_DRAIN, "lindblad_transfer"]:
 		return get_lindblad_injection_cost(normalized_action, context)
+	if normalized_action in [ActionIds.SPARK_NORTH, ActionIds.SPARK_SOUTH]:
+		return get_spark_cost(normalized_action, context)
 	if ACTION_COSTS.has(normalized_action):
 		return ACTION_COSTS[normalized_action]
 	if GATE_COSTS.has(normalized_action):

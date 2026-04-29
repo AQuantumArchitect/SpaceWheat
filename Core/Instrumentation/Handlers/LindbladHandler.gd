@@ -10,7 +10,6 @@ extends RefCounted
 const PULSE_RATE = 1.0
 const PULSE_DT = 0.5
 const PERSISTENT_RATE = 0.5
-const PUMP_RESOURCE_EMOJI = "🌱"
 const DRAIN_GEAR_EMOJI = "⚙"
 const EconomyConstants = preload("res://Core/GameMechanics/EconomyConstants.gd")
 const ActionCostRuntime = preload("res://Core/GameMechanics/ActionCostRuntime.gd")
@@ -110,16 +109,10 @@ static func _project_register_for_position(farm, biome, pos: Vector2i) -> int:
 
 
 static func _resolve_axis_binding(farm, pos: Vector2i, biome) -> Dictionary:
-	"""Resolve axis+register for a plot and bind BasePlot if needed.
-
-	Persistent Lindblad infra is stored on register_infrastructure through BasePlot
-	properties. If a selected plot is unbound, we project a deterministic register
-	by biome slot so drain/pump can still be installed for headless tooling.
-	"""
+	"""Resolve axis+register for a plot without mutating plot binding state."""
 	var north = ""
 	var south = ""
 	var register_id = -1
-	var auto_bound_plot = false
 	var plot = farm.grid.get_plot(pos) if farm and farm.grid else null
 	var biome_name = _get_biome_name(biome)
 
@@ -143,19 +136,19 @@ static func _resolve_axis_binding(farm, pos: Vector2i, biome) -> Dictionary:
 			if south == "":
 				south = str(axis.get("south", ""))
 
-	if plot and register_id >= 0 and north != "" and plot.has_method("is_active") and not plot.is_active():
-		if plot.has_method("bind_to_register"):
-			plot.bind_to_register(register_id, biome_name, {"north": north, "south": south})
-			auto_bound_plot = true
-
 	return {
 		"north": north,
 		"south": south,
 		"register_id": register_id,
 		"plot": plot,
-		"biome_name": biome_name,
-		"auto_bound_plot": auto_bound_plot
+		"biome_name": biome_name
 	}
+
+
+static func _get_register_infra(biome, register_id: int) -> Dictionary:
+	if not biome or not biome.quantum_computer or register_id < 0:
+		return {}
+	return biome.quantum_computer._ensure_register_infra(register_id)
 
 
 static func _resolve_qubit_index(biome, emoji: String) -> int:
@@ -302,8 +295,7 @@ static func enable_persistent_drive(farm, positions: Array[Vector2i],
 	var unresolved_axis = 0
 	var unresolved_qubit = 0
 	var no_plot = 0
-	var unbound_plot = 0
-	var auto_bound_plot = 0
+	var missing_infra = 0
 
 	for pos in positions:
 		var biome = farm.grid.get_biome_for_plot(pos)
@@ -316,8 +308,6 @@ static func enable_persistent_drive(farm, positions: Array[Vector2i],
 		var south_emoji = str(binding.get("south", ""))
 		var qubit_idx = int(binding.get("register_id", -1))
 		var plot = binding.get("plot", null)
-		if bool(binding.get("auto_bound_plot", false)):
-			auto_bound_plot += 1
 		if north_emoji == "":
 			unresolved_axis += 1
 			continue
@@ -328,19 +318,32 @@ static func enable_persistent_drive(farm, positions: Array[Vector2i],
 		if not plot:
 			no_plot += 1
 			continue
-		if plot.has_method("is_active") and not plot.is_active():
-			unbound_plot += 1
+		var infra = _get_register_infra(biome, qubit_idx)
+		if infra.is_empty():
+			missing_infra += 1
 			continue
-		if plot and (plot.lindblad_pump_active or plot.lindblad_drain_active):
+		if bool(infra.get("lindblad_pump_active", false)) or bool(infra.get("lindblad_drain_active", false)):
 			already_active += 1
 			continue
 
-		if plot:
-			# Free persistent pump: always activate when placement is valid.
-			plot.lindblad_pump_active = true
-			plot.lindblad_pump_rate = rate
-			activated_count += 1
+		var cost = _preflight_lindblad_cost(
+			farm,
+			EconomyConstants.normalize_action_id("lindblad_pump"),
+			north_emoji,
+			south_emoji,
+			insufficient
+		)
+		if cost.is_empty():
+			continue
 
+		if not ActionCostRuntime.commit_cost(farm.economy, cost, "lindblad_pump"):
+			continue
+
+		infra["lindblad_pump_active"] = true
+		infra["lindblad_pump_rate"] = rate
+		activated_count += 1
+
+		charged_count += 1
 		success_count += 1
 		driven_emojis[north_emoji] = driven_emojis.get(north_emoji, 0) + 1
 
@@ -358,12 +361,11 @@ static func enable_persistent_drive(farm, positions: Array[Vector2i],
 		"rejections": {
 			"no_biome": no_biome,
 			"no_plot": no_plot,
-			"unbound_plot": unbound_plot,
+			"missing_infra": missing_infra,
 			"unresolved_axis": unresolved_axis,
 			"unresolved_qubit": unresolved_qubit
 		},
-		"auto_bound_plot": auto_bound_plot,
-		"cost_model": "pump=free_persistent"
+		"cost_model": "pump=8💨+32N"
 	}
 	if not result.success:
 		if already_active > 0:
@@ -402,8 +404,7 @@ static func enable_persistent_decay(farm, positions: Array[Vector2i],
 	var unresolved_axis = 0
 	var unresolved_qubit = 0
 	var no_plot = 0
-	var unbound_plot = 0
-	var auto_bound_plot = 0
+	var missing_infra = 0
 
 	for pos in positions:
 		var biome = farm.grid.get_biome_for_plot(pos)
@@ -416,8 +417,6 @@ static func enable_persistent_decay(farm, positions: Array[Vector2i],
 		var south_emoji = str(binding.get("south", ""))
 		var qubit_idx = int(binding.get("register_id", -1))
 		var plot = binding.get("plot", null)
-		if bool(binding.get("auto_bound_plot", false)):
-			auto_bound_plot += 1
 		if north_emoji == "":
 			unresolved_axis += 1
 			continue
@@ -428,10 +427,11 @@ static func enable_persistent_decay(farm, positions: Array[Vector2i],
 		if not plot:
 			no_plot += 1
 			continue
-		if plot.has_method("is_active") and not plot.is_active():
-			unbound_plot += 1
+		var infra = _get_register_infra(biome, qubit_idx)
+		if infra.is_empty():
+			missing_infra += 1
 			continue
-		if plot and (plot.lindblad_drain_active or plot.lindblad_pump_active):
+		if bool(infra.get("lindblad_drain_active", false)) or bool(infra.get("lindblad_pump_active", false)):
 			already_active += 1
 			continue
 
@@ -448,13 +448,11 @@ static func enable_persistent_decay(farm, positions: Array[Vector2i],
 		if not ActionCostRuntime.commit_cost(farm.economy, cost, "lindblad_drain"):
 			continue
 
-		if plot:
-			# Activate only after cost commit: one persistent drain channel per plot.
-			plot.lindblad_drain_active = true
-			plot.lindblad_drain_rate = rate
-			if plot.has_method("_set_infra_field"):
-				plot._set_infra_field("lindblad_harvest_visible", true)
-			activated_count += 1
+		# Activate only after cost commit: one persistent drain channel per register.
+		infra["lindblad_drain_active"] = true
+		infra["lindblad_drain_rate"] = rate
+		infra["lindblad_harvest_visible"] = true
+		activated_count += 1
 
 		charged_count += 1
 		success_count += 1
@@ -474,11 +472,10 @@ static func enable_persistent_decay(farm, positions: Array[Vector2i],
 		"rejections": {
 			"no_biome": no_biome,
 			"no_plot": no_plot,
-			"unbound_plot": unbound_plot,
+			"missing_infra": missing_infra,
 			"unresolved_axis": unresolved_axis,
 			"unresolved_qubit": unresolved_qubit
 		},
-		"auto_bound_plot": auto_bound_plot,
 		"cost_model": "drain=2⚙+8S"
 	}
 	if not result.success:
@@ -607,4 +604,12 @@ static func _resolve_north_emoji(farm, pos: Vector2i) -> String:
 	var plot = farm.grid.get_plot(pos) if farm and farm.grid else null
 	if plot and plot.is_active():
 		return plot.north_emoji if plot.north_emoji else ""
+	return ""
+
+
+static func _resolve_south_emoji(farm, pos: Vector2i) -> String:
+	"""Resolve south emoji from plot."""
+	var plot = farm.grid.get_plot(pos) if farm and farm.grid else null
+	if plot and plot.is_active():
+		return plot.south_emoji if plot.south_emoji else ""
 	return ""
