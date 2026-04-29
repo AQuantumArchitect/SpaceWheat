@@ -1,0 +1,10 @@
+{
+	"format_version": 1,
+	"hamiltonian": {
+		"data": [],
+		"n": 8
+	},
+	"lindblad_count": 0,
+	"lindblad_operators": [],
+	"timestamp": 1777436355.83585
+}

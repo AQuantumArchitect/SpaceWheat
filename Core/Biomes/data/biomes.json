@@ -1225,7 +1225,7 @@
       {
         "name": "Hearth",
         "pole_0": "🔥",
-        "pole_1": "❄️"
+        "pole_1": "❄"
       },
       {
         "name": "Labor",
@@ -1234,7 +1234,7 @@
       },
       {
         "name": "WindMill",
-        "pole_0": "⚙️",
+        "pole_0": "⚙",
         "pole_1": "💨"
       },
       {
@@ -2449,7 +2449,7 @@
       {
         "name": "Circuit",
         "pole_0": "🔌",
-        "pole_1": "♻️"
+        "pole_1": "♻"
       }
     ]
   },
@@ -2625,7 +2625,7 @@
     "icons": [
       {
         "name": "Waste",
-        "pole_0": "♻️",
+        "pole_0": "♻",
         "pole_1": "🗑"
       },
       {
@@ -2844,12 +2844,12 @@
       {
         "name": "Goods",
         "pole_0": "📦",
-        "pole_1": "🏷️"
+        "pole_1": "🏷"
       },
       {
         "name": "Exchange",
         "pole_0": "💱",
-        "pole_1": "🕴️"
+        "pole_1": "🕴"
       },
       {
         "name": "Sentiment",
@@ -3898,10 +3898,10 @@
   },
   {
     "name": "Harbor",
-    "description": "Salt air and creaking rope. Vessels rest at anchor while rust accumulates on hooks and chains. Ice melts in bilgewater. The harbor is a pause between voyages—a place where things wait, and waiting has its own entropy.",
+    "description": "Salt air and contested ground. Boats run or hook depending on who's watching. Ice from the spring melts into the same water that carries sand from desert routes. The harbor does not belong to either faction that uses it — it is the place where their physics collide.",
     "image_path": "res://Assets/Biomes/Harbor.png",
     "music_path": "res://Assets/Audio/Music/Harbor.mp3",
-    "discovered": false,
+    "discovered": true,
     "plot_layout": [
       {
         "x": 0.3,
@@ -3921,13 +3921,13 @@
       }
     ],
     "emojis": [
-      "⚓",
-      "🪝",
       "🛶",
-      "🪣",
+      "🪝",
       "💧",
+      "⚓",
       "🧊",
       "🏜",
+      "🪣",
       "🪨"
     ],
     "native_factions": [
@@ -3942,43 +3942,12 @@
       "rust"
     ],
     "atom_components": {
-      "⚓": {
+      "🛶": {
         "lindblad_outgoing": {
-          "🪝": 0.03
-        },
-        "decay": {
-          "rate": 0.005,
-          "target": "🗑"
+          "🏜": 0.05
         }
       },
       "🪝": {
-        "lindblad_incoming": {
-          "⚓": 0.03
-        },
-        "lindblad_outgoing": {
-          "🐠": 0.02
-        },
-        "decay": {
-          "rate": 0.02,
-          "target": "🗑"
-        }
-      },
-      "🛶": {
-        "lindblad_incoming": {
-          "💧": 0.02
-        },
-        "decay": {
-          "rate": 0.02,
-          "target": "🗑"
-        }
-      },
-      "🪣": {
-        "lindblad_incoming": {
-          "💧": 0.03
-        },
-        "lindblad_outgoing": {
-          "💧": 0.02
-        },
         "decay": {
           "rate": 0.02,
           "target": "🗑"
@@ -3986,19 +3955,27 @@
       },
       "💧": {
         "lindblad_incoming": {
-          "🧊": 0.05,
+          "🧊": 0.06,
           "🌧": 0.05,
           "♻️": 0.04
         },
         "lindblad_outgoing": {
-          "🔥": 0.08,
-          "🛶": 0.02,
+          "🛶": 0.08,
           "🪣": 0.03
+        }
+      },
+      "⚓": {
+        "lindblad_outgoing": {
+          "🪝": 0.1
+        },
+        "decay": {
+          "rate": 0.02,
+          "target": "💧"
         }
       },
       "🧊": {
         "lindblad_outgoing": {
-          "💧": 0.05
+          "💧": 0.06
         },
         "decay": {
           "rate": 0.03,
@@ -4013,12 +3990,24 @@
           "🪨": 0.05
         }
       },
+      "🪣": {
+        "lindblad_incoming": {
+          "💧": 0.03
+        },
+        "lindblad_outgoing": {
+          "💧": 0.02
+        },
+        "decay": {
+          "rate": 0.02,
+          "target": "🗑"
+        }
+      },
       "🪨": {
         "lindblad_incoming": {
           "🏜": 0.05
         },
         "decay": {
-          "rate": 0.03,
+          "rate": 0.02,
           "target": "🏜"
         }
       }
@@ -4038,19 +4027,24 @@
     },
     "icons": [
       {
-        "name": "Mooring",
-        "pole_0": "⚓",
+        "name": "Transit",
+        "pole_0": "🛶",
         "pole_1": "🪝"
       },
       {
-        "name": "Ferry",
-        "pole_0": "🛶",
-        "pole_1": "🪣"
+        "name": "Domain",
+        "pole_0": "💧",
+        "pole_1": "⚓"
       },
       {
-        "name": "Water",
-        "pole_0": "💧",
-        "pole_1": "🧊"
+        "name": "Cargo",
+        "pole_0": "🧊",
+        "pole_1": "🏜"
+      },
+      {
+        "name": "Dock",
+        "pole_0": "🪣",
+        "pole_1": "🪨"
       }
     ]
   },
@@ -4874,7 +4868,7 @@
     "icons": [
       {
         "name": "Ruin",
-        "pole_0": "🏚️",
+        "pole_0": "🏚",
         "pole_1": "🏛"
       },
       {
@@ -6159,7 +6153,7 @@
     "icons": [
       {
         "name": "Cryogenic",
-        "pole_0": "❄️",
+        "pole_0": "❄",
         "pole_1": "⚙"
       },
       {
@@ -6294,7 +6288,10 @@
     },
     "cross_biome_flows": {
       "incoming": {
-        "Village": ["💰", "👥"]
+        "Village": [
+          "💰",
+          "👥"
+        ]
       },
       "outgoing": {}
     },
