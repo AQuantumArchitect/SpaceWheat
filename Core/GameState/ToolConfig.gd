@@ -119,7 +119,6 @@ const ARCHETYPE_FRAMES: Dictionary = {
 		"icon": "res://Assets/UI/Tools/Lindblad/Lindblad.svg",
 		"time_scale": "dissipative",
 		"description": "Casting moment — spend a pole emoji to shift the qubit toward that pole",
-		"has_f_cycling": false,
 		"modes": ["shift"],
 		"mode_labels": ["⚡"],
 		"mode_emojis": ["⚡"],
@@ -130,9 +129,10 @@ const ARCHETYPE_FRAMES: Dictionary = {
 				"Q": {"action": "spark_south", "label": "S.Pole", "emoji": "↓",
 					  "icon": "res://Assets/UI/Tools/Lindblad/Decay.svg",
 					  "hint": "Spend 1× south-pole emoji — jolt qubit toward its south pole"},
-				"E": {"action": "", "label": "Cost?", "emoji": "?",
-					  "icon": "res://Assets/UI/Science/Measure.svg",
-					  "hint": "Inspect pole cost (pause; preview what each shift will spend)"},
+				"E": {"action": "", "label": "-", "emoji": "",
+					  "icon": "",
+					  "hint": "Pause — preview pole costs in the action bar",
+					  "disabled": true},
 				"R": {"action": "spark_north", "label": "N.Pole", "emoji": "↑",
 					  "icon": "res://Assets/UI/Tools/Lindblad/Drive.svg",
 					  "hint": "Spend 1× north-pole emoji — jolt qubit toward its north pole"}
@@ -151,24 +151,23 @@ const ARCHETYPE_FRAMES: Dictionary = {
 		"icon": "res://Assets/UI/Icon/Icon.svg",
 		"time_scale": "meta",
 		"description": "Icon injection — dual-emoji qubits from your faction signature",
-		"has_f_cycling": false,
 		"modes": ["inject"],
 		"mode_labels": ["Icon"],
 		"mode_emojis": ["📖"],
 		"pauses_sim": true,
 		"actions": {
 			"inject": {
-				"Q": {"action": "inject_vocabulary", "label": "Add Icon", "emoji": "+",
-					  "icon": "res://Assets/UI/Biome/BiomeAssign.svg",
-					  "hint": "Inject an icon (dual-emoji qubit from your signature) into the active biome",
-					  "submenu": "icon_injection"},
+				"Q": {"action": "remove_vocabulary", "label": "Trim Icon", "emoji": "-",
+					  "icon": "res://Assets/UI/Biome/BiomeClear.svg",
+					  "hint": "Remove an icon from the active biome"},
 				"E": {"action": "", "label": "-", "emoji": "",
 					  "icon": "",
 					  "hint": "Reserved",
 					  "disabled": true},
-				"R": {"action": "remove_vocabulary", "label": "Trim Icon", "emoji": "-",
-					  "icon": "res://Assets/UI/Biome/BiomeClear.svg",
-					  "hint": "Remove an icon from the active biome"}
+				"R": {"action": "inject_vocabulary", "label": "Add Icon", "emoji": "+",
+					  "icon": "res://Assets/UI/Biome/BiomeAssign.svg",
+					  "hint": "Inject an icon (dual-emoji qubit from your signature) into the active biome",
+					  "submenu": "icon_injection"}
 			}
 		}
 	},
@@ -186,7 +185,6 @@ const ARCHETYPE_FRAMES: Dictionary = {
 		"icon": "res://Assets/UI/Icon/Icon.svg",
 		"time_scale": "discrete",
 		"description": "Faction networking — drain/transfer/pump as contracts (treaty/broker/tribute)",
-		"has_f_cycling": false,
 		"modes": ["thermal", "dephase", "damp"],
 		"mode_labels": ["~", ".", "|"],
 		"mode_emojis": ["🌡", "💨", "🌊"],
@@ -244,23 +242,22 @@ const ARCHETYPE_FRAMES: Dictionary = {
 		"icon": "res://Assets/UI/Icon/Icon.svg",
 		"time_scale": "meta",
 		"description": "Strategic decree — biome lifecycle (discover / cull)",
-		"has_f_cycling": false,
 		"modes": ["biomes"],
 		"mode_labels": ["Biomes"],
 		"mode_emojis": ["🌍"],
 		"pauses_sim": true,
 		"actions": {
 			"biomes": {
-				"Q": {"action": "discover_biome", "label": "Add Biome", "emoji": "🗺️",
-					  "icon": "res://Assets/UI/Science/Explore.svg",
-					  "hint": "Discover and load a new biome into the spindle"},
+				"Q": {"action": "remove_biome", "label": "Cull Biome", "emoji": "💀",
+					  "icon": "res://Assets/UI/Biome/BiomeClear.svg",
+					  "hint": "Liquidate the active biome from its live quantum state and return it to the unexplored pool"},
 				"E": {"action": "", "label": "-", "emoji": "",
 					  "icon": "",
 					  "hint": "Reserved",
 					  "disabled": true},
-				"R": {"action": "remove_biome", "label": "Cull Biome", "emoji": "💀",
-					  "icon": "res://Assets/UI/Biome/BiomeClear.svg",
-					  "hint": "Liquidate the active biome from its live quantum state and return it to the unexplored pool"}
+				"R": {"action": "discover_biome", "label": "Add Biome", "emoji": "🗺️",
+					  "icon": "res://Assets/UI/Science/Explore.svg",
+					  "hint": "Discover and load a new biome into the spindle"}
 			}
 		}
 	},
@@ -275,7 +272,6 @@ const ARCHETYPE_FRAMES: Dictionary = {
 		"icon": "res://Assets/UI/Science/Measure.svg",
 		"time_scale": "discrete",
 		"description": "Probe — explore, measure, harvest",
-		"has_f_cycling": false,
 		"modes": ["probe"],
 		"mode_labels": ["?"],
 		"mode_emojis": ["?"],
@@ -306,23 +302,22 @@ const ARCHETYPE_FRAMES: Dictionary = {
 		"icon": "res://Assets/UI/Q-Bit/CNOT.svg",
 		"time_scale": "discrete",
 		"description": "Topology craft — build, inspect, and break entangling gates",
-		"has_f_cycling": false,
 		"modes": ["gate"],
 		"mode_labels": [")("],
 		"mode_emojis": [")("],
 		"pauses_sim": true,
 		"actions": {
 			"gate": {
-				"Q": {"action": "build_gate", "label": "Gate", "emoji": ")(",
-					  "icon": "res://Assets/UI/Q-Bit/CNOT.svg",
-					  "hint": "Build entangling gate",
-					  "submenu": "gate_selection"},
+				"Q": {"action": "remove_gates", "label": "Break", "emoji": "X",
+					  "icon": "res://Assets/UI/Biome/BiomeClear.svg",
+					  "hint": "Break entanglement"},
 				"E": {"action": "inspect", "label": "Inspect", "emoji": "[]",
 					  "icon": "res://Assets/UI/Science/Explore.svg",
 					  "hint": "Inspect entanglement"},
-				"R": {"action": "remove_gates", "label": "Break", "emoji": "X",
-					  "icon": "res://Assets/UI/Biome/BiomeClear.svg",
-					  "hint": "Break entanglement"}
+				"R": {"action": "build_gate", "label": "Gate", "emoji": ")(",
+					  "icon": "res://Assets/UI/Q-Bit/CNOT.svg",
+					  "hint": "Build entangling gate",
+					  "submenu": "gate_selection"}
 			}
 		}
 	},
@@ -337,7 +332,6 @@ const ARCHETYPE_FRAMES: Dictionary = {
 		"icon": "res://Assets/UI/Q-Bit/Unitary.svg",
 		"time_scale": "continuous",
 		"description": "Quantum priesthood — reversible unitary gates",
-		"has_f_cycling": true,
 		"modes": ["X", "Y", "Z"],
 		"mode_labels": ["X", "Y", "Z"],
 		"mode_emojis": ["X", "Y", "Z"],
@@ -472,38 +466,31 @@ static func get_frame_mode_index(frame_name: String) -> int:
 
 static func get_frame_mode_name(frame_name: String) -> String:
 	var def := get_frame(frame_name)
-	if not def.get("has_f_cycling", false):
-		var modes: Array = def.get("modes", [])
-		if modes.is_empty():
-			return ""
-		return str(modes[0])
 	var modes: Array = def.get("modes", [])
+	if modes.is_empty():
+		return ""
+	if modes.size() == 1:
+		return str(modes[0])
 	var index: int = int(frame_mode_indices.get(frame_name, 0))
-	if index < modes.size():
-		return str(modes[index])
-	return ""
+	return str(modes[index]) if index < modes.size() else ""
 
 
 static func get_frame_mode_label(frame_name: String) -> String:
 	var def := get_frame(frame_name)
-	if not def.get("has_f_cycling", false):
-		return ""
 	var labels: Array = def.get("mode_labels", [])
+	if labels.is_empty():
+		return ""
 	var index: int = int(frame_mode_indices.get(frame_name, 0))
-	if index < labels.size():
-		return str(labels[index])
-	return ""
+	return str(labels[index]) if index < labels.size() else ""
 
 
 static func get_frame_mode_emoji(frame_name: String) -> String:
 	var def := get_frame(frame_name)
-	if not def.get("has_f_cycling", false):
-		return ""
 	var emojis: Array = def.get("mode_emojis", [])
+	if emojis.is_empty():
+		return ""
 	var index: int = int(frame_mode_indices.get(frame_name, 0))
-	if index < emojis.size():
-		return str(emojis[index])
-	return ""
+	return str(emojis[index]) if index < emojis.size() else ""
 
 
 static func reset_frame_modes() -> void:
@@ -527,13 +514,7 @@ static func get_action(frame_or_group, key: String) -> Dictionary:
 	if def.is_empty():
 		return {}
 
-	var mode_name := ""
-	if def.get("has_f_cycling", false):
-		mode_name = get_frame_mode_name(frame_name)
-	else:
-		var modes: Array = def.get("modes", [])
-		if not modes.is_empty():
-			mode_name = str(modes[0])
+	var mode_name := get_frame_mode_name(frame_name)
 
 	var mode_actions: Dictionary = def.get("actions", {}).get(mode_name, {})
 	if mode_actions.is_empty():
@@ -570,36 +551,9 @@ static func get_all_actions(frame_or_group) -> Dictionary:
 	return actions
 
 
-static func get_cycle_action_info(frame_or_group) -> Dictionary:
-	var frame_name := resolve_frame(frame_or_group)
-	var def := get_frame(frame_name)
-	if def.is_empty() or not def.get("has_f_cycling", false):
-		return {}
-
-	var modes: Array = def.get("modes", [])
-	if modes.is_empty():
-		return {}
-
-	var labels: Array = def.get("mode_labels", [])
-	var current_index: int = int(frame_mode_indices.get(frame_name, 0))
-	var next_index := (current_index + 1) % modes.size()
-	var next_label := ""
-	if next_index < labels.size():
-		next_label = str(labels[next_index])
-	elif next_index < modes.size():
-		next_label = str(modes[next_index])
-
-	return {
-		"action": "cycle_mode",
-		"label": "Cycle %s" % next_label if next_label != "" else "Cycle Mode",
-		"emoji": "↺",
-		"disabled": false,
-	}
-
-
-static func has_f_cycling(frame_or_group) -> bool:
-	var frame_name := resolve_frame(frame_or_group)
-	return get_frame(frame_name).get("has_f_cycling", false)
+static func has_explicit_f_action(frame_or_group) -> bool:
+	"""True when the frame declares an explicit F action in its current sub-mode."""
+	return not get_action(frame_or_group, "F").is_empty()
 
 
 # =============================================================================

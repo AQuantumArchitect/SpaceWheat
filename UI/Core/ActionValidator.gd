@@ -97,7 +97,7 @@ static func _can_execute_tool_action(
 	current_selection: Vector2i
 ) -> bool:
 	"""Check if tool action can succeed (not in submenu)."""
-	if action_key == "F" and ToolConfig.has_f_cycling(current_tool):
+	if action_key == "F" and ToolConfig.has_explicit_f_action(current_tool):
 		return true
 
 	if selected_plots.is_empty():
@@ -404,7 +404,10 @@ static func _can_execute_remove_vocabulary(farm, current_selection: Vector2i) ->
 
 static func _can_execute_discover_biome(farm) -> bool:
 	"""Check if player can afford to explore a new biome."""
-	if not farm or not farm.economy:
+	if not farm:
+		return false
+	var economy = farm.get("economy")
+	if not economy:
 		return false
 
 	if farm.has_method("can_discover_biome"):
