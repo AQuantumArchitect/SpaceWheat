@@ -6170,8 +6170,8 @@
     ]
   },
   {
-    "name": "VillagePocket",
-    "description": "A tiny market loop tuned for starter economy tests and delivery quest throughput.",
+    "name": "BloodLedger",
+    "description": "The district where law becomes land and coin becomes tribute. Four columns of documentation rise around a central courtyard. No one here chose to be here. No one leaves without leaving something behind.",
     "image_path": "res://Assets/Biomes/VillagePocket.png",
     "music_path": "res://Assets/Audio/Music/VillagePocket.mp3",
     "discovered": false,
@@ -6194,66 +6194,130 @@
       }
     ],
     "emojis": [
-      "💰",
-      "🧺",
-      "🍞",
-      "👥"
+      "👥",
+      "⚖",
+      "🦅",
+      "⚜",
+      "🩸",
+      "🏰",
+      "📜",
+      "💰"
     ],
     "native_factions": [
-      "Hearth Keepers",
       "Carrion Throne",
       "Granary Guilds"
     ],
     "tags": [
-      "starter",
-      "small",
-      "economy",
-      "quests"
+      "imperial",
+      "authority",
+      "extraction",
+      "law",
+      "faction-showcase"
     ],
     "atom_components": {
-      "💰": {
-        "lindblad_outgoing": {
-          "🧺": 0.05,
-          "👥": 0.02
-        }
-      },
-      "🧺": {
-        "lindblad_incoming": {
-          "💰": 0.04
-        },
-        "lindblad_outgoing": {
-          "🍞": 0.05
-        }
-      },
-      "🍞": {
-        "lindblad_incoming": {
-          "🧺": 0.05
-        },
-        "lindblad_outgoing": {
-          "👥": 0.03
-        }
-      },
       "👥": {
         "lindblad_incoming": {
-          "🍞": 0.03,
-          "💰": 0.02
+          "🗑": 0.3
+        },
+        "lindblad_outgoing": {
+          "🩸": 0.04,
+          "💰": 0.03
+        }
+      },
+      "⚖": {
+        "lindblad_incoming": {
+          "👥": 0.03
+        },
+        "lindblad_outgoing": {
+          "📜": 0.05
+        },
+        "decay": {
+          "rate": 0.02,
+          "target": "🗑"
+        }
+      },
+      "📜": {
+        "lindblad_incoming": {
+          "🗑": 0.4
+        },
+        "gated_lindblad_source": [
+          {
+            "target": "⚜",
+            "gate": "⚜",
+            "rate": 25.0,
+            "power": 2
+          }
+        ],
+        "decay": {
+          "rate": 0.015,
+          "target": "🗑"
+        }
+      },
+      "⚜": {
+        "decay": {
+          "rate": 0.25,
+          "target": "🗑"
+        }
+      },
+      "🩸": {
+        "lindblad_incoming": {
+          "👥": 0.04
+        },
+        "decay": {
+          "rate": 0.06,
+          "target": "🗑"
+        }
+      },
+      "💰": {
+        "lindblad_incoming": {
+          "👥": 0.03
+        },
+        "decay": {
+          "rate": 0.04,
+          "target": "🗑"
+        }
+      },
+      "🦅": {
+        "lindblad_incoming": {
+          "⚜": 0.03
+        },
+        "decay": {
+          "rate": 0.05,
+          "target": "🗑"
+        }
+      },
+      "🏰": {
+        "lindblad_incoming": {
+          "🗑": 0.05
         }
       }
     },
     "cross_biome_flows": {
-      "incoming": {},
+      "incoming": {
+        "Village": ["💰", "👥"]
+      },
       "outgoing": {}
     },
     "icons": [
       {
-        "name": "Commerce",
-        "pole_0": "🧺",
-        "pole_1": "💰"
+        "name": "Authority",
+        "pole_0": "⚜",
+        "pole_1": "⚖"
       },
       {
-        "name": "Community",
-        "pole_0": "🍞",
-        "pole_1": "👥"
+        "name": "Heritage",
+        "pole_0": "🏰",
+        "pole_1": "📜"
+      },
+      {
+        "name": "Predation",
+        "pole_0": "🦅",
+        "pole_1": "🩸"
+      },
+      {
+        "name": "Extraction",
+        "pole_0": "👥",
+        "pole_1": "💰"
       }
     ]
   },

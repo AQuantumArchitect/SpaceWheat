@@ -285,7 +285,7 @@ The village becomes economically downstream, not self-sufficient.
 | Biome | Shared with | → Village | Notes |
 |---|---|---|---|
 | **Apiary** | PastoralCommons, FreshwaterSpring | 🫙 🌾 (flow live) | Honey + grain; Path I receives 🌾 |
-| **VillagePocket** | Granary Guilds, Hearth Keepers | downstream of Village | Commerce output biome; receives 💰/🍞 |
+| **BloodLedger** | Carrion Throne, Granary Guilds | receives 💰 👥 from Village | Empire's administrative district; authority feeds on Village's tribute |
 | **TrappersCamp** | StarterForest (Pack Lords) | — | Has 🌱+💀; forest mortality chain |
 | **Harbor** | FreshwaterSpring (Irrigation Jury) | 💧 echo | Spring water reaches the sea |
 | **ShrineOfAshes** | Woodlot (Sacred Flame Keepers) | 💀 → BioticFlux | Death from ash reaches the pure-H space |
@@ -304,7 +304,7 @@ FreshwaterSpring (🧊 source → 💧)
                                          └─ cross_biome_flow ──► Village 🌾 (grain)
 
 Village (5 qubits + 1 open slot)
-  └─ commerce output ──► VillagePocket (circle 2)
+  └─ tribute flow 💰👥 ──► BloodLedger (circle 2, Carrion Throne)
 ```
 
 Path I (🪵|🌾) is the only path that makes all three upstream flows
@@ -326,3 +326,234 @@ The designed story progression could be:
    "wakes up" as the regional hub.
 3. Second mission: choose the 6th qubit from the path menu above. That
    choice defines their village's character for the rest of circle 1.
+
+---
+
+## Additional Story Paths
+
+These paths extend the menu with Carrion Throne presence and disaster/recovery
+arcs that become available once BloodLedger (circle 2) is unlocked.
+
+---
+
+### Path J — Tax Season `⚜ | ⚖` *Empire: Authority vs Law*
+
+Both atoms are from the Carrion Throne signature. ⚜↔⚖=0.7 is the strongest
+Carrion Throne coupling in the biome. ⚖↔💰=0.3 wires the tax collection loop
+directly: law applied generates tribute.
+
+**Physics:** when ⚜ is populated in Village, the empire is physically present
+— coin drains upward toward BloodLedger via the cross_biome_flow. When ⚖
+is populated instead, law is being applied locally (slower drain, some justice
+still operates). The qubit measures whether empire or law is the dominant mode.
+
+**Circle wiring:** BloodLedger (circle 2) is the destination of this tribute.
+The incoming cross_biome_flow from Village to BloodLedger carries 💰 and 👥,
+so populating ⚜ in Village actively feeds BloodLedger's autocatalytic
+documentation loop. The player is the tributary without knowing it.
+
+**6th slot extensions:**
+- 🩸: full extraction arc — blood and coin leave together (tribute in kind).
+- 📜: counter-documentation — player can resist by generating documentation of
+  their own, feeding ⚜'s autocatalysis to exhaustion rather than letting it
+  hold steady. A subversive play: use the empire's own mechanism against it.
+
+---
+
+### Path K — Under the Eagle `🦅 | 🩸` *Enforcement: Predation vs Blood*
+
+Carrion Throne's own "Predation" icon pair, transplanted into Village.
+🦅↔👥=−0.2 (enforcement suppresses people) + 👥↔🩸=0.6 (Carrion Throne H;
+people feed blood). With the eagle present, labor is suppressed.
+
+**Physics:** mill output drops (👥 lower → 🍞 lower → commerce weakens).
+The village is under martial occupation. This is the only path where a
+Village atom actively anti-couples another Village atom — enforcement and
+labor in direct opposition.
+
+**Player mission:** drain 🦅 to end the occupation. Until they do, the
+village underperforms. The occupation is not lore — it is a measurable
+suppression in the physics output.
+
+**6th slot extensions:**
+- ⚜: authority arrives with enforcement — full occupation arc. Empire present
+  in two forms simultaneously.
+- ⛓: chains + eagle = military bondage. The Void Serfs and Carrion Throne
+  meet in the same Village slot.
+
+---
+
+### Path L — Reclamation `🏜️ | 🌱` *Recovery: Drought vs Seed*
+
+The village after a disaster. 🏜️↔🍞=−0.35 (drought kills bread) vs
+🌱↔💰=0.32 (investment recovers it). The biome starts in a bad state and
+the player's 6th-slot choice determines whether recovery is possible.
+
+**Physics:** an interesting asymmetry — 🏜️ actively destroys bread production
+while 🌱 only weakly recovers it. To truly reclaim, the player must actively
+drain 🏜️ while pumping 🌱. A two-handed mission: one hand draining, one hand
+building. Passive play leaves the village stuck at partial recovery.
+
+**Circle wiring:** 🌱 connects to StarterForest and Woodlot (seedling in
+forest succession and regrowth). Recovery draws on the forest's own growth
+cycle — the village heals by reconnecting to the land.
+
+**6th slot extensions:**
+- 💧: water from FreshwaterSpring can overwhelm the drought — the natural
+  disaster recovery arc. Spring water as the counter-force to desert.
+- 💀: things got worse before they got better — full ruin arc. Drought leads
+  to death leads to (possibly) rebirth via Path O.
+
+---
+
+### Path M — Water Rights `💧 | ⛓` *Control: Commons vs Capture*
+
+The spring flows into the village (FreshwaterSpring → Village 💧 flow) but
+someone owns it. ⛓↔👥=0.7 — the water rights holder has labor captured.
+
+**Physics:** 💧 feeds bread and fire (Hearth Keepers H: 💧↔🍞=0.5,
+💧↔🔥=0.2) but ⛓ traps the workers who need it. The spring is a resource
+AND a mechanism of control. The qubit measures whether water is commons or
+commodity: high 💧 = free mill pond; high ⛓ = captive labor drinking from a
+metered tap.
+
+**Story:** "the mill needs water, the water belongs to the bondsman." Player
+can break chains to free the water commons. Breaking ⛓ lets 💧 flow freely
+and springs open the Hearth Keepers positive loop.
+
+**6th slot extensions:**
+- 🏭: corporate water + factory = maximum extraction. The spring monopoly
+  becomes industrial infrastructure.
+- 🔨: build your own pump — artisan infrastructure around the imposed
+  monopoly. Craft as a workaround for the controlled commons.
+
+---
+
+### Path N — Craft in Debt `🔨 | 💸` *Labor: Forge vs Drain*
+
+The artisan village under financial pressure. 🔨↔⚙=0.5 (craft drives the
+mill) but 💸↔👥=0.5 (money drains from people). The blacksmith works; the
+earnings disappear.
+
+**Physics:** both atoms have clear H couplings but pull in opposite directions
+on the labor pool. Craft builds up (🔨→⚙→output); debt drains away
+(💸→👥 losing). The stable attractor depends on which rate dominates. This
+is not a bistability (both are real, not gated) — it's a tug of war with a
+calculable tipping point.
+
+**Story:** the village has skilled workers but they are being bled financially,
+not physically — contrast with Path K where the suppression is martial. Player
+mission: plug the 💸 drain, not drain the 🔨 chain. The problem is economic,
+not violent, and requires a different class of intervention.
+
+**6th slot extensions:**
+- 💀: debt spiral → mortality. 💸↔💀=0.3 closes the Void Serfs full arc.
+- 💰: inject coin → rescue. Granary H drives 💰↔🍞 (0.58); commerce recovers.
+
+---
+
+### Path O — Death and Renewal `💀 | 🌱` *Cycle: Mortality vs Germination*
+
+The village as an ecosystem. 💀↔👥=−0.22 (Void Serfs: death repels labor) +
+🌱↔💰=0.32 (Granary: investment in growth). Death and growth on the same
+qubit.
+
+**Physics:** 💀 also appears in StarterForest and BioticFlux — adding it to
+Village creates a three-biome mortality chain (forest death → village death
+→ the pure-H space absorbs it). The qubit physically measures the life/death
+ratio of the settlement.
+
+**Story:** the village has a cemetery and a nursery on the same axis. What the
+player learns: mortality feeds regrowth in quantum systems just as in ecology.
+Drain 💀 → 🌱 gains. The qubit is a lesson in the conservation of population
+pressure.
+
+**6th slot extensions:**
+- 💧: spring water animates the cycle — more life than death. The spring as
+  the wellspring of renewal, literally.
+- 🏜️: drought tips the balance toward death. Combines with Path L's recovery
+  arc — the full disaster-ruin-renewal chain across three paths.
+
+---
+
+### Path P — Industrial Enclosure `🏭 | 💸` *Dispossession: Factory vs Flight*
+
+The enclosure movement. 🏭 industrialises (displaces 👥 at −0.2) and 💸
+captures the displaced workers' earnings. The village common lands become
+factory grounds.
+
+**Physics:** both 🏭 and 💸 drain 👥 — the first via H anti-coupling (−0.2),
+the second via L transfer (💸↔👥=0.5). People leave or are impoverished. The
+mill runs but the village empties. This is the highest-output, lowest-labor
+attractor.
+
+**Story:** enclosure as a physics process. The factory is more efficient; the
+debt captures the surplus; the workers cannot leave because they owe. The
+village is maximally productive and maximally hollowed out.
+
+**6th slot extensions:**
+- ⛓: full enclosure arc — displacement → bondage → debt. All three Void Serfs
+  atoms co-present.
+- 🌱: counter-movement — plant commons to resist the enclosure. 🌱↔💰=0.32
+  competes directly with 💸↔👥=0.5. The Granary Guilds versus the Void Serfs.
+
+---
+
+### Path Q — The Blessed Forge `🔨 | 💧` *Utopia: Craft + Spring*
+
+The gentlest, most connected path. Water from FreshwaterSpring flows in; the
+blacksmith works freely. 💧↔🍞=0.5 (water feeds bread) + 🔨↔⚙=0.5 (craft
+drives mill). No negative couplings. No dark dimensions.
+
+**Physics:** every biome upstream (FreshwaterSpring, StarterForest via 🌱,
+Woodlot via 🪵) is actively contributing. The village is the downstream
+beneficiary of the whole island. The physics goal: highest bread + highest
+water + highest people simultaneously. A positive-sum attractor — the only
+path in the set with no anti-coupling anywhere in its active H.
+
+**Story:** "this is what the starter island looks like when everything is
+working." Not a naive fantasy — the player had to build to this. It requires
+upstream biomes to be functional, cross_biome_flows to be open, and neither
+bondage nor drought nor debt to be present. The utopia is earned.
+
+**6th slot extensions:**
+- 🌱: close the agricultural loop. The spring feeds the garden; the garden
+  feeds the mill; the mill feeds the people.
+- 🏭: watch it break — the temptation arc. Can the player resist
+  industrialising the most functional village they've built?
+
+---
+
+## Circle-2 Wiring via BloodLedger
+
+BloodLedger (renamed from VillagePocket) receives 💰 and 👥 from Village via
+`cross_biome_flow`. This is the tribute circuit: coin and people flow upstream
+from the settlement into the administrative district where the Carrion Throne
+anchors its authority.
+
+The key physics insight is that BloodLedger's autocatalytic authority loop
+(📜 → ⚜ via gated Lindblad, rate 25.0, power 2) requires a continuous input
+of documentation to stay above the bistability threshold. That documentation
+comes from ⚖, which comes from 👥 — which comes from Village.
+
+When the player adds ⚜ or 🦅 to Village (Paths J and K respectively), they
+are not just choosing a local mechanic. The shared Carrion Throne Hamiltonian
+creates direct physics coupling between Village and BloodLedger:
+
+- **Path J (⚜ in Village):** ⚜ in Village is the same atom as ⚜ in
+  BloodLedger's authority loop. Populating it locally activates the
+  Carrion Throne H couplings that feed BloodLedger's documentation cycle.
+  The player farming ⚜ in Village is unknowingly feeding the empire's
+  coherence.
+
+- **Path K (🦅 in Village):** 🦅 derives from ⚜ in BloodLedger
+  (`lindblad_incoming: {⚜: 0.03}`). Eagle presence in Village signals that
+  BloodLedger's authority is high enough to project enforcement outward. The
+  Village occupation is a symptom, not a cause — the empire's documentation
+  loop produced enough authority to dispatch enforcers.
+
+The player never sees BloodLedger's internal mechanics until they discover it.
+But every coin they send through the Village commerce loop, every person the
+mill employs, every basket filled — all of it flows through the tribute circuit
+and into the district where law becomes land. The Carrion Throne does not
+announce itself. It is already present in the physics.
