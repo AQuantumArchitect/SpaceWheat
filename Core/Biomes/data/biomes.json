@@ -4,7 +4,7 @@
     "description": "The quantum heart of the ecosystem. Sun and moon cycle through wheat and mushroom growth, while matter flows through detritus and death.",
     "image_path": "res://Assets/Biomes/Quantum_Fields.png",
     "music_path": "res://Assets/Audio/Music/Entropic Bread Rise.mp3",
-    "discovered": false,
+    "discovered": true,
     "plot_layout": [
       {
         "x": 0.38,
@@ -987,7 +987,11 @@
       },
       "☀": {
         "lindblad_outgoing": {
-          "🌙": 0.05
+          "🌙": 0.05,
+          "🌿": 0.05
+        },
+        "lindblad_incoming": {
+          "🗑": 0.2
         }
       },
       "🌙": {
@@ -1150,11 +1154,14 @@
           {
             "target": "🗑",
             "gate": "❄",
-            "rate": 0.25,
+            "rate": 2.0,
             "power": 1,
             "inverse": false
           }
-        ]
+        ],
+        "lindblad_incoming": {
+          "🗑": 0.05
+        }
       },
       "⚙": {
         "lindblad_outgoing": {
@@ -1176,21 +1183,24 @@
           {
             "target": "🗑",
             "gate": "🔥",
-            "rate": 0.25,
+            "rate": 2.0,
             "power": 1,
             "inverse": false
           }
-        ]
+        ],
+        "lindblad_incoming": {
+          "🗑": 0.05
+        }
       },
       "🍞": {
         "lindblad_incoming": {
-          "🗑": 0.03
+          "🗑": 0.3
         },
         "gated_lindblad_source": [
           {
             "target": "🔥",
             "gate": "🔥",
-            "rate": 0.6,
+            "rate": 25.0,
             "power": 2,
             "inverse": false
           }
@@ -1198,13 +1208,13 @@
       },
       "🧺": {
         "lindblad_incoming": {
-          "🗑": 0.03
+          "🗑": 0.3
         },
         "gated_lindblad_source": [
           {
             "target": "❄",
             "gate": "❄",
-            "rate": 0.6,
+            "rate": 25.0,
             "power": 2,
             "inverse": false
           }
@@ -2957,7 +2967,7 @@
     "description": "Threads fray under patient fingers. Garments take shape, wear out, return to thread. Needles pierce and bind. Knots hold—until they don't. The loft smells of lanolin and old cloth, and nothing here is ever truly finished.",
     "image_path": "res://Assets/Biomes/WeaversLoft.png",
     "music_path": "res://Assets/Audio/Music/WeaversLoft.mp3",
-    "discovered": false,
+    "discovered": true,
     "plot_layout": [
       {
         "x": 0.35,
@@ -3008,7 +3018,15 @@
         "decay": {
           "rate": 0.02,
           "target": "🗑"
-        }
+        },
+        "gated_lindblad_source": [
+          {
+            "target": "👘",
+            "gate": "🧷",
+            "rate": 3.0,
+            "power": 1
+          }
+        ]
       },
       "🧶": {
         "lindblad_outgoing": {
@@ -3017,6 +3035,9 @@
         "decay": {
           "rate": 0.015,
           "target": "🗑"
+        },
+        "lindblad_incoming": {
+          "🗑": 0.12
         }
       },
       "👘": {
@@ -3028,6 +3049,9 @@
         "decay": {
           "rate": 0.015,
           "target": "🗑"
+        },
+        "lindblad_outgoing": {
+          "🧵": 0.008
         }
       },
       "🧷": {
@@ -3060,6 +3084,9 @@
         "decay": {
           "rate": 0.01,
           "target": "🗑"
+        },
+        "lindblad_incoming": {
+          "🗑": 0.1
         }
       }
     },
@@ -3553,7 +3580,7 @@
     "description": "Flocks graze on common land. Bees drift between wildflowers. Porridge simmers over low fires while gentle hands shape the future. A peaceful place—but peace is fragile, and predators are always circling.",
     "image_path": "res://Assets/Biomes/PastoralCommons.png",
     "music_path": "res://Assets/Audio/Music/PastoralCommons.mp3",
-    "discovered": false,
+    "discovered": true,
     "plot_layout": [
       {
         "x": 0.3,
@@ -3607,7 +3634,15 @@
         "decay": {
           "rate": 0.04,
           "target": "💀"
-        }
+        },
+        "gated_lindblad_source": [
+          {
+            "target": "🗑",
+            "gate": "🐺",
+            "rate": 1.5,
+            "power": 1
+          }
+        ]
       },
       "🐝": {
         "lindblad_incoming": {
@@ -3632,7 +3667,15 @@
         "decay": {
           "rate": 0.06,
           "target": "🍂"
-        }
+        },
+        "gated_lindblad_source": [
+          {
+            "target": "🌿",
+            "gate": "🌿",
+            "rate": 0.8,
+            "power": 1
+          }
+        ]
       },
       "🫙": {
         "lindblad_incoming": {
@@ -5107,6 +5150,9 @@
         "decay": {
           "rate": 0.005,
           "target": "🍂"
+        },
+        "lindblad_incoming": {
+          "🗑": 0.2
         }
       },
       "🪓": {
@@ -8234,6 +8280,7 @@
         }
       }
     },
-    "icons": []
+    "icons": [],
+    "discovered": false
   }
 ]
