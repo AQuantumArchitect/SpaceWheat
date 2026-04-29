@@ -33,8 +33,7 @@ signal quest_expired(quest_id: int)
 signal active_quests_changed()
 signal offer_locked(quest_id: int)
 signal offer_unlocked(quest_id: int)
-signal vocabulary_learned(emoji: String, faction: String)
-signal vocabulary_pair_learned(north: String, south: String, faction: String)
+signal icon_learned(north: String, south: String, faction: String)
 
 # =============================================================================
 # STATE
@@ -152,9 +151,9 @@ func _get_player_vocab_emojis() -> Array:
 
 
 func _discover_vocab_pair(north: String, south: String) -> bool:
-	"""Grant a vocab pair to the player (farm-owned preferred).
+	"""Grant an icon to the player (farm-owned preferred).
 
-	Returns true if vocabulary was newly discovered, false if already known.
+	Returns true if signature was newly discovered, false if already known.
 	"""
 	var gsm = _get_gsm()
 	var active_farm = gsm.get_active_farm() if gsm and gsm.has_method("get_active_farm") else null
@@ -189,11 +188,11 @@ func _grant_resource_rewards(reward, faction_name: String) -> Dictionary:
 
 
 func _grant_vocabulary_rewards(reward, faction_name: String) -> void:
-	"""Grant vocabulary rewards and emit discovery signals."""
+	"""Grant icon rewards and emit discovery signals."""
 	if reward == null:
 		return
 
-	# Paired vocabulary is preferred (north/south axis)
+	# Paired signature is preferred (north/south axis)
 	for pair in reward.learned_pairs:
 		var north = pair.get("north", "")
 		var south = pair.get("south", "")
@@ -201,9 +200,7 @@ func _grant_vocabulary_rewards(reward, faction_name: String) -> void:
 			continue
 		var was_new = _discover_vocab_pair(north, south)
 		if was_new:
-			vocabulary_pair_learned.emit(north, south, faction_name)
-			vocabulary_learned.emit(north, faction_name)
-			vocabulary_learned.emit(south, faction_name)
+			icon_learned.emit(north, south, faction_name)
 			if _verbose:
 				_verbose.info("quest", "📖", "%s taught you: %s/%s axis" % [faction_name, north, south])
 		else:
@@ -305,22 +302,22 @@ func offer_quest_emergent(faction: Dictionary, biome) -> Dictionary:
 
 	This is the quantum approach: faction state-shape preferences are
 	matched against biome quantum observables to generate quests.
-	Respects player vocabulary for resource constraints!
+	Respects player signature for resource constraints!
 	"""
 
 	if active_quests.size() >= MAX_ACTIVE_QUESTS:
 		return {}
 
-	# Get player vocabulary for filtering
+	# Get player signature for filtering
 	var player_vocab = _get_player_vocab_emojis()
 	var bias_emojis = _get_simulated_vocab_emojis(biome)
 
-	# Generate via abstract machinery + theming (with vocabulary constraint!)
+	# Generate via abstract machinery + theming (with signature constraint!)
 	var quest = QuestTheming.generate_quest(faction, biome, player_vocab, bias_emojis, self.economy, null, null, _biome_config)
 
-	# Check for vocabulary mismatch error
+	# Check for signature mismatch error
 	if quest.is_empty() or quest.has("error"):
-		return {}  # Faction inaccessible - no vocabulary overlap
+		return {}  # Faction inaccessible - no signature overlap
 	if not _is_valid_offer(quest):
 		return {}
 
@@ -370,71 +367,24 @@ func _track_biome_offer(biome_name: String) -> bool:
 
 
 func offer_all_faction_quests(biome) -> Array:
-	"""Generate quests from ALL factions for current biome state
+	"""Generate quests for the current biome.
 
-	Called when player opens quest overlay. Returns array of quest offers
-	from all factions, each with alignment score based on biome state.
-	Respects player vocabulary - inaccessible factions are filtered out.
+	Quests come from the native ContractMarket: it reads the current mythos
+	substrate (faction density, principal mode, biome native factions, player
+	economy) and proposes bids that QuestManager wraps into the lifecycle.
+
 	Locked offers are prepended (persist across cycles).
 	"""
-	var quests = []
-
-	# Locked offers come first (persist across cycles)
+	var quests: Array = []
 	for quest in locked_offers.values():
 		quests.append(quest)
 
-	# Pre-compute shared data ONCE for all 89 factions:
-	# - player_vocab: was fetched 3× per faction (generate, validate, annotate) = 267 GSM walks
-	# - observables: O(dim²) coherence calc, same bath for every faction
-	# - icon_map: GSM→farm→batcher tree walk, same result every time
-	var player_vocab = _get_player_vocab_emojis()
-	var bias_emojis = _get_simulated_vocab_emojis(biome)
-	var cached_obs = FactionStateMatcher.extract_observables(biome)
-	var cached_icon_map = QuestTheming._get_icon_map_payload(biome)
-	var biome_name = biome.biome_name if biome and biome.get("biome_name") else "Unknown"
-	var now_ms = Time.get_ticks_msec()
-
-	# Biome-native factions get vocabulary boost — makes "where you quest" matter
-	var native_faction_names: Array = []
-	if biome and biome.get("_biome_data") and biome._biome_data.get("native_factions"):
-		native_faction_names = biome._biome_data.native_factions
-
-	for faction_const in FactionDatabase.ALL_FACTIONS:
-		# Work with a mutable copy — ALL_FACTIONS is a const array of read-only dicts.
-		var faction: Dictionary = faction_const.duplicate()
-		# Tag native factions so resonance gate and scoring can boost them.
-		# Only tag when biome has native factions — biomes without (StarterForest,
-		# Village) leave all factions at equal resonance.
-		if not native_faction_names.is_empty():
-			faction["_is_biome_native"] = str(faction.get("name", "")) in native_faction_names
-			faction["_non_native_resonance"] = _non_native_resonance_factor
-		else:
-			faction.erase("_is_biome_native")
-			faction.erase("_non_native_resonance")
-		var quest = QuestTheming.generate_quest(
-			faction, biome, player_vocab, bias_emojis, self.economy,
-			cached_obs, cached_icon_map, _biome_config)
-
-		if quest.is_empty() or quest.has("error"):
-			continue
-		if not _is_valid_offer_with_vocab(quest, player_vocab):
-			continue
-
+	var now_ms: int = Time.get_ticks_msec()
+	for quest in _offer_from_contract_market(biome):
 		quest["id"] = next_quest_id
 		next_quest_id += 1
-		quest["biome"] = biome_name
-		quest["status"] = "offered"
 		quest["offered_at"] = now_ms
-
-		# Tag native-biome factions for scoring boost
-		var faction_name = str(quest.get("faction", ""))
-		quest["is_biome_native"] = faction_name in native_faction_names
-
-		quest["body"] = QuestTheming.generate_display_text(quest)
-		quest = _annotate_quest_context_with_vocab(quest, biome_name, player_vocab)
-
 		quests.append(quest)
-
 	return quests
 
 
@@ -456,7 +406,7 @@ func _is_valid_offer(quest: Dictionary) -> bool:
 
 
 func _is_valid_offer_with_vocab(quest: Dictionary, player_vocab: Array) -> bool:
-	"""Reject broken offers using pre-fetched player vocab (avoids GSM walk)."""
+	"""Reject broken offers using pre-fetched player signature (avoids GSM walk)."""
 	if quest.is_empty():
 		return false
 	var quest_type = quest.get("type", QuestTypes.Type.DELIVERY)
@@ -497,7 +447,7 @@ func _get_global_icon_map() -> Dictionary:
 	var active_farm = gsm.get_active_farm() if gsm and gsm.has_method("get_active_farm") else null
 	if active_farm and "biome_evolution_batcher" in active_farm:
 		var batcher = active_farm.biome_evolution_batcher
-		if batcher and batcher.has_method("get_global_icon_map"):
+		if batcher:
 			var icon_map = batcher.get_global_icon_map()
 			if icon_map is Dictionary:
 				return icon_map
@@ -595,7 +545,7 @@ func _finalize_quest_completion(quest_id: int, quest: Dictionary, reward, grante
 func complete_quest(quest_id: int) -> bool:
 	"""Complete an active quest
 
-	Deducts required resources and grants rewards (including vocabulary!)
+	Deducts required resources and grants rewards (including icon!)
 
 	Returns:
 		true if completed successfully
@@ -625,13 +575,26 @@ func complete_quest(quest_id: int) -> bool:
 		push_error("Failed to deduct resources for quest %d: need %d %s, have %d" % [quest_id, required_qty, required_emoji, player_has])
 		return false
 
-	# Generate rewards (vocabulary only)
-	var player_vocab = _get_player_vocab_emojis()
-	var reward = QuestRewards.generate_reward(quest, null, player_vocab)
+	var faction_name = str(quest.get("faction", "Unknown"))
 
-	var faction_name = quest.get("faction", "Unknown")
-	var granted_resources = _grant_resource_rewards(reward, faction_name)
+	# Resource reward: route through MarketLattice.exercise for substrate-derived
+	# 1/p × QC_RATIO reward. Falls back to fixed QuestRewards path if no market
+	# connection (biome not live, headless rig, etc.).
+	var granted_resources: Dictionary = {}
+	var lat = _get_farm_market_lattice()
+	if lat != null:
+		lat.synthesize_and_exercise(required_emoji, faction_name)
+		# synthesize_and_exercise already deposited the reward into economy
+	else:
+		var player_vocab = _get_player_vocab_emojis()
+		var reward_fallback = QuestRewards.generate_reward(quest, null, player_vocab)
+		granted_resources = _grant_resource_rewards(reward_fallback, faction_name)
+
+	# Vocabulary and standing always go through their own paths.
+	var player_vocab2 = _get_player_vocab_emojis()
+	var reward = QuestRewards.generate_reward(quest, null, player_vocab2)
 	_grant_vocabulary_rewards(reward, faction_name)
+	_apply_standing_deltas(faction_name, reward.standing_deltas if reward else {})
 
 	_finalize_quest_completion(quest_id, quest, reward, granted_resources)
 	return true
@@ -676,8 +639,40 @@ func fail_quest(quest_id: int, reason: String = "player_action") -> void:
 	# Stop timer
 	_stop_quest_timer(quest_id)
 
+	# Apply faction standing penalties for failure
+	var fname: String = quest.get("faction", "")
+	if fname != "":
+		var failure_deltas: Dictionary = QuestRewards._standing_deltas_for_quest(quest, false)
+		_apply_standing_deltas(fname, failure_deltas)
+
 	quest_failed.emit(quest_id, reason)
 	active_quests_changed.emit()
+
+
+func _get_farm_market_lattice():
+	var gsm = _get_gsm()
+	var farm = gsm.get_active_farm() if gsm and gsm.has_method("get_active_farm") else null
+	if farm == null:
+		return null
+	return farm.get_market_lattice() if farm.has_method("get_market_lattice") else null
+
+
+func _apply_standing_deltas(faction_name: String, deltas: Dictionary) -> void:
+	"""Forward per-channel reputation deltas to the active Farm.
+	No-op if Farm or faction unavailable."""
+	if faction_name == "" or deltas == null or deltas.is_empty():
+		return
+	var gsm = _get_gsm()
+	var farm = gsm.get_active_farm() if gsm and gsm.has_method("get_active_farm") else null
+	if farm and farm.has_method("apply_standing_deltas"):
+		farm.apply_standing_deltas(faction_name, deltas)
+
+
+func _offer_from_contract_market(biome) -> Array:
+	"""Delegate offer generation to the native ContractMarket substrate.
+	Returns pre-stamped quest dicts (sans id/offered_at — caller fills those)."""
+	var farm = _get_gsm().get_active_farm()
+	return farm._ensure_contract_market().propose_offers(biome, 2)
 
 # =============================================================================
 # QUEST READY/CLAIM (Non-delivery quests)
@@ -729,6 +724,7 @@ func claim_quest(quest_id: int) -> bool:
 	var faction_name = quest.get("faction", "Unknown")
 	var granted_resources = _grant_resource_rewards(reward, faction_name)
 	_grant_vocabulary_rewards(reward, faction_name)
+	_apply_standing_deltas(faction_name, reward.standing_deltas if reward else {})
 
 	_finalize_quest_completion(quest_id, quest, reward, granted_resources)
 	return true
@@ -828,6 +824,8 @@ func _update_shape_achieve_quest(quest: Dictionary, delta: float) -> void:
 	# Get current biome observables
 	var obs = get_biome_observables(current_biome)
 	var current_value = obs.get(observable_name, 0.0)
+	if not _is_known_observable_value(current_value):
+		return
 
 	# Check if target reached (respecting comparison operator)
 	var target_met = false
@@ -862,6 +860,8 @@ func _update_shape_maintain_quest(quest: Dictionary, delta: float) -> void:
 	# Get current biome observables
 	var obs = get_biome_observables(current_biome)
 	var current_value = obs.get(observable_name, 0.0)
+	if not _is_known_observable_value(current_value):
+		return
 
 	# Check if currently at target (respecting comparison operator)
 	var target_met = false
@@ -902,6 +902,8 @@ func _update_evolution_quest(quest: Dictionary, delta: float) -> void:
 	# Get current biome observables
 	var obs = get_biome_observables(current_biome)
 	var current_value = obs.get(observable_name, 0.0)
+	if not _is_known_observable_value(current_value):
+		return
 
 	# Initialize starting value if first update
 	if quest.get("initial_value") == null:
@@ -937,6 +939,8 @@ func _update_entanglement_quest(quest: Dictionary, delta: float) -> void:
 	# Get current biome observables
 	var obs = get_biome_observables(current_biome)
 	var current_coherence = obs.get("coherence", 0.0)
+	if not _is_known_observable_value(current_coherence):
+		return
 
 	# Check if target reached
 	if current_coherence >= target_coherence:
@@ -960,6 +964,8 @@ func _update_achieve_eigenstate_quest(quest: Dictionary, delta: float) -> void:
 	# Get current biome observables
 	var obs = get_biome_observables(current_biome)
 	var current_purity = obs.get("purity", 0.0)
+	if not _is_known_observable_value(current_purity):
+		return
 
 	# Check if eigenstate achieved (high purity = system in eigenstate)
 	if current_purity >= target_purity:
@@ -983,6 +989,8 @@ func _update_maintain_coherence_quest(quest: Dictionary, delta: float) -> void:
 	# Get current biome observables
 	var obs = get_biome_observables(current_biome)
 	var current_coherence = obs.get("coherence", 0.0)
+	if not _is_known_observable_value(current_coherence):
+		return
 
 	if current_coherence >= target_coherence:
 		# Increment elapsed time
@@ -1027,6 +1035,8 @@ func _update_induce_bell_state_quest(quest: Dictionary, delta: float) -> void:
 	if qc.has_method("get_coherence"):
 		var coh = qc.get_coherence(emoji_a, emoji_b)
 		coherence = coh.abs() if coh else 0.0
+	if coherence < 0.0:
+		return
 
 	if coherence >= threshold:
 		var quest_id = quest.get("id", -1)
@@ -1094,9 +1104,13 @@ func _update_collapse_deliberately_quest(quest: Dictionary, delta: float) -> voi
 	var probability = 0.0
 	if qc.has_method("get_population"):
 		probability = qc.get_population(target_emoji)
+	if probability < 0.0:
+		return
 
 	# Also check purity - high purity + high probability = collapsed state
 	var purity = qc.get_purity() if qc.has_method("get_purity") else 0.0
+	if purity < 0.0:
+		return
 
 	# Quest completes when: high purity AND target emoji dominates
 	if probability >= target_probability and purity >= 0.8:
@@ -1112,6 +1126,10 @@ func _update_collapse_deliberately_quest(quest: Dictionary, delta: float) -> voi
 func get_active_quest_count() -> int:
 	"""Get number of active quests"""
 	return active_quests.size()
+
+
+func _is_known_observable_value(value: float) -> bool:
+	return value >= 0.0
 
 func get_active_quests() -> Array:
 	"""Get all active quests as array"""

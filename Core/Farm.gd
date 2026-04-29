@@ -27,21 +27,37 @@ const BalanceService = preload("res://Core/GameMechanics/BalanceService.gd")
 const TerminalPoolClass = preload("res://Core/GameMechanics/TerminalPool.gd")
 const BiomeEvolutionBatcherClass = preload("res://Core/Environment/BiomeEvolutionBatcher.gd")
 const GameState = preload("res://Core/GameState/GameState.gd")
-const VocabularyEvolution = preload("res://Core/QuantumSubstrate/VocabularyEvolution.gd")
+const SignatureEvolution = preload("res://Core/QuantumSubstrate/SignatureEvolution.gd")
 const BiomeDiscoveryForecastService = preload("res://Core/Gameplay/BiomeDiscoveryForecastService.gd")
 const ProbeActions = preload("res://Core/Actions/ProbeActions.gd")
 const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")
 const VerboseHelper = preload("res://Core/Config/VerboseHelper.gd")
+const FactionDensityMatrix = preload("res://Core/Factions/FactionDensityMatrix.gd")
+const IconLexicon = preload("res://Core/Factions/IconLexicon.gd")
+const HamiltonianConfig = preload("res://Core/Config/HamiltonianConfig.gd")
+const FactionStanding = preload("res://Core/Factions/FactionStanding.gd")
+const AffinityGraphCls = preload("res://Core/Affinity/AffinityGraph.gd")
+const ContractMarket = preload("res://Core/Markets/ContractMarket.gd")
+const MarketLattice = preload("res://Core/Markets/MarketLattice.gd")
 
-# Icon system moved to faction-based IconRegistry (no preload needed)
+# Icon system moved to faction-based EmojiPhysicsRegistry (no preload needed)
 
 # Core simulation systems
 var grid: FarmGrid
 var economy  # FarmEconomy type
 var _loaded_biome_count: int = 0  # Track how many biomes loaded successfully
-var vocabulary_evolution: VocabularyEvolution  # Vocabulary evolution system
-var known_pairs: Array = []  # Player vocabulary pairs (canonical, farm-owned)
+var signature_evolution: SignatureEvolution  # Signature evolution system
+var known_pairs: Array = []  # Player icons (canonical, farm-owned)
 var reap_count: int = 0  # Number of global seasonal reaps completed
+var faction_density: FactionDensityMatrix = FactionDensityMatrix.new()  # ρ over factions; drives affinity
+var icon_lexicon: IconLexicon = null  # Pair-Icon registry (lazy-init on first use)
+var faction_standings: Dictionary = {}  # faction_name -> FactionStanding (6-channel rep; written by QuestManager, read by FactionAffinity)
+## Player's 12-qubit affinity substrate. Starts at |+⟩^⊗12 (no preferred pole);
+## evolves via icon-learn rotations and settlement Lindblad jumps. Read by
+## ContractMarket as the canonical player axial position.
+var player_affinity = AffinityGraphCls.from_uniform_superposition()
+var contract_market: ContractMarket = null  # Legacy single-biome market (ContractMarket / native engine bid path)
+var market_lattice: MarketLattice = null    # Phase VI tensor-pair market (commodity-to-commodity, biome ⊗ biome)
 var grid_config: GridConfig = null  # Single source of truth for grid layout
 var _bootstrap_pool: TerminalPoolClass = null  # Created at boot, transferred to instrument via set_instrument()
 var instrument = null  # QuantumInstrument (set via set_instrument() after boot)
@@ -51,7 +67,7 @@ var terminal_pool: TerminalPoolClass:
 	get: return instrument.terminal_pool if instrument and instrument.terminal_pool else _bootstrap_pool
 var biome_evolution_batcher: BiomeEvolutionBatcherClass = null  # Batched quantum evolution
 
-# Icon system now managed by faction-based IconRegistry (deprecated variables removed)
+# Icon system now managed by faction-based EmojiPhysicsRegistry (deprecated variables removed)
 
 # PERFORMANCE: Cached mushroom count (avoid O(n) iteration every frame)
 var _cached_mushroom_count: int = 0
@@ -264,7 +280,7 @@ func emit_action_signal(action: String, result: Dictionary, grid_pos: Vector2i =
 
 
 func _ready():
-	# Ensure IconRegistry exists in headless/script harnesses that do not build the
+	# Ensure EmojiPhysicsRegistry exists in headless/script harnesses that do not build the
 	# full autoload stack through the normal project boot path.
 	_ensure_iconregistry()
 
@@ -325,9 +341,9 @@ func _ready():
 		return
 
 	# NOTE: Operator rebuild now handled by BootManager in Stage 3A
-	# This ensures deterministic ordering: IconRegistry ready → rebuild operators → verify biomes
+	# This ensures deterministic ordering: EmojiPhysicsRegistry ready → rebuild operators → verify biomes
 
-	# Icon system now managed by faction-based IconRegistry
+	# Icon system now managed by faction-based EmojiPhysicsRegistry
 
 	# Grid already created (empty) - resize after biomes load
 	refresh_grid_for_biomes()
@@ -369,25 +385,25 @@ func _ready():
 			var biome_name = grid_config.biome_assignments[pos]
 			grid.assign_plot_to_biome(pos, biome_name)
 
-	# Get persistent vocabulary evolution from GameStateManager
-	# The vocabulary persists across farms/biomes and travels with the player
+	# Get persistent signature evolution from GameStateManager
+	# The signature persists across farms/biomes and travels with the player
 	# Safe access for headless mode where get_tree() may return null
 	var game_state_mgr = _get_gsm()
 	if game_state_mgr and game_state_mgr.has_method("get_vocabulary_evolution"):
-		vocabulary_evolution = game_state_mgr.get_vocabulary_evolution()
+		signature_evolution = game_state_mgr.get_vocabulary_evolution()
 	else:
-		# Fallback: create local vocabulary if GameStateManager not available
+		# Fallback: create local signature if GameStateManager not available
 		# This happens in test/standalone scenarios
-		var VocabularyEvolution = preload("res://Core/QuantumSubstrate/VocabularyEvolution.gd")
-		vocabulary_evolution = VocabularyEvolution.new()
-		add_child(vocabulary_evolution)
+		var SignatureEvolution = preload("res://Core/QuantumSubstrate/SignatureEvolution.gd")
+		signature_evolution = SignatureEvolution.new()
+		add_child(signature_evolution)
 
-	# Initialize farm-owned vocabulary (canonical player vocab)
+	# Initialize farm-owned signature (canonical player signature)
 	_ensure_vocabulary_initialized()
 
-	# Inject vocabulary reference into grid for tap validation
+	# Inject signature reference into grid for tap validation
 	if grid:
-		grid.vocabulary_evolution = vocabulary_evolution
+		grid.signature_evolution = signature_evolution
 
 	# Finalize biome evolution batcher setup
 	# (Batcher was created before biome loading, biomes registered during load)
@@ -408,7 +424,7 @@ func _ready():
 ## ============================================================================
 
 func _ensure_vocabulary_initialized() -> void:
-	"""Ensure farm has a valid starting vocabulary."""
+	"""Ensure farm has a valid starting signature."""
 	if known_pairs.is_empty():
 		set_known_pairs([{"north": "🌾", "south": "👥"}], true, false)
 	else:
@@ -416,7 +432,7 @@ func _ensure_vocabulary_initialized() -> void:
 
 
 func get_known_pairs() -> Array:
-	"""Return player-known vocab pairs (canonical)."""
+	"""Return player-known icons (canonical)."""
 	return known_pairs.duplicate(true)
 
 
@@ -429,12 +445,12 @@ func set_reap_count(value: int) -> void:
 
 
 func get_known_emojis() -> Array:
-	"""Return unique emojis from known vocab pairs."""
+	"""Return unique emojis from known icons."""
 	return GameState.derive_known_emojis_from_pairs(known_pairs)
 
 
 func set_known_pairs(pairs: Array, sync_player_vocab: bool = true, reset_player_vocab: bool = false) -> void:
-	"""Replace known vocab pairs with sanitized list."""
+	"""Replace known icons with sanitized list."""
 	var filtered: Array = []
 	var seen: Dictionary = {}
 	for pair in pairs:
@@ -460,7 +476,7 @@ func set_known_pairs(pairs: Array, sync_player_vocab: bool = true, reset_player_
 
 
 func discover_pair(north: String, south: String) -> bool:
-	"""Learn a new vocab pair (farm-owned source of truth)."""
+	"""Learn a new icon (farm-owned source of truth)."""
 	if north == "" or south == "" or north == south:
 		return false
 
@@ -483,11 +499,234 @@ func discover_pair(north: String, south: String) -> bool:
 	if player_vocab and player_vocab.has_method("learn_vocab_pair"):
 		player_vocab.learn_vocab_pair(north, south)
 	_sync_current_state_vocab()
+	_pump_for_icon(north, south)
 	return true
 
 
+func _ensure_icon_lexicon() -> IconLexicon:
+	if icon_lexicon == null:
+		icon_lexicon = IconLexicon.new()
+	return icon_lexicon
+
+
+func _ensure_contract_market() -> ContractMarket:
+	if contract_market == null:
+		contract_market = ContractMarket.new(self)
+	return contract_market
+
+
+func get_market_lattice() -> MarketLattice:
+	return _ensure_market_lattice()
+
+
+func _ensure_market_lattice() -> MarketLattice:
+	if market_lattice == null:
+		market_lattice = MarketLattice.new(self)
+	return market_lattice
+
+
+func get_or_create_standing(faction_name: String) -> FactionStanding:
+	"""Return the FactionStanding for `faction_name`, lazy-creating if absent.
+	Always returns a non-null record. Mutate via the returned object's channels.
+	"""
+	if faction_name == "":
+		return FactionStanding.new()
+	if not faction_standings.has(faction_name):
+		faction_standings[faction_name] = FactionStanding.new()
+	return faction_standings[faction_name]
+
+
+func apply_standing_deltas(faction_name: String, deltas: Dictionary) -> void:
+	"""Apply per-channel deltas to a faction's standing. Channel keys:
+	trust / debt / attention / access / legitimacy / entanglement.
+	Unknown keys are ignored. Faction record is created if needed.
+	"""
+	if faction_name == "" or deltas == null or deltas.is_empty():
+		return
+	var s = get_or_create_standing(faction_name)
+	var trust_delta: float = float(deltas.get("trust", 0.0))
+	for key in deltas:
+		var v: float = float(deltas[key])
+		match key:
+			"trust": s.trust += v
+			"debt": s.debt += v
+			"attention": s.attention += v
+			"access": s.access += v
+			"legitimacy": s.legitimacy += v
+			"entanglement": s.entanglement += v
+	# Settlement rotation: positive trust → player_affinity rotates toward the
+	# faction's bits (Hamiltonian, unitary — no decoherence). Factions live in
+	# pure-state Hamiltonian space; the player's substrate moves toward them
+	# the same way an icon-learn does, just with magnitude scaled by trust.
+	# Negative trust deltas don't actively push *away* — those are reflected
+	# in the standing channels, not the affinity rotation.
+	if trust_delta > 0.0:
+		_apply_settlement_rotation(faction_name, trust_delta)
+
+
+func _apply_settlement_rotation(faction_name: String, trust_delta: float) -> void:
+	if trust_delta <= 0.0 or faction_density == null:
+		return
+	var registry = faction_density.get_registry()
+	if registry == null:
+		return
+	var f = registry.get_by_name(faction_name)
+	if f == null or f.signature.is_empty():
+		return
+	# Substrate-derived θ: find a live biome qubit in the faction's signature
+	# and exercise a micro-contract on it. distribute_settlement_theta handles
+	# the per-faction weighted rotation — no fixed-rate constant needed.
+	var lat = _ensure_market_lattice()
+	for emoji in f.signature:
+		var result = lat.synthesize_and_exercise(str(emoji), faction_name)
+		if result.get("ok", false):
+			return
+
+
+## Phase VI symmetric Hamiltonian rotation distribution.
+##
+## Distributes a settlement event's total rotation θ across the player and all
+## participating factions, weighted by their normalized presence. Player has
+## tiny presence (||standings||) at start, so factions absorb almost all of θ
+## from each contract; high-engagement players get higher share. Symmetric
+## math, asymmetric rate — the user's "no special cases" principle.
+func distribute_settlement_theta(theta_total: float, contract) -> void:
+	if theta_total <= 0.0 or contract == null:
+		return
+	if faction_density == null:
+		return
+	var registry = faction_density.get_registry()
+	if registry == null:
+		return
+
+	var participants: Array = []
+	# Always include the contract's issuing faction.
+	var primary = registry.get_by_name(contract.faction)
+	if primary != null:
+		participants.append({"kind": "faction", "obj": primary})
+	# Include other factions whose affinity overlaps the biome above noise floor.
+	var biome = null
+	for b in grid.get_all_biomes().values() if (grid and grid.has_biomes()) else []:
+		var bname = b.get_biome_type() if b.has_method("get_biome_type") else (b.biome_name if "biome_name" in b else "")
+		if str(bname) == contract.biome_name:
+			biome = b
+			break
+	if biome != null and "affinity" in biome and biome.affinity != null:
+		for f in registry.get_all():
+			if f == primary or f == null or f.affinity == null:
+				continue
+			var k: float = float(f.affinity.overlap(biome.affinity))
+			if k >= HamiltonianConfig.PRESENCE_NOISE_FLOOR:
+				participants.append({"kind": "faction", "obj": f})
+	# Player participates if they have any standings.
+	if player_affinity != null:
+		participants.append({"kind": "player", "obj": null})
+
+	# Compute presences.
+	var presences: Array = []
+	var total_presence: float = 0.0
+	for p in participants:
+		var pres: float = 0.0
+		if p.kind == "player":
+			pres = _player_presence()
+		else:
+			pres = _faction_presence(p.obj)
+		presences.append(pres)
+		total_presence += pres
+	if total_presence <= 0.0:
+		return
+
+	# Distribute θ proportionally; rotate each toward biome signature.
+	var bits: PackedByteArray = (biome.affinity.principal_bits() if (biome != null and biome.affinity != null) else PackedByteArray())
+	if bits.size() != AffinityGraphCls.AXIS_COUNT:
+		return
+	for i in range(participants.size()):
+		var share: float = presences[i] / total_presence
+		var theta_i: float = theta_total * share
+		if theta_i <= 0.0:
+			continue
+		var p = participants[i]
+		var graph = null
+		if p.kind == "player":
+			graph = player_affinity
+		else:
+			graph = p.obj.affinity
+		if graph == null:
+			continue
+		for axis in range(AffinityGraphCls.AXIS_COUNT):
+			var signed_theta: float = theta_i if int(bits[axis]) == 1 else -theta_i
+			graph.rotate_axis(axis, signed_theta)
+
+
+func _player_presence() -> float:
+	# L2 norm across all faction standing scalars. Starts at 0; grows naturally.
+	if faction_standings == null or faction_standings.is_empty():
+		return 0.0
+	var sum_sq: float = 0.0
+	for fname in faction_standings:
+		var s = faction_standings[fname]
+		if s == null:
+			continue
+		var v: float = float(s.scalar()) if s.has_method("scalar") else 0.0
+		sum_sq += v * v
+	return sqrt(sum_sq)
+
+
+func _faction_presence(f) -> float:
+	if f == null:
+		return 0.0
+	var icons_owned: int = 0
+	if icon_lexicon != null and icon_lexicon.has_method("get_icons_for_faction"):
+		icons_owned = icon_lexicon.get_icons_for_faction(f.name).size()
+	var biomes_present: int = 0
+	if grid != null and grid.has_biomes():
+		for b in grid.get_all_biomes().values():
+			if b.has_method("get_biome_type"):
+				if "native_factions" in b and b.native_factions is Array and f.name in b.native_factions:
+					biomes_present += 1
+	var loudness: float = 0.0
+	if faction_density != null and faction_density.has_method("get_weight"):
+		loudness = float(faction_density.get_weight(f.name))
+	return float(icons_owned) + float(biomes_present) + loudness
+
+
+func _pump_for_icon(north: String, south: String) -> void:
+	"""When a icon is learned, pump FactionDensityMatrix:
+	  - ICON_PUMP_OWNER_RATE on the Icon's owner faction (if any)
+	  - ICON_PUMP_SHARED_RATE on every other faction whose sig contains either pole
+	  - register anonymous in lexicon if no faction owns the pair
+	"""
+	var lex = _ensure_icon_lexicon()
+	var icon: Dictionary = lex.find_icon_by_pair(north, south)
+	var owner: String = ""
+	if icon.is_empty():
+		var anon = lex.register_anonymous(north, south)
+		owner = anon.get("owner_faction", "")
+	else:
+		owner = icon.get("owner_faction", "")
+
+	if owner != "":
+		faction_density.pump(owner, HamiltonianConfig.ICON_PUMP_OWNER_RATE)
+
+	var touched: Dictionary = {}
+	for f in faction_density.get_registry().get_factions_for_emoji(north):
+		touched[f.name] = true
+	for f in faction_density.get_registry().get_factions_for_emoji(south):
+		touched[f.name] = true
+	if owner != "":
+		touched.erase(owner)
+	for fname in touched:
+		faction_density.pump(fname, HamiltonianConfig.ICON_PUMP_SHARED_RATE)
+
+	# Icon-learn affinity event: exercise a micro-contract on the icon's north
+	# emoji to get a substrate-derived θ via distribute_settlement_theta.
+	# Owner-less icons don't kick (no faction context to distribute toward).
+	if owner != "":
+		_ensure_market_lattice().synthesize_and_exercise(north, owner)
+
+
 func get_pair_for_emoji(emoji: String) -> Variant:
-	"""Return the vocab pair containing an emoji (or null)."""
+	"""Return the icon containing an emoji (or null)."""
 	for pair in known_pairs:
 		if pair.get("north", "") == emoji or pair.get("south", "") == emoji:
 			return pair
@@ -495,7 +734,7 @@ func get_pair_for_emoji(emoji: String) -> Variant:
 
 
 func _sync_player_vocabulary(reset_first: bool) -> void:
-	"""Keep PlayerVocabulary QC in sync with farm-owned vocabulary."""
+	"""Keep PlayerSignature QC in sync with farm-owned signature."""
 	var player_vocab = _get_player_vocab()
 	if not player_vocab:
 		return
@@ -510,7 +749,7 @@ func _sync_player_vocabulary(reset_first: bool) -> void:
 
 
 func _sync_current_state_vocab() -> void:
-	"""Mirror canonical farm vocabulary into the active GameState when present."""
+	"""Mirror canonical farm signature into the active GameState when present."""
 	var gsm = _get_gsm()
 	if gsm and "current_state" in gsm and gsm.current_state:
 		gsm.current_state.known_pairs = get_known_pairs()
@@ -520,9 +759,9 @@ func _sync_current_state_vocab() -> void:
 func rebuild_all_biome_operators() -> void:
 	"""Rebuild quantum operators for all biomes
 
-	Called by BootManager in Stage 3A after IconRegistry is confirmed ready.
+	Called by BootManager in Stage 3A after EmojiPhysicsRegistry is confirmed ready.
 	This ensures all biomes have complete Hamiltonian and Lindblad operators
-	even if they initialized before IconRegistry loaded all icons.
+	even if they initialized before EmojiPhysicsRegistry loaded all icons.
 	"""
 	if not biome_enabled:
 		return
@@ -587,15 +826,39 @@ func _process(delta: float):
 			_verbose.debug("trace", "🚜", "Farm Process Trace: Total %d us (Grid: %d, Compost: %d)" % [t2 - t0, t1 - t0, t2 - t1])
 
 
+var _player_shell_cache = null  # Cached PlayerShell ref for pause flag.
+
+
 func _physics_process(delta: float) -> void:
-	"""Physics simulation - runs at fixed 20Hz"""
+	"""Physics simulation - runs at fixed 20Hz.
+
+	Short-circuits when PlayerShell.paused is true (E key sets pause,
+	F key clears it). See UI/Core/KEYBOARD_GRAMMAR.md.
+	"""
+	if _is_globally_paused():
+		return
+
 	# BATCHED QUANTUM EVOLUTION (moved here for visual/physics separation)
 	# Runs at fixed 20Hz, independent of visual framerate (60+ FPS)
 	if biome_evolution_batcher:
 		biome_evolution_batcher.physics_process(delta)
 
+	# Faction density matrix Lindblad decay — off-diagonal coherences
+	# (alliance memory built by harvests) fade over ~5 min wall time.
+	# Diagonal untouched: affinity is preserved until the next pop event.
+	if faction_density:
+		faction_density.apply_lindblad_decay(delta)
+
 	# Lindblad pump/drain effects
 	_process_lindblad_effects(delta)
+
+
+func _is_globally_paused() -> bool:
+	if _player_shell_cache == null or not is_instance_valid(_player_shell_cache):
+		_player_shell_cache = InstrumentLocator.resolve_player_shell(self)
+	if _player_shell_cache and "paused" in _player_shell_cache:
+		return bool(_player_shell_cache.paused)
+	return false
 
 
 func time_skip_phrames(phrames: int, delta: float = PhysicsConfig.PHRAME_DT) -> Dictionary:
@@ -657,70 +920,71 @@ func _process_lindblad_effects(delta: float) -> void:
 	if not grid:
 		return
 
-	if not grid or grid.get_plot_count() == 0:
+	if not grid or not grid.has_biomes():
 		return
 	var rainbow_mode = _is_rainbow_drain_mode()
 	var processed_structural_flux: Dictionary = {}
 	var harvestable_drain_biomes: Dictionary = {}
 
-	for pos in grid.get_plot_positions():
-		var plot = grid.get_plot(pos)
-		if not plot:
-			continue
-		if not plot.lindblad_pump_active and not plot.lindblad_drain_active:
-			continue
-
-		var biome = grid.get_biome_for_plot(pos)
+	for biome_name in grid.get_biome_names():
+		var biome = grid.get_biome(str(biome_name))
 		if not biome or not biome.quantum_computer:
+			continue
+		var qc = biome.quantum_computer
+		if not ("register_infrastructure" in qc) or qc.register_infrastructure.is_empty():
 			continue
 		var effective_delta = _get_lindblad_effective_delta_for_biome(biome, delta)
 		if effective_delta <= 0.0:
 			continue
-		var biome_name = biome.get_biome_type()
-		if biome_name != "" and not processed_structural_flux.has(biome_name):
-			_accumulate_sink_flux_from_biome_rates(biome_name, biome, effective_delta)
-			processed_structural_flux[biome_name] = true
+		for reg_id in qc.register_infrastructure.keys():
+			var infra: Dictionary = qc.register_infrastructure[reg_id]
+			if not bool(infra.get("lindblad_pump_active", false)) and not bool(infra.get("lindblad_drain_active", false)):
+				continue
 
-		var pair = _get_lindblad_pair_for_plot(plot, pos)
-		if pair.is_empty():
-			continue
+			if str(biome_name) != "" and not processed_structural_flux.has(str(biome_name)):
+				_accumulate_sink_flux_from_biome_rates(str(biome_name), biome, effective_delta)
+				processed_structural_flux[str(biome_name)] = true
 
-		if plot.lindblad_pump_active:
-			var target = pair.get("north", "")
-			if target != "":
-				biome.quantum_computer.apply_drive(target, plot.lindblad_pump_rate, effective_delta)
+			var pair = _get_lindblad_pair_for_register(biome, int(reg_id))
+			if pair.is_empty():
+				continue
 
-		if plot.lindblad_drain_active:
-			var north = pair.get("north", "")
-			var south = pair.get("south", "")
-			var axis_emoji = north if north != "" else south
-			if axis_emoji != "" and biome.quantum_computer.register_map.has(axis_emoji):
-				var sample_emoji = north if north != "" and biome.quantum_computer.register_map.has(north) else axis_emoji
-				var before_pop = biome.quantum_computer.get_population(sample_emoji)
-				var before_flux = 0.0
-				if biome.quantum_computer.has_method("get_sink_flux"):
-					before_flux = float(biome.quantum_computer.get_sink_flux(axis_emoji))
+			if bool(infra.get("lindblad_pump_active", false)):
+				var target = pair.get("north", "")
+				if target != "":
+					qc.apply_drive(target, float(infra.get("lindblad_pump_rate", 0.5)), effective_delta)
 
-				var qubit_idx = biome.quantum_computer.register_map.qubit(axis_emoji)
-				biome.quantum_computer.apply_decay(qubit_idx, plot.lindblad_drain_rate, effective_delta)
+			if bool(infra.get("lindblad_drain_active", false)):
+				var north = pair.get("north", "")
+				var south = pair.get("south", "")
+				var axis_emoji = north if north != "" else south
+				if axis_emoji != "" and qc.register_map.has(axis_emoji):
+					var sample_emoji = north if north != "" and qc.register_map.has(north) else axis_emoji
+					var before_pop = qc.get_population(sample_emoji)
+					var before_flux = 0.0
+					if qc.has_method("get_sink_flux"):
+						before_flux = float(qc.get_sink_flux(axis_emoji))
 
-				var can_harvest = _is_plot_drain_harvest_visible(plot)
-				if rainbow_mode:
-					if can_harvest and biome_name != "":
-						harvestable_drain_biomes[biome_name] = biome
-				elif can_harvest:
-					var drained_probability = 0.0
-					if biome.quantum_computer.has_method("get_sink_flux"):
-						var after_flux = float(biome.quantum_computer.get_sink_flux(axis_emoji))
-						drained_probability = max(0.0, after_flux - before_flux)
-						if drained_probability > 0.0 and biome.quantum_computer.has_method("consume_sink_flux"):
-							drained_probability = float(biome.quantum_computer.consume_sink_flux(axis_emoji, drained_probability))
-					if drained_probability <= 0.0:
-						var after_pop = biome.quantum_computer.get_population(sample_emoji)
-						drained_probability = max(0.0, before_pop - after_pop)
-					if drained_probability <= 0.0:
-						drained_probability = max(0.0, before_pop) * plot.lindblad_drain_rate * effective_delta
-					_accumulate_lindblad_harvest(plot, axis_emoji, drained_probability)
+					var qubit_idx = qc.register_map.qubit(axis_emoji)
+					qc.apply_decay(qubit_idx, float(infra.get("lindblad_drain_rate", 0.5)), effective_delta)
+
+					var can_harvest = bool(infra.get("lindblad_harvest_visible", false))
+					if rainbow_mode:
+						if can_harvest and str(biome_name) != "":
+							harvestable_drain_biomes[str(biome_name)] = biome
+					elif can_harvest:
+						var drained_probability = 0.0
+						if qc.has_method("get_sink_flux"):
+							var after_flux = float(qc.get_sink_flux(axis_emoji))
+							drained_probability = max(0.0, after_flux - before_flux)
+							if drained_probability > 0.0 and qc.has_method("consume_sink_flux"):
+								drained_probability = float(qc.consume_sink_flux(axis_emoji, drained_probability))
+						if drained_probability <= 0.0:
+							var after_pop = qc.get_population(sample_emoji)
+							drained_probability = max(0.0, before_pop - after_pop)
+						if drained_probability <= 0.0:
+							drained_probability = max(0.0, before_pop) * float(infra.get("lindblad_drain_rate", 0.5)) * effective_delta
+						_accumulate_lindblad_harvest_infra(qc, int(reg_id), axis_emoji, drained_probability)
 
 	if rainbow_mode and not harvestable_drain_biomes.is_empty():
 		_harvest_rainbow_sink_flux(harvestable_drain_biomes)
@@ -761,12 +1025,37 @@ func _accumulate_sink_flux_from_biome_rates(biome_name: String, biome, dt: float
 		biome.quantum_computer.accumulate_sink_flux_from_rates(sink_rates, dt)
 
 
-func _is_plot_drain_harvest_visible(plot) -> bool:
-	if not plot:
-		return false
-	if plot.has_method("_get_infra_field"):
-		return bool(plot._get_infra_field("lindblad_harvest_visible", false))
-	return false
+func _get_lindblad_pair_for_register(biome, register_id: int) -> Dictionary:
+	if not biome or register_id < 0:
+		return {}
+	if biome.has_method("get_register_emoji_pair"):
+		return biome.get_register_emoji_pair(register_id)
+	if biome.viz_cache and biome.viz_cache.has_method("get_axis"):
+		var axis = biome.viz_cache.get_axis(register_id)
+		if axis is Dictionary:
+			return {"north": str(axis.get("north", "")), "south": str(axis.get("south", ""))}
+	return {}
+
+
+func _accumulate_lindblad_harvest_infra(qc, register_id: int, emoji: String, drained_probability: float) -> void:
+	if not economy or not qc or register_id < 0 or emoji == "":
+		return
+	var q2c = EconomyConstants.get_quantum_to_credits(economy)
+	var credits = max(0.0, drained_probability) * q2c
+	if credits <= 0.0:
+		return
+
+	var accum = float(qc.get_register_infra_field(register_id, "lindblad_drain_accumulator", 0.0)) + credits
+	if _verbose and Engine.get_process_frames() % 120 == 0:
+		_verbose.debug("lindblad", "accum", "register %d %s=%.6f" % [register_id, emoji, accum])
+	var whole_credits = int(accum)
+	if whole_credits <= 0:
+		qc.set_register_infra_field(register_id, "lindblad_drain_accumulator", accum)
+		return
+
+	accum -= whole_credits
+	qc.set_register_infra_field(register_id, "lindblad_drain_accumulator", accum)
+	economy.add_resource(emoji, whole_credits, "lindblad_drain")
 
 
 func _is_rainbow_drain_mode() -> bool:
@@ -803,33 +1092,6 @@ func _harvest_rainbow_sink_flux(active_drain_biomes: Dictionary) -> void:
 				economy.add_resource(str(emoji), whole, "lindblad_rainbow")
 				accum -= whole
 			lindblad_rainbow_accumulators[emoji] = maxf(0.0, accum)
-
-
-func _accumulate_lindblad_harvest(plot, emoji: String, drained_probability: float) -> void:
-	if not economy or emoji == "":
-		return
-
-	var q2c = EconomyConstants.get_quantum_to_credits(economy)
-	var credits = max(0.0, drained_probability) * q2c
-	if credits <= 0.0:
-		return
-
-	plot.lindblad_drain_accumulator += credits
-	if _verbose and Engine.get_process_frames() % 120 == 0:
-		_verbose.debug("lindblad", "⏱", "accumulator %s=%.6f" % [emoji, plot.lindblad_drain_accumulator])
-	var whole_credits = int(plot.lindblad_drain_accumulator)
-	if whole_credits <= 0:
-		return
-
-	plot.lindblad_drain_accumulator -= whole_credits
-	economy.add_resource(emoji, whole_credits, "lindblad_drain")
-
-
-func _get_lindblad_pair_for_plot(plot, _pos: Vector2i) -> Dictionary:
-	"""Resolve emoji pair for a plot (delegates to terminal when attached)."""
-	if plot and plot.is_active():
-		return plot.get_plot_emojis()
-	return {}
 
 
 func _process_mushroom_composting(delta: float):
@@ -1519,9 +1781,9 @@ func _get_plot_biome(pos: Vector2i):
 
 
 func _ensure_iconregistry() -> void:
-	"""Ensure IconRegistry exists in harnesses that bypass normal autoload boot.
+	"""Ensure EmojiPhysicsRegistry exists in harnesses that bypass normal autoload boot.
 
-	In normal gameplay: IconRegistry is autoload at /root/IconRegistry
+	In normal gameplay: EmojiPhysicsRegistry is autoload at /root/EmojiPhysicsRegistry
 	In script/headless harnesses: create a local root child if needed
 	"""
 	var icon_registry = _get_icon_registry_autoload()
@@ -1529,26 +1791,26 @@ func _ensure_iconregistry() -> void:
 		# Already exists (normal game mode)
 		return
 
-	# Harness mode: create IconRegistry on demand
-	var IconRegistryScript = load("res://Core/QuantumSubstrate/IconRegistry.gd")
-	if not IconRegistryScript:
-		push_error("Failed to load IconRegistry.gd!")
+	# Harness mode: create EmojiPhysicsRegistry on demand
+	var EmojiPhysicsRegistryScript = load("res://Core/QuantumSubstrate/EmojiPhysicsRegistry.gd")
+	if not EmojiPhysicsRegistryScript:
+		push_error("Failed to load EmojiPhysicsRegistry.gd!")
 		return
 
-	icon_registry = IconRegistryScript.new()
-	icon_registry.name = "IconRegistry"
+	icon_registry = EmojiPhysicsRegistryScript.new()
+	icon_registry.name = "EmojiPhysicsRegistry"
 	# Use get_tree() if available, otherwise just initialize locally
 	var tree = get_tree()
 	if tree and tree.root:
 		tree.root.add_child(icon_registry)
 		icon_registry._ready()  # Trigger initialization
 		if _verbose:
-			_verbose.info("test", "✓", "Test mode: IconRegistry initialized with %d icons" % icon_registry.icons.size())
+			_verbose.info("test", "✓", "Test mode: EmojiPhysicsRegistry initialized with %d icons" % icon_registry.icons.size())
 	else:
 		# Headless mode without scene tree - just initialize locally
 		icon_registry._ready()
 		if _verbose:
-			_verbose.info("test", "✓", "Headless mode: IconRegistry initialized with %d icons" % icon_registry.icons.size())
+			_verbose.info("test", "✓", "Headless mode: EmojiPhysicsRegistry initialized with %d icons" % icon_registry.icons.size())
 
 
 ## Private Helpers - Resource & Economy Management
