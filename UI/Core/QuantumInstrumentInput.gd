@@ -1329,33 +1329,60 @@ func _execute_action(action_name: String) -> Dictionary:
 ## Rotating pool of one-line hints the Socialite "Tip" verb whispers into
 ## the corner toast. Lightweight by design — the social/quest layer can
 ## replace this with context-aware lines later.
-const SOCIALITE_HINTS: Array[String] = [
-	"[b]Spark (4)[/b] casts Lindblad pulses — try [b]R[/b] (Pump) on a hot register, but bring [b]✨[/b].",
-	"[b]Druid (0)[/b] holds the unitary gates. Tab through X / Y / Z and [b]E[/b] for Hadamard.",
-	"[b]Operator (9)[/b] is where you wire entangling gates. Check two plots, press [b]Q[/b].",
-	"[b]Scientist (8)[/b] is the probe loop: [b]Q[/b] explore → [b]E[/b] measure → [b]R[/b] pop.",
-	"[b]Captain (7)[/b] discovers and culls biomes. Watch the cost on the cull.",
-	"[b]Icon (5)[/b] injects a dual-emoji qubit from your own faction signature.",
-	"Re-press the active hat key to drop back to [b]Ace[/b] — the unfocused default.",
-	"Tab cycles a frame's sub-mode. [b]F[/b] is reserved for play; it isn't a navigation key.",
-	"Hold [b]Shift[/b] while pressing Q/E/R to apply the verb to every checked plot at once.",
+const _MARKET_QUIP_TEMPLATES: Array[String] = [
+	"The market whispers: [b]%s[/b] is thin on the ground. Worth stocking up.",
+	"Scarce right now: [b]%s[/b]. A well-timed acquisition could pay off.",
+	"I'm hearing [b]%s[/b] is harder to come by than it looks. Just saying.",
+	"Low reserves on [b]%s[/b]. The smart money moves early.",
 ]
 
-var _socialite_hint_idx: int = 0
+var _market_quip_idx: int = 0
 
 
 func _execute_socialite_hint() -> Dictionary:
-	"""Whisper a Socialite tip into the corner-toast stack. Cycles through
-	SOCIALITE_HINTS so repeated F presses give fresh lines."""
-	if SOCIALITE_HINTS.is_empty():
-		return {"success": false, "error": "no_hints", "message": "No Socialite hints loaded"}
-	var hint_text: String = SOCIALITE_HINTS[_socialite_hint_idx % SOCIALITE_HINTS.size()]
-	_socialite_hint_idx += 1
+	"""Scan local biome emojis vs wallet; surface the most depleted as a toast tip."""
 	var shell := _resolve_player_shell()
-	if shell and shell.has_method("show_hint"):
-		shell.show_hint("[color=#cfe6ff]🤝 Socialite:[/color] " + hint_text)
-		return {"success": true, "hint": hint_text}
-	return {"success": false, "error": "no_player_shell", "message": "PlayerShell unavailable for hint toast"}
+	if not shell or not shell.has_method("show_hint"):
+		return {"success": false, "error": "no_player_shell", "message": "PlayerShell unavailable"}
+
+	var hint_text := _build_market_tip()
+	shell.show_hint("[color=#cfe6ff]🤝 Socialite:[/color] " + hint_text)
+	return {"success": true, "hint": hint_text}
+
+
+func _build_market_tip() -> String:
+	"""Find the most depleted emoji among biome poles + socialite contract resources."""
+	# Gather candidate emojis: all poles in active biomes
+	var candidates: Array[String] = []
+	if farm and farm.grid:
+		for biome_name in farm.grid.get_biome_names():
+			var biome = farm.grid.get_biome(biome_name)
+			if biome and biome.viz_cache:
+				for emoji in biome.viz_cache.get_emojis():
+					if emoji != "" and not candidates.has(emoji):
+						candidates.append(emoji)
+	# Also include the socialite contract tokens themselves
+	for token in ["🧺", "🤝", "📜"]:
+		if not candidates.has(token):
+			candidates.append(token)
+
+	if candidates.is_empty():
+		return "Nothing to report — the markets are quiet today."
+
+	# Find which candidate has the lowest balance in the wallet
+	var economy = ActionCostRuntime.resolve_economy(farm)
+	var wallet: Dictionary = economy.emoji_credits if economy and "emoji_credits" in economy else {}
+	var poorest_emoji := candidates[0]
+	var poorest_amount: float = float(wallet.get(poorest_emoji, 0))
+	for emoji in candidates:
+		var amount := float(wallet.get(emoji, 0))
+		if amount < poorest_amount:
+			poorest_amount = amount
+			poorest_emoji = emoji
+
+	var template: String = _MARKET_QUIP_TEMPLATES[_market_quip_idx % _MARKET_QUIP_TEMPLATES.size()]
+	_market_quip_idx += 1
+	return template % poorest_emoji
 
 
 func _resolve_player_shell() -> Node:
