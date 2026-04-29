@@ -4,7 +4,7 @@ extends SceneTree
 ## Run: godot --headless --script tests/test_submenu_integration.gd
 
 const GateSelectionSubmenu = preload("res://UI/Core/Submenus/GateSelectionSubmenu.gd")
-const VocabInjectionSubmenu = preload("res://UI/Core/Submenus/VocabInjectionSubmenu.gd")
+const IconInjectionSubmenu = preload("res://UI/Core/Submenus/IconInjectionSubmenu.gd")
 
 var passed = 0
 var failed = 0
@@ -68,7 +68,7 @@ func test_gate_selection_integration():
 
 
 func test_vocab_injection_integration():
-	"""Test VocabInjectionSubmenu with mock data."""
+	"""Test IconInjectionSubmenu with mock data."""
 	print("\n[VocabInjection Integration]")
 
 	var mock_biome = MockBiome.new()
@@ -80,9 +80,9 @@ func test_vocab_injection_integration():
 		{"north": "🐄", "south": "🥛"}
 	]
 
-	var submenu = VocabInjectionSubmenu.generate_submenu(mock_biome, mock_farm, 0)
+	var submenu = IconInjectionSubmenu.generate_submenu(mock_biome, mock_farm, 0)
 
-	assert_eq(submenu["name"], "vocab_injection", "Submenu name")
+	assert_eq(submenu["name"], "icon_injection", "Submenu name")
 	assert_true(submenu.has("actions"), "Has actions")
 
 	if submenu["total_options"] > 0:
@@ -151,7 +151,7 @@ func test_empty_state_handling():
 
 	# Empty vocab
 	mock_farm.known_pairs = []
-	var no_vocab = VocabInjectionSubmenu.generate_submenu(mock_biome, mock_farm, 0)
+	var no_vocab = IconInjectionSubmenu.generate_submenu(mock_biome, mock_farm, 0)
 	assert_true(no_vocab.get("_disabled", false), "No vocab: disabled")
 	print("  ✓ Empty vocab message: %s" % no_vocab.get("_message", ""))
 
@@ -170,7 +170,7 @@ func test_cost_integration():
 		{"north": "🌱", "south": "🌾"}
 	]
 
-	var submenu = VocabInjectionSubmenu.generate_submenu(mock_biome, mock_farm, 0)
+	var submenu = IconInjectionSubmenu.generate_submenu(mock_biome, mock_farm, 0)
 
 	if submenu["total_options"] > 0 and submenu["actions"].has("Q"):
 		var q = submenu["actions"]["Q"]

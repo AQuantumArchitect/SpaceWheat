@@ -66,12 +66,6 @@ signal biome_switched(old_biome: String, new_biome: String)
 ## New canonical signals — frame-keyed.
 signal frame_changed(frame: String)
 signal frame_mode_changed(frame: String, mode_index: int, mode_label: String)
-## Legacy alias signals — kept so existing display layers (UIContextController,
-## etc.) continue to receive a refresh notification while they migrate. Each
-## fires alongside its frame-keyed counterpart, with the int derived via
-## ToolConfig.FRAME_TO_GROUP.
-signal tool_group_changed(group: int)
-signal mode_cycled(group: int, mode_index: int, mode_label: String)
 signal submenu_changed(submenu_name: String, submenu_actions: Dictionary)
 signal plot_checked(grid_pos: Vector2i, is_checked: bool)  # Multi-select checkbox toggled
 
@@ -303,8 +297,6 @@ func _select_frame_hat(frame_name: String) -> void:
 	"""Select an archetype frame (hat row 4-0). Empty string = Ace."""
 	ToolConfig.select_frame(frame_name)
 	frame_changed.emit(frame_name)
-	# Legacy alias signal — display layer compat during transition.
-	tool_group_changed.emit(int(ToolConfig.FRAME_TO_GROUP.get(frame_name, 0)))
 
 	if frame_name == ToolConfig.FRAME_ACE:
 		_verbose.info("input", "~", "Frame: Ace (default toolkit)")
@@ -338,8 +330,6 @@ func _on_mode_changed(frame_or_group, mode_index: int) -> void:
 	var mode_label = ToolConfig.get_frame_mode_label(frame_name)
 	var mode_emoji = ToolConfig.get_frame_mode_emoji(frame_name)
 	frame_mode_changed.emit(frame_name, mode_index, mode_label)
-	# Legacy alias signal — display layer compat during transition.
-	mode_cycled.emit(int(ToolConfig.FRAME_TO_GROUP.get(frame_name, 0)), mode_index, mode_label)
 	_verbose.info("input", "~", "Mode: %s (%s)" % [mode_label, mode_emoji])
 
 
@@ -1597,18 +1587,11 @@ func get_current_frame() -> String:
 	return ToolConfig.get_current_frame()
 
 
-func get_current_tool_group() -> int:
-	"""Legacy int-keyed accessor — translates current frame via FRAME_TO_GROUP."""
-	return ToolConfig.get_current_group()
-
-
 func get_current_tool_info() -> Dictionary:
-	"""Get info about the active archetype frame. Includes the legacy
-	`group` int for any consumer still keyed on tool group numbers."""
+	"""Get info about the active archetype frame."""
 	var frame_name: String = ToolConfig.get_current_frame()
 	return {
 		"frame": frame_name,
-		"group": int(ToolConfig.FRAME_TO_GROUP.get(frame_name, 0)),
 		"name": ToolConfig.get_frame_name_label(frame_name),
 		"emoji": ToolConfig.get_frame_emoji(frame_name),
 		"time_scale": ToolConfig.get_frame_time_scale(frame_name),

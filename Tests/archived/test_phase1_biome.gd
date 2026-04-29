@@ -6,7 +6,7 @@ extends SceneTree
 const Biome = preload("res://Core/Environment/Biome.gd")
 
 var test_results = []
-var biome: Biome = null
+var biome: BioticFluxBiome = null
 var separator = "============================================================"
 
 func _initialize():

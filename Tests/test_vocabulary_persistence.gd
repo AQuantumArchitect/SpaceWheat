@@ -1,14 +1,14 @@
 #!/usr/bin/env -S godot --headless -s
 extends SceneTree
 
-## Test: Vocabulary Persistence Across Save/Load
+## Test: Signature Persistence Across Save/Load
 ##
-## Verifies that discovered vocabulary persists across:
+## Verifies that discovered signature persists across:
 ## 1. Serialize/deserialize cycle (in-memory)
 ## 2. Game save/load cycle (disk persistence)
 ## 3. Farm/biome switches (session persistence)
 
-const VocabularyEvolution = preload("res://Core/QuantumSubstrate/VocabularyEvolution.gd")
+const SignatureEvolution = preload("res://Core/QuantumSubstrate/SignatureEvolution.gd")
 const GameState = preload("res://Core/GameState/GameState.gd")
 
 var test_count = 0
@@ -86,7 +86,7 @@ func print_summary():
 
 func _test_serialization_round_trip() -> bool:
 	"""Test that serialize → deserialize preserves exact state"""
-	var vocab = VocabularyEvolution.new()
+	var vocab = SignatureEvolution.new()
 	vocab._ready()
 
 	# Simulate some evolution
@@ -107,7 +107,7 @@ func _test_serialization_round_trip() -> bool:
 	var serialized = vocab.serialize()
 
 	# Create new instance and deserialize
-	var vocab2 = VocabularyEvolution.new()
+	var vocab2 = SignatureEvolution.new()
 	vocab2._ready()
 	vocab2.deserialize(serialized)
 
@@ -125,7 +125,7 @@ func _test_serialization_round_trip() -> bool:
 
 func _test_vocabulary_memory_persistence() -> bool:
 	"""Test that vocabulary persists in a singleton-like pattern"""
-	var vocab1 = VocabularyEvolution.new()
+	var vocab1 = SignatureEvolution.new()
 	vocab1._ready()
 
 	# Evolve and capture state
@@ -138,7 +138,7 @@ func _test_vocabulary_memory_persistence() -> bool:
 	print("   📊 Vocab1 discovered: %d" % count1)
 
 	# Create second instance, deserialize vocab1's state
-	var vocab2 = VocabularyEvolution.new()
+	var vocab2 = SignatureEvolution.new()
 	vocab2._ready()
 	vocab2.deserialize(state1)
 
@@ -167,7 +167,7 @@ func _test_vocabulary_memory_persistence() -> bool:
 func _test_gamestate_integration() -> bool:
 	"""Test that GameState properly stores and retrieves vocabulary"""
 	# Create vocabulary and evolve it
-	var vocab = VocabularyEvolution.new()
+	var vocab = SignatureEvolution.new()
 	vocab._ready()
 
 	for i in range(50):
@@ -180,21 +180,21 @@ func _test_gamestate_integration() -> bool:
 	var state = GameState.new()
 
 	# Simulate capture (what GameStateManager does)
-	state.vocabulary_state = vocab.serialize()
-	print("   📊 Captured vocabulary to GameState")
+	state.signature_state = vocab.serialize()
+	print("   📊 Captured signature_state to GameState")
 
 	# Verify it's in the state
-	var has_vocab = state.vocabulary_state.has("discovered_vocabulary")
-	var vocab_in_state = state.vocabulary_state.get("discovered_vocabulary", []).size()
+	var has_vocab = state.signature_state.has("discovered_vocabulary")
+	var vocab_in_state = state.signature_state.get("discovered_vocabulary", []).size()
 
-	print("   ✓ Has vocabulary_state: %s" % has_vocab)
+	print("   ✓ Has signature_state: %s" % has_vocab)
 	print("   ✓ Vocabulary in state: %d" % vocab_in_state)
 
 	# Create new vocabulary and restore from state
-	var vocab2 = VocabularyEvolution.new()
+	var vocab2 = SignatureEvolution.new()
 	vocab2._ready()
 
-	vocab2.deserialize(state.vocabulary_state)
+	vocab2.deserialize(state.signature_state)
 
 	var restored_count = vocab2.discovered_vocabulary.size()
 	print("   ✓ Restored: %d discovered" % restored_count)
@@ -206,19 +206,19 @@ func _test_backward_compatibility() -> bool:
 	"""Test graceful handling of missing vocabulary_state"""
 	# Create empty GameState (like old saves)
 	var state = GameState.new()
-	# state.vocabulary_state is empty/default
+	# state.signature_state is empty/default
 
-	print("   📊 Empty GameState (no vocabulary_state)")
+	print("   📊 Empty GameState (no signature_state)")
 
 	# Try to deserialize empty state
-	var vocab = VocabularyEvolution.new()
+	var vocab = SignatureEvolution.new()
 	vocab._ready()
 
 	var initial_qubits = vocab.evolving_qubits.size()
 	print("   ✓ Initial evolving_qubits: %d" % initial_qubits)
 
 	# Deserialize empty state
-	vocab.deserialize({})  # Empty dict, no vocabulary_state
+	vocab.deserialize({})  # Empty dict, no signature_state
 
 	var after_qubits = vocab.evolving_qubits.size()
 	print("   ✓ After empty deserialize: %d qubits" % after_qubits)
@@ -226,11 +226,11 @@ func _test_backward_compatibility() -> bool:
 	# Should have cleared and kept initial seeding
 	var acceptable = after_qubits >= 0  # Just verify it doesn't crash
 
-	# Try with actual empty vocabulary_state dict
+	# Try with actual empty signature_state dict
 	var old_state = GameState.new()
-	old_state.vocabulary_state = {}
+	old_state.signature_state = {}
 
-	vocab.deserialize(old_state.vocabulary_state)
+	vocab.deserialize(old_state.signature_state)
 
 	print("   ✓ Handled old GameState format gracefully")
 

@@ -215,16 +215,16 @@ func test_gates_unavailable_without_selection():
 func test_entangle_needs_two_plots():
 	test_total += 1
 	var mock_farm = Node.new()
-	# Tool 3 gate mode (mode 1): Q = build_gate (requires 2+ plots to entangle)
-	var saved_mode = ToolConfig.group_mode_indices.get(3, 0)
-	ToolConfig.group_mode_indices[3] = 1  # Set to gate mode
+	# Operator frame: Q = build_gate (requires 2+ plots to entangle)
+	var saved_mode = ToolConfig.frame_mode_indices.get(ToolConfig.FRAME_OPERATOR, 0)
+	ToolConfig.frame_mode_indices[ToolConfig.FRAME_OPERATOR] = 0
 	var result_one = ActionValidator.can_execute_action(
-		"Q", 3, "", {}, mock_farm, [Vector2i(0, 0)], Vector2i(0, 0)
+		"Q", ToolConfig.FRAME_OPERATOR, "", {}, mock_farm, [Vector2i(0, 0)], Vector2i(0, 0)
 	)
 	var result_two = ActionValidator.can_execute_action(
-		"Q", 3, "", {}, mock_farm, [Vector2i(0, 0), Vector2i(1, 0)], Vector2i(0, 0)
+		"Q", ToolConfig.FRAME_OPERATOR, "", {}, mock_farm, [Vector2i(0, 0), Vector2i(1, 0)], Vector2i(0, 0)
 	)
-	ToolConfig.group_mode_indices[3] = saved_mode  # Restore
+	ToolConfig.frame_mode_indices[ToolConfig.FRAME_OPERATOR] = saved_mode  # Restore
 	mock_farm.free()
 
 	if result_one == false and result_two == true:
@@ -238,20 +238,20 @@ func test_entangle_needs_two_plots():
 func test_bell_pair_needs_two_plots():
 	test_total += 1
 	var mock_farm = Node.new()
-	# Tool 3 gate mode (mode 1): E = inspect (available with 1 plot), Q = build_gate (needs 2+)
+	# Operator frame: E = inspect (available with 1 plot), Q = build_gate (needs 2+)
 	# Verifies the asymmetry: inspect is always available, build_gate is gated on 2+ plots
-	var saved_mode = ToolConfig.group_mode_indices.get(3, 0)
-	ToolConfig.group_mode_indices[3] = 1  # Gate mode
+	var saved_mode = ToolConfig.frame_mode_indices.get(ToolConfig.FRAME_OPERATOR, 0)
+	ToolConfig.frame_mode_indices[ToolConfig.FRAME_OPERATOR] = 0
 	var inspect_one = ActionValidator.can_execute_action(
-		"E", 3, "", {}, mock_farm, [Vector2i(0, 0)], Vector2i(0, 0)
+		"E", ToolConfig.FRAME_OPERATOR, "", {}, mock_farm, [Vector2i(0, 0)], Vector2i(0, 0)
 	)
 	var build_one = ActionValidator.can_execute_action(
-		"Q", 3, "", {}, mock_farm, [Vector2i(0, 0)], Vector2i(0, 0)
+		"Q", ToolConfig.FRAME_OPERATOR, "", {}, mock_farm, [Vector2i(0, 0)], Vector2i(0, 0)
 	)
 	var build_two = ActionValidator.can_execute_action(
-		"Q", 3, "", {}, mock_farm, [Vector2i(0, 0), Vector2i(1, 0)], Vector2i(0, 0)
+		"Q", ToolConfig.FRAME_OPERATOR, "", {}, mock_farm, [Vector2i(0, 0), Vector2i(1, 0)], Vector2i(0, 0)
 	)
-	ToolConfig.group_mode_indices[3] = saved_mode  # Restore
+	ToolConfig.frame_mode_indices[ToolConfig.FRAME_OPERATOR] = saved_mode  # Restore
 	mock_farm.free()
 
 	if inspect_one == true and build_one == false and build_two == true:

@@ -67,14 +67,9 @@ func bind_tool_input(tool_input: Node) -> void:
 	_tool_input = tool_input
 	if _tool_input and _tool_input.has_method("get_current_frame"):
 		_sync_from_frame(_tool_input.get_current_frame())
-	elif _tool_input and _tool_input.has_method("get_current_tool_group"):
-		_sync_from_tool_group(_tool_input.get_current_tool_group())
 	if _tool_input and _tool_input.has_signal("frame_changed"):
 		if not _tool_input.frame_changed.is_connected(_on_frame_changed):
 			_tool_input.frame_changed.connect(_on_frame_changed)
-	elif _tool_input and _tool_input.has_signal("tool_group_changed"):
-		if not _tool_input.tool_group_changed.is_connected(_on_tool_group_changed):
-			_tool_input.tool_group_changed.connect(_on_tool_group_changed)
 
 
 func mount() -> void:
@@ -197,16 +192,6 @@ func _sync_from_frame(frame_name: String) -> void:
 			frame_id = frames[0] if not frames.is_empty() else ""
 
 
-func _sync_from_tool_group(group: int) -> void:
-	"""Legacy int-keyed entry point — translates via PlaneRegistry's int map."""
-	var new_plane: String = PlaneRegistryRef.plane_id_from_tool_group(group)
-	if new_plane != "":
-		plane_id = new_plane
-		var frames: Array = PlaneRegistryRef.get_frames(plane_id)
-		if not frames.has(frame_id):
-			frame_id = frames[0] if not frames.is_empty() else ""
-
-
 func _refresh_context() -> void:
 	if _active_biome_mgr:
 		context_id = _active_biome_mgr.get_active_biome()
@@ -221,11 +206,6 @@ func _on_active_biome_changed(new_biome: String, _old_biome: String) -> void:
 
 func _on_frame_changed(frame_name: String) -> void:
 	_sync_from_frame(frame_name)
-	_emit_snapshot()
-
-
-func _on_tool_group_changed(group: int) -> void:
-	_sync_from_tool_group(group)
 	_emit_snapshot()
 
 

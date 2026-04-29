@@ -186,7 +186,7 @@ func _test_binding_consistency():
 
 func _test_no_zombies():
 	"""Verify no references to deleted classes"""
-	# Check BiomeBase doesn't try to use QuantumBath
+		# Check BiomeBase does not revive the deleted bath authority.
 	var biome = farm.grid.get_biome_for_plot(Vector2i(2, 0))
 
 	if biome.bath == null:

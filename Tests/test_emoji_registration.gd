@@ -85,11 +85,11 @@ func _on_game_ready():
 		var coords = qc.register_map.coordinates[emoji]
 		print("   ✅ Found registered emoji: '%s' → qubit %d, pole %d" % [emoji, coords["qubit"], coords["pole"]])
 
-	if found_emojis.is_empty():
-		print("❌ NO EMOJIS REGISTERED IN RegisterMap!")
-		print("   This is the bug: emojis aren't being registered during allocate_register()")
-		quit(1)
-		return
+		if found_emojis.is_empty():
+			print("❌ NO EMOJIS REGISTERED IN RegisterMap!")
+			print("   This is the bug: emojis are not reaching RegisterMap axes")
+			quit(1)
+			return
 
 	# Try to get emoji probability
 	print("\n🔬 Testing get_emoji_probability()...")

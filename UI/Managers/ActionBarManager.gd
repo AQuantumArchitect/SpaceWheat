@@ -170,11 +170,8 @@ func select_frame(frame_name: String) -> void:
 		tool_selection_row.select_frame(frame_name)
 
 
-func select_tool(tool_num: int) -> void:
-	"""Legacy int-keyed entry point — translates to a frame via GROUP_TO_FRAME."""
-	var frame_name: String = ToolConfig.GROUP_TO_FRAME.get(tool_num, "")
-	if frame_name != "":
-		select_frame(frame_name)
+func select_tool(_tool_num: int) -> void:
+	pass  # Retired — call select_frame(String) directly.
 
 func render_action_projection(projection: Dictionary) -> void:
 	"""Render the projected Q/E/R/F action state."""

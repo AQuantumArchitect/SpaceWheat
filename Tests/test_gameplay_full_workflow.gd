@@ -213,9 +213,9 @@ func test_tool4_apply_gates():
 		log_issue("No quantum computer for gate application")
 		return
 
-	# Check if we can apply gates
-	if biome.quantum_computer.has_method("apply_unitary_1q"):
-		log_success("Quantum computer has apply_unitary_1q() method")
+	# Check Model C gate API.
+	if biome.quantum_computer.has_method("apply_gate"):
+		log_success("Quantum computer has apply_gate() method")
 
 		# Try to get the gate matrix
 		var gate_lib = preload("res://Core/QuantumSubstrate/QuantumGateLibrary.gd").new()
@@ -228,7 +228,7 @@ func test_tool4_apply_gates():
 		else:
 			log_issue("Hadamard gate not in library")
 	else:
-		log_issue("Quantum computer missing apply_unitary_1q()")
+		log_issue("Quantum computer missing apply_gate()")
 
 func test_tool2_entangle():
 	"""Test Tool 2: ENTANGLE multiple qubits"""
@@ -318,10 +318,10 @@ func test_complex_workflow():
 	if gate_plot:
 		var gate_biome = farm.grid.get_biome_for_plot(gate_pos)
 		if gate_biome and gate_biome.quantum_computer:
-			if gate_biome.quantum_computer.has_method("apply_unitary_1q"):
+			if gate_biome.quantum_computer.has_method("apply_gate"):
 				log_success("Workflow step 5 (GATE): Infrastructure available")
 			else:
-				log_issue("Workflow step 5 (GATE): apply_unitary_1q missing")
+				log_issue("Workflow step 5 (GATE): apply_gate missing")
 		else:
 			log_issue("Workflow step 5 (GATE): No quantum computer")
 	else:

@@ -71,7 +71,6 @@ func _on_button_selected(idx: int) -> void:
 		return
 	select_frame(frame_name)
 	frame_selected.emit(frame_name)
-	tool_selected.emit(int(ToolConfig.FRAME_TO_GROUP.get(frame_name, 0)))
 
 
 ## Select a frame by name. Empty string = Ace (no button highlighted).
@@ -88,22 +87,12 @@ func select_frame(frame_name: String) -> void:
 		set_selected(idx)
 
 
-## Legacy int-keyed entry point used by ActionBarManager and overlays that
-## still think in tool group numbers. Translates via GROUP_TO_FRAME.
-func select_tool(tool_num: int) -> void:
-	var frame_name: String = ToolConfig.GROUP_TO_FRAME.get(tool_num, "")
-	if frame_name != "":
-		select_frame(frame_name)
+func select_tool(_tool_num: int) -> void:
+	pass  # Retired — call select_frame(String) directly.
 
 
 func set_tool_enabled(frame_or_tool, enabled: bool) -> void:
-	"""Enable or disable a specific frame button. Accepts a frame name or a
-	legacy tool group number."""
-	var frame_name: String = ""
-	if frame_or_tool is String:
-		frame_name = frame_or_tool
-	elif frame_or_tool is int:
-		frame_name = ToolConfig.GROUP_TO_FRAME.get(frame_or_tool, "")
+	var frame_name: String = frame_or_tool if frame_or_tool is String else ""
 	if frame_name == "":
 		return
 	var idx := FRAME_ORDER.find(frame_name)

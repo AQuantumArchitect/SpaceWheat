@@ -107,10 +107,7 @@ func refresh() -> void:
 	if not action_bar_manager:
 		return
 
-	if action_bar_manager.has_method("select_frame"):
-		action_bar_manager.select_frame(current_frame)
-	else:
-		action_bar_manager.select_tool(int(ToolConfig.FRAME_TO_GROUP.get(current_frame, 0)))
+	action_bar_manager.select_frame(current_frame)
 	action_bar_manager.render_action_projection(_build_action_projection())
 
 
@@ -119,11 +116,8 @@ func _connect_toolbar_inputs() -> void:
 		return
 
 	var tool_row = action_bar_manager.get_tool_row()
-	if tool_row:
-		if tool_row.has_signal("frame_selected"):
-			InstrumentLocator.safe_connect(tool_row.frame_selected, _on_frame_button_selected)
-		elif tool_row.has_signal("tool_selected"):
-			InstrumentLocator.safe_connect(tool_row.tool_selected, _on_tool_selected)
+	if tool_row and tool_row.has_signal("frame_selected"):
+		InstrumentLocator.safe_connect(tool_row.frame_selected, _on_frame_button_selected)
 	var action_row = action_bar_manager.get_action_row()
 	if action_row and action_row.has_signal("action_pressed"):
 		InstrumentLocator.safe_connect(action_row.action_pressed, _on_action_pressed)
@@ -155,9 +149,6 @@ func _on_frame_button_selected(frame_name: String) -> void:
 
 	if current_farm_ui and current_farm_ui.has_method("_on_frame_selected"):
 		current_farm_ui._on_frame_selected(frame_name)
-	elif current_farm_ui and current_farm_ui.has_method("_on_tool_selected"):
-		# Legacy hook still expects an int.
-		current_farm_ui._on_tool_selected(int(ToolConfig.FRAME_TO_GROUP.get(frame_name, 0)))
 
 	if quantum_input and quantum_input.has_signal("frame_changed"):
 		quantum_input.frame_changed.emit(frame_name)
@@ -165,13 +156,6 @@ func _on_frame_button_selected(frame_name: String) -> void:
 		current_submenu_name = ""
 		current_submenu_actions = {}
 		refresh()
-
-
-func _on_tool_selected(tool_num: int) -> void:
-	"""Legacy int-keyed handler kept for any toolbar that still emits int."""
-	var frame_name: String = ToolConfig.GROUP_TO_FRAME.get(tool_num, "")
-	if frame_name != "":
-		_on_frame_button_selected(frame_name)
 
 
 func _on_action_pressed(action_key: String) -> void:
@@ -231,7 +215,6 @@ func _build_action_projection() -> Dictionary:
 	var projection := {
 		"context": "frame",
 		"frame": current_frame,
-		"tool": int(ToolConfig.FRAME_TO_GROUP.get(current_frame, 0)),
 		"submenu_name": "",
 		"actions": {}
 	}

@@ -55,39 +55,11 @@ const HAT_KEY_TO_FRAME: Dictionary = {
 	"0": FRAME_DRUID,
 }
 
-## Transitional map: legacy tool group (1-4) → archetype frame holding the
-## equivalent live wiring after the 2026-04-28 redistribution:
-## - Tool 1 (Unitary)  → Druid     (X/Y/Z rotations + Hadamard)
-## - Tool 2 (Lindblad) → Spark     (thermal/dephase/damp drain/transfer/pump)
-## - Tool 3 (Measure)  → Scientist (probe only — gate moved to Operator)
-## - Tool 4 (Meta)     → Captain   (biomes only — signature moved to Icon)
-const GROUP_TO_FRAME: Dictionary = {
-	1: FRAME_DRUID,
-	2: FRAME_SPARK,
-	3: FRAME_SCIENTIST,
-	4: FRAME_CAPTAIN,
-}
-
-## Reverse: archetype frame → legacy group number for callers that still
-## want an int. Icon (icon-injection) and Operator (gate building) inherit
-## the legacy group of their parent meta tool: Icon → 4 (was Captain.signature),
-## Operator → 3 (was Scientist.gate). Socialite has no legacy group.
-const FRAME_TO_GROUP: Dictionary = {
-	FRAME_SPARK: 2,
-	FRAME_ICON: 4,
-	FRAME_SOCIALITE: 4,
-	FRAME_CAPTAIN: 4,
-	FRAME_SCIENTIST: 3,
-	FRAME_OPERATOR: 3,
-	FRAME_DRUID: 1,
-}
-
 # =============================================================================
 # RUNTIME STATE
 # =============================================================================
 
 ## Current archetype frame. Empty string = Ace (no hat = default toolkit).
-## Default to Scientist to preserve the legacy "boots into group 3" behaviour.
 static var current_frame: String = FRAME_SCIENTIST
 
 ## Sub-mode index within each frame (selected by 1/2/3 in the new grammar,
@@ -378,13 +350,10 @@ const ARCHETYPE_FRAMES: Dictionary = {
 # RESOLUTION HELPER
 # =============================================================================
 
-## Resolve a frame-or-group identifier (String or int) to an archetype frame
-## name. Returns "" for unknown / Ace.
+## Resolve a frame identifier to an archetype frame name (String passthrough).
 static func resolve_frame(frame_or_group) -> String:
 	if frame_or_group is String:
 		return frame_or_group
-	if frame_or_group is int:
-		return GROUP_TO_FRAME.get(frame_or_group, "")
 	return ""
 
 
@@ -554,77 +523,3 @@ static func get_all_actions(frame_or_group) -> Dictionary:
 static func has_explicit_f_action(frame_or_group) -> bool:
 	"""True when the frame declares an explicit F action in its current sub-mode."""
 	return not get_action(frame_or_group, "F").is_empty()
-
-
-# =============================================================================
-# LEGACY INT-KEYED API (transitional — routes through the frame state)
-# =============================================================================
-#
-# These shims let existing callsites continue to work unchanged. New code
-# should call the frame API directly. Each shim translates an int group
-# number to its archetype frame via GROUP_TO_FRAME, then forwards.
-
-static func select_group(group_num: int) -> void:
-	var frame_name: String = GROUP_TO_FRAME.get(group_num, "")
-	if frame_name != "":
-		select_frame(frame_name)
-
-
-static func get_current_group() -> int:
-	return int(FRAME_TO_GROUP.get(current_frame, 0))
-
-
-static func get_group(group_num: int) -> Dictionary:
-	return get_frame(GROUP_TO_FRAME.get(group_num, ""))
-
-
-static func get_current_group_def() -> Dictionary:
-	return get_current_frame_def()
-
-
-static func get_group_name(group_num: int) -> String:
-	return get_frame_name_label(GROUP_TO_FRAME.get(group_num, ""))
-
-
-static func get_group_emoji(group_num: int) -> String:
-	return get_frame_emoji(GROUP_TO_FRAME.get(group_num, ""))
-
-
-static func get_group_icon_path(group_num: int) -> String:
-	return get_frame_icon_path(GROUP_TO_FRAME.get(group_num, ""))
-
-
-static func does_group_pause_sim(group_num: int) -> bool:
-	return does_frame_pause_sim(GROUP_TO_FRAME.get(group_num, ""))
-
-
-static func get_group_time_scale(group_num: int) -> String:
-	return get_frame_time_scale(GROUP_TO_FRAME.get(group_num, ""))
-
-
-static func cycle_group_mode(group_num: int) -> int:
-	return cycle_frame_mode(GROUP_TO_FRAME.get(group_num, ""))
-
-
-static func set_group_mode(group_num: int, mode_index: int) -> int:
-	return set_frame_mode(GROUP_TO_FRAME.get(group_num, ""), mode_index)
-
-
-static func get_group_mode_index(group_num: int) -> int:
-	return get_frame_mode_index(GROUP_TO_FRAME.get(group_num, ""))
-
-
-static func get_group_mode_name(group_num: int) -> String:
-	return get_frame_mode_name(GROUP_TO_FRAME.get(group_num, ""))
-
-
-static func get_group_mode_label(group_num: int) -> String:
-	return get_frame_mode_label(GROUP_TO_FRAME.get(group_num, ""))
-
-
-static func get_group_mode_emoji(group_num: int) -> String:
-	return get_frame_mode_emoji(GROUP_TO_FRAME.get(group_num, ""))
-
-
-static func reset_group_modes() -> void:
-	reset_frame_modes()

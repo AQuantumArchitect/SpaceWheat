@@ -1,6 +1,6 @@
 extends Node
 
-const VocabularyPairing = preload("res://Core/Quests/VocabularyPairing.gd")
+const IconPairing = preload("res://Core/Quests/IconPairing.gd")
 
 func _ready() -> void:
 	await get_tree().process_frame
@@ -15,7 +15,7 @@ func _ready() -> void:
 
 	for emoji in ["🌾", "👥", "🍂", "🌱"]:
 		print("--- %s ---" % emoji)
-		var sorted = VocabularyPairing.get_sorted_connections(emoji, icon_registry)
+		var sorted = IconPairing.get_sorted_connections(emoji, icon_registry)
 		if sorted.is_empty():
 			print("  (no connections)")
 		else:
