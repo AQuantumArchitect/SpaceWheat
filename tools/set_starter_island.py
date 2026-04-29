@@ -5,12 +5,12 @@ Marks exactly the starter-island set as discovered=True; all others False.
 Re-run to reset to the canonical lab state.
 
 Starter island:
-  StarterForest   — forest ecosystem, transport/localization demo
-  Woodlot         — managed timber, forest edge
-  PastoralCommons — meadow, stable polyculture
-  WeaversLoft     — textile craft, binding cycle
-  Village         — hearth + commerce (hearth currently broken — todo)
-  BioticFlux      — ecological margin, pure-H (L todo)
+  StarterForest    — forest ecosystem, transport/localization demo
+  Woodlot          — managed timber, forest edge
+  PastoralCommons  — meadow, stable polyculture
+  FreshwaterSpring — source water flowing into Village + PastoralCommons
+  Village          — hearth + commerce, bistable mill economy
+  BioticFlux       — ecological margin, pure-H (intentionally empty L)
 """
 from __future__ import annotations
 import json
@@ -20,7 +20,7 @@ ISLAND = {
     "StarterForest",
     "Woodlot",
     "PastoralCommons",
-    "WeaversLoft",
+    "FreshwaterSpring",
     "Village",
     "BioticFlux",
 }

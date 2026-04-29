@@ -2967,7 +2967,7 @@
     "description": "Threads fray under patient fingers. Garments take shape, wear out, return to thread. Needles pierce and bind. Knots hold—until they don't. The loft smells of lanolin and old cloth, and nothing here is ever truly finished.",
     "image_path": "res://Assets/Biomes/WeaversLoft.png",
     "music_path": "res://Assets/Audio/Music/WeaversLoft.mp3",
-    "discovered": true,
+    "discovered": false,
     "plot_layout": [
       {
         "x": 0.35,
@@ -3926,7 +3926,9 @@
       "🛶",
       "🪣",
       "💧",
-      "🧊"
+      "🧊",
+      "🏜",
+      "🪨"
     ],
     "native_factions": [
       "Salt-Runners",
@@ -4002,6 +4004,23 @@
           "rate": 0.03,
           "target": "💧"
         }
+      },
+      "🏜": {
+        "lindblad_incoming": {
+          "🛶": 0.06
+        },
+        "lindblad_outgoing": {
+          "🪨": 0.05
+        }
+      },
+      "🪨": {
+        "lindblad_incoming": {
+          "🏜": 0.05
+        },
+        "decay": {
+          "rate": 0.03,
+          "target": "🏜"
+        }
       }
     },
     "cross_biome_flows": {
@@ -4040,7 +4059,7 @@
     "description": "Source water wells up from deep stone. Ice melts at the margins. Bubbles rise and pop in an instant. This is where water begins its journey through the world—fundamental, flowing, feeding everything downstream.",
     "image_path": "res://Assets/Biomes/FreshwaterSpring.png",
     "music_path": "res://Assets/Audio/Music/FreshwaterSpring.mp3",
-    "discovered": false,
+    "discovered": true,
     "plot_layout": [
       {
         "x": 0.4,
@@ -4102,6 +4121,9 @@
         "decay": {
           "rate": 0.03,
           "target": "💧"
+        },
+        "lindblad_incoming": {
+          "🗑": 0.3
         }
       },
       "🫧": {
