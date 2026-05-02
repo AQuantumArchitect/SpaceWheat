@@ -1,6 +1,6 @@
 # Player Input Macro Runner
 
-**Source file:** `UI/Core/PlayerInputMacroRunner.gd`
+**Source file:** `UI/Core/PlayerInputMacroRunner.gd` (removed — 0 callers as of 2026-05)
 
 ## The idea
 A thin orchestration layer that translates abstract "action" dictionaries (`{action: "probe_cycle", params: {...}}`) into real keyboard-and-UI sequences driven through the actual `QuantumInstrumentInput` stack. Keeps key-sequence logic out of test rigs while exercising the real input path — neither a mock nor a direct API call, but genuine headed interaction.
