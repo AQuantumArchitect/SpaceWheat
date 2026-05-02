@@ -6,29 +6,44 @@ extends RefCounted
 ## Implements the "Ensemble + Drain" model:
 ##   - ρ represents an ensemble of identically-prepared quantum systems
 ##   - EXPLORE: Bind terminal to register (no quantum effect)
-##   - MEASURE: Sample via Born rule, DRAIN probability from ρ, record claim
+##   - MEASURE: Born sample + partial drain (η × purity fraction of population)
 ##   - POP: Convert recorded probability to credits (no quantum effect)
 ##   - HARVEST: Broad multi-terminal cleanup / harvest loop
 ##
-## Physics:
-##   - Ensemble interpretation: MEASURE samples without full collapse
-##   - Drain simulates "extracting" from the ensemble
-##   - External pump (sun) replenishes probability over time
+## Measurement Physics:
+##   - Born rule selects outcome (player sees 100% pure collapsed state)
+##   - Biome receives partial Lindblad drain: ρ_kk *= (1-η), coherences *= √(1-η)
+##   - η = measurement_drain_base × purity (tunable, default 0.15 at full purity)
+##   - External pump (sun) replenishes drained population over time
 ##   - Creates sustainable farming loop: grow → harvest → regrow
 
-const WeightedRandom = preload("res://Core/Utilities/WeightedRandom.gd")
 const EconomyConstants = preload("res://Core/GameMechanics/EconomyConstants.gd")
 const ActionCostRuntime = preload("res://Core/GameMechanics/ActionCostRuntime.gd")
 const VerboseHelper = preload("res://Core/Config/VerboseHelper.gd")
 const BalanceService = preload("res://Core/GameMechanics/BalanceService.gd")
 const GameState = preload("res://Core/GameState/GameState.gd")
+const FactionAffinity = preload("res://Core/Factions/FactionAffinity.gd")
+const PhysicsCostScaling = preload("res://Core/GameMechanics/PhysicsCostScaling.gd")
+const HamiltonianConfig = preload("res://Core/Config/HamiltonianConfig.gd")
 
 
 ## ============================================================================
-## EXPLORE ACTION - Bind terminal to register with probability weighting
+## EXPLORE ACTION — Bind terminal to a specific register
 ## ============================================================================
+##
+## Invariant: plot_idx ≡ register_id. A biome's column layout IS its qubit
+## layout — the bubble at column c always represents register c. There is no
+## probability-weighted random picking anymore; the caller names the register
+## (via `register_id` or implicitly via `grid_pos.x` in the instrument wrapper).
+##
+## Semantics: EXPLORE is a deterministic commitment — "place a probe on this
+## specific qubit of the biome." Biomes are crafted artifacts; each register
+## has a fixed visual position chosen by the biome designer.
+##
+## Headless/diagnostic default: if `register_id == -1`, pick the first unbound
+## register (deterministic and reproducible, no randomness).
 
-static func action_explore(terminal_pool, biome, economy = null) -> Dictionary:
+static func action_explore(terminal_pool, biome, economy = null, register_id: int = -1) -> Dictionary:
 	# 0. Null checks for required parameters
 	if not terminal_pool:
 		return {
@@ -43,7 +58,7 @@ static func action_explore(terminal_pool, biome, economy = null) -> Dictionary:
 			"message": "Biome not initialized."
 		}
 
-	# 1. Get unbound terminal
+	# 1. Get unbound terminal from the pool
 	var terminal = terminal_pool.get_unbound_terminal()
 	if not terminal:
 		return {
@@ -53,17 +68,42 @@ static func action_explore(terminal_pool, biome, economy = null) -> Dictionary:
 			"blocked": true
 		}
 
-	# 2. Check for unbound registers (availability gate)
-	var available_registers = biome.get_available_registers(terminal_pool) if biome.has_method("get_available_registers") else []
-	if available_registers.is_empty():
-		return {
-			"success": false,
-			"error": "no_registers",
-			"message": "Explore blocked: no unbound registers in this biome.",
-			"blocked": true
-		}
+	# 2. Resolve the target register. Caller-specified takes priority; falls back
+	#    to the first unbound register for headless callers with no grid context.
+	var biome_name = biome.get_biome_type()
+	var num_qubits = 0
+	if biome.quantum_computer and biome.quantum_computer.register_map:
+		num_qubits = biome.quantum_computer.register_map.num_qubits
 
-	# 2b. Preflight cost (after availability gates)
+	var resolved_register = register_id
+	if resolved_register < 0:
+		resolved_register = _first_unbound_register(biome, terminal_pool)
+		if resolved_register < 0:
+			return {
+				"success": false,
+				"error": "no_registers",
+				"message": "Explore blocked: no unbound registers in this biome.",
+				"blocked": true
+			}
+	else:
+		# Explicit register: must exist and be unbound.
+		if num_qubits > 0 and resolved_register >= num_qubits:
+			return {
+				"success": false,
+				"error": "invalid_register",
+				"message": "Column %d has no register in %s (only %d axes)." % [
+					resolved_register, biome_name, num_qubits],
+				"blocked": true
+			}
+		if terminal_pool.is_register_bound(resolved_register, biome_name):
+			return {
+				"success": false,
+				"error": "already_bound",
+				"message": "Register %d in %s is already explored." % [resolved_register, biome_name],
+				"blocked": true
+			}
+
+	# 3. Preflight cost (after availability gates)
 	var explore_cost_gate = _preflight_action(economy, "explore")
 	if not explore_cost_gate.get("ok", true):
 		var cost = explore_cost_gate.get("cost", {})
@@ -74,60 +114,20 @@ static func action_explore(terminal_pool, biome, economy = null) -> Dictionary:
 			"message": "Need %s to explore." % missing
 		}
 
-	# 3. Get unbound registers with probabilities (queries TerminalPool for binding state)
-	var probabilities = biome.get_register_probabilities(terminal_pool)
-	if probabilities.is_empty():
-		return {
-			"success": false,
-			"error": "no_registers",
-			"message": "Explore blocked: no unbound registers in this biome.",
-			"blocked": true
-		}
+	# 4. Emoji pair for the chosen register (for terminal display)
+	var emoji_pair = biome.get_register_emoji_pair(resolved_register)
 
-	# 3. Weighted random selection using squared probabilities
-	# This makes high-probability registers MORE likely to be discovered
-	# Squaring ensures weights are always positive and emphasizes differences
-	var register_ids: Array[int] = []
-	var weights: Array[float] = []
-
-	for reg_id in probabilities:
-		register_ids.append(reg_id)
-		var prob = probabilities[reg_id]
-		# Use prob² for weighting (ensures positive, emphasizes high-prob states)
-		weights.append(prob * prob)
-
-	var selected_index = WeightedRandom.weighted_choice_index(weights)
-	if selected_index < 0:
-		return {
-			"success": false,
-			"error": "selection_failed",
-			"message": "Explore blocked: weighted selection failed (all weights zero?).",
-			"blocked": true
-		}
-
-	var selected_register = register_ids[selected_index]
-	var selected_probability = weights[selected_index]
-
-	# 4. Get emoji pair for this register
-	var emoji_pair = biome.get_register_emoji_pair(selected_register)
-
-	# 5. Get biome name for binding (decouple from object reference)
-	var biome_name = biome.get_biome_type() if biome.has_method("get_biome_type") else biome.name
-
-	# 6. Bind terminal to register with biome NAME (Terminal is now the single source of truth)
-	var bound = terminal_pool.bind_terminal(terminal, selected_register, biome_name, emoji_pair)
+	# 5. Bind terminal → register (biome by name; Terminal is single source of truth)
+	var bound = terminal_pool.bind_terminal(terminal, resolved_register, biome_name, emoji_pair)
 	if not bound:
 		return {
 			"success": false,
 			"error": "binding_failed",
-			"message": "Failed to bind terminal to register (already bound?).",
+			"message": "Failed to bind terminal to register %d." % resolved_register,
 			"blocked": true
 		}
 
-	# NOTE: No need to call mark_register_bound() - Terminal.is_bound is the source of truth
-	# TerminalPool.is_register_bound() queries Terminal directly
-
-	# Commit cost after successful bind
+	# 6. Commit cost
 	var explore_cost = explore_cost_gate.get("cost", {})
 	if not _commit_cost(economy, explore_cost, "explore"):
 		terminal_pool.unbind_terminal(terminal)
@@ -137,21 +137,45 @@ static func action_explore(terminal_pool, biome, economy = null) -> Dictionary:
 			"message": "Explore failed: unable to spend cost."
 		}
 
+	# 7. Probability-at-binding — no longer drives selection, but reported for
+	#    telemetry/UI and kept as `probability` in the result for compatibility.
+	var probability = 0.0
+	if biome.has_method("get_register_probability"):
+		probability = float(biome.get_register_probability(resolved_register))
+
 	return {
 		"success": true,
 		"terminal": terminal,
-		"register_id": selected_register,
+		"register_id": resolved_register,
 		"emoji_pair": emoji_pair,
-		"probability": selected_probability,
+		"probability": probability,
 		"biome_name": biome_name
 	}
+
+
+static func _first_unbound_register(biome, terminal_pool) -> int:
+	# Deterministic fallback for callers without a grid context (diagnostics,
+	# headless runners). Returns the lowest register_id with no terminal bound,
+	# or -1 if all are taken.
+	if not biome or not terminal_pool:
+		return -1
+	var available: Array = []
+	if biome.has_method("get_available_registers"):
+		available = biome.get_available_registers(terminal_pool)
+	if available.is_empty():
+		return -1
+	var lowest = int(available[0])
+	for r in available:
+		if int(r) < lowest:
+			lowest = int(r)
+	return lowest
 
 
 ## ============================================================================
 ## MEASURE ACTION - Sample + projective collapse (no drain)
 ## ============================================================================
 
-static func action_measure(terminal, biome, economy = null) -> Dictionary:
+static func action_measure(terminal, biome, economy = null, farm = null) -> Dictionary:
 	# 0. Null checks - terminal and biome must exist
 	if not terminal:
 		return {
@@ -201,8 +225,14 @@ static func action_measure(terminal, biome, economy = null) -> Dictionary:
 			"blocked": true
 		}
 
-	# 2b. Preflight cost (after validation gates)
-	var measure_cost_gate = _preflight_action(economy, "measure")
+	# 2b. Preflight cost (after validation gates).
+	# Scale by pair affinity — unfamiliar factions cost more to collapse.
+	var pair_affinity = FactionAffinity.get_pair_affinity(
+		terminal.north_emoji, terminal.south_emoji, farm)
+	var base_measure_cost = EconomyConstants.get_action_cost("measure", {})
+	var scaled_measure_cost = PhysicsCostScaling.scale_measure_cost(
+		base_measure_cost, pair_affinity)
+	var measure_cost_gate = _preflight_cost(economy, scaled_measure_cost)
 	if not measure_cost_gate.get("ok", true):
 		var cost = measure_cost_gate.get("cost", {})
 		var missing = cost.keys()[0] if cost.size() > 0 else "resources"
@@ -212,70 +242,41 @@ static func action_measure(terminal, biome, economy = null) -> Dictionary:
 			"message": "Need %s to measure." % missing
 		}
 
-	# 2. Get current probability snapshot from lookahead packet (viz_cache)
-	var register_id = terminal.bound_register_id
-	var north_prob = biome.get_register_probability(register_id) if biome else 0.5
-	var south_prob = 1.0 - north_prob
-	var snapshot: Dictionary = {}
-	var measured_purity = biome.get_purity() if biome else 0.0
+	# 2. Resolve the live measurement context once, then sample and finalize.
+	var measure_ctx = _resolve_measurement_context(terminal, biome)
+	var register_id = int(measure_ctx.get("register_id", terminal.bound_register_id))
+	var north_prob = float(measure_ctx.get("north_prob", 0.5))
+	var south_prob = float(measure_ctx.get("south_prob", 1.0 - north_prob))
+	var snapshot: Dictionary = measure_ctx.get("snapshot", {})
+	var measured_purity = float(measure_ctx.get("measured_purity", 0.0))
 
-	if biome and biome.viz_cache:
-		var bloch = biome.viz_cache.get_bloch(register_id)
-		if not bloch.is_empty():
-			snapshot = bloch.duplicate()
-		var snap = biome.viz_cache.get_snapshot(register_id)
-		for k in snap.keys():
-			snapshot[k] = snap[k]
-		var has_p0 = snap.has("p0")
-		var has_p1 = snap.has("p1")
-		if has_p0:
-			north_prob = snap.get("p0", north_prob)
-		if has_p1:
-			south_prob = snap.get("p1", south_prob)
-		elif has_p0:
-			south_prob = 1.0 - north_prob
-		if snap.has("purity") and snap.get("purity", -1.0) >= 0.0:
-			measured_purity = snap.get("purity", measured_purity)
+	if north_prob < 0.0 or south_prob < 0.0:
+		return {
+			"success": false,
+			"error": "measurement_prob_unavailable",
+			"message": "Measure failed: probability state unavailable.",
+			"blocked": true
+		}
 
-	# 3. Born rule sampling
-	var outcome: String
-	var outcome_prob: float
-	var is_north: bool
-
-	if randf() < north_prob:
-		outcome = terminal.north_emoji
-		outcome_prob = north_prob
-		is_north = true
-	else:
-		outcome = terminal.south_emoji
-		outcome_prob = south_prob
-		is_north = false
-
-	# Handle edge case where emoji not set
-	if outcome.is_empty():
-		outcome = "?"
-
-	# 4. Record the probability - this is the "claim" that POP will convert
+	# 3. Born rule sampling — seeded for save-load reproducibility.
+	var outcome_ctx = _sample_born_outcome(terminal, biome, register_id, north_prob, south_prob)
+	var outcome: String = outcome_ctx.get("outcome", "?")
+	var outcome_prob: float = float(outcome_ctx.get("outcome_prob", north_prob))
+	var is_north: bool = bool(outcome_ctx.get("is_north", true))
 	var recorded_probability = outcome_prob
 
-	# 5. Check entanglement before projection
+	# 4. Ensemble drain: extract a fraction of population instead of full collapse.
+	#    The player sees a pure result, but the biome only loses η of the measured
+	#    pole's population. Coherences decay as √(1-η) (Lindblad T₂ relationship).
 	var was_entangled = _check_entanglement(register_id, biome)
-	var projection_success = _project_register(biome, register_id, is_north)
+	var drain_eta = _resolve_drain_fraction(biome, measured_purity, farm)
+	var drain_success = _drain_register(biome, register_id, is_north, drain_eta)
 
-	# 6. Mark terminal as measured with RECORDED probability and collapsed purity.
-	measured_purity = 1.0
-	snapshot["purity"] = measured_purity
-	terminal.mark_measured(outcome, recorded_probability, measured_purity, snapshot)
+	# 5. Mark terminal as measured and free the register.
+	_finalize_measurement_terminal(terminal, outcome, recorded_probability, snapshot)
 
-	# 7. FREE THE REGISTER - allow another terminal to bind to it
-	# Terminal keeps its measurement snapshot for REAP to harvest
-	terminal.release_register()
-
-	# 8. Commit cost after successful measurement
-	var measure_cost = measure_cost_gate.get("cost", {})
-	if not _commit_cost(economy, measure_cost, "measure"):
-		# NOTE: We don't roll back the measurement since it already happened
-		# This should rarely occur since we preflighted the cost
+	# 6. Commit cost after successful measurement
+	if not _commit_cost(economy, scaled_measure_cost, "measure"):
 		return {
 			"success": false,
 			"error": "cost_commit_failed",
@@ -288,8 +289,8 @@ static func action_measure(terminal, biome, economy = null) -> Dictionary:
 		"probability": recorded_probability,
 		"recorded_probability": recorded_probability,
 		"was_entangled": was_entangled,
-		"was_projected": projection_success,
-		"projective_collapse": true,
+		"drain_eta": drain_eta,
+		"ensemble_drain": true,
 		"register_id": register_id
 	}
 
@@ -321,13 +322,47 @@ static func _project_register(biome, register_id: int, is_north: bool) -> bool:
 	return qc.project_qubit(register_id, outcome_pole)
 
 
-static func _auto_measure_for_pop(terminal, farm) -> Dictionary:
-	"""Auto-measure a bound terminal so it can be popped directly.
+static func _drain_register(biome, register_id: int, is_north: bool, eta: float) -> bool:
+	# Apply partial ensemble drain instead of full projective collapse.
 
-	Born-samples from the live density matrix, projects the qubit, and
-	marks the terminal as measured — collapsing explore→measure→pop into
-	explore→pop.
-	"""
+	# Drains η of the measured pole's population from the biome's density matrix.
+	# Coherences touching the measured pole decay as √(1-η). The biome retains
+	# most of its quantum structure — sustainable for repeated measurements.
+	if not biome or not biome.quantum_computer:
+		return false
+	var qc = biome.quantum_computer
+	if not qc.has_method("drain_qubit"):
+		# Fallback: full projection if drain not available
+		return _project_register(biome, register_id, is_north)
+	var outcome_pole = 0 if is_north else 1
+	# Same stale-cache guard as _project_register
+	if qc.has_method("get_marginal"):
+		var live_prob = qc.get_marginal(register_id, outcome_pole)
+		if live_prob < 1e-12:
+			outcome_pole = 1 - outcome_pole
+	qc.drain_qubit(register_id, outcome_pole, eta)
+	return true
+
+
+static func _resolve_drain_fraction(biome, purity: float, farm = null) -> float:
+	# Compute measurement drain fraction η = base_drain × purity.
+
+	# Pure states (purity≈1) yield full base drain — more extractable, more fragile.
+	# Mixed states (purity≈0.25) yield minimal drain — less information, less disruption.
+	# This naturally connects quantum information theory to game economy.
+	var base_drain = 0.15  # Default: 15% at full purity
+	if farm:
+		base_drain = float(BalanceService.get_tuning_value(
+			farm, "measurement_drain_base", 0.15))
+	return clampf(base_drain * clampf(purity, 0.0, 1.0), 0.0, 1.0)
+
+
+static func _auto_measure_for_pop(terminal, farm) -> Dictionary:
+	# Auto-measure a bound terminal so it can be popped directly.
+
+	# Born-samples from the live density matrix, applies ensemble drain,
+	# and marks the terminal as measured — collapsing explore→measure→pop
+	# into explore→pop.
 	var biome = _resolve_biome_from_terminal(farm, terminal)
 	if not biome or not biome.quantum_computer:
 		return {"success": false, "error": "no_biome", "message": "Cannot auto-measure: biome unavailable.", "blocked": true}
@@ -344,15 +379,197 @@ static func _auto_measure_for_pop(terminal, farm) -> Dictionary:
 	if outcome.is_empty():
 		outcome = "?"
 
-	# Project the register
-	_project_register(biome, register_id, is_north)
+	# Capture per-qubit bloch_r before drain (drain modifies state)
+	var bloch_r_pre = 0.5
+	if biome.viz_cache:
+		bloch_r_pre = clampf(float(biome.viz_cache.get_bloch(register_id).get("r", 0.5)), 0.0, 1.0)
 
-	# Mark terminal as measured
-	var snapshot = {"purity": 1.0}
+	# Ensemble drain (partial extraction, not full collapse)
+	var purity = biome.get_purity() if biome.has_method("get_purity") else 0.5
+	var drain_eta = _resolve_drain_fraction(biome, purity, farm)
+	_drain_register(biome, register_id, is_north, drain_eta)
+
+	# Mark terminal as measured — player sees pure collapsed state.
+	# Store r so _prepare_pop_result can read per-qubit Bloch radius.
+	var snapshot = {"purity": 1.0, "r": bloch_r_pre}
 	terminal.mark_measured(outcome, outcome_prob, 1.0, snapshot)
 	terminal.release_register()
 
 	return {"success": true, "auto_measured": true}
+
+
+static func _resolve_measurement_context(terminal, biome) -> Dictionary:
+	var register_id = terminal.bound_register_id if terminal else -1
+	var north_prob = biome.get_register_probability(register_id) if biome and biome.has_method("get_register_probability") else -1.0
+	var south_prob = 1.0 - north_prob if north_prob >= 0.0 else -1.0
+	var snapshot: Dictionary = {}
+	var measured_purity = biome.get_purity() if biome and biome.has_method("get_purity") else -1.0
+
+	if north_prob < 0.0 and biome and biome.quantum_computer and biome.quantum_computer.has_method("get_marginal"):
+		north_prob = float(biome.quantum_computer.get_marginal(register_id, 0))
+		south_prob = 1.0 - north_prob
+
+	if biome and biome.viz_cache:
+		var bloch = biome.viz_cache.get_bloch(register_id)
+		if not bloch.is_empty():
+			snapshot = bloch.duplicate()
+		var snap = biome.viz_cache.get_snapshot(register_id)
+		for k in snap.keys():
+			snapshot[k] = snap[k]
+		if snap.has("p0"):
+			north_prob = float(snap.get("p0", north_prob))
+		if snap.has("p1"):
+			south_prob = float(snap.get("p1", south_prob))
+		elif snap.has("p0"):
+			south_prob = 1.0 - north_prob
+		if snap.has("purity") and float(snap.get("purity", -1.0)) >= 0.0:
+			measured_purity = float(snap.get("purity", measured_purity))
+
+	return {
+		"register_id": register_id,
+		"north_prob": clampf(north_prob, 0.0, 1.0) if north_prob >= 0.0 else -1.0,
+		"south_prob": clampf(south_prob, 0.0, 1.0) if south_prob >= 0.0 else -1.0,
+		"snapshot": snapshot,
+		"measured_purity": clampf(measured_purity, 0.0, 1.0) if measured_purity >= 0.0 else -1.0
+	}
+
+
+static func _sample_born_outcome(terminal, biome, register_id: int, north_prob: float, south_prob: float) -> Dictionary:
+	var rng = RandomNumberGenerator.new()
+	var seed_biome_name = (biome.biome_name if (biome and "biome_name" in biome) else "")
+	var seed_elapsed_ms = int((biome.elapsed_time if (biome and "elapsed_time" in biome) else 0.0) * 1000.0)
+	rng.seed = hash([seed_biome_name, register_id, seed_elapsed_ms])
+
+	var is_north := rng.randf() < north_prob
+	var outcome: String = terminal.north_emoji if is_north else terminal.south_emoji
+	var outcome_prob: float = north_prob if is_north else south_prob
+	if outcome.is_empty():
+		outcome = "?"
+	return {
+		"outcome": outcome,
+		"outcome_prob": outcome_prob,
+		"is_north": is_north
+	}
+
+
+static func _finalize_measurement_terminal(terminal, outcome: String, recorded_probability: float, snapshot: Dictionary) -> void:
+	if not terminal:
+		return
+	var final_snapshot = snapshot.duplicate(true) if snapshot is Dictionary else {}
+	final_snapshot["purity"] = 1.0
+	terminal.mark_measured(outcome, recorded_probability, 1.0, final_snapshot)
+	terminal.release_register()
+
+
+static func _resolve_pop_reward_context(terminal, farm = null) -> Dictionary:
+	if not terminal:
+		return {}
+	var biome = _resolve_biome_from_terminal(farm, terminal)
+	var resource = terminal.measured_outcome
+	var recorded_prob = terminal.measured_probability
+	var register_id = terminal.measured_register_id
+	var terminal_id = terminal.terminal_id
+	var biome_name = terminal.measured_biome_name
+
+	var p_emoji = 0.0
+	if biome and biome.quantum_computer and biome.quantum_computer.has_method("get_population"):
+		p_emoji = clampf(float(biome.quantum_computer.get_population(resource)), 0.0, 1.0)
+	else:
+		p_emoji = maxf(recorded_prob, 0.0)
+
+	var bloch_r := 0.5
+	if terminal.measured_snapshot.has("r"):
+		bloch_r = clampf(float(terminal.measured_snapshot["r"]), 0.0, 1.0)
+	elif biome and biome.viz_cache and register_id >= 0:
+		bloch_r = clampf(float(biome.viz_cache.get_bloch(register_id).get("r", 0.5)), 0.0, 1.0)
+
+	var affinity = FactionAffinity.get_affinity(resource, farm)
+	var purity_q = 0.5 * (1.0 + bloch_r * bloch_r)
+	var p_clipped = clampf(p_emoji, HamiltonianConfig.P_MIN, 1.0 - HamiltonianConfig.P_MIN)
+	var reward_quantum = round(1.0 / p_clipped)
+	var credits = reward_quantum * HamiltonianConfig.QUANTUM_CLASSICAL_RATIO
+	var resource_amount = maxi(int(credits), 1)
+
+	return {
+		"biome": biome,
+		"biome_name": biome_name,
+		"resource": resource,
+		"recorded_probability": recorded_prob,
+		"terminal_id": terminal_id,
+		"register_id": register_id,
+		"p_emoji": p_emoji,
+		"bloch_r": bloch_r,
+		"affinity": affinity,
+		"purity_q": purity_q,
+		"reward_quantum": reward_quantum,
+		"credits": credits,
+		"resource_amount": resource_amount
+	}
+
+
+static func _advance_reap_cycles(farm, active_biomes: Array, reap_cycles: int) -> Dictionary:
+	if reap_cycles <= 0:
+		return {"success": true, "cycles": 0, "evolved_steps": 0}
+	var active_biome_names: Array = []
+	for biome in active_biomes:
+		if biome:
+			active_biome_names.append(biome.get_biome_type())
+	var batcher = farm.biome_evolution_batcher if farm and ("biome_evolution_batcher" in farm) else null
+	if batcher and batcher.has_method("run_additional_cycles"):
+		return batcher.run_additional_cycles(reap_cycles, active_biome_names)
+	return _manual_fast_forward_biomes(active_biomes, reap_cycles)
+
+
+static func _collect_reap_rewards(active_biomes: Array, economy, flux_to_credits: float, reap_base_yield: float, known_emojis: Array) -> Dictionary:
+	var flux_totals: Dictionary = {}
+	var icon_totals: Dictionary = {}
+	var total_flux_credits = 0
+	var total_icon_credits = 0
+
+	for biome in active_biomes:
+		if not biome or not biome.quantum_computer:
+			continue
+		var qc = biome.quantum_computer
+
+		var fluxes: Dictionary = {}
+		if qc.has_method("get_all_sink_fluxes"):
+			fluxes = qc.get_all_sink_fluxes()
+		for emoji in fluxes.keys():
+			var raw_flux = float(fluxes.get(emoji, 0.0))
+			var credits = int(raw_flux * flux_to_credits)
+			if credits <= 0:
+				continue
+			economy.add_resource(emoji, credits, "reap_flux")
+			flux_totals[emoji] = flux_totals.get(emoji, 0) + credits
+			total_flux_credits += credits
+		if qc.has_method("reset_sink_flux"):
+			qc.reset_sink_flux()
+
+		var mass_map = _resolve_mass_map_for_biome(biome)
+		var by_emoji: Dictionary = mass_map.get("by_emoji", {})
+		var total_mass = float(mass_map.get("total", 0.0))
+		if total_mass <= 0.0:
+			continue
+		for emoji in by_emoji.keys():
+			var mass = float(by_emoji.get(emoji, 0.0))
+			if mass <= 0.0:
+				continue
+			var mass_fraction = mass / total_mass
+			var purity = _resolve_emoji_purity(biome, emoji)
+			var purity_bonus = (1.0 + purity) if emoji in known_emojis else purity
+			var credits = int(mass_fraction * reap_base_yield * purity_bonus)
+			if credits <= 0:
+				continue
+			economy.add_resource(emoji, credits, "reap_iconmap")
+			icon_totals[emoji] = icon_totals.get(emoji, 0) + credits
+			total_icon_credits += credits
+
+	return {
+		"flux_totals": flux_totals,
+		"icon_totals": icon_totals,
+		"total_flux_credits": total_flux_credits,
+		"total_icon_credits": total_icon_credits
+	}
 
 
 ## ============================================================================
@@ -374,7 +591,6 @@ static func action_pop(terminal, terminal_pool, economy = null, farm = null) -> 
 	# must clear the full terminal snapshot, not only the still-bound case.
 	terminal_pool.release_terminal(terminal)
 	_log("info", "farm", "📤", "Register %d released in %s" % [register_id, biome_name if biome_name else "biome"])
-
 	return harvest_result
 
 
@@ -414,67 +630,20 @@ static func action_reap(farm, economy = null) -> Dictionary:
 	reap_cycles = maxi(reap_cycles, 0)
 	var active_biome_names: Array = []
 	for biome in active_biomes:
-		var biome_name = biome.get_biome_type() if biome and biome.has_method("get_biome_type") else ""
-		if biome_name != "":
-			active_biome_names.append(biome_name)
+		if biome:
+			active_biome_names.append(biome.get_biome_type())
 
-	var fast_forward_result = {"success": true, "cycles": reap_cycles, "evolved_steps": 0}
-	var batcher = farm.biome_evolution_batcher if ("biome_evolution_batcher" in farm) else null
-	if reap_cycles > 0:
-		if batcher and batcher.has_method("run_additional_cycles"):
-			fast_forward_result = batcher.run_additional_cycles(reap_cycles, active_biome_names)
-		else:
-			fast_forward_result = _manual_fast_forward_biomes(active_biomes, reap_cycles)
+	var fast_forward_result = _advance_reap_cycles(farm, active_biomes, reap_cycles)
 
 	var flux_to_credits = float(BalanceService.get_tuning_value(farm, "flux_to_credits", 1.0))
 	var reap_base_yield = float(BalanceService.get_tuning_value(farm, "reap_base_yield", 50.0))
 	var known_pairs: Array = farm.get_known_pairs() if farm and farm.has_method("get_known_pairs") else []
 	var known_emojis: Array = GameState.derive_known_emojis_from_pairs(known_pairs)
-
-	var flux_totals: Dictionary = {}
-	var icon_totals: Dictionary = {}
-	var total_flux_credits = 0
-	var total_icon_credits = 0
-
-	for biome in active_biomes:
-		if not biome or not biome.quantum_computer:
-			continue
-		var qc = biome.quantum_computer
-
-		# Phase 2: convert accumulated sink flux to credits.
-		var fluxes: Dictionary = {}
-		if qc.has_method("get_all_sink_fluxes"):
-			fluxes = qc.get_all_sink_fluxes()
-		for emoji in fluxes.keys():
-			var raw_flux = float(fluxes.get(emoji, 0.0))
-			var credits = int(raw_flux * flux_to_credits)
-			if credits <= 0:
-				continue
-			economy.add_resource(emoji, credits, "reap_flux")
-			flux_totals[emoji] = flux_totals.get(emoji, 0) + credits
-			total_flux_credits += credits
-		if qc.has_method("reset_sink_flux"):
-			qc.reset_sink_flux()
-
-		# Phase 3: broad IconMap-style harvest from live biome mass distribution.
-		var mass_map = _resolve_mass_map_for_biome(biome)
-		var by_emoji: Dictionary = mass_map.get("by_emoji", {})
-		var total_mass = float(mass_map.get("total", 0.0))
-		if total_mass <= 0.0:
-			continue
-		for emoji in by_emoji.keys():
-			var mass = float(by_emoji.get(emoji, 0.0))
-			if mass <= 0.0:
-				continue
-			var mass_fraction = mass / total_mass
-			var purity = _resolve_emoji_purity(biome, emoji)
-			var purity_bonus = (1.0 + purity) if emoji in known_emojis else purity
-			var credits = int(mass_fraction * reap_base_yield * purity_bonus)
-			if credits <= 0:
-				continue
-			economy.add_resource(emoji, credits, "reap_iconmap")
-			icon_totals[emoji] = icon_totals.get(emoji, 0) + credits
-			total_icon_credits += credits
+	var reap_result = _collect_reap_rewards(active_biomes, economy, flux_to_credits, reap_base_yield, known_emojis)
+	var flux_totals: Dictionary = reap_result.get("flux_totals", {})
+	var icon_totals: Dictionary = reap_result.get("icon_totals", {})
+	var total_flux_credits = int(reap_result.get("total_flux_credits", 0))
+	var total_icon_credits = int(reap_result.get("total_icon_credits", 0))
 
 	var reap_count_after = reap_count_before + 1
 	_set_reap_count(farm, reap_count_after)
@@ -543,43 +712,31 @@ static func _prepare_pop_result(terminal, terminal_pool, economy = null, farm = 
 				"blocked": true
 			}
 
-	var resource = terminal.measured_outcome
-	var recorded_prob = terminal.measured_probability
-	var terminal_id = terminal.terminal_id
-	var register_id = terminal.measured_register_id
-	var biome_name = terminal.measured_biome_name
-	var purity = _resolve_terminal_purity(terminal, farm)
-
-	# Check if emoji is in known vocabulary (known gets a big multiplier, unknown is penalized)
-	var is_known_vocab = false
-	if farm and farm.has_method("get_known_pairs"):
-		var known_emojis = GameState.derive_known_emojis_from_pairs(farm.get_known_pairs())
-		is_known_vocab = resource in known_emojis
-
-	var biome = _resolve_biome_from_terminal(farm, terminal)
-	var mass_map = _resolve_mass_map_for_biome(biome)
-	var by_emoji: Dictionary = mass_map.get("by_emoji", {})
-	var total_mass = float(mass_map.get("total", 0.0))
-	var mass_fraction = 0.0
-	if total_mass > 0.0:
-		mass_fraction = float(by_emoji.get(resource, 0.0)) / total_mass
-	else:
-		mass_fraction = maxf(recorded_prob, 0.0)
-
-	var pop_base_yield_scale = float(BalanceService.get_tuning_value(farm, "pop_base_yield_scale", 100.0))
-	var purity_bonus = (1.0 + purity) if is_known_vocab else purity
-	var credits = mass_fraction * pop_base_yield_scale * purity_bonus
-	var resource_amount = maxi(int(credits), 1)
+	var reward_ctx = _resolve_pop_reward_context(terminal, farm)
+	var resource = str(reward_ctx.get("resource", terminal.measured_outcome))
+	var recorded_prob = float(reward_ctx.get("recorded_probability", terminal.measured_probability))
+	var terminal_id = str(reward_ctx.get("terminal_id", terminal.terminal_id))
+	var register_id = int(reward_ctx.get("register_id", terminal.measured_register_id))
+	var biome_name = str(reward_ctx.get("biome_name", terminal.measured_biome_name))
+	var p_emoji = float(reward_ctx.get("p_emoji", 0.0))
+	var bloch_r = float(reward_ctx.get("bloch_r", 0.5))
+	var affinity = float(reward_ctx.get("affinity", 0.0))
+	var purity_q = float(reward_ctx.get("purity_q", 0.5))
+	var reward_quantum = int(reward_ctx.get("reward_quantum", 1))
+	var credits = int(reward_ctx.get("credits", 1))
+	var resource_amount = maxi(int(reward_ctx.get("resource_amount", credits)), 1)
 
 	if economy:
-		var pop_cost_gate = _preflight_action(economy, "pop")
+		var base_cost = EconomyConstants.get_action_cost("pop", {})
+		var scaled_cost = PhysicsCostScaling.scale_pop_cost(base_cost, p_emoji, bloch_r)
+		var pop_cost_gate = _preflight_cost(economy, scaled_cost)
 		if not pop_cost_gate.get("ok", true):
 			return {
 				"success": false,
 				"error": "insufficient_resources",
-				"message": "Need 👥 to pop."
+				"message": "Need %s to pop." % _format_cost(scaled_cost)
 			}
-		if not _commit_cost(economy, pop_cost_gate.get("cost", {}), "pop"):
+		if not _commit_cost(economy, scaled_cost, "pop"):
 			return {
 				"success": false,
 				"error": "cost_commit_failed",
@@ -592,9 +749,11 @@ static func _prepare_pop_result(terminal, terminal_pool, economy = null, farm = 
 		"resource": resource,
 		"amount": resource_amount,
 		"recorded_probability": recorded_prob,
-		"purity": purity,
-		"mass_fraction": mass_fraction,
-		"purity_bonus": purity_bonus,
+		"p_emoji": p_emoji,
+		"bloch_r": bloch_r,
+		"purity_q": purity_q,
+		"affinity": affinity,
+		"reward_quantum": reward_quantum,
 		"credits": credits,
 		"terminal_id": terminal_id,
 		"register_id": register_id,
@@ -804,7 +963,7 @@ static func _save_density_matrices(biome) -> Dictionary:
 
 	var snapshot = {
 		"timestamp": Time.get_ticks_msec(),
-		"biome_type": biome.get_biome_type() if biome.has_method("get_biome_type") else "unknown"
+		"biome_type": biome.get_biome_type()
 	}
 
 	# Try to get density matrix from biome
@@ -857,18 +1016,19 @@ static func get_measure_preview(terminal, biome) -> Dictionary:
 			"can_measure": false,
 			"north_emoji": "",
 			"south_emoji": "",
-			"north_probability": 0.0,
-			"south_probability": 0.0
+			"north_probability": -1.0,
+			"south_probability": -1.0
 		}
 
-	var north_prob = biome.get_register_probability(terminal.bound_register_id) if biome else 0.5
+	var north_prob = biome.get_register_probability(terminal.bound_register_id) if biome else -1.0
+	var south_prob = 1.0 - north_prob if north_prob >= 0.0 else -1.0
 
 	return {
 		"can_measure": true,
 		"north_emoji": terminal.north_emoji,
 		"south_emoji": terminal.south_emoji,
 		"north_probability": north_prob,
-		"south_probability": 1.0 - north_prob
+		"south_probability": south_prob
 	}
 
 

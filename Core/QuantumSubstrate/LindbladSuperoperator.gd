@@ -34,9 +34,6 @@ var emoji_to_index: Dictionary = {}
 
 #region Construction
 
-func _init():
-	pass
-
 ## Build Lindblad operators from Icons and emoji list
 func build_from_icons(icons: Array, emojis: Array) -> void:
 	_terms = []
@@ -84,23 +81,6 @@ func build_from_icons(icons: Array, emojis: Array) -> void:
 					"type": "decay"
 				})
 
-	# Energy Tap Drains: emoji drains to sink state (Manifest Section 4.1)
-	# L_e = |sink⟩⟨e| with rate κ
-	var sink_idx = emoji_to_index.get("⬇️", -1)
-	if sink_idx >= 0:
-		for icon in icons:
-			var emoji_idx = emoji_to_index.get(icon.emoji, -1)
-			if emoji_idx >= 0 and icon.is_drain_target and icon.drain_to_sink_rate > 0.0:
-				if emoji_idx != sink_idx:  # Don't drain sink to itself
-					var L = _create_jump_operator(sink_idx, emoji_idx)
-					_terms.append({
-						"L": L,
-						"rate": icon.drain_to_sink_rate,
-						"source": icon.emoji,
-						"target": "⬇️",
-						"type": "drain"
-					})
-
 	# Process lindblad_incoming (convert to outgoing from source perspective)
 	# This is syntactic sugar: if A has incoming from B, treat as B→A
 	for icon in icons:
@@ -129,6 +109,94 @@ func build_from_icons(icons: Array, emojis: Array) -> void:
 						"target": icon.emoji,
 						"type": "incoming"
 					})
+
+## Build Lindblad operators directly from a biome's atom_components dict.
+##
+## Atoms-native path (biome-owned). Each entry in atom_components is keyed by
+## an atom (emoji) and may carry `lindblad_outgoing`, `lindblad_incoming`,
+## and `decay` term shapes. Gated channels live elsewhere (QuantumComputer
+## handles state-dependent rates and reads its own config path).
+##
+## A term is *built* only when every endpoint is in `basis`. Terms with a
+## missing endpoint are silently *primed* — the data is retained on the
+## biome (caller still owns atom_components) but no operator is emitted yet.
+## This is what lets a biome carry pre-loaded reactions for emojis the
+## player has not yet brought in.
+func build_from_atoms(atom_components: Dictionary, basis: Array) -> void:
+	_terms = []
+	emoji_list = []
+	emoji_to_index = {}
+
+	for i in range(basis.size()):
+		var emoji = basis[i]
+		emoji_list.append(emoji)
+		emoji_to_index[emoji] = i
+	_dimension = basis.size()
+
+	# Track (source, target) pairs already emitted so incoming-direction
+	# entries don't double-up on outgoing-direction declarations.
+	var emitted: Dictionary = {}
+
+	for source_emoji in atom_components.keys():
+		var source_idx: int = emoji_to_index.get(source_emoji, -1)
+		var component = atom_components[source_emoji]
+		if not (component is Dictionary):
+			continue
+
+		# Outgoing transfers: source → target
+		var outgoing = component.get("lindblad_outgoing", {})
+		if outgoing is Dictionary:
+			for target_emoji in outgoing.keys():
+				var target_idx: int = emoji_to_index.get(target_emoji, -1)
+				if source_idx < 0 or target_idx < 0:
+					continue  # primed
+				var rate: float = float(outgoing[target_emoji])
+				var L = _create_jump_operator(target_idx, source_idx)
+				_terms.append({
+					"L": L, "rate": rate,
+					"source": source_emoji, "target": target_emoji,
+					"type": "transfer"
+				})
+				emitted[source_emoji + "→" + target_emoji] = true
+
+		# Decay: source → decay_target (same operator shape as transfer)
+		var decay = component.get("decay", {})
+		if decay is Dictionary and decay.has("rate"):
+			var dt_emoji: String = str(decay.get("target", ""))
+			var dt_rate: float = float(decay.get("rate", 0.0))
+			var dt_idx: int = emoji_to_index.get(dt_emoji, -1)
+			if source_idx >= 0 and dt_idx >= 0 and dt_rate > 0.0:
+				var L = _create_jump_operator(dt_idx, source_idx)
+				_terms.append({
+					"L": L, "rate": dt_rate,
+					"source": source_emoji, "target": dt_emoji,
+					"type": "decay"
+				})
+				emitted[source_emoji + "→" + dt_emoji] = true
+
+	# Incoming-direction sweep (syntactic sugar; dedup against outgoing)
+	for receiver_emoji in atom_components.keys():
+		var receiver_idx: int = emoji_to_index.get(receiver_emoji, -1)
+		var component = atom_components[receiver_emoji]
+		if not (component is Dictionary):
+			continue
+		var incoming = component.get("lindblad_incoming", {})
+		if not (incoming is Dictionary):
+			continue
+		for src_emoji in incoming.keys():
+			var src_idx: int = emoji_to_index.get(src_emoji, -1)
+			if receiver_idx < 0 or src_idx < 0:
+				continue  # primed
+			if emitted.has(src_emoji + "→" + receiver_emoji):
+				continue
+			var rate: float = float(incoming[src_emoji])
+			var L = _create_jump_operator(receiver_idx, src_idx)
+			_terms.append({
+				"L": L, "rate": rate,
+				"source": src_emoji, "target": receiver_emoji,
+				"type": "incoming"
+			})
+
 
 ## Create jump operator |j⟩⟨i| that transfers from i to j
 func _create_jump_operator(j: int, i: int) -> ComplexMatrix:
@@ -220,61 +288,50 @@ func _apply_single_term(rho, L: ComplexMatrix, rate: float, dt: float) -> void:
 ## D[L](ρ) = LρL† - ½{L†L, ρ}
 ## where L = |j⟩⟨i| has only ONE non-zero element at (j,i)
 ##
-## This gives:
-## - LρL† transfers population: ρⱼⱼ += ρᵢᵢ, dampens coherences
-## - L†L = |i⟩⟨i| (projection onto source state)
-## - {L†L, ρ} dampens terms involving state i
+## Derivation for L = |j⟩⟨i|:
+##   LρL† = |j⟩⟨i|ρ|i⟩⟨j| = ρ_ii |j⟩⟨j|   (purely diagonal!)
+##   L†L  = |i⟩⟨i|   (projector onto source)
+##   ½{L†L, ρ}_ab = ½(δ_ai ρ_ib + ρ_ai δ_bi)
+##
+## Result (only three effects):
+##   1. ρ_jj += γdt × ρ_ii          (population transfer: source → target)
+##   2. ρ_ii *= (1 - γdt)            (population loss from source)
+##   3. ρ_ik *= (1 - γdt/2) ∀ k≠i   (coherence decay involving source)
+##
+## NOTE: No off-diagonal coherence transfer to target. LρL† is purely diagonal
+## for jump operators. An earlier version of this code incorrectly added
+## ρ_jk += γdt × ρ_ik, which inflated Tr(ρ²) above 1.0 over time.
 func _apply_jump_operator_sparse(rho, source_idx: int, target_idx: int, rate: float, dt: float) -> void:
 	var rho_mat = rho.get_matrix()
 	var gamma_dt = rate * dt
 
-	# Use direct array access for performance (skip bounds checking)
 	var rho_data = rho_mat._data
 	var dim = _dimension
 
-	# Get source population (will be transferred to target)
+	# Source population (before modification)
 	var source_diag_idx = source_idx * dim + source_idx
 	var rho_ii = rho_data[source_diag_idx]
 
-	# Apply dissipator: D[L](ρ) = LρL† - ½{L†L, ρ}
+	# Use exact exponential decay instead of Euler (1 - γdt).
+	# Euler overshoots to negative when γdt > 1 (strong drain).
+	# exp(-γdt) is always positive and exact for constant-rate decay.
+	var decay = exp(-gamma_dt)          # Population: exp(-γdt)
+	var half_decay = exp(-gamma_dt * 0.5)  # Coherence: exp(-γdt/2)
 
-	# 1. LρL† term: Transfers population from source to target
-	#    and creates coherence damping
+	# 1. LρL† = ρ_ii |j⟩⟨j|  →  ρ_jj += (1 - decay) × ρ_ii
+	# Transfer the population that LEFT the source (not γdt × ρ_ii which can exceed ρ_ii)
 	var target_diag_idx = target_idx * dim + target_idx
-	var rho_jj = rho_data[target_diag_idx]
-	rho_data[target_diag_idx] = rho_jj.add(rho_ii.scale(gamma_dt))
+	rho_data[target_diag_idx] = rho_data[target_diag_idx].add(rho_ii.scale(1.0 - decay))
 
-	# If source != target, also affect the source diagonal
-	if source_idx != target_idx:
-		for k in range(dim):
-			# Cross-term: affects ρₛₖ and ρₖₛ (coherences involving source)
-			if k != source_idx and k != target_idx:
-				var rho_sk = rho_data[source_idx * dim + k]
-				var rho_ks = rho_data[k * dim + source_idx]
-				var rho_tk = rho_data[target_idx * dim + k]
-				var rho_kt = rho_data[k * dim + target_idx]
+	# 2. -½{L†L, ρ} diagonal: ρ_ii *= exp(-γdt)
+	rho_data[source_diag_idx] = rho_ii.mul(Complex.new(decay, 0.0))
 
-				# LρL† creates new coherences target-k from source-k
-				rho_data[target_idx * dim + k] = rho_tk.add(rho_sk.scale(gamma_dt))
-				rho_data[k * dim + target_idx] = rho_kt.add(rho_ks.scale(gamma_dt))
-
-	# 2. -½{L†L, ρ} term: Dampens source state
-	#    L†L = |i⟩⟨i|, so {L†L, ρ} = 2|i⟩⟨i|ρ|i⟩⟨i| for diagonal part
-	#    and dampens off-diagonal elements involving source
-
-	# Dampen source diagonal
-	var damping_factor = Complex.new(1.0 - gamma_dt, 0.0)
-	rho_data[source_diag_idx] = rho_ii.mul(damping_factor)
-
-	# Dampen coherences involving source
-	var half_damping = Complex.new(1.0 - gamma_dt * 0.5, 0.0)
+	# 3. -½{L†L, ρ} off-diagonal: ρ_ik *= exp(-γdt/2)
+	var coh_damping = Complex.new(half_decay, 0.0)
 	for k in range(dim):
 		if k != source_idx:
-			var rho_sk = rho_data[source_idx * dim + k]
-			var rho_ks = rho_data[k * dim + source_idx]
-
-			rho_data[source_idx * dim + k] = rho_sk.mul(half_damping)
-			rho_data[k * dim + source_idx] = rho_ks.mul(half_damping)
+			rho_data[source_idx * dim + k] = rho_data[source_idx * dim + k].mul(coh_damping)
+			rho_data[k * dim + source_idx] = rho_data[k * dim + source_idx].mul(coh_damping)
 
 	rho.set_matrix(rho_mat)
 

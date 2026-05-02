@@ -1,14 +1,31 @@
 class_name Icon
 extends Resource
 
-## Icon: The eternal Hamiltonian attached to an emoji
-## Defines how this emoji interacts with others in any biome
-## Icons are the VERBS of the quantum universe
+## Icon: A named emoji pair — one qubit axis — that inhabits a biome.
+##
+## An Icon is the meeting of two poles: pole_0 (active/excited) and pole_1
+## (rest/ground). Together they ARE a quantum axis: one two-state system with
+## its own energy landscape, driver, and dissipative metabolism.
+##
+## Icons are hand-crafted. Factions give the emoji web its physics; Icons
+## select which two emojis form a living axis and give that axis a name.
+## A biome is a habitat — the list of Icons that dwell within it.
+##
+## The internal Rabi coupling (pole_0 ↔ pole_1) is the heartbeat of the Icon.
+## Cross-Icon couplings emerge from the faction web acting on the emoji pairs.
 
 ## ========================================
 ## Identity
 ## ========================================
 
+## The name of this Icon (e.g. "CelestialCycle", "PackHerd").
+@export var name: String = ""
+## pole_0: active/excited pole (e.g. "☀" for CelestialCycle)
+@export var pole_0: String = ""
+## pole_1: rest/ground pole (e.g. "🌙" for CelestialCycle)
+@export var pole_1: String = ""
+
+## Primary key for atom objects (single-emoji use). pole_0/pole_1 are used for paired icon axes.
 @export var emoji: String = ""
 @export var display_name: String = ""
 @export var description: String = ""
@@ -20,7 +37,13 @@ extends Resource
 ## Self-energy: diagonal term H[i,i] - natural frequency
 @export var self_energy: float = 0.0
 
-## Couplings: off-diagonal terms H[i,j]
+## Internal Rabi coupling: the heartbeat of the Icon.
+## Symmetric coupling between pole_0 ↔ pole_1 — the oscillation rate of this
+## axis. Distinct from cross-Icon couplings, which live in hamiltonian_couplings
+## and emerge from the faction web acting across axes.
+@export var rabi_coupling: float = 0.0
+
+## Cross-axis couplings: off-diagonal terms H[i,j] to OTHER Icons' emojis.
 ## Key = target emoji, Value = coupling strength (real, will be symmetrized)
 @export var hamiltonian_couplings: Dictionary = {}
 
@@ -57,24 +80,9 @@ extends Resource
 @export var decay_rate: float = 0.0
 @export var decay_target: String = "🍂"  # Default: organic matter
 
-## Gated Lindblad transfers: conditional transfers based on gate emoji population
-## Key = target emoji, Value = Array of gate configs
-## Each gate config: { "source": emoji, "rate": float, "gate": emoji, "power": float }
-## Transfer only occurs when gate emoji has significant population
-@export var gated_lindblad: Dictionary = {}
-
-## ========================================
-## Energy Tap Configuration (Gozouta 1)
-## Manifest Section 4.1: Trickle Drain
-## ========================================
-
-## Can this emoji be targeted by energy taps?
-## When true, this emoji can drain into sink state via Lindblad operator
-@export var is_drain_target: bool = false
-
-## Drain rate to sink: κ for L_e = √κ |sink⟩⟨e|
-## Rate in probability/sec (typical range: 0.01-0.5 for gentle to aggressive drain)
-@export var drain_to_sink_rate: float = 0.0
+## Gated transfers attach via `set_meta("gated_lindblad", [...])` rather than a
+## field — the meta carries an array of {source, gate, target, rate, power,
+## inverse} dicts. Kept off the export surface because it is biome-local data.
 
 ## ========================================
 ## Bath-Projection Coupling (Environmental Interactions)
@@ -109,11 +117,6 @@ extends Resource
 @export var is_driver: bool = false      # External forcing (like sun)
 @export var is_adaptive: bool = false    # Dynamically changes (like tomato)
 @export var is_eternal: bool = false     # Never decays
-
-## Named drivers for time-dependent dynamics
-## Key = driver name, Value = { "type": str, "period": float, "amplitude": float, ... }
-## Types: "oscillator" (periodic), "pulse" (on/off), "decay" (exponential)
-@export var drivers: Dictionary = {}
 
 ## ========================================
 ## Methods
@@ -155,12 +158,3 @@ func get_coupled_emojis() -> Array:
 
 	return result
 
-## Create a simple icon with just couplings (utility constructor)
-static func create_simple(emoji_str: String, couplings: Dictionary = {}, transfers: Dictionary = {}):
-	var icon_class = load("res://Core/QuantumSubstrate/Icon.gd")
-	var icon = icon_class.new()
-	icon.emoji = emoji_str
-	icon.display_name = emoji_str
-	icon.hamiltonian_couplings = couplings
-	icon.lindblad_outgoing = transfers
-	return icon

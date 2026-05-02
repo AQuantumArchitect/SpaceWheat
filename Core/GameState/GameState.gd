@@ -23,8 +23,8 @@ extends Resource
 @export var game_time: float = 0.0  # Total playtime
 @export var quantum_time_scale: float = 0.5  # Simulation speed multiplier (0.001-16.0) - Half real-time so day/night cycle is ~50s
 @export var observation_stride: int = 1  # Observation stride (0=locked, 1=normal, 2+=fast forward)
-@export var max_evolution_dt: float = 0.02  # Euler substep size for Lindblad evolution (resolution)
-@export var save_version: int = 1  # Phase 4: Save format version (increment when format changes)
+# max_evolution_dt removed — derived from BiomeCharacteristics continuity sweep, not player state
+@export var save_version: int = 3  # v3 (Phase III): adds player_affinity (12-qubit AffinityGraph); backward-compatible with v1/v2 (substrate re-initialized to |+⟩^⊗12)
 @export var advanced_mode_enabled: bool = false  # Enables advanced workbench controls in UI/tools
 
 ## Grid Dimensions (for variable-sized farms)
@@ -37,13 +37,18 @@ extends Resource
 @export var tributes_paid: int = 0
 @export var tributes_failed: int = 0
 
-## Known Pairs - persisted copy of player vocabulary (canonical in Farm)
+## Known Pairs - persisted copy of player signature (canonical in Farm)
 ## Each pair is {north: String, south: String}
 ## These are the actual plantable qubit axes the player has learned
 ## Starter pair: 🌾/👥 (wheat/people - the farming foundation)
 @export var known_pairs: Array = [
 	{"north": "🌾", "south": "👥"}
 ]
+
+## Active icon slots — 3 indices into known_pairs. The player faction's active
+## expression voice. Defaults to [0,1,2]; clamped to known_pairs size on load.
+## Tunable via Z surface Self tab icon picker.
+@export var active_icon_slots: Array = [0, 1, 2]
 
 ## Locked Quest Offers — pinned offers that persist across offer cycles
 ## Each entry is a full quest_data Dictionary with status="locked"
@@ -53,10 +58,6 @@ extends Resource
 ## Live code should not write this field directly. Use get_known_emojis() for reads.
 @export var known_emojis: Array = []
 
-## Player Vocabulary Quantum Computer data (for biome affinity calculations)
-## Serialized data from PlayerVocabulary autoload
-@export var player_vocab_data: Dictionary = {}
-
 ## IconMap Snapshot (tooling cache; NOT canonical gameplay authority)
 ## Allows bash/automation to read a compact emoji-weight view without parsing runtime state.
 ## Structure:
@@ -65,12 +66,11 @@ extends Resource
 ##   "total": float,
 ##   "steps": int
 ## }
-@export var icon_map_snapshot: Dictionary = {}
-@export var icon_map_snapshot_source: String = ""  # "batcher_global" | "derived_from_pairs"
-@export var icon_map_snapshot_time: int = 0
+@export var atom_map_snapshot: Dictionary = {}
+@export var atom_map_snapshot_source: String = ""  # "batcher_global" | "derived_from_pairs"
+@export var atom_map_snapshot_time: int = 0
 
 ## Runtime controller policy state (headless/UI automation brain memory)
-## Serialized snapshot from QuantumFiberPolicy.export_state()
 @export var policy_state: Dictionary = {}
 @export var policy_graph_path: String = "res://Core/Config/PolicyGraph/default.jsonl"
 @export var policy_graph_jsonl: Array[String] = []
@@ -86,15 +86,36 @@ extends Resource
 }
 @export var reap_count: int = 0
 
-## Unlocked Biomes - Start with StarterForest and Village, unlock more through exploration
-@export var unlocked_biomes: Array[String] = ["StarterForest", "Village"]
+## FactionDensityMatrix serialization: {faction_name: float} summing to 1.0.
+## Empty dict → farm re-initializes uniform on load.
+@export var faction_density: Dictionary = {}
+
+## Story flags and narrative log (v3+). story_flags_fired maps flag_id → phrame_index.
+## story_log is an ordered Array of fired-flag entries shown in the Z/Y Story tab.
+## Both are empty on new saves (no flags fired yet).
+@export var story_flags_fired: Dictionary = {}
+@export var story_log: Array = []
+
+## Per-faction multi-channel standings (v2). Empty dict → all zero on load.
+## Format: {faction_name: {trust, debt, attention, access, legitimacy, entanglement}}
+## See Core/Factions/FactionStanding.gd for the channel semantics.
+## v1 saves load with this empty (no migration needed; consumers must tolerate empty).
+@export var faction_standings: Dictionary = {}
+
+## Player AffinityGraph serialization (v3). Empty dict → farm re-initializes to
+## |+⟩^⊗12 (uniform superposition; player has no preferred axial pole yet).
+## Format: AffinityGraph.to_dict() output ({version, axis_count, weights, kets}).
+@export var player_affinity: Dictionary = {}
+
+## Unlocked Biomes - loaded exactly from save/scenario state.
+@export var unlocked_biomes: Array[String] = []
 
 ## Pool of unexplored biomes (assigned to active TYUIOP spindle slots dynamically)
 ## These are available but not yet assigned to keyboard slots
 @export var unexplored_biome_pool: Array[String] = ["BioticFlux", "StellarForges", "FungalNetworks", "VolcanicWorlds"]
 
 ## Active biome in the observation spindle when save was captured
-@export var active_biome_name: String = "StarterForest"
+@export var active_biome_name: String = ""
 
 ## Selection State (player's configured multi-select for batch operations)
 ## Array of Vector2i positions of selected/checked plots
@@ -117,7 +138,7 @@ static func derive_known_emojis_from_pairs(pairs: Array) -> Array:
 
 
 ## Get known emojis (derived from known_pairs)
-## This is the canonical compatibility read for the player's vocabulary.
+## This is the canonical compatibility read for the player's signature.
 func get_known_emojis() -> Array:
 	return derive_known_emojis_from_pairs(known_pairs)
 
@@ -173,7 +194,6 @@ func get_pair_for_emoji(emoji: String) -> Variant:
 # {
 #   "BioticFlux": {
 #     "time_elapsed": float,
-#     "sun_qubit": {theta, phi, radius, energy},
 #     "wheat_icon": {theta, phi, radius, energy},
 #     "mushroom_icon": {theta, phi, radius, energy},
 #     "quantum_states": [{position, theta, phi, radius, energy, north_emoji, south_emoji}, ...],
@@ -206,18 +226,6 @@ func get_pair_for_emoji(emoji: String) -> Variant:
 # Structure: String(Vector2i) → biome_name
 # Example: "(0, 0)" → "Market", "(2, 0)" → "BioticFlux"
 
-## Vocabulary Evolution State (NEW - PERSISTED)
-## Complete state snapshot from VocabularyEvolution.serialize()
-@export var vocabulary_state: Dictionary = {}
-# Structure:
-# {
-#   "discovered_vocabulary": [...],
-#   "evolving_qubits": [...],
-#   "parameters": {mutation_pressure, max_qubits, cannibalism_threshold, maturity_threshold},
-#   "statistics": {total_spawned, total_cannibalized, time_elapsed}
-# }
-
-
 func _init():
 	# Initialize with default values
 	scenario_id = "new_game_easy"
@@ -245,7 +253,7 @@ func _init():
 	# Initialize typed arrays properly (Godot 4 requirement)
 	active_contracts.clear()
 
-	# Player vocabulary is initialized in the @export default above
+	# Player signature is initialized in the @export default above
 	# 🌾 (Wheat) and 👥 (People) are the starter emojis
 	# These match faction signatures and seed initial faction conversations
 	ensure_balance_workbench_defaults()
@@ -282,7 +290,7 @@ static func create_for_grid(width: int, height: int):
 
 
 func get_save_display_name() -> String:
-	"""Get human-readable save name"""
+	# Get human-readable save name
 	var time = Time.get_datetime_dict_from_unix_time(save_timestamp)
 	return "%02d/%02d/%04d %02d:%02d" % [
 		time.month, time.day, time.year,
@@ -290,39 +298,43 @@ func get_save_display_name() -> String:
 	]
 
 
-func ensure_balance_workbench_defaults() -> void:
+const BALANCE_SCHEMA_VERSION: int = 2
+
+func ensure_balance_workbench_defaults() -> bool:
 	var defaults = _default_balance_workbench_config()
 	if not (balance_workbench_config is Dictionary):
 		balance_workbench_config = {}
 	if balance_workbench_config.is_empty():
 		balance_workbench_config = defaults
-	else:
-		if not balance_workbench_config.has("profile_id"):
-			balance_workbench_config["profile_id"] = defaults.get("profile_id", "default")
-		if not balance_workbench_config.has("display_name"):
-			balance_workbench_config["display_name"] = defaults.get("display_name", "Default Runtime Balance")
-		var tuning = balance_workbench_config.get("tuning", {})
-		if not (tuning is Dictionary):
-			tuning = {}
-		for key in defaults.get("tuning", {}).keys():
-			if not tuning.has(key):
-				tuning[key] = defaults["tuning"][key]
-		balance_workbench_config["tuning"] = tuning
-		var roi_notes = balance_workbench_config.get("action_roi_notes", {})
-		if not (roi_notes is Dictionary):
-			roi_notes = {}
-		for key in defaults.get("action_roi_notes", {}).keys():
-			if not roi_notes.has(key):
-				roi_notes[key] = defaults["action_roi_notes"][key]
-		balance_workbench_config["action_roi_notes"] = roi_notes
-		var quest_notes = balance_workbench_config.get("quest_reward_notes", {})
-		if not (quest_notes is Dictionary):
-			quest_notes = {}
-		for key in defaults.get("quest_reward_notes", {}).keys():
-			if not quest_notes.has(key):
-				quest_notes[key] = defaults["quest_reward_notes"][key]
-		balance_workbench_config["quest_reward_notes"] = quest_notes
-
+		return true
+	var saved_version = int(balance_workbench_config.get("balance_schema_version", 0))
+	var migrating = saved_version < BALANCE_SCHEMA_VERSION
+	if not balance_workbench_config.has("profile_id"):
+		balance_workbench_config["profile_id"] = defaults.get("profile_id", "default")
+	if not balance_workbench_config.has("display_name"):
+		balance_workbench_config["display_name"] = defaults.get("display_name", "Default Runtime Balance")
+	var tuning = balance_workbench_config.get("tuning", {})
+	if not (tuning is Dictionary):
+		tuning = {}
+	for key in defaults.get("tuning", {}).keys():
+		if migrating or not tuning.has(key):
+			tuning[key] = defaults["tuning"][key]
+	balance_workbench_config["tuning"] = tuning
+	balance_workbench_config["balance_schema_version"] = BALANCE_SCHEMA_VERSION
+	var roi_notes = balance_workbench_config.get("action_roi_notes", {})
+	if not (roi_notes is Dictionary):
+		roi_notes = {}
+	for key in defaults.get("action_roi_notes", {}).keys():
+		if not roi_notes.has(key):
+			roi_notes[key] = defaults["action_roi_notes"][key]
+	balance_workbench_config["action_roi_notes"] = roi_notes
+	var quest_notes = balance_workbench_config.get("quest_reward_notes", {})
+	if not (quest_notes is Dictionary):
+		quest_notes = {}
+	for key in defaults.get("quest_reward_notes", {}).keys():
+		if not quest_notes.has(key):
+			quest_notes[key] = defaults["quest_reward_notes"][key]
+	balance_workbench_config["quest_reward_notes"] = quest_notes
 	if balance_profile_id == "":
 		balance_profile_id = str(balance_workbench_config.get("profile_id", "default"))
 	if not (economy_variables is Dictionary):
@@ -330,6 +342,7 @@ func ensure_balance_workbench_defaults() -> void:
 	for key in ["quantum_to_credits", "max_biome_qubits"]:
 		if not economy_variables.has(key):
 			economy_variables[key] = defaults.get("economy_variables", {}).get(key, 1.0 if key == "quantum_to_credits" else 12)
+	return migrating
 
 
 func ensure_policy_state_defaults() -> void:
@@ -357,15 +370,17 @@ func ensure_policy_state_defaults() -> void:
 
 func _default_balance_workbench_config() -> Dictionary:
 	return {
+		"balance_schema_version": BALANCE_SCHEMA_VERSION,
 		"profile_id": "default",
 		"display_name": "Default Runtime Balance",
 		"tuning": {
-			"pop_base_yield_scale": 100.0,
-			"reap_base_yield": 50.0,
+			"pop_base_yield_scale": 13.0,
+			"reap_base_yield": 8.0,
 			"reap_evolution_cycles": 13,
 			"flux_to_credits": 1.0,
 			"reap_cost_sequence": [1, 1, 2, 3, 5, 8, 13, 21],
-			"reap_starting_tokens": 6
+			"reap_starting_tokens": 6,
+			"measurement_drain_base": 0.15
 		},
 		"economy_variables": {
 			"quantum_to_credits": 1.0,
