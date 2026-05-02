@@ -4,7 +4,7 @@ extends SceneTree
 ## Run: godot --headless --script tests/test_gate_application_integration.gd
 
 const GateInjector = preload("res://Core/QuantumSubstrate/GateInjector.gd")
-const GateActionHandler = preload("res://UI/Handlers/GateActionHandler.gd")
+const GateActionHandler = preload("res://Core/Instrumentation/Handlers/GateActionHandler.gd")
 
 var passed = 0
 var failed = 0
@@ -41,12 +41,16 @@ func _init():
 
 
 func setup_test_environment() -> bool:
-	"""Create a real biome with quantum computer."""
+	# Create a real biome with quantum computer.
 	print("\n[Setup: Real Biome + Quantum Computer]")
 
-	# Create a real StarterForest biome (has quantum computer)
-	var StarterForestBiome = load("res://Core/Environment/StarterForestBiome.gd")
-	biome = StarterForestBiome.new()
+	# Build StarterForest from data (BiomeRegistry + factions + JSONL)
+	var BiomeBuilder = load("res://Core/Biomes/BiomeBuilder.gd")
+	var result = BiomeBuilder.build_from_registry("StarterForest", root, {"skip_tree_add": true})
+	if not result.success:
+		print("  ✗ Failed to build biome: %s" % result.error)
+		return false
+	biome = result.biome_node
 	biome.name = "TestBiome"
 	root.add_child(biome)
 
@@ -73,7 +77,7 @@ func setup_test_environment() -> bool:
 
 
 func test_single_gate_injection():
-	"""Test single-qubit gate changes density matrix."""
+	# Test single-qubit gate changes density matrix.
 	print("\n[Single Gate Injection]")
 
 	var qc = biome.quantum_computer
@@ -111,7 +115,7 @@ func test_single_gate_injection():
 
 
 func test_two_qubit_gate_injection():
-	"""Test two-qubit gate (CNOT) with proper state preparation."""
+	# Test two-qubit gate (CNOT) with proper state preparation.
 	print("\n[Two-Qubit Gate: X + CNOT]")
 
 	var qc = biome.quantum_computer
@@ -171,7 +175,7 @@ func test_two_qubit_gate_injection():
 
 
 func test_bell_state_creation():
-	"""Test Bell state creation: H + CNOT = (|00⟩+|11⟩)/√2."""
+	# Test Bell state creation: H + CNOT = (|00⟩+|11⟩)/√2.
 	print("\n[Bell State Creation: H + CNOT]")
 
 	var qc = biome.quantum_computer
@@ -219,7 +223,7 @@ func test_bell_state_creation():
 
 
 func test_batch_gate_injection():
-	"""Test batch gate injection (multi-select) preserves order."""
+	# Test batch gate injection (multi-select) preserves order.
 	print("\n[Batch Gate Injection - Multi-Select]")
 
 	var qc = biome.quantum_computer
@@ -261,7 +265,7 @@ func test_batch_gate_injection():
 
 
 func test_density_matrix_persistence():
-	"""Test that density matrix changes persist (C++ will use this state)."""
+	# Test that density matrix changes persist (C++ will use this state).
 	print("\n[Density Matrix Persistence]")
 
 	var qc = biome.quantum_computer
@@ -284,7 +288,7 @@ func test_density_matrix_persistence():
 
 
 func _snapshot_density_matrix(dm) -> Array:
-	"""Copy density matrix elements to array for comparison."""
+	# Copy density matrix elements to array for comparison.
 	var snapshot = []
 	for i in range(dm.n):
 		for j in range(dm.n):
@@ -294,7 +298,7 @@ func _snapshot_density_matrix(dm) -> Array:
 
 
 func _matrices_equal(dm1: Array, dm2: Array, epsilon: float = 1e-10) -> bool:
-	"""Check if two density matrix snapshots are equal."""
+	# Check if two density matrix snapshots are equal.
 	if dm1.size() != dm2.size():
 		return false
 
@@ -318,7 +322,7 @@ func _matrices_equal(dm1: Array, dm2: Array, epsilon: float = 1e-10) -> bool:
 
 
 func _print_matrix_diff(dm1: Array, dm2: Array):
-	"""Print first few changed elements."""
+	# Print first few changed elements.
 	var changes = 0
 	for i in range(min(dm1.size(), 16)):  # First 16 elements
 		var diff_re = abs(dm1[i].re - dm2[i].re)
@@ -334,7 +338,7 @@ func _print_matrix_diff(dm1: Array, dm2: Array):
 
 
 func _calculate_trace(dm) -> float:
-	"""Calculate trace of density matrix (should be 1.0)."""
+	# Calculate trace of density matrix (should be 1.0).
 	var trace = 0.0
 	for i in range(dm.n):
 		var elem = dm.get_element(i, i)
@@ -343,7 +347,7 @@ func _calculate_trace(dm) -> float:
 
 
 func _check_hermitian(dm) -> bool:
-	"""Check if density matrix is Hermitian (ρ† = ρ)."""
+	# Check if density matrix is Hermitian (ρ† = ρ).
 	for i in range(dm.n):
 		for j in range(i + 1, dm.n):  # Check upper triangle
 			var elem_ij = dm.get_element(i, j)
