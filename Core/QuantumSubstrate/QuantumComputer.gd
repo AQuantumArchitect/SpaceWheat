@@ -12,6 +12,7 @@ const ComplexMatrix = preload("res://Core/QuantumSubstrate/ComplexMatrix.gd")
 # SparseMatrix deprecated - sparse optimization now handled by native C++ backend
 const QuantumGateLibrary = preload("res://Core/QuantumSubstrate/QuantumGateLibrary.gd")
 const RegisterMap = preload("res://Core/QuantumSubstrate/RegisterMap.gd")
+const BerryPhaseRegister = preload("res://Core/QuantumSubstrate/BerryPhaseRegister.gd")
 const VerboseHelper = preload("res://Core/Config/VerboseHelper.gd")
 
 func _log(level: String, category: String, emoji: String, message: String) -> void:
@@ -23,9 +24,19 @@ func _log(level: String, category: String, emoji: String, message: String) -> vo
 var register_map: RegisterMap = RegisterMap.new()
 var density_matrix: ComplexMatrix = null
 
+## Per-qubit Berry phase (geometric solid angle) tracking. Sim-side truth;
+## viz layer reads from here. Headless-visible.
+var berry_register: BerryPhaseRegister = BerryPhaseRegister.new()
+
 ## Lindblad evolution operators (set by biome via HamiltonianBuilder/LindbladBuilder)
 var hamiltonian: ComplexMatrix = null         # H matrix (Hermitian, dim×dim)
 var lindblad_operators: Array = []            # Array of L_k matrices (ComplexMatrix)
+
+## CACHED Lindblad pre-computations (rebuilt when operators change)
+## L_dag[k] = L_k†,  Ldag_L[k] = L_k† L_k — saves 2 matmuls per operator per substep
+var _lindblad_L_dag: Array = []              # Array of L_k† (ComplexMatrix)
+var _lindblad_Ldag_L: Array = []             # Array of L_k† L_k (ComplexMatrix)
+var _lindblad_cache_valid: bool = false
 
 ## SPARSE optimized operators (10-50x faster for sparse Hamiltonians/Lindblad)
 var sparse_hamiltonian = null                 # SparseMatrix (auto-converted if sparse)
@@ -68,9 +79,12 @@ var _catastrophic_recovery_count: int = 0
 var elapsed_time: float = 0.0  # Total time elapsed since biome initialization
 
 ## PHASE MODULATION VIA LEARNED NEURAL NETWORK (Phasic Shadow)
-## Optional LiquidNeuralNet that modulates density matrix phases during evolution
-## Inference happens atomically as part of evolve() call
-var phase_lnn = null  # LiquidNeuralNet reference (optional)
+## Flip ENABLE_PHASE_LNN to true and assign a native LNN binding to phase_lnn
+## to activate phasic perturbation during evolution. Useful for nudging biomes
+## out of stuck attractors or testing sensitivity. C++ implementation lives in
+## native/src/liquid_neural_net.cpp (see NATIVE_LNN_IMPLEMENTATION.md).
+const ENABLE_PHASE_LNN: bool = false
+var phase_lnn = null  # Assign a native LiquidNeuralNetNative instance to activate
 
 # Performance: Purity cache (invalidated on density matrix changes)
 var _purity_cache: float = -1.0
@@ -88,19 +102,24 @@ func _init(name: String = ""):
 
 
 func clear() -> void:
-	"""Release runtime state so biome/session teardown can break ref cycles."""
+	# Release runtime state so biome/session teardown can break ref cycles.
 	if register_map and register_map.has_method("clear"):
 		register_map.clear()
 	register_map = RegisterMap.new()
 	density_matrix = null
 	hamiltonian = null
 	lindblad_operators.clear()
+	_lindblad_L_dag.clear()
+	_lindblad_Ldag_L.clear()
+	_lindblad_cache_valid = false
 	sparse_hamiltonian = null
 	sparse_lindblad_operators.clear()
 	gated_lindblad_configs.clear()
 	driven_icons.clear()
 	entanglement_graph.clear()
 	register_infrastructure.clear()
+	if berry_register:
+		berry_register.clear()
 	sink_flux_per_emoji.clear()
 	_cached_mi_values = PackedFloat64Array()
 	_mi_last_compute_frame = -1
@@ -137,13 +156,11 @@ func _collect_component_registers(reg_id: int) -> Array[int]:
 ## ============================================================================
 
 func _embed_1q_unitary(U: ComplexMatrix, target_index: int, num_qubits: int) -> ComplexMatrix:
-	"""
-	Embed 1Q gate U at target_index into full Hilbert space.
+	# Embed 1Q gate U at target_index into full Hilbert space.
 
-	Result: I ⊗ ... ⊗ U ⊗ ... ⊗ I (where U is at target_index)
+	# Result: I ⊗ ... ⊗ U ⊗ ... ⊗ I (where U is at target_index)
 
-	Sparse optimization: only non-zero blocks computed.
-	"""
+	# Sparse optimization: only non-zero blocks computed.
 	if target_index == 0:
 		# U ⊗ I^(n-1)
 		var I = ComplexMatrix.identity(1 << (num_qubits - 1))
@@ -163,18 +180,16 @@ func _embed_1q_unitary(U: ComplexMatrix, target_index: int, num_qubits: int) -> 
 		return left_part.tensor_product(right_I)
 
 func _embed_2q_unitary(U: ComplexMatrix, idx_a: int, idx_b: int, num_qubits: int) -> ComplexMatrix:
-	"""
-	Embed 2Q gate U at indices (idx_a, idx_b) into full Hilbert space.
+	# Embed 2Q gate U at indices (idx_a, idx_b) into full Hilbert space.
 
-	Result: I ⊗ ... ⊗ U_{ab} ⊗ ... ⊗ I
-	where U_{ab} acts on qubits at idx_a and idx_b.
+	# Result: I ⊗ ... ⊗ U_{ab} ⊗ ... ⊗ I
+	# where U_{ab} acts on qubits at idx_a and idx_b.
 
-	Convention: Uses MSB indexing (qubit 0 = most significant bit) to match _embed_1q_unitary.
-	For CNOT, idx_a is control and idx_b is target.
+	# Convention: Uses MSB indexing (qubit 0 = most significant bit) to match _embed_1q_unitary.
+	# For CNOT, idx_a is control and idx_b is target.
 
-	Implementation: Builds full 4-dimensional operator by iterating over all basis states,
-	applying U only to the (idx_a, idx_b) subspace and passing through other qubits.
-	"""
+	# Implementation: Builds full 4-dimensional operator by iterating over all basis states,
+	# applying U only to the (idx_a, idx_b) subspace and passing through other qubits.
 	# NOTE: Do NOT swap idx_a and idx_b - order matters for non-symmetric gates like CNOT!
 
 	var total_dim = 1 << num_qubits
@@ -219,17 +234,16 @@ func _embed_2q_unitary(U: ComplexMatrix, idx_a: int, idx_b: int, num_qubits: int
 
 
 func _decompose_basis_msb(basis: int, num_qubits: int) -> Array[int]:
-	"""Decompose a basis state index into individual qubit indices (MSB convention).
+	# Decompose a basis state index into individual qubit indices (MSB convention).
 
-	MSB convention: qubit index k corresponds to bit (n-1-k).
-	This matches _embed_1q_unitary where qubit 0 affects the most significant bit.
+	# MSB convention: qubit index k corresponds to bit (n-1-k).
+	# This matches _embed_1q_unitary where qubit 0 affects the most significant bit.
 
-	For num_qubits=3, basis=5 (binary 101):
-	  - qubit 0 = bit 2 = 1
-	  - qubit 1 = bit 1 = 0
-	  - qubit 2 = bit 0 = 1
-	Returns [1, 0, 1]
-	"""
+	# For num_qubits=3, basis=5 (binary 101):
+	# - qubit 0 = bit 2 = 1
+	# - qubit 1 = bit 1 = 0
+	# - qubit 2 = bit 0 = 1
+	# Returns [1, 0, 1]
 	var qubits: Array[int] = []
 	for i in range(num_qubits):
 		var bit_pos = num_qubits - 1 - i
@@ -237,60 +251,40 @@ func _decompose_basis_msb(basis: int, num_qubits: int) -> Array[int]:
 	return qubits
 
 
-func _decompose_basis(basis: int, num_qubits: int) -> Array[int]:
-	"""Decompose a basis state index into individual qubit indices (LSB convention).
-
-	DEPRECATED: Use _decompose_basis_msb for consistency with gate embedding.
-
-	LSB convention: qubit index k corresponds to bit k.
-	For num_qubits=3, basis=5 (binary 101):
-	Returns [1, 0, 1] (qubit 0=bit0=1, qubit 1=bit1=0, qubit 2=bit2=1)
-	"""
-	var qubits: Array[int] = []
-	for i in range(num_qubits):
-		qubits.append((basis >> i) & 1)
-	return qubits
-
 ## ============================================================================
-## MEASUREMENT (Tool 2 Backend)
+## MEASUREMENT (Ace Frame Backend)
 ## ============================================================================
 
 func inspect_register_distribution(_comp, reg_id: int) -> Dictionary:
-	"""
-	Non-destructive peek at measurement probabilities.
+	# Non-destructive peek at measurement probabilities.
 
-	Returns marginal probabilities WITHOUT collapsing state.
-	This is simulator introspection, not physical measurement.
+	# Returns marginal probabilities WITHOUT collapsing state.
+	# This is simulator introspection, not physical measurement.
 
-	Returns: {north: float, south: float}
-	"""
+	# Returns: {north: float, south: float}
 	var p0 = get_marginal(reg_id, 0)
 	var p1 = get_marginal(reg_id, 1)
 	return {"north": p0, "south": p1}
 
 func _project_component_state(_comp, reg_id: int, outcome_idx: int) -> void:
-	"""
-	Apply projector to component state after measurement.
+	# Apply projector to component state after measurement.
 
-	outcome_idx: 0 = |0⟩ (north), 1 = |1⟩ (south)
+	# outcome_idx: 0 = |0⟩ (north), 1 = |1⟩ (south)
 
-	Math: ρ' = P ρ P† / Tr(P ρ P†) where P = |outcome⟩⟨outcome|
-	"""
+	# Math: ρ' = P ρ P† / Tr(P ρ P†) where P = |outcome⟩⟨outcome|
 	project_qubit(reg_id, outcome_idx)
 
 ## ============================================================================
-## ENTANGLEMENT (Tool 1 Backend)
+## ENTANGLEMENT (Operator Frame Backend)
 ## ============================================================================
 
 func entangle_plots(reg_a: int, reg_b: int) -> bool:
-	"""
-	Entangle two registers (from same biome) using Bell circuit.
+	# Entangle two registers (from same biome) using Bell circuit.
 
-	Circuit: H on reg_a, then CNOT(reg_a, reg_b)
-	Result: Bell Φ+ = (|00⟩ + |11⟩) / √2
+	# Circuit: H on reg_a, then CNOT(reg_a, reg_b)
+	# Result: Bell Φ+ = (|00⟩ + |11⟩) / √2
 
-	Merges components if in different connected sets.
-	"""
+	# Merges components if in different connected sets.
 	if density_matrix == null:
 		push_error("Entanglement attempted without density_matrix")
 		return false
@@ -315,7 +309,7 @@ func entangle_plots(reg_a: int, reg_b: int) -> bool:
 	return true
 
 func get_entangled_component(reg_id: int) -> Array[int]:
-	"""Get all registers entangled with this one (in same component)."""
+	# Get all registers entangled with this one (in same component).
 	if reg_id < 0:
 		return []
 	return _collect_component_registers(reg_id)
@@ -326,7 +320,7 @@ func get_entangled_component(reg_id: int) -> Array[int]:
 ## ============================================================================
 
 func get_marginal_density_matrix(_comp, reg_id: int) -> ComplexMatrix:
-	"""Get 2×2 marginal density matrix for one register (Model C)."""
+	# Get 2×2 marginal density matrix for one register (Model C).
 	var result = ComplexMatrix.new(2)
 	if density_matrix == null:
 		return result
@@ -353,37 +347,34 @@ func get_marginal_density_matrix(_comp, reg_id: int) -> ComplexMatrix:
 	return result
 
 func get_marginal_probability_subspace(_comp, reg_id: int, basis_labels: Array[String]) -> float:
-	"""
-	Get total probability in subspace spanned by two basis states.
+	# Get total probability in subspace spanned by two basis states.
 
-	Used for plots with (north_emoji, south_emoji) basis.
-	Returns: P(north) + P(south)
-	"""
+	# Used for plots with (north_emoji, south_emoji) basis.
+	# Returns: P(north) + P(south)
 	var marginal = get_marginal_density_matrix(null, reg_id)
 	var p0 = marginal.get_element(0, 0).re
 	var p1 = marginal.get_element(1, 1).re
 	return p0 + p1
 
 func get_marginal_purity(_comp, reg_id: int) -> float:
-	"""Get purity of marginal state for one register."""
+	# Get purity of marginal state for one register.
 	var marginal = get_marginal_density_matrix(null, reg_id)
 	var rho_sq = marginal.mul(marginal)
 	return clamp(rho_sq.trace().re, 0.0, 1.0)
 
 func get_marginal_coherence(_comp, reg_id: int) -> float:
-	"""Get coherence (off-diagonal element) for one register."""
+	# Get coherence (off-diagonal element) for one register.
 	var marginal = get_marginal_density_matrix(null, reg_id)
 	return marginal.get_element(0, 1).abs()
 
 
 func export_bloch_packet() -> PackedFloat64Array:
-	"""Export current state as visualization packet.
+	# Export current state as visualization packet.
 
-	Standard format for the information railway:
-	QC.export_bloch_packet() → batcher buffers → viz_cache → UI
+	# Standard format for the information railway:
+	# QC.export_bloch_packet() → batcher buffers → viz_cache → UI
 
-	Returns packed array: [p0, p1, x, y, z, r, theta, phi] per qubit
-	"""
+	# Returns packed array: [p0, p1, x, y, z, r, theta, phi] per qubit
 	var num_qubits = register_map.num_qubits
 	var packet = PackedFloat64Array()
 	packet.resize(num_qubits * 8)
@@ -453,34 +444,30 @@ func export_bloch_packet() -> PackedFloat64Array:
 ## ============================================================================
 
 func get_sink_flux(emoji: String) -> float:
-	"""
-	Get accumulated energy flux that drained to sink state from an emoji this frame.
+	# Get accumulated energy flux that drained to sink state from an emoji this frame.
 
-	Manifest Section 4.1: Lindblad drain operators L_e = |sink⟩⟨e| transfer
-	population from emoji to sink state. This tracks how much was drained.
+	# Manifest Section 4.1: Lindblad drain operators L_e = |sink⟩⟨e| transfer
+	# population from emoji to sink state. This tracks how much was drained.
 
-	Called during each frame to collect energy from energy tap plots.
-	"""
+	# Called during each frame to collect energy from energy tap plots.
 	return sink_flux_per_emoji.get(emoji, 0.0)
 
 func get_all_sink_fluxes() -> Dictionary:
-	"""
-	Get dictionary of all accumulated fluxes per emoji this frame.
+	# Get dictionary of all accumulated fluxes per emoji this frame.
 
-	Returns: {emoji: float} of all drained energies
-	"""
+	# Returns: {emoji: float} of all drained energies
 	return sink_flux_per_emoji.duplicate()
 
 
 func add_sink_flux(emoji: String, amount: float) -> void:
-	"""Accumulate positive sink flux for one emoji."""
+	# Accumulate positive sink flux for one emoji.
 	if emoji == "" or amount <= 0.0:
 		return
 	sink_flux_per_emoji[emoji] = float(sink_flux_per_emoji.get(emoji, 0.0)) + amount
 
 
 func consume_sink_flux(emoji: String, amount: float) -> float:
-	"""Consume sink flux so payouts and reap do not double count the same mass."""
+	# Consume sink flux so payouts and reap do not double count the same mass.
 	if emoji == "" or amount <= 0.0:
 		return 0.0
 	var available = float(sink_flux_per_emoji.get(emoji, 0.0))
@@ -496,7 +483,7 @@ func consume_sink_flux(emoji: String, amount: float) -> float:
 
 
 func accumulate_sink_flux_from_rates(rate_map: Dictionary, dt: float) -> void:
-	"""Accumulate flux from structural Lindblad rates and current emoji populations."""
+	# Accumulate flux from structural Lindblad rates and current emoji populations.
 	if rate_map.is_empty() or dt <= 0.0:
 		return
 	for key in rate_map.keys():
@@ -513,12 +500,12 @@ func accumulate_sink_flux_from_rates(rate_map: Dictionary, dt: float) -> void:
 
 
 func reset_sink_flux() -> void:
-	"""Reset accumulated sink flux for next frame."""
+	# Reset accumulated sink flux for next frame.
 	sink_flux_per_emoji.clear()
 
 
 func get_renorm_diagnostics() -> Dictionary:
-	"""Expose renormalization diagnostics for debugging only (not gameplay economy)."""
+	# Expose renormalization diagnostics for debugging only (not gameplay economy).
 	return {
 		"last_trace_before_cap": _last_renorm_trace_before_cap,
 		"last_scale": _last_renorm_scale,
@@ -526,7 +513,7 @@ func get_renorm_diagnostics() -> Dictionary:
 	}
 
 func debug_dump() -> String:
-	"""Generate human-readable dump of quantum computer state."""
+	# Generate human-readable dump of quantum computer state.
 	var s = "=== QuantumComputer %s ===\n" % biome_name
 	s += "Qubits: %d\n" % register_map.num_qubits
 	s += "Dim: %d\n" % register_map.dim()
@@ -544,16 +531,15 @@ func debug_dump() -> String:
 # ============================================================================
 
 func allocate_axis(qubit_index: int, north_emoji: String, south_emoji: String) -> void:
-	"""Register a qubit axis in the RegisterMap.
+	# Register a qubit axis in the RegisterMap.
 
-	Args:
-	    qubit_index: Qubit number (0, 1, 2, ...)
-	    north_emoji: Emoji for |0⟩ (north pole)
-	    south_emoji: Emoji for |1⟩ (south pole)
+	# Args:
+	# qubit_index: Qubit number (0, 1, 2, ...)
+	# north_emoji: Emoji for |0⟩ (north pole)
+	# south_emoji: Emoji for |1⟩ (south pole)
 
-	Example:
-	    allocate_axis(0, "🔥", "❄️")  # Qubit 0: Temperature axis
-	"""
+	# Example:
+	# allocate_axis(0, "🔥", "❄️")  # Qubit 0: Temperature axis
 	register_map.register_axis(qubit_index, north_emoji, south_emoji)
 	_ensure_entanglement_node(qubit_index)
 	_ensure_register_infra(qubit_index)
@@ -614,11 +600,10 @@ func clear_register_infrastructure(reg_id: int) -> void:
 
 
 func _resize_density_matrix() -> void:
-	"""Resize density matrix when qubits are added.
+	# Resize density matrix when qubits are added.
 
-	When adding a new qubit, tensor-extends existing state with |0⟩⟨0|.
-	New qubit starts in ground state (north pole).
-	"""
+	# When adding a new qubit, tensor-extends existing state with |0⟩⟨0|.
+	# New qubit starts in ground state (north pole).
 	var num_qubits = register_map.num_qubits
 	var dim = register_map.dim()
 
@@ -636,14 +621,13 @@ func _resize_density_matrix() -> void:
 
 
 func initialize_basis(basis_index: int) -> void:
-	"""Initialize density matrix to pure state |i⟩⟨i|.
+	# Initialize density matrix to pure state |i⟩⟨i|.
 
-	Args:
-	    basis_index: Computational basis index (0 to 2^n - 1)
+	# Args:
+	# basis_index: Computational basis index (0 to 2^n - 1)
 
-	Example:
-	    initialize_basis(7)  # |111⟩ for 3 qubits (ground state)
-	"""
+	# Example:
+	# initialize_basis(7)  # |111⟩ for 3 qubits (ground state)
 	var dim = register_map.dim()
 	if basis_index < 0 or basis_index >= dim:
 		push_error("❌ Basis index %d out of range [0, %d)" % [basis_index, dim])
@@ -655,10 +639,9 @@ func initialize_basis(basis_index: int) -> void:
 
 
 func initialize_uniform_superposition() -> void:
-	"""Initialize density matrix to uniform superposition |ψ⟩ over all basis states.
+	# Initialize density matrix to uniform superposition |ψ⟩ over all basis states.
 
-	|ψ⟩ = (1/√d) Σ_i |i⟩, so ρ = |ψ⟩⟨ψ| has all entries = 1/d.
-	"""
+	# |ψ⟩ = (1/√d) Σ_i |i⟩, so ρ = |ψ⟩⟨ψ| has all entries = 1/d.
 	var dim = register_map.dim()
 	if dim <= 0:
 		push_error("❌ Cannot initialize superposition: invalid dimension %d" % dim)
@@ -671,28 +654,57 @@ func initialize_uniform_superposition() -> void:
 	_log("debug", "quantum", "✨", "Initialized to uniform superposition (dim=%d)" % dim)
 
 
+func initialize_thermal(beta: float) -> void:
+	# Initialize to Gibbs state ρ = exp(-βH) / Z at inverse temperature β.
+
+	# β=0   → uniform superposition (maximally mixed)
+	# β=5   → mild ecological bias toward ground state
+	# β=20  → near-pure ground state (recommended for biome load)
+
+	# Uses the static Hamiltonian H(t=0). At StarterForest energy scales (|E|≤1.5),
+	# β=20 gives Boltzmann weights that are effectively the ground-state projection.
+	if hamiltonian == null:
+		push_warning("initialize_thermal: hamiltonian not built yet, falling back to uniform superposition")
+		initialize_uniform_superposition()
+		return
+	var neg_beta_H = hamiltonian.scale_real(-beta)
+	density_matrix = neg_beta_H.expm()
+	density_matrix.renormalize_trace()
+	_log("debug", "quantum", "🌡️", "Initialized to thermal state β=%.1f (dim=%d)" % [beta, register_map.dim()])
+
+
+func initialize_ground_state() -> void:
+	# Initialize to the Hamiltonian ground state via Gibbs state at β=20.
+
+	# Gives ecologically correct initial populations for StarterForest:
+	# 🦅 eagle ~2%,  🐺 wolf ~16%,  🌱 seedling ~26%,  🍂 litter ~20%
+	# vs uniform superposition which starts everything at 50%.
+
+	# Falls back to uniform superposition if H is not yet built.
+	initialize_thermal(20.0)
+
+
 # Delegate RegisterMap queries
 func has(emoji: String) -> bool:
-	"""Check if emoji is registered in this quantum computer."""
+	# Check if emoji is registered in this quantum computer.
 	return register_map.has(emoji)
 
 
 func qubit(emoji: String) -> int:
-	"""Get qubit index for emoji (-1 if not found)."""
+	# Get qubit index for emoji (-1 if not found).
 	return register_map.qubit(emoji)
 
 
 func pole(emoji: String) -> int:
-	"""Get pole for emoji (0=north, 1=south, -1 if not found)."""
+	# Get pole for emoji (0=north, 1=south, -1 if not found).
 	return register_map.pole(emoji)
 
 
 func get_density_matrix() -> ComplexMatrix:
-	"""Get the density matrix (ρ) for this quantum computer.
+	# Get the density matrix (ρ) for this quantum computer.
 
-	Returns the full density matrix representing the quantum state.
-	Used by BiomeBase for measurements, coherence checks, and draining.
-	"""
+	# Returns the full density matrix representing the quantum state.
+	# Used by BiomeBase for measurements, coherence checks, and draining.
 	return density_matrix
 
 
@@ -701,18 +713,16 @@ func get_density_matrix() -> ComplexMatrix:
 ## ============================================================================
 
 func allocate_qubit(north_emoji: String, south_emoji: String) -> int:
-	"""Allocate a new qubit axis and return its index.
+	# Allocate a new qubit axis and return its index.
 
-	Model C allocation: adds axis to RegisterMap, resizes density_matrix.
-	Use this instead of allocate_register() for new code.
+	# Adds an axis to RegisterMap and resizes density_matrix.
 
-	Args:
-	    north_emoji: Emoji for |0⟩ (north pole)
-	    south_emoji: Emoji for |1⟩ (south pole)
+	# Args:
+	# north_emoji: Emoji for |0⟩ (north pole)
+	# south_emoji: Emoji for |1⟩ (south pole)
 
-	Returns:
-	    Qubit index (0, 1, 2, ...) or -1 on error
-	"""
+	# Returns:
+	# Qubit index (0, 1, 2, ...) or -1 on error
 	if north_emoji == south_emoji:
 		push_error("allocate_qubit: north and south emojis must differ")
 		return -1
@@ -723,18 +733,17 @@ func allocate_qubit(north_emoji: String, south_emoji: String) -> int:
 
 
 func project_qubit(qubit_index: int, outcome: int) -> bool:
-	"""Project density matrix onto measurement outcome.
+	# Project density matrix onto measurement outcome.
 
-	Model C measurement projection: collapses state without sampling.
-	Use measure_axis() for sampling + projection, or this for post-selection.
+	# Model C measurement projection: collapses state without sampling.
+	# Use measure_axis() for sampling + projection, or this for post-selection.
 
-	Args:
-	    qubit_index: Which qubit (0 to num_qubits-1)
-	    outcome: 0 (north/|0⟩) or 1 (south/|1⟩)
+	# Args:
+	# qubit_index: Which qubit (0 to num_qubits-1)
+	# outcome: 0 (north/|0⟩) or 1 (south/|1⟩)
 
-	Returns:
-	    true if projection succeeded
-	"""
+	# Returns:
+	# true if projection succeeded
 	if density_matrix == null:
 		push_error("project_qubit: density_matrix not initialized")
 		return false
@@ -753,30 +762,26 @@ func project_qubit(qubit_index: int, outcome: int) -> bool:
 
 
 func get_qubit_for_emoji(emoji: String) -> int:
-	"""Get qubit index for an emoji (Model C lookup).
+	# Get qubit index for an emoji.
 
-	Migration helper: use this instead of get_component_containing().
+	# Args:
+	# emoji: Emoji to look up
 
-	Args:
-	    emoji: Emoji to look up
-
-	Returns:
-	    Qubit index (0, 1, 2, ...) or -1 if not found
-	"""
+	# Returns:
+	# Qubit index (0, 1, 2, ...) or -1 if not found
 	return register_map.qubit(emoji)
 
 
 func get_emoji_pair_for_qubit(qubit_index: int) -> Dictionary:
-	"""Get {north, south} emoji pair for a qubit.
+	# Get {north, south} emoji pair for a qubit.
 
-	Migration helper: use this to get axis emojis from qubit index.
+	# Migration helper: use this to get axis emojis from qubit index.
 
-	Args:
-	    qubit_index: Qubit to look up (0 to num_qubits-1)
+	# Args:
+	# qubit_index: Qubit to look up (0 to num_qubits-1)
 
-	Returns:
-	    {north: String, south: String} or empty dict if not found
-	"""
+	# Returns:
+	# {north: String, south: String} or empty dict if not found
 	return register_map.axis(qubit_index)
 
 
@@ -785,20 +790,19 @@ func get_emoji_pair_for_qubit(qubit_index: int) -> Dictionary:
 ## ============================================================================
 
 func apply_gate(qubit: int, U: ComplexMatrix) -> bool:
-	"""Apply 1-qubit unitary gate to the density matrix.
+	# Apply 1-qubit unitary gate to the density matrix.
 
-	Model C (RegisterMap): Operates on the top-level density_matrix directly.
-	Used by UI gate tools when register_map is active.
+	# Model C (RegisterMap): Operates on the top-level density_matrix directly.
+	# Used by UI gate tools when register_map is active.
 
-	Operation: ρ' = (I⊗...⊗U⊗...⊗I) ρ (I⊗...⊗U†⊗...⊗I)
+	# Operation: ρ' = (I⊗...⊗U⊗...⊗I) ρ (I⊗...⊗U†⊗...⊗I)
 
-	Args:
-		qubit: Qubit index (0 to num_qubits-1)
-		U: 2×2 unitary gate matrix
+	# Args:
+	# qubit: Qubit index (0 to num_qubits-1)
+	# U: 2×2 unitary gate matrix
 
-	Returns:
-		true if gate applied successfully
-	"""
+	# Returns:
+	# true if gate applied successfully
 	if density_matrix == null:
 		push_error("apply_gate: density_matrix not initialized")
 		return false
@@ -821,21 +825,20 @@ func apply_gate(qubit: int, U: ComplexMatrix) -> bool:
 
 
 func apply_gate_2q(qubit_a: int, qubit_b: int, U: ComplexMatrix) -> bool:
-	"""Apply 2-qubit unitary gate to the density matrix.
+	# Apply 2-qubit unitary gate to the density matrix.
 
-	Model C (RegisterMap): Operates on the top-level density_matrix directly.
-	Used by UI gate tools when register_map is active.
+	# Model C (RegisterMap): Operates on the top-level density_matrix directly.
+	# Used by UI gate tools when register_map is active.
 
-	Operation: ρ' = U_{ab} ρ U†_{ab}
+	# Operation: ρ' = U_{ab} ρ U†_{ab}
 
-	Args:
-		qubit_a: First qubit index (control for CNOT)
-		qubit_b: Second qubit index (target for CNOT)
-		U: 4×4 unitary gate matrix
+	# Args:
+	# qubit_a: First qubit index (control for CNOT)
+	# qubit_b: Second qubit index (target for CNOT)
+	# U: 4×4 unitary gate matrix
 
-	Returns:
-		true if gate applied successfully
-	"""
+	# Returns:
+	# true if gate applied successfully
 	if density_matrix == null:
 		push_error("apply_gate_2q: density_matrix not initialized")
 		return false
@@ -868,78 +871,77 @@ func apply_gate_2q(qubit_a: int, qubit_b: int, U: ComplexMatrix) -> bool:
 # ============================================================================
 
 func apply_pauli_x(qubit: int) -> bool:
-	"""Apply Pauli-X (NOT/bit-flip) gate to a qubit."""
+	# Apply Pauli-X (NOT/bit-flip) gate to a qubit.
 	var X = QuantumGateLibrary.get_gate("X")["matrix"]
 	return apply_gate(qubit, X)
 
 
 func apply_hadamard(qubit: int) -> bool:
-	"""Apply Hadamard gate to create superposition."""
+	# Apply Hadamard gate to create superposition.
 	var H = QuantumGateLibrary.get_gate("H")["matrix"]
 	return apply_gate(qubit, H)
 
 
 func apply_pauli_y(qubit: int) -> bool:
-	"""Apply Pauli-Y gate."""
+	# Apply Pauli-Y gate.
 	var Y = QuantumGateLibrary.get_gate("Y")["matrix"]
 	return apply_gate(qubit, Y)
 
 
 func apply_pauli_z(qubit: int) -> bool:
-	"""Apply Pauli-Z (phase-flip) gate."""
+	# Apply Pauli-Z (phase-flip) gate.
 	var Z = QuantumGateLibrary.get_gate("Z")["matrix"]
 	return apply_gate(qubit, Z)
 
 
 func apply_ry(qubit: int, theta: float = PI / 4.0) -> bool:
-	"""Apply Ry rotation gate with angle theta (default π/4)."""
+	# Apply Ry rotation gate with angle theta (default π/4).
 	var Ry = QuantumGateLibrary._ry_gate(theta)
 	return apply_gate(qubit, Ry)
 
 
 func apply_rx(qubit: int, theta: float = PI / 4.0) -> bool:
-	"""Apply Rx rotation gate with angle theta (default π/4)."""
+	# Apply Rx rotation gate with angle theta (default π/4).
 	var Rx = QuantumGateLibrary._rx_gate(theta)
 	return apply_gate(qubit, Rx)
 
 
 func apply_rz(qubit: int, theta: float = PI / 4.0) -> bool:
-	"""Apply Rz rotation gate with angle theta (default π/4)."""
+	# Apply Rz rotation gate with angle theta (default π/4).
 	var Rz = QuantumGateLibrary._rz_gate(theta)
 	return apply_gate(qubit, Rz)
 
 
 func apply_cnot(control_qubit: int, target_qubit: int) -> bool:
-	"""Apply CNOT (controlled-NOT) gate. First arg is control, second is target."""
+	# Apply CNOT (controlled-NOT) gate. First arg is control, second is target.
 	var CNOT = QuantumGateLibrary.get_gate("CNOT")["matrix"]
 	return apply_gate_2q(control_qubit, target_qubit, CNOT)
 
 
 func apply_swap(qubit_a: int, qubit_b: int) -> bool:
-	"""Apply SWAP gate to exchange two qubit states."""
+	# Apply SWAP gate to exchange two qubit states.
 	var SWAP = QuantumGateLibrary.get_gate("SWAP")["matrix"]
 	return apply_gate_2q(qubit_a, qubit_b, SWAP)
 
 
 func apply_cz(control_qubit: int, target_qubit: int) -> bool:
-	"""Apply CZ (controlled-Z) gate."""
+	# Apply CZ (controlled-Z) gate.
 	var CZ = QuantumGateLibrary.get_gate("CZ")["matrix"]
 	return apply_gate_2q(control_qubit, target_qubit, CZ)
 
 
 func get_marginal(qubit_index: int, pole_value: int) -> float:
-	"""Get marginal probability P(qubit = pole) via partial trace.
+	# Get marginal probability P(qubit = pole) via partial trace.
 
-	Args:
-	    qubit_index: Which qubit to measure
-	    pole_value: 0 (north) or 1 (south)
+	# Args:
+	# qubit_index: Which qubit to measure
+	# pole_value: 0 (north) or 1 (south)
 
-	Returns:
-	    Probability in [0, 1]
+	# Returns:
+	# Probability in [0, 1]
 
-	Example:
-	    get_marginal(0, 0)  # P(qubit 0 = north) = P(🔥)
-	"""
+	# Example:
+	# get_marginal(0, 0)  # P(qubit 0 = north) = P(🔥)
 	if density_matrix == null:
 		return 0.0
 
@@ -957,20 +959,18 @@ func get_marginal(qubit_index: int, pole_value: int) -> float:
 
 
 func get_population(emoji: String) -> float:
-	"""Get probability of emoji state via RegisterMap lookup.
+	# Get probability of emoji state via RegisterMap lookup.
 
-	Args:
-	    emoji: Emoji to query (must be registered)
+	# Args:
+	# emoji: Emoji to query (must be registered)
 
-	Returns:
-	    P(emoji) in [0, 1]
+	# Returns:
+	# P(emoji) in [0, 1]
 
-	Example:
-	    get_population("🔥")  # Returns P(qubit 0 = north)
-	"""
+	# Example:
+	# get_population("🔥")  # Returns P(qubit 0 = north)
 	if not register_map.has(emoji):
 		# Unregistered emojis have 0 probability - no warning needed
-		# (SemanticDrift queries 🌀 and ✨ which may not be in this biome)
 		return 0.0
 
 	var q = register_map.qubit(emoji)
@@ -979,14 +979,13 @@ func get_population(emoji: String) -> float:
 
 
 func get_all_populations() -> Dictionary:
-	"""Get populations for all registered emojis.
+	# Get populations for all registered emojis.
 
-	Returns:
-	    Dictionary: {emoji: float} for all registered emojis
+	# Returns:
+	# Dictionary: {emoji: float} for all registered emojis
 
-	Example:
-	    {"🔥": 0.7, "❄️": 0.3, "💧": 0.5, "🏜️": 0.5}
-	"""
+	# Example:
+	# {"🔥": 0.7, "❄️": 0.3, "💧": 0.5, "🏜️": 0.5}
 	var populations: Dictionary = {}
 
 	if register_map == null:
@@ -999,18 +998,66 @@ func get_all_populations() -> Dictionary:
 	return populations
 
 
+func get_basis_state_probabilities() -> Array:
+	# Get probability of each computational basis state (ρ diagonal).
+
+	# Each basis state is a tensor product of north/south poles.
+	# Index bits map to qubits: bit=0 → north, bit=1 → south.
+
+	# Returns:
+	# Array of {label: String, probability: float} sorted by probability (descending).
+	# label is the emoji string for the state, e.g. "☀🌾🍂".
+	var result: Array = []
+	if density_matrix == null or register_map == null:
+		return result
+
+	var num_qubits = register_map.num_qubits
+	var dim = register_map.dim()
+	if dim > 1024:  # > 10 qubits — too large to enumerate
+		return result
+
+	# Build qubit axis labels (north/south emojis per qubit)
+	var axes: Array = []  # [{north: emoji, south: emoji}, ...]
+	for qi in range(num_qubits):
+		var north = ""
+		var south = ""
+		for emoji in register_map.coordinates.keys():
+			var q = register_map.qubit(emoji)
+			var p = register_map.pole(emoji)
+			if q == qi:
+				if p == 0:
+					north = emoji
+				else:
+					south = emoji
+		axes.append({"north": north, "south": south})
+
+	# Read diagonal and build labels
+	for i in range(dim):
+		var prob = density_matrix.get_diagonal_real(i)
+		if prob < 0.0:
+			prob = 0.0
+		var label = ""
+		for qi in range(num_qubits):
+			var shift = num_qubits - 1 - qi
+			var bit = (i >> shift) & 1
+			label += axes[qi]["south"] if bit == 1 else axes[qi]["north"]
+		result.append({"label": label, "probability": prob})
+
+	result.sort_custom(func(a, b): return a.probability > b.probability)
+	return result
+
+
 func measure_axis(north_emoji: String, south_emoji: String) -> String:
-	"""Projective measurement on a north/south emoji axis.
+	# Projective measurement on a north/south emoji axis.
 
-	Model C measurement: samples from Born probabilities and collapses state.
+	# Model C measurement: samples from Born probabilities and collapses state.
 
-	Args:
-	    north_emoji: North pole emoji (e.g., "🌾")
-	    south_emoji: South pole emoji (e.g., "🍄")
+	# Args:
+	# north_emoji: North pole emoji (e.g., "🌾")
+	# south_emoji: South pole emoji (e.g., "🍄")
 
-	Returns:
-	    Measured emoji (north_emoji or south_emoji), or "" on error
-	"""
+	# Returns:
+	# Measured emoji (north_emoji or south_emoji), or "" on error
 	if not register_map.has(north_emoji) or not register_map.has(south_emoji):
 		push_warning("⚠️ Emoji axis not registered: %s/%s" % [north_emoji, south_emoji])
 		return ""
@@ -1047,13 +1094,12 @@ func measure_axis(north_emoji: String, south_emoji: String) -> String:
 
 
 func _project_qubit(qubit_index: int, outcome_pole: int) -> void:
-	"""Project density matrix onto qubit measurement outcome.
+	# Project density matrix onto qubit measurement outcome.
 
-	Implements projective measurement collapse:
-	ρ → P_k ρ P_k / Tr(P_k ρ)
+	# Implements projective measurement collapse:
+	# ρ → P_k ρ P_k / Tr(P_k ρ)
 
-	where P_k is the projector onto |k⟩⟨k| for the measured qubit.
-	"""
+	# where P_k is the projector onto |k⟩⟨k| for the measured qubit.
 	var num_qubits = register_map.num_qubits
 	var dim = register_map.dim()
 	var shift = num_qubits - 1 - qubit_index
@@ -1072,23 +1118,78 @@ func _project_qubit(qubit_index: int, outcome_pole: int) -> void:
 
 			rho_new.set_element(i, j, density_matrix.get_element(i, j))
 
-	# Renormalize
+	# Renormalize and invalidate caches
 	density_matrix = rho_new
 	density_matrix.renormalize_trace()
+	_purity_cache = -1.0
+
+
+func drain_qubit(qubit_index: int, outcome_pole: int, eta: float) -> void:
+	# Partial ensemble measurement: drain η of population from measured pole.
+
+	# Instead of full projective collapse (ρ → P_k ρ P_k / Tr(P_k ρ)),
+	# this applies a partial drain that extracts a fraction of population
+	# while preserving the biome's quantum structure.
+
+	# Physics: equivalent to a weak measurement / partial Lindblad jump.
+	# - Diagonal elements where qubit = outcome_pole: ρ_ii *= (1 - η)
+	# - Off-diagonals touching measured pole: ρ_ij *= √(1 - η)
+	# (coherence decays at half the population rate, matching Lindblad T₂)
+	# - All other elements: untouched
+	# - Trace renormalized to 1 after drain
+
+	# Args:
+	# qubit_index: Which qubit (0 to num_qubits-1)
+	# outcome_pole: 0 (north/|0⟩) or 1 (south/|1⟩) — the measured pole
+	# eta: Drain fraction in [0, 1]. 0 = no effect, 1 = full projection.
+	if density_matrix == null:
+		push_error("drain_qubit: density_matrix not initialized")
+		return
+
+	var num_qubits = register_map.num_qubits
+	if qubit_index < 0 or qubit_index >= num_qubits:
+		push_error("drain_qubit: qubit %d out of range [0, %d)" % [qubit_index, num_qubits])
+		return
+
+	eta = clampf(eta, 0.0, 1.0)
+	if eta < 1e-12:
+		return  # No-op drain
+
+	var dim = register_map.dim()
+	var shift = num_qubits - 1 - qubit_index
+	var pop_scale = 1.0 - eta                 # Population retention factor
+	var coh_scale = sqrt(1.0 - eta)           # Coherence decay (T₂ relationship)
+
+	for i in range(dim):
+		var qi = (i >> shift) & 1
+		for j in range(dim):
+			var qj = (j >> shift) & 1
+
+			if qi == outcome_pole and qj == outcome_pole:
+				# Diagonal block of measured pole: drain population
+				density_matrix.set_element(i, j,
+					density_matrix.get_element(i, j).scale(pop_scale))
+			elif qi == outcome_pole or qj == outcome_pole:
+				# Off-diagonal touching measured pole: coherence decay
+				density_matrix.set_element(i, j,
+					density_matrix.get_element(i, j).scale(coh_scale))
+			# else: other pole's block — untouched
+
+	density_matrix.renormalize_trace()
+	_purity_cache = -1.0
 
 
 func get_basis_probability(basis_index: int) -> float:
-	"""Get probability of computational basis state |i⟩.
+	# Get probability of computational basis state |i⟩.
 
-	Args:
-	    basis_index: Basis state index (0 to 2^n - 1)
+	# Args:
+	# basis_index: Basis state index (0 to 2^n - 1)
 
-	Returns:
-	    P(|i⟩) = ρ[i,i] (diagonal element)
+	# Returns:
+	# P(|i⟩) = ρ[i,i] (diagonal element)
 
-	Example:
-	    get_basis_probability(0)  # P(|000⟩) = P(bread)
-	"""
+	# Example:
+	# get_basis_probability(0)  # P(|000⟩) = P(bread)
 	if density_matrix == null:
 		return 0.0
 
@@ -1100,21 +1201,20 @@ func get_basis_probability(basis_index: int) -> float:
 
 
 func apply_drive(target_emoji: String, rate: float, dt: float) -> void:
-	"""Apply Lindblad drive pushing population toward target emoji.
+	# Apply Lindblad drive pushing population toward target emoji.
 
-	This implements trace-preserving population transfer:
-	    dρ/dt = γ(L ρ L† - {L†L, ρ}/2)
+	# This implements trace-preserving population transfer:
+	# dρ/dt = γ(L ρ L† - {L†L, ρ}/2)
 
-	where L = √γ |target⟩⟨source| flips the qubit from opposite pole to target.
+	# where L = √γ |target⟩⟨source| flips the qubit from opposite pole to target.
 
-	Args:
-	    target_emoji: Emoji to drive toward (must be registered)
-	    rate: Drive strength γ (1/s)
-	    dt: Time step (s)
+	# Args:
+	# target_emoji: Emoji to drive toward (must be registered)
+	# rate: Drive strength γ (1/s)
+	# dt: Time step (s)
 
-	Example:
-	    apply_drive("🔥", 2.0, 0.1)  # Drive toward hot for 0.1s
-	"""
+	# Example:
+	# apply_drive("🔥", 2.0, 0.1)  # Drive toward hot for 0.1s
 	if not register_map.has(target_emoji):
 		push_warning("⚠️ Cannot drive to unregistered emoji: %s" % target_emoji)
 		return
@@ -1128,20 +1228,19 @@ func apply_drive(target_emoji: String, rate: float, dt: float) -> void:
 
 func _apply_lindblad_1q(qubit_index: int, from_pole: int, to_pole: int,
                         gamma: float, dt: float) -> void:
-	"""Apply single-qubit amplitude damping channel (exact Kraus map).
+	# Apply single-qubit amplitude damping channel (exact Kraus map).
 
-	Implements the CPTP map:
-	    ρ → K₀ρK₀† + K₁ρK₁†
-	where:
-	    p = 1 - exp(-γ·dt)          (transition probability)
-	    K₀ = |from⟩⟨from| + √(1-p)|to⟩⟨to| + Σ_other |k⟩⟨k|  (no-jump)
-	    K₁ = √p |to⟩⟨from|                                      (jump)
+	# Implements the CPTP map:
+	# ρ → K₀ρK₀† + K₁ρK₁†
+	# where:
+	# p = 1 - exp(-γ·dt)          (transition probability)
+	# K₀ = |from⟩⟨from| + √(1-p)|to⟩⟨to| + Σ_other |k⟩⟨k|  (no-jump)
+	# K₁ = √p |to⟩⟨from|                                      (jump)
 
-	This is trace-preserving and completely positive BY CONSTRUCTION —
-	no Euler instability, no negative populations, no catastrophic resets.
-	Quantum Zeno saturation emerges naturally: as γ→∞, p→1, state collapses
-	to |to⟩⟨to| (drain target) — the physics is exact for arbitrary dt.
-	"""
+	# This is trace-preserving and completely positive BY CONSTRUCTION —
+	# no Euler instability, no negative populations, no catastrophic resets.
+	# Quantum Zeno saturation emerges naturally: as γ→∞, p→1, state collapses
+	# to |to⟩⟨to| (drain target) — the physics is exact for arbitrary dt.
 	if density_matrix == null:
 		return
 
@@ -1203,63 +1302,102 @@ func _emoji_for_qubit_pole(qubit_index: int, pole: int) -> String:
 
 
 func _renormalize() -> void:
-	"""Ensure Tr(ρ) = 1 after numerical integration.
+	# Ensure Tr(ρ) = 1 after numerical integration.
 
-	Three-stage approach:
-	1. Clip small negative diagonal values to zero (numerical noise fix)
-	2. Reinitialize only on truly catastrophic failure
-	3. Normalize trace to 1
-	"""
+	# Three-stage approach:
+	# 1. Clip small negative diagonal values to zero (numerical noise fix)
+	# 2. Reinitialize only on truly catastrophic failure
+	# 3. Normalize trace to 1
+
+	# Operates directly on PackedFloat64Array to avoid Complex object allocation.
 	if density_matrix == null:
 		return
 
 	var dim = register_map.dim()
+	var p = density_matrix._to_packed()
+	if p.size() < dim * dim * 2:
+		return
 
 	# Stage 1: Clip small negative diagonal values (numerical noise fix)
-	var data = density_matrix._data
 	for i in range(dim):
-		var idx = i * dim + i
-		var diag = data[idx]
-		if diag.re < 0.0 and diag.re > -0.15:
-			data[idx] = Complex.zero()
+		var idx = (i * dim + i) * 2  # real part of diagonal element
+		var diag_re = p[idx]
+		if diag_re < 0.0 and diag_re > -0.15:
+			p[idx] = 0.0
+			p[idx + 1] = 0.0
 
 	# Compute trace and check for catastrophic failure
-	var trace = 0.0
+	var trace_val = 0.0
 	var min_diag = 1.0
 	for i in range(dim):
-		var diag_re = data[i * dim + i].re
-		trace += diag_re
+		var diag_re = p[(i * dim + i) * 2]
+		trace_val += diag_re
 		if diag_re < min_diag:
 			min_diag = diag_re
-	_last_renorm_trace_before_cap = trace
+	_last_renorm_trace_before_cap = trace_val
 
 	# Stage 2: Catastrophic failure — target Lindbladian steady state
-	# instead of maximally mixed I/d, since the physical steady state
-	# of amplitude damping is the drain target, not "know nothing."
-	if abs(trace) < 1e-10 or min_diag < -0.15:
+	if abs(trace_val) < 1e-10 or min_diag < -0.15:
 		_catastrophic_recovery_count += 1
 		if _catastrophic_recovery_count <= 3 or _catastrophic_recovery_count % 100 == 0:
-			push_warning("⚠️ Quantum state catastrophic (trace=%.4f, min_diag=%.4f), recovering to steady state (count=%d)" % [trace, min_diag, _catastrophic_recovery_count])
+			push_warning("⚠️ Quantum state catastrophic (trace=%.4f, min_diag=%.4f), recovering to steady state (count=%d)" % [trace_val, min_diag, _catastrophic_recovery_count])
 		_last_renorm_scale = 0.0
+		# Write back clipped state before recovery
+		density_matrix._packed_cache = p
+		density_matrix._packed_valid = true
+		density_matrix._data_valid = false
+		density_matrix._data = []
 		_recover_to_steady_state()
 		return
 
 	# Stage 3: Cap trace to 1 (allow dissipative trace < 1)
-	if trace > 1.0 + 1e-10:
-		var scale = 1.0 / trace
-		_last_renorm_scale = scale
-		_cumulative_renorm_excess += (trace - 1.0)
-		var scale_c = Complex.new(scale, 0.0)
-		for i in range(data.size()):
-			data[i] = data[i].mul(scale_c)
+	if trace_val > 1.0 + 1e-10:
+		var s = 1.0 / trace_val
+		_last_renorm_scale = s
+		_cumulative_renorm_excess += (trace_val - 1.0)
+		var total = p.size()
+		for i in range(total):
+			p[i] *= s
 	else:
 		_last_renorm_scale = 1.0
-	
+
+	# Stage 4: Clamp off-diagonal coherences (Euler stability guard)
+	# For a physical ρ, |ρ_ij| ≤ √(ρ_ii × ρ_jj) (Cauchy-Schwarz).
+	# Euler integration can violate this, causing exponential blowup of
+	# off-diagonal elements while trace stays ~1. Clamp to physical bounds.
+	for i in range(dim):
+		var pi_re = p[(i * dim + i) * 2]
+		if pi_re < 0.0:
+			pi_re = 0.0
+		for j in range(i + 1, dim):
+			var pj_re = p[(j * dim + j) * 2]
+			if pj_re < 0.0:
+				pj_re = 0.0
+			var max_coherence = sqrt(pi_re * pj_re)
+			# Check |ρ_ij|
+			var ij2 = (i * dim + j) * 2
+			var ji2 = (j * dim + i) * 2
+			var re = p[ij2]
+			var im = p[ij2 + 1]
+			var mag = sqrt(re * re + im * im)
+			if mag > max_coherence and mag > 1e-14:
+				var s = max_coherence / mag
+				p[ij2] *= s
+				p[ij2 + 1] *= s
+				# Hermitian: ρ_ji = conj(ρ_ij)
+				p[ji2] = p[ij2]
+				p[ji2 + 1] = -p[ij2 + 1]
+
+	# Write packed data back as authoritative
+	density_matrix._packed_cache = p
+	density_matrix._packed_valid = true
+	density_matrix._data_valid = false
+	density_matrix._data = []
 	_purity_cache = -1.0
 
 
 func load_packed_state(rho_packed: PackedFloat64Array, dim: int, already_normalized: bool = false) -> void:
-	"""Load a packed density matrix, with optional trusted normalization."""
+	# Load a packed density matrix, with optional trusted normalization.
 	if density_matrix == null or density_matrix.n != dim:
 		density_matrix = ComplexMatrix.zeros(dim)
 	density_matrix._from_packed(rho_packed, dim)
@@ -1268,7 +1406,7 @@ func load_packed_state(rho_packed: PackedFloat64Array, dim: int, already_normali
 
 
 func _reinitialize_mixed_state() -> void:
-	"""Reinitialize to maximally mixed state (ρ = I/d) when trace collapses."""
+	# Reinitialize to maximally mixed state (ρ = I/d) when trace collapses.
 	if density_matrix == null:
 		return
 
@@ -1287,19 +1425,18 @@ func _reinitialize_mixed_state() -> void:
 
 
 func _recover_to_steady_state() -> void:
-	"""Recover from catastrophic state by targeting the Lindbladian steady state.
+	# Recover from catastrophic state by targeting the Lindbladian steady state.
 
-	Instead of reinitializing to I/d (which destroys all quantum information),
-	project onto the diagonal (complete decoherence) and clamp negative
-	populations to zero. This preserves the population distribution that the
-	Hamiltonian + Lindblad dynamics were driving toward — the physical steady
-	state of the dissipator — rather than resetting to 'know nothing.'
+	# Instead of reinitializing to I/d (which destroys all quantum information),
+	# project onto the diagonal (complete decoherence) and clamp negative
+	# populations to zero. This preserves the population distribution that the
+	# Hamiltonian + Lindblad dynamics were driving toward — the physical steady
+	# state of the dissipator — rather than resetting to 'know nothing.'
 
-	For amplitude damping (drain), the steady state is the drain target pole.
-	For driven systems, it's the balance between pump and drain rates.
-	Projecting onto the diagonal is equivalent to a complete dephasing channel,
-	which is the correct physical limit of strong environment coupling.
-	"""
+	# For amplitude damping (drain), the steady state is the drain target pole.
+	# For driven systems, it's the balance between pump and drain rates.
+	# Projecting onto the diagonal is equivalent to a complete dephasing channel,
+	# which is the correct physical limit of strong environment coupling.
 	if density_matrix == null:
 		return
 
@@ -1339,16 +1476,15 @@ func _recover_to_steady_state() -> void:
 
 
 func _apply_phase_lnn(lnn: Object) -> void:
-	"""Apply learned phase modulation from neural network to density matrix diagonal.
+	# Apply learned phase modulation from neural network to density matrix diagonal.
 
-	The LNN operates in the phasic shadow - it learns to modulate the phases of
-	the diagonal density matrix elements. This creates an undercurrent of learned
-	intelligence that shapes quantum evolution.
+	# The LNN operates in the phasic shadow - it learns to modulate the phases of
+	# the diagonal density matrix elements. This creates an undercurrent of learned
+	# intelligence that shapes quantum evolution.
 
-	Args:
-		lnn: LiquidNeuralNet instance with forward(phases: PackedFloat64Array) method
-	"""
-	# Kill-switch: Can be disabled by setting phase_lnn = null or via BiomeBase.ENABLE_PHASE_LNN
+	# Args:
+	# lnn: LiquidNeuralNetNative instance with forward(phases: PackedFloat64Array) method
+	# Gated by ENABLE_PHASE_LNN const above and phase_lnn assignment
 	if density_matrix == null or not lnn:
 		return
 
@@ -1370,18 +1506,23 @@ func _apply_phase_lnn(lnn: Object) -> void:
 	if modulated_phases.is_empty():
 		return
 
-	# Apply phase shifts to density matrix diagonal
-	var data = density_matrix._data
+	# Apply phase shifts to density matrix diagonal (packed path)
+	var p = density_matrix._to_packed()
 	for i in range(dim):
-		var old_elem = data[i * dim + i]
-		var magnitude = sqrt(old_elem.re * old_elem.re + old_elem.im * old_elem.im)
+		var idx = (i * dim + i) * 2
+		var old_re = p[idx]
+		var old_im = p[idx + 1]
+		var magnitude = sqrt(old_re * old_re + old_im * old_im)
 
 		# Phase shift from LNN
 		var new_phase = modulated_phases[i]
-		var new_re = magnitude * cos(new_phase)
-		var new_im = magnitude * sin(new_phase)
+		p[idx] = magnitude * cos(new_phase)
+		p[idx + 1] = magnitude * sin(new_phase)
 
-		data[i * dim + i] = Complex.new(new_re, new_im)
+	density_matrix._packed_cache = p
+	density_matrix._packed_valid = true
+	density_matrix._data_valid = false
+	density_matrix._data = []
 
 	# Invalidate caches since we modified the state
 	_purity_cache = -1.0
@@ -1393,24 +1534,23 @@ func _apply_phase_lnn(lnn: Object) -> void:
 
 func evolve(dt: float, max_dt: float = 0.02, lnn: Object = null) -> void:
 	var t0 = Time.get_ticks_usec()
-	"""Evolve density matrix under Lindblad master equation + optional phase modulation.
+	# Evolve density matrix under Lindblad master equation + optional phase modulation.
 
-	Implements: dρ/dt = -i[H,ρ] + Σ_k (L_k ρ L_k† - ½{L_k†L_k, ρ})
-	             + phase modulation via learned neural network (if lnn provided)
+	# Implements: dρ/dt = -i[H,ρ] + Σ_k (L_k ρ L_k† - ½{L_k†L_k, ρ})
+	# + phase modulation via learned neural network (if lnn provided)
 
-	Uses first-order Euler integration: ρ(t+dt) = ρ(t) + dt * dρ/dt
+	# Uses first-order Euler integration: ρ(t+dt) = ρ(t) + dt * dρ/dt
 
-	Args:
-	    dt: Time step (in game seconds, actual evolution timestep)
-	    max_dt: Unused (kept for API compatibility)
-	    lnn: Optional LiquidNeuralNet for phase modulation in phasic shadow
-	         If provided, applies learned phase shifts to density matrix diagonal
+	# Args:
+	# dt: Time step (in game seconds, actual evolution timestep)
+	# max_dt: Unused (kept for API compatibility)
+	# lnn: Optional LiquidNeuralNet for phase modulation in phasic shadow
+	# If provided, applies learned phase shifts to density matrix diagonal
 
-	Requires:
-	    - density_matrix initialized (via initialize_basis or allocate_axis)
-	    - hamiltonian set (via HamiltonianBuilder.build)
-	    - lindblad_operators set (via LindbladBuilder.build)
-	"""
+	# Requires:
+	# - density_matrix initialized (via initialize_basis or allocate_axis)
+	# - hamiltonian set (via HamiltonianBuilder.build)
+	# - lindblad_operators set (via LindbladBuilder.build)
 	if density_matrix == null:
 		return  # Not initialized yet
 
@@ -1418,8 +1558,8 @@ func evolve(dt: float, max_dt: float = 0.02, lnn: Object = null) -> void:
 	if dim == 0:
 		return
 
-	# Use provided lnn or fall back to instance variable
-	if lnn == null:
+	# Use provided lnn or fall back to instance variable (only if master switch is on)
+	if lnn == null and ENABLE_PHASE_LNN:
 		lnn = phase_lnn
 
 	# UPDATE TIME-DEPENDENT DRIVERS (e.g., sun/moon 20-second oscillation)
@@ -1451,9 +1591,13 @@ func evolve(dt: float, max_dt: float = 0.02, lnn: Object = null) -> void:
 
 
 func _evolve_step(dt: float) -> void:
-	"""Single Euler integration step (internal)."""
+	# Single Euler integration step (internal).
 	var dim = register_map.dim()
 	var use_sparse_evolution = _sparse_evolution_enabled()
+
+	# Lazy-build Lindblad cache if operators were set directly (not via set_lindblad_operators)
+	if not _lindblad_cache_valid and lindblad_operators.size() > 0:
+		_rebuild_lindblad_cache()
 	if dim <= 0 or density_matrix == null or int(density_matrix.n) != dim:
 		_log("error", "quantum", "🛑", "Skipping evolve: invalid density matrix shape (dim=%d, rho=%s)" % [
 			dim, str(density_matrix.n if density_matrix else -1)
@@ -1484,6 +1628,7 @@ func _evolve_step(dt: float) -> void:
 				_log("warn", "quantum", "🧯", "Dropping Lindblad op with shape %d (expected %d)" % [int(L.n), dim])
 		if valid_lindblad.size() != lindblad_operators.size():
 			lindblad_operators = valid_lindblad
+			_lindblad_cache_valid = false  # Operators changed, rebuild cache next step
 
 	if sparse_lindblad_operators.size() > 0:
 		var valid_sparse_lindblad: Array = []
@@ -1505,48 +1650,12 @@ func _evolve_step(dt: float) -> void:
 	# -------------------------------------------------------------------------
 	if use_sparse_evolution and sparse_hamiltonian != null:
 		# SPARSE path: 10-50x faster commutator
-		var commutator = sparse_hamiltonian.commutator_with_dense(density_matrix)
-		var neg_i = Complex.new(0.0, -1.0)
-
-		# DEBUG: Log commutator values
-		if Engine.get_process_frames() % 100 == 0:
-			var comm_01 = commutator.get_element(0, 1)
-			var comm_10 = commutator.get_element(1, 0)
-			_log("trace", "test", "⚛️", "Commutator [H,ρ]: [0,1]=%.6f+%.6fi, [1,0]=%.6f+%.6fi" % [
-				comm_01.re, comm_01.im, comm_10.re, comm_10.im
-			])
-
-		drho = drho.add(commutator.scale(neg_i))
-
-		# DEBUG: Log scaled commutator
-		if Engine.get_process_frames() % 100 == 0:
-			var scaled_01 = drho.get_element(0, 1)
-			var scaled_10 = drho.get_element(1, 0)
-			_log("trace", "test", "⚛️", "(-i)[H,ρ]: [0,1]=%.6f+%.6fi, [1,0]=%.6f+%.6fi" % [
-				scaled_01.re, scaled_01.im, scaled_10.re, scaled_10.im
-			])
+		var comm = sparse_hamiltonian.commutator_with_dense(density_matrix)
+		drho = drho.add(comm.scale_neg_i())
 	elif hamiltonian != null:
-		# Dense fallback
-		var commutator = hamiltonian.commutator(density_matrix)
-		var neg_i = Complex.new(0.0, -1.0)
-
-		# DEBUG: Log commutator values
-		if Engine.get_process_frames() % 100 == 0:
-			var comm_01 = commutator.get_element(0, 1)
-			var comm_10 = commutator.get_element(1, 0)
-			_log("trace", "test", "⚛️", "Commutator [H,ρ]: [0,1]=%.6f+%.6fi, [1,0]=%.6f+%.6fi" % [
-				comm_01.re, comm_01.im, comm_10.re, comm_10.im
-			])
-
-		drho = drho.add(commutator.scale(neg_i))
-
-		# DEBUG: Log scaled commutator
-		if Engine.get_process_frames() % 100 == 0:
-			var scaled_01 = drho.get_element(0, 1)
-			var scaled_10 = drho.get_element(1, 0)
-			_log("trace", "test", "⚛️", "(-i)[H,ρ]: [0,1]=%.6f+%.6fi, [1,0]=%.6f+%.6fi" % [
-				scaled_01.re, scaled_01.im, scaled_10.re, scaled_10.im
-			])
+		# Dense packed path: fused commutator + scale by -i
+		var comm = hamiltonian.commutator(density_matrix)
+		drho = drho.add(comm.scale_neg_i())
 
 	# -------------------------------------------------------------------------
 	# Term 2: Lindblad dissipation Σ_k (L_k ρ L_k† - ½{L_k†L_k, ρ})
@@ -1560,18 +1669,24 @@ func _evolve_step(dt: float) -> void:
 			var dissipator = L_sparse.lindblad_dissipator(density_matrix)
 			drho = drho.add(dissipator)
 	else:
-		# Dense fallback
-		for L in lindblad_operators:
+		# Dense path — uses cached L† and L†L when available
+		for idx in range(lindblad_operators.size()):
+			var L = lindblad_operators[idx]
 			if L == null:
 				continue
 
+			var L_dag: ComplexMatrix
+			var Ldag_L: ComplexMatrix
+			if _lindblad_cache_valid and idx < _lindblad_L_dag.size() and _lindblad_L_dag[idx] != null:
+				L_dag = _lindblad_L_dag[idx]
+				Ldag_L = _lindblad_Ldag_L[idx]
+			else:
+				L_dag = L.dagger()
+				Ldag_L = L_dag.mul(L)
+
 			# L ρ L†
-			var L_dag = L.dagger()
 			var L_rho = L.mul(density_matrix)
 			var L_rho_Ldag = L_rho.mul(L_dag)
-
-			# L†L for anticommutator
-			var Ldag_L = L_dag.mul(L)
 
 			# {L†L, ρ}/2 = (L†L ρ + ρ L†L)/2
 			var anticomm = Ldag_L.anticommutator(density_matrix)
@@ -1651,19 +1766,18 @@ func _evolve_step(dt: float) -> void:
 
 func _build_gated_jump(source_q: int, source_p: int, target_q: int, target_p: int,
                        rate: float, num_qubits: int) -> ComplexMatrix:
-	"""Build jump operator L = √rate |target⟩⟨source| for gated Lindblad.
+	# Build jump operator L = √rate |target⟩⟨source| for gated Lindblad.
 
-	Args:
-	    source_q: Source qubit index
-	    source_p: Source pole (0=north, 1=south)
-	    target_q: Target qubit index
-	    target_p: Target pole (0=north, 1=south)
-	    rate: Effective rate (already scaled by gate probability)
-	    num_qubits: Total number of qubits in system
+	# Args:
+	# source_q: Source qubit index
+	# source_p: Source pole (0=north, 1=south)
+	# target_q: Target qubit index
+	# target_p: Target pole (0=north, 1=south)
+	# rate: Effective rate (already scaled by gate probability)
+	# num_qubits: Total number of qubits in system
 
-	Returns:
-	    ComplexMatrix L operator, or null if invalid
-	"""
+	# Returns:
+	# ComplexMatrix L operator, or null if invalid
 	var dim = 1 << num_qubits
 	var L = ComplexMatrix.zeros(dim)
 	var amplitude = Complex.new(sqrt(rate), 0.0)
@@ -1696,26 +1810,41 @@ func _build_gated_jump(source_q: int, source_p: int, target_q: int, target_p: in
 
 
 func get_purity() -> float:
-	"""Get purity Tr(ρ²) of the quantum state.
+	# Get purity Tr(ρ²) of the quantum state.
 
-	Returns:
-	    1.0 for pure states, < 1.0 for mixed states
-	    Minimum is 1/dim for maximally mixed state
-	"""
+	# Returns:
+	# 1.0 for pure states, < 1.0 for mixed states
+	# Minimum is 1/dim for maximally mixed state
 	if _purity_cache >= 0.0:
 		return _purity_cache
 
 	if density_matrix == null:
 		return 0.0
 
-	# Tr(ρ²) = Σ_ij |ρ_ij|² for Hermitian ρ
+	# Tr(ρ²) / Tr(ρ)² — normalized so trace drift doesn't inflate purity above 1.
+	# Use packed representation (always authoritative) — _data can be stale
+	# when native ComplexMatrix backend is active.
+	var packed = density_matrix._to_packed()
+	var dim = density_matrix.n
+	var expected = dim * dim * 2  # re,im pairs for each element
+	if packed.size() < expected:
+		return 0.0
+
+	# Compute Tr(ρ) from diagonal real parts
+	var trace: float = 0.0
+	for i in range(dim):
+		trace += packed[(i * dim + i) * 2]
+	if trace < 1e-10:
+		return 0.0
+
+	# Tr(ρ²) = Σ_ij |ρ_ij|²
 	var sum_sq = 0.0
-	var data = density_matrix._data
-	for i in range(data.size()):
-		var c = data[i]
-		sum_sq += c.re * c.re + c.im * c.im
-	
-	_purity_cache = clamp(sum_sq, 0.0, 1.0)
+	for k in range(dim * dim):
+		var re = packed[k * 2]
+		var im = packed[k * 2 + 1]
+		sum_sq += re * re + im * im
+
+	_purity_cache = sum_sq / (trace * trace)
 	return _purity_cache
 
 
@@ -1724,23 +1853,22 @@ func get_purity() -> float:
 # ============================================================================
 
 func get_mutual_information(qubit_a: int, qubit_b: int) -> float:
-	"""Compute mutual information I(A:B) = S(A) + S(B) - S(AB) between two qubits.
+	# Compute mutual information I(A:B) = S(A) + S(B) - S(AB) between two qubits.
 
-	Mutual information quantifies the total correlations (classical + quantum)
-	between two subsystems. For a Bell state: I(A:B) = 2 (maximum).
-	For a product state: I(A:B) = 0 (independent).
+	# Mutual information quantifies the total correlations (classical + quantum)
+	# between two subsystems. For a Bell state: I(A:B) = 2 (maximum).
+	# For a product state: I(A:B) = 0 (independent).
 
-	This is used for physics-grounded position encoding:
-	- High mutual info → bubbles cluster together
-	- Low mutual info → bubbles spread apart
+	# This is used for physics-grounded position encoding:
+	# - High mutual info → bubbles cluster together
+	# - Low mutual info → bubbles spread apart
 
-	Args:
-	    qubit_a: First qubit index (0 to num_qubits-1)
-	    qubit_b: Second qubit index (0 to num_qubits-1)
+	# Args:
+	# qubit_a: First qubit index (0 to num_qubits-1)
+	# qubit_b: Second qubit index (0 to num_qubits-1)
 
-	Returns:
-	    Mutual information in bits [0, 2] for single qubits
-	"""
+	# Returns:
+	# Mutual information in bits [0, 2] for single qubits
 	if density_matrix == null or qubit_a == qubit_b:
 		return 0.0
 
@@ -1758,14 +1886,13 @@ func get_mutual_information(qubit_a: int, qubit_b: int) -> float:
 
 
 func get_cached_mutual_information(qubit_a: int, qubit_b: int) -> float:
-	"""Get mutual information from native C++ cache (computed during evolution).
+	# Get mutual information from native C++ cache (computed during evolution).
 
-	This is the FAST path - MI is computed in C++ during evolve_with_mi() at physics rate.
-	Falls back to GDScript calculation if cache is empty or indices are invalid.
+	# This is the FAST path - MI is computed in C++ during evolve_with_mi() at physics rate.
+	# Falls back to GDScript calculation if cache is empty or indices are invalid.
 
-	The cache stores MI in upper triangular order: [mi_01, mi_02, ..., mi_12, mi_13, ...]
-	Index formula: for i < j, index = i * (2*n - i - 1) / 2 + (j - i - 1)
-	"""
+	# The cache stores MI in upper triangular order: [mi_01, mi_02, ..., mi_12, mi_13, ...]
+	# Index formula: for i < j, index = i * (2*n - i - 1) / 2 + (j - i - 1)
 	if qubit_a == qubit_b:
 		return 0.0
 
@@ -1792,22 +1919,21 @@ func get_cached_mutual_information(qubit_a: int, qubit_b: int) -> float:
 
 
 func has_cached_mi() -> bool:
-	"""Check if MI cache is populated (native path is working)."""
+	# Check if MI cache is populated (native path is working).
 	return not _cached_mi_values.is_empty()
 
 
 func _entropy_of_marginal(qubit_index: int) -> float:
-	"""Compute von Neumann entropy S(ρ_A) = -Tr(ρ_A log ρ_A) of single-qubit marginal.
+	# Compute von Neumann entropy S(ρ_A) = -Tr(ρ_A log ρ_A) of single-qubit marginal.
 
-	For a single qubit: S(ρ) = -p₀ log p₀ - p₁ log p₁
-	where p₀, p₁ are the eigenvalues of the 2×2 reduced density matrix.
+	# For a single qubit: S(ρ) = -p₀ log p₀ - p₁ log p₁
+	# where p₀, p₁ are the eigenvalues of the 2×2 reduced density matrix.
 
-	Args:
-	    qubit_index: Which qubit to compute entropy for
+	# Args:
+	# qubit_index: Which qubit to compute entropy for
 
-	Returns:
-	    Entropy in bits [0, 1] (0 = pure, 1 = maximally mixed)
-	"""
+	# Returns:
+	# Entropy in bits [0, 1] (0 = pure, 1 = maximally mixed)
 	if density_matrix == null:
 		return 0.0
 
@@ -1862,18 +1988,17 @@ func _entropy_of_marginal(qubit_index: int) -> float:
 
 
 func _entropy_of_joint(qubit_a: int, qubit_b: int) -> float:
-	"""Compute von Neumann entropy S(ρ_AB) of the two-qubit reduced density matrix.
+	# Compute von Neumann entropy S(ρ_AB) of the two-qubit reduced density matrix.
 
-	This is the entropy of the joint state of qubits A and B after tracing out
-	all other qubits.
+	# This is the entropy of the joint state of qubits A and B after tracing out
+	# all other qubits.
 
-	Args:
-	    qubit_a: First qubit index
-	    qubit_b: Second qubit index
+	# Args:
+	# qubit_a: First qubit index
+	# qubit_b: Second qubit index
 
-	Returns:
-	    Joint entropy in bits [0, 2] (0 = pure, 2 = maximally mixed)
-	"""
+	# Returns:
+	# Joint entropy in bits [0, 2] (0 = pure, 2 = maximally mixed)
 	if density_matrix == null:
 		return 0.0
 
@@ -1945,14 +2070,13 @@ func _entropy_of_joint(qubit_a: int, qubit_b: int) -> float:
 
 
 func _eigenvalues_4x4(mat: ComplexMatrix) -> Array[float]:
-	"""Compute eigenvalues of a 4×4 Hermitian matrix numerically.
+	# Compute eigenvalues of a 4×4 Hermitian matrix numerically.
 
-	Uses power iteration with deflation for simplicity.
-	For a Hermitian density matrix, all eigenvalues are real.
+	# Uses power iteration with deflation for simplicity.
+	# For a Hermitian density matrix, all eigenvalues are real.
 
-	Returns:
-	    Array of 4 real eigenvalues (may include near-zero values)
-	"""
+	# Returns:
+	# Array of 4 real eigenvalues (may include near-zero values)
 	var eigenvalues: Array[float] = []
 
 	if mat == null or mat.n != 4:
@@ -2016,18 +2140,17 @@ func _eigenvalues_4x4(mat: ComplexMatrix) -> Array[float]:
 
 
 func get_coherence(emoji_a: String, emoji_b: String):
-	"""Get coherence (off-diagonal element) between two emojis.
+	# Get coherence (off-diagonal element) between two emojis.
 
-	Returns the complex coherence ρ[a,b] from the density matrix.
-	Used for visualization and correlation calculations.
+	# Returns the complex coherence ρ[a,b] from the density matrix.
+	# Used for visualization and correlation calculations.
 
-	Args:
-	    emoji_a: First emoji
-	    emoji_b: Second emoji
+	# Args:
+	# emoji_a: First emoji
+	# emoji_b: Second emoji
 
-	Returns:
-	    Complex coherence value, or null if emojis not registered
-	"""
+	# Returns:
+	# Complex coherence value, or null if emojis not registered
 	if not register_map.has(emoji_a) or not register_map.has(emoji_b):
 		return null
 
@@ -2082,25 +2205,24 @@ func get_coherence(emoji_a: String, emoji_b: String):
 
 func transfer_population(from_emoji: String, to_emoji: String,
                          amount: float, phase: float = 0.0) -> void:
-	"""Transfer population between two basis states (Hamiltonian-based).
+	# Transfer population between two basis states (Hamiltonian-based).
 
-	This creates/updates off-diagonal coherence:
-	    ρ[to, from] += amount * e^(iφ)
-	    ρ[from, to] += amount * e^(-iφ)
+	# This creates/updates off-diagonal coherence:
+	# ρ[to, from] += amount * e^(iφ)
+	# ρ[from, to] += amount * e^(-iφ)
 
-	And adjusts populations to conserve trace:
-	    ρ[from, from] -= amount
-	    ρ[to, to] += amount
+	# And adjusts populations to conserve trace:
+	# ρ[from, from] -= amount
+	# ρ[to, to] += amount
 
-	Args:
-	    from_emoji: Source basis state (array of emojis)
-	    to_emoji: Target basis state (array of emojis)
-	    amount: Population to transfer (0 to 1)
-	    phase: Coherence phase φ (radians)
+	# Args:
+	# from_emoji: Source basis state (array of emojis)
+	# to_emoji: Target basis state (array of emojis)
+	# amount: Population to transfer (0 to 1)
+	# phase: Coherence phase φ (radians)
 
-	Example:
-	    transfer_population("🌾", "💨", 0.1, PI/4)  # Grain → Flour
-	"""
+	# Example:
+	# transfer_population("🌾", "💨", 0.1, PI/4)  # Grain → Flour
 	# Convert emoji strings to basis indices
 	# Note: This is simplified - full implementation would parse emoji arrays
 	if not register_map.has(from_emoji) or not register_map.has(to_emoji):
@@ -2152,22 +2274,22 @@ func transfer_population(from_emoji: String, to_emoji: String,
 		pop_from.sub(Complex.new(amount, 0.0)))
 	density_matrix.set_element(to_index, to_index,
 		pop_to.add(Complex.new(amount, 0.0)))
+	_purity_cache = -1.0
 
 
 func apply_decay(qubit_index: int, rate: float, dt: float) -> void:
-	"""Apply spontaneous decay toward south pole (thermal relaxation).
+	# Apply spontaneous decay toward south pole (thermal relaxation).
 
-	Implements: dρ/dt = γ(L ρ L† - {L†L, ρ}/2)
-	where L = √γ |south⟩⟨north| pushes north → south.
+	# Implements: dρ/dt = γ(L ρ L† - {L†L, ρ}/2)
+	# where L = √γ |south⟩⟨north| pushes north → south.
 
-	Args:
-	    qubit_index: Which qubit to decay
-	    rate: Decay rate γ (1/s)
-	    dt: Time step (s)
+	# Args:
+	# qubit_index: Which qubit to decay
+	# rate: Decay rate γ (1/s)
+	# dt: Time step (s)
 
-	Example:
-	    apply_decay(0, 0.5, 0.1)  # Temperature decays toward cold
-	"""
+	# Example:
+	# apply_decay(0, 0.5, 0.1)  # Temperature decays toward cold
 	var from_pole = 0  # North
 	var to_pole = 1    # South
 	_apply_lindblad_1q(qubit_index, from_pole, to_pole, rate, dt)
@@ -2175,21 +2297,20 @@ func apply_decay(qubit_index: int, rate: float, dt: float) -> void:
 
 func apply_cross_register_channel(source_qubit: int, target_qubit: int,
                                    rate: float, dt: float) -> void:
-	"""Apply a dissipative channel transferring population between two qubits.
+	# Apply a dissipative channel transferring population between two qubits.
 
-	Creates a cross-register Lindblad jump operator:
-	    L = √γ (σ⁺_target ⊗ σ⁻_source)
+	# Creates a cross-register Lindblad jump operator:
+	# L = √γ (σ⁺_target ⊗ σ⁻_source)
 
-	This simultaneously decays the source qubit (north→south) and excites
-	the target qubit (south→north), implementing directed energy/population
-	transfer through the density matrix. Uses the exact Kraus map (CPTP).
+	# This simultaneously decays the source qubit (north→south) and excites
+	# the target qubit (south→north), implementing directed energy/population
+	# transfer through the density matrix. Uses the exact Kraus map (CPTP).
 
-	Args:
-	    source_qubit: Qubit to drain FROM (population flows out of north pole)
-	    target_qubit: Qubit to pump INTO (population flows into north pole)
-	    rate: Channel strength γ (1/s)
-	    dt: Time step (s)
-	"""
+	# Args:
+	# source_qubit: Qubit to drain FROM (population flows out of north pole)
+	# target_qubit: Qubit to pump INTO (population flows into north pole)
+	# rate: Channel strength γ (1/s)
+	# dt: Time step (s)
 	if density_matrix == null:
 		return
 	if source_qubit == target_qubit:
@@ -2255,7 +2376,7 @@ func apply_cross_register_channel(source_qubit: int, target_qubit: int,
 
 
 func get_trace() -> float:
-	"""Get trace of density matrix (should always be 1.0)."""
+	# Get trace of density matrix (should always be 1.0).
 	if density_matrix == null:
 		return 0.0
 
@@ -2277,19 +2398,18 @@ var coupling_registry: Dictionary = {}
 
 
 func add_coupling(qubit_a: int, qubit_b: int, strength: float) -> Dictionary:
-	"""Add ZZ coupling between two qubits in the Hamiltonian.
+	# Add ZZ coupling between two qubits in the Hamiltonian.
 
-	Creates/updates σz⊗σz interaction term: J × σz_a ⊗ σz_b
-	This causes population oscillation between the coupled axes.
+	# Creates/updates σz⊗σz interaction term: J × σz_a ⊗ σz_b
+	# This causes population oscillation between the coupled axes.
 
-	Args:
-		qubit_a: First qubit index
-		qubit_b: Second qubit index
-		strength: Coupling strength J
+	# Args:
+	# qubit_a: First qubit index
+	# qubit_b: Second qubit index
+	# strength: Coupling strength J
 
-	Returns:
-		Dictionary with success/error keys
-	"""
+	# Returns:
+	# Dictionary with success/error keys
 	if qubit_a < 0 or qubit_a >= register_map.num_qubits:
 		return {"success": false, "error": "invalid_qubit_a", "qubit": qubit_a}
 	if qubit_b < 0 or qubit_b >= register_map.num_qubits:
@@ -2309,16 +2429,15 @@ func add_coupling(qubit_a: int, qubit_b: int, strength: float) -> Dictionary:
 
 
 func _add_zz_coupling_to_hamiltonian(qubit_a: int, qubit_b: int, J: float) -> void:
-	"""Add σz⊗σz coupling term directly to Hamiltonian diagonal.
+	# Add σz⊗σz coupling term directly to Hamiltonian diagonal.
 
-	ZZ interaction: H += J × σz_a ⊗ σz_b
-	Diagonal elements only: ⟨i|σz_a⊗σz_b|i⟩ = ±1 depending on qubit states
+	# ZZ interaction: H += J × σz_a ⊗ σz_b
+	# Diagonal elements only: ⟨i|σz_a⊗σz_b|i⟩ = ±1 depending on qubit states
 
-	Args:
-		qubit_a: First qubit index
-		qubit_b: Second qubit index
-		J: Coupling strength
-	"""
+	# Args:
+	# qubit_a: First qubit index
+	# qubit_b: Second qubit index
+	# J: Coupling strength
 	if hamiltonian == null:
 		push_warning("⚠️ Cannot add coupling: Hamiltonian is null")
 		return
@@ -2346,11 +2465,10 @@ func _add_zz_coupling_to_hamiltonian(qubit_a: int, qubit_b: int, J: float) -> vo
 
 
 func get_coupling(qubit_a: int, qubit_b: int) -> float:
-	"""Get current coupling strength between two qubits.
+	# Get current coupling strength between two qubits.
 
-	Returns:
-		Coupling strength J, or 0.0 if no coupling exists
-	"""
+	# Returns:
+	# Coupling strength J, or 0.0 if no coupling exists
 	var key = "%d-%d" % [mini(qubit_a, qubit_b), maxi(qubit_a, qubit_b)]
 	if coupling_registry.has(key):
 		return coupling_registry[key].J
@@ -2358,11 +2476,10 @@ func get_coupling(qubit_a: int, qubit_b: int) -> float:
 
 
 func get_all_couplings() -> Array:
-	"""Get all registered couplings.
+	# Get all registered couplings.
 
-	Returns:
-		Array of {a: int, b: int, J: float} dictionaries
-	"""
+	# Returns:
+	# Array of {a: int, b: int, J: float} dictionaries
 	var result = []
 	for key in coupling_registry:
 		result.append(coupling_registry[key].duplicate())
@@ -2374,11 +2491,10 @@ func get_all_couplings() -> Array:
 # ============================================================================
 
 func set_hamiltonian(H: ComplexMatrix) -> void:
-	"""Set Hamiltonian with auto-sparse conversion.
+	# Set Hamiltonian with auto-sparse conversion.
 
-	Automatically converts to sparse format if sparsity > 50%.
-	Sparse Hamiltonian: 10-50x faster commutator computation.
-	"""
+	# Automatically converts to sparse format if sparsity > 50%.
+	# Sparse Hamiltonian: 10-50x faster commutator computation.
 	hamiltonian = H
 
 	if H == null:
@@ -2403,15 +2519,14 @@ func set_hamiltonian(H: ComplexMatrix) -> void:
 
 
 func set_driven_icons(configs: Array) -> void:
-	"""Set time-dependent driver configurations for efficient Hamiltonian updates.
+	# Set time-dependent driver configurations for efficient Hamiltonian updates.
 
-	These configs are used by update_driven_self_energies() to update
-	Hamiltonian diagonal terms without full rebuild.
+	# These configs are used by update_driven_self_energies() to update
+	# Hamiltonian diagonal terms without full rebuild.
 
-	Args:
-		configs: Array from HamiltonianBuilder.get_driven_icons()
-			[{emoji, qubit, pole, icon_ref, driver_type, base_energy}, ...]
-	"""
+	# Args:
+	# configs: Array from HamiltonianBuilder.get_driven_icons()
+	# [{emoji, qubit, pole, icon_ref, driver_type, base_energy}, ...]
 	driven_icons = configs
 	_last_driver_update_time = -1.0
 
@@ -2423,17 +2538,16 @@ func set_driven_icons(configs: Array) -> void:
 
 
 func update_driven_self_energies(time: float) -> void:
-	"""Update Hamiltonian diagonal terms for time-dependent drivers.
+	# Update Hamiltonian diagonal terms for time-dependent drivers.
 
-	This is called during evolve() to apply oscillating self-energies
-	(e.g., sun/moon 20-second cycle) without rebuilding the full Hamiltonian.
+	# This is called during evolve() to apply oscillating self-energies
+	# (e.g., sun/moon 20-second cycle) without rebuilding the full Hamiltonian.
 
-	Only modifies diagonal elements for icons with active drivers.
-	Invalidates native evolution engine cache if drivers changed significantly.
+	# Only modifies diagonal elements for icons with active drivers.
+	# Invalidates native evolution engine cache if drivers changed significantly.
 
-	Args:
-		time: Current simulation time in seconds
-	"""
+	# Args:
+	# time: Current simulation time in seconds
 	if driven_icons.is_empty():
 		return
 
@@ -2481,14 +2595,13 @@ func update_driven_self_energies(time: float) -> void:
 
 
 func set_lindblad_operators(operators: Array) -> void:
-	"""Set Lindblad operators with auto-sparse conversion.
+	# Set Lindblad operators with auto-sparse conversion.
 
-	Converts each operator to sparse format. Lindblad operators are
-	typically very sparse (e.g., |target⟩⟨source| has only 1 non-zero).
+	# Converts each operator to sparse format. Lindblad operators are
+	# typically very sparse (e.g., |target⟩⟨source| has only 1 non-zero).
 
-	Sparse Lindblad: 10-50x faster dissipator computation via native
-	lindblad_dissipator() which fuses L ρ L† - ½{L†L, ρ} into one call.
-	"""
+	# Sparse Lindblad: 10-50x faster dissipator computation via native
+	# lindblad_dissipator() which fuses L ρ L† - ½{L†L, ρ} into one call.
 	lindblad_operators = operators
 	sparse_lindblad_operators.clear()
 
@@ -2505,9 +2618,11 @@ func set_lindblad_operators(operators: Array) -> void:
 		# Inline sparsity check (native engine handles actual sparse ops)
 		var nnz = 0
 		var total = L.n * L.n
+		var lp = L._to_packed()
 		for i in range(total):
-			var c = L._data[i]
-			if c.re * c.re + c.im * c.im > 1e-24:
+			var re = lp[i * 2]
+			var im = lp[i * 2 + 1]
+			if re * re + im * im > 1e-24:
 				nnz += 1
 
 		sparse_lindblad_operators.append(L)  # Keep reference
@@ -2517,3 +2632,31 @@ func set_lindblad_operators(operators: Array) -> void:
 	var avg_sparsity = 1.0 - (float(total_nnz) / float(total_dense)) if total_dense > 0 else 0.0
 	_log("debug", "quantum", "⚡", "%d Lindblad ops → sparse: avg %.1f%% zeros, total nnz=%d" % [
 		operators.size(), avg_sparsity * 100, total_nnz])
+
+	# Pre-compute L† and L†L for the dense fallback path (saves 2 matmuls/op/substep)
+	_rebuild_lindblad_cache()
+
+
+func _rebuild_lindblad_cache() -> void:
+	# Pre-compute L† and L†L for each Lindblad operator.
+
+	# These are constant between operator rebuilds (faction changes) but were
+	# previously recomputed every substep. Caching saves 2 matmuls per operator
+	# per substep — for 5 operators × 3 substeps/phrame = 30 fewer matmuls/phrame.
+	_lindblad_L_dag.clear()
+	_lindblad_Ldag_L.clear()
+	_lindblad_cache_valid = false
+
+	for L in lindblad_operators:
+		if L == null:
+			_lindblad_L_dag.append(null)
+			_lindblad_Ldag_L.append(null)
+			continue
+		var L_dag = L.dagger()
+		var Ldag_L = L_dag.mul(L)
+		_lindblad_L_dag.append(L_dag)
+		_lindblad_Ldag_L.append(Ldag_L)
+
+	_lindblad_cache_valid = lindblad_operators.size() > 0
+	if _lindblad_cache_valid:
+		_log("debug", "quantum", "⚡", "Lindblad cache built: %d ops pre-computed (L†, L†L)" % lindblad_operators.size())

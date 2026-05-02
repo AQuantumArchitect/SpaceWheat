@@ -1,0 +1,479 @@
+[
+  {
+    "biome": "CyberDebtMegacity",
+    "source_emoji": "⛓",
+    "target": "💀",
+    "gate": "💸",
+    "rate": 0.04,
+    "power": 1.2,
+    "inverse": false
+  },
+  {
+    "biome": "CyberDebtMegacity",
+    "source_emoji": "💸",
+    "target": "⛓",
+    "gate": "🚀",
+    "rate": 0.03,
+    "power": 0.8,
+    "inverse": true
+  },
+  {
+    "biome": "CyberDebtMegacity",
+    "source_emoji": "🗝",
+    "target": "💰",
+    "gate": "🕵️",
+    "rate": 0.04,
+    "power": 1.0,
+    "inverse": false
+  },
+  {
+    "biome": "CyberDebtMegacity",
+    "source_emoji": "🩸",
+    "target": "💀",
+    "gate": "⛓",
+    "rate": 0.05,
+    "power": 1.1,
+    "inverse": false
+  },
+  {
+    "biome": "CyberDebtMegacity",
+    "source_emoji": "💰",
+    "target": "💸",
+    "gate": "🚀",
+    "rate": 0.03,
+    "power": 0.8,
+    "inverse": true
+  },
+  {
+    "biome": "CyberDebtMegacity",
+    "source_emoji": "✊",
+    "target": "🚩",
+    "gate": "💸",
+    "rate": 0.04,
+    "power": 1.2,
+    "inverse": false
+  },
+  {
+    "biome": "EchoingChasm",
+    "source_emoji": "🎶",
+    "target": "🫥",
+    "gate": "🔇",
+    "rate": 0.08,
+    "power": 1.3,
+    "inverse": true
+  },
+  {
+    "biome": "EchoingChasm",
+    "source_emoji": "🕸",
+    "target": "🫥",
+    "gate": "🎶",
+    "rate": 0.04,
+    "power": 1.0,
+    "inverse": false
+  },
+  {
+    "biome": "HorizonFracture",
+    "source_emoji": "🌀",
+    "target": "🕳",
+    "gate": "⚫",
+    "rate": 0.03,
+    "power": 1.2,
+    "inverse": false
+  },
+  {
+    "biome": "HorizonFracture",
+    "source_emoji": "⚫",
+    "target": "🕳",
+    "gate": "🌠",
+    "rate": 0.02,
+    "power": 0.8,
+    "inverse": true
+  },
+  {
+    "biome": "HorizonFracture",
+    "source_emoji": "🔭",
+    "target": "📍",
+    "gate": "🌠",
+    "rate": 0.05,
+    "power": 1.0,
+    "inverse": false
+  },
+  {
+    "biome": "HorizonFracture",
+    "source_emoji": "🫥",
+    "target": "🕳",
+    "gate": "⚫",
+    "rate": 0.03,
+    "power": 1.0,
+    "inverse": false
+  },
+  {
+    "biome": "Village",
+    "source_emoji": "🔥",
+    "target": "🗑",
+    "gate": "❄",
+    "rate": 0.25,
+    "power": 1,
+    "inverse": false
+  },
+  {
+    "biome": "Village",
+    "source_emoji": "❄",
+    "target": "🗑",
+    "gate": "🔥",
+    "rate": 0.25,
+    "power": 1,
+    "inverse": false
+  },
+  {
+    "biome": "Village",
+    "source_emoji": "🍞",
+    "target": "🔥",
+    "gate": "🔥",
+    "rate": 0.6,
+    "power": 2,
+    "inverse": false
+  },
+  {
+    "biome": "Village",
+    "source_emoji": "🧺",
+    "target": "❄",
+    "gate": "❄",
+    "rate": 0.6,
+    "power": 2,
+    "inverse": false
+  },
+  {
+    "biome": "TidalPools",
+    "source_emoji": "🌀",
+    "target": "✨",
+    "gate": "🪨",
+    "rate": 0.15,
+    "power": 1.5,
+    "inverse": false
+  },
+  {
+    "biome": "TidalPools",
+    "source_emoji": "🦀",
+    "target": "🐚",
+    "gate": "🪨",
+    "rate": 0.06,
+    "power": 1.2,
+    "inverse": false
+  },
+  {
+    "biome": "TidalPools",
+    "source_emoji": "🐚",
+    "target": "🦀",
+    "gate": "🌊",
+    "rate": 0.03,
+    "power": 0.8,
+    "inverse": false
+  },
+  {
+    "biome": "TidalPools",
+    "source_emoji": "🐚",
+    "target": "🪸",
+    "gate": "🌊",
+    "rate": 0.02,
+    "power": 1.0,
+    "inverse": false
+  },
+  {
+    "biome": "TidalPools",
+    "source_emoji": "🌊_evap",
+    "target": "🧂",
+    "gate": "🪨",
+    "rate": 0.08,
+    "power": 1.0,
+    "inverse": false
+  },
+  {
+    "biome": "TidalPools",
+    "source_emoji": "🐠",
+    "target": "🐚",
+    "gate": "🪨",
+    "rate": 0.08,
+    "power": 1.0,
+    "inverse": false
+  },
+  {
+    "biome": "BureaucraticAbyss",
+    "source_emoji": "📜",
+    "target": "🗃",
+    "gate": "🖋",
+    "rate": 0.08,
+    "power": 1.0,
+    "inverse": false
+  },
+  {
+    "biome": "BureaucraticAbyss",
+    "source_emoji": "📜",
+    "target": "⛓",
+    "gate": "🕰",
+    "rate": 0.04,
+    "power": 1.0,
+    "inverse": false
+  },
+  {
+    "biome": "BureaucraticAbyss",
+    "source_emoji": "👥",
+    "target": "💀",
+    "gate": "⛓",
+    "rate": 0.05,
+    "power": 1.3,
+    "inverse": false
+  },
+  {
+    "biome": "GildedRot",
+    "source_emoji": "🍷",
+    "target": "📜",
+    "gate": "👑",
+    "rate": 0.05,
+    "power": 1.0,
+    "inverse": false
+  },
+  {
+    "biome": "GildedRot",
+    "source_emoji": "🌹",
+    "target": "🥀",
+    "gate": "🥀",
+    "rate": 15.0,
+    "power": 2,
+    "inverse": false
+  },
+  {
+    "biome": "GildedRot",
+    "source_emoji": "🩸",
+    "target": "🩸",
+    "gate": "🎭",
+    "rate": 0.06,
+    "power": 1.2,
+    "inverse": false
+  },
+  {
+    "biome": "ScrapYard",
+    "source_emoji": "♻️",
+    "target": "🧱",
+    "gate": "🏭",
+    "rate": 0.4,
+    "power": 1.5,
+    "inverse": false
+  },
+  {
+    "biome": "ScrapYard",
+    "source_emoji": "♻️",
+    "target": "🗑",
+    "gate": "🚧",
+    "rate": 0.3,
+    "power": 2,
+    "inverse": true
+  },
+  {
+    "biome": "ScrapYard",
+    "source_emoji": "🧤",
+    "target": "🚧",
+    "gate": "🏭",
+    "rate": 0.3,
+    "power": 0.8,
+    "inverse": true
+  },
+  {
+    "biome": "ScrapYard",
+    "source_emoji": "🏭",
+    "target": "♻️",
+    "gate": "🗑",
+    "rate": 0.5,
+    "power": 1.2,
+    "inverse": false
+  },
+  {
+    "biome": "MarketDistrict",
+    "source_emoji": "🐂",
+    "target": "💰",
+    "gate": "📦",
+    "rate": 0.04,
+    "power": 1.0,
+    "inverse": false
+  },
+  {
+    "biome": "MarketDistrict",
+    "source_emoji": "🐻",
+    "target": "💸",
+    "gate": "📦",
+    "rate": 0.04,
+    "power": 1.0,
+    "inverse": true
+  },
+  {
+    "biome": "ShrineOfAshes",
+    "source_emoji": "💀",
+    "target": "⚱",
+    "gate": "⚱",
+    "rate": 25.0,
+    "power": 2,
+    "inverse": false
+  },
+  {
+    "biome": "OrbitalStrike",
+    "source_emoji": "🛸",
+    "target": "🗑",
+    "gate": "💥",
+    "rate": 15.0,
+    "power": 2,
+    "inverse": false
+  },
+  {
+    "biome": "OrbitalStrike",
+    "source_emoji": "🚀",
+    "target": "💥",
+    "gate": "🛸",
+    "rate": 0.06,
+    "power": 1.2,
+    "inverse": false
+  },
+  {
+    "biome": "TrappersCamp",
+    "source_emoji": "🪤",
+    "target": "💀",
+    "gate": "🐇",
+    "rate": 0.06,
+    "power": 1.2,
+    "inverse": false
+  },
+  {
+    "biome": "MagneticAnomaly",
+    "source_emoji": "⚡",
+    "target": "🧲",
+    "gate": "🧲",
+    "rate": 60.0,
+    "power": 2,
+    "inverse": false
+  },
+  {
+    "biome": "AntimatterFoundry",
+    "source_emoji": "⚫",
+    "target": "💥",
+    "gate": "✨",
+    "rate": 0.1,
+    "power": 1.5,
+    "inverse": false
+  },
+  {
+    "biome": "AntimatterFoundry",
+    "source_emoji": "⚫",
+    "target": "🕳",
+    "gate": "🌀",
+    "rate": 0.02,
+    "power": 0.8,
+    "inverse": true
+  },
+  {
+    "biome": "AntimatterFoundry",
+    "source_emoji": "✨",
+    "target": "💥",
+    "gate": "⚫",
+    "rate": 0.1,
+    "power": 1.5,
+    "inverse": false
+  },
+  {
+    "biome": "ColdLab",
+    "source_emoji": "📡",
+    "target": "❄",
+    "gate": "❄",
+    "rate": 50.0,
+    "power": 2,
+    "inverse": false
+  },
+  {
+    "biome": "WeaversCant",
+    "source_emoji": "🫖",
+    "target": "🌿",
+    "gate": "🕯",
+    "rate": 0.03,
+    "power": 1.0,
+    "inverse": false
+  },
+  {
+    "biome": "TwofacedTide",
+    "source_emoji": "🌘",
+    "target": "🌕",
+    "gate": "🌕",
+    "rate": 5.0,
+    "power": 2,
+    "inverse": false
+  },
+  {
+    "biome": "BrittleDawn",
+    "source_emoji": "🌘",
+    "target": "🌕",
+    "gate": "🌕",
+    "rate": 5.0,
+    "power": 2,
+    "inverse": false
+  },
+  {
+    "biome": "MnemonicHive",
+    "source_emoji": "🔑",
+    "target": "📕",
+    "gate": "📕",
+    "rate": 20.0,
+    "power": 2,
+    "inverse": false
+  },
+  {
+    "biome": "MnemonicHive",
+    "source_emoji": "📓",
+    "target": "📗",
+    "gate": "📗",
+    "rate": 20.0,
+    "power": 2,
+    "inverse": false
+  },
+  {
+    "biome": "MothGarden",
+    "source_emoji": "🦋",
+    "target": "🗑",
+    "gate": "🐛",
+    "rate": 30.0,
+    "power": 2,
+    "inverse": false
+  },
+  {
+    "biome": "MothGarden",
+    "source_emoji": "🕷",
+    "target": "🗑",
+    "gate": "🦋",
+    "rate": 30.0,
+    "power": 2,
+    "inverse": false
+  },
+  {
+    "biome": "MothGarden",
+    "source_emoji": "🐛",
+    "target": "🗑",
+    "gate": "🕷",
+    "rate": 30.0,
+    "power": 2,
+    "inverse": false
+  },
+  {
+    "biome": "SporeLibrary",
+    "source_emoji": "🪵",
+    "target": "🪸",
+    "gate": "🪸",
+    "rate": 20.0,
+    "power": 2,
+    "inverse": false
+  },
+  {
+    "biome": "SporeLibrary",
+    "source_emoji": "🫚",
+    "target": "🌰",
+    "gate": "🌰",
+    "rate": 100.0,
+    "power": 4,
+    "inverse": false
+  }
+]

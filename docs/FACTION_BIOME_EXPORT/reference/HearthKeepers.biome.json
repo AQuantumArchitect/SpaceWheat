@@ -1,0 +1,96 @@
+{
+  "name": "HearthKeepers",
+  "kind": "faction_biome",
+  "faction": "Hearth Keepers",
+  "description": "The faction's own embodied territory: a domestic kitchen-biome where flame, water, and breath conspire to make bread.",
+  "image_path": "res://Assets/Biomes/Village.png",
+  "music_path": "res://Assets/Audio/Music/Heisenberg Township, Poppenoff-ulation.mp3",
+  "discovered": true,
+  "plot_layout": [
+    {
+      "x": 0.4,
+      "y": 0.4
+    },
+    {
+      "x": 0.6,
+      "y": 0.4
+    },
+    {
+      "x": 0.5,
+      "y": 0.6
+    }
+  ],
+  "emojis": [
+    "🔥",
+    "❄",
+    "💧",
+    "🏜",
+    "💨",
+    "🍞"
+  ],
+  "native_factions": [
+    "Hearth Keepers"
+  ],
+  "tags": [
+    "faction_biome",
+    "civic",
+    "domestic"
+  ],
+  "atom_components": {
+    "🔥": {
+      "decay": {
+        "rate": 0.2,
+        "target": "❄"
+      }
+    },
+    "💧": {
+      "lindblad_outgoing": {
+        "🏜": 0.18
+      }
+    },
+    "🍞": {
+      "gated_lindblad_source": [
+        {
+          "target": "🔥",
+          "gate": "🔥",
+          "rate": 0.2,
+          "power": 2,
+          "inverse": false
+        },
+        {
+          "target": "💨",
+          "gate": "💨",
+          "rate": 0.15,
+          "power": 1,
+          "inverse": false
+        }
+      ]
+    }
+  },
+  "icons": [
+    {
+      "name": "Hearth",
+      "pole_0": "🔥",
+      "pole_1": "❄"
+    },
+    {
+      "name": "Cistern",
+      "pole_0": "💧",
+      "pole_1": "🏜"
+    },
+    {
+      "name": "Bellows",
+      "pole_0": "💨",
+      "pole_1": "🍞"
+    }
+  ],
+  "visual_config": {
+    "color": [
+      0.95,
+      0.65,
+      0.3,
+      0.85
+    ],
+    "label": "Hearth Keepers"
+  }
+}
