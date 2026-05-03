@@ -2,6 +2,7 @@ class_name ComplexMatrix
 extends RefCounted
 
 const Complex = preload("res://Core/QuantumSubstrate/Complex.gd")
+const VerboseHelper = preload("res://Core/Config/VerboseHelper.gd")
 
 # Self-reference helper for internal constructors (avoid circular reference issues)
 static var _class_ref = null
@@ -23,10 +24,10 @@ static func _check_native() -> void:
 
 	if ClassDB.class_exists("QuantumMatrixNative"):
 		_native_available = true
-		print("ComplexMatrix: Native acceleration enabled (Eigen)")
+		VerboseHelper.info("quantum", "matrix", "ComplexMatrix native acceleration enabled (Eigen)")
 	else:
 		_native_available = false
-		print("ComplexMatrix: Using pure GDScript")
+		VerboseHelper.warn("quantum", "matrix", "ComplexMatrix using pure GDScript")
 
 static func is_native_available() -> bool:
 	_check_native()
@@ -42,14 +43,20 @@ func _get_native():
 
 ## Marshal GDScript data to PackedFloat64Array for native (DENSE)
 func _to_packed() -> PackedFloat64Array:
+	# Fast path: packed data is authoritative (hot-path result)
+	if _packed_valid and _packed_cache.size() >= n * n * 2:
+		return _packed_cache
+
 	# Fast path: return cached packed data if _data hasn't been modified
 	if _packed_cache.size() >= n * n * 2 and not _data_valid:
+		_packed_valid = true
 		return _packed_cache
 
 	# Native path: get from native backend if available
 	if _native_available and _native_backend != null:
 		var native_packed: PackedFloat64Array = _native_backend.to_packed()
 		if native_packed.size() >= n * n * 2:
+			_packed_valid = true
 			return native_packed
 		# Native cache is stale/empty: rebuild from authoritative GDScript data.
 		_ensure_data_valid()
@@ -59,23 +66,22 @@ func _to_packed() -> PackedFloat64Array:
 			rebuilt[i * 2] = _data[i].re
 			rebuilt[i * 2 + 1] = _data[i].im
 		_packed_cache = rebuilt
+		_packed_valid = true
 		_native_backend.from_packed(rebuilt, n)
 		return rebuilt
 
-	# Fallback: marshal from _data (slow)
-	_ensure_data_valid()
-	var packed = PackedFloat64Array()
-	packed.resize(n * n * 2)
-	for i in range(n * n):
-		packed[i * 2] = _data[i].re
-		packed[i * 2 + 1] = _data[i].im
-	return packed
+	# Fallback: marshal from _data
+	_ensure_packed_valid()
+	return _packed_cache
 
 ## Unmarshal PackedFloat64Array back to GDScript (DENSE)
 ## Uses native backend when available for O(1) load, lazy-populates _data on access
 func _from_packed(packed: PackedFloat64Array, dim: int) -> void:
 	n = dim
 	_packed_cache = packed
+	_packed_valid = true
+	_data_valid = false
+	_data = []
 
 	# Fast path: use native backend, defer _data population
 	if _native_available:
@@ -101,6 +107,31 @@ func _ensure_data_valid() -> void:
 		return
 	if _packed_cache.size() >= n * n * 2:
 		_populate_data_from_packed()
+	elif n > 0:
+		# No packed cache either — initialize zeros
+		_data = []
+		for i in range(n * n):
+			_data.append(Complex.zero())
+		_data_valid = true
+
+## Ensure _packed_cache is valid (lazy marshal from _data)
+func _ensure_packed_valid() -> void:
+	if _packed_valid and _packed_cache.size() >= n * n * 2:
+		return
+	if _packed_cache.size() >= n * n * 2 and not _data_valid:
+		# Packed is newer than data (e.g. from native backend)
+		_packed_valid = true
+		return
+	# Marshal from _data
+	_ensure_data_valid()
+	var total = n * n
+	var packed = PackedFloat64Array()
+	packed.resize(total * 2)
+	for i in range(total):
+		packed[i * 2] = _data[i].re
+		packed[i * 2 + 1] = _data[i].im
+	_packed_cache = packed
+	_packed_valid = true
 
 #region Sparse Matrix Transfer (CSR Format)
 
@@ -235,9 +266,10 @@ func _result_from_packed(packed: PackedFloat64Array, dim: int):
 ## - Quantum: dagger (Hermitian conjugate), commutator, expm (matrix exponential)
 
 var n: int = 0  # Dimension
-var _data: Array = []  # Flat array: element (i,j) at index i*n + j
+var _data: Array = []  # Flat array: element (i,j) at index i*n + j (LAZY — only populated on demand)
 var _packed_cache: PackedFloat64Array = PackedFloat64Array()  # Native packed data cache
 var _data_valid: bool = true  # True if _data is in sync with _packed_cache
+var _packed_valid: bool = false  # True if _packed_cache is authoritative (hot-path results)
 
 func _init(dimension: int = 0):
 	_check_native()
@@ -245,12 +277,26 @@ func _init(dimension: int = 0):
 	_data = []
 	_packed_cache = PackedFloat64Array()
 	_data_valid = true
+	_packed_valid = false
 	for i in range(n * n):
 		_data.append(Complex.zero())
 
-## Create zero matrix of given dimension
+## Create a matrix directly from packed data (fast — no Complex allocation)
+static func from_packed_direct(packed: PackedFloat64Array, dimension: int):
+	var m = load("res://Core/QuantumSubstrate/ComplexMatrix.gd").new(0)
+	m.n = dimension
+	m._packed_cache = packed
+	m._packed_valid = true
+	m._data_valid = false
+	m._data = []
+	return m
+
+## Create zero matrix of given dimension (packed-primary — no Complex allocation)
 static func zeros(dimension: int):
-	return load("res://Core/QuantumSubstrate/ComplexMatrix.gd").new(dimension)
+	var packed = PackedFloat64Array()
+	packed.resize(dimension * dimension * 2)
+	# PackedFloat64Array is zero-initialized by resize
+	return ComplexMatrix.from_packed_direct(packed, dimension)
 
 ## Create identity matrix
 static func identity(dimension: int):
@@ -279,10 +325,8 @@ static func diagonal(diag: Array):
 
 ## Deep copy
 func duplicate():
-	var m = load("res://Core/QuantumSubstrate/ComplexMatrix.gd").new(n)
-	for i in range(n * n):
-		m._data[i] = Complex.new(_data[i].re, _data[i].im)
-	return m
+	var packed = _to_packed()
+	return ComplexMatrix.from_packed_direct(packed.duplicate(), n)
 
 #region Element Access
 
@@ -306,6 +350,40 @@ func get_diagonal_real(i: int) -> float:
 	_ensure_data_valid()
 	return _data[i * n + i].re
 
+func get_heatmap_colors(max_dim: int = 0) -> PackedColorArray:
+	# Return per-cell colors for a density matrix heatmap.
+
+	# Diagonal cells:    grayscale V  (population purity).
+	# Off-diagonal cells: HSV  hue=phase, sat+val=|ρ_ij|.
+
+	# Computed in C++ (QuantumMatrixNative.heatmap_colors) to avoid GDScript
+	# per-cell sqrt/atan2/HSV overhead.  max_dim caps to the first NxN block.
+	_ensure_packed_valid()
+	var native = _get_native()
+	if native:
+		native.from_packed(_packed_cache, n)
+		return native.heatmap_colors(max_dim)
+	# GDScript fallback — should rarely run (native unavailable).
+	var dim: int = mini(max_dim, n) if max_dim > 0 else n
+	var colors := PackedColorArray()
+	colors.resize(dim * dim)
+	for i in range(dim):
+		for j in range(dim):
+			var idx := (i * n + j) * 2
+			var re: float = _packed_cache[idx]
+			var im: float = _packed_cache[idx + 1]
+			var mag: float = sqrt(re * re + im * im)
+			var m: float = sqrt(maxf(mag, 0.0))
+			if i == j:
+				var v: float = 0.12 + 0.88 * m
+				colors[i * dim + j] = Color(v, v, v, 1.0)
+			else:
+				var phase: float = atan2(im, re)
+				var hue: float = fmod(phase / TAU + 1.0, 1.0)
+				colors[i * dim + j] = Color.from_hsv(hue, m, 0.15 + 0.85 * m, 1.0)
+	return colors
+
+
 func set_element(i: int, j: int, value):
 	if i < 0 or i >= n or j < 0 or j >= n:
 		push_error("ComplexMatrix index out of bounds: (%d, %d) for %dx%d matrix" % [i, j, n, n])
@@ -314,6 +392,7 @@ func set_element(i: int, j: int, value):
 	_data[i * n + j] = value
 	# Invalidate packed cache since _data changed
 	_packed_cache = PackedFloat64Array()
+	_packed_valid = false
 
 #endregion
 
@@ -323,19 +402,43 @@ func add(other):
 	if other.n != n:
 		push_error("Matrix dimension mismatch in add: %d vs %d" % [n, other.n])
 		return load("res://Core/QuantumSubstrate/ComplexMatrix.gd").new(n)
-	var result = load("res://Core/QuantumSubstrate/ComplexMatrix.gd").new(n)
-	for i in range(n * n):
-		result._data[i] = _data[i].add(other._data[i])
-	return result
+	var native = _get_native()
+	if native:
+		var self_packed = _to_packed()
+		var other_packed = other._to_packed()
+		native.from_packed(self_packed, n)
+		var result_packed = native.add(other_packed, n)
+		return ComplexMatrix.from_packed_direct(result_packed, n)
+	# GDScript fallback
+	var a = _to_packed()
+	var b = other._to_packed()
+	var total = n * n * 2
+	var r = PackedFloat64Array()
+	r.resize(total)
+	for i in range(total):
+		r[i] = a[i] + b[i]
+	return ComplexMatrix.from_packed_direct(r, n)
 
 func sub(other):
 	if other.n != n:
 		push_error("Matrix dimension mismatch in sub: %d vs %d" % [n, other.n])
 		return load("res://Core/QuantumSubstrate/ComplexMatrix.gd").new(n)
-	var result = load("res://Core/QuantumSubstrate/ComplexMatrix.gd").new(n)
-	for i in range(n * n):
-		result._data[i] = _data[i].sub(other._data[i])
-	return result
+	var native = _get_native()
+	if native:
+		var self_packed = _to_packed()
+		var other_packed = other._to_packed()
+		native.from_packed(self_packed, n)
+		var result_packed = native.sub(other_packed, n)
+		return ComplexMatrix.from_packed_direct(result_packed, n)
+	# GDScript fallback
+	var a = _to_packed()
+	var b = other._to_packed()
+	var total = n * n * 2
+	var r = PackedFloat64Array()
+	r.resize(total)
+	for i in range(total):
+		r[i] = a[i] - b[i]
+	return ComplexMatrix.from_packed_direct(r, n)
 
 func mul(other):
 	if other.n != n:
@@ -355,83 +458,161 @@ func mul(other):
 		push_warning("ComplexMatrix.mul: invalid packed payload (self=%d other=%d expected=%d), falling back to GDScript" % [
 			self_packed.size(), other_packed.size(), expected
 		])
-		return _mul_gdscript(other)
 
-	# Fallback: pure GDScript O(n³)
-	return _mul_gdscript(other)
+	# PackedFloat64Array path: O(n³) but zero object allocation
+	return _mul_packed(other)
 
 
-func _mul_gdscript(other):
-	var result = load("res://Core/QuantumSubstrate/ComplexMatrix.gd").new(n)
-	for i in range(n):
-		for j in range(n):
-			var sum = Complex.zero()
-			for k in range(n):
-				sum = sum.add(get_element(i, k).mul(other.get_element(k, j)))
-			result.set_element(i, j, sum)
-	return result
+func _mul_packed(other):
+	var a = _to_packed()
+	var b = other._to_packed()
+	var dim = n
+	var total = dim * dim * 2
+	var r = PackedFloat64Array()
+	r.resize(total)
+	# r is zero-initialized by resize
+	for i in range(dim):
+		var i_off = i * dim
+		for k in range(dim):
+			var ik2 = (i_off + k) * 2
+			var a_re = a[ik2]
+			var a_im = a[ik2 + 1]
+			if a_re == 0.0 and a_im == 0.0:
+				continue
+			var k_off = k * dim
+			for j in range(dim):
+				var kj2 = (k_off + j) * 2
+				var b_re = b[kj2]
+				var b_im = b[kj2 + 1]
+				var ij2 = (i_off + j) * 2
+				# (a_re + a_im*i) * (b_re + b_im*i) = (a_re*b_re - a_im*b_im) + (a_re*b_im + a_im*b_re)*i
+				r[ij2] += a_re * b_re - a_im * b_im
+				r[ij2 + 1] += a_re * b_im + a_im * b_re
+	return ComplexMatrix.from_packed_direct(r, dim)
 
 func scale(s):
-	var result = load("res://Core/QuantumSubstrate/ComplexMatrix.gd").new(n)
-	for i in range(n * n):
-		result._data[i] = _data[i].mul(s)
-	return result
+	var native = _get_native()
+	if native:
+		native.from_packed(_to_packed(), n)
+		var result_packed = native.scale(s.re, s.im, n)
+		return ComplexMatrix.from_packed_direct(result_packed, n)
+	# GDScript fallback: (a+bi)(c+di) = (ac-bd)+(ad+bc)i
+	var a = _to_packed()
+	var total = n * n
+	var r = PackedFloat64Array()
+	r.resize(total * 2)
+	var s_re = s.re
+	var s_im = s.im
+	for i in range(total):
+		var i2 = i * 2
+		var a_re = a[i2]
+		var a_im = a[i2 + 1]
+		r[i2] = a_re * s_re - a_im * s_im
+		r[i2 + 1] = a_re * s_im + a_im * s_re
+	return ComplexMatrix.from_packed_direct(r, n)
+
+## Fast scale by -i: (re, im) → (im, -re).
+func scale_neg_i():
+	var native = _get_native()
+	if native:
+		native.from_packed(_to_packed(), n)
+		var result_packed = native.scale(0.0, -1.0, n)
+		return ComplexMatrix.from_packed_direct(result_packed, n)
+	# GDScript fallback
+	var a = _to_packed()
+	var total = n * n * 2
+	var r = PackedFloat64Array()
+	r.resize(total)
+	for i in range(0, total, 2):
+		r[i] = a[i + 1]
+		r[i + 1] = -a[i]
+	return ComplexMatrix.from_packed_direct(r, n)
 
 func scale_real(s: float):
-	var result = load("res://Core/QuantumSubstrate/ComplexMatrix.gd").new(n)
-	for i in range(n * n):
-		result._data[i] = Complex.new(_data[i].re * s, _data[i].im * s)
-	return result
+	var native = _get_native()
+	if native:
+		native.from_packed(_to_packed(), n)
+		var result_packed = native.scale(s, 0.0, n)
+		return ComplexMatrix.from_packed_direct(result_packed, n)
+	# GDScript fallback
+	var a = _to_packed()
+	var total = n * n * 2
+	var r = PackedFloat64Array()
+	r.resize(total)
+	for i in range(total):
+		r[i] = a[i] * s
+	return ComplexMatrix.from_packed_direct(r, n)
 
 #endregion
 
 #region Linear Algebra Operations
 
 func dagger():
-	var result = load("res://Core/QuantumSubstrate/ComplexMatrix.gd").new(n)
-	for i in range(n):
-		for j in range(n):
-			result.set_element(j, i, get_element(i, j).conjugate())
-	return result
+	var native = _get_native()
+	if native:
+		native.from_packed(_to_packed(), n)
+		var result_packed = native.dagger(n)
+		return ComplexMatrix.from_packed_direct(result_packed, n)
+	# GDScript fallback
+	var a = _to_packed()
+	var dim = n
+	var r = PackedFloat64Array()
+	r.resize(dim * dim * 2)
+	for i in range(dim):
+		for j in range(dim):
+			var src = (i * dim + j) * 2
+			var dst = (j * dim + i) * 2
+			r[dst] = a[src]        # re
+			r[dst + 1] = -a[src + 1]  # -im (conjugate)
+	return ComplexMatrix.from_packed_direct(r, dim)
 
 func trace():
-	var sum = Complex.zero()
-	for i in range(n):
-		sum = sum.add(get_element(i, i))
-	return sum
+	# Fast path: read directly from packed data
+	var a = _to_packed()
+	var dim = n
+	var sum_re = 0.0
+	var sum_im = 0.0
+	for i in range(dim):
+		var idx = (i * dim + i) * 2
+		sum_re += a[idx]
+		sum_im += a[idx + 1]
+	return Complex.new(sum_re, sum_im)
 
 
 func compute_energy_split() -> Dictionary:
-	"""Split total energy into Real (diagonal) + Imaginary (off-diagonal)
+	# Split total energy into Real (diagonal) + Imaginary (off-diagonal)
 
-	For density matrices:
-	- Real energy = observable populations (diagonal elements)
-	- Imaginary energy = quantum coherence (off-diagonal elements)
+	# For density matrices:
+	# - Real energy = observable populations (diagonal elements)
+	# - Imaginary energy = quantum coherence (off-diagonal elements)
 
-	The imaginary energy represents "potential" that can be extracted
-	via the Sparks mechanic (coherence → observable conversion).
+	# The imaginary energy represents "potential" that can be extracted
+	# via the Sparks mechanic (coherence → observable conversion).
 
-	Returns:
-		{
-			"real": float,           # Sum of diagonal probabilities
-			"imaginary": float,      # Sum of |off-diagonal| coherences
-			"total": float,          # real + imaginary
-			"coherence_ratio": float # imaginary / total (0.0 to 1.0)
-		}
-	"""
+	# Returns:
+	# {
+	# "real": float,           # Sum of diagonal probabilities
+	# "imaginary": float,      # Sum of |off-diagonal| coherences
+	# "total": float,          # real + imaginary
+	# "coherence_ratio": float # imaginary / total (0.0 to 1.0)
+	# }
+	var p = _to_packed()
+	var dim = n
 	var real_energy = 0.0
 	var imaginary_energy = 0.0
 
 	# Real: sum of diagonal (populations)
-	for i in range(n):
-		real_energy += get_element(i, i).re
+	for i in range(dim):
+		real_energy += p[(i * dim + i) * 2]
 
 	# Imaginary: sum of |off-diagonal| (coherences)
 	# Only count upper triangle and multiply by 2 (matrix is Hermitian)
-	for i in range(n):
-		for j in range(i + 1, n):
-			var coherence = get_element(i, j)
-			imaginary_energy += coherence.abs() * 2.0  # *2 for symmetry
+	for i in range(dim):
+		for j in range(i + 1, dim):
+			var idx = (i * dim + j) * 2
+			var re = p[idx]
+			var im = p[idx + 1]
+			imaginary_energy += sqrt(re * re + im * im) * 2.0
 
 	var total = real_energy + imaginary_energy
 	var ratio = imaginary_energy / total if total > 0.0 else 0.0
@@ -445,9 +626,17 @@ func compute_energy_split() -> Dictionary:
 
 
 func commutator(other):
+	# [A, B] = AB - BA
+	var native = _get_native()
+	if native:
+		native.from_packed(_to_packed(), n)
+		var result_packed = native.commutator(other._to_packed(), n)
+		return ComplexMatrix.from_packed_direct(result_packed, n)
+	# GDScript fallback via mul
 	return mul(other).sub(other.mul(self))
 
 func anticommutator(other):
+	# {A, B} = AB + BA — no native method, decompose via native mul + native add
 	return mul(other).add(other.mul(self))
 
 static func outer_product(ket: Array, bra: Array):
@@ -521,6 +710,15 @@ func _one_norm() -> float:
 			col_sum += get_element(i, j).abs()
 		max_sum = max(max_sum, col_sum)
 	return max_sum
+
+func frobenius_norm() -> float:
+	# ||A||_F = sqrt(Σ|A_ij|²) = sqrt(Tr(A†A))
+	var sum_sq = 0.0
+	for i in range(n):
+		for j in range(n):
+			var v = get_element(i, j).abs()
+			sum_sq += v * v
+	return sqrt(sum_sq)
 
 #endregion
 
@@ -711,13 +909,11 @@ func has_unit_trace(tolerance: float = 1e-10) -> bool:
 #region Tensor Products & State Conversion
 
 func tensor_product(other: ComplexMatrix) -> ComplexMatrix:
-	"""
-	Compute Kronecker product: self ⊗ other (sparse-optimized)
-	Result dimension: (n × m) × (n × m) where self is n×n, other is m×m
+	# Compute Kronecker product: self ⊗ other (sparse-optimized)
+	# Result dimension: (n × m) × (n × m) where self is n×n, other is m×m
 
-	Sparse optimization: skip zero blocks, compute only non-zero products.
-	Time: O(nnz₁ × nnz₂) where nnz = number of non-zero elements
-	"""
+	# Sparse optimization: skip zero blocks, compute only non-zero products.
+	# Time: O(nnz₁ × nnz₂) where nnz = number of non-zero elements
 	var m = other.n
 	var result_dim = n * m
 	var result = load("res://Core/QuantumSubstrate/ComplexMatrix.gd").new(result_dim)
@@ -753,12 +949,10 @@ func tensor_product(other: ComplexMatrix) -> ComplexMatrix:
 	return result
 
 func _get_sparsity_pattern() -> Array:
-	"""
-	Get list of (i, j) indices where element is non-zero.
-	Caches result for repeated calls.
+	# Get list of (i, j) indices where element is non-zero.
+	# Caches result for repeated calls.
 
-	Sparse optimization: O(n²) initial scan, then O(nnz) for returns.
-	"""
+	# Sparse optimization: O(n²) initial scan, then O(nnz) for returns.
 	var pattern = []
 
 	for i in range(n):
@@ -769,18 +963,16 @@ func _get_sparsity_pattern() -> Array:
 	return pattern
 
 static func from_statevector(statevector: Array) -> ComplexMatrix:
-	"""
-	Convert state vector |ψ⟩ to density matrix ρ = |ψ⟩⟨ψ| (sparse-optimized)
+	# Convert state vector |ψ⟩ to density matrix ρ = |ψ⟩⟨ψ| (sparse-optimized)
 
-	Input: statevector as Array[Complex]
-	Output: density matrix ρ where ρ_ij = ψ_i * conj(ψ_j)
+	# Input: statevector as Array[Complex]
+	# Output: density matrix ρ where ρ_ij = ψ_i * conj(ψ_j)
 
-	Sparse optimization: only compute ρ_ij where both ψ_i and ψ_j are non-zero.
-	Time: O(nnz²) where nnz = number of non-zero components in |ψ⟩
-	Space: O(nnz²) instead of O(n²)
+	# Sparse optimization: only compute ρ_ij where both ψ_i and ψ_j are non-zero.
+	# Time: O(nnz²) where nnz = number of non-zero components in |ψ⟩
+	# Space: O(nnz²) instead of O(n²)
 
-	Typical case: superposition of 2-4 basis states → nnz ≈ 4, time ≈ O(16) vs O(2^(2n))
-	"""
+	# Typical case: superposition of 2-4 basis states → nnz ≈ 4, time ≈ O(16) vs O(2^(2n))
 	var dim = statevector.size()
 	var rho = load("res://Core/QuantumSubstrate/ComplexMatrix.gd").new(dim)
 
@@ -802,16 +994,12 @@ static func from_statevector(statevector: Array) -> ComplexMatrix:
 	return rho
 
 func conjugate_transpose() -> ComplexMatrix:
-	"""Alias for dagger() for physics naming convention."""
+	# Alias for dagger() for physics naming convention.
 	return dagger()
 
 func renormalize_trace() -> void:
-	"""
-	Renormalize matrix so Tr(M) = 1 (in-place).
-	Used after measurement/projection to restore unit trace.
-
-	Sparse optimization: only scan non-zero trace elements.
-	"""
+	# Renormalize matrix so Tr(M) = 1 (in-place).
+	# Used after measurement/projection to restore unit trace.
 	var tr = trace()
 	var tr_val = tr.abs()
 
@@ -826,11 +1014,16 @@ func renormalize_trace() -> void:
 			push_warning("Cannot renormalize: trace is essentially zero")
 		return
 
-	# Scale all elements by 1/trace
-	var scale_factor = Complex.new(1.0 / tr_val, 0.0)
-
-	for i in range(n * n):
-		_data[i] = _data[i].mul(scale_factor)
+	# Scale all elements by 1/|trace| — packed path, no Complex allocation
+	var s = 1.0 / tr_val
+	var p = _to_packed()
+	var total = n * n * 2
+	for i in range(total):
+		p[i] *= s
+	_packed_cache = p
+	_packed_valid = true
+	_data_valid = false
+	_data = []
 
 #endregion
 
