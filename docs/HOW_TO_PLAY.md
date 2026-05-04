@@ -1,9 +1,70 @@
 # How to Play SpaceWheat
 
-> **OUTDATED — needs rewrite.** This doc describes the old 4-tool system (Unitary / Lindblad / Measure / Meta, keys 1–4).
-> The game now uses **7 archetype frames** selected with hat row keys **4–0**.
-> See `docs/ARCHETYPE_FRAMES.md` for the current key grammar.
-> Do not update until after the code cleanup pass.
+> **OUTDATED — needs full rewrite.** The sections below describe the old 4-tool system
+> (Unitary / Lindblad / Measure / Meta, keys 1–4). The game now uses **7 archetype frames**
+> on hat row **4–0** with sub-modes **1/2/3**. The Q/E/R/F verbs are preserved but their
+> actions vary by frame. See `docs/ARCHETYPE_FRAMES.md` for current key grammar.
+>
+> The physics narrative (superposition, collapse, entanglement, Hamiltonian evolution) is
+> still accurate — that part doesn't need changing. The controls section needs a full rewrite
+> once the archetype frame system stabilises.
+
+---
+
+## Notes for future context (appended 2026-05-03, written by Claude during cleanup pass)
+
+These are architectural observations for whichever worker picks this up next. Not prose for players.
+
+**What the game actually is right now:** A quantum farming simulator with a real density-matrix engine (Godot 4.5 + C++ GDExtension via Eigen). The physics is not metaphorical. Lindblad master equation, Born-rule measurement, genuine entanglement via H+CNOT, berry phase tracking, mutual information at 5Hz. The C++ layer is in `native/src/` and the GDScript binding layer is in `Core/QuantumSubstrate/`. `ComplexMatrix` hot path uses `PackedFloat64Array`. StarterForest runs at ~40ms/frame real quantum.
+
+**Key architectural layers:**
+- `Core/QuantumSubstrate/` — density matrix, gate library, register map, Lindblad builder, entanglement manager
+- `Core/Environment/` — `BiomeBase` owns the quantum computer per biome; `BiomeEvolutionBatcher` drives the Lindblad step; `BiomeDeterministicStepper` handles stride management
+- `Core/Biomes/` — data layer; `Biome` (data object), `BiomeRegistry` (loader from biomes.json), `BiomeBuilder` (materialises runtime nodes)
+- `Core/Factions/` — `Faction`, `FactionRegistry` (96 factions from factions.json), `FactionAxes` (12 axial dimensions from axes.json), `FactionStanding` (6-channel reputation), `FactionDensityMatrix`
+- `Core/Markets/` — `ContractMarket`, `MarketLattice`, `PriceModel` — quantum tensor-product market, faction-biome as permanent market actors
+- `Core/Story/` — `StoryEngine`, `StoryGraph`, `StoryNode`, `Socialite/SocialiteCluster` — physics-driven narrative; story beats fire from threshold crossings on manifold state, not scripted text
+- `Core/GameState/` — `GameStateManager` (orchestrator), `SessionLifecycle`, `SaveLoadCoordinator`, `PlayerProgress`, `ScenarioLedger`
+- `Core/Boot/` — `BootManager` → `SessionLoader` / `WorldBuilder` / `RuntimeMount`; clean stage sequence
+- `UI/` — surface system: `Surface.gd` base class, `SurfaceRegistry` for snapshot broadcasting; overlays: `ControlsOverlay` (Z), `BiomeInspectorOverlay` (B), `InspectorOverlay` (N), `MapMetaOverlay` (M), `QuestBoard` (C), `QubitAtlasOverlay` (V); input via `PlayerShell` → `QuantumInstrumentInput` → `QuantumInstrument` → handlers
+
+**Current keyboard grammar (Archetype Frames):**
+- Hat row `4 5 6 7 8 9 0` = 7 archetype frames (Icon, Spark, Merchant, Captain, Ace, Operator, Druid)
+- Sub-modes `1 / 2 / 3` within each frame
+- `Q E R` = verbs (directional action within current frame/mode)
+- `F` = advance / play (replaces old "mode cycle" meaning)
+- `E` (held or with pause) = inspect / pause
+- `Z X C V B N M` = surface keys (character sheet, system, quests/contracts, vocab/icons, story, biome inspector, map)
+- `ESC` = back / close
+- Full grammar in `UI/Core/KEYBOARD_GRAMMAR.md`
+
+**The faction hypercube:** 96 factions placed in a 12-dimensional hypercube (axes from `Core/Factions/data/axes.json`). Each faction has a `sig` (emoji atom set) in `factions.json` for gameplay physics and a `bits` array (explicit 12-dim coordinates) in `Core/Quests/FactionDatabase.ALL_FACTIONS` for lore/posture. The bits were intentionally positioned — clustering at poles is expected and correct at this stage. The two datasets are complementary (not duplicates): factions.json has Hamiltonian physics, FactionDatabase has lore and hypercube coordinates. The posture strip on the Z SELF tab now correctly derives axis bias from live faction standings via atom→axis lookup (replaced stale FactionContext hardcoded list in this pass).
+
+**What's currently in-flight / known unstable:**
+- `Core/GameMechanics/FarmPlot` ↔ `Terminal` partial migration — Terminal is the v2 plot architecture but FarmPlot still primary; expect this to resolve when gameplay loop stabilises
+- `BiomeStateViews.gd` — Sprint 2 of ZXCVBNM surface refactor, in progress
+- `Core/Affinity/AffinityGraph.gd` — new subsystem, single file, not yet fully wired
+- `Core/UI/ChipContext` / `ChipResolverRegistry` / `IconChipResolvers` — chip resolver pattern for V surface (icon detail); Berry phase tracking extensible via this pattern
+- `Core/GameState/MacroActions` / `SaveLoadCoordinator` / `ScenarioLedger` / `PlayerProgress` — GameStateManager refactor into sub-modules, in progress; `SessionLifecycle` is the coroutine entry point
+- `docs/HOW_TO_PLAY.md` (this file) — controls section is wrong; physics description is correct; rewrite controls section when archetype frame system hardens
+
+**What this cleanup pass did (2026-05-03):**
+- Deleted 8 dead root scripts, 26 dead test scenes, `LindbladSuperoperator`, `FactionContext`, `PhaseConstraint`, `ScenarioMetadata`
+- Removed 25+ stale `FarmView` node lookups, Model-A wheat fields, WheatPlot spring-attraction remnants
+- Committed 63 untracked live GDScript files across 8 new subsystems + 26 tests + native C++ source
+- Renamed `FactionDatabaseV2` → `FactionDatabase`; deleted AXIAL_SPINE constant (redundant with axes.json)
+- Replaced `FactionContext` (stale 39-faction hardcoded list) with live `FactionRegistry` + atom→axis map in posture strip
+- Deleted stale docs: `BIOME_SETUP_GUIDE.md`, `INPUT_ARCHITECTURE.md`
+- Removed 3 untracked dead tools (`generate_*q_profiles.py`)
+
+**Known remaining debt not yet addressed:**
+- `BiomeGateOperations.register_manager` has a misleading "deprecated" comment but is actively used — the plot-based gate path is still alive
+- `FactionDatabase.ALL_FACTIONS[*].bits` (12-dim hypercube coords) should eventually be wired into the posture strip or merged into factions.json — currently stored but not read by any runtime path
+- `docs/HOW_TO_PLAY.md` controls section needs full rewrite for archetype frames
+- `scenes/archived/` contains two Claude play-rig scenes with valid scripts — worth keeping until the rig system is formally replaced
+- `tests/` has 42 untracked files (all committed in this pass) + 15 tracked older tests; older tests (Jan–Feb 2026 QuestBoard suite) may be stale relative to current quest architecture
+
+---
 
 You're a quantum farmer. Your fields are quantum registers, your crops are probability amplitudes, and your harvest depends on the laws of physics. No quantum knowledge required — the game teaches you by playing.
 

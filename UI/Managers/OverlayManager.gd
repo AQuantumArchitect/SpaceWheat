@@ -3,16 +3,16 @@ extends Node
 
 # Access autoload safely (avoids compile-time errors)
 @onready var _verbose = InstrumentLocator.resolve_verbose_config(self)
-## Centralizes management of all overlays (Quests, Vocabulary, Network, Escape Menu, Save/Load)
-## Handles overlay visibility, positioning, and menu actions
+## Centralizes management of all overlays (Quests, Knowledge, Network, Map, System Menu)
+## Handles overlay visibility, positioning, and menu actions.
+## Save/load is owned by the X system surface (EscapeMenu, Keep tab) — there is
+## no standalone save/load overlay.
 
 # Preload dependencies
 const QuestBoard = preload("res://UI/Overlays/QuestBoard.gd")  # New modal quest board
-# DEPRECATED: ConspiracyNetworkOverlay - tomato conspiracy system removed
-# const ConspiracyNetworkOverlay = preload("res://UI/ConspiracyNetworkOverlay.gd")
-const SaveLoadMenu = preload("res://UI/Overlays/SaveLoadMenu.gd")
 const EscapeMenu = preload("res://UI/Overlays/EscapeMenu.gd")
 const BiomeInspectorOverlay = preload("res://UI/Overlays/BiomeInspectorOverlay.gd")
+const MapMetaOverlay = preload("res://UI/Overlays/MapMetaOverlay.gd")
 const QuantumRigorConfigUI = preload("res://UI/Overlays/QuantumRigorConfigUI.gd")
 const IconDetailPanel = preload("res://UI/Widgets/IconDetailPanel.gd")
 
@@ -20,28 +20,27 @@ const IconDetailPanel = preload("res://UI/Widgets/IconDetailPanel.gd")
 const OverlayBaseClass = preload("res://UI/Core/OverlayBase.gd")
 const InspectorOverlay = preload("res://UI/Overlays/InspectorOverlay.gd")
 const ControlsOverlay = preload("res://UI/Overlays/ControlsOverlay.gd")
-const SemanticMapOverlay = preload("res://UI/Overlays/SemanticMapOverlay.gd")
-const BalanceWorkbenchOverlay = preload("res://UI/Overlays/BalanceWorkbenchOverlay.gd")
+const QubitAtlasOverlay = preload("res://UI/Overlays/QubitAtlasOverlay.gd")
 const MenuRegistry = preload("res://UI/Core/MenuRegistry.gd")
 const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")
 
 # Overlay instances
 var quest_board: QuestBoard  # New modal 4-slot quest board (primary interface)
 var escape_menu: EscapeMenu
-var save_load_menu
 # keyboard_hint_button REMOVED - controls/help now lives on Z
 var biome_inspector: BiomeInspectorOverlay  # Biome inspection overlay
+var map_meta_overlay: MapMetaOverlay  # Biome × faction map overlay
 var quantum_config_ui: QuantumRigorConfigUI  # Quantum rigor mode settings panel
 var touch_button_bar: Control  # Touch-friendly panel buttons for the top-level menu row
 var icon_detail_panel  # Icon information detail panel
 
 # Unified overlay registry
 var overlays: Dictionary = {}  # name → OverlayBase instance
+var _pending_pair_scope: Array = []  # [biome_a_name, biome_b_name] passed from N → C
 # Active overlay is tracked by OverlayStackManager
 var inspector_overlay = null  # Density matrix inspector
 var controls_overlay = null  # Keyboard controls reference
-var semantic_map_overlay = null  # Semantic octant visualization
-var balance_workbench_overlay = null
+var vocabulary_overlay = null  # QubitAtlasOverlay
 
 # Reference to unified overlay stack (set by PlayerShell)
 var overlay_stack = null  # OverlayStackManager
@@ -50,17 +49,10 @@ var overlay_stack = null  # OverlayStackManager
 var layout_manager
 var quest_manager
 var faction_manager
-var vocabulary_evolution
-var conspiracy_network
 var farm  # Farm reference for biome inspector
 
 # Signals for menu actions
-signal save_requested(slot: int)
-signal load_requested(slot: int)
-signal load_completed()
-signal quit_requested()
 signal menu_resumed()
-signal debug_scenario_requested(name: String)
 
 # Overlay stack signals
 signal overlay_changed(overlay_name: String, is_open: bool)
@@ -69,24 +61,24 @@ signal overlay_changed(overlay_name: String, is_open: bool)
 var _overlays_created: bool = false
 
 
-func setup(layout_mgr, vocab_sys, faction_mgr, conspiracy_net, quest_mgr = null) -> void:
-	"""Initialize OverlayManager with required dependencies"""
+func setup(layout_mgr, _icon_sys, faction_mgr, _conspiracy_net, quest_mgr = null) -> void:
+	# Initialize OverlayManager with required dependencies.
+	# _icon_sys + _conspiracy_net retained as positional placeholders for the
+	# PlayerShell call site; the underlying systems are deleted.
 	layout_manager = layout_mgr
-	vocabulary_evolution = vocab_sys
 	faction_manager = faction_mgr
-	conspiracy_network = conspiracy_net
 	quest_manager = quest_mgr
 	_verbose.info("ui", "📋", "OverlayManager initialized")
 
 
 func set_overlay_stack(stack) -> void:
-	"""Set reference to OverlayStackManager for overlay management."""
+	# Set reference to OverlayStackManager for overlay management.
 	overlay_stack = stack
 	_verbose.info("ui", "📋", "OverlayManager connected to OverlayStackManager")
 
 
 func _get_current_biome(farm_ref):
-	"""Get the current active biome object from farm (not the hardcoded biotic_flux)"""
+	# Get the current active biome object from farm (not the hardcoded biotic_flux)
 	if not farm_ref:
 		return null
 
@@ -110,7 +102,7 @@ func _get_current_biome(farm_ref):
 
 
 func _resolve_farm() -> Node:
-	"""Resolve the active farm through the current runtime authority graph."""
+	# Resolve the active farm through the current runtime authority graph.
 	if farm and is_instance_valid(farm):
 		return farm
 	return InstrumentLocator.resolve_active_farm(self)
@@ -121,11 +113,10 @@ func _resolve_farm() -> Node:
 ## ========================================
 
 func _setup_visibility_processing(panel: Node) -> void:
-	"""Configure panel to enable/disable processing based on visibility.
+	# Configure panel to enable/disable processing based on visibility.
 
-	When panel becomes visible, enable processing (_process() runs).
-	When panel becomes invisible, disable processing (saves CPU).
-	"""
+	# When panel becomes visible, enable processing (_process() runs).
+	# When panel becomes invisible, disable processing (saves CPU).
 	if not panel:
 		return
 
@@ -148,7 +139,7 @@ func _setup_visibility_processing(panel: Node) -> void:
 
 
 func create_overlays(parent: Control) -> void:
-	"""Create all overlay panels and add them to parent"""
+	# Create all overlay panels and add them to parent
 	# HAUNTED UI FIX: Guard against duplicate overlay creation
 	if _overlays_created:
 		_verbose.warn("ui", "⚠️", "OverlayManager.create_overlays() called multiple times, skipping duplicate creation")
@@ -182,7 +173,7 @@ func create_overlays(parent: Control) -> void:
 	quest_board.quest_accepted.connect(_on_quest_board_quest_accepted)
 	quest_board.quest_completed.connect(_on_quest_board_quest_completed)
 	quest_board.quest_abandoned.connect(_on_quest_board_quest_abandoned)
-	_verbose.info("ui", "📋", "Quest Board created (press C to toggle - modal 4-slot system)")
+	_verbose.info("ui", "📋", "Quest Board created (C key)")
 	_setup_visibility_processing(quest_board)
 
 	# SimStatsOverlay REMOVED - merged into InspectorOverlay (N key)
@@ -196,43 +187,17 @@ func create_overlays(parent: Control) -> void:
 	escape_menu = EscapeMenu.new()
 	if layout_manager and escape_menu.has_method("set_layout_manager"):
 		escape_menu.set_layout_manager(layout_manager)
-	escape_menu.z_index = 18  # System tier - below SaveLoadMenu and action bars
+	escape_menu.z_index = 18  # System tier - below action bars
 	escape_menu.deactivate()
 	parent.add_child(escape_menu)
 	register_overlay("escape_menu", escape_menu)
 
 	# Connect escape menu signals
 	escape_menu.resume_pressed.connect(_on_menu_resume)
-	escape_menu.quit_pressed.connect(func(): quit_requested.emit())
-	escape_menu.save_pressed.connect(_on_save_pressed)
-	escape_menu.load_pressed.connect(_on_load_pressed)
-	escape_menu.reload_last_save_pressed.connect(_on_reload_last_save_pressed)
-	# Note: EscapeMenu doesn't have debug_environment_selected - removed this connection
 	_verbose.info("ui", "🎮", "Escape menu created (ESC to toggle)")
 	_setup_visibility_processing(escape_menu)
 
 	# KeyboardHintButton removed - controls/help now lives on the Z shell menu
-
-	# Create Save/Load Menu
-	_verbose.debug("save", "💾", "Creating Save/Load menu...")
-	save_load_menu = SaveLoadMenu.new()
-	if layout_manager and save_load_menu.has_method("set_layout_manager"):
-		save_load_menu.set_layout_manager(layout_manager)
-	_verbose.debug("save", "💾", "Save/Load menu instantiated, setting properties...")
-	save_load_menu.z_index = 19  # Above EscapeMenu, still below action bars
-	save_load_menu.hide_menu()
-	_verbose.debug("save", "💾", "Adding Save/Load menu to parent...")
-	parent.add_child(save_load_menu)
-	register_overlay("save_load", save_load_menu)
-	_verbose.info("save", "💾", "Save/Load menu created")
-
-	# Connect save/load menu signals
-	_verbose.debug("save", "💾", "Connecting save/load menu signals...")
-	save_load_menu.slot_selected.connect(_on_save_load_slot_selected)
-	save_load_menu.debug_environment_selected.connect(_on_debug_environment_selected)
-	save_load_menu.menu_closed.connect(_on_save_load_menu_closed)
-	_verbose.debug("save", "💾", "Save/Load menu signals connected")
-	_setup_visibility_processing(save_load_menu)
 
 	# Create Biome Inspector Overlay (now extends Control with internal CanvasLayer)
 	biome_inspector = BiomeInspectorOverlay.new()
@@ -267,7 +232,7 @@ func create_overlays(parent: Control) -> void:
 	icon_detail_panel.set_layout_manager(layout_manager)
 	parent.add_child(icon_detail_panel)
 	icon_detail_panel.panel_closed.connect(_on_icon_detail_panel_closed)
-	_verbose.info("ui", "📖", "Icon detail panel created (click emojis in vocab to view)")
+	_verbose.info("ui", "📖", "Icon detail panel created (click emojis in icon to view)")
 	_setup_visibility_processing(icon_detail_panel)
 
 	# Create unified overlays
@@ -279,12 +244,12 @@ func create_overlays(parent: Control) -> void:
 
 
 func update_positions() -> void:
-	"""Update positions of all overlays based on layout_manager"""
+	# Update positions of all overlays based on layout_manager
 	if not layout_manager:
 		return
 
 func toggle_quantum_config_ui() -> void:
-	"""Toggle quantum rigor config UI."""
+	# Toggle quantum rigor config UI.
 	_verbose.debug("ui", "🔄", "toggle_quantum_config_ui() called")
 	if not quantum_config_ui:
 		_verbose.warn("ui", "❌", "quantum_config_ui is null!")
@@ -298,18 +263,18 @@ func toggle_quantum_config_ui() -> void:
 
 
 func _on_biome_inspector_closed() -> void:
-	"""Handle biome inspector overlay closed signal"""
+	# Handle biome inspector overlay closed signal
 	pass
 
 
 func _on_icon_detail_panel_closed() -> void:
-	"""Handle icon detail panel closed signal"""
+	# Handle icon detail panel closed signal
 	# Nothing special needed - panel just hides itself
 	pass
 
 
 func _on_emoji_clicked(emoji: String, icon) -> void:
-	"""Handle emoji button click - show Icon detail panel"""
+	# Handle emoji button click - show Icon detail panel
 	if icon_detail_panel:
 		icon_detail_panel.show_icon(icon)
 	else:
@@ -317,11 +282,11 @@ func _on_emoji_clicked(emoji: String, icon) -> void:
 
 
 # _create_keyboard_hint_button REMOVED
-# Z opens ControlsOverlay via PlayerShell, and M is reserved for the workbench.
+# Z opens ControlsOverlay via PlayerShell, and M is the biome × faction map.
 
 
 func _create_touch_button_bar() -> Control:
-	"""Create touch-friendly button bar for LEFT CENTER of screen."""
+	# Create touch-friendly button bar for LEFT CENTER of screen.
 	const PanelTouchButton = preload("res://UI/Components/PanelTouchButton.gd")
 
 	var scale = layout_manager.scale_factor if layout_manager else 1.0
@@ -368,185 +333,25 @@ func _create_touch_button_bar() -> Control:
 # ============================================================================
 
 func _on_menu_resume() -> void:
-	"""Resume game from escape menu"""
+	# Resume from the system menu — close every open overlay so the player
+	# returns to the live game in one step, regardless of how deep the stack
+	# was when they hit R.
+	close_all_overlays()
 	menu_resumed.emit()
 
 
-func _on_restart_pressed() -> void:
-	"""RESTART (R): Reload last save, preserving player progress.
-
-	GameStateManager is the only lifecycle authority for restart semantics.
-	"""
-	_verbose.info("ui", "🔄", "Restarting game (reload last save)...")
-
-	var gsm = InstrumentLocator.resolve_game_state_manager(self)
-	if gsm and gsm.has_method("request_restart"):
-		gsm.request_restart()
-
-
-func _on_dev_restart_pressed() -> void:
-	"""DEV RESTART (Shift+R): Hard reset everything for a fresh boot.
-
-	GameStateManager is the only lifecycle authority for this cold-boot path.
-	"""
-	_verbose.info("ui", "🔧", "======================================================")
-	_verbose.info("ui", "🔧", "DEV RESTART - Full reset for fresh boot")
-	_verbose.info("ui", "🔧", "======================================================")
-
-	var gsm = InstrumentLocator.resolve_game_state_manager(self)
-	if gsm and gsm.has_method("request_fresh_restart"):
-		gsm.request_fresh_restart(true)
-
-
-func _on_save_pressed() -> void:
-	"""Show save menu when Save is pressed from escape menu"""
-	_verbose.debug("save", "📋", "OverlayManager._on_save_pressed() called")
-	_verbose.debug("save", "→", "save_load_menu exists: %s" % (save_load_menu != null))
-	if save_load_menu:
-		_verbose.debug("save", "→", "Opening registered save_load overlay in SAVE mode...")
-		open_overlay("save_load")
-		save_load_menu.open_menu(SaveLoadMenu.Mode.SAVE)
-		_verbose.debug("save", "→", "save_load_menu.visible = %s" % save_load_menu.visible)
-		_verbose.info("save", "💾", "Save menu opened")
-	else:
-		_verbose.warn("save", "⚠️", "Save/Load menu not available")
-
-
-func _on_load_pressed() -> void:
-	"""Show load menu when Load is pressed from escape menu"""
-	_verbose.debug("save", "📋", "OverlayManager._on_load_pressed() called")
-	_verbose.debug("save", "→", "save_load_menu exists: %s" % (save_load_menu != null))
-	if save_load_menu:
-		_verbose.debug("save", "→", "Opening registered save_load overlay in LOAD mode...")
-		open_overlay("save_load")
-		save_load_menu.open_menu(SaveLoadMenu.Mode.LOAD)
-		_verbose.debug("save", "→", "save_load_menu.visible = %s" % save_load_menu.visible)
-		_verbose.info("save", "📂", "Load menu opened")
-	else:
-		_verbose.warn("save", "⚠️", "Save/Load menu not available")
-
-
-func _on_reload_last_save_pressed() -> void:
-	"""Reload the last saved game"""
-	var gsm = InstrumentLocator.resolve_game_state_manager(self)
-	if gsm and gsm.last_saved_slot >= 0:
-		if gsm.load_and_apply(gsm.last_saved_slot):
-			_verbose.info("save", "✅", "Game reloaded from last save")
-			emit_signal("load_completed")
-		else:
-			_verbose.error("save", "❌", "Failed to reload last save")
-	else:
-		_verbose.warn("save", "⚠️", "No previous save to reload")
-
-
-func _on_save_load_slot_selected(slot: int, mode: String) -> void:
-	"""Handle save/load slot selection from the SaveLoadMenu"""
-	var gsm = InstrumentLocator.resolve_game_state_manager(self)
-	if not gsm:
-		_verbose.error("save", "❌", "GameStateManager not available")
-		return
-
-	if mode == "save":
-		# Save to the selected slot
-		if gsm.save_game(slot):
-			_verbose.info("save", "✅", "Game saved to slot %d" % (slot + 1))
-			save_requested.emit(slot)
-			_close_registered_overlay("save_load")
-			_close_registered_overlay("escape_menu")
-		else:
-			_verbose.error("save", "❌", "Failed to save to slot %d" % (slot + 1))
-	elif mode == "load":
-		# Load from the selected slot and APPLY to game
-		_verbose.info("save", "📂", "Loading save from slot %d..." % (slot + 1))
-
-		# Use load_and_apply to actually apply the state to the game
-		if gsm.load_and_apply(slot):
-			_verbose.info("save", "✅", "Save loaded and applied from slot %d" % (slot + 1))
-
-			# Refresh UI to show loaded state
-			_refresh_ui_after_load()
-
-			# Emit signal
-			load_requested.emit(slot)
-			_close_registered_overlay("save_load")
-			_close_registered_overlay("escape_menu")
-			emit_signal("load_completed")
-		else:
-			_verbose.error("save", "❌", "Failed to load/apply save from slot %d" % (slot + 1))
-
-
-func _refresh_ui_after_load() -> void:
-	"""Refresh all UI elements after loading a save"""
-	_verbose.info("save", "🔄", "Refreshing UI after load...")
-
-	# Find PlayerShell to access FarmUI
-	var player_shell = get_tree().get_first_node_in_group("player_shell")
-	if not player_shell:
-		_verbose.warn("save", "⚠️", "PlayerShell not found - cannot refresh UI")
-		return
-
-	var farm_ui = player_shell.get_farm_ui() if player_shell.has_method("get_farm_ui") else null
-	if not farm_ui:
-		_verbose.warn("save", "⚠️", "FarmUI not found - cannot refresh UI")
-		return
-
-	# Refresh PlotGridDisplay
-	var plot_grid = farm_ui.get_node_or_null("PlotGridDisplay")
-	if plot_grid and plot_grid.has_method("refresh_all_tiles"):
-		plot_grid.refresh_all_tiles()
-		_verbose.info("save", "✓", "PlotGridDisplay refreshed")
-
-	# Refresh economy display if present
-	if farm_ui.has_method("refresh_resource_display"):
-		farm_ui.refresh_resource_display()
-		_verbose.info("save", "✓", "Resource display refreshed")
-
-	# Refresh quantum visualization if present
-	var quantum_viz = farm_ui.get_node_or_null("QuantumVisualization")
-	if quantum_viz and quantum_viz.has_method("refresh"):
-		quantum_viz.refresh()
-		_verbose.info("save", "✓", "Quantum visualization refreshed")
-
-	_verbose.info("save", "✅", "UI refresh complete")
-
-
-func _on_debug_environment_selected(env_name: String) -> void:
-	"""Handle debug environment/scenario selection"""
-	_verbose.info("save", "🎮", "Loading debug environment: %s" % env_name)
-
-	# Emit signal for debug scenario (other systems can listen for this)
-	debug_scenario_requested.emit(env_name)
-
-	# Hide the save/load menu and escape menu
-	_close_registered_overlay("save_load")
-	_close_registered_overlay("escape_menu")
-
-
-func _on_save_load_menu_closed() -> void:
-	"""Handle save/load menu closed - return to escape menu"""
-	_verbose.debug("save", "📋", "Returning from save/load menu to escape menu")
-	# When user presses ESC in save/load menu, return to main escape menu (don't close it)
-	if overlay_stack:
-		if overlay_stack.dismiss_overlay(save_load_menu):
-			overlay_changed.emit("save_load", false)
-	if escape_menu and not (overlay_stack and overlay_stack.has_overlay(escape_menu)):
-		open_overlay("escape_menu")
-	elif not escape_menu:
-		_verbose.warn("save", "⚠️", "Escape menu not available to return to")
-
-
 func _on_quest_board_quest_accepted(quest: Dictionary) -> void:
-	"""Handle when player accepts a quest from quest board"""
+	# Handle when player accepts a quest from quest board
 	_verbose.info("quest", "📋", "Quest accepted from board: %s - %s" % [quest.get("faction", ""), quest.get("body", "")])
 
 
 func _on_quest_board_quest_completed(quest_id: int, rewards: Dictionary) -> void:
-	"""Handle when player completes a quest from quest board"""
+	# Handle when player completes a quest from quest board
 	_verbose.info("quest", "🎉", "Quest completed from board: ID %d" % quest_id)
 
 
 func _on_quest_board_quest_abandoned(quest_id: int) -> void:
-	"""Handle when player abandons a quest from quest board"""
+	# Handle when player abandons a quest from quest board
 	_verbose.info("quest", "❌", "Quest abandoned from board: ID %d" % quest_id)
 
 
@@ -557,7 +362,7 @@ func _on_quest_board_quest_abandoned(quest_id: int) -> void:
 # management and shared keyboard routing.
 
 func _create_overlays(parent: Control) -> void:
-	"""Create and register all stack-managed overlays."""
+	# Create and register all stack-managed overlays.
 	_verbose.info("ui", "📊", "Creating overlay stack...")
 
 	# Create Inspector Overlay (density matrix visualization)
@@ -577,26 +382,16 @@ func _create_overlays(parent: Control) -> void:
 		controls_overlay.set_layout_manager(layout_manager)
 	parent.add_child(controls_overlay)
 	register_overlay("controls", controls_overlay)
-	controls_overlay.set_overlay_source(self)
 	_setup_visibility_processing(controls_overlay)
 
-	# Create Semantic Map Overlay (vocabulary + octants)
-	semantic_map_overlay = SemanticMapOverlay.new()
-	semantic_map_overlay.z_index = 11
+	# Atom Atlas (V — atoms / icons / signature / affinity)
+	vocabulary_overlay = QubitAtlasOverlay.new()
+	vocabulary_overlay.z_index = 11
 	if layout_manager:
-		semantic_map_overlay.set_layout_manager(layout_manager)
-	parent.add_child(semantic_map_overlay)
-	register_overlay("semantic_map", semantic_map_overlay)
-	_setup_visibility_processing(semantic_map_overlay)
-
-	# Create Balance Workbench Overlay (shared balance tuning projection)
-	balance_workbench_overlay = BalanceWorkbenchOverlay.new()
-	balance_workbench_overlay.z_index = 11
-	if layout_manager:
-		balance_workbench_overlay.set_layout_manager(layout_manager)
-	parent.add_child(balance_workbench_overlay)
-	register_overlay("balance_workbench", balance_workbench_overlay)
-	_setup_visibility_processing(balance_workbench_overlay)
+		vocabulary_overlay.set_layout_manager(layout_manager)
+	parent.add_child(vocabulary_overlay)
+	register_overlay("atlas", vocabulary_overlay)
+	_setup_visibility_processing(vocabulary_overlay)
 
 	# Register existing overlays that already implement OverlayBase methods
 	if quest_board:
@@ -606,16 +401,23 @@ func _create_overlays(parent: Control) -> void:
 	if biome_inspector:
 		register_overlay("biome_detail", biome_inspector)
 
+	# M surface — biome × faction relationships
+	map_meta_overlay = MapMetaOverlay.new()
+	if layout_manager and map_meta_overlay.has_method("set_layout_manager"):
+		map_meta_overlay.set_layout_manager(layout_manager)
+	parent.add_child(map_meta_overlay)
+	register_overlay("map_meta", map_meta_overlay)
+	_setup_visibility_processing(map_meta_overlay)
+
 	_verbose.info("ui", "📊", "Overlay stack created with %d overlays" % overlays.size())
 
 
 func register_overlay(name: String, overlay) -> void:
-	"""Register an overlay for stack management.
+	# Register an overlay for stack management.
 
-	Args:
-		name: Unique identifier (e.g., "inspector", "quests")
-		overlay: OverlayBase instance
-	"""
+	# Args:
+	# name: Unique identifier (e.g., "inspector", "quests")
+	# overlay: OverlayBase instance
 	if overlays.has(name):
 		_verbose.warn("ui", "⚠️", "overlay '%s' already registered, replacing" % name)
 
@@ -628,20 +430,32 @@ func register_overlay(name: String, overlay) -> void:
 
 
 func unregister_overlay(name: String) -> void:
-	"""Unregister an overlay."""
+	# Unregister an overlay.
 	if overlays.has(name):
 		overlays.erase(name)
 		_verbose.info("ui", "📋", "Unregistered overlay: %s" % name)
 
 
-func open_overlay(name: String) -> bool:
-	"""Open an overlay by name.
+## Open the C surface (quests) scoped to a tensor pair. Call this instead of
+## open_overlay("quests") when transferring scope from the N network frame.
+func open_overlay_with_pair(name: String, biome_a_name: String, biome_b_name: String) -> bool:
+	_pending_pair_scope = [biome_a_name, biome_b_name]
+	return open_overlay(name)
 
-	Uses OverlayStackManager for unified overlay management.
-	Returns true if overlay was opened successfully.
-	"""
+
+## Write a pair scope without opening an overlay. N calls this on GHJKL selection
+## so that when the player presses C (ZXCVBNM ring), the scope is already set.
+func set_pending_pair_scope(biome_a_name: String, biome_b_name: String) -> void:
+	_pending_pair_scope = [biome_a_name, biome_b_name]
+
+
+func open_overlay(name: String) -> bool:
+	# Open an overlay by name.
+
+	# Uses OverlayStackManager for unified overlay management.
+	# Returns true if overlay was opened successfully.
 	if not overlays.has(name):
-		_verbose.warn("ui", "❌", "overlay '%s' not registered" % name)
+		# Overlays not ready yet (or were torn down by reset()). Silent no-op.
 		return false
 
 	var overlay = overlays[name]
@@ -661,15 +475,30 @@ func open_overlay(name: String) -> bool:
 			var biome = _get_current_biome(farm_ref)
 			if biome:
 				overlay.set_biome(biome)
+		# Pair-mode scope (N → C handoff). Cleared after read so reopening the
+		# C surface without explicit scope returns to single-biome mode.
+		if _pending_pair_scope.size() == 2 and overlay.has_method("set_pair_scope"):
+			var scope_a: String = str(_pending_pair_scope[0])
+			var scope_b: String = str(_pending_pair_scope[1])
+			overlay.set_pair_scope(scope_a, scope_b)
+			_announce_contract_scope(scope_a, scope_b)
+			_pending_pair_scope = []
+		elif overlay.has_method("clear_pair_scope"):
+			overlay.clear_pair_scope()
+
+	# MapMetaOverlay needs the active farm and biome.
+	if name == "map_meta":
+		if farm_ref:
+			overlay.farm = farm_ref
+		if overlay.has_method("set_biome") and farm_ref:
+			var biome = _get_current_biome(farm_ref)
+			if biome:
+				overlay.set_biome(biome)
 
 	# BiomeInspectorOverlay needs farm reference
 	if name == "biome_detail":
-		if overlay.has_method("show_all_biomes") and farm_ref:
+		if farm_ref:
 			overlay.farm = farm_ref
-
-	if name == "balance_workbench":
-		if overlay.has_method("set_farm"):
-			overlay.set_farm(farm_ref)
 
 	# Use OverlayStackManager for unified management
 	if overlay_stack:
@@ -684,46 +513,61 @@ func open_overlay(name: String) -> bool:
 	return true
 
 
+func _announce_contract_scope(biome_a_name: String, biome_b_name: String) -> void:
+	var shell = InstrumentLocator.resolve_player_shell(self)
+	if shell and shell.has_method("show_hint"):
+		shell.show_hint("[color=#cfe6ff]N → C scope:[/color] %s × %s" % [biome_a_name, biome_b_name])
+
+
+func warm_shell_surfaces(force_refresh: bool = false) -> void:
+	# Prewarm shell-level overlay caches before the title card is shown or
+	# before the first visible open. Safe to call repeatedly.
+	if escape_menu and escape_menu.has_method("warm_cache"):
+		escape_menu.warm_cache(force_refresh)
+
+
 func _log_overlay_open_next_frame(name: String, overlay: Control) -> void:
-	"""Deferred one-frame diagnostics for overlay open visibility/layering issues."""
+	# Deferred one-frame diagnostics for overlay open visibility/layering issues.
 	if not is_inside_tree():
 		return
-	var tree := get_tree()
-	if tree == null:
+	call_deferred("_log_overlay_open_next_frame_deferred", name, overlay)
+
+
+func _log_overlay_open_next_frame_deferred(name: String, overlay: Control) -> void:
+	# Deferred one-frame diagnostics for overlay open visibility/layering issues.
+	if not is_inside_tree():
 		return
-	tree.create_timer(0.0).timeout.connect(func():
-		var top_name = "none"
-		var stack_size = 0
-		if overlay_stack:
-			stack_size = overlay_stack.size()
-			var top = overlay_stack.get_top()
-			if top:
-				top_name = top.name
+	var top_name = "none"
+	var stack_size = 0
+	if overlay_stack:
+		stack_size = overlay_stack.size()
+		var top = overlay_stack.get_top()
+		if top:
+			top_name = top.name
 
-		var panel_exists = false
-		if overlay and overlay.has_method("get_panel"):
-			panel_exists = overlay.get_panel() != null
+	var panel_exists = false
+	if overlay and overlay.has_method("get_panel"):
+		panel_exists = overlay.get_panel() != null
 
-		var msg = "overlay='%s' visible=%s in_tree=%s z=%d size=%.1fx%.1f pos=(%.1f,%.1f) panel=%s stack_top=%s stack_size=%d" % [
-			name,
-			overlay.visible if overlay else false,
-			overlay.is_inside_tree() if overlay else false,
-			overlay.z_index if overlay else -1,
-			overlay.size.x if overlay else 0.0,
-			overlay.size.y if overlay else 0.0,
-			overlay.global_position.x if overlay else 0.0,
-			overlay.global_position.y if overlay else 0.0,
-			panel_exists,
-			top_name,
-			stack_size
-		]
-		_verbose.info("ui", "🔎", "QuestOverlayFrame+1 %s" % msg)
-		_verbose.info("test", "🧪", "QuestOverlayFrame+1 %s" % msg)
-	, CONNECT_ONE_SHOT)
+	var msg = "overlay='%s' visible=%s in_tree=%s z=%d size=%.1fx%.1f pos=(%.1f,%.1f) panel=%s stack_top=%s stack_size=%d" % [
+		name,
+		overlay.visible if overlay else false,
+		overlay.is_inside_tree() if overlay else false,
+		overlay.z_index if overlay else -1,
+		overlay.size.x if overlay else 0.0,
+		overlay.size.y if overlay else 0.0,
+		overlay.global_position.x if overlay else 0.0,
+		overlay.global_position.y if overlay else 0.0,
+		panel_exists,
+		top_name,
+		stack_size
+	]
+	_verbose.info("ui", "🔎", "QuestOverlayFrame+1 %s" % msg)
+	_verbose.info("test", "🧪", "QuestOverlayFrame+1 %s" % msg)
 
 
 func close_overlay() -> void:
-	"""Close the top overlay on the stack."""
+	# Close the top overlay on the stack.
 	if not overlay_stack:
 		return
 
@@ -739,7 +583,7 @@ func close_overlay() -> void:
 
 
 func _close_registered_overlay(name: String) -> void:
-	"""Close a registered overlay through the current runtime authority."""
+	# Close a registered overlay through the current runtime authority.
 	if not overlays.has(name):
 		return
 
@@ -756,7 +600,7 @@ func _close_registered_overlay(name: String) -> void:
 
 
 func _on_registered_overlay_closed(name: String) -> void:
-	"""Synchronize stack state when a registered overlay closes itself."""
+	# Synchronize stack state when a registered overlay closes itself.
 	if not overlays.has(name) or not overlay_stack:
 		return
 
@@ -766,7 +610,7 @@ func _on_registered_overlay_closed(name: String) -> void:
 
 
 func close_all_overlays() -> void:
-	"""Close all registered overlays (used by logger config for mutual exclusion)."""
+	# Close all registered overlays (used by logger config for mutual exclusion).
 	if not overlay_stack:
 		return
 
@@ -778,51 +622,33 @@ func close_all_overlays() -> void:
 
 
 func reset() -> void:
-	"""Reset runtime overlay state for shutdown or restart."""
+	# Deactivate all overlays and drop farm-scoped refs for the new session.
+	# Overlay nodes and overlay_stack are app-lifetime (same as PlayerShell)
+	# and stay registered so ESC / ZXCVBNM keep working after a restart.
 	close_all_overlays()
-	if quantum_config_ui and quantum_config_ui.visible:
-		quantum_config_ui.visible = false
-	if save_load_menu and save_load_menu.has_method("hide_menu"):
-		save_load_menu.hide_menu()
-	elif save_load_menu:
-		save_load_menu.visible = false
-	if escape_menu and escape_menu.has_method("deactivate"):
-		escape_menu.deactivate()
-	elif escape_menu:
-		escape_menu.visible = false
-	overlays.clear()
-	quest_board = null
-	escape_menu = null
-	save_load_menu = null
-	biome_inspector = null
-	quantum_config_ui = null
-	touch_button_bar = null
-	icon_detail_panel = null
-	inspector_overlay = null
-	controls_overlay = null
-	semantic_map_overlay = null
-	balance_workbench_overlay = null
-	overlay_stack = null
+	if escape_menu:
+		if escape_menu.has_method("deactivate"):
+			escape_menu.deactivate()
+		if escape_menu.has_method("invalidate_cached_save_slots"):
+			escape_menu.invalidate_cached_save_slots()
+	# Drop only farm-scoped refs; overlay refs and stack are kept alive.
 	farm = null
 	quest_manager = null
 	faction_manager = null
-	vocabulary_evolution = null
-	conspiracy_network = null
-	_overlays_created = false
 
 
 func toggle_overlay(name: String) -> void:
-	"""Toggle an overlay open/closed.
+	# Toggle an overlay open/closed.
 
-	Behavior:
-	- If this overlay is already open → close it
-	- If another overlay is open → close it, then open this one
-	- If no overlay is open → open this one
+	# Behavior:
+	# - If this overlay is already open → close it
+	# - If another overlay is open → close it, then open this one
+	# - If no overlay is open → open this one
 
-	This gives "radio button" behavior for ZXCVBN keys.
-	"""
+	# This gives "radio button" behavior for ZXCVBN keys.
 	if not overlays.has(name):
-		_verbose.warn("ui", "❌", "overlay '%s' not registered" % name)
+		# Overlays may not be created yet (early input) or were torn down
+		# by reset(). Silently no-op rather than spam the log.
 		return
 
 	var overlay = overlays[name]
@@ -847,29 +673,29 @@ func toggle_overlay(name: String) -> void:
 
 
 func is_overlay_active() -> bool:
-	"""Check if any overlay is currently on the stack."""
+	# Check if any overlay is currently on the stack.
 	if overlay_stack:
 		return not overlay_stack.is_empty()
 	return false
 
 
 func get_active_overlay():
-	"""Get the top overlay from the stack, or null."""
+	# Get the top overlay from the stack, or null.
 	if overlay_stack:
 		return overlay_stack.get_top()
 	return null
 
 
 func get_overlay(name: String):
-	"""Get a registered overlay by name, or null."""
+	# Get a registered overlay by name, or null.
 	return overlays.get(name, null)
 
 
 func has_overlay(name: String) -> bool:
-	"""Check whether an overlay name is registered."""
+	# Check whether an overlay name is registered.
 	return overlays.has(name)
 
 
 func get_registered_overlays() -> Array:
-	"""Get list of all registered overlay names."""
+	# Get list of all registered overlay names.
 	return overlays.keys()

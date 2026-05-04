@@ -6,13 +6,8 @@ extends "res://Core/GameMechanics/BasePlot.gd"
 ## Handles quantum evolution, entanglement, and generic plot mechanics
 ## Subclasses: WheatPlot (crops with constraints)
 
-const PhaseConstraint = preload("res://Core/GameMechanics/PhaseConstraint.gd")
-
 # Plot type (string-based, data-driven)
 @export var plot_type_name: String = "wheat"
-
-# Phase constraint (for plots that restrict Bloch sphere movement)
-var phase_constraint: PhaseConstraint = null
 
 # Quantum evolution parameters (can be overridden by subclasses)
 var theta_drift_rate: float = 0.1
@@ -37,20 +32,19 @@ func _init():
 
 
 func get_plot_emojis() -> Dictionary:
-	"""Get the dual-emoji pair for this plot type
+	# Get the dual-emoji pair for this plot type
 
-	PHASE 5 (PARAMETRIC): Queries parent biome for emoji pair via plot_type_name.
-	Delegates to BasePlot.get_plot_emojis() which queries biome capabilities.
+	# PHASE 5 (PARAMETRIC): Queries parent biome for emoji pair via plot_type_name.
+	# Delegates to BasePlot.get_plot_emojis() which queries biome capabilities.
 
-	OLD (Hard-Coded): Match statement on PlotType enum
-	NEW (Parametric): Query biome.get_plantable_capabilities() for plot_type_name
-	"""
+	# OLD (Hard-Coded): Match statement on PlotType enum
+	# NEW (Parametric): Query biome.get_plantable_capabilities() for plot_type_name
 	# PARAMETRIC: Delegate to BasePlot which queries parent biome
 	return super.get_plot_emojis()
 
 
 func get_semantic_emoji() -> String:
-	"""Get the dominant emoji based on quantum state."""
+	# Get the dominant emoji based on quantum state.
 	if not is_active():
 		var emojis = get_plot_emojis()
 		return emojis.get("north", "")
@@ -64,14 +58,9 @@ func get_semantic_emoji() -> String:
 ## Growth & Evolution
 
 
-func grow(delta: float, biome = null, territory_manager = null, icon_network = null, conspiracy_network = null) -> float:
-	"""Evolve quantum state with energy growth from biome."""
-	if not is_active():
-		return 0.0
-
-	# Model B: Quantum evolution is handled by parent biome's quantum computer
-	# This method is called each frame for plot growth logic
-
+func grow(_delta: float, _biome = null) -> float:
+	# Quantum evolution is handled by the parent biome's quantum computer;
+	# this method exists only as a per-frame hook for future plot logic.
 	return 0.0
 
 
@@ -79,16 +68,16 @@ func grow(delta: float, biome = null, territory_manager = null, icon_network = n
 
 
 func add_entanglement(other_plot_id: String, strength: float) -> void:
-	"""Add entanglement with another plot"""
+	# Add entanglement with another plot
 	if entangled_plots.size() < MAX_ENTANGLEMENTS:
 		entangled_plots[other_plot_id] = strength
 
 
 func clear_entanglement() -> void:
-	"""Clear all entanglement relationships"""
+	# Clear all entanglement relationships
 	entangled_plots.clear()
 
 
 func get_entanglement_count() -> int:
-	"""Get number of entangled plots"""
+	# Get number of entangled plots
 	return entangled_plots.size()
