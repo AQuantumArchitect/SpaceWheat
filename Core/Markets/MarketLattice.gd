@@ -19,6 +19,7 @@ const PriceModel = preload("res://Core/Markets/PriceModel.gd")
 const HamiltonianConfig = preload("res://Core/Config/HamiltonianConfig.gd")
 const VerboseHelper = preload("res://Core/Config/VerboseHelper.gd")
 const QuantumRounding = preload("res://Core/QuantumSubstrate/QuantumRounding.gd")
+const BiomeRegistry = preload("res://Core/Biomes/BiomeRegistry.gd")
 
 var _farm = null                          # weak ref; market doesn't own farm
 var _contracts: Dictionary = {}           # id → MarketContract
@@ -219,6 +220,252 @@ func propose_pair_offers(biome_a, biome_b, n: int = 6) -> Array:
 	return offers
 
 
+# ---------------- faction-biome tensor offers ----------------
+
+## For the live biome in player focus, find all faction-biomes that share ≥1
+## emoji and emit pair-style offers using Lindblad-steady-state marginals for
+## the faction side (no live QC required on the faction-biome).
+func propose_faction_biome_offers(biome, n: int = 6) -> Array:
+	if biome == null or _farm == null:
+		return []
+	var biome_name: String = _biome_name(biome)
+	var qc = biome.quantum_computer if "quantum_computer" in biome else null
+	if qc == null:
+		return []
+	var marg_live: Dictionary = _emoji_marginals(qc)
+	if marg_live.is_empty():
+		return []
+
+	var br = BiomeRegistry.get_shared()
+	var faction_biomes: Array = br.get_biomes_by_tag("faction_biome")
+
+	var scored: Array = []
+	for fb in faction_biomes:
+		var marg_fb: Dictionary = _static_marginals_from_spec(fb)
+		for emoji in marg_live.keys():
+			if not marg_fb.has(emoji):
+				continue
+			var p_live: float = float(marg_live[emoji])
+			var p_fb: float = float(marg_fb[emoji])
+			var tension: float = abs(p_live - p_fb)
+			scored.append({
+				"emoji": emoji,
+				"fb_name": fb.name,
+				"marg_fb": marg_fb,
+				"p_live": p_live,
+				"tension": tension,
+				"score": (tension + 0.05) * (0.5 + 0.5 * (p_live + p_fb)),
+			})
+	scored.sort_custom(func(x, y): return float(x.score) > float(y.score))
+
+	var offers: Array = []
+	var taken: int = 0
+	for entry in scored:
+		if taken >= n:
+			break
+		var emoji: String = str(entry.emoji)
+		var p_live: float = float(entry.p_live)
+		var pole: int = qc.pole(emoji) if qc.has_method("pole") else 1
+		var cost_emoji: String = _pick_faction_cost_emoji(emoji, entry.marg_fb)
+		var expiry: int = _current_phrame + HamiltonianConfig.CONTRACT_DEFAULT_EXPIRY_PHRAMES
+		var c = MarketContract.make(emoji, str(entry.fb_name), biome_name, pole,
+				_current_phrame, 0.0, expiry, cost_emoji, 0.0)
+		var p_clipped: float = clampf(p_live, HamiltonianConfig.P_MIN, 1.0 - HamiltonianConfig.P_MIN)
+		c.price_paid = (1.0 / p_clipped) * HamiltonianConfig.QUANTUM_CLASSICAL_RATIO * (1.0 + float(entry.tension))
+		c.cost_amount = c.price_paid
+		c.set_meta("pair_a", biome_name)
+		c.set_meta("pair_b", str(entry.fb_name))
+		c.set_meta("tension", float(entry.tension))
+		c.set_meta("shared", true)
+		register_offer(c)
+		offers.append(c)
+		taken += 1
+	return offers
+
+
+## Return the name of the faction-biome with the highest tension against `biome`.
+## Returns "" if no faction-biomes exist or biome has no QC.
+func best_faction_biome_name(biome) -> String:
+	if biome == null:
+		return ""
+	var qc = biome.quantum_computer if "quantum_computer" in biome else null
+	if qc == null:
+		return ""
+	var marg_live: Dictionary = _emoji_marginals(qc)
+	if marg_live.is_empty():
+		return ""
+	var br = BiomeRegistry.get_shared()
+	var best_name: String = ""
+	var best_score: float = -1.0
+	for fb in br.get_biomes_by_tag("faction_biome"):
+		var marg_fb: Dictionary = _static_marginals_from_spec(fb)
+		var score: float = 0.0
+		for emoji in marg_live.keys():
+			if marg_fb.has(emoji):
+				var tension: float = abs(float(marg_live[emoji]) - float(marg_fb[emoji]))
+				score += (tension + 0.05) * (0.5 + 0.5 * (float(marg_live[emoji]) + float(marg_fb[emoji])))
+		if score > best_score:
+			best_score = score
+			best_name = fb.name
+	return best_name
+
+
+## Like propose_faction_biome_offers but scoped to one specific faction-biome by name.
+func propose_faction_biome_offers_scoped(biome, fb_name: String, n: int = 6) -> Array:
+	if biome == null or _farm == null or fb_name == "":
+		return []
+	var biome_name: String = _biome_name(biome)
+	var qc = biome.quantum_computer if "quantum_computer" in biome else null
+	if qc == null:
+		return []
+	var marg_live: Dictionary = _emoji_marginals(qc)
+	if marg_live.is_empty():
+		return []
+
+	var br = BiomeRegistry.get_shared()
+	var fb_spec = null
+	for fb in br.get_biomes_by_tag("faction_biome"):
+		if fb.name == fb_name:
+			fb_spec = fb
+			break
+	if fb_spec == null:
+		return []
+
+	var marg_fb: Dictionary = _static_marginals_from_spec(fb_spec)
+	var scored: Array = []
+	for emoji in marg_live.keys():
+		if not marg_fb.has(emoji):
+			continue
+		var p_live: float = float(marg_live[emoji])
+		var p_fb: float = float(marg_fb[emoji])
+		var tension: float = abs(p_live - p_fb)
+		scored.append({
+			"emoji": emoji,
+			"fb_name": fb_name,
+			"marg_fb": marg_fb,
+			"p_live": p_live,
+			"tension": tension,
+			"score": (tension + 0.05) * (0.5 + 0.5 * (p_live + p_fb)),
+		})
+	scored.sort_custom(func(x, y): return float(x.score) > float(y.score))
+
+	var offers: Array = []
+	var taken: int = 0
+	for entry in scored:
+		if taken >= n:
+			break
+		var emoji: String = str(entry.emoji)
+		var p_live: float = float(entry.p_live)
+		var pole: int = qc.pole(emoji) if qc.has_method("pole") else 1
+		var cost_emoji: String = _pick_faction_cost_emoji(emoji, entry.marg_fb)
+		var expiry: int = _current_phrame + HamiltonianConfig.CONTRACT_DEFAULT_EXPIRY_PHRAMES
+		var c = MarketContract.make(emoji, fb_name, biome_name, pole,
+				_current_phrame, 0.0, expiry, cost_emoji, 0.0)
+		var p_clipped: float = clampf(p_live, HamiltonianConfig.P_MIN, 1.0 - HamiltonianConfig.P_MIN)
+		c.price_paid = (1.0 / p_clipped) * HamiltonianConfig.QUANTUM_CLASSICAL_RATIO * (1.0 + float(entry.tension))
+		c.cost_amount = c.price_paid
+		c.set_meta("pair_a", biome_name)
+		c.set_meta("pair_b", fb_name)
+		c.set_meta("tension", float(entry.tension))
+		c.set_meta("shared", true)
+		register_offer(c)
+		offers.append(c)
+		taken += 1
+	return offers
+
+
+## Returns the highest-tension live biome pair from `biomes_dict` ({name→biome}).
+## Uses the same tension formula as the N Network frame: Σ|Δmarginal| + 0.05×shared.
+## Returns {} when fewer than 2 live biomes are present.
+func best_live_tension_pair(biomes_dict: Dictionary) -> Dictionary:
+	var bnames: Array = biomes_dict.keys()
+	bnames.sort()
+	var best: Dictionary = {}
+	var best_score: float = -1.0
+	for i in range(bnames.size()):
+		var ba = biomes_dict[bnames[i]]
+		var qca = ba.quantum_computer if "quantum_computer" in ba else null
+		if qca == null:
+			continue
+		var ma: Dictionary = _emoji_marginals(qca)
+		for j in range(i + 1, bnames.size()):
+			var bb = biomes_dict[bnames[j]]
+			var qcb = bb.quantum_computer if "quantum_computer" in bb else null
+			if qcb == null:
+				continue
+			var mb: Dictionary = _emoji_marginals(qcb)
+			var shared_count: int = 0
+			var tension: float = 0.0
+			for emoji in ma.keys():
+				if mb.has(emoji):
+					shared_count += 1
+					tension += absf(float(ma[emoji]) - float(mb[emoji]))
+			if shared_count == 0:
+				continue
+			var score: float = tension + 0.05 * float(shared_count)
+			if score > best_score:
+				best_score = score
+				best = {"a": str(bnames[i]), "b": str(bnames[j]), "tension": tension, "shared": shared_count}
+	return best
+
+
+static func _static_marginals_from_spec(biome_spec) -> Dictionary:
+	## Steady-state marginals from a Biome spec's atom_components + icons.
+	## For a decay cycle, p[atom] ∝ 1/rate_out (flux-balance on each node).
+	var atom_pop: Dictionary = {}
+	var components: Dictionary = biome_spec.atom_components if "atom_components" in biome_spec else {}
+	for atom in components.keys():
+		var comp = components[atom]
+		if not comp is Dictionary:
+			continue
+		var rate_out: float = 0.0
+		if comp.has("decay") and comp["decay"] is Dictionary:
+			rate_out += float(comp["decay"].get("rate", 0.0))
+		if comp.has("lindblad_outgoing") and comp["lindblad_outgoing"] is Dictionary:
+			for t in comp["lindblad_outgoing"].keys():
+				rate_out += float(comp["lindblad_outgoing"][t])
+		atom_pop[atom] = 1.0 / rate_out if rate_out > 0.0 else 1.0
+	var total: float = 0.0
+	for v in atom_pop.values():
+		total += float(v)
+	if total <= 0.0:
+		return {}
+	for a in atom_pop.keys():
+		atom_pop[a] = float(atom_pop[a]) / total
+	var marg: Dictionary = {}
+	var icons: Array = biome_spec.icons if "icons" in biome_spec else []
+	for icon in icons:
+		if not icon is Dictionary:
+			continue
+		var p0: String = str(icon.get("pole_0", ""))
+		var p1: String = str(icon.get("pole_1", ""))
+		if p0 == "" or p1 == "":
+			continue
+		var w0: float = float(atom_pop.get(p0, 0.0))
+		var w1: float = float(atom_pop.get(p1, 0.0))
+		var pair_total: float = w0 + w1
+		if pair_total <= 0.0:
+			marg[p0] = 0.5
+			marg[p1] = 0.5
+		else:
+			marg[p0] = w0 / pair_total
+			marg[p1] = w1 / pair_total
+	return marg
+
+
+func _pick_faction_cost_emoji(deliverable: String, marg_fb: Dictionary) -> String:
+	var best: String = ""
+	var best_p: float = 0.0
+	for e in marg_fb.keys():
+		if str(e) == deliverable:
+			continue
+		var p = float(marg_fb[e])
+		if p > best_p:
+			best_p = p
+			best = str(e)
+	return best if best != "" else deliverable
+
+
 # ---------------- pair helpers ----------------
 
 func _biome_name(biome) -> String:
@@ -250,15 +497,12 @@ func _emoji_marginals(qc) -> Dictionary:
 
 
 func _resolve_pair_issuer(emoji: String, biome_a, biome_b, registry) -> String:
-	# Try native_factions on either biome that speak this emoji.
+	# Faction signature gate: faction admitted iff it owns an icon in the biome's register.
+	const FactionBiomeMap = preload("res://Core/Biomes/FactionBiomeMap.gd")
 	for biome in [biome_a, biome_b]:
 		if biome == null:
 			continue
-		var natives: Array = []
-		if "_biome_data" in biome and biome._biome_data is Dictionary:
-			natives = biome._biome_data.get("native_factions", [])
-		elif "native_factions" in biome:
-			natives = biome.native_factions
+		var natives: Array = FactionBiomeMap.factions_for_biome_by_signature(biome)
 		for fname in natives:
 			if registry == null:
 				continue
@@ -393,6 +637,17 @@ func exercise(contract_id: int) -> Dictionary:
 		_farm.distribute_settlement_theta(theta_total, c)
 
 	c.status = MarketContract.STATUS_EXERCISED
+
+	# Inter-faction substrate: notify StoryEngine so the player faction's
+	# AffinityGraph mixes (Lindblad jump) toward the seller faction's posture.
+	# Player → seller only; seller unchanged. Standings are NOT touched here.
+	var story_engine = null
+	var main_loop = Engine.get_main_loop()
+	if main_loop and main_loop is SceneTree:
+		story_engine = main_loop.root.get_node_or_null("/root/StoryEngine")
+	if story_engine != null and story_engine.has_method("on_contract_exercised"):
+		story_engine.on_contract_exercised(c.faction, float(c.cost_amount), c.resource, c.biome_name)
+
 	return {
 		"ok": true,
 		"contract_id": c.id,
@@ -462,7 +717,7 @@ func _resolve_biome_by_name(name: String):
 
 
 func _find_biome_for_emoji(emoji: String):
-	"""Find first live biome whose quantum computer holds a qubit for this emoji."""
+	# Find first live biome whose quantum computer holds a qubit for this emoji.
 	if _farm == null or _farm.grid == null:
 		return null
 	for b in _farm.grid.get_all_biomes().values():
@@ -473,9 +728,9 @@ func _find_biome_for_emoji(emoji: String):
 
 
 func synthesize_and_exercise(emoji: String, faction_name: String = "") -> Dictionary:
-	"""Synthesize a minimal one-shot contract for emoji in any live biome and
-	immediately exercise it. Used by icon-learn and settlement-rotation events
-	to get a substrate-derived θ via distribute_settlement_theta."""
+	# Synthesize a minimal one-shot contract for emoji in any live biome and
+	# immediately exercise it. Used by icon-learn and settlement-rotation events
+	# to get a substrate-derived θ via distribute_settlement_theta.
 	var biome = _find_biome_for_emoji(emoji)
 	if biome == null:
 		return {"ok": false, "error": "no_biome_for_emoji", "emoji": emoji}
