@@ -10,14 +10,14 @@ extends RefCounted
 
 const FactionStateMatcher = preload("res://Core/QuantumSubstrate/FactionStateMatcher.gd")
 const QuestTypes = preload("res://Core/Quests/QuestTypes.gd")
-const FactionDatabase = preload("res://Core/Quests/FactionDatabaseV2.gd")
-const VocabularyPairing = preload("res://Core/Quests/VocabularyPairing.gd")
+const FactionDatabase = preload("res://Core/Quests/FactionDatabase.gd")
+const IconPairing = preload("res://Core/Quests/IconPairing.gd")
 const QuestRewards = preload("res://Core/Quests/QuestRewards.gd")
 const EconomyConstants = preload("res://Core/GameMechanics/EconomyConstants.gd")
 const VerboseHelper = preload("res://Core/Config/VerboseHelper.gd")
 const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")
 
-# Light bias toward simulated vocab when selecting north pole.
+# Light bias toward simulated icon when selecting north pole.
 const NORTH_BIAS_WEIGHT: float = 1.3
 
 static func _log(level: String, category: String, emoji: String, message: String) -> void:
@@ -25,7 +25,7 @@ static func _log(level: String, category: String, emoji: String, message: String
 
 
 static func apply_theming(params: FactionStateMatcher.QuestParameters, bath, economy = null, icon_map = null) -> Dictionary:
-	"""Map abstract parameters to SpaceWheat quest."""
+	# Map abstract parameters to SpaceWheat quest.
 
 	var quest_type = _select_quest_type(params)
 	var quest: Dictionary
@@ -49,15 +49,14 @@ static func apply_theming(params: FactionStateMatcher.QuestParameters, bath, eco
 
 
 static func _select_quest_type(params: FactionStateMatcher.QuestParameters) -> int:
-	"""Choose quest type based on abstract parameters.
+	# Choose quest type based on abstract parameters.
 
-	Operator weights (params.operator_weights) are available for future use
-	once non-delivery quest completion is supported by the engine policy bot.
+	# Operator weights (params.operator_weights) are available for future use
+	# once non-delivery quest completion is supported by the engine policy bot.
 
-	For now: complexity thresholds gate quest types.  Complexity is quantum-
-	derived (entropy × 0.5 + coherence × 0.5) so this is still downstream
-	from the world state graph.
-	"""
+	# For now: complexity thresholds gate quest types.  Complexity is quantum-
+	# derived (entropy × 0.5 + coherence × 0.5) so this is still downstream
+	# from the world state graph.
 	if params.complexity > 0.7:
 		if randf() < 0.5:
 			return QuestTypes.Type.SHAPE_MAINTAIN
@@ -76,14 +75,14 @@ static func _select_quest_type(params: FactionStateMatcher.QuestParameters) -> i
 
 
 static func _generate_delivery_quest(params: FactionStateMatcher.QuestParameters, bath, economy = null, icon_map = null) -> Dictionary:
-	"""Generate delivery quest from quantum state observables."""
+	# Generate delivery quest from quantum state observables.
 
 	# intensity → quantity in CREDITS (fallback when IconMap missing)
 	var base_units = 1 + int(params.intensity * 4)  # 1-5 base
 	var q2c = EconomyConstants.get_quantum_to_credits(economy)
 	var quantity = base_units * q2c
 
-	# Sample resource from ALLOWED emojis only (vocabulary constraint!)
+	# Sample resource from ALLOWED emojis only (signature constraint!)
 	var allowed_emojis = params.available_emojis if params.available_emojis.size() > 0 else []
 	var resource = _sample_from_allowed_emojis(bath, allowed_emojis, params, economy, icon_map)
 
@@ -125,7 +124,7 @@ static func _generate_delivery_quest(params: FactionStateMatcher.QuestParameters
 
 
 static func _generate_shape_achieve_quest(params: FactionStateMatcher.QuestParameters) -> Dictionary:
-	"""Generate 'achieve purity > X' style quest"""
+	# Generate 'achieve purity > X' style quest
 
 	# Pick observable based on variety
 	var observable = _pick_observable_from_variety(params.variety)
@@ -148,7 +147,7 @@ static func _generate_shape_achieve_quest(params: FactionStateMatcher.QuestParam
 
 
 static func _generate_shape_maintain_quest(params: FactionStateMatcher.QuestParameters) -> Dictionary:
-	"""Generate 'maintain entropy < X for 30s' style quest"""
+	# Generate 'maintain entropy < X for 30s' style quest
 
 	var quest = _generate_shape_achieve_quest(params)
 	quest["duration"] = 30.0  # Maintain for 30 seconds
@@ -159,7 +158,7 @@ static func _generate_shape_maintain_quest(params: FactionStateMatcher.QuestPara
 
 
 static func _generate_evolution_quest(params: FactionStateMatcher.QuestParameters) -> Dictionary:
-	"""Generate 'increase coherence by 0.3' style quest"""
+	# Generate 'increase coherence by 0.3' style quest
 
 	var observable = _pick_observable_from_variety(params.variety)
 	var delta = lerp(0.1, 0.5, params.intensity)
@@ -180,7 +179,7 @@ static func _generate_evolution_quest(params: FactionStateMatcher.QuestParameter
 
 
 static func _generate_entanglement_quest(params: FactionStateMatcher.QuestParameters) -> Dictionary:
-	"""Generate 'create coherence > 0.6' quest"""
+	# Generate 'create coherence > 0.6' quest
 
 	return {
 		"target_coherence": lerp(0.4, 0.8, params.intensity),
@@ -193,7 +192,7 @@ static func _generate_entanglement_quest(params: FactionStateMatcher.QuestParame
 
 
 static func _pick_observable_from_variety(variety: float) -> String:
-	"""Choose which observable based on variety parameter"""
+	# Choose which observable based on variety parameter
 	var roll = randf()
 
 	if roll < 0.4:
@@ -205,7 +204,7 @@ static func _pick_observable_from_variety(variety: float) -> String:
 
 
 static func _calculate_target_value(params: FactionStateMatcher.QuestParameters, observable: String) -> float:
-	"""Calculate target value based on intensity and observable type"""
+	# Calculate target value based on intensity and observable type
 
 	match observable:
 		"purity":
@@ -222,7 +221,7 @@ static func _calculate_target_value(params: FactionStateMatcher.QuestParameters,
 
 
 static func _index_to_emoji(bath, index: int) -> String:
-	"""Map basis index to emoji from bath's emoji list"""
+	# Map basis index to emoji from bath's emoji list
 	if bath == null:
 		return _fallback_emoji(index)
 
@@ -238,22 +237,21 @@ static func _index_to_emoji(bath, index: int) -> String:
 
 
 static func _fallback_emoji(index: int) -> String:
-	"""Fallback when bath is unavailable - SpaceWheat defaults"""
+	# Fallback when bath is unavailable - SpaceWheat defaults
 	var fallbacks = ["🌾", "🍄", "💨", "🍂", "💰", "👥", "🌻"]
 	return fallbacks[index % fallbacks.size()]
 
 
 static func _sample_from_allowed_emojis(bath, allowed_emojis: Array, params, economy = null, icon_map = null) -> String:
-	"""Sample emoji from bath's probability distribution, constrained to allowed vocabulary
+	# Sample emoji from bath's probability distribution, constrained to allowed signature
 
-	Strategy:
-	1. Get bath's probability distribution
-	2. Filter to only allowed emojis
-	3. Renormalize probabilities
-	4. Sample from filtered distribution
+	# Strategy:
+	# 1. Get bath's probability distribution
+	# 2. Filter to only allowed emojis
+	# 3. Renormalize probabilities
+	# 4. Sample from filtered distribution
 
-	If no bath or no probabilities, picks randomly from allowed emojis.
-	"""
+	# If no bath or no probabilities, picks randomly from allowed emojis.
 
 	if allowed_emojis.is_empty():
 		_log("warn", "quest", "⚠️", "Empty allowed_emojis - fallback to 🌾")
@@ -411,19 +409,18 @@ static func _get_global_icon_map() -> Dictionary:
 	if not farm or not ("biome_evolution_batcher" in farm):
 		return {}
 	var batcher = farm.biome_evolution_batcher
-	if batcher and batcher.has_method("get_global_icon_map"):
+	if batcher:
 		return batcher.get_global_icon_map()
 	return {}
 
 
 static func _urgency_to_time(urgency: float) -> float:
-	"""Map urgency [0,1] to time limit via inverse relationship (period ∝ 1/frequency).
+	# Map urgency [0,1] to time limit via inverse relationship (period ∝ 1/frequency).
 
-	Very low urgency (< 0.1): no time pressure → -1 (unlimited).
-	Otherwise: characteristic_time / urgency, clamped to [45, 600] seconds.
-	  urgency 0.1 → 600s    urgency 0.3 → 400s   urgency 0.5 → 240s
-	  urgency 0.7 → 171s    urgency 0.9 → 133s    urgency 1.0 → 120s
-	"""
+	# Very low urgency (< 0.1): no time pressure → -1 (unlimited).
+	# Otherwise: characteristic_time / urgency, clamped to [45, 600] seconds.
+	# urgency 0.1 → 600s    urgency 0.3 → 400s   urgency 0.5 → 240s
+	# urgency 0.7 → 171s    urgency 0.9 → 133s    urgency 1.0 → 120s
 	if urgency < 0.1:
 		return -1.0
 	return clamp(120.0 / urgency, 45.0, 600.0)
@@ -439,25 +436,24 @@ static func generate_quest(
 	cached_icon_map = null,
 	biome_config: Dictionary = {}
 ) -> Dictionary:
-	"""Full pipeline: faction × bath → themed quest.
+	# Full pipeline: faction × bath → themed quest.
 
-	Args:
-		faction: Faction data with bits and signature
-		bath: Current biome quantum state
-		player_vocab: Emojis the player knows (for vocabulary filtering)
-		bias_emojis: Optional emojis to bias toward for north pole selection
-		economy: FarmEconomy for demand curve and resource lookups
-		cached_obs: Pre-computed BiomeObservables (avoids O(dim²) per call)
-		cached_icon_map: Pre-fetched icon map dict (avoids GSM tree walk per call)
-		biome_config: Resolved biome_economics dict from PolicyGraph surface.
-			Resonance gate reads coefficients from here instead of hardcoding.
-			Pass {} to use built-in defaults.
+	# Args:
+	# faction: Faction data with bits and signature
+	# bath: Current biome quantum state
+	# player_vocab: Emojis the player knows (for signature filtering)
+	# bias_emojis: Optional emojis to bias toward for north pole selection
+	# economy: FarmEconomy for demand curve and resource lookups
+	# cached_obs: Pre-computed BiomeObservables (avoids O(dim²) per call)
+	# cached_icon_map: Pre-fetched icon map dict (avoids GSM tree walk per call)
+	# biome_config: Resolved biome_economics dict from PolicyGraph surface.
+	# Resonance gate reads coefficients from here instead of hardcoding.
+	# Pass {} to use built-in defaults.
 
-	Returns:
-		Quest dict, or error if no vocabulary overlap
-	"""
+	# Returns:
+	# Quest dict, or error if no signature overlap
 
-	# 1. Get faction's complete vocabulary
+	# 1. Get faction's complete signature
 	var faction_vocab = FactionDatabase.get_faction_vocabulary(faction)
 	var faction_name = faction.get("name", "Unknown")
 
@@ -467,12 +463,12 @@ static func generate_quest(
 		"".join(faction_vocab.axial.slice(0, 3)) + "..."
 	])
 
-	# 2. Find overlap with player's known vocabulary
-	# Quest resources come from SIGNATURE ONLY (not axial vocabulary)
+	# 2. Find overlap with player's known signature
+	# Quest resources come from SIGNATURE ONLY (not axial signature)
 	var available_emojis = []
 	if player_vocab.is_empty():
 		available_emojis = faction_vocab.signature
-		_log("debug", "quest", "🎲", "No player vocab filter - using full signature")
+		_log("debug", "quest", "🎲", "No player signature filter - using full signature")
 	else:
 		available_emojis = FactionDatabase.get_vocabulary_overlap(faction_vocab.signature, player_vocab)
 		_log("debug", "quest", "🔍", "Player knows %s, faction signature %s → available %s" % [
@@ -483,7 +479,7 @@ static func generate_quest(
 
 	# 3. If no overlap, faction is inaccessible!
 	if available_emojis.is_empty():
-		_log("debug", "quest", "🚫", "%s inaccessible - no signature overlap with player vocab" % faction_name)
+		_log("debug", "quest", "🚫", "%s inaccessible - no signature overlap with player signature" % faction_name)
 		return {
 			"error": "no_vocabulary_overlap",
 			"message": "Learn more about %s's interests first..." % faction.get("name", "Unknown"),
@@ -507,7 +503,7 @@ static func generate_quest(
 		if not filtered.is_empty():
 			available_emojis = filtered
 
-	# 7. Add vocabulary constraint to params
+	# 7. Add signature constraint to params
 	params.available_emojis = available_emojis
 
 	# 8. Apply SpaceWheat theming (pass icon_map through to avoid re-fetching)
@@ -527,12 +523,12 @@ static func generate_quest(
 
 	quest["banner_path"] = FactionDatabase.get_faction_banner_path(faction)
 
-	# 10. Add vocabulary info
+	# 10. Add signature info
 	quest["faction_vocabulary"] = faction_vocab.all
 	quest["available_emojis"] = available_emojis
-	quest["vocabulary_overlap_pct"] = float(available_emojis.size()) / max(faction_vocab.all.size(), 1)
+	quest["signature_overlap_pct"] = float(available_emojis.size()) / max(faction_vocab.all.size(), 1)
 
-	# 11. Resonance Gate for vocabulary rewards
+	# 11. Resonance Gate for icon rewards
 	var resonance = _compute_vocab_resonance_probability(
 		faction, obs,
 		icon_map if icon_map else {},
@@ -544,31 +540,31 @@ static func generate_quest(
 	quest["reward_vocab_granted"] = grant_vocab
 
 	if grant_vocab:
-		var vocab_pair = _roll_vocabulary_reward_pair(signature, player_vocab, bias_emojis)
-		if vocab_pair.get("north", "") != "" and vocab_pair.get("south", "") != "":
-			quest["reward_vocab_north"] = vocab_pair.get("north", "")
-			quest["reward_vocab_south"] = vocab_pair.get("south", "")
-			quest["reward_vocab_probability"] = vocab_pair.get("probability", 0.0)
-			quest["reward_vocab_weight"] = vocab_pair.get("weight", 0.0)
+		var icon = _roll_vocabulary_reward_pair(signature, player_vocab, bias_emojis)
+		if icon.get("north", "") != "" and icon.get("south", "") != "":
+			quest["reward_north"] = icon.get("north", "")
+			quest["reward_south"] = icon.get("south", "")
+			quest["reward_vocab_probability"] = icon.get("probability", 0.0)
+			quest["reward_vocab_weight"] = icon.get("weight", 0.0)
 		else:
 			grant_vocab = false
-			quest["reward_vocab_north"] = ""
-			quest["reward_vocab_south"] = ""
+			quest["reward_north"] = ""
+			quest["reward_south"] = ""
 			quest["reward_vocab_probability"] = 0.0
 			quest["reward_vocab_weight"] = 0.0
 	else:
-		quest["reward_vocab_north"] = ""
-		quest["reward_vocab_south"] = ""
+		quest["reward_north"] = ""
+		quest["reward_south"] = ""
 		quest["reward_vocab_probability"] = 0.0
 		quest["reward_vocab_weight"] = 0.0
 
 	quest["reward_resources"] = QuestRewards.plan_resource_rewards(quest, faction, icon_map if icon_map else {})
 
 	if grant_vocab:
-		# Vocab quests cost two Fibonacci brackets more than plain delivery quests.
+		# Icon quests cost two Fibonacci brackets more than plain delivery quests.
 		var bumped = _fibonacci_bump_quantity(int(quest.get("quantity", 1)), 2)
 		quest["quantity"] = bumped
-		_log("debug", "quest", "📖", "Resonance gate opened (p=%.2f) -> vocab reward granted, qty bumped to %d" % [
+		_log("debug", "quest", "📖", "Resonance gate opened (p=%.2f) -> icon reward granted, qty bumped to %d" % [
 			float(resonance.get("p_vocab", 0.0)), bumped
 		])
 	else:
@@ -591,23 +587,22 @@ static func _compute_vocab_resonance_probability(
 	economy = null,
 	biome_config: Dictionary = {}
 ) -> Dictionary:
-	"""Compute Resonance Gate probability for vocab rewards.
+	# Compute Resonance Gate probability for icon rewards.
 
-	All coefficients are read from biome_config (PolicyGraph's biome_economics
-	surface), falling back to built-in defaults.  This means PPG and per-profile
-	JSONL overrides can tune the gate without touching code.
+	# All coefficients are read from biome_config (PolicyGraph's biome_economics
+	# surface), falling back to built-in defaults.  This means PPG and per-profile
+	# JSONL overrides can tune the gate without touching code.
 
-	p_vocab = clamp(floor + scale × σ(x), floor, ceiling)
-	x = Σ(weight_i × observable_i) + bias
+	# p_vocab = clamp(floor + scale × σ(x), floor, ceiling)
+	# x = Σ(weight_i × observable_i) + bias
 
-	Observables:
-	  signature_ratio  — faction mass present in this biome's IconMap
-	  coherence        — biome quantum coherence (off-diagonal sum)
-	  purity           — biome purity Tr(ρ²)
-	  overlap_ratio    — fraction of faction vocab the player already knows
-	  unknown_ratio    — fraction of faction vocab that's NEW to the player
-	  inventory_mass   — how much of faction's resources the player has stockpiled
-	"""
+	# Observables:
+	# signature_ratio  — faction mass present in this biome's IconMap
+	# coherence        — biome quantum coherence (off-diagonal sum)
+	# purity           — biome purity Tr(ρ²)
+	# overlap_ratio    — fraction of faction icon the player already knows
+	# unknown_ratio    — fraction of faction icon that's NEW to the player
+	# inventory_mass   — how much of faction's resources the player has stockpiled
 	var signature = faction.get("sig", faction.get("signature", []))
 	var by_emoji: Dictionary = icon_map.get("by_emoji", {}) if icon_map is Dictionary else {}
 	var total_mass = max(0.0001, float(icon_map.get("total", 0.0))) if icon_map is Dictionary else 1.0
@@ -665,7 +660,7 @@ static func _compute_vocab_resonance_probability(
 	var logistic = 1.0 / (1.0 + exp(-x))
 	var p_vocab = clamp(gate_floor + gate_scale * logistic, gate_floor, gate_ceiling)
 
-	# Biome-native resonance: non-native factions get reduced vocab probability.
+	# Biome-native resonance: non-native factions get reduced icon probability.
 	# The factor itself comes from biome_economics.non_native_resonance_factor.
 	if faction.has("_is_biome_native") and not faction.get("_is_biome_native", false):
 		p_vocab *= float(faction.get("_non_native_resonance", 0.8))
@@ -682,7 +677,7 @@ static func _compute_vocab_resonance_probability(
 
 
 static func generate_display_text(quest: Dictionary) -> String:
-	"""Generate human-readable quest description"""
+	# Generate human-readable quest description
 	var quest_type = quest.get("type", QuestTypes.Type.DELIVERY)
 	var time_limit = quest.get("time_limit", -1)
 
@@ -718,7 +713,7 @@ static func generate_display_text(quest: Dictionary) -> String:
 
 
 static func describe_alignment_reason(quest: Dictionary) -> String:
-	"""Explain why alignment is high/low for UI feedback"""
+	# Explain why alignment is high/low for UI feedback
 	var alignment = quest.get("_alignment", 0.5)
 	var preferences = quest.get("_preferences", "")
 	var observables = quest.get("_observables", "")
@@ -736,27 +731,26 @@ static func _roll_vocabulary_reward_pair(
 	player_vocab: Array,
 	bias_emojis: Array = []
 ) -> Dictionary:
-	"""Roll vocabulary reward pair at quest creation time (FACTION SIGNATURE)
+	# Roll signature reward pair at quest creation time (FACTION SIGNATURE)
 
-	NEW STRATEGY (Faction Signature Rolls):
-	1. Roll SOUTH pole from faction signature (weighted by player inventory, can be known/unknown)
-	2. Roll NORTH pole from faction signature (weighted by connectedness + player vocab, must be unknown)
+	# NEW STRATEGY (Faction Signature Rolls):
+	# 1. Roll SOUTH pole from faction signature (weighted by player inventory, can be known/unknown)
+	# 2. Roll NORTH pole from faction signature (weighted by connectedness + player signature, must be unknown)
 
-	Args:
-		faction_signature: Faction's signature emojis
-		player_vocab: Emojis the player already knows
+	# Args:
+	# faction_signature: Faction's signature emojis
+	# player_vocab: Emojis the player already knows
 
-	Returns:
-		{north, south, weight, probability} or {north: "", south: ""} if none available
-	"""
-	var icon_registry = VocabularyPairing._get_icon_registry()
+	# Returns:
+	# {north, south, weight, probability} or {north: "", south: ""} if none available
+	var icon_registry = IconPairing._get_atom_registry()
 	if not icon_registry:
 		return {"north": "", "south": "", "error": "no_icon_registry"}
 
 	# Step 1: Roll SOUTH pole from faction signature (weighted by player inventory)
 	# South can be known OR unknown to player
 	# bias_emojis = active biome's emojis — boosts south pole toward biome-native resources
-	var south_result = VocabularyPairing._roll_south_pole_from_signature(
+	var south_result = IconPairing._roll_south_pole_from_signature(
 		icon_registry,
 		faction_signature,
 		bias_emojis
@@ -771,7 +765,7 @@ static func _roll_vocabulary_reward_pair(
 
 	# Step 2: Find NORTH candidates from faction signature
 	# Must be: in faction signature AND unknown to player
-	# Connection check: prefer IconRegistry connections, but faction co-membership
+	# Connection check: prefer EmojiPhysicsRegistry connections, but faction co-membership
 	# is sufficient (all signature emojis are considered reachable from each other).
 	var has_icon_connections = not south_connections.is_empty()
 	var north_candidates: Array = []
@@ -782,22 +776,21 @@ static func _roll_vocabulary_reward_pair(
 		# Skip if same as south
 		if emoji == south:
 			continue
-		# Skip if not connected to South (when IconRegistry has data)
+		# Skip if not connected to South (when EmojiPhysicsRegistry has data)
 		if has_icon_connections and not south_connections.has(emoji):
 			continue
 
-		# Calculate weight: connectedness to South + player vocab connectivity
+		# Calculate weight: connectedness to South + player signature connectivity
 		var connection_weight = south_connections[emoji].get("weight", 1.0)
-		var vocab_connectivity = VocabularyPairing.calculate_vocab_connectivity(emoji, player_vocab, icon_registry)
+		var icon_connectivity = IconPairing.calculate_vocab_connectivity(emoji, player_vocab, icon_registry)
 
-		# Combined weight (TODO: clarify weighting formula with user)
-		var combined_weight = connection_weight * (1.0 + vocab_connectivity)
+		var combined_weight = connection_weight * (1.0 + icon_connectivity)
 
 		north_candidates.append({
 			"emoji": emoji,
 			"weight": combined_weight,
 			"connection_weight": connection_weight,
-			"vocab_connectivity": vocab_connectivity
+			"icon_connectivity": icon_connectivity
 		})
 
 	if north_candidates.is_empty():
@@ -834,9 +827,8 @@ static func _roll_vocabulary_reward_pair(
 
 
 static func _fibonacci_bump_quantity(quantity: int, brackets: int) -> int:
-	"""Move a delivery quantity up N Fibonacci brackets.
-	e.g. qty=8 + 2 brackets → 21,  qty=13 + 2 brackets → 34.
-	"""
+	# Move a delivery quantity up N Fibonacci brackets.
+	# e.g. qty=8 + 2 brackets → 21,  qty=13 + 2 brackets → 34.
 	var fib := [1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144]
 	var idx := fib.size() - 1
 	for i in range(fib.size()):

@@ -1,6 +1,6 @@
 ## PlayerShell - Player-level UI layer
 ## Handles:
-## - Overlay/menu system (ESC menu, V signature, C contracts, etc)
+## - Overlay/menu system (Z/X/C/V/B/N/M ring, ESC stack unwinds)
 ## - Player inventory/resource panel
 ## - Keyboard help, settings
 ## - Farm loading/switching (when implemented)
@@ -18,7 +18,7 @@ const OverlayStackManager = preload("res://UI/Managers/OverlayStackManager.gd")
 const UIContextController = preload("res://UI/Managers/UIContextController.gd")
 const MenuRegistry = preload("res://UI/Core/MenuRegistry.gd")
 const QuestManager = preload("res://Core/Quests/QuestManager.gd")
-const FactionDatabase = preload("res://Core/Quests/FactionDatabaseV2.gd")
+const FactionDatabase = preload("res://Core/Quests/FactionDatabase.gd")
 const LoggerConfigPanel = preload("res://UI/Overlays/LoggerConfigPanel.gd")
 const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")
 # QuantumHUDPanel REMOVED - content merged into InspectorOverlay (N key)
@@ -57,15 +57,22 @@ var overlay_stack: OverlayStackManager = null
 var paused: bool = false
 signal paused_changed(is_paused: bool)
 
+## Farm-attached state. False at title (PlayerShell exists but no Farm yet);
+## true once BootManager finishes wiring the runtime. Toggled by AppRoot via
+## set_farm_attached(). Farm-bound chrome (action bars, biome tab bar, FPS,
+## quantum mode indicator, touch buttons, the FarmUIContainer itself) is only
+## visible when this is true. Shell-level overlays (X, Z) stay reachable
+## either way.
+var _farm_attached: bool = false
+
 
 func _input(event: InputEvent) -> void:
-	"""Layer 1: High-priority input routing (overlays + shell actions).
+	# Layer 1: High-priority input routing (overlays + shell actions).
 
-	Before the exclusive consume-or-fall-through chain runs, we peek at
-	E and F as side-effects (pause / resume). The peek does NOT consume
-	the event — primary verbs still fire through normal dispatch. See
-	UI/Core/KEYBOARD_GRAMMAR.md "Mechanics — side-effect peek".
-	"""
+	# Before the exclusive consume-or-fall-through chain runs, we peek at
+	# E and F as side-effects (pause / resume). The peek does NOT consume
+	# the event — primary verbs still fire through normal dispatch. See
+	# UI/Core/KEYBOARD_GRAMMAR.md "Mechanics — side-effect peek".
 	if not event is InputEventKey or not event.pressed or event.echo:
 		return
 
@@ -107,7 +114,7 @@ func _mark_input_handled() -> void:
 		vp.set_input_as_handled()
 
 
-## Spawn an ephemeral corner-toast with bbcode text. Used by the Socialite
+## Spawn an ephemeral corner-toast with bbcode text. Used by the Merchant
 ## "Tip" verb (and any future quick-feedback action) to whisper a hint to
 ## the player without blocking input or stealing focus.
 func show_hint(bbcode_text: String) -> void:
@@ -119,7 +126,7 @@ func show_hint(bbcode_text: String) -> void:
 
 
 func _set_global_paused(value: bool) -> void:
-	"""Set the global sim-pause flag. Idempotent. Read by Farm._physics_process."""
+	# Set the global sim-pause flag. Idempotent. Read by Farm._physics_process.
 	if paused == value:
 		return
 	paused = value
@@ -128,14 +135,13 @@ func _set_global_paused(value: bool) -> void:
 
 
 func _handle_shell_action(event: InputEvent) -> bool:
-	"""Handle shell-level actions (overlay toggles, menu)
+	# Handle shell-level actions (overlay toggles, menu)
 
-	All menus are mutually exclusive - opening one closes others.
+	# All menus are mutually exclusive - opening one closes others.
 
-	Shell menus (Z, X, M, ESC): system-level panels
-	Game overlays (C, V, B, N): game content overlays
-	TAB: current-tool mode-cycle alias (only when no menu active)
-	"""
+	# Shell menus (Z, X, ESC): system-level panels
+	# Game overlays (C, V, B, N, M): game content overlays
+	# TAB: current-tool mode-cycle alias (only when no menu active)
 	var keycode = event.keycode
 
 	# ESC - closes any menu, or opens escape menu if nothing open
@@ -187,37 +193,48 @@ func _handle_shell_action(event: InputEvent) -> bool:
 		return false
 
 	if keycode == KEY_TAB:
-		_cycle_current_tool_mode_alias()
+		_cycle_frame_hat(1)
 		return true
 
-	# WASD — crawl the biome × plot grid. Mirrors menu navigation so the
-	# same fingers move the same way in main game and in any open surface.
-	#   A/D = prev/next plot in the active biome
-	#   W/S = prev/next biome (cycles ActiveBiomeManager)
+	# WASD — crawl the 3-layer grid (frame / biome / plot rows).
+	#   W/S = move cursor layer up/down (frame ↑ … plot ↓)
+	#   A/D = step left/right within the current layer
+	# Biome cycling reuses the same path as [ / ]; frame cycling reuses
+	# select_frame. Both are dispatched by QII.step_active_layer.
 	if keycode == KEY_A:
-		_step_active_plot(-1)
+		_step_active_layer(-1)
 		return true
 	if keycode == KEY_D:
-		_step_active_plot(1)
+		_step_active_layer(1)
 		return true
 	if keycode == KEY_W:
-		_cycle_active_biome(-1)
+		_change_cursor_layer(-1)
 		return true
 	if keycode == KEY_S:
-		_cycle_active_biome(1)
+		_change_cursor_layer(1)
 		return true
 
 	return false
 
 
-func _step_active_plot(delta: int) -> void:
-	if input_handler and input_handler.has_method("step_active_plot"):
-		input_handler.step_active_plot(delta)
+func _step_active_layer(delta: int) -> void:
+	if input_handler and input_handler.has_method("step_active_layer"):
+		input_handler.step_active_layer(delta)
+
+
+func _change_cursor_layer(delta: int) -> void:
+	if input_handler and input_handler.has_method("change_cursor_layer"):
+		input_handler.change_cursor_layer(delta)
+
+
+func _cycle_frame_hat(delta: int) -> void:
+	if input_handler and input_handler.has_method("cycle_frame_hat"):
+		input_handler.cycle_frame_hat(delta)
 
 
 func _cycle_active_surface_frame(step: int) -> bool:
-	"""Cycle the frame_ids of the topmost Surface overlay. Returns true if a
-	cycle was performed, false if no Surface with frame_ids is on top."""
+	# Cycle the frame_ids of the topmost Surface overlay. Returns true if a
+	# cycle was performed, false if no Surface with frame_ids is on top.
 	if not overlay_stack or overlay_stack.is_empty():
 		return false
 	var top = overlay_stack.get_top()
@@ -235,7 +252,7 @@ func _cycle_active_surface_frame(step: int) -> bool:
 
 
 func _cycle_active_biome(delta: int) -> void:
-	"""Cycle to the previous/next biome via ActiveBiomeManager."""
+	# Cycle to the previous/next biome via ActiveBiomeManager.
 	var abm = InstrumentLocator.resolve_active_biome_manager(self)
 	if not abm:
 		return
@@ -250,7 +267,7 @@ func _cycle_active_biome(delta: int) -> void:
 # =============================================================================
 
 func _any_menu_open() -> bool:
-	"""Check if any menu (shell or farm) is currently open."""
+	# Check if any menu (shell or farm) is currently open.
 	if overlay_stack and not overlay_stack.is_empty():
 		return true
 	if overlay_manager and overlay_manager.quantum_config_ui and overlay_manager.quantum_config_ui.visible:
@@ -259,7 +276,7 @@ func _any_menu_open() -> bool:
 
 
 func _close_all_menus() -> void:
-	"""Close all open menus (shell and farm)."""
+	# Close all open menus (shell and farm).
 	if overlay_manager:
 		overlay_manager.close_all_overlays()
 		if overlay_manager.quantum_config_ui and overlay_manager.quantum_config_ui.visible:
@@ -267,17 +284,16 @@ func _close_all_menus() -> void:
 
 
 func _open_escape_menu() -> void:
-	"""Open escape menu (closes other menus first)."""
+	# Open escape menu (closes other menus first).
 	_close_all_menus()
 	if overlay_manager:
 		overlay_manager.open_overlay("escape_menu")
 
 
 func _toggle_shell_menu(menu_name: String) -> void:
-	"""Toggle a shell menu (Z=controls, X=system, M=workbench).
+	# Toggle a shell menu (Z=controls, X=system, M=map meta).
 
-	Shell menus close all other menus when opening.
-	"""
+	# Shell menus close all other menus when opening.
 	if not overlay_manager:
 		return
 
@@ -290,11 +306,15 @@ func _toggle_shell_menu(menu_name: String) -> void:
 
 
 func _toggle_farm_overlay(overlay_name: String) -> void:
-	"""Toggle a farm overlay (C, V, B, N keys).
+	# Toggle a farm overlay (C, V, B, N keys).
 
-	Farm overlays close all other menus when opening.
-	"""
+	# Farm overlays close all other menus when opening.
 	if not overlay_manager:
+		return
+
+	# Pre-boot: there is no farm to inspect. Refuse rather than opening an
+	# overlay that would render against null data.
+	if not _farm_attached:
 		return
 
 	var overlay = overlay_manager.get_overlay(overlay_name) if overlay_manager.has_overlay(overlay_name) else null
@@ -313,11 +333,10 @@ func _toggle_farm_overlay(overlay_name: String) -> void:
 		_overlay_open_frame.erase(overlay_name)
 
 func _cycle_menu_overlay(delta: int) -> void:
-	"""Cycle to the previous/next top-level menu (, and . keys).
+	# Cycle to the previous/next top-level menu (, and . keys).
 
-	Mirrors the [ / ] biome-cycle pattern. If no top-level menu is currently
-	open, the first (delta>0) or last (delta<0) menu opens for discoverability.
-	"""
+	# Mirrors the [ / ] biome-cycle pattern. If no top-level menu is currently
+	# open, the first (delta>0) or last (delta<0) menu opens for discoverability.
 	if not overlay_manager or not overlay_stack:
 		return
 
@@ -351,33 +370,8 @@ func _cycle_menu_overlay(delta: int) -> void:
 		_toggle_shell_menu(next_name)
 
 
-func _cycle_current_tool_mode_alias() -> void:
-	"""Cycle the active archetype frame's sub-mode (Tab).
-
-	Canonical mode-cycle key after the keyboard-grammar refactor (used to
-	be F). TAB is kept because Godot focus handling intercepts it before
-	the gameplay input layer sees it, so PlayerShell intercepts first.
-	Direct selection is also available on number keys 1/2/3.
-	"""
-	const ToolConfig = preload("res://Core/GameState/ToolConfig.gd")
-
-	var frame_name: String = ToolConfig.get_current_frame()
-	if frame_name == ToolConfig.FRAME_ACE:
-		return
-	var new_mode_idx = ToolConfig.cycle_frame_mode(frame_name)
-	if new_mode_idx < 0:
-		return
-	var new_mode = ToolConfig.get_frame_mode_name(frame_name)
-	_verbose.info("input", "⇥",
-		"TAB cycled frame %s → %s" % [frame_name, new_mode])
-	# Notify QuantumInstrumentInput so action-bar listeners refresh.
-	if input_handler and input_handler.has_method("_on_mode_changed"):
-		input_handler._on_mode_changed(frame_name, new_mode_idx)
-
-
-
 func _ready() -> void:
-	"""Initialize player shell UI - children defined in scene"""
+	# Initialize player shell UI - children defined in scene
 	_verbose.info("boot", "🎪", "PlayerShell initializing...")
 	advanced_mode_enabled = _resolve_advanced_mode()
 
@@ -497,8 +491,47 @@ func _ready() -> void:
 	# Connect overlay signals
 	_connect_overlay_signals()
 
+	# Default to title-screen mode: only shell overlays (X, Z) reachable; all
+	# farm-bound chrome hidden until AppRoot calls set_farm_attached(true)
+	# after the boot pipeline finishes.
+	set_farm_attached(false)
+
 	_verbose.info("ui", "✅", "Overlay manager created")
-	_verbose.info("boot", "✅", "PlayerShell ready")
+	_verbose.info("boot", "✅", "PlayerShell ready (shell-only; awaiting farm)")
+
+
+func warm_shell_surfaces(force_refresh: bool = false) -> void:
+	# Prewarm shell-level overlays and caches before title-screen exposure.
+	# Safe to call after _ready; no-op if overlay manager is missing.
+	if overlay_manager and overlay_manager.has_method("warm_shell_surfaces"):
+		overlay_manager.warm_shell_surfaces(force_refresh)
+
+
+func set_farm_attached(attached: bool) -> void:
+	# Toggle visibility of every farm-bound chrome element. Called by AppRoot:
+	#   - false at construction and on return-to-title
+	#   - true after BootManager.boot_ui completes
+	# Shell overlays (escape_menu, controls_overlay) stay independent — they're
+	# children of overlay_manager and toggled by their own keys.
+	_farm_attached = attached
+
+	if farm_ui_container:
+		farm_ui_container.visible = attached
+	var action_bar_layer = get_node_or_null("ActionBarLayer")
+	if action_bar_layer:
+		action_bar_layer.visible = attached
+	if biome_tab_bar:
+		biome_tab_bar.visible = attached
+	if fps_display:
+		fps_display.visible = attached
+	if quantum_mode_indicator:
+		quantum_mode_indicator.visible = attached
+	if overlay_manager and overlay_manager.touch_button_bar:
+		overlay_manager.touch_button_bar.visible = attached
+
+
+func is_farm_attached() -> bool:
+	return _farm_attached
 
 
 func _resolve_advanced_mode() -> bool:
@@ -550,36 +583,52 @@ func _apply_top_strip_layout() -> void:
 
 	if fps_display:
 		fps_display.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-		fps_display.offset_right = -8
+		fps_display.offset_left = -310
 		fps_display.offset_top = 4
+		fps_display.offset_right = -8
+		fps_display.offset_bottom = 28
 
 
 func _connect_overlay_signals() -> void:
-	"""Connect non-toolbar overlay signals that still matter at the shell layer."""
+	# Connect non-toolbar overlay signals that still matter at the shell layer.
 	var quest_board = overlay_manager.get("quest_board")
 	if quest_board:
 		_verbose.info("ui", "✅", "Quest board signals connected")
 
-	if overlay_manager.escape_menu:
-		overlay_manager.escape_menu.quantum_settings_pressed.connect(func():
-			if overlay_manager.quantum_config_ui:
-				overlay_manager.toggle_quantum_config_ui()
-		)
-		_verbose.info("ui", "✅", "Escape menu signals connected")
-
-
 func get_farm_ui():
-	"""Get the currently loaded FarmUI instance"""
+	# Get the currently loaded FarmUI instance
 	return current_farm_ui
 
 
-func load_farm_ui(farm_ui: Control) -> void:
-	"""Load an already-instantiated FarmUI into the farm container.
+func clear_farm_ui() -> void:
+	# Remove any FarmUI / QuantumInstrumentInput / FarmSurface / SnapshotService
+	# left over from the previous session so a fresh boot can re-attach cleanly.
+	# PlayerShell itself stays alive (overlays, action bars, layout manager are
+	# all preserved). Called by AppRoot.restart_from_pending_boot.
+	if current_farm_ui and is_instance_valid(current_farm_ui):
+		current_farm_ui.queue_free()
+	current_farm_ui = null
+	input_handler = null
+	farm = null
+	if farm_ui_container:
+		for child in farm_ui_container.get_children():
+			child.queue_free()
+	for child_name in ["QuantumInstrumentInput", "FarmSurface", "SnapshotService"]:
+		var node = get_node_or_null(child_name)
+		if node and is_instance_valid(node):
+			node.queue_free()
+	snapshot_service = null
+	quantum_instrument = null
 
-	Called by BootManager.boot() in Stage 3C to add the FarmUI.
-	Action bars are already created in _ready(), so no reparenting needed.
-	"""
-	# Store reference
+
+func load_farm_ui(farm_ui: Control) -> void:
+	# Load an already-instantiated FarmUI into the farm container.
+
+	# Called by BootManager.boot() in Stage 3C to add the FarmUI.
+	# Action bars are already created in _ready(), so no reparenting needed.
+	# Defensive: clear any leftover FarmUI before mounting the new one.
+	if current_farm_ui and is_instance_valid(current_farm_ui):
+		clear_farm_ui()
 	current_farm_ui = farm_ui
 
 	# Add to container
@@ -598,11 +647,10 @@ func load_farm_ui(farm_ui: Control) -> void:
 		_verbose.info("ui", "⏳", "Waiting for BootManager to create QuantumInstrumentInput...")
 
 func connect_to_quantum_input() -> void:
-	"""Connect to QuantumInstrumentInput after it's created.
+	# Connect to QuantumInstrumentInput after it's created.
 
-	Called by BootManager after input_handler is created and injected into farm_ui.
-	Wires the Musical Spindle input system to the UI components.
-	"""
+	# Called by BootManager after input_handler is created and injected into farm_ui.
+	# Wires the Musical Spindle input system to the UI components.
 	var farm_ui = current_farm_ui
 	if not farm_ui or not farm_ui.input_handler:
 		push_warning("connect_to_quantum_input called but input_handler not ready!")
@@ -616,6 +664,9 @@ func connect_to_quantum_input() -> void:
 		quest_manager.connect_to_economy(farm_ui.farm.economy)
 		_verbose.info("ui", "✅", "QuestManager connected to economy")
 		_connect_quest_manager_to_biomes(farm_ui)
+	# Wire farm reference for story-flag predicate evaluation
+	if quest_manager and farm_ui.farm and quest_manager.has_method("connect_to_farm"):
+		quest_manager.connect_to_farm(farm_ui.farm)
 
 	if ui_context_controller:
 		ui_context_controller.bind_quantum_input(input_handler)
@@ -640,10 +691,9 @@ func _connect_quest_manager_to_biomes(farm_ui: Control) -> void:
 	if abm and abm.has_signal("active_biome_changed"):
 		var biome_callable = Callable(self, "_handle_active_biome_change").bind(farm_ref)
 		InstrumentLocator.safe_connect(abm.active_biome_changed, biome_callable)
-		var active_biome = abm.get_active_biome() if abm.has_method("get_active_biome") else "StarterForest"
-		biome_callable.call(active_biome, "")
-	else:
-		_handle_active_biome_change("StarterForest", "", farm_ref)
+		var active_biome = abm.get_active_biome() if abm.has_method("get_active_biome") else ""
+		if active_biome != "":
+			biome_callable.call(active_biome, "")
 
 	_quest_biome_connected = true
 

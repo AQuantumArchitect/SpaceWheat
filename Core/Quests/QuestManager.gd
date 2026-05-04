@@ -12,7 +12,7 @@ const QuestTypes = preload("res://Core/Quests/QuestTypes.gd")
 const QuestRewards = preload("res://Core/Quests/QuestRewards.gd")
 const EconomyConstants = preload("res://Core/GameMechanics/EconomyConstants.gd")
 const FactionStateMatcher = preload("res://Core/QuantumSubstrate/FactionStateMatcher.gd")
-const FactionDatabase = preload("res://Core/Quests/FactionDatabaseV2.gd")
+const FactionDatabase = preload("res://Core/Quests/FactionDatabase.gd")
 const QuestStateProjectionService = preload("res://Core/Quests/QuestStateProjectionService.gd")
 const PolicyGraph = preload("res://Core/AI/PolicyGraph.gd")
 const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")
@@ -142,8 +142,6 @@ func connect_to_biome(biome: Node) -> void:
 
 
 func connect_to_farm(farm: Node) -> void:
-	# Inject farm reference — needed for story-flag predicate evaluation.
-	_state_projection.set_farm(farm)
 	_refresh_unfired_flags(farm)
 
 

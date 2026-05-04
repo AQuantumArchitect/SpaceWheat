@@ -4,7 +4,7 @@ extends RefCounted
 ## Quest Reward System
 ## Handles reward generation and icon teaching for completed quests
 
-const FactionDatabase = preload("res://Core/Quests/FactionDatabaseV2.gd")
+const FactionDatabase = preload("res://Core/Quests/FactionDatabase.gd")
 const IconPairing = preload("res://Core/Quests/IconPairing.gd")
 const FactionRegistry = preload("res://Core/Factions/FactionRegistry.gd")
 
@@ -52,10 +52,10 @@ class IconModification:
 
 
 class QuestReward:
-	"""Rewards for completing a quest"""
+	# Rewards for completing a quest
 	var money_amount: int = 0  # 💰-credits reward (no universal currency!)
 	var resource_rewards: Dictionary = {}  # {emoji: credits} primary payout
-	var learned_vocabulary: Array[String] = []  # Emojis player learned (both north and south)
+	var learned_emojis: Array[String] = []  # Emojis player learned (both north and south)
 	var learned_pairs: Array = []  # Array of {north, south, weight, probability} - paired icon
 	var reputation_gain: int = 0  # Legacy scalar (kept for save-file compat); see standing_deltas
 	var bonus_multiplier: float = 1.0  # From alignment
@@ -65,19 +65,18 @@ class QuestReward:
 
 
 static func generate_reward(quest: Dictionary, bath, player_vocab: Array) -> QuestReward:
-	"""Generate rewards for quest completion
+	# Generate rewards for quest completion
 
-	Uses PRE-ROLLED icon from quest creation time (not rolled now).
-	This ensures player sees the same pair in preview and actual reward.
+	# Uses PRE-ROLLED icon from quest creation time (not rolled now).
+	# This ensures player sees the same pair in preview and actual reward.
 
-	Args:
-		quest: Completed quest data (with reward_vocab_north/south)
-		bath: Current biome quantum bath
-		player_vocab: Player's known emojis
+	# Args:
+	# quest: Completed quest data (with reward_north/south)
+	# bath: Current biome quantum bath
+	# player_vocab: Player's known emojis
 
-	Returns:
-		QuestReward with signature (no universal 💰 currency!)
-	"""
+	# Returns:
+	# QuestReward with signature (no universal 💰 currency!)
 	var reward = QuestReward.new()
 
 	# NO UNIVERSAL MONEY! Money is just another emoji resource
@@ -87,8 +86,8 @@ static func generate_reward(quest: Dictionary, bath, player_vocab: Array) -> Que
 
 	# Use PRE-ROLLED icon from quest creation.
 	# Quests give EITHER icon OR resources — not both.
-	var north = quest.get("reward_vocab_north", "")
-	var south = quest.get("reward_vocab_south", "")
+	var north = quest.get("reward_north", "")
+	var south = quest.get("reward_south", "")
 	var faction_name = quest.get("faction", "")
 	var faction_dict = _get_faction_by_name(faction_name)
 
@@ -101,11 +100,11 @@ static func generate_reward(quest: Dictionary, bath, player_vocab: Array) -> Que
 			reward.resource_rewards = _build_resource_reward_plan(quest, faction_dict, false)
 
 	if north != "":
-		reward.learned_vocabulary.append(north)
+		reward.learned_emojis.append(north)
 
 		if south != "":
 			# Full pair (both north and south)
-			reward.learned_vocabulary.append(south)
+			reward.learned_emojis.append(south)
 			reward.learned_pairs.append({
 				"north": north,
 				"south": south,
@@ -129,10 +128,9 @@ static func generate_reward(quest: Dictionary, bath, player_vocab: Array) -> Que
 
 
 static func _standing_deltas_for_quest(quest: Dictionary, success: bool) -> Dictionary:
-	"""Per-channel reputation deltas based on quest type and outcome.
-	Modest defaults; expected to be tuned. Channels:
-	  trust 🤝 / debt 🩸 / attention 🧿 / access 🗝 / legitimacy ⚖ / entanglement 🕸
-	"""
+	# Per-channel reputation deltas based on quest type and outcome.
+	# Modest defaults; expected to be tuned. Channels:
+	# trust 🤝 / debt 🩸 / attention 🧿 / access 🗝 / legitimacy ⚖ / entanglement 🕸
 	var qtype: int = int(quest.get("type", 0))
 	if success:
 		match qtype:
@@ -162,25 +160,24 @@ static func _standing_deltas_for_quest(quest: Dictionary, success: bool) -> Dict
 
 
 static func plan_resource_rewards(quest: Dictionary, faction: Dictionary = {}, icon_map: Dictionary = {}) -> Dictionary:
-	"""Pre-roll resource rewards at quest creation time for deterministic UI/claim.
+	# Pre-roll resource rewards at quest creation time for deterministic UI/claim.
 
-	Icon-teaching quests give no resource rewards — icon OR resources, not both.
-	"""
+	# Icon-teaching quests give no resource rewards — icon OR resources, not both.
 	# Icon-teaching quests give no resource rewards
-	if quest.get("reward_vocab_north", "") != "":
+	if quest.get("reward_north", "") != "":
 		return {}
 	return _build_resource_reward_plan(quest, faction, false, icon_map)
 
 
 static func estimate_resource_rewards(quest: Dictionary, faction: Dictionary = {}, icon_map: Dictionary = {}) -> Dictionary:
-	"""Deterministic estimate for preview paths when quest has no pre-rolled bundle."""
-	if quest.get("reward_vocab_north", "") != "":
+	# Deterministic estimate for preview paths when quest has no pre-rolled bundle.
+	if quest.get("reward_north", "") != "":
 		return {}
 	return _build_resource_reward_plan(quest, faction, true, icon_map)
 
 
 static func compute_market_projection(quest: Dictionary, icon_map: Dictionary = {}, tuning: Dictionary = {}) -> Dictionary:
-	"""Compute read-only market projection (no dynamic cost multiplier by default)."""
+	# Compute read-only market projection (no dynamic cost multiplier by default).
 	if quest.is_empty():
 		return {}
 	if int(quest.get("type", -1)) != 0:
@@ -431,7 +428,7 @@ static func _compute_hamiltonian_reward_profile(faction_data: Dictionary) -> Dic
 
 
 static func _compute_iconmap_reward_profile(faction_data: Dictionary, icon_map: Dictionary) -> Dictionary:
-	"""Project IconMap weights onto faction signature for reward distribution."""
+	# Project IconMap weights onto faction signature for reward distribution.
 	var signature = faction_data.get("sig", [])
 	if signature.is_empty():
 		return {"weights": {}}
@@ -459,16 +456,15 @@ static func _compute_iconmap_reward_profile(faction_data: Dictionary, icon_map: 
 
 
 static func _compute_interference_reward_profile(faction_data: Dictionary, icon_map: Dictionary) -> Dictionary:
-	"""Tensor-like interference map between faction Hamiltonian and player IconMap.
+	# Tensor-like interference map between faction Hamiltonian and player IconMap.
 
-	We collapse an interference tensor T[e,i,j] where:
-	- e: reward emoji candidate (faction signature)
-	- i,j: player "mode" indices on the same signature basis
-	- T[e,i,j] ~ |H_f[e,j]| * p_i * |p_j - p_i|
+	# We collapse an interference tensor T[e,i,j] where:
+	# - e: reward emoji candidate (faction signature)
+	# - i,j: player "mode" indices on the same signature basis
+	# - T[e,i,j] ~ |H_f[e,j]| * p_i * |p_j - p_i|
 
-	This boosts reward weight where faction couplings and player mass gradients
-	constructively interfere.
-	"""
+	# This boosts reward weight where faction couplings and player mass gradients
+	# constructively interfere.
 	var signature = faction_data.get("sig", [])
 	if signature.is_empty():
 		return {"weights": {}, "interference_strength": 0.0}
@@ -750,23 +746,22 @@ static func _hamiltonian_magnitude(value) -> float:
 
 
 static func select_vocabulary_reward(faction: Dictionary, bath, player_vocab: Array) -> String:
-	"""Choose which emoji from faction signature to teach
+	# Choose which emoji from faction signature to teach
 
-	Strategy:
-	1. Get faction signature signature
-	2. Filter to emojis player doesn't know
-	3. Get bath probabilities for unknown emojis (quantum-weighted!)
-	4. Sample weighted by probability
-	5. Fallback to random if no probabilities
+	# Strategy:
+	# 1. Get faction signature signature
+	# 2. Filter to emojis player doesn't know
+	# 3. Get bath probabilities for unknown emojis (quantum-weighted!)
+	# 4. Sample weighted by probability
+	# 5. Fallback to random if no probabilities
 
-	Args:
-		faction: Faction dictionary with signature
-		bath: QuantumBath with probability distribution
-		player_vocab: Player's known emojis
+	# Args:
+	# faction: Faction dictionary with signature
+	# bath: QuantumBath with probability distribution
+	# player_vocab: Player's known emojis
 
-	Returns:
-		Emoji string to teach, or "" if none available
-	"""
+	# Returns:
+	# Emoji string to teach, or "" if none available
 	# Faction data uses "sig" key (short for signature)
 	var signature = faction.get("sig", faction.get("signature", []))
 
@@ -816,7 +811,7 @@ static func select_vocabulary_reward(faction: Dictionary, bath, player_vocab: Ar
 
 
 static func _get_faction_by_name(faction_name: String) -> Dictionary:
-	"""Find faction dictionary by name"""
+	# Find faction dictionary by name
 	for faction in FactionDatabase.ALL_FACTIONS:
 		if faction.get("name", "") == faction_name:
 			return faction
@@ -825,10 +820,9 @@ static func _get_faction_by_name(faction_name: String) -> Dictionary:
 
 
 static func format_reward_text(reward: QuestReward) -> String:
-	"""Generate human-readable reward text for UI
+	# Generate human-readable reward text for UI
 
-	No universal 💰 currency - just icons!
-	"""
+	# No universal 💰 currency - just icons!
 	var lines = []
 
 	# Primary payout: faction resources
@@ -842,9 +836,9 @@ static func format_reward_text(reward: QuestReward) -> String:
 			var north = pair.get("north", "?")
 			var south = pair.get("south", "?")
 			lines.append("📖 Learned: %s/%s axis" % [north, south])
-	elif reward.learned_vocabulary.size() > 0:
+	elif reward.learned_emojis.size() > 0:
 		# Fallback for single emojis (no connections)
-		for emoji in reward.learned_vocabulary:
+		for emoji in reward.learned_emojis:
 			lines.append("📖 Learned: %s (solo)" % emoji)
 	else:
 		lines.append("📖 (No new signature)")
@@ -857,10 +851,9 @@ static func format_reward_text(reward: QuestReward) -> String:
 
 
 static func preview_possible_rewards(quest: Dictionary, player_vocab: Array) -> String:
-	"""Preview what rewards will be earned (shows pre-rolled pair)
+	# Preview what rewards will be earned (shows pre-rolled pair)
 
-	No universal 💰 currency - just icons from quantum physics.
-	"""
+	# No universal 💰 currency - just icons from quantum physics.
 	var lines = []
 
 	# Resource payouts (primary)
@@ -872,8 +865,8 @@ static func preview_possible_rewards(quest: Dictionary, player_vocab: Array) -> 
 			lines.append("🎁 +%d %s" % [int(resource_rewards[emoji]), emoji])
 
 	# Show PRE-ROLLED icon
-	var north = quest.get("reward_vocab_north", "")
-	var south = quest.get("reward_vocab_south", "")
+	var north = quest.get("reward_north", "")
+	var south = quest.get("reward_south", "")
 
 	if north != "":
 		if south != "":
@@ -891,15 +884,14 @@ static func preview_possible_rewards(quest: Dictionary, player_vocab: Array) -> 
 ## ========================================
 
 static func generate_icon_modification(faction: Dictionary, quest: Dictionary) -> IconModification:
-	"""Generate a faction-specific icon modification as quest reward
+	# Generate a faction-specific icon modification as quest reward
 
-	Args:
-		faction: Faction dictionary
-		quest: Quest dictionary
+	# Args:
+	# faction: Faction dictionary
+	# quest: Quest dictionary
 
-	Returns:
-		IconModification with faction-appropriate changes
-	"""
+	# Returns:
+	# IconModification with faction-appropriate changes
 	var mod = IconModification.new()
 	var faction_name = faction.get("name", "Unknown")
 	var faction_sig = faction.get("sig", faction.get("signature", []))
@@ -1004,7 +996,7 @@ static func generate_icon_modification(faction: Dictionary, quest: Dictionary) -
 
 
 static func _format_icon_modification(mod: IconModification) -> String:
-	"""Format an icon modification for display"""
+	# Format an icon modification for display
 	var desc = mod.parameters.get("description", "Modified physics")
 
 	match mod.type:
@@ -1042,11 +1034,10 @@ static func _format_icon_modification(mod: IconModification) -> String:
 
 
 static func should_grant_icon_modification(quest: Dictionary) -> bool:
-	"""Determine if this quest should grant an icon modification reward
+	# Determine if this quest should grant an icon modification reward
 
-	Higher-tier quests (prophecy, coherence, bell state) are more likely
-	to grant icon modifications as rewards.
-	"""
+	# Higher-tier quests (prophecy, coherence, bell state) are more likely
+	# to grant icon modifications as rewards.
 	var quest_type = quest.get("type", 0)
 
 	# Quantum mechanics quests always grant modifications

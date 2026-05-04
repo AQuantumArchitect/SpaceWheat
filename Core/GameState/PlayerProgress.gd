@@ -10,7 +10,7 @@ extends Node
 ## Signals emoji_discovered / pair_discovered / factions_unlocked live on GSM
 ## (forwarded) so existing listeners don't break.
 
-const FactionDatabase = preload("res://Core/Quests/FactionDatabaseV2.gd")
+const FactionDatabase = preload("res://Core/Quests/FactionDatabase.gd")
 const SaveStore = preload("res://Core/GameState/SaveStore.gd")
 const GameState = preload("res://Core/GameState/GameState.gd")
 const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")
