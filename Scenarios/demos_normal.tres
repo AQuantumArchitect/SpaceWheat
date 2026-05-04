@@ -1,0 +1,31 @@
+[gd_resource type="Resource" script_class="GameState" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://Core/GameState/GameState.gd" id="1_default"]
+
+[resource]
+script = ExtResource("1_default")
+scenario_id = "demos_normal"
+save_timestamp = 0
+game_time = 0.0
+all_emoji_credits = {
+"👥": 55,
+"🍞": 34,
+"🌾": 21,
+"❄️": 13,
+"🪵": 8,
+"💧": 5,
+"🌱": 3,
+"⚙": 2,
+"🍂": 1,
+"🍄": 1
+}
+tributes_paid = 0
+tributes_failed = 0
+known_pairs = [{
+"north": "🌾",
+"south": "👥"
+}]
+unlocked_biomes = Array[String](["StarterForest", "Village"])
+unexplored_biome_pool = ["FreshwaterSpring", "Woodlot", "Harbor", "PowerStation", "MarketDistrict", "Workshop", "ColdLab", "StellarForges", "CyberDebtMegacity", "BloodLedger", "BureaucraticAbyss", "RevolutionSquare", "VolcanicWorlds", "DemolitionSite", "AshPatch"]
+active_biome_name = "StarterForest"
+active_contracts = []

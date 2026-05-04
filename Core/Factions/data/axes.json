@@ -1,0 +1,110 @@
+[
+  {
+    "key": "random_deterministic",
+    "name": "Random ↔ Deterministic",
+    "pole_0": "🎲",
+    "pole_1": "📚",
+    "label_0": "Random",
+    "label_1": "Deterministic",
+    "description": "How much structure vs. chance shapes this agent's influence on events."
+  },
+  {
+    "key": "material_mystical",
+    "name": "Material ↔ Mystical",
+    "pole_0": "🔧",
+    "pole_1": "🔮",
+    "label_0": "Material",
+    "label_1": "Mystical",
+    "description": "Whether this agent operates on classical reality or perceives the quantum substrate directly."
+  },
+  {
+    "key": "common_elite",
+    "name": "Common ↔ Elite",
+    "pole_0": "🌾",
+    "pole_1": "👑",
+    "label_0": "Common",
+    "label_1": "Elite",
+    "description": "Breadth of reach vs. concentration of power."
+  },
+  {
+    "key": "local_cosmic",
+    "name": "Local ↔ Cosmic",
+    "pole_0": "🏠",
+    "pole_1": "🌌",
+    "label_0": "Local",
+    "label_1": "Cosmic",
+    "description": "Scale of concern — village affairs vs. universal patterns."
+  },
+  {
+    "key": "instant_eternal",
+    "name": "Instant ↔ Eternal",
+    "pole_0": "⚡",
+    "pole_1": "🕰",
+    "label_0": "Instant",
+    "label_1": "Eternal",
+    "description": "Timescale of action — immediate effect vs. slow accumulation."
+  },
+  {
+    "key": "physical_mental",
+    "name": "Physical ↔ Mental",
+    "pole_0": "💪",
+    "pole_1": "🧠",
+    "label_0": "Physical",
+    "label_1": "Mental",
+    "description": "Medium of operation — bodies and matter vs. ideas and signals."
+  },
+  {
+    "key": "crystalline_fluid",
+    "name": "Crystalline ↔ Fluid",
+    "pole_0": "💠",
+    "pole_1": "🌊",
+    "label_0": "Crystalline",
+    "label_1": "Fluid",
+    "description": "Preference for rigid structure vs. adaptive flow."
+  },
+  {
+    "key": "direct_subtle",
+    "name": "Direct ↔ Subtle",
+    "pole_0": "🗡",
+    "pole_1": "🎭",
+    "label_0": "Direct",
+    "label_1": "Subtle",
+    "description": "Visible confrontation vs. indirect influence."
+  },
+  {
+    "key": "consumptive_providing",
+    "name": "Consumptive ↔ Providing",
+    "pole_0": "🍽",
+    "pole_1": "🎁",
+    "label_0": "Consumptive",
+    "label_1": "Providing",
+    "description": "Whether this agent draws from a shared pool or adds to it."
+  },
+  {
+    "key": "monochrome_prismatic",
+    "name": "Monochrome ↔ Prismatic",
+    "pole_0": "⬜",
+    "pole_1": "🌈",
+    "label_0": "Monochrome",
+    "label_1": "Prismatic",
+    "description": "Singular focus vs. multi-spectrum variety."
+  },
+  {
+    "key": "emergent_imposed",
+    "name": "Emergent ↔ Imposed",
+    "pole_0": "🍄",
+    "pole_1": "🏗",
+    "label_0": "Emergent",
+    "label_1": "Imposed",
+    "description": "Bottom-up arising vs. top-down designed."
+  },
+  {
+    "key": "scattered_focused",
+    "name": "Scattered ↔ Focused",
+    "pole_0": "🌪",
+    "pole_1": "🎯",
+    "label_0": "Scattered",
+    "label_1": "Focused",
+    "description": "Distributed dispersal vs. concentrated intent."
+  }
+]
