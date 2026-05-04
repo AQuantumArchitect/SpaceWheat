@@ -3,6 +3,8 @@
 
 #include <godot_cpp/classes/ref_counted.hpp>
 #include <godot_cpp/variant/packed_float64_array.hpp>
+#include <godot_cpp/variant/packed_color_array.hpp>
+#include <godot_cpp/variant/color.hpp>
 #include <godot_cpp/variant/dictionary.hpp>
 #include <godot_cpp/variant/array.hpp>
 #include <Eigen/Dense>
@@ -55,6 +57,12 @@ public:
     Dictionary to_packed_csr(double threshold) const;
     double get_sparsity_ratio(double threshold) const;
     int count_nonzeros(double threshold) const;
+
+    // Visualization — density matrix heatmap colors
+    // Diagonal: grayscale V (population purity).
+    // Off-diagonal: HSV (hue=phase, sat+val=magnitude).
+    // max_dim caps output to the first max_dim×max_dim block (0 = full).
+    PackedColorArray heatmap_colors(int max_dim = 0) const;
 };
 
 }

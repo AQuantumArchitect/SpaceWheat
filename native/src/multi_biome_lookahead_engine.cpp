@@ -3,9 +3,25 @@
 #include <godot_cpp/variant/utility_functions.hpp>
 #include <algorithm>
 #include <numeric>
+#ifndef SPACEWHEAT_WEB_BUILD
 #include <thread>  // For pacing (sleep between steps)
+#endif
+#include <mutex>
 
 using namespace godot;
+
+struct MultiBiomeLookaheadEngine::AsyncJobState {
+    mutable std::mutex mutex;
+#ifndef SPACEWHEAT_WEB_BUILD
+    std::thread thread;
+#endif
+    bool running = false;
+    bool complete = false;
+    bool cancel_requested = false;
+    std::vector<BiomeStepResult> results;
+    int num_biomes = 0;
+    int64_t batch_time_us = 0;
+};
 
 void MultiBiomeLookaheadEngine::_bind_methods() {
     ClassDB::bind_method(D_METHOD("register_biome", "dim", "H_packed", "lindblad_triplets", "num_qubits"),
@@ -29,22 +45,18 @@ void MultiBiomeLookaheadEngine::_bind_methods() {
 
     ClassDB::bind_method(D_METHOD("evolve_all_lookahead", "biome_rhos", "steps", "dt", "max_dt"),
                          &MultiBiomeLookaheadEngine::evolve_all_lookahead);
+    ClassDB::bind_method(D_METHOD("submit_lookahead_job", "biome_rhos", "steps", "dt", "max_dt"),
+                         &MultiBiomeLookaheadEngine::submit_lookahead_job);
+    ClassDB::bind_method(D_METHOD("is_lookahead_job_running"),
+                         &MultiBiomeLookaheadEngine::is_lookahead_job_running);
+    ClassDB::bind_method(D_METHOD("is_lookahead_job_complete"),
+                         &MultiBiomeLookaheadEngine::is_lookahead_job_complete);
+    ClassDB::bind_method(D_METHOD("take_completed_lookahead_job"),
+                         &MultiBiomeLookaheadEngine::take_completed_lookahead_job);
+    ClassDB::bind_method(D_METHOD("cancel_lookahead_job", "wait_for_completion"),
+                         &MultiBiomeLookaheadEngine::cancel_lookahead_job);
     ClassDB::bind_method(D_METHOD("evolve_single_biome", "biome_id", "rho_packed", "steps", "dt", "max_dt"),
                          &MultiBiomeLookaheadEngine::evolve_single_biome);
-
-    // Time-sliced computation methods
-    ClassDB::bind_method(D_METHOD("start_sliced_compute", "biome_rhos", "steps", "dt", "max_dt"),
-                         &MultiBiomeLookaheadEngine::start_sliced_compute);
-    ClassDB::bind_method(D_METHOD("continue_sliced_compute", "max_time_ms"),
-                         &MultiBiomeLookaheadEngine::continue_sliced_compute);
-    ClassDB::bind_method(D_METHOD("is_sliced_compute_complete"),
-                         &MultiBiomeLookaheadEngine::is_sliced_compute_complete);
-    ClassDB::bind_method(D_METHOD("get_sliced_compute_result"),
-                         &MultiBiomeLookaheadEngine::get_sliced_compute_result);
-    ClassDB::bind_method(D_METHOD("cancel_sliced_compute"),
-                         &MultiBiomeLookaheadEngine::cancel_sliced_compute);
-    ClassDB::bind_method(D_METHOD("get_sliced_compute_progress"),
-                         &MultiBiomeLookaheadEngine::get_sliced_compute_progress);
 
     // Pacing methods (CPU-gentle mode)
     ClassDB::bind_method(D_METHOD("set_pacing_delay_ms", "delay_ms"),
@@ -60,9 +72,15 @@ void MultiBiomeLookaheadEngine::_bind_methods() {
                          &MultiBiomeLookaheadEngine::is_mi_enabled);
     ClassDB::bind_method(D_METHOD("is_force_enabled"),
                          &MultiBiomeLookaheadEngine::is_force_enabled);
+
+    // Biome center: must be updated when viewport/layout changes
+    ClassDB::bind_method(D_METHOD("set_biome_center", "biome_id", "center"),
+                         &MultiBiomeLookaheadEngine::set_biome_center);
 }
 
 MultiBiomeLookaheadEngine::MultiBiomeLookaheadEngine() {
+    m_async = std::make_unique<AsyncJobState>();
+
     // Initialize force graph engine (shared across all biomes)
     m_force_engine.instantiate();
     m_force_engine->set_repulsion_strength(2500.0f);
@@ -96,7 +114,10 @@ bool MultiBiomeLookaheadEngine::is_force_enabled() const {
     return m_enable_force;
 }
 
-MultiBiomeLookaheadEngine::~MultiBiomeLookaheadEngine() {}
+MultiBiomeLookaheadEngine::~MultiBiomeLookaheadEngine() {
+    cancel_lookahead_job(true);
+    m_async.reset();
+}
 
 int MultiBiomeLookaheadEngine::register_biome(int dim, const PackedFloat64Array& H_packed,
                                                const Array& lindblad_triplets, int num_qubits) {
@@ -131,39 +152,42 @@ int MultiBiomeLookaheadEngine::register_biome(int dim, const PackedFloat64Array&
     m_couplings.push_back(Dictionary());
     m_lnns.push_back(nullptr);  // LNN disabled by default
 
-    // Initialize force graph data (positions/velocities for num_qubits nodes)
+    // Initialize force graph data (positions for num_qubits nodes)
     PackedVector2Array initial_positions;
-    PackedVector2Array initial_velocities;
     initial_positions.resize(num_qubits);
-    initial_velocities.resize(num_qubits);
 
-    // Initialize to random positions in a circle (will be refined by force calculation)
+    // Push default center FIRST so it exists before we read it below.
+    const Vector2 default_center(960.0f, 540.0f);  // GDScript updates this via set_biome_center()
+    m_biome_centers.push_back(default_center);
+
+    // Initialize positions as a ring centred on the biome oval (world space).
+    // Starting near the expected centre means the first convergence pass only travels
+    // a short distance to reach equilibrium (rather than 1000+ px from the screen origin).
     for (int i = 0; i < num_qubits; i++) {
         float angle = (float(i) / float(num_qubits)) * 2.0f * 3.14159f;
-        float radius = 100.0f;
-        initial_positions[i] = Vector2(std::cos(angle) * radius, std::sin(angle) * radius);
-        initial_velocities[i] = Vector2(0, 0);
+        float radius = 80.0f;
+        initial_positions[i] = default_center + Vector2(std::cos(angle) * radius, std::sin(angle) * radius);
     }
 
     m_node_positions.push_back(initial_positions);
-    m_node_velocities.push_back(initial_velocities);
-    m_biome_centers.push_back(Vector2(960, 540));  // Default center (will be updated by GDScript)
 
-    UtilityFunctions::print("MultiBiomeLookaheadEngine: Registered biome ",
-                            biome_id, " (dim=", dim, ", num_qubits=", num_qubits,
-                            ", lindblad_ops=", lindblad_triplets.size(), ")");
+    const int lindblad_op_count = static_cast<int>(lindblad_triplets.size());
+    UtilityFunctions::print_verbose("MultiBiomeLookaheadEngine: Registered biome ",
+                                    biome_id, " (dim=", dim, ", num_qubits=", num_qubits,
+                                    ", lindblad_ops=", lindblad_op_count, ")");
 
     return biome_id;
 }
 
 void MultiBiomeLookaheadEngine::clear_biomes() {
+    cancel_lookahead_job(true);
+
     m_engines.clear();
     m_num_qubits.clear();
     m_metadata.clear();
     m_couplings.clear();
     m_lnns.clear();
     m_node_positions.clear();
-    m_node_velocities.clear();
     m_biome_centers.clear();
 }
 
@@ -172,17 +196,22 @@ int MultiBiomeLookaheadEngine::get_biome_count() const {
 }
 
 void MultiBiomeLookaheadEngine::set_biome_metadata(int biome_id, const Dictionary& metadata) {
+    if (is_lookahead_job_running()) {
+        UtilityFunctions::push_warning("MultiBiomeLookaheadEngine: metadata update skipped while async packet is running");
+        return;
+    }
     if (biome_id < 0 || biome_id >= static_cast<int>(m_metadata.size())) {
         UtilityFunctions::push_warning("MultiBiomeLookaheadEngine: Invalid biome_id for metadata ", biome_id);
         return;
     }
     m_metadata[biome_id] = metadata;
-    if (biome_id < static_cast<int>(m_engines.size())) {
-        m_couplings[biome_id] = m_engines[biome_id]->compute_coupling_payload(metadata);
-    }
 }
 
 void MultiBiomeLookaheadEngine::set_biome_couplings(int biome_id, const Dictionary& couplings) {
+    if (is_lookahead_job_running()) {
+        UtilityFunctions::push_warning("MultiBiomeLookaheadEngine: coupling update skipped while async packet is running");
+        return;
+    }
     if (biome_id < 0 || biome_id >= static_cast<int>(m_couplings.size())) {
         UtilityFunctions::push_warning("MultiBiomeLookaheadEngine: Invalid biome_id for couplings ", biome_id);
         return;
@@ -190,40 +219,270 @@ void MultiBiomeLookaheadEngine::set_biome_couplings(int biome_id, const Dictiona
     m_couplings[biome_id] = couplings;
 }
 
+void MultiBiomeLookaheadEngine::set_biome_center(int biome_id, Vector2 center) {
+    if (is_lookahead_job_running()) {
+		return;
+	}
+    if (biome_id < 0 || biome_id >= static_cast<int>(m_biome_centers.size())) {
+        UtilityFunctions::push_warning("MultiBiomeLookaheadEngine: Invalid biome_id for center ", biome_id);
+        return;
+    }
+    m_biome_centers[biome_id] = center;
+}
+
 Dictionary MultiBiomeLookaheadEngine::evolve_all_lookahead(
     const Array& biome_rhos, int steps, float dt, float max_dt) {
+    return _evolve_all_lookahead_impl(biome_rhos, steps, dt, max_dt);
+}
 
-    Dictionary result;
-    Array all_results;        // Array<Array<PackedFloat64Array>>
-    Array all_mi;             // Array<PackedFloat64Array> (last step)
-    Array all_mi_steps;       // Array<Array<PackedFloat64Array>>
-    Array all_bloch_steps;    // Array<Array<PackedFloat64Array>>
-    Array all_purity_steps;   // Array<Array<float>>
-    Array all_position_steps; // Array<Array<PackedVector2Array>> (NEW: force positions)
-    Array all_velocity_steps; // Array<Array<PackedVector2Array>> (NEW: force velocities)
-    Array all_metadata;       // Array<Dictionary>
-    Array all_couplings;      // Array<Dictionary>
-    Array all_icon_maps;      // Array<Dictionary>
-
-    int num_biomes = static_cast<int>(biome_rhos.size());
-
-    // Validate input size matches registered biomes
-    if (num_biomes > static_cast<int>(m_engines.size())) {
-        UtilityFunctions::push_warning(
-            "MultiBiomeLookaheadEngine: More rhos than registered biomes (",
-            num_biomes, " vs ", m_engines.size(), ")");
-        num_biomes = static_cast<int>(m_engines.size());
+bool MultiBiomeLookaheadEngine::submit_lookahead_job(
+    const Array& biome_rhos, int steps, float dt, float max_dt) {
+    if (!m_async) {
+        m_async = std::make_unique<AsyncJobState>();
     }
 
-    // Process each biome
+#ifdef SPACEWHEAT_WEB_BUILD
+    std::vector<PackedFloat64Array> biome_rhos_copy = _copy_rhos_to_vector(biome_rhos);
+    auto job_started = std::chrono::steady_clock::now();
+    std::vector<BiomeStepResult> raw_results =
+        _evolve_all_lookahead_raw(biome_rhos_copy, steps, dt, max_dt, false);
+    auto job_finished = std::chrono::steady_clock::now();
+    int64_t batch_time_us = std::chrono::duration_cast<std::chrono::microseconds>(
+        job_finished - job_started).count();
+
+    std::lock_guard<std::mutex> lock(m_async->mutex);
+    if (m_async->running) {
+        return false;
+    }
+    m_async->results = std::move(raw_results);
+    m_async->num_biomes = static_cast<int>(biome_rhos_copy.size());
+    m_async->batch_time_us = batch_time_us;
+    m_async->cancel_requested = false;
+    m_async->running = false;
+    m_async->complete = true;
+    return true;
+#else
+    std::thread stale_thread;
+    {
+        std::lock_guard<std::mutex> lock(m_async->mutex);
+        if (m_async->running) {
+            return false;
+        }
+        if (m_async->thread.joinable()) {
+            stale_thread = std::move(m_async->thread);
+        }
+        m_async->results.clear();
+        m_async->num_biomes = 0;
+        m_async->batch_time_us = 0;
+        m_async->complete = false;
+        m_async->cancel_requested = false;
+    }
+
+    if (stale_thread.joinable()) {
+        stale_thread.join();
+    }
+
+    {
+        std::lock_guard<std::mutex> lock(m_async->mutex);
+        m_async->running = true;
+    }
+
+    std::vector<PackedFloat64Array> biome_rhos_copy = _copy_rhos_to_vector(biome_rhos);
+    AsyncJobState* async = m_async.get();
+    m_async->thread = std::thread([this, async, biome_rhos_copy, steps, dt, max_dt]() mutable {
+        auto job_started = std::chrono::steady_clock::now();
+        std::vector<BiomeStepResult> raw_results;
+        raw_results = _evolve_all_lookahead_raw(biome_rhos_copy, steps, dt, max_dt, false);
+        auto job_finished = std::chrono::steady_clock::now();
+        int64_t batch_time_us = std::chrono::duration_cast<std::chrono::microseconds>(
+            job_finished - job_started).count();
+
+        std::lock_guard<std::mutex> lock(async->mutex);
+        if (!async->cancel_requested) {
+            async->results = std::move(raw_results);
+            async->num_biomes = static_cast<int>(biome_rhos_copy.size());
+            async->batch_time_us = batch_time_us;
+            async->complete = true;
+        } else {
+            async->results.clear();
+            async->num_biomes = 0;
+            async->batch_time_us = 0;
+            async->complete = false;
+        }
+        async->running = false;
+    });
+
+    return true;
+#endif
+}
+
+bool MultiBiomeLookaheadEngine::is_lookahead_job_running() const {
+    if (!m_async) {
+        return false;
+    }
+    std::lock_guard<std::mutex> lock(m_async->mutex);
+    return m_async->running;
+}
+
+bool MultiBiomeLookaheadEngine::is_lookahead_job_complete() const {
+    if (!m_async) {
+        return false;
+    }
+    std::lock_guard<std::mutex> lock(m_async->mutex);
+    return m_async->complete;
+}
+
+Dictionary MultiBiomeLookaheadEngine::take_completed_lookahead_job() {
+    if (!m_async) {
+        return Dictionary();
+    }
+
+#ifdef SPACEWHEAT_WEB_BUILD
+    std::vector<BiomeStepResult> raw_results;
+    int num_biomes = 0;
+    int64_t batch_time_us = 0;
+    {
+        std::lock_guard<std::mutex> lock(m_async->mutex);
+        if (!m_async->complete) {
+            return Dictionary();
+        }
+        raw_results = std::move(m_async->results);
+        m_async->results.clear();
+        num_biomes = m_async->num_biomes;
+        batch_time_us = m_async->batch_time_us;
+        m_async->num_biomes = 0;
+        m_async->batch_time_us = 0;
+        m_async->complete = false;
+    }
+    return _build_lookahead_dictionary(raw_results, num_biomes, batch_time_us, true);
+#else
+    std::thread join_thread;
+    std::vector<BiomeStepResult> raw_results;
+    int num_biomes = 0;
+    int64_t batch_time_us = 0;
+    {
+        std::lock_guard<std::mutex> lock(m_async->mutex);
+        if (!m_async->complete) {
+            return Dictionary();
+        }
+        raw_results = std::move(m_async->results);
+        m_async->results.clear();
+        num_biomes = m_async->num_biomes;
+        batch_time_us = m_async->batch_time_us;
+        m_async->num_biomes = 0;
+        m_async->batch_time_us = 0;
+        m_async->complete = false;
+        if (m_async->thread.joinable()) {
+            join_thread = std::move(m_async->thread);
+        }
+    }
+    if (join_thread.joinable()) {
+        join_thread.join();
+    }
+
+    return _build_lookahead_dictionary(raw_results, num_biomes, batch_time_us, true);
+#endif
+}
+
+void MultiBiomeLookaheadEngine::cancel_lookahead_job(bool wait_for_completion) {
+    if (!m_async) {
+        return;
+    }
+
+#ifdef SPACEWHEAT_WEB_BUILD
+    std::lock_guard<std::mutex> lock(m_async->mutex);
+    m_async->cancel_requested = false;
+    m_async->running = false;
+    m_async->complete = false;
+    m_async->results.clear();
+    m_async->num_biomes = 0;
+    m_async->batch_time_us = 0;
+    return;
+#else
+    std::thread stale_thread;
+    {
+        std::lock_guard<std::mutex> lock(m_async->mutex);
+        if (!m_async->running && !m_async->complete) {
+            if (m_async->thread.joinable()) {
+                stale_thread = std::move(m_async->thread);
+            }
+        } else {
+            m_async->cancel_requested = true;
+        }
+    }
+
+    if (stale_thread.joinable()) {
+        stale_thread.join();
+        return;
+    }
+
+    if (wait_for_completion) {
+        _wait_for_job();
+    }
+#endif
+}
+
+void MultiBiomeLookaheadEngine::_wait_for_job() {
+    if (!m_async) {
+        return;
+    }
+
+#ifdef SPACEWHEAT_WEB_BUILD
+    std::lock_guard<std::mutex> lock(m_async->mutex);
+    m_async->running = false;
+    m_async->complete = false;
+    m_async->cancel_requested = false;
+    m_async->results.clear();
+    m_async->num_biomes = 0;
+    m_async->batch_time_us = 0;
+#else
+    std::thread join_thread;
+    {
+        std::lock_guard<std::mutex> lock(m_async->mutex);
+        if (m_async->thread.joinable()) {
+            join_thread = std::move(m_async->thread);
+        }
+    }
+    if (join_thread.joinable()) {
+        join_thread.join();
+    }
+    std::lock_guard<std::mutex> lock(m_async->mutex);
+    m_async->running = false;
+    m_async->complete = false;
+    m_async->cancel_requested = false;
+    m_async->results.clear();
+    m_async->num_biomes = 0;
+    m_async->batch_time_us = 0;
+#endif
+}
+
+Dictionary MultiBiomeLookaheadEngine::_evolve_all_lookahead_impl(
+    const Array& biome_rhos, int steps, float dt, float max_dt) {
+    Dictionary result;
+    Array all_results;
+    Array all_mi;
+    Array all_mi_steps;
+    Array all_bloch_steps;
+    Array all_purity_steps;
+    Array all_position_steps;
+    Array all_metadata;
+    Array all_couplings;
+    Array all_icon_maps;
+
+    int num_biomes = static_cast<int>(biome_rhos.size());
+    const int registered_biome_count = static_cast<int>(m_engines.size());
+    if (num_biomes > registered_biome_count) {
+        UtilityFunctions::push_warning(
+            "MultiBiomeLookaheadEngine: More rhos than registered biomes (",
+            num_biomes, " vs ", registered_biome_count, ")");
+        num_biomes = registered_biome_count;
+    }
+
     for (int biome_id = 0; biome_id < num_biomes; biome_id++) {
         PackedFloat64Array rho_packed = biome_rhos[biome_id];
 
-        // Skip empty or all-zero rhos (inactive biomes - no Hamiltonian meaning)
-        // Don't try to unpack - just return empty results and continue
         bool is_zero = rho_packed.is_empty();
         if (!is_zero) {
-            // Check if all zeros
             bool all_zeros = true;
             for (int64_t i = 0; i < rho_packed.size(); i++) {
                 if (rho_packed[i] != 0.0) {
@@ -236,10 +495,123 @@ Dictionary MultiBiomeLookaheadEngine::evolve_all_lookahead(
 
         BiomeStepResult biome_result;
         if (!is_zero) {
-            // Evolve this biome for all steps (only if valid state)
             biome_result = _evolve_biome_steps(biome_id, rho_packed, steps, dt, max_dt);
         }
-        // else: biome_result remains empty (skip calculation)
+
+        Array biome_steps;
+        for (const auto& step_rho : biome_result.steps) {
+            biome_steps.push_back(step_rho);
+        }
+        all_results.push_back(biome_steps);
+
+        Array biome_mi_steps;
+        for (const auto& mi_step : biome_result.mi_steps) {
+            biome_mi_steps.push_back(mi_step);
+        }
+        all_mi_steps.push_back(biome_mi_steps);
+        all_mi.push_back(!biome_result.mi_steps.empty() ? biome_result.mi_steps.back() : PackedFloat64Array());
+
+        Array biome_bloch_steps;
+        for (const auto& bloch_step : biome_result.bloch_steps) {
+            biome_bloch_steps.push_back(bloch_step);
+        }
+        all_bloch_steps.push_back(biome_bloch_steps);
+
+        Array biome_purity_steps;
+        for (double purity_val : biome_result.purity_steps) {
+            biome_purity_steps.push_back(purity_val);
+        }
+        all_purity_steps.push_back(biome_purity_steps);
+
+        Array biome_position_steps;
+        for (const auto& position_step : biome_result.position_steps) {
+            biome_position_steps.push_back(position_step);
+        }
+        all_position_steps.push_back(biome_position_steps);
+
+        all_metadata.push_back(biome_id < static_cast<int>(m_metadata.size()) ? m_metadata[biome_id] : Dictionary());
+        all_couplings.push_back(biome_id < static_cast<int>(m_couplings.size()) ? m_couplings[biome_id] : Dictionary());
+        all_icon_maps.push_back(biome_result.icon_map);
+    }
+
+    result["results"] = all_results;
+    result["mi"] = all_mi;
+    result["mi_steps"] = all_mi_steps;
+    result["bloch_steps"] = all_bloch_steps;
+    result["purity_steps"] = all_purity_steps;
+    result["position_steps"] = all_position_steps;
+    result["metadata"] = all_metadata;
+    result["couplings"] = all_couplings;
+    result["icon_maps"] = all_icon_maps;
+    return result;
+}
+
+std::vector<PackedFloat64Array> MultiBiomeLookaheadEngine::_copy_rhos_to_vector(const Array& biome_rhos) const {
+    std::vector<PackedFloat64Array> out;
+    out.reserve(biome_rhos.size());
+    for (int i = 0; i < biome_rhos.size(); i++) {
+        out.push_back(biome_rhos[i]);
+    }
+    return out;
+}
+
+std::vector<MultiBiomeLookaheadEngine::BiomeStepResult>
+MultiBiomeLookaheadEngine::_evolve_all_lookahead_raw(
+    const std::vector<PackedFloat64Array>& biome_rhos, int steps,
+    float dt, float max_dt, bool build_icon_maps) {
+
+    int num_biomes = static_cast<int>(biome_rhos.size());
+    if (num_biomes > static_cast<int>(m_engines.size())) {
+        num_biomes = static_cast<int>(m_engines.size());
+    }
+
+    std::vector<BiomeStepResult> raw_results;
+    raw_results.resize(num_biomes);
+
+    for (int biome_id = 0; biome_id < num_biomes; biome_id++) {
+        PackedFloat64Array rho_packed = biome_rhos[biome_id];
+
+        bool is_zero = rho_packed.is_empty();
+        if (!is_zero) {
+            bool all_zeros = true;
+            for (int64_t i = 0; i < rho_packed.size(); i++) {
+                if (rho_packed[i] != 0.0) {
+                    all_zeros = false;
+                    break;
+                }
+            }
+            is_zero = all_zeros;
+        }
+
+        if (!is_zero) {
+            raw_results[biome_id] = _evolve_biome_steps(
+                biome_id, rho_packed, steps, dt, max_dt, true, build_icon_maps);
+        }
+    }
+
+    return raw_results;
+}
+
+Dictionary MultiBiomeLookaheadEngine::_build_lookahead_dictionary(
+    const std::vector<BiomeStepResult>& raw_results, int num_biomes,
+    int64_t batch_time_us, bool include_timing) {
+
+    Dictionary result;
+    Array all_results;        // Array<Array<PackedFloat64Array>>
+    Array all_mi;             // Array<PackedFloat64Array> (last step)
+    Array all_mi_steps;       // Array<Array<PackedFloat64Array>>
+    Array all_bloch_steps;    // Array<Array<PackedFloat64Array>>
+    Array all_purity_steps;   // Array<Array<float>>
+    Array all_position_steps; // Array<Array<PackedVector2Array>> (NEW: force positions)
+    Array all_metadata;       // Array<Dictionary>
+    Array all_couplings;      // Array<Dictionary>
+    Array all_icon_maps;      // Array<Dictionary>
+
+    num_biomes = std::min(num_biomes, static_cast<int>(raw_results.size()));
+    num_biomes = std::min(num_biomes, static_cast<int>(m_engines.size()));
+
+    for (int biome_id = 0; biome_id < num_biomes; biome_id++) {
+        const BiomeStepResult& biome_result = raw_results[biome_id];
 
         // Convert step_results to Godot Array
         Array biome_steps;
@@ -272,18 +644,12 @@ Dictionary MultiBiomeLookaheadEngine::evolve_all_lookahead(
         }
         all_purity_steps.push_back(biome_purity_steps);
 
-        // NEW: Collect force graph position/velocity steps
+        // Collect force graph position steps
         Array biome_position_steps;
         for (const auto& position_step : biome_result.position_steps) {
             biome_position_steps.push_back(position_step);
         }
         all_position_steps.push_back(biome_position_steps);
-
-        Array biome_velocity_steps;
-        for (const auto& velocity_step : biome_result.velocity_steps) {
-            biome_velocity_steps.push_back(velocity_step);
-        }
-        all_velocity_steps.push_back(biome_velocity_steps);
 
         if (biome_id < static_cast<int>(m_metadata.size())) {
             all_metadata.push_back(m_metadata[biome_id]);
@@ -297,7 +663,11 @@ Dictionary MultiBiomeLookaheadEngine::evolve_all_lookahead(
             all_couplings.push_back(Dictionary());
         }
 
-        all_icon_maps.push_back(biome_result.icon_map);
+        if (!biome_result.icon_map.is_empty()) {
+            all_icon_maps.push_back(biome_result.icon_map);
+        } else {
+            all_icon_maps.push_back(_build_icon_map(biome_id, biome_result.bloch_steps));
+        }
     }
 
     result["results"] = all_results;
@@ -305,11 +675,14 @@ Dictionary MultiBiomeLookaheadEngine::evolve_all_lookahead(
     result["mi_steps"] = all_mi_steps;
     result["bloch_steps"] = all_bloch_steps;
     result["purity_steps"] = all_purity_steps;
-    result["position_steps"] = all_position_steps;  // NEW: force positions
-    result["velocity_steps"] = all_velocity_steps;  // NEW: force velocities
+    result["position_steps"] = all_position_steps;
     result["metadata"] = all_metadata;
     result["couplings"] = all_couplings;
     result["icon_maps"] = all_icon_maps;
+    if (include_timing) {
+        result["batch_time_us"] = batch_time_us;
+        result["error"] = false;
+    }
 
     return result;
 }
@@ -378,6 +751,13 @@ Dictionary MultiBiomeLookaheadEngine::evolve_single_biome(
     }
     result["purity_steps"] = biome_purity_steps;
 
+    // Force-graph positions (same format as evolve_all_lookahead but flat: step → positions)
+    Array biome_position_steps;
+    for (const auto& pos : biome_result.position_steps) {
+        biome_position_steps.push_back(pos);
+    }
+    result["position_steps"] = biome_position_steps;
+
     if (biome_id >= 0 && biome_id < static_cast<int>(m_metadata.size())) {
         result["metadata"] = m_metadata[biome_id];
     }
@@ -392,7 +772,7 @@ Dictionary MultiBiomeLookaheadEngine::evolve_single_biome(
 MultiBiomeLookaheadEngine::BiomeStepResult
 MultiBiomeLookaheadEngine::_evolve_biome_steps(
     int biome_id, const PackedFloat64Array& rho_packed,
-    int steps, float dt, float max_dt, bool compute_mi) {
+    int steps, float dt, float max_dt, bool compute_mi, bool build_icon_map) {
 
     BiomeStepResult out;
 
@@ -406,9 +786,8 @@ MultiBiomeLookaheadEngine::_evolve_biome_steps(
     // Start with current rho
     PackedFloat64Array current_rho = rho_packed;
 
-    // Get current force positions/velocities for this biome
+    // Get current force positions for this biome
     PackedVector2Array current_positions = m_node_positions[biome_id];
-    PackedVector2Array current_velocities = m_node_velocities[biome_id];
     Vector2 biome_center = m_biome_centers[biome_id];
 
     // Create frozen mask (all nodes active for now)
@@ -450,11 +829,10 @@ MultiBiomeLookaheadEngine::_evolve_biome_steps(
             }
         }
 
-        // NEW: Compute force-directed positions using Bloch + MI data
+        // Compute force-directed positions using Bloch + MI data
         if (m_enable_force && m_force_engine.is_valid()) {
             Dictionary force_result = m_force_engine->update_positions(
                 current_positions,
-                current_velocities,
                 bloch_packet,
                 mi_values,
                 biome_center,
@@ -462,17 +840,14 @@ MultiBiomeLookaheadEngine::_evolve_biome_steps(
                 frozen_mask
             );
 
-            // Extract updated positions/velocities
+            // Extract updated positions
             current_positions = force_result.get("positions", current_positions);
-            current_velocities = force_result.get("velocities", current_velocities);
 
             // Store for this step
             out.position_steps.push_back(current_positions);
-            out.velocity_steps.push_back(current_velocities);
         } else if (m_enable_force) {
             // No force engine - use previous positions
             out.position_steps.push_back(current_positions);
-            out.velocity_steps.push_back(current_velocities);
         }
 
         // Update for next step
@@ -480,15 +855,18 @@ MultiBiomeLookaheadEngine::_evolve_biome_steps(
 
         // CPU-gentle pacing: sleep between steps to spread load
         if (m_pacing_delay_ms > 0) {
+#ifndef SPACEWHEAT_WEB_BUILD
             std::this_thread::sleep_for(std::chrono::milliseconds(m_pacing_delay_ms));
+#endif
         }
     }
 
-    out.icon_map = _build_icon_map(biome_id, out.bloch_steps);
+    if (build_icon_map) {
+        out.icon_map = _build_icon_map(biome_id, out.bloch_steps);
+    }
 
-    // Update stored positions/velocities for next refill
+    // Update stored positions for next refill
     m_node_positions[biome_id] = current_positions;
-    m_node_velocities[biome_id] = current_velocities;
 
     return out;
 }
@@ -513,8 +891,8 @@ void MultiBiomeLookaheadEngine::enable_biome_lnn(int biome_id, int hidden_size) 
     // Create LNN: input = dim phases, output = dim phase modulations
     m_lnns[biome_id] = std::make_unique<LiquidNeuralNet>(dim, hidden_size, dim);
 
-    UtilityFunctions::print("MultiBiomeLookaheadEngine: LNN enabled for biome ", biome_id,
-                            " (dim=", dim, ", hidden=", hidden_size, ")");
+    UtilityFunctions::print_verbose("MultiBiomeLookaheadEngine: LNN enabled for biome ", biome_id,
+                                    " (dim=", dim, ", hidden=", hidden_size, ")");
 }
 
 void MultiBiomeLookaheadEngine::disable_biome_lnn(int biome_id) {
@@ -678,256 +1056,4 @@ Dictionary MultiBiomeLookaheadEngine::_build_icon_map(
     icon_map["num_qubits"] = num_qubits;
 
     return icon_map;
-}
-
-// ============================================================================
-// TIME-SLICED COMPUTATION IMPLEMENTATION
-// ============================================================================
-
-void MultiBiomeLookaheadEngine::start_sliced_compute(
-    const Array& biome_rhos, int steps, float dt, float max_dt) {
-
-    // Cancel any existing computation
-    m_sliced_state.reset();
-
-    int num_biomes = static_cast<int>(biome_rhos.size());
-    if (num_biomes == 0 || steps <= 0) {
-        m_sliced_state.complete = true;
-        return;
-    }
-
-    // Clamp to registered biomes
-    if (num_biomes > static_cast<int>(m_engines.size())) {
-        num_biomes = static_cast<int>(m_engines.size());
-    }
-
-    // Save parameters
-    m_sliced_state.biome_rhos = biome_rhos;
-    m_sliced_state.total_steps = steps;
-    m_sliced_state.dt = dt;
-    m_sliced_state.max_dt = max_dt;
-
-    // Initialize progress
-    m_sliced_state.current_biome = 0;
-    m_sliced_state.current_step = 0;
-    m_sliced_state.current_rho = biome_rhos[0];
-
-    // Pre-allocate result storage for all biomes
-    m_sliced_state.biome_results.resize(num_biomes);
-    for (int i = 0; i < num_biomes; i++) {
-        m_sliced_state.biome_results[i] = BiomeStepResult();
-    }
-
-    m_sliced_state.in_progress = true;
-    m_sliced_state.complete = false;
-}
-
-bool MultiBiomeLookaheadEngine::continue_sliced_compute(int max_time_ms) {
-    if (!m_sliced_state.in_progress || m_sliced_state.complete) {
-        return true;  // Nothing to do or already complete
-    }
-
-    auto start_time = std::chrono::high_resolution_clock::now();
-    int num_biomes = static_cast<int>(m_sliced_state.biome_rhos.size());
-    if (num_biomes > static_cast<int>(m_engines.size())) {
-        num_biomes = static_cast<int>(m_engines.size());
-    }
-
-    // Process steps until time budget exhausted or computation complete
-    while (m_sliced_state.current_biome < num_biomes) {
-        // Check time budget
-        auto now = std::chrono::high_resolution_clock::now();
-        auto elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(now - start_time).count();
-        if (elapsed_ms >= max_time_ms) {
-            // Time budget exhausted - yield
-            return false;
-        }
-
-        // Do one step
-        bool biome_complete = _do_one_sliced_step();
-
-        if (biome_complete) {
-            // Move to next biome
-            m_sliced_state.current_biome++;
-            m_sliced_state.current_step = 0;
-
-            if (m_sliced_state.current_biome < num_biomes) {
-                // Initialize next biome
-                m_sliced_state.current_rho = m_sliced_state.biome_rhos[m_sliced_state.current_biome];
-            }
-        }
-    }
-
-    // All biomes complete - finalize
-    m_sliced_state.complete = true;
-    m_sliced_state.in_progress = false;
-
-    // Build icon maps for all biomes
-    for (int i = 0; i < num_biomes; i++) {
-        m_sliced_state.biome_results[i].icon_map =
-            _build_icon_map(i, m_sliced_state.biome_results[i].bloch_steps);
-    }
-
-    return true;
-}
-
-bool MultiBiomeLookaheadEngine::_do_one_sliced_step() {
-    int biome_id = m_sliced_state.current_biome;
-    int step = m_sliced_state.current_step;
-
-    if (biome_id >= static_cast<int>(m_engines.size())) {
-        return true;  // Invalid biome, skip
-    }
-
-    Ref<QuantumEvolutionEngine> engine = m_engines[biome_id];
-    int num_qubits = m_num_qubits[biome_id];
-    BiomeStepResult& result = m_sliced_state.biome_results[biome_id];
-
-    // Evolve one step
-    PackedFloat64Array evolved_rho = engine->evolve(
-        m_sliced_state.current_rho,
-        m_sliced_state.dt,
-        m_sliced_state.max_dt
-    );
-
-    // Apply LNN phase modulation if enabled
-    _apply_lnn_phase_modulation(biome_id, evolved_rho);
-
-    // Store results
-    result.steps.push_back(evolved_rho);
-    result.bloch_steps.push_back(
-        engine->compute_bloch_metrics_from_packed(evolved_rho, num_qubits));
-
-    double purity = engine->compute_purity_from_packed(evolved_rho);
-    result.purity_steps.push_back(purity);
-
-    // Adaptive MI computation (full scan on first step only)
-    bool force_full_scan = (step == 0);
-    result.mi_steps.push_back(
-        engine->compute_mi_adaptive(evolved_rho, num_qubits, purity, force_full_scan));
-
-    // Update state for next step
-    m_sliced_state.current_rho = evolved_rho;
-    m_sliced_state.current_step++;
-
-    // Check if this biome is complete
-    return (m_sliced_state.current_step >= m_sliced_state.total_steps);
-}
-
-bool MultiBiomeLookaheadEngine::is_sliced_compute_complete() const {
-    return m_sliced_state.complete || !m_sliced_state.in_progress;
-}
-
-Dictionary MultiBiomeLookaheadEngine::get_sliced_compute_result() {
-    Dictionary result;
-
-    if (!m_sliced_state.complete) {
-        UtilityFunctions::push_warning(
-            "MultiBiomeLookaheadEngine: get_sliced_compute_result called before completion");
-        return result;
-    }
-
-    Array all_results;
-    Array all_mi;
-    Array all_mi_steps;
-    Array all_bloch_steps;
-    Array all_purity_steps;
-    Array all_metadata;
-    Array all_couplings;
-    Array all_icon_maps;
-
-    int num_biomes = static_cast<int>(m_sliced_state.biome_results.size());
-
-    for (int biome_id = 0; biome_id < num_biomes; biome_id++) {
-        const BiomeStepResult& biome_result = m_sliced_state.biome_results[biome_id];
-
-        // Convert steps to Godot Array
-        Array biome_steps;
-        for (const auto& step_rho : biome_result.steps) {
-            biome_steps.push_back(step_rho);
-        }
-        all_results.push_back(biome_steps);
-
-        // MI steps
-        Array biome_mi_steps;
-        for (const auto& mi_step : biome_result.mi_steps) {
-            biome_mi_steps.push_back(mi_step);
-        }
-        all_mi_steps.push_back(biome_mi_steps);
-        if (!biome_result.mi_steps.empty()) {
-            all_mi.push_back(biome_result.mi_steps.back());
-        } else {
-            all_mi.push_back(PackedFloat64Array());
-        }
-
-        // Bloch steps
-        Array biome_bloch_steps;
-        for (const auto& bloch_step : biome_result.bloch_steps) {
-            biome_bloch_steps.push_back(bloch_step);
-        }
-        all_bloch_steps.push_back(biome_bloch_steps);
-
-        // Purity steps
-        Array biome_purity_steps;
-        for (double purity_val : biome_result.purity_steps) {
-            biome_purity_steps.push_back(purity_val);
-        }
-        all_purity_steps.push_back(biome_purity_steps);
-
-        // Metadata
-        if (biome_id < static_cast<int>(m_metadata.size())) {
-            all_metadata.push_back(m_metadata[biome_id]);
-        } else {
-            all_metadata.push_back(Dictionary());
-        }
-
-        // Couplings
-        if (biome_id < static_cast<int>(m_couplings.size())) {
-            all_couplings.push_back(m_couplings[biome_id]);
-        } else {
-            all_couplings.push_back(Dictionary());
-        }
-
-        // Icon maps
-        all_icon_maps.push_back(biome_result.icon_map);
-    }
-
-    result["results"] = all_results;
-    result["mi"] = all_mi;
-    result["mi_steps"] = all_mi_steps;
-    result["bloch_steps"] = all_bloch_steps;
-    result["purity_steps"] = all_purity_steps;
-    result["metadata"] = all_metadata;
-    result["couplings"] = all_couplings;
-    result["icon_maps"] = all_icon_maps;
-
-    // Clear state after retrieving result
-    m_sliced_state.reset();
-
-    return result;
-}
-
-void MultiBiomeLookaheadEngine::cancel_sliced_compute() {
-    m_sliced_state.reset();
-}
-
-float MultiBiomeLookaheadEngine::get_sliced_compute_progress() const {
-    if (!m_sliced_state.in_progress) {
-        return m_sliced_state.complete ? 1.0f : 0.0f;
-    }
-
-    int num_biomes = static_cast<int>(m_sliced_state.biome_rhos.size());
-    if (num_biomes > static_cast<int>(m_engines.size())) {
-        num_biomes = static_cast<int>(m_engines.size());
-    }
-
-    if (num_biomes == 0 || m_sliced_state.total_steps == 0) {
-        return 1.0f;
-    }
-
-    int total_work = num_biomes * m_sliced_state.total_steps;
-    int completed_work = m_sliced_state.current_biome * m_sliced_state.total_steps
-                       + m_sliced_state.current_step;
-
-    return static_cast<float>(completed_work) / static_cast<float>(total_work);
 }

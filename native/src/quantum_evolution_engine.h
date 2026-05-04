@@ -75,8 +75,6 @@ public:
     PackedFloat64Array compute_bloch_metrics(const Eigen::MatrixXcd& rho, int num_qubits) const;
     double compute_purity_from_packed(const PackedFloat64Array& rho_data) const;
     PackedFloat64Array compute_bloch_metrics_from_packed(const PackedFloat64Array& rho_data, int num_qubits) const;
-    Dictionary compute_coupling_payload(const Dictionary& metadata) const;
-
     // Eigenstate analysis (CPU-only, uses Eigen)
     // Returns Dictionary with "eigenvalues", "dominant_eigenvector", "dominant_eigenvalue"
     Dictionary compute_eigenstates(const PackedFloat64Array& rho_data) const;

@@ -11,7 +11,7 @@ ForceGraphEngine::~ForceGraphEngine() {
 }
 
 void ForceGraphEngine::_bind_methods() {
-    ClassDB::bind_method(D_METHOD("update_positions", "positions", "velocities", "bloch_packet", "mi_values", "biome_center", "dt", "frozen_mask"),
+    ClassDB::bind_method(D_METHOD("update_positions", "positions", "bloch_packet", "mi_values", "biome_center", "dt", "frozen_mask"),
                          &ForceGraphEngine::update_positions);
 
     ClassDB::bind_method(D_METHOD("set_purity_radial_spring", "spring"), &ForceGraphEngine::set_purity_radial_spring);
@@ -44,61 +44,79 @@ void ForceGraphEngine::set_min_distance(float distance) { m_min_distance = dista
 
 Dictionary ForceGraphEngine::update_positions(
     const PackedVector2Array& positions,
-    const PackedVector2Array& velocities,
     const PackedFloat64Array& bloch_packet,
     const PackedFloat64Array& mi_values,
     Vector2 biome_center,
-    float dt,
+    float /* dt */,
     const PackedByteArray& frozen_mask
 ) {
+    // Gradient-descent-to-convergence: positions are a pure function of the quantum state (rho).
+    // Instead of one Euler step per substep, we run steepest-descent iterations until the layout
+    // settles.  Velocities are not accumulated across calls — warm-starting from the previous
+    // converged positions gives continuity without history-dependent dynamics.
+    //
+    // This eliminates the need to calibrate the force graph to frame-rate or sim-speed: the same
+    // equilibrium is reached regardless of how often this function is called.
+    // Partial-convergence: run a fixed small number of iterations so positions chase the
+    // moving equilibrium as rho evolves, rather than snapping instantly and going static.
+    // 8 iterations ≈ 5-15px movement per substep — visible flow at quantum evolution rates.
+    const int   MAX_ITERATIONS        = 8;
+    const float GRADIENT_STEP         = 0.12f;   // steepest-descent step size (pixels/unit-force)
+    const float MAX_DISP_PER_STEP     = 8.0f;    // displacement cap per iteration (pixels)
+    const float CONVERGENCE_EPSILON   = 0.4f;    // stop early if already settled
+
     int num_nodes = positions.size();
 
-    // Copy input arrays for modification
+    // Warm start from caller's positions so the equilibrium tracks smoothly over time.
     PackedVector2Array new_positions = positions;
-    PackedVector2Array new_velocities = velocities;
-
-    // Ensure velocity array matches position array size
-    if (new_velocities.size() != num_nodes) {
-        new_velocities.resize(num_nodes);
+    if (num_nodes == 0) {
+        Dictionary result;
+        result["positions"] = new_positions;
+        return result;
     }
 
-    // Calculate forces for each node
-    for (int i = 0; i < num_nodes; i++) {
-        // Skip frozen nodes
-        if (frozen_mask.size() > i && frozen_mask[i] != 0) {
-            continue;
+    // Convergence loop
+    for (int iter = 0; iter < MAX_ITERATIONS; iter++) {
+        float max_disp = 0.0f;
+
+        for (int i = 0; i < num_nodes; i++) {
+            if (frozen_mask.size() > i && frozen_mask[i] != 0) {
+                continue;
+            }
+
+            Vector2 total_force = Vector2(0, 0);
+
+            if (bloch_packet.size() >= (i + 1) * 8) {
+                total_force += _calculate_purity_radial_force(i, new_positions[i], bloch_packet, biome_center);
+                total_force += _calculate_phase_angular_force(i, new_positions[i], bloch_packet, biome_center);
+            }
+
+            if (!mi_values.is_empty()) {
+                total_force += _calculate_correlation_forces(i, new_positions[i], new_positions, mi_values, frozen_mask);
+            }
+
+            total_force += _calculate_repulsion_forces(i, new_positions[i], new_positions, frozen_mask);
+
+            // Steepest descent step with displacement cap
+            Vector2 disp = total_force * GRADIENT_STEP;
+            float disp_len = disp.length();
+            if (disp_len > MAX_DISP_PER_STEP) {
+                disp = disp * (MAX_DISP_PER_STEP / disp_len);
+                disp_len = MAX_DISP_PER_STEP;
+            }
+
+            new_positions[i] += disp;
+            if (disp_len > max_disp) max_disp = disp_len;
         }
 
-        Vector2 total_force = Vector2(0, 0);
-
-        // 1. Purity radial force (pulls to radius based on purity)
-        if (bloch_packet.size() >= (i + 1) * 8) {
-            total_force += _calculate_purity_radial_force(i, new_positions[i], bloch_packet, biome_center);
+        if (max_disp < CONVERGENCE_EPSILON) {
+            break;
         }
-
-        // 2. Phase angular force (creates clustering by phase)
-        if (bloch_packet.size() >= (i + 1) * 8) {
-            total_force += _calculate_phase_angular_force(i, new_positions[i], bloch_packet, biome_center);
-        }
-
-        // 3. Correlation forces (MI-based springs)
-        if (!mi_values.is_empty()) {
-            total_force += _calculate_correlation_forces(i, new_positions[i], new_positions, mi_values, frozen_mask);
-        }
-
-        // 4. Repulsion forces (prevent overlap)
-        total_force += _calculate_repulsion_forces(i, new_positions[i], new_positions, frozen_mask);
-
-        // Apply forces via velocity Verlet integration
-        new_velocities[i] += total_force * dt;
-        new_velocities[i] *= m_damping;
-        new_positions[i] += new_velocities[i] * dt;
     }
 
-    // Return updated positions and velocities
+    // Return converged positions.
     Dictionary result;
     result["positions"] = new_positions;
-    result["velocities"] = new_velocities;
     return result;
 }
 
@@ -114,10 +132,16 @@ Vector2 ForceGraphEngine::_calculate_purity_radial_force(
         return Vector2(0, 0);
     }
 
-    // Get purity from p0^2 + p1^2 (populations)
+    // Reconstruct single-qubit purity from the Bloch vector.
+    // z is best recovered from populations; x/y come from the packet.
     double p0 = bloch_packet[offset];
     double p1 = bloch_packet[offset + 1];
-    double purity = std::abs(p0 - p1);  // Purity ≈ |p0 - p1| for single qubit
+    double x = bloch_packet[offset + 2];
+    double y = bloch_packet[offset + 3];
+    double z = Math::clamp(p0 - p1, -1.0, 1.0);
+    double bloch_norm_sq = x * x + y * y + z * z;
+    double purity = 0.5 * (1.0 + bloch_norm_sq);
+    purity = Math::clamp(purity, 0.0, 1.0);
 
     // Target radius: pure states (purity=1) → center, mixed (purity=0) → edge
     double target_radius = m_max_biome_radius * (1.0 - purity);
@@ -152,8 +176,8 @@ Vector2 ForceGraphEngine::_calculate_phase_angular_force(
         return Vector2(0, 0);
     }
 
-    // Get theta (polar angle on Bloch sphere)
-    double theta = bloch_packet[offset + 6];
+    // Use coherence phase phi for angular clustering around the biome center.
+    double phi = bloch_packet[offset + 7];
 
     // Convert to angular position around biome center
     Vector2 delta = position - biome_center;
@@ -167,7 +191,7 @@ Vector2 ForceGraphEngine::_calculate_phase_angular_force(
     double current_angle = std::atan2(delta.y, delta.x);
 
     // Target angle based on phase
-    double target_angle = theta;
+    double target_angle = phi;
 
     // Angular error (wrap to [-π, π])
     double angular_error = target_angle - current_angle;

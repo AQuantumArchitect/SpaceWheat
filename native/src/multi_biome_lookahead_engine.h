@@ -20,7 +20,7 @@ namespace godot {
  * Solves the performance problem of multiple bridge crossings by:
  * 1. Registering all biome QuantumEvolutionEngines ONCE at setup
  * 2. Single evolve_all_lookahead() call processes ALL biomes × N steps
- * 3. Returns all intermediate states for async rendering
+ * 3. Returns all intermediate states for buffered rendering
  *
  * Performance gain: 4ms bridge cost amortized over (biomes × steps) evolutions
  * Example: 6 biomes × 5 steps = 30 evolutions for cost of 1 bridge crossing
@@ -134,8 +134,6 @@ public:
      *         purity_steps[biome_id][step] = Tr(rho^2)
      *   "position_steps": Array<Array<PackedVector2Array>>
      *         position_steps[biome_id][step] = node positions for step
-     *   "velocity_steps": Array<Array<PackedVector2Array>>
-     *         velocity_steps[biome_id][step] = node velocities for step
      *   "metadata": Array<Dictionary>
      *         metadata[biome_id] = emoji/axis mapping payload
      *   "couplings": Array<Dictionary>
@@ -145,6 +143,18 @@ public:
      */
     Dictionary evolve_all_lookahead(const Array& biome_rhos, int steps,
                                     float dt, float max_dt);
+
+    /**
+     * Submit one lookahead packet to a native worker thread.
+     *
+     * Only one job may be in flight. The caller should poll completion, then call
+     * take_completed_lookahead_job() on the main thread and merge the result.
+     */
+    bool submit_lookahead_job(const Array& biome_rhos, int steps, float dt, float max_dt);
+    bool is_lookahead_job_running() const;
+    bool is_lookahead_job_complete() const;
+    Dictionary take_completed_lookahead_job();
+    void cancel_lookahead_job(bool wait_for_completion = true);
 
     /**
      * Store per-biome metadata payload (emoji mapping, axes, etc.).
@@ -157,6 +167,16 @@ public:
      * This is returned verbatim in evolve_* results.
      */
     void set_biome_couplings(int biome_id, const Dictionary& couplings);
+
+    /**
+     * Update the biome center used for force-graph physics (purity radial,
+     * phase angular forces).  Call this whenever the biome's visual oval
+     * center changes (viewport resize, layout update).
+     *
+     * @param biome_id  Registration ID returned by register_biome()
+     * @param center    World-space center of the biome oval
+     */
+    void set_biome_center(int biome_id, Vector2 center);
 
     // ========================================================================
     // SINGLE-BIOME EVOLUTION (for on-demand refill after user action)
@@ -172,58 +192,10 @@ public:
      * @param max_dt Maximum substep
      *
      * @return Dictionary with "results", "mi", "mi_steps", "bloch_steps", "purity_steps",
-     *         and "icon_map" for this biome only
+     *         "position_steps", and "icon_map" for this biome only
      */
     Dictionary evolve_single_biome(int biome_id, const PackedFloat64Array& rho_packed,
                                    int steps, float dt, float max_dt);
-
-    // ========================================================================
-    // TIME-SLICED COMPUTATION (yields CPU periodically)
-    // ========================================================================
-
-    /**
-     * Start a time-sliced computation. Call continue_sliced_compute() repeatedly
-     * until is_sliced_compute_complete() returns true, then get_sliced_compute_result().
-     *
-     * This prevents the engine from hogging the CPU - it will yield after max_time_ms.
-     *
-     * @param biome_rhos Array of current density matrices (one per biome)
-     * @param steps Number of lookahead steps to compute
-     * @param dt Time step per step
-     * @param max_dt Maximum substep for numerical stability
-     */
-    void start_sliced_compute(const Array& biome_rhos, int steps, float dt, float max_dt);
-
-    /**
-     * Continue time-sliced computation for up to max_time_ms.
-     *
-     * @param max_time_ms Maximum milliseconds to compute before yielding (e.g., 5)
-     * @return true if computation completed, false if more work remains
-     */
-    bool continue_sliced_compute(int max_time_ms);
-
-    /**
-     * Check if sliced computation is complete.
-     */
-    bool is_sliced_compute_complete() const;
-
-    /**
-     * Get the result of a completed sliced computation.
-     * Only valid after is_sliced_compute_complete() returns true.
-     *
-     * @return Same Dictionary format as evolve_all_lookahead()
-     */
-    Dictionary get_sliced_compute_result();
-
-    /**
-     * Cancel an in-progress sliced computation.
-     */
-    void cancel_sliced_compute();
-
-    /**
-     * Get progress of current sliced computation (0.0 to 1.0).
-     */
-    float get_sliced_compute_progress() const;
 
 protected:
     static void _bind_methods();
@@ -248,9 +220,8 @@ private:
     // Force graph engine for computing node positions (shared across all biomes)
     Ref<ForceGraphEngine> m_force_engine;
 
-    // Current node positions/velocities per biome (for force integration)
+    // Current node positions per biome (warm-start for the pure-function layout solve)
     std::vector<PackedVector2Array> m_node_positions;
-    std::vector<PackedVector2Array> m_node_velocities;
     std::vector<Vector2> m_biome_centers;  // Center position per biome
 
     // Apply LNN phase modulation to density matrix diagonal
@@ -263,57 +234,34 @@ private:
         std::vector<PackedFloat64Array> bloch_steps;
         std::vector<double> purity_steps;
         std::vector<PackedVector2Array> position_steps;
-        std::vector<PackedVector2Array> velocity_steps;
         Dictionary icon_map;
     };
 
     BiomeStepResult
     _evolve_biome_steps(int biome_id, const PackedFloat64Array& rho_packed,
-                        int steps, float dt, float max_dt, bool compute_mi = true);
+                        int steps, float dt, float max_dt,
+                        bool compute_mi = true, bool build_icon_map = true);
 
     Dictionary _build_icon_map(int biome_id,
                                const std::vector<PackedFloat64Array>& bloch_steps);
 
-    // ========================================================================
-    // TIME-SLICED COMPUTATION STATE
-    // ========================================================================
+    // Native async packet state is heap-owned so the Godot-facing object has a
+    // small, controlled lifetime surface. Godot Variant containers are only
+    // converted back to Dictionary on the main thread.
+    struct AsyncJobState;
+    std::unique_ptr<AsyncJobState> m_async;
 
-    // Sliced computation state
-    struct SlicedComputeState {
-        bool in_progress = false;
-        bool complete = false;
+    void _wait_for_job();
+    Dictionary _evolve_all_lookahead_impl(const Array& biome_rhos, int steps,
+                                          float dt, float max_dt);
+    std::vector<PackedFloat64Array> _copy_rhos_to_vector(const Array& biome_rhos) const;
+    std::vector<BiomeStepResult> _evolve_all_lookahead_raw(
+        const std::vector<PackedFloat64Array>& biome_rhos, int steps,
+        float dt, float max_dt, bool build_icon_maps);
+    Dictionary _build_lookahead_dictionary(
+        const std::vector<BiomeStepResult>& raw_results, int num_biomes,
+        int64_t batch_time_us = 0, bool include_timing = false);
 
-        // Input parameters (saved from start_sliced_compute)
-        Array biome_rhos;
-        int total_steps = 0;
-        float dt = 0.1f;
-        float max_dt = 0.02f;
-
-        // Progress tracking
-        int current_biome = 0;      // Which biome we're processing
-        int current_step = 0;       // Which step within current biome
-        PackedFloat64Array current_rho;  // Current state being evolved
-
-        // Accumulated results per biome
-        std::vector<BiomeStepResult> biome_results;
-
-        void reset() {
-            in_progress = false;
-            complete = false;
-            biome_rhos = Array();
-            total_steps = 0;
-            current_biome = 0;
-            current_step = 0;
-            current_rho = PackedFloat64Array();
-            biome_results.clear();
-        }
-    };
-
-    SlicedComputeState m_sliced_state;
-
-    // Helper: do one evolution step for current biome, update state
-    // Returns true if this biome is complete
-    bool _do_one_sliced_step();
 };
 
 }  // namespace godot

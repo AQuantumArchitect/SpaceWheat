@@ -33,6 +33,9 @@ void QuantumMatrixNative::_bind_methods() {
     ClassDB::bind_method(D_METHOD("to_packed_csr", "threshold"), &QuantumMatrixNative::to_packed_csr);
     ClassDB::bind_method(D_METHOD("get_sparsity_ratio", "threshold"), &QuantumMatrixNative::get_sparsity_ratio);
     ClassDB::bind_method(D_METHOD("count_nonzeros", "threshold"), &QuantumMatrixNative::count_nonzeros);
+
+    // Visualization
+    ClassDB::bind_method(D_METHOD("heatmap_colors", "max_dim"), &QuantumMatrixNative::heatmap_colors, DEFVAL(0));
 }
 
 QuantumMatrixNative::QuantumMatrixNative() : m_dim(0) {}
@@ -307,4 +310,43 @@ int QuantumMatrixNative::count_nonzeros(double threshold) const {
         }
     }
     return count;
+}
+
+
+PackedColorArray QuantumMatrixNative::heatmap_colors(int max_dim) const {
+    const int dim = (max_dim > 0 && max_dim < m_dim) ? max_dim : m_dim;
+    PackedColorArray colors;
+    if (dim <= 0) return colors;
+
+    colors.resize(dim * dim);
+    Color* ptr = colors.ptrw();
+
+    for (int i = 0; i < dim; i++) {
+        for (int j = 0; j < dim; j++) {
+            const std::complex<double> elem = m_matrix(i, j);
+            const double re = elem.real();
+            const double im = elem.imag();
+            const double magnitude = std::sqrt(re * re + im * im);
+            // Perceptual gamma — sqrt maps [0,1] to a curve that makes
+            // small magnitudes dimly visible rather than invisible.
+            const float m = static_cast<float>(std::sqrt(std::max(magnitude, 0.0)));
+
+            if (i == j) {
+                // Diagonal — population purity.  Pure grayscale value.
+                const float v = 0.12f + 0.88f * m;
+                ptr[i * dim + j] = Color(v, v, v, 1.0f);
+            } else {
+                // Off-diagonal — quantum coherence.
+                // Hue  = complex phase (colour wheel wraps U(1) naturally).
+                // Sat  = magnitude (zero coherence → grey, no spurious hue).
+                // Val  = 0.15 + 0.85·m (never fully black, bright at high coherence).
+                const float phase = static_cast<float>(std::atan2(im, re));
+                const float hue   = std::fmod(phase / (2.0f * Math_PI) + 1.0f, 1.0f);
+                const float sat   = m;
+                const float val   = 0.15f + 0.85f * m;
+                ptr[i * dim + j] = Color::from_hsv(hue, sat, val, 1.0f);
+            }
+        }
+    }
+    return colors;
 }

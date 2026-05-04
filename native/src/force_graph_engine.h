@@ -32,7 +32,6 @@ public:
      * Compute force-based position updates for all nodes.
      *
      * @param positions Current node positions (PackedVector2Array)
-     * @param velocities Current node velocities (PackedVector2Array)
      * @param bloch_packet Bloch sphere data from quantum evolution
      *                     Format: [p0,p1,x,y,z,r,θ,φ] per qubit (stride=8)
      * @param mi_values Mutual information array (upper triangular)
@@ -42,11 +41,9 @@ public:
      *
      * @return Dictionary with:
      *   "positions": PackedVector2Array (updated positions)
-     *   "velocities": PackedVector2Array (updated velocities)
      */
     Dictionary update_positions(
         const PackedVector2Array& positions,
-        const PackedVector2Array& velocities,
         const PackedFloat64Array& bloch_packet,
         const PackedFloat64Array& mi_values,
         Vector2 biome_center,

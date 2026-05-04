@@ -10,25 +10,66 @@
 using namespace godot;
 
 namespace {
-inline void cap_trace_and_clamp_diag(Eigen::MatrixXcd &rho) {
-    const double eps = 1e-12;
+inline void enforce_density_matrix(Eigen::MatrixXcd &rho) {
     const int dim = std::min(rho.rows(), rho.cols());
-    double trace = 0.0;
 
+    // 1. Enforce Hermiticity: ρ = (ρ + ρ†)/2
+    rho = (rho + rho.adjoint()) * 0.5;
+
+    // 2. Clamp negative diagonals AND zero their coherences.
     for (int i = 0; i < dim; i++) {
-        std::complex<double> diag = rho(i, i);
-        double re = diag.real();
+        double re = rho(i, i).real();
         if (re < 0.0) {
             rho(i, i) = std::complex<double>(0.0, 0.0);
-            re = 0.0;
-        } else if (std::abs(diag.imag()) > eps) {
+            for (int k = 0; k < dim; k++) {
+                if (k != i) {
+                    rho(i, k) = std::complex<double>(0.0, 0.0);
+                    rho(k, i) = std::complex<double>(0.0, 0.0);
+                }
+            }
+        } else {
             rho(i, i) = std::complex<double>(re, 0.0);
         }
-        trace += re;
     }
 
-    if (std::isfinite(trace) && trace > 1.0 + eps) {
+    // 3. Renormalize to unit trace.
+    double trace = 0.0;
+    for (int i = 0; i < dim; i++) {
+        trace += rho(i, i).real();
+    }
+    if (std::isfinite(trace) && trace > 1e-14) {
         rho *= (1.0 / trace);
+    }
+
+    // 4. Cap coherences so Tr(ρ²) ≤ 1 (enforce positive semidefiniteness).
+    //    Euler integration can produce off-diagonals too large for the populations
+    //    to support, making the matrix non-PSD. Scale off-diagonals down uniformly
+    //    (physical interpretation: T₂ dephasing to keep state in Bloch ball).
+    //
+    //    Tr(ρ²) = Σ_i ρ_ii² + 2 Σ_{i<j} |ρ_ij|²
+    //    If > 1, find α such that Σ_i ρ_ii² + α² × 2 Σ_{i<j} |ρ_ij|² = 1
+    double diag_sq = 0.0;
+    double offdiag_sq = 0.0;
+    for (int i = 0; i < dim; i++) {
+        double d = rho(i, i).real();
+        diag_sq += d * d;
+        for (int j = i + 1; j < dim; j++) {
+            offdiag_sq += std::norm(rho(i, j));  // |ρ_ij|²
+        }
+    }
+    double purity = diag_sq + 2.0 * offdiag_sq;
+    if (purity > 1.0 && offdiag_sq > 1e-14) {
+        // Scale factor: α = sqrt((1 - diag_sq) / (2 * offdiag_sq))
+        double target_offdiag = 1.0 - diag_sq;
+        if (target_offdiag < 0.0) target_offdiag = 0.0;
+        double alpha = std::sqrt(target_offdiag / (2.0 * offdiag_sq));
+        for (int i = 0; i < dim; i++) {
+            for (int j = 0; j < dim; j++) {
+                if (i != j) {
+                    rho(i, j) *= alpha;
+                }
+            }
+        }
     }
 }
 }  // namespace
@@ -254,7 +295,7 @@ PackedFloat64Array QuantumEvolutionEngine::evolve_step(const PackedFloat64Array&
     // Euler integration: ρ(t+dt) = ρ(t) + dt * dρ/dt
     // =========================================================================
     rho += static_cast<double>(dt) * drho;
-    cap_trace_and_clamp_diag(rho);
+    enforce_density_matrix(rho);
 
     return pack_dense(rho);
 }
@@ -265,11 +306,94 @@ PackedFloat64Array QuantumEvolutionEngine::evolve(const PackedFloat64Array& rho_
         return rho_data;
     }
 
-    // Single evolution step using max_dt as the actual timestep (no subcycling)
-    // max_dt is the granularity setting (user-adjustable)
-    // dt parameter is ignored (legacy from subcycling era)
-    float actual_dt = (max_dt > 0.0f) ? max_dt : dt;
-    return evolve_step(rho_data, actual_dt);
+    // =========================================================================
+    // Adaptive Euler with analytic step size from purity constraint.
+    //
+    // After a step ρ' = ρ + h·D (D = dρ/dt):
+    //   Tr(ρ'²) = Tr(ρ²) + 2h·Tr(ρD) + h²·Tr(D²)
+    //
+    // This quadratic in h tells us the EXACT largest step where Tr(ρ'²) ≤ 1.
+    // When dynamics are fast (large ||D||), h shrinks. Near steady-state, h
+    // grows to max_dt. No rejected steps, no fixed granularity.
+    // =========================================================================
+    const float max_step = (max_dt > 0.0f) ? max_dt : dt;
+    const float min_step = 1e-6f;
+
+    Eigen::MatrixXcd rho = unpack_dense(rho_data);
+    float remaining = dt;
+
+    while (remaining > min_step * 0.5f) {
+        // Compute dρ/dt = -i[H,ρ] + Σ D[L](ρ)
+        Eigen::MatrixXcd drho = Eigen::MatrixXcd::Zero(m_dim, m_dim);
+
+        if (m_has_hamiltonian) {
+            Eigen::MatrixXcd comm = m_hamiltonian * rho - rho * m_hamiltonian;
+            drho += std::complex<double>(0.0, -1.0) * comm;
+        }
+
+        for (size_t k = 0; k < m_lindblads.size(); k++) {
+            const auto& L = m_lindblads[k];
+            const auto& L_dag = m_lindblad_dags[k];
+            const auto& LdagL = m_LdagLs[k];
+            drho += L * rho * L_dag - 0.5 * (LdagL * rho + rho * LdagL);
+        }
+
+        // Three traces for the purity quadratic (O(N²), negligible)
+        double tr_rho_sq = 0.0;  // Tr(ρ²) = Σ|ρ_ij|²
+        double tr_rho_D  = 0.0;  // Tr(ρD)  (real for Hermitian ρ, D)
+        double tr_D_sq   = 0.0;  // Tr(D²) = Σ|D_ij|²
+
+        for (int i = 0; i < m_dim; i++) {
+            for (int j = 0; j < m_dim; j++) {
+                tr_rho_sq += std::norm(rho(i, j));
+                tr_D_sq   += std::norm(drho(i, j));
+                tr_rho_D  += (rho(i, j) * std::conj(drho(i, j))).real();
+            }
+        }
+
+        // Solve a·h² + b·h + c ≤ 0 for h
+        //   a = Tr(D²) ≥ 0
+        //   b = 2·Tr(ρD)
+        //   c = Tr(ρ²) - 1  (≤ 0 for valid state)
+        float h_opt = max_step;
+
+        if (tr_D_sq > 1e-14) {
+            double a = tr_D_sq;
+            double b = 2.0 * tr_rho_D;
+            double c = tr_rho_sq - 1.0;
+            double disc = b * b - 4.0 * a * c;
+
+            if (c < -1e-10 && disc > 0.0) {
+                // Valid state inside Bloch ball: positive root = max safe step
+                double h_max = (-b + std::sqrt(disc)) / (2.0 * a);
+                if (h_max > 0.0) {
+                    h_opt = static_cast<float>(h_max * 0.9);  // 90% headroom
+                }
+            } else if (c >= -1e-10 && c < 1e-6) {
+                // State AT the purity boundary (pure state, c ≈ 0).
+                // Unitary (Hamiltonian-only) evolution preserves purity exactly,
+                // so the constraint Tr(ρ'²) ≤ 1 is satisfied analytically.
+                // Euler's discretization error is bounded and corrected by
+                // enforce_density_matrix(). Use max_step to avoid 100k substeps.
+                h_opt = max_step;
+            } else {
+                // State PAST purity boundary (c > 1e-6) — tiny step to recover
+                h_opt = min_step;
+            }
+        }
+        // else: D ≈ 0 (steady state), any step is fine → use max_step
+
+        // Clamp to [min_step, max_step] and remaining time
+        float step = std::min({h_opt, max_step, remaining});
+        step = std::max(step, min_step);
+
+        // Euler step + enforcement
+        rho += static_cast<double>(step) * drho;
+        enforce_density_matrix(rho);
+        remaining -= step;
+    }
+
+    return pack_dense(rho);
 }
 
 Eigen::MatrixXcd QuantumEvolutionEngine::unpack_dense(const PackedFloat64Array& data) const {
@@ -749,15 +873,21 @@ Dictionary QuantumEvolutionEngine::evolve_with_mi(
 }
 
 double QuantumEvolutionEngine::compute_purity(const Eigen::MatrixXcd& rho) const {
-    // Tr(rho^2) = sum_ij |rho_ij|^2 for Hermitian rho
-    double purity = 0.0;
+    // Tr(ρ²) / [Tr(ρ)]² — normalized so Euler trace drift doesn't inflate purity.
+    // For a valid density matrix with Tr(ρ)=1, this equals Tr(ρ²).
+    double trace = 0.0;
+    for (int i = 0; i < rho.rows(); i++) {
+        trace += rho(i, i).real();
+    }
+    if (trace < 1e-14) return 0.0;
+
+    double sum_sq = 0.0;
     for (int i = 0; i < rho.rows(); i++) {
         for (int j = 0; j < rho.cols(); j++) {
-            const auto& c = rho(i, j);
-            purity += std::norm(c);
+            sum_sq += std::norm(rho(i, j));
         }
     }
-    return purity;
+    return sum_sq / (trace * trace);
 }
 
 std::complex<double> QuantumEvolutionEngine::compute_trace(const Eigen::MatrixXcd& rho) const {
@@ -826,124 +956,6 @@ PackedFloat64Array QuantumEvolutionEngine::compute_bloch_metrics(
     }
 
     return out;
-}
-
-Dictionary QuantumEvolutionEngine::compute_coupling_payload(const Dictionary& metadata) const {
-    Dictionary payload;
-    Dictionary hamiltonian_map;
-    Dictionary lindblad_map;
-    Dictionary sink_fluxes;
-
-    if (metadata.is_empty()) {
-        return payload;
-    }
-
-    Dictionary emoji_to_qubit = metadata.get("emoji_to_qubit", Dictionary());
-    Dictionary emoji_to_pole = metadata.get("emoji_to_pole", Dictionary());
-    Array emoji_list = metadata.get("emoji_list", Array());
-    int num_qubits = metadata.get("num_qubits", 0);
-
-    if (num_qubits <= 0 || emoji_list.is_empty()) {
-        return payload;
-    }
-
-    const int dim = m_dim;
-    const double eps = 1e-12;
-
-    auto compute_indices = [&](int q_a, int p_a, int q_b, int p_b, int &i, int &j) {
-        int shift_a = num_qubits - 1 - q_a;
-        int shift_b = num_qubits - 1 - q_b;
-        i = 0;
-        if (p_a != 0) {
-            i |= (1 << shift_a);
-        }
-        if (q_b != q_a && p_b != 0) {
-            i |= (1 << shift_b);
-        }
-        j = i ^ (1 << shift_a);
-        if (q_b != q_a) {
-            j ^= (1 << shift_b);
-        }
-    };
-
-    for (int idx_a = 0; idx_a < emoji_list.size(); idx_a++) {
-        Variant emoji_a_var = emoji_list[idx_a];
-        if (emoji_a_var.get_type() != Variant::STRING) {
-            continue;
-        }
-        String emoji_a = emoji_a_var;
-        int q_a = emoji_to_qubit.get(emoji_a, -1);
-        int p_a = emoji_to_pole.get(emoji_a, -1);
-        if (q_a < 0 || p_a < 0) {
-            continue;
-        }
-
-        Dictionary h_targets;
-        Dictionary l_targets;
-        double sink = 0.0;
-
-        for (int idx_b = 0; idx_b < emoji_list.size(); idx_b++) {
-            Variant emoji_b_var = emoji_list[idx_b];
-            if (emoji_b_var.get_type() != Variant::STRING) {
-                continue;
-            }
-            String emoji_b = emoji_b_var;
-            int q_b = emoji_to_qubit.get(emoji_b, -1);
-            int p_b = emoji_to_pole.get(emoji_b, -1);
-            if (q_b < 0 || p_b < 0) {
-                continue;
-            }
-
-            if (q_a == q_b && p_a == p_b) {
-                continue;
-            }
-
-            int i = 0;
-            int j = 0;
-            compute_indices(q_a, p_a, q_b, p_b, i, j);
-            if (i < 0 || j < 0 || i >= dim || j >= dim) {
-                continue;
-            }
-
-            if (m_has_hamiltonian) {
-                std::complex<double> h_val = m_hamiltonian.coeff(i, j);
-                double h_strength = std::abs(h_val);
-                if (h_strength > eps) {
-                    h_targets[emoji_b] = h_strength;
-                }
-            }
-
-            double rate = 0.0;
-            for (const auto &L : m_lindblads) {
-                if (L.rows() <= j || L.cols() <= i) {
-                    continue;
-                }
-                std::complex<double> l_val = L.coeff(j, i);
-                if (std::abs(l_val) > eps) {
-                    rate += std::norm(l_val);
-                }
-            }
-            if (rate > eps) {
-                l_targets[emoji_b] = rate;
-                sink += rate;
-            }
-        }
-
-        if (!h_targets.is_empty()) {
-            hamiltonian_map[emoji_a] = h_targets;
-        }
-        if (!l_targets.is_empty()) {
-            lindblad_map[emoji_a] = l_targets;
-        }
-        if (sink > eps) {
-            sink_fluxes[emoji_a] = sink;
-        }
-    }
-
-    payload["hamiltonian"] = hamiltonian_map;
-    payload["lindblad"] = lindblad_map;
-    payload["sink_fluxes"] = sink_fluxes;
-    return payload;
 }
 
 // ============================================================================
