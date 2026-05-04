@@ -194,8 +194,6 @@ func get_pair_for_emoji(emoji: String) -> Variant:
 # {
 #   "BioticFlux": {
 #     "time_elapsed": float,
-#     "wheat_icon": {theta, phi, radius, energy},
-#     "mushroom_icon": {theta, phi, radius, energy},
 #     "quantum_states": [{position, theta, phi, radius, energy, north_emoji, south_emoji}, ...],
 #
 #     # Phase 5.1: Gate infrastructure (entanglement gates persist across saves)
