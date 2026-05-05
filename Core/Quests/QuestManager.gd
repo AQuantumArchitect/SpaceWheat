@@ -170,6 +170,22 @@ func _refresh_unfired_flags(farm) -> void:
 	for flag in _story_flags:
 		if not farm.story_flags_fired.has(str(flag.get("id", ""))):
 			_unfired_flags.append(flag)
+	# Re-inject arc quests for flags that already fired (restores LEDGER after save/load).
+	for flag in _story_flags:
+		var flag_id := str(flag.get("id", ""))
+		if not farm.story_flags_fired.has(flag_id):
+			continue
+		var arc_quest = flag.get("arc_quest")
+		if not (arc_quest is Dictionary) or arc_quest.is_empty():
+			continue
+		# Only re-inject if not already present (check by source_flag).
+		var already: bool = false
+		for existing in locked_offers.values():
+			if str(existing.get("source_flag", "")) == flag_id:
+				already = true
+				break
+		if not already:
+			inject_arc_quest(flag_id, arc_quest)
 
 
 func _evaluate_story_flags() -> void:
