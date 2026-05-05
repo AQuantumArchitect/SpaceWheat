@@ -4,7 +4,7 @@ extends "res://UI/Core/Surface.gd"
 ## M — Biome × Faction Map.
 ##
 ## The M surface is the biome/faction relationship lens. FIELD shows the
-## selected biome's native factions and standing field; ATLAS shows the
+## selected biome's admitted factions and standing field; ATLAS shows the
 ## cluster view with the selected biome at center.
 ##
 ## FIELD uses G/H/J/K/L/; for selection, E to open the selected entry's detail
@@ -16,10 +16,12 @@ const BiomeAffinityClusterView = preload("res://UI/Overlays/BiomeAffinityCluster
 
 const FRAME_FIELD := "field"
 const FRAME_ATLAS := "atlas"
+const FRAME_CAMPAIGN := "campaign"
 
 const FRAME_LABELS_LOCAL := {
 	FRAME_FIELD: "Field",
 	FRAME_ATLAS: "Atlas",
+	FRAME_CAMPAIGN: "Campaign",
 }
 
 const ATLAS_MIN_ZOOM: float = 0.72
@@ -58,6 +60,9 @@ var _atlas_selected_idx: int = -1
 var _atlas_selected_name: String = ""
 var _atlas_selectable_nodes: Array = []
 var _atlas_detail_open: bool = false
+var _campaign_selected: int = 0
+var _campaign_detail_open: bool = false
+var _campaign_flags: Array = []
 
 var _header_label: Label
 var _hint_label: Label
@@ -81,13 +86,14 @@ func _init() -> void:
 	content_spacing = 8
 	navigation_mode = NavigationMode.CALLBACK
 	surface_id = "M"
-	frame_ids = [FRAME_FIELD, FRAME_ATLAS]
+	frame_ids = [FRAME_FIELD, FRAME_ATLAS, FRAME_CAMPAIGN]
 	frame_id = FRAME_FIELD
 	action_labels = {"Q": "—", "E": "Inspect", "R": "—", "F": "—"}
 
 
 func _ready() -> void:
 	super._ready()
+	_load_campaign_flags()
 	var abm = InstrumentLocator.resolve_active_biome_manager(self)
 	if abm and abm.has_signal("active_biome_changed"):
 		abm.active_biome_changed.connect(_on_active_biome_changed)
@@ -118,6 +124,7 @@ func _build_content(container: Control) -> void:
 	for entry in [
 		{"key": "T", "frame": FRAME_FIELD, "name": "Field"},
 		{"key": "Y", "frame": FRAME_ATLAS, "name": "Atlas"},
+		{"key": "U", "frame": FRAME_CAMPAIGN, "name": "Campaign"},
 	]:
 		var lbl := Label.new()
 		lbl.add_theme_font_size_override("font_size", 15)
@@ -165,6 +172,8 @@ func _on_frame_changed(_new_frame_id: String, _prev_frame_id: String) -> void:
 	_atlas_selected_idx = -1
 	_atlas_selected_name = ""
 	_atlas_detail_open = false
+	_campaign_selected = 0
+	_campaign_detail_open = false
 	_update_action_labels()
 	_rebuild()
 
@@ -204,6 +213,27 @@ func _on_unhandled_key(keycode: int, _event: InputEvent) -> bool:
 			_update_action_labels()
 			_render_body()
 		return true
+	elif frame_id == FRAME_CAMPAIGN:
+		if ITEM_BY_KEYCODE.has(keycode):
+			var page_offset: int = (_campaign_selected / ITEM_KEYS.size()) * ITEM_KEYS.size()
+			var slot: int = int(ITEM_BY_KEYCODE[keycode])
+			var new_idx: int = page_offset + slot
+			if new_idx < _campaign_flags.size():
+				_campaign_selected = new_idx
+				_campaign_detail_open = false
+				_update_action_labels()
+				_render_body()
+			return true
+		if keycode == KEY_W:
+			_campaign_selected = maxi(0, _campaign_selected - ITEM_KEYS.size())
+			_campaign_detail_open = false
+			_render_body()
+			return true
+		if keycode == KEY_S:
+			_campaign_selected = mini(_campaign_flags.size() - 1, _campaign_selected + ITEM_KEYS.size())
+			_campaign_detail_open = false
+			_render_body()
+			return true
 	return false
 
 
@@ -225,6 +255,10 @@ func _on_action_e() -> void:
 		_update_action_labels()
 		_refresh_header()
 		_render_body()
+	elif frame_id == FRAME_CAMPAIGN:
+		_campaign_detail_open = not _campaign_detail_open
+		_update_action_labels()
+		_render_body()
 	elif frame_id == FRAME_ATLAS:
 		if _atlas_selected_idx < 0 or _atlas_selected_idx >= _atlas_selectable_nodes.size():
 			return
@@ -238,6 +272,11 @@ func _on_action_e() -> void:
 
 
 func _on_action_f() -> void:
+	if frame_id == FRAME_CAMPAIGN and _campaign_detail_open:
+		_campaign_detail_open = false
+		_update_action_labels()
+		_render_body()
+		return
 	if frame_id == FRAME_FIELD and _field_detail_open:
 		_field_detail_open = false
 		_update_action_labels()
@@ -279,7 +318,7 @@ func _refresh_header() -> void:
 func _refresh_tab_row() -> void:
 	if _tab_labels.is_empty():
 		return
-	for entry in [{"key": "T", "frame": FRAME_FIELD, "name": "Field"}, {"key": "Y", "frame": FRAME_ATLAS, "name": "Atlas"}]:
+	for entry in [{"key": "T", "frame": FRAME_FIELD, "name": "Field"}, {"key": "Y", "frame": FRAME_ATLAS, "name": "Atlas"}, {"key": "U", "frame": FRAME_CAMPAIGN, "name": "Campaign"}]:
 		var key_str := str(entry.get("key", ""))
 		var frame_str := str(entry.get("frame", ""))
 		var name_str := str(entry.get("name", ""))
@@ -311,6 +350,8 @@ func _header_summary_text() -> String:
 			_atlas_zoom,
 			int(round(_atlas_rotation_degrees)),
 		]
+	if frame_id == FRAME_CAMPAIGN:
+		return _campaign_hamlet_score() + " · GHJKL; selects · E = predicate breakdown · F closes"
 	return "Field and Atlas share the same biome center."
 
 
@@ -334,6 +375,13 @@ func _update_action_labels() -> void:
 			"R": "Zoom/Right",
 			"F": "Close" if _atlas_detail_open else "back",
 		}
+	elif frame_id == FRAME_CAMPAIGN:
+		labels = {
+			"Q": "—",
+			"E": "Predicates" if not _campaign_detail_open else "Close",
+			"R": "—",
+			"F": "Close" if _campaign_detail_open else "back",
+		}
 	else:
 		labels = {"Q": "—", "E": "—", "R": "—", "F": "—"}
 	if action_labels != labels:
@@ -351,6 +399,8 @@ func _render_body() -> void:
 			_build_field_view()
 		FRAME_ATLAS:
 			_build_atlas_view()
+		FRAME_CAMPAIGN:
+			_build_campaign_view()
 		_:
 			_build_stub_view()
 
@@ -368,10 +418,10 @@ func _build_field_view() -> void:
 	title.add_theme_color_override("font_color", COLOR_HILITE)
 	_field_box.add_child(title)
 
-	var native_factions: Array = _native_factions()
+	var admitted_factions: Array = _admitted_factions()
 	var summary := Label.new()
-	summary.text = "native factions: %d · standings: %d · selected entry: %d" % [
-		native_factions.size(),
+	summary.text = "admitted factions: %d · standings: %d · selected entry: %d" % [
+		admitted_factions.size(),
 		_get_standing_count(),
 		_selected_entry + 1,
 	]
@@ -381,9 +431,9 @@ func _build_field_view() -> void:
 
 	_field_box.add_child(_build_field_selection_card())
 
-	if native_factions.is_empty():
+	if admitted_factions.is_empty():
 		var empty := Label.new()
-		empty.text = "No native factions loaded for this biome; standings still fill the field."
+		empty.text = "No factions admitted by hosted Icons; ambient standings still fill the field."
 		empty.add_theme_font_size_override("font_size", 12)
 		empty.add_theme_color_override("font_color", COLOR_MUTED)
 		_field_box.add_child(empty)
@@ -529,7 +579,7 @@ func _make_field_card(entry: Dictionary, selected: bool, key_label: String) -> C
 	card.add_child(vbox)
 
 	var top := Label.new()
-	top.text = "[%s] %s%s" % [key_label, str(entry.get("name", "")), "  · native" if bool(entry.get("native", false)) else ""]
+	top.text = "[%s] %s%s" % [key_label, str(entry.get("name", "")), "  · admitted" if bool(entry.get("admitted", false)) else ""]
 	top.add_theme_font_size_override("font_size", 13)
 	top.add_theme_color_override("font_color", COLOR_HEADER if selected else COLOR_BODY)
 	vbox.add_child(top)
@@ -648,11 +698,11 @@ func _build_atlas_node_detail_panel(node_data: Dictionary) -> Control:
 		standing_lbl.add_theme_font_size_override("font_size", 12)
 		standing_lbl.add_theme_color_override("font_color", COLOR_BODY)
 		vbox.add_child(standing_lbl)
-		var native_lbl := Label.new()
-		native_lbl.text = "native to this biome: %s" % ("yes" if bool(node_data.get("native", false)) else "no")
-		native_lbl.add_theme_font_size_override("font_size", 11)
-		native_lbl.add_theme_color_override("font_color", COLOR_MUTED)
-		vbox.add_child(native_lbl)
+		var admitted_lbl := Label.new()
+		admitted_lbl.text = "admitted by hosted Icon: %s" % ("yes" if bool(node_data.get("admitted", false)) else "no")
+		admitted_lbl.add_theme_font_size_override("font_size", 11)
+		admitted_lbl.add_theme_color_override("font_color", COLOR_MUTED)
+		vbox.add_child(admitted_lbl)
 
 	var hint := Label.new()
 	hint.text = "F closes · E on a biome node opens its inspector"
@@ -690,12 +740,12 @@ func _build_stub_view() -> void:
 
 func _refresh_field_entries() -> void:
 	_field_entries.clear()
-	for fname in _native_factions():
+	for fname in _admitted_factions():
 		_field_entries.append({
 			"kind": "faction",
 			"name": str(fname),
 			"score": _standing_scalar(str(fname)),
-			"native": true,
+			"admitted": true,
 		})
 	for entry in _top_standing_entries():
 		if _has_field_entry(str(entry.get("name", ""))):
@@ -739,7 +789,7 @@ func _biome_name() -> String:
 	return ""
 
 
-func _native_factions() -> Array:
+func _admitted_factions() -> Array:
 	if not _active_biome:
 		return []
 	return _active_biome.get_admitted_factions()
@@ -773,7 +823,7 @@ func _top_standing_entries() -> Array:
 			"kind": "faction",
 			"name": str(fname),
 			"score": _standing_scalar(str(fname)),
-			"native": false,
+			"admitted": false,
 		})
 	entries.sort_custom(func(a, b): return float(a.get("score", 0.0)) > float(b.get("score", 0.0)))
 	return entries
@@ -796,11 +846,11 @@ func _current_field_entry() -> Dictionary:
 func _field_entry_summary(entry: Dictionary) -> String:
 	if entry.is_empty():
 		return ""
-	var native_text := "native" if bool(entry.get("native", false)) else "ranked"
+	var admitted_text := "admitted" if bool(entry.get("admitted", false)) else "standing-only"
 	return "[%s] %s · %s · score %.2f" % [
 		_selected_field_key_label(),
 		str(entry.get("name", "")),
-		native_text,
+		admitted_text,
 		float(entry.get("score", 0.0)),
 	]
 
@@ -809,7 +859,7 @@ func _field_entry_detail_text(entry: Dictionary) -> String:
 	if entry.is_empty():
 		return "No field entry is selected."
 	var kind := str(entry.get("kind", ""))
-	var source := "native field" if bool(entry.get("native", false)) else "standing field"
+	var source := "admitted by hosted Icon" if bool(entry.get("admitted", false)) else "ambient standing field"
 	return "name: %s\nkind: %s\nsource: %s\nscore: %.3f\nslot: %s" % [
 		str(entry.get("name", "")),
 		kind if not kind.is_empty() else "—",
@@ -865,8 +915,8 @@ func get_visible_data() -> Dictionary:
 	var payload: Dictionary = {
 		"frame_label": FRAME_LABELS_LOCAL.get(frame_id, frame_id),
 		"selected_biome": _biome_name(),
-		"native_factions": _native_factions(),
-		"native_faction_count": _native_factions().size(),
+		"admitted_factions": _admitted_factions(),
+		"admitted_faction_count": _admitted_factions().size(),
 		"standing_count": _get_standing_count(),
 		"field_entry_count": _field_entries.size(),
 		"field_detail_open": _field_detail_open,
@@ -896,3 +946,342 @@ func get_transitions() -> Array:
 		{"surface_id": "N", "reason": "inspect the biome network"},
 		{"surface_id": "V", "reason": "read atoms / icons / signature / affinity"},
 	]
+
+
+# ── Campaign frame ────────────────────────────────────────────────────────────
+
+func _load_campaign_flags() -> void:
+	var path := "res://Core/Quests/data/story_flags.json"
+	var file := FileAccess.open(path, FileAccess.READ)
+	if file == null:
+		return
+	var text := file.get_as_text()
+	file.close()
+	var parsed = JSON.parse_string(text)
+	if parsed is Array:
+		_campaign_flags = parsed
+
+
+func _build_campaign_view() -> void:
+	if _campaign_flags.is_empty():
+		_load_campaign_flags()
+
+	var vbox := VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 4)
+	vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_body_box.add_child(vbox)
+
+	# Hamlet score header
+	var score_lbl := Label.new()
+	score_lbl.text = _campaign_hamlet_score()
+	score_lbl.add_theme_font_size_override("font_size", 13)
+	score_lbl.add_theme_color_override("font_color", COLOR_HILITE)
+	vbox.add_child(score_lbl)
+
+	var sep := HSeparator.new()
+	sep.add_theme_color_override("color", Color(0.4, 0.4, 0.3, 0.45))
+	vbox.add_child(sep)
+
+	if _campaign_flags.is_empty():
+		var none := Label.new()
+		none.text = "Campaign data not loaded."
+		none.add_theme_color_override("font_color", COLOR_MUTED)
+		vbox.add_child(none)
+		return
+
+	# Predicate detail panel (top if open)
+	if _campaign_detail_open and _campaign_selected < _campaign_flags.size():
+		vbox.add_child(_build_campaign_detail_panel(_campaign_flags[_campaign_selected]))
+
+	# Waypoint list — page of ITEM_KEYS.size() rows
+	var page_start: int = (_campaign_selected / ITEM_KEYS.size()) * ITEM_KEYS.size()
+	var page_end: int = mini(_campaign_flags.size(), page_start + ITEM_KEYS.size())
+	var total_pages: int = ceili(float(_campaign_flags.size()) / float(ITEM_KEYS.size()))
+	var cur_page: int = _campaign_selected / ITEM_KEYS.size()
+
+	if total_pages > 1:
+		var page_lbl := Label.new()
+		page_lbl.text = "page %d/%d  ·  W/S to scroll" % [cur_page + 1, total_pages]
+		page_lbl.add_theme_font_size_override("font_size", 11)
+		page_lbl.add_theme_color_override("font_color", COLOR_MUTED)
+		vbox.add_child(page_lbl)
+
+	for i in range(page_start, page_end):
+		var slot: int = i - page_start
+		var key_str: String = ITEM_KEYS[slot] if slot < ITEM_KEYS.size() else "?"
+		vbox.add_child(_make_waypoint_row(_campaign_flags[i], i == _campaign_selected, key_str))
+
+
+func _make_waypoint_row(flag: Dictionary, selected: bool, key_str: String) -> Control:
+	var flag_id := str(flag.get("id", ""))
+	var status := _get_flag_status(flag_id, flag)
+
+	var card := PanelContainer.new()
+	card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+
+	var style := StyleBoxFlat.new()
+	style.bg_color = COLOR_CARD_BG
+	style.border_color = COLOR_CARD_BORDER_ACTIVE if selected else COLOR_CARD_BORDER
+	style.set_border_width_all(2 if selected else 1)
+	style.set_corner_radius_all(3)
+	style.content_margin_left = 8
+	style.content_margin_right = 8
+	style.content_margin_top = 3
+	style.content_margin_bottom = 3
+	card.add_theme_stylebox_override("panel", style)
+
+	var hbox := HBoxContainer.new()
+	hbox.add_theme_constant_override("separation", 6)
+	card.add_child(hbox)
+
+	var status_glyph := "✓" if status == "fired" else ("◐" if status == "unlocked" else "○")
+	var status_color := Color(0.4, 0.9, 0.5) if status == "fired" else (Color(0.9, 0.85, 0.35) if status == "unlocked" else COLOR_MUTED)
+
+	var glyph_lbl := Label.new()
+	glyph_lbl.text = "[%s] %s" % [key_str, status_glyph]
+	glyph_lbl.add_theme_font_size_override("font_size", 12)
+	glyph_lbl.add_theme_color_override("font_color", status_color)
+	hbox.add_child(glyph_lbl)
+
+	var act_lbl := Label.new()
+	act_lbl.text = "Act %d" % int(flag.get("act", 0))
+	act_lbl.add_theme_font_size_override("font_size", 11)
+	act_lbl.add_theme_color_override("font_color", COLOR_MUTED)
+	hbox.add_child(act_lbl)
+
+	var name_lbl := Label.new()
+	name_lbl.text = str(flag.get("display_name", flag_id))
+	name_lbl.add_theme_font_size_override("font_size", 12)
+	name_lbl.add_theme_color_override("font_color", COLOR_HEADER if selected else COLOR_BODY)
+	name_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	hbox.add_child(name_lbl)
+
+	return card
+
+
+func _build_campaign_detail_panel(flag: Dictionary) -> Control:
+	var panel := PanelContainer.new()
+	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.07, 0.09, 0.13, 0.96)
+	style.border_color = COLOR_CARD_BORDER_ACTIVE
+	style.set_border_width_all(1)
+	style.set_corner_radius_all(4)
+	style.content_margin_left = 10
+	style.content_margin_right = 10
+	style.content_margin_top = 8
+	style.content_margin_bottom = 8
+	panel.add_theme_stylebox_override("panel", style)
+
+	var vbox := VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 3)
+	panel.add_child(vbox)
+
+	var title := Label.new()
+	title.text = str(flag.get("display_name", "Waypoint"))
+	title.add_theme_font_size_override("font_size", 13)
+	title.add_theme_color_override("font_color", COLOR_HILITE)
+	vbox.add_child(title)
+
+	var predicates: Array = flag.get("predicates", [])
+	if predicates.is_empty():
+		var none := Label.new()
+		none.text = "(no predicates)"
+		none.add_theme_font_size_override("font_size", 11)
+		none.add_theme_color_override("font_color", COLOR_MUTED)
+		vbox.add_child(none)
+	else:
+		for pred in predicates:
+			var info := _get_predicate_display(pred)
+			var row := Label.new()
+			row.text = info.get("text", "?")
+			row.add_theme_font_size_override("font_size", 11)
+			var passed: bool = bool(info.get("passed", false))
+			row.add_theme_color_override("font_color", Color(0.4, 0.9, 0.5) if passed else COLOR_BODY)
+			row.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			vbox.add_child(row)
+
+	var arc_beat: String = str(flag.get("arc_beat", ""))
+	if arc_beat != "":
+		var sep2 := HSeparator.new()
+		sep2.add_theme_color_override("color", Color(0.3, 0.3, 0.3, 0.5))
+		vbox.add_child(sep2)
+		var beat_lbl := Label.new()
+		beat_lbl.text = arc_beat
+		beat_lbl.add_theme_font_size_override("font_size", 11)
+		beat_lbl.add_theme_color_override("font_color", COLOR_MUTED)
+		beat_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		vbox.add_child(beat_lbl)
+
+	var hint := Label.new()
+	hint.text = "F closes · E toggles"
+	hint.add_theme_font_size_override("font_size", 10)
+	hint.add_theme_color_override("font_color", COLOR_MUTED)
+	vbox.add_child(hint)
+
+	return panel
+
+
+func _get_predicate_display(pred: Dictionary) -> Dictionary:
+	var kind: String = str(pred.get("type", ""))
+	match kind:
+		"story_flag_set":
+			var id: String = str(pred.get("id", ""))
+			var fired: bool = farm != null and ("story_flags_fired" in farm) and farm.story_flags_fired.has(id)
+			return {"text": "flag '%s': %s" % [id, "✓ fired" if fired else "○ not yet"], "passed": fired}
+		"biome_evolving":
+			var bname: String = str(pred.get("biome", ""))
+			var active: bool = _biome_is_evolving(bname)
+			return {"text": "%s: %s" % [bname, "active ✓" if active else "idle ○"], "passed": active}
+		"berry_consumed_count_gte":
+			var bname: String = str(pred.get("biome", ""))
+			var target: int = int(pred.get("value", 0))
+			var count: int = _get_berry_count(bname)
+			var passed: bool = count >= target
+			return {"text": "%s berries: %d / %d  %s" % [bname, count, target, "✓" if passed else "◐"], "passed": passed}
+		"berry_total_phase_gte":
+			var bname: String = str(pred.get("biome", ""))
+			var target: float = float(pred.get("value", 0.0))
+			var phase: float = _get_berry_phase(bname)
+			var passed: bool = phase >= target
+			var target_pi: String = "%.1fπ" % (target / PI)
+			var cur_pi: String = "%.1fπ" % (phase / PI)
+			return {"text": "%s phase: %s / %s  %s" % [bname, cur_pi, target_pi, "✓" if passed else "◐"], "passed": passed}
+		"standing_gte":
+			var fname: String = str(pred.get("faction", ""))
+			var channel: String = str(pred.get("channel", "trust"))
+			var target: float = float(pred.get("value", 0.0))
+			var current: float = _standing_channel(fname, channel)
+			var passed: bool = current >= target
+			return {"text": "%s %s: %.2f / %.2f  %s" % [fname, channel, current, target, "✓" if passed else "◐"], "passed": passed}
+		"biome_state_gte":
+			var bname: String = str(pred.get("biome", ""))
+			var atom: String = str(pred.get("atom", ""))
+			var target: float = float(pred.get("value", 0.0))
+			var density: float = _get_atom_density(bname, atom)
+			var passed: bool = density >= target
+			return {"text": "%s %s: %.0f%% / %.0f%%  %s" % [bname, atom, density * 100.0, target * 100.0, "✓" if passed else "◐"], "passed": passed}
+		"signature_size_gte":
+			var target: int = int(pred.get("value", 0))
+			var count: int = farm.known_pairs.size() if (farm != null and "known_pairs" in farm) else 0
+			var passed: bool = count >= target
+			return {"text": "icons learned: %d / %d  %s" % [count, target, "✓" if passed else "◐"], "passed": passed}
+		"atom_count_gte":
+			var bname: String = str(pred.get("biome", ""))
+			var target: int = int(pred.get("value", 0))
+			var count: int = _get_atom_count(bname)
+			var passed: bool = count >= target
+			return {"text": "%s atoms: %d / %d  %s" % [bname, count, target, "✓" if passed else "◐"], "passed": passed}
+		"atom_in_biome":
+			var bname: String = str(pred.get("biome", ""))
+			var atom: String = str(pred.get("atom", ""))
+			var present: bool = _biome_has_atom(bname, atom)
+			return {"text": "%s in %s: %s" % [atom, bname, "✓ present" if present else "○ absent"], "passed": present}
+	return {"text": "(%s)" % kind, "passed": false}
+
+
+func _get_flag_status(flag_id: String, flag: Dictionary) -> String:
+	if farm != null and ("story_flags_fired" in farm) and farm.story_flags_fired.has(flag_id):
+		return "fired"
+	# Check if all story_flag_set prerequisites are satisfied
+	var predicates: Array = flag.get("predicates", [])
+	for pred in predicates:
+		if str(pred.get("type", "")) == "story_flag_set":
+			var req_id := str(pred.get("id", ""))
+			if farm == null or not ("story_flags_fired" in farm) or not farm.story_flags_fired.has(req_id):
+				return "locked"
+	return "unlocked"
+
+
+func _campaign_hamlet_score() -> String:
+	if farm == null or not ("story_flags_fired" in farm):
+		return "Campaign · 0 / %d waypoints" % _campaign_flags.size()
+	var fired: int = farm.story_flags_fired.size()
+	var total: int = _campaign_flags.size()
+	var max_act: int = 0
+	for flag in _campaign_flags:
+		if farm.story_flags_fired.has(str(flag.get("id", ""))):
+			max_act = maxi(max_act, int(flag.get("act", 0)))
+	var bar := ""
+	for i in range(total):
+		if i < fired:
+			bar += "■"
+		else:
+			bar += "□"
+	return "%s  %d / %d  Act %d" % [bar, fired, total, max_act]
+
+
+# ── Campaign predicate helpers ─────────────────────────────────────────────
+
+func _biome_is_evolving(biome_name: String) -> bool:
+	if farm == null or farm.grid == null:
+		return false
+	var biome = farm.grid.get_biome(biome_name)
+	return biome != null and biome.get("quantum_computer") != null
+
+
+func _get_berry_count(biome_name: String) -> int:
+	if farm == null or farm.grid == null:
+		return 0
+	var biome = farm.grid.get_biome(biome_name)
+	if biome == null or biome.get("quantum_computer") == null:
+		return 0
+	return biome.quantum_computer.berry_register.get_consumed_count()
+
+
+func _get_berry_phase(biome_name: String) -> float:
+	if farm == null or farm.grid == null:
+		return 0.0
+	var biome = farm.grid.get_biome(biome_name)
+	if biome == null or biome.get("quantum_computer") == null:
+		return 0.0
+	return biome.quantum_computer.berry_register.get_consumed_phase()
+
+
+func _get_atom_density(biome_name: String, atom: String) -> float:
+	if farm == null or farm.grid == null:
+		return 0.0
+	var biome = farm.grid.get_biome(biome_name)
+	if biome == null or biome.get("quantum_computer") == null:
+		return 0.0
+	var reg = biome.quantum_computer.register_map
+	if reg == null or not reg.coordinates.has(atom):
+		return 0.0
+	var coord: Dictionary = reg.coordinates[atom]
+	var qubit := int(coord.get("qubit", -1))
+	var pole := int(coord.get("pole", 0))
+	if qubit < 0:
+		return 0.0
+	return biome.quantum_computer.get_marginal(qubit, pole)
+
+
+func _get_atom_count(biome_name: String) -> int:
+	if farm == null or farm.grid == null:
+		return 0
+	var biome = farm.grid.get_biome(biome_name)
+	if biome == null or biome.get("quantum_computer") == null:
+		return 0
+	return biome.quantum_computer.register_map.coordinates.size()
+
+
+func _biome_has_atom(biome_name: String, atom: String) -> bool:
+	if farm == null or farm.grid == null:
+		return false
+	var biome = farm.grid.get_biome(biome_name)
+	if biome == null or biome.get("quantum_computer") == null:
+		return false
+	return biome.quantum_computer.register_map.coordinates.has(atom)
+
+
+func _standing_channel(faction_name: String, channel: String) -> float:
+	if farm == null or not ("faction_standings" in farm):
+		return 0.0
+	var standing = farm.faction_standings.get(faction_name, null)
+	if standing == null:
+		return 0.0
+	if standing is Object and standing.has_method("to_dict"):
+		return float(standing.to_dict().get(channel, 0.0))
+	if standing is Dictionary:
+		return float(standing.get(channel, 0.0))
+	return 0.0

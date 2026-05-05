@@ -180,8 +180,86 @@ func _evaluate_story_flags() -> void:
 		return
 	for flag in _unfired_flags.duplicate():
 		var predicates = flag.get("predicates", [])
-		if _state_projection.evaluate_all(predicates):
+		if _evaluate_flag_predicates(predicates, farm):
 			_fire_story_flag(flag, farm)
+
+
+func _evaluate_flag_predicates(predicates: Array, farm) -> bool:
+	if predicates.is_empty():
+		return false
+	for pred in predicates:
+		if not (pred is Dictionary):
+			return false
+		if not _check_flag_predicate(pred, farm):
+			return false
+	return true
+
+
+func _check_flag_predicate(pred: Dictionary, farm) -> bool:
+	var kind := str(pred.get("type", ""))
+	match kind:
+		"story_flag_set":
+			return farm.story_flags_fired.has(str(pred.get("id", "")))
+		"biome_evolving":
+			if farm.grid == null:
+				return false
+			var biome = farm.grid.get_biome(str(pred.get("biome", "")))
+			return biome != null and biome.get("quantum_computer") != null
+		"berry_consumed_count_gte":
+			if farm.grid == null:
+				return false
+			var biome = farm.grid.get_biome(str(pred.get("biome", "")))
+			if biome == null or biome.get("quantum_computer") == null:
+				return false
+			return biome.quantum_computer.berry_register.get_consumed_count() >= int(pred.get("value", 0))
+		"berry_total_phase_gte":
+			if farm.grid == null:
+				return false
+			var biome = farm.grid.get_biome(str(pred.get("biome", "")))
+			if biome == null or biome.get("quantum_computer") == null:
+				return false
+			return biome.quantum_computer.berry_register.get_consumed_phase() >= float(pred.get("value", 0.0))
+		"standing_gte":
+			var standing = farm.faction_standings.get(str(pred.get("faction", "")))
+			if standing == null:
+				return false
+			var channel: String = str(pred.get("channel", "trust"))
+			var current: float = float(standing.to_dict().get(channel, 0.0))
+			return current >= float(pred.get("value", 0.0))
+		"biome_state_gte":
+			if farm.grid == null:
+				return false
+			var biome = farm.grid.get_biome(str(pred.get("biome", "")))
+			if biome == null or biome.get("quantum_computer") == null:
+				return false
+			var atom := str(pred.get("atom", ""))
+			var reg = biome.quantum_computer.register_map
+			if reg == null or not reg.coordinates.has(atom):
+				return false
+			var coord: Dictionary = reg.coordinates[atom]
+			var qubit := int(coord.get("qubit", -1))
+			var pole := int(coord.get("pole", 0))
+			if qubit < 0:
+				return false
+			return biome.quantum_computer.get_marginal(qubit, pole) >= float(pred.get("value", 0.0))
+		"signature_size_gte":
+			return farm.known_pairs.size() >= int(pred.get("value", 0))
+		"atom_count_gte":
+			if farm.grid == null:
+				return false
+			var biome = farm.grid.get_biome(str(pred.get("biome", "")))
+			if biome == null or biome.get("quantum_computer") == null:
+				return false
+			return biome.quantum_computer.register_map.coordinates.size() >= int(pred.get("value", 0))
+		"atom_in_biome":
+			if farm.grid == null:
+				return false
+			var biome = farm.grid.get_biome(str(pred.get("biome", "")))
+			if biome == null or biome.get("quantum_computer") == null:
+				return false
+			return biome.quantum_computer.register_map.coordinates.has(str(pred.get("atom", "")))
+		_:
+			return false
 
 
 func _fire_story_flag(flag: Dictionary, farm) -> void:

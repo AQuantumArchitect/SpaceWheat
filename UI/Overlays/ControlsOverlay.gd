@@ -27,6 +27,7 @@ const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.
 const BalanceService  = preload("res://Core/GameMechanics/BalanceService.gd")
 const FactionAxes     = preload("res://Core/Factions/FactionAxes.gd")
 const FactionRegistry = preload("res://Core/Factions/FactionRegistry.gd")
+const IconLexicon     = preload("res://Core/Factions/IconLexicon.gd")
 
 # =============================================================================
 # TABS / FRAMES
@@ -393,6 +394,55 @@ func _build_self_body() -> void:
 			_body_box.add_child(_make_muted_label(
 				"… %d more on V `affinity`" % (top_rows.size() - 3), 11,
 			))
+
+	# Vocabulary lexicon
+	_body_box.add_child(_make_spacer(8))
+	_build_lexicon_section(farm)
+
+
+func _build_lexicon_section(farm) -> void:
+	_body_box.add_child(_make_section_header("lexicon"))
+	if farm == null:
+		_body_box.add_child(_make_muted_label("(farm not loaded)", 11))
+		return
+
+	var lex = null
+	if farm.has_method("_ensure_icon_lexicon"):
+		lex = farm._ensure_icon_lexicon()
+	elif "icon_lexicon" in farm and farm.icon_lexicon != null:
+		lex = farm.icon_lexicon
+
+	if lex == null:
+		_body_box.add_child(_make_muted_label("(lexicon not available)", 11))
+		return
+
+	var known_pairs: Array = farm.known_pairs if "known_pairs" in farm else []
+	var discovered: Dictionary = IconLexicon.discovered_set_from_vocabulary(known_pairs)
+	var known_records: Array = lex.filter_discovered_records(discovered)
+	var unknown_records: Array = lex.filter_undiscovered_records(discovered)
+	var total: int = known_records.size() + unknown_records.size()
+
+	_body_box.add_child(_make_muted_label(
+		"%d / %d icons named · raw pairs: %d" % [known_records.size(), total, known_pairs.size()], 11,
+	))
+
+	for rec in known_records:
+		var p0 := str(rec.get("pole_0", "?"))
+		var p1 := str(rec.get("pole_1", "?"))
+		var icon_name := str(rec.get("name", ""))
+		var owner := str(rec.get("owner_faction", ""))
+		var label_text := "%s↔%s  %s" % [p0, p1, icon_name]
+		if owner != "":
+			label_text += "  · %s" % owner
+		var row := Label.new()
+		row.text = label_text
+		row.add_theme_font_size_override("font_size", 11)
+		row.add_theme_color_override("font_color", COLOR_VALUE)
+		_body_box.add_child(row)
+
+	var hidden := unknown_records.size()
+	if hidden > 0:
+		_body_box.add_child(_make_muted_label("… %d icons not yet discovered (❓↔❓)" % hidden, 11))
 
 
 ## Z Self tab — Icon Picker. The player's 3 active expression slots, with

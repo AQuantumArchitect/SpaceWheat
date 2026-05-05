@@ -51,6 +51,25 @@
     "standing_grants": {
       "Hearth Keepers": { "trust": 0.12, "legitimacy": 0.05 }
     },
+    "arc_quest": {
+      "type": "MAINTAIN_COHERENCE",
+      "body": "Hold the forest's dominant loop — keep the Succession cycle (🌱 ↔ 🌲) coherence above 12% for 20 phrames.",
+      "hint": "You know which loops are coherent and which are scribble. Keep one coherent."
+    }
+  },
+  {
+    "id": "village_stirs",
+    "display_name": "The Village Stirs",
+    "act": 1,
+    "arc_beat": "Fire and water are in permanent contest at the hearth. The mill gears are idle. Labor turns flour into bread, but the second attractor hasn't formed — the Commerce bistability is dormant. Something upstream is missing, and the village knows it.",
+    "predicates": [
+      { "type": "story_flag_set", "id": "forest_listener" },
+      { "type": "biome_evolving", "biome": "Village" },
+      { "type": "berry_consumed_count_gte", "biome": "Village", "value": 1 }
+    ],
+    "standing_grants": {
+      "Millwright's Union": { "trust": 0.04 }
+    },
     "arc_quest": null
   },
   {
@@ -86,7 +105,11 @@
     "standing_grants": {
       "Hearth Keepers": { "trust": 0.1 }
     },
-    "arc_quest": null
+    "arc_quest": {
+      "type": "DELIVER",
+      "body": "Thread the Spring — route 💧 into the Village hearth so the spring's flow couples into the mill pond.",
+      "hint": "The spring's outflow is physically coupling into Village's Lindblad runtime. It's waiting on you."
+    }
   },
   {
     "id": "mill_wakes",
