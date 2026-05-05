@@ -419,12 +419,14 @@ func _build_lexicon_section(farm) -> void:
 	var known_pairs: Array = farm.known_pairs if "known_pairs" in farm else []
 	var discovered: Dictionary = IconLexicon.discovered_set_from_vocabulary(known_pairs)
 	var known_records: Array = lex.filter_discovered_records(discovered)
-	var unknown_records: Array = lex.filter_undiscovered_records(discovered)
-	var total: int = known_records.size() + unknown_records.size()
 
-	_body_box.add_child(_make_muted_label(
-		"%d / %d icons named · raw pairs: %d" % [known_records.size(), total, known_pairs.size()], 11,
-	))
+	if known_records.is_empty():
+		_body_box.add_child(_make_muted_label(
+			"no named icons discovered yet — complete quests to learn faction vocabulary", 11,
+		))
+		return
+
+	_body_box.add_child(_make_muted_label("%d named icons known" % known_records.size(), 11))
 
 	for rec in known_records:
 		var p0 := str(rec.get("pole_0", "?"))
@@ -439,10 +441,6 @@ func _build_lexicon_section(farm) -> void:
 		row.add_theme_font_size_override("font_size", 11)
 		row.add_theme_color_override("font_color", COLOR_VALUE)
 		_body_box.add_child(row)
-
-	var hidden := unknown_records.size()
-	if hidden > 0:
-		_body_box.add_child(_make_muted_label("… %d icons not yet discovered (❓↔❓)" % hidden, 11))
 
 
 ## Z Self tab — Icon Picker. The player's 3 active expression slots, with
