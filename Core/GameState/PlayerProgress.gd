@@ -105,7 +105,7 @@ func handle_milk_autosave(north: String, south: String) -> void:
 
 func check_newly_accessible_factions(new_emoji: String, old_emojis: Array, new_emojis: Array) -> Array:
 	var newly_accessible = []
-	for faction in FactionDatabase.ALL_FACTIONS:
+	for faction in FactionDatabase.get_all():
 		var faction_vocab = FactionDatabase.get_faction_vocabulary(faction)
 		var old_overlap = FactionDatabase.get_vocabulary_overlap(faction_vocab.all, old_emojis)
 		var new_overlap = FactionDatabase.get_vocabulary_overlap(faction_vocab.all, new_emojis)
@@ -117,7 +117,7 @@ func check_newly_accessible_factions(new_emoji: String, old_emojis: Array, new_e
 func get_accessible_factions() -> Array:
 	var accessible = []
 	var known_emojis = get_signature_emojis()
-	for faction in FactionDatabase.ALL_FACTIONS:
+	for faction in FactionDatabase.get_all():
 		var faction_vocab = FactionDatabase.get_faction_vocabulary(faction)
 		var overlap = FactionDatabase.get_vocabulary_overlap(faction_vocab.all, known_emojis)
 		if not overlap.is_empty():

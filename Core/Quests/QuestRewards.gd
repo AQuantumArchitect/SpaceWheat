@@ -812,7 +812,7 @@ static func select_vocabulary_reward(faction: Dictionary, bath, player_vocab: Ar
 
 static func _get_faction_by_name(faction_name: String) -> Dictionary:
 	# Find faction dictionary by name
-	for faction in FactionDatabase.ALL_FACTIONS:
+	for faction in FactionDatabase.get_all():
 		if faction.get("name", "") == faction_name:
 			return faction
 

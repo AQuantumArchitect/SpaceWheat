@@ -21,12 +21,14 @@ const AffinityGraphCls = preload("res://Core/Affinity/AffinityGraph.gd")
 
 var name: String = ""
 var description: String = ""
+var domain: String = ""
 var ring: String = "center"  # "center", "second", "third", "outer"
+var motto: String = ""
 
 ## The ONLY emojis this faction speaks (3-7 ideal)
 var signature: Array = []
 
-## 12-bit axial tag in conceptual space (see data/temp_faction_lore.json axial_spine).
+## 12-bit axial tag in conceptual space (see data/faction_lore.json axial_spine).
 ## Axes: Random/Deterministic, Material/Mystical, Common/Elite, Local/Cosmic,
 ## Instant/Eternal, Physical/Mental, Crystalline/Fluid, Direct/Subtle,
 ## Consumptive/Providing, Monochrome/Prismatic, Emergent/Imposed, Scattered/Focused.
@@ -68,11 +70,6 @@ var drivers: Dictionary = {}
 ## This is a quantum mask: measurement reveals what's hidden beneath
 var measurement_behavior: Dictionary = {}
 
-## Decay configuration
-## {emoji: {rate: float, target: String}}
-## Note: decay_target can be outside signature (e.g., 💀)
-var decay: Dictionary = {}
-
 ## ========================================
 ## Alignment Couplings (Parametric Effects)
 ## ========================================
@@ -88,36 +85,6 @@ var decay: Dictionary = {}
 ##
 ## Note: observable_emoji can be OUTSIDE signature (cross-faction alignment)
 var alignment_couplings: Dictionary = {}
-
-## ========================================
-## Bell State Conditional Features
-## ========================================
-
-## Bell-activated features: icon mechanics that only work during entanglement
-## {emoji: {latent_lindblad: {}, latent_hamiltonian: {}, description: ""}}
-##
-## These features are "dormant" until a Bell state (entanglement) is detected
-## between the emoji and another. When entangled:
-## - latent_lindblad transfers activate
-## - latent_hamiltonian couplings strengthen
-##
-## Example: Knot-Shriners' oaths only bind when entangled
-## {"🪢": {"latent_lindblad": {"🪢": {"📿": 0.1}}, "description": "Oaths bind when entangled"}}
-var bell_activated_features: Dictionary = {}
-
-## ========================================
-## Decoherence Coupling
-## ========================================
-
-## Decoherence coupling: how emoji affects bath coherence (T2 time)
-## {emoji: float}
-## Positive = increases decoherence (observation, heat, noise → lower T2)
-## Negative = decreases decoherence (cold, silence, stability → higher T2)
-##
-## Example: 🔬 (microscope) causes decoherence through observation
-## Example: 🧊 (ice) preserves coherence by cooling
-## Example: 🔇 (mute) destroys coherence through silence
-var decoherence_coupling: Dictionary = {}
 
 ## ========================================
 ## Metadata
@@ -151,14 +118,10 @@ func _rebuild_affinity_from_bits() -> void:
 		return
 	affinity = AffinityGraphCls.from_corner(bits)
 
-## Get all emojis this faction contributes to (including decay targets)
+## Get all emojis this faction contributes to.
+## Factions are Hamiltonian-only; the signature is the full set.
 func get_all_emojis() -> Array:
-	var result: Array = signature.duplicate()
-	for emoji in decay:
-		var target = decay[emoji].get("target", "")
-		if target != "" and target not in result:
-			result.append(target)
-	return result
+	return signature.duplicate()
 
 ## Validate that all couplings stay within signature
 func validate() -> bool:
@@ -174,9 +137,6 @@ func validate() -> bool:
 				push_error("Faction %s: hamiltonian target %s not in signature" % [name, target])
 				valid = false
 	
-	# Decay targets CAN be outside signature (that's how we connect to other factions)
-	# So we don't validate decay targets
-	
 	return valid
 
 ## Get this faction's contribution to a specific Icon
@@ -188,13 +148,9 @@ func get_icon_contribution(emoji: String) -> Dictionary:
 		"faction": name,
 		"self_energy": self_energies.get(emoji, 0.0),
 		"hamiltonian_couplings": hamiltonian.get(emoji, {}),
-		"decay": decay.get(emoji, {}),
 		"driver": drivers.get(emoji, {}),
 		"alignment_couplings": alignment_couplings.get(emoji, {}),
 		"measurement_behavior": measurement_behavior.get(emoji, {}),
-		# New quantum mechanics features
-		"bell_activated_features": bell_activated_features.get(emoji, {}),
-		"decoherence_coupling": decoherence_coupling.get(emoji, 0.0),
 	}
 
 	return contribution
@@ -232,17 +188,8 @@ func to_dict() -> Dictionary:
 	if not measurement_behavior.is_empty():
 		data["measurement_behavior"] = measurement_behavior
 
-	if not decay.is_empty():
-		data["decay"] = decay
-
 	if not alignment_couplings.is_empty():
 		data["alignment_couplings"] = alignment_couplings
-
-	if not bell_activated_features.is_empty():
-		data["bell_activated_features"] = bell_activated_features
-
-	if not decoherence_coupling.is_empty():
-		data["decoherence_coupling"] = decoherence_coupling
 
 	return data
 
@@ -251,7 +198,9 @@ func to_dict() -> Dictionary:
 func load_from_dict(data: Dictionary) -> void:
 	name = data.get("name", "")
 	description = data.get("description", "")
+	domain = data.get("domain", "")
 	ring = data.get("ring", "center")
+	motto = data.get("motto", "")
 	# Normalize variation selectors so "⚙️" and "⚙" resolve to the same key
 	signature = EmojiUtil.normalize_array(_coerce_string_array(data.get("signature", data.get("sig", []))))
 	tags = _coerce_string_array(data.get("tags", []))
@@ -269,10 +218,7 @@ func load_from_dict(data: Dictionary) -> void:
 
 	drivers = EmojiUtil.normalize_keys(data.get("drivers", {}))
 	measurement_behavior = EmojiUtil.normalize_keys(data.get("measurement_behavior", {}))
-	decay = EmojiUtil.normalize_decay(data.get("decay", {}))
 	alignment_couplings = EmojiUtil.normalize_nested_keys(data.get("alignment_couplings", {}))
-	bell_activated_features = EmojiUtil.normalize_keys(data.get("bell_activated_features", {}))
-	decoherence_coupling = EmojiUtil.normalize_keys(data.get("decoherence_coupling", {}))
 
 
 func _coerce_string_array(value) -> Array:

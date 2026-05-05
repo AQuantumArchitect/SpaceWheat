@@ -12,7 +12,7 @@ const QuantumGateLibrary = preload("res://Core/QuantumSubstrate/QuantumGateLibra
 
 # Injected dependencies
 var quantum_computer = null
-var register_manager = null  # Legacy plot→register resolver (deprecated)
+var register_manager = null  # Plot→register resolver for position-based gate calls
 var bell_gate_tracker = null  # BiomeBellGateTracker
 var time_tracker = null  # BiomeTimeTracker
 
@@ -21,7 +21,7 @@ var _verbose_log_callback: Callable
 
 
 func set_dependencies(qc, reg_mgr, bell_tracker, time_track = null) -> void:
-	"""Set all required dependencies"""
+	# Set all required dependencies
 	quantum_computer = qc
 	register_manager = reg_mgr
 	bell_gate_tracker = bell_tracker
@@ -29,12 +29,12 @@ func set_dependencies(qc, reg_mgr, bell_tracker, time_track = null) -> void:
 
 
 func set_verbose_log_callback(callback: Callable) -> void:
-	"""Set callback for verbose logging"""
+	# Set callback for verbose logging
 	_verbose_log_callback = callback
 
 
 func _verbose_log(level: String, category: String, emoji: String, message: String) -> void:
-	"""Forward to verbose log callback if set"""
+	# Forward to verbose log callback if set
 	if _verbose_log_callback.is_valid():
 		_verbose_log_callback.call(level, category, emoji, message)
 
@@ -44,17 +44,16 @@ func _verbose_log(level: String, category: String, emoji: String, message: Strin
 # ============================================================================
 
 func apply_gate_1q(position: Vector2i, gate_name: String) -> bool:
-	"""Apply 1-qubit unitary gate to a plot's register.
+	# Apply 1-qubit unitary gate to a plot's register.
 
-	Model C: Validates plot is unmeasured, applies gate via apply_gate().
+	# Model C: Validates plot is unmeasured, applies gate via apply_gate().
 
-	Args:
-		position: Plot position
-		gate_name: Gate name (e.g., "X", "H", "Z")
+	# Args:
+	# position: Plot position
+	# gate_name: Gate name (e.g., "X", "H", "Z")
 
-	Returns:
-		true if successful, false if failed
-	"""
+	# Returns:
+	# true if successful, false if failed
 	if not register_manager:
 		# Plot-based gates not supported without register_manager
 		return false
@@ -87,18 +86,17 @@ func apply_gate_1q(position: Vector2i, gate_name: String) -> bool:
 
 
 func apply_gate_2q(position_a: Vector2i, position_b: Vector2i, gate_name: String) -> bool:
-	"""Apply 2-qubit unitary gate to two plots' registers.
+	# Apply 2-qubit unitary gate to two plots' registers.
 
-	Model C: Validates both plots are unmeasured, applies gate via apply_gate_2q().
+	# Model C: Validates both plots are unmeasured, applies gate via apply_gate_2q().
 
-	Args:
-		position_a: Control plot position
-		position_b: Target plot position
-		gate_name: Gate name (e.g., "CNOT", "CZ", "SWAP")
+	# Args:
+	# position_a: Control plot position
+	# position_b: Target plot position
+	# gate_name: Gate name (e.g., "CNOT", "CZ", "SWAP")
 
-	Returns:
-		true if successful, false if failed
-	"""
+	# Returns:
+	# true if successful, false if failed
 	if not register_manager:
 		# Plot-based gates not supported without register_manager
 		return false
@@ -134,22 +132,21 @@ func apply_gate_2q(position_a: Vector2i, position_b: Vector2i, gate_name: String
 
 
 # ============================================================================
-# Entanglement Operations (Tool 1 Backend)
+# Entanglement Operations (Operator Frame Backend)
 # ============================================================================
 
 func entangle_plots(position_a: Vector2i, position_b: Vector2i) -> bool:
-	"""Entangle two plots using Bell circuit (Model B version)
+	# Entangle two plots using a Bell circuit.
 
-	Creates Bell Phi+ = (|00> + |11>)/sqrt(2) between two registers.
-	Automatically merges their components into one.
+	# Creates Bell Phi+ = (|00> + |11>)/sqrt(2) between two registers.
+	# Records the connection in the register entanglement graph.
 
-	Args:
-		position_a: First plot
-		position_b: Second plot
+	# Args:
+	# position_a: First plot
+	# position_b: Second plot
 
-	Returns:
-		true if successful, false if failed
-	"""
+	# Returns:
+	# true if successful, false if failed
 	if not register_manager:
 		# Plot-based gates not supported without register_manager
 		return false
@@ -184,17 +181,16 @@ func entangle_plots(position_a: Vector2i, position_b: Vector2i) -> bool:
 
 
 func create_cluster_state(positions: Array[Vector2i]) -> bool:
-	"""Create multi-qubit cluster state from selected plots (Model B)
+	# Create multi-qubit cluster state from selected plots.
 
-	Entangles multiple plots into a chain topology (linear cluster).
-	Uses sequential Bell pair entanglement: plot[0]<->plot[1]<->plot[2]<->...
+	# Entangles multiple plots into a chain topology (linear cluster).
+	# Uses sequential Bell pair entanglement: plot[0]<->plot[1]<->plot[2]<->...
 
-	Args:
-		positions: Array of plot positions to cluster
+	# Args:
+	# positions: Array of plot positions to cluster
 
-	Returns:
-		true if cluster successfully created
-	"""
+	# Returns:
+	# true if cluster successfully created
 	if not quantum_computer or not register_manager or positions.size() < 2:
 		return false
 
@@ -227,17 +223,16 @@ func create_cluster_state(positions: Array[Vector2i]) -> bool:
 
 
 func batch_entangle(positions: Array[Vector2i]) -> bool:
-	"""Create Bell pairs between all adjacent plot pairs (Model B)
+	# Create Bell pairs between all adjacent plot pairs.
 
-	Entangles all consecutive plot pairs in the selection.
-	Creates multiple independent Bell pairs: (0,1), (1,2), (2,3), etc.
+	# Entangles all consecutive plot pairs in the selection.
+	# Creates multiple independent Bell pairs: (0,1), (1,2), (2,3), etc.
 
-	Args:
-		positions: Array of plot positions
+	# Args:
+	# positions: Array of plot positions
 
-	Returns:
-		true if at least one entanglement succeeded
-	"""
+	# Returns:
+	# true if at least one entanglement succeeded
 	if not quantum_computer or not register_manager or positions.size() < 2:
 		return false
 
@@ -266,18 +261,17 @@ func batch_entangle(positions: Array[Vector2i]) -> bool:
 
 
 func set_measurement_trigger(trigger_pos: Vector2i, target_positions: Array[Vector2i]) -> bool:
-	"""Set up conditional measurement trigger.
+	# Set up conditional measurement trigger.
 
-	Model C: Uses entanglement_graph to verify qubits are connected.
-	When trigger_pos is measured, its outcome affects measurements at target_positions.
+	# Model C: Uses entanglement_graph to verify qubits are connected.
+	# When trigger_pos is measured, its outcome affects measurements at target_positions.
 
-	Args:
-		trigger_pos: Plot whose measurement triggers condition
-		target_positions: Plots affected by trigger measurement
+	# Args:
+	# trigger_pos: Plot whose measurement triggers condition
+	# target_positions: Plots affected by trigger measurement
 
-	Returns:
-		true if trigger successfully set up
-	"""
+	# Returns:
+	# true if trigger successfully set up
 	if not quantum_computer or not register_manager:
 		return false
 
@@ -311,18 +305,17 @@ func set_measurement_trigger(trigger_pos: Vector2i, target_positions: Array[Vect
 
 
 func remove_entanglement(pos_a: Vector2i, pos_b: Vector2i) -> bool:
-	"""Remove entanglement between two plots (Model B - Phase 4 Infrastructure)
+	# Remove entanglement metadata between two plots.
 
-	Decouples two plots by clearing their entanglement metadata.
-	Actual quantum state remains entangled (full disentanglement requires projection).
+	# Decouples two plots by clearing their entanglement metadata.
+	# Actual quantum state remains entangled (full disentanglement requires projection).
 
-	Args:
-		pos_a: First plot
-		pos_b: Second plot
+	# Args:
+	# pos_a: First plot
+	# pos_b: Second plot
 
-	Returns:
-		true if decoupling successful
-	"""
+	# Returns:
+	# true if decoupling successful
 	if not quantum_computer or not register_manager:
 		return false
 
@@ -348,21 +341,20 @@ func remove_entanglement(pos_a: Vector2i, pos_b: Vector2i) -> bool:
 # ============================================================================
 
 func batch_measure_plots(position: Vector2i, qubit_measured_callback: Callable = Callable()) -> Dictionary:
-	"""Measure entire entangled component when one plot is measured (Phase 3 - Spooky Action at Distance)
+	# Measure entire entangled component when one plot is measured (Phase 3 - Spooky Action at Distance)
 
-	When you measure one qubit in an entangled component, all qubits in that component collapse.
-	This implements batch measurement across the entire entangled network.
+	# When you measure one qubit in an entangled component, all qubits in that component collapse.
+	# This implements batch measurement across the entire entangled network.
 
-	Model C: Uses entanglement_graph to find connected qubits, measures each with measure_axis().
+	# Model C: Uses entanglement_graph to find connected qubits, measures each with measure_axis().
 
-	Args:
-		position: Position of plot to trigger measurement
-		qubit_measured_callback: Optional callback(position, outcome) for each measurement
+	# Args:
+	# position: Position of plot to trigger measurement
+	# qubit_measured_callback: Optional callback(position, outcome) for each measurement
 
-	Returns:
-		Dictionary mapping register_ids to measurement outcomes
-		Example: {reg_0: "north", reg_1: "south", reg_2: "north"}
-	"""
+	# Returns:
+	# Dictionary mapping register_ids to measurement outcomes
+	# Example: {reg_0: "north", reg_1: "south", reg_2: "north"}
 	if not register_manager:
 		return {}
 

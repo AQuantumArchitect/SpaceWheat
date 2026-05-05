@@ -15,7 +15,6 @@ extends Node
 const GameState = preload("res://Core/GameState/GameState.gd")
 const GameStateSerializer = preload("res://Core/GameState/GameStateSerializer.gd")
 const SaveStore = preload("res://Core/GameState/SaveStore.gd")
-const FactionDatabase = preload("res://Core/Quests/FactionDatabase.gd")
 const QuantumRigorConfig = preload("res://Core/GameState/QuantumRigorConfig.gd")
 const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")
 const SessionLifecycleClass = preload("res://Core/GameState/SessionLifecycle.gd")
