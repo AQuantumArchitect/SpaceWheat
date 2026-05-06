@@ -918,6 +918,23 @@ func apply_rz(qubit: int, theta: float = PI / 4.0) -> bool:
 	return apply_gate(qubit, Rz)
 
 
+func apply_perturbation(strength: float = 0.8) -> Dictionary:
+	# Kick every qubit by random Ry+Rx rotations scaled by strength (radians).
+	# Returns the attractor state captured *before* the perturbation so callers
+	# can use it as a recovery target.  strength ≈ 0.8 is enough to scatter the
+	# dominant state without fully destroying structure; PI/2 ≈ maximum chaos.
+	var pre_attractor := get_attractor_state()
+	if not register_map:
+		return {}
+	var nq := register_map.num_qubits
+	for q in range(nq):
+		var angle_y := randf_range(strength * 0.5, strength)
+		var angle_x := randf_range(-strength * 0.3, strength * 0.3)
+		apply_ry(q, angle_y)
+		apply_rx(q, angle_x)
+	return {"pre_attractor": pre_attractor, "qubits_perturbed": nq}
+
+
 func apply_cnot(control_qubit: int, target_qubit: int) -> bool:
 	# Apply CNOT (controlled-NOT) gate. First arg is control, second is target.
 	var CNOT = QuantumGateLibrary.get_gate("CNOT")["matrix"]

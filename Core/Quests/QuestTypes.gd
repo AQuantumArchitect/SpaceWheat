@@ -17,6 +17,7 @@ enum Type {
 	PREVENT_DECOHERENCE,   # Don't let purity drop below threshold
 	COLLAPSE_DELIBERATELY, # Measure to lock in specific state
 	STEER_TO_ATTRACTOR,    # Guide biome toward its own dominant eigenstate
+	HEAL_ATTRACTOR,        # Restore biome after deliberate perturbation
 }
 
 
@@ -45,6 +46,8 @@ static func get_type_icon(type: Type) -> String:
 			return "💥"
 		Type.STEER_TO_ATTRACTOR:
 			return "🧲"
+		Type.HEAL_ATTRACTOR:
+			return "🩹"
 	return "❓"
 
 
@@ -73,6 +76,8 @@ static func get_type_name(type: Type) -> String:
 			return "Deliberate Collapse"
 		Type.STEER_TO_ATTRACTOR:
 			return "Attractor Guidance"
+		Type.HEAL_ATTRACTOR:
+			return "Attractor Healing"
 	return "Unknown"
 
 
@@ -101,6 +106,8 @@ static func get_type_description(type: Type) -> String:
 			return "Measure to lock in a specific state"
 		Type.STEER_TO_ATTRACTOR:
 			return "Help the biome settle into its natural dominant state"
+		Type.HEAL_ATTRACTOR:
+			return "Restore the biome after its state was deliberately perturbed"
 	return ""
 
 
@@ -112,6 +119,7 @@ static func requires_tracking(type: Type) -> bool:
 		Type.SHAPE_ACHIEVE, Type.SHAPE_MAINTAIN, Type.EVOLUTION, Type.ENTANGLEMENT:
 			return true  # Need _physics_process monitoring
 		Type.ACHIEVE_EIGENSTATE, Type.MAINTAIN_COHERENCE, Type.INDUCE_BELL_STATE, \
-		Type.PREVENT_DECOHERENCE, Type.COLLAPSE_DELIBERATELY, Type.STEER_TO_ATTRACTOR:
+		Type.PREVENT_DECOHERENCE, Type.COLLAPSE_DELIBERATELY, Type.STEER_TO_ATTRACTOR, \
+		Type.HEAL_ATTRACTOR:
 			return true  # Quantum mechanics quests need continuous monitoring
 	return false

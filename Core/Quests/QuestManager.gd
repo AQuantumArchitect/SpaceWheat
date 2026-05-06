@@ -124,6 +124,8 @@ func _physics_process(delta: float) -> void:
 				_update_collapse_deliberately_quest(quest, delta)
 			QuestTypes.Type.STEER_TO_ATTRACTOR:
 				_update_steer_to_attractor_quest(quest, delta)
+			QuestTypes.Type.HEAL_ATTRACTOR:
+				_update_heal_attractor_quest(quest, delta)
 	var t1 = Time.get_ticks_usec()
 	if Engine.get_physics_frames() % 60 == 0:
 		if _verbose:
@@ -588,6 +590,16 @@ func offer_quest_emergent(faction: Dictionary, biome) -> Dictionary:
 		attractor_quest["biome"] = biome.biome_name if biome and biome.get("biome_name") else "Unknown"
 		_stamp_offered_quest(attractor_quest)
 		# Fall through: still generate a regular quest too (both can coexist)
+
+	# Rarely (~1-in-6 chance), offer a HEAL_ATTRACTOR quest instead: perturb the biome
+	# and challenge the player to restore it.  Low probability keeps it dramatic.
+	if randi() % 6 == 0:
+		var heal_quest := _maybe_offer_heal_quest(faction, biome)
+		if not heal_quest.is_empty() and _is_valid_offer(heal_quest):
+			heal_quest["id"] = next_quest_id
+			next_quest_id += 1
+			heal_quest["biome"] = biome.biome_name if biome and biome.get("biome_name") else "Unknown"
+			_stamp_offered_quest(heal_quest)
 
 	# Generate via abstract machinery + theming (with signature constraint!)
 	var quest = QuestTheming.generate_quest(faction, biome, player_vocab, bias_emojis, self.economy, null, null, _biome_config)
@@ -1434,6 +1446,75 @@ func _update_steer_to_attractor_quest(quest: Dictionary, _delta: float) -> void:
 	var purity_ok: bool = float(current_biome.get_purity()) >= float(quest.get("target_purity", 0.75))
 	if prob_ok and gap_ok and purity_ok:
 		mark_quest_ready(quest.get("id", -1), "attractor_achieved")
+
+
+func _update_heal_attractor_quest(quest: Dictionary, _delta: float) -> void:
+	# Track HEAL_ATTRACTOR quest: restore biome to its pre-perturbation attractor.
+	#
+	# The Hamiltonian naturally pulls the system back; the player accelerates it.
+	# Completion condition is identical to STEER_TO_ATTRACTOR — once the biome
+	# has re-converged to the target emoji's dominance and the state is coherent,
+	# the healing is complete.
+	if not current_biome or not current_biome.has_method("get_attractor_state"):
+		return
+	var attractor: Dictionary = current_biome.get_attractor_state()
+	if attractor.is_empty():
+		return
+	var emoji: String = quest.get("target_emoji", "")
+	var prob_ok: bool = float(attractor.get(emoji, 0.0)) >= float(quest.get("target_attractor_prob", 0.55))
+	var gap_ok: bool = float(attractor.get("eigenvalue_gap", 0.0)) >= float(quest.get("target_gap", 0.10))
+	var purity_ok: bool = float(current_biome.get_purity()) >= float(quest.get("target_purity", 0.70))
+	if prob_ok and gap_ok and purity_ok:
+		mark_quest_ready(quest.get("id", -1), "attractor_healed")
+
+
+func _maybe_offer_heal_quest(faction: Dictionary, biome) -> Dictionary:
+	# Perturb the biome and offer a HEAL_ATTRACTOR quest to fix it.
+	# Only fires when the biome has a strong, readable attractor — we need a
+	# concrete target for the player to aim at after the perturbation lands.
+	if not biome or not biome.has_method("get_attractor_state"):
+		return {}
+	var attractor: Dictionary = biome.get_attractor_state()
+	if attractor.is_empty():
+		return {}
+	var dominant_ev: float = attractor.get("dominant_eigenvalue", 0.0)
+	var gap: float = attractor.get("eigenvalue_gap", 0.0)
+	# Need a very clear attractor before we dare perturb it — otherwise the
+	# target is ambiguous and the quest becomes impossible to complete.
+	if dominant_ev < 0.65 or gap < 0.10:
+		return {}
+	var emojis: Array = attractor.get("emojis", [])
+	if emojis.is_empty():
+		return {}
+	var top_emoji: String = emojis[0]
+	var biome_name: String = biome.biome_name if biome.get("biome_name") else "biome"
+
+	# Apply the perturbation — this physically modifies the quantum state.
+	# The quest is now live: the player must restore what was just scattered.
+	var qc = biome.get("quantum_computer")
+	if qc == null or not qc.has_method("apply_perturbation"):
+		return {}
+	var perturb_result: Dictionary = qc.apply_perturbation(0.85)
+	if perturb_result.is_empty():
+		return {}
+
+	var quest := {
+		"type": QuestTypes.Type.HEAL_ATTRACTOR,
+		"faction": faction.get("name", "Unknown"),
+		"faction_emoji": "".join(faction.get("sig", []).slice(0, 3)),
+		"target_emoji": top_emoji,
+		"target_attractor_prob": 0.50,
+		"target_gap": 0.10,
+		"target_purity": 0.70,
+		"snapshot_attractor": attractor,
+		"perturbation_strength": 0.85,
+		"body": "The %s was scattered — %s dispersed. Help it remember itself." % [biome_name, top_emoji],
+		"hint": "The Hamiltonian remembers. Feed it, wait, or gate it back.",
+		"reward_multiplier": 2.0 + clampf(gap, 0.0, 0.5),
+		"time_limit": -1.0,
+		"expires": false,
+	}
+	return quest
 
 
 # =============================================================================
