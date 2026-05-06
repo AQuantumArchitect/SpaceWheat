@@ -10,6 +10,7 @@ const QuestGenerator = preload("res://Core/Quests/QuestGenerator.gd")
 const QuestTheming = preload("res://Core/Quests/QuestTheming.gd")
 const QuestTypes = preload("res://Core/Quests/QuestTypes.gd")
 const QuestRewards = preload("res://Core/Quests/QuestRewards.gd")
+const QuestMath = preload("res://Core/Quests/QuestMath.gd")
 const EconomyConstants = preload("res://Core/GameMechanics/EconomyConstants.gd")
 const FactionStateMatcher = preload("res://Core/QuantumSubstrate/FactionStateMatcher.gd")
 const QuestStateProjectionService = preload("res://Core/Quests/QuestStateProjectionService.gd")
@@ -90,7 +91,9 @@ func _physics_process(delta: float) -> void:
 			continue
 		if _state_projection and quest.get("state_predicates", []) is Array:
 			var predicates = quest.get("state_predicates", [])
-			if _state_projection.evaluate_all(predicates):
+			var pred_score := _state_projection.evaluate_all(predicates)
+			quest["predicate_score"] = pred_score
+			if pred_score >= QuestStateProjectionService.COMPLETION_THRESHOLD:
 				var quest_id = int(quest.get("id", -1))
 				if quest_id >= 0:
 					mark_quest_ready(quest_id, "state_predicates")
@@ -192,6 +195,10 @@ func _refresh_unfired_flags(farm) -> void:
 			inject_arc_quest(flag_id, arc_quest)
 
 
+## Story-flag firing threshold: _evaluate_flag_predicates() must reach this.
+const FLAG_FIRE_THRESHOLD: float = 0.85
+
+
 func _evaluate_story_flags() -> void:
 	if _unfired_flags.is_empty():
 		return
@@ -200,113 +207,124 @@ func _evaluate_story_flags() -> void:
 		return
 	for flag in _unfired_flags.duplicate():
 		var predicates = flag.get("predicates", [])
-		if _evaluate_flag_predicates(predicates, farm):
+		if _evaluate_flag_predicates(predicates, farm) >= FLAG_FIRE_THRESHOLD:
 			_fire_story_flag(flag, farm)
 
 
-func _evaluate_flag_predicates(predicates: Array, farm) -> bool:
+func _evaluate_flag_predicates(predicates: Array, farm) -> float:
+	## Returns a continuous confidence score in [0, 1].
+	## Empty list → 0.0 so that flags with no predicates never auto-fire.
 	if predicates.is_empty():
-		return false
+		return 0.0
+	var scores: Array = []
 	for pred in predicates:
 		if not (pred is Dictionary):
-			return false
-		if not _check_flag_predicate(pred, farm):
-			return false
-	return true
+			return 0.0
+		scores.append(_check_flag_predicate(pred, farm))
+	return QuestMath.smooth_and(scores)
 
 
-func _check_flag_predicate(pred: Dictionary, farm) -> bool:
+func _check_flag_predicate(pred: Dictionary, farm) -> float:
+	## Returns a continuous confidence score in [0, 1] for each predicate type.
+	## Structural predicates (flag set, biome exists) return 1.0 or 0.0 exactly.
+	## Physics predicates use soft_gate so partial progress is visible.
 	var kind := str(pred.get("type", ""))
 	match kind:
 		"story_flag_set":
-			return farm.story_flags_fired.has(str(pred.get("id", "")))
+			return 1.0 if farm.story_flags_fired.has(str(pred.get("id", ""))) else 0.0
 		"biome_evolving":
 			if farm.grid == null:
-				return false
+				return 0.0
 			var biome = farm.grid.get_biome(str(pred.get("biome", "")))
-			return biome != null and biome.get("quantum_computer") != null
+			return 1.0 if (biome != null and biome.get("quantum_computer") != null) else 0.0
 		"berry_consumed_count_gte":
 			if farm.grid == null:
-				return false
+				return 0.0
 			var biome = farm.grid.get_biome(str(pred.get("biome", "")))
 			if biome == null or biome.get("quantum_computer") == null:
-				return false
-			return biome.quantum_computer.berry_register.get_consumed_count() >= int(pred.get("value", 0))
+				return 0.0
+			var count := float(biome.quantum_computer.berry_register.get_consumed_count())
+			return QuestMath.soft_gate(count, float(pred.get("value", 0)), 1.5)
 		"berry_total_phase_gte":
 			if farm.grid == null:
-				return false
+				return 0.0
 			var biome = farm.grid.get_biome(str(pred.get("biome", "")))
 			if biome == null or biome.get("quantum_computer") == null:
-				return false
-			return biome.quantum_computer.berry_register.get_consumed_phase() >= float(pred.get("value", 0.0))
+				return 0.0
+			var phase := biome.quantum_computer.berry_register.get_consumed_phase()
+			return QuestMath.soft_gate(phase, float(pred.get("value", 0.0)), 0.1)
 		"standing_gte":
 			var standing = farm.faction_standings.get(str(pred.get("faction", "")))
 			if standing == null:
-				return false
+				return 0.0
 			var channel: String = str(pred.get("channel", "trust"))
-			var current: float = float(standing.to_dict().get(channel, 0.0))
-			return current >= float(pred.get("value", 0.0))
+			var current := float(standing.to_dict().get(channel, 0.0))
+			return QuestMath.soft_gate(current, float(pred.get("value", 0.0)))
 		"biome_state_gte":
 			if farm.grid == null:
-				return false
+				return 0.0
 			var biome = farm.grid.get_biome(str(pred.get("biome", "")))
 			if biome == null or biome.get("quantum_computer") == null:
-				return false
+				return 0.0
 			var atom := str(pred.get("atom", ""))
 			var reg = biome.quantum_computer.register_map
 			if reg == null or not reg.coordinates.has(atom):
-				return false
+				return 0.0
 			var coord: Dictionary = reg.coordinates[atom]
 			var qubit := int(coord.get("qubit", -1))
 			var pole := int(coord.get("pole", 0))
 			if qubit < 0:
-				return false
-			return biome.quantum_computer.get_marginal(qubit, pole) >= float(pred.get("value", 0.0))
+				return 0.0
+			var marginal := biome.quantum_computer.get_marginal(qubit, pole)
+			return QuestMath.soft_gate(marginal, float(pred.get("value", 0.0)))
 		"signature_size_gte":
-			return farm.known_pairs.size() >= int(pred.get("value", 0))
+			return QuestMath.soft_gate(float(farm.known_pairs.size()), float(pred.get("value", 0)), 2.0)
 		"atom_count_gte":
 			if farm.grid == null:
-				return false
+				return 0.0
 			var biome = farm.grid.get_biome(str(pred.get("biome", "")))
 			if biome == null or biome.get("quantum_computer") == null:
-				return false
-			return biome.quantum_computer.register_map.coordinates.size() >= int(pred.get("value", 0))
+				return 0.0
+			var count := float(biome.quantum_computer.register_map.coordinates.size())
+			return QuestMath.soft_gate(count, float(pred.get("value", 0)), 1.5)
 		"atom_in_biome":
 			if farm.grid == null:
-				return false
+				return 0.0
 			var biome = farm.grid.get_biome(str(pred.get("biome", "")))
 			if biome == null or biome.get("quantum_computer") == null:
-				return false
-			return biome.quantum_computer.register_map.coordinates.has(str(pred.get("atom", "")))
+				return 0.0
+			return 1.0 if biome.quantum_computer.register_map.coordinates.has(str(pred.get("atom", ""))) else 0.0
 		"biome_attractor_emoji_gte":
-			# Fire when the named emoji dominates the biome's attractor eigenstate.
 			if farm.grid == null:
-				return false
+				return 0.0
 			var biome = farm.grid.get_biome(str(pred.get("biome", "")))
 			if biome == null or not biome.has_method("get_attractor_state"):
-				return false
+				return 0.0
 			var attractor: Dictionary = biome.get_attractor_state()
-			return attractor.get(str(pred.get("emoji", "")), 0.0) >= float(pred.get("value", 0.5))
+			return QuestMath.soft_gate(attractor.get(str(pred.get("emoji", "")), 0.0),
+					float(pred.get("value", 0.5)))
 		"biome_eigenvalue_gap_gte":
-			# Fire when the biome's dominant eigenstate is strongly separated (stable attractor).
 			if farm.grid == null:
-				return false
+				return 0.0
 			var biome = farm.grid.get_biome(str(pred.get("biome", "")))
 			if biome == null or not biome.has_method("get_attractor_state"):
-				return false
+				return 0.0
 			var attractor: Dictionary = biome.get_attractor_state()
-			return attractor.get("eigenvalue_gap", 0.0) >= float(pred.get("value", 0.15))
+			return QuestMath.soft_gate(attractor.get("eigenvalue_gap", 0.0),
+					float(pred.get("value", 0.15)), 0.02)
 		"biome_purity_trending":
-			# Fire when purity is projected to increase over the next N steps.
 			if farm.grid == null:
-				return false
+				return 0.0
 			var biome = farm.grid.get_biome(str(pred.get("biome", "")))
 			if biome == null or not biome.has_method("predict_purity"):
-				return false
+				return 0.0
 			var steps := int(pred.get("steps", 5))
-			return biome.predict_purity(steps) > biome.get_purity()
+			# Score proportional to how strongly purity is trending upward.
+			# Requires a ~1% positive trend to score 0.5; flat = ~0.4.
+			var trend := biome.predict_purity(steps) - biome.get_purity()
+			return QuestMath.soft_gate(trend, 0.01, 0.02)
 		_:
-			return false
+			return 0.0
 
 
 func _fire_story_flag(flag: Dictionary, farm) -> void:
@@ -639,8 +657,13 @@ func _maybe_offer_attractor_quest(faction: Dictionary, biome) -> Dictionary:
 		return {}
 	var dominant_ev: float = attractor.get("dominant_eigenvalue", 0.0)
 	var gap: float = attractor.get("eigenvalue_gap", 0.0)
-	# Only offer when attractor is genuinely prominent and stable
-	if dominant_ev < 0.6 or gap < 0.08:
+	# Soft gate: offer probability rises smoothly as attractor strengthens.
+	# Below combined score of 0.5 the offer is suppressed — too weak to aim at.
+	var offer_gate := QuestMath.smooth_and([
+		QuestMath.soft_gate(dominant_ev, 0.6, 0.05),
+		QuestMath.soft_gate(gap, 0.08, 0.02),
+	])
+	if offer_gate < 0.5:
 		return {}
 	var emojis: Array = attractor.get("emojis", [])
 	if emojis.is_empty():
@@ -1125,346 +1148,251 @@ func get_quest_time_remaining(quest_id: int) -> float:
 # =============================================================================
 
 func _update_shape_achieve_quest(quest: Dictionary, delta: float) -> void:
-	# Track SHAPE_ACHIEVE quest: reach target observable value once
-
-	# Quest format:
-	# observable: "purity" | "entropy" | "coherence"
-	# target: float (0.0-1.0)
-	# comparison: ">" | "<" (defaults to ">")
-	# reward_multiplier: float
 	var observable_name = quest.get("observable", "purity")
-	var target_value = quest.get("target", 0.7)
+	var target_value := float(quest.get("target", 0.7))
 	var comparison = quest.get("comparison", ">")
 
-	# Get current biome observables
 	var obs = get_biome_observables(current_biome)
-	var current_value = obs.get(observable_name, 0.0)
+	var current_value := float(obs.get(observable_name, 0.0))
 	if not _is_known_observable_value(current_value):
 		return
 
-	# Check if target reached (respecting comparison operator)
-	var target_met = false
+	var progress: float
 	if comparison == "<":
-		target_met = current_value <= target_value
-	else:  # ">" or default
-		target_met = current_value >= target_value
-
-	if target_met:
-		# Mark quest as ready to claim (player must press Claim)
+		progress = QuestMath.soft_gate_inv(current_value, target_value)
+	else:
+		progress = QuestMath.soft_gate(current_value, target_value)
+	quest["progress"] = progress
+	if progress >= 0.9:
 		var quest_id = quest.get("id", -1)
 		if quest_id >= 0:
 			mark_quest_ready(quest_id, "target_achieved")
 
 
 func _update_shape_maintain_quest(quest: Dictionary, delta: float) -> void:
-	# Track SHAPE_MAINTAIN quest: hold observable at target for duration
-
-	# Quest format:
-	# observable: "purity" | "entropy" | "coherence"
-	# target: float (0.0-1.0)
-	# comparison: ">" | "<" (defaults to ">")
-	# duration: float (seconds to maintain)
-	# elapsed: float (time maintained so far)
-	# reward_multiplier: float
 	var observable_name = quest.get("observable", "purity")
-	var target_value = quest.get("target", 0.7)
+	var target_value := float(quest.get("target", 0.7))
 	var comparison = quest.get("comparison", ">")
-	var required_duration = quest.get("duration", 30.0)
+	var required_duration := float(quest.get("duration", 30.0))
 
-	# Get current biome observables
 	var obs = get_biome_observables(current_biome)
-	var current_value = obs.get(observable_name, 0.0)
+	var current_value := float(obs.get(observable_name, 0.0))
 	if not _is_known_observable_value(current_value):
 		return
 
-	# Check if currently at target (respecting comparison operator)
-	var target_met = false
+	var gate: float
 	if comparison == "<":
-		target_met = current_value <= target_value
-	else:  # ">" or default
-		target_met = current_value >= target_value
-
-	if target_met:
-		# Increment elapsed time
-		quest["elapsed"] = quest.get("elapsed", 0.0) + delta
-
-		# Check if maintained long enough
-		if quest["elapsed"] >= required_duration:
-			# Auto-complete quest!
-			var quest_id = quest.get("id", -1)
-			if quest_id >= 0:
-				mark_quest_ready(quest_id, "maintained_duration")
+		gate = QuestMath.soft_gate_inv(current_value, target_value)
 	else:
-		# Reset timer if dropped outside target
-		quest["elapsed"] = 0.0
+		gate = QuestMath.soft_gate(current_value, target_value)
+
+	# Accumulate when on-target; drain at equal rate when off-target.
+	# Being "at the threshold" (gate=0.5) nets positive but slowly.
+	quest["elapsed"] = QuestMath.smooth_accumulate(
+			quest.get("elapsed", 0.0), gate, delta, 1.0)
+	var progress := QuestMath.soft_gate(quest["elapsed"], required_duration * 0.9,
+			required_duration * 0.05)
+	quest["progress"] = progress
+	if progress >= 0.9:
+		var quest_id = quest.get("id", -1)
+		if quest_id >= 0:
+			mark_quest_ready(quest_id, "maintained_duration")
 
 
 func _update_evolution_quest(quest: Dictionary, delta: float) -> void:
-	# Track EVOLUTION quest: change observable by delta amount
-
-	# Quest format:
-	# observable: "purity" | "entropy" | "coherence"
-	# delta: float (amount to change)
-	# direction: "increase" | "decrease"
-	# initial_value: float (set when quest starts)
-	# reward_multiplier: float
 	var observable_name = quest.get("observable", "purity")
-	var required_delta = quest.get("delta", 0.2)
+	var required_delta := float(quest.get("delta", 0.2))
 	var direction = quest.get("direction", "increase")
 
-	# Get current biome observables
 	var obs = get_biome_observables(current_biome)
-	var current_value = obs.get(observable_name, 0.0)
+	var current_value := float(obs.get(observable_name, 0.0))
 	if not _is_known_observable_value(current_value):
 		return
 
-	# Initialize starting value if first update
 	if quest.get("initial_value") == null:
 		quest["initial_value"] = current_value
 		return
 
-	var initial_value = quest["initial_value"]
-	var actual_change = current_value - initial_value
-
-	# Check if target delta achieved
-	var target_met = false
-	if direction == "increase":
-		target_met = actual_change >= required_delta
-	else:  # decrease
-		target_met = actual_change <= -required_delta
-
-	if target_met:
-		# Auto-complete quest!
+	var actual_change := current_value - float(quest["initial_value"])
+	var signed_change := actual_change if direction == "increase" else -actual_change
+	var progress := QuestMath.soft_gate(signed_change, required_delta)
+	quest["progress"] = progress
+	if progress >= 0.9:
 		var quest_id = quest.get("id", -1)
 		if quest_id >= 0:
 			mark_quest_ready(quest_id, "evolution_achieved")
 
 
 func _update_entanglement_quest(quest: Dictionary, delta: float) -> void:
-	# Track ENTANGLEMENT quest: create coherence above target
+	var target_coherence := float(quest.get("target_coherence", 0.6))
 
-	# Quest format:
-	# target_coherence: float (0.0-1.0)
-	# reward_multiplier: float
-	var target_coherence = quest.get("target_coherence", 0.6)
-
-	# Get current biome observables
 	var obs = get_biome_observables(current_biome)
-	var current_coherence = obs.get("coherence", 0.0)
+	var current_coherence := float(obs.get("coherence", 0.0))
 	if not _is_known_observable_value(current_coherence):
 		return
 
-	# Check if target reached
-	if current_coherence >= target_coherence:
-		# Auto-complete quest!
+	var progress := QuestMath.soft_gate(current_coherence, target_coherence)
+	quest["progress"] = progress
+	if progress >= 0.9:
 		var quest_id = quest.get("id", -1)
 		if quest_id >= 0:
 			mark_quest_ready(quest_id, "entanglement_created")
 
 
 func _update_achieve_eigenstate_quest(quest: Dictionary, delta: float) -> void:
-	# Track ACHIEVE_EIGENSTATE quest: reach dominant eigenstate (high purity)
+	var target_purity := float(quest.get("target_purity", 0.95))
 
-	var target_purity = quest.get("target_purity", 0.95)
-
-	# Get current biome observables
 	var obs = get_biome_observables(current_biome)
-	var current_purity = obs.get("purity", 0.0)
+	var current_purity := float(obs.get("purity", 0.0))
 	if not _is_known_observable_value(current_purity):
 		return
 
-	# Check if eigenstate achieved (high purity = system in eigenstate)
-	if current_purity >= target_purity:
-		# Optional: if quest names a target emoji, also verify it dominates the attractor.
-		var target_emoji: String = quest.get("target_emoji", "")
-		if target_emoji != "" and current_biome and current_biome.has_method("get_attractor_state"):
-			var attractor: Dictionary = current_biome.get_attractor_state()
-			if attractor.get(target_emoji, 0.0) < 0.45:
-				return  # Purity met but biome is settling toward wrong eigenstate
+	var purity_score := QuestMath.soft_gate(current_purity, target_purity)
+	var attractor_score := 1.0
+	var target_emoji: String = quest.get("target_emoji", "")
+	if target_emoji != "" and current_biome and current_biome.has_method("get_attractor_state"):
+		var attractor: Dictionary = current_biome.get_attractor_state()
+		attractor_score = QuestMath.soft_gate(attractor.get(target_emoji, 0.0), 0.45, 0.05)
+	var progress := QuestMath.smooth_and([purity_score, attractor_score])
+	quest["progress"] = progress
+	if progress >= 0.9:
 		var quest_id = quest.get("id", -1)
 		if quest_id >= 0:
 			mark_quest_ready(quest_id, "eigenstate_achieved")
 
 
 func _update_maintain_coherence_quest(quest: Dictionary, delta: float) -> void:
-	# Track MAINTAIN_COHERENCE quest: keep coherence above threshold for duration
+	var target_coherence := float(quest.get("target_coherence", 0.5))
+	var required_duration := float(quest.get("duration", 30.0))
 
-	# Quest format:
-	# target_coherence: float (0.3-0.7)
-	# duration: float (seconds to maintain)
-	# elapsed: float (time maintained so far, auto-managed)
-	# reward_multiplier: float
-	var target_coherence = quest.get("target_coherence", 0.5)
-	var required_duration = quest.get("duration", 30.0)
-
-	# Get current biome observables
 	var obs = get_biome_observables(current_biome)
-	var current_coherence = obs.get("coherence", 0.0)
+	var current_coherence := float(obs.get("coherence", 0.0))
 	if not _is_known_observable_value(current_coherence):
 		return
 
-	if current_coherence >= target_coherence:
-		# Increment elapsed time
-		quest["elapsed"] = quest.get("elapsed", 0.0) + delta
-
-		# Check if maintained long enough
-		if quest["elapsed"] >= required_duration:
-			var quest_id = quest.get("id", -1)
-			if quest_id >= 0:
-				mark_quest_ready(quest_id, "coherence_maintained")
-	else:
-		# Reset timer if coherence drops
-		quest["elapsed"] = 0.0
+	var gate := QuestMath.soft_gate(current_coherence, target_coherence)
+	quest["elapsed"] = QuestMath.smooth_accumulate(
+			quest.get("elapsed", 0.0), gate, delta, 1.0)
+	var progress := QuestMath.soft_gate(quest["elapsed"], required_duration * 0.9,
+			required_duration * 0.05)
+	quest["progress"] = progress
+	if progress >= 0.9:
+		var quest_id = quest.get("id", -1)
+		if quest_id >= 0:
+			mark_quest_ready(quest_id, "coherence_maintained")
 
 
 func _update_induce_bell_state_quest(quest: Dictionary, delta: float) -> void:
-	# Track INDUCE_BELL_STATE quest: create entanglement between specific pair
-
-	# Quest format:
-	# target_pair: Array[String, String] (two emojis to entangle)
-	# threshold: float (0.5-0.9 coherence magnitude)
-	# reward_multiplier: float
 	var target_pair = quest.get("target_pair", [])
-	var threshold = quest.get("threshold", 0.7)
+	var threshold := float(quest.get("threshold", 0.7))
 
 	if target_pair.size() < 2:
-		return  # Invalid quest
+		return
 
-	# Get quantum_computer from biome to check specific coherence
 	if not current_biome or not current_biome.quantum_computer:
 		return
 
 	var qc = current_biome.quantum_computer
-
-	# Check coherence between the specific pair
-	var emoji_a = target_pair[0]
-	var emoji_b = target_pair[1]
-
-	# Try to get coherence via quantum_computer
-	var coherence = 0.0
+	var coherence := 0.0
 	if qc.has_method("get_coherence"):
-		var coh = qc.get_coherence(emoji_a, emoji_b)
+		var coh = qc.get_coherence(target_pair[0], target_pair[1])
 		coherence = coh.abs() if coh else 0.0
-	if coherence < 0.0:
-		return
 
-	if coherence >= threshold:
+	var progress := QuestMath.soft_gate(coherence, threshold)
+	quest["progress"] = progress
+	if progress >= 0.9:
 		var quest_id = quest.get("id", -1)
 		if quest_id >= 0:
 			mark_quest_ready(quest_id, "bell_state_achieved")
 
 
 func _update_prevent_decoherence_quest(quest: Dictionary, delta: float) -> void:
-	# Track PREVENT_DECOHERENCE quest: don't let purity drop below threshold
+	# Track PREVENT_DECOHERENCE: accumulate survival time above min_purity.
+	# Dropping below does NOT instantly fail — instead the elapsed bank drains
+	# at 2× speed, so a purity crash costs twice the time it took to earn.
+	# This removes the cliff edge while preserving the urgency.
+	var min_purity := float(quest.get("min_purity", 0.5))
+	var required_duration := float(quest.get("duration", 60.0))
 
-	# Quest format:
-	# min_purity: float (0.4-0.7)
-	# duration: float (seconds to survive)
-	# elapsed: float (time survived so far)
-	# reward_multiplier: float
-	var min_purity = quest.get("min_purity", 0.5)
-	var required_duration = quest.get("duration", 60.0)
-
-	# Get current biome observables
 	var obs = get_biome_observables(current_biome)
-	var current_purity = obs.get("purity", 0.0)
+	var current_purity := float(obs.get("purity", 0.0))
 
-	if current_purity >= min_purity:
-		# Still above threshold, increment elapsed time
-		quest["elapsed"] = quest.get("elapsed", 0.0) + delta
-
-		# Check if survived long enough
-		if quest["elapsed"] >= required_duration:
-			var quest_id = quest.get("id", -1)
-			if quest_id >= 0:
-				mark_quest_ready(quest_id, "decoherence_prevented")
-	else:
-		# Purity dropped too low - fail the quest!
+	var gate := QuestMath.soft_gate(current_purity, min_purity)
+	quest["elapsed"] = QuestMath.smooth_accumulate(
+			quest.get("elapsed", 0.0), gate, delta, 2.0)
+	var progress := QuestMath.soft_gate(quest["elapsed"], required_duration * 0.9,
+			required_duration * 0.05)
+	quest["progress"] = progress
+	if progress >= 0.9:
 		var quest_id = quest.get("id", -1)
 		if quest_id >= 0:
-			fail_quest(quest_id, "decoherence_occurred")
+			mark_quest_ready(quest_id, "decoherence_prevented")
 
 
 func _update_collapse_deliberately_quest(quest: Dictionary, delta: float) -> void:
-	# Track COLLAPSE_DELIBERATELY quest: measure to lock in specific state
-
-	# Quest format:
-	# target_emoji: String (emoji to collapse into)
-	# target_probability: float (required probability after collapse)
-	# has_collapsed: bool (tracks if player triggered measurement)
-	# reward_multiplier: float
-
-	# Note: Player must use measurement/observation tool on target emoji.
-	# This function checks if the state has been collapsed to target.
 	var target_emoji = quest.get("target_emoji", "")
-	var target_probability = quest.get("target_probability", 0.8)
+	var target_probability := float(quest.get("target_probability", 0.8))
 
 	if target_emoji.is_empty():
 		return
 
-	# Get quantum_computer from biome
 	if not current_biome or not current_biome.quantum_computer:
 		return
 
 	var qc = current_biome.quantum_computer
-
-	# Check probability of target emoji
-	var probability = 0.0
+	var probability := 0.0
 	if qc.has_method("get_population"):
 		probability = qc.get_population(target_emoji)
-	if probability < 0.0:
-		return
 
-	# Also check purity - high purity + high probability = collapsed state
-	var purity = qc.get_purity() if qc.has_method("get_purity") else 0.0
-	if purity < 0.0:
-		return
+	var purity := qc.get_purity() if qc.has_method("get_purity") else 0.0
 
-	# Quest completes when: high purity AND target emoji dominates
-	if probability >= target_probability and purity >= 0.8:
+	var prob_score := QuestMath.soft_gate(probability, target_probability)
+	var purity_score := QuestMath.soft_gate(purity, 0.8)
+	var progress := QuestMath.smooth_and([prob_score, purity_score])
+	quest["progress"] = progress
+	if progress >= 0.9:
 		var quest_id = quest.get("id", -1)
 		if quest_id >= 0:
 			mark_quest_ready(quest_id, "state_collapsed")
 
 
 func _update_steer_to_attractor_quest(quest: Dictionary, _delta: float) -> void:
-	# Track STEER_TO_ATTRACTOR quest: guide biome toward its own dominant eigenstate.
-	#
-	# The attractor is the biome's physics-defined natural equilibrium.
-	# The player wins by steering the system so that:
-	#   - the target emoji dominates the attractor (attractor alignment)
-	#   - the eigenvalue gap is large (attractor is stable)
-	#   - purity is high (state is coherent)
 	if not current_biome or not current_biome.has_method("get_attractor_state"):
 		return
 	var attractor: Dictionary = current_biome.get_attractor_state()
 	if attractor.is_empty():
 		return
 	var emoji: String = quest.get("target_emoji", "")
-	var prob_ok: bool = float(attractor.get(emoji, 0.0)) >= float(quest.get("target_attractor_prob", 0.55))
-	var gap_ok: bool = float(attractor.get("eigenvalue_gap", 0.0)) >= float(quest.get("target_gap", 0.10))
-	var purity_ok: bool = float(current_biome.get_purity()) >= float(quest.get("target_purity", 0.75))
-	if prob_ok and gap_ok and purity_ok:
+	var progress := QuestMath.smooth_and([
+		QuestMath.soft_gate(attractor.get(emoji, 0.0),
+				float(quest.get("target_attractor_prob", 0.55))),
+		QuestMath.soft_gate(attractor.get("eigenvalue_gap", 0.0),
+				float(quest.get("target_gap", 0.10)), 0.02),
+		QuestMath.soft_gate(current_biome.get_purity(),
+				float(quest.get("target_purity", 0.75))),
+	])
+	quest["progress"] = progress
+	if progress >= 0.9:
 		mark_quest_ready(quest.get("id", -1), "attractor_achieved")
 
 
 func _update_heal_attractor_quest(quest: Dictionary, _delta: float) -> void:
-	# Track HEAL_ATTRACTOR quest: restore biome to its pre-perturbation attractor.
-	#
-	# The Hamiltonian naturally pulls the system back; the player accelerates it.
-	# Completion condition is identical to STEER_TO_ATTRACTOR — once the biome
-	# has re-converged to the target emoji's dominance and the state is coherent,
-	# the healing is complete.
 	if not current_biome or not current_biome.has_method("get_attractor_state"):
 		return
 	var attractor: Dictionary = current_biome.get_attractor_state()
 	if attractor.is_empty():
 		return
 	var emoji: String = quest.get("target_emoji", "")
-	var prob_ok: bool = float(attractor.get(emoji, 0.0)) >= float(quest.get("target_attractor_prob", 0.55))
-	var gap_ok: bool = float(attractor.get("eigenvalue_gap", 0.0)) >= float(quest.get("target_gap", 0.10))
-	var purity_ok: bool = float(current_biome.get_purity()) >= float(quest.get("target_purity", 0.70))
-	if prob_ok and gap_ok and purity_ok:
+	var progress := QuestMath.smooth_and([
+		QuestMath.soft_gate(attractor.get(emoji, 0.0),
+				float(quest.get("target_attractor_prob", 0.50))),
+		QuestMath.soft_gate(attractor.get("eigenvalue_gap", 0.0),
+				float(quest.get("target_gap", 0.10)), 0.02),
+		QuestMath.soft_gate(current_biome.get_purity(),
+				float(quest.get("target_purity", 0.70))),
+	])
+	quest["progress"] = progress
+	if progress >= 0.9:
 		mark_quest_ready(quest.get("id", -1), "attractor_healed")
 
 
@@ -1479,9 +1407,14 @@ func _maybe_offer_heal_quest(faction: Dictionary, biome) -> Dictionary:
 		return {}
 	var dominant_ev: float = attractor.get("dominant_eigenvalue", 0.0)
 	var gap: float = attractor.get("eigenvalue_gap", 0.0)
-	# Need a very clear attractor before we dare perturb it — otherwise the
-	# target is ambiguous and the quest becomes impossible to complete.
-	if dominant_ev < 0.65 or gap < 0.10:
+	# Require a very confident attractor before perturbing — the target must be
+	# unambiguous or the healing quest becomes impossible.  Soft gate so biomes
+	# approaching the threshold have a chance rather than a cliff edge.
+	var offer_gate := QuestMath.smooth_and([
+		QuestMath.soft_gate(dominant_ev, 0.65, 0.04),
+		QuestMath.soft_gate(gap, 0.10, 0.02),
+	])
+	if offer_gate < 0.6:
 		return {}
 	var emojis: Array = attractor.get("emojis", [])
 	if emojis.is_empty():

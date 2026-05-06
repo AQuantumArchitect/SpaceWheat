@@ -5,6 +5,9 @@ const FactionStateMatcher = preload("res://Core/QuantumSubstrate/FactionStateMat
 
 const MAX_ACTION_HISTORY: int = 64
 
+## Completion threshold: evaluate_all() must reach this to mark a quest ready.
+const COMPLETION_THRESHOLD: float = 0.85
+
 var _last_observables: Dictionary = {}
 var _action_history: Array = []
 var _last_biome = null  # Retained for on-demand predict_population calls
@@ -56,65 +59,72 @@ func get_snapshot() -> Dictionary:
 	}
 
 
-func evaluate_predicate(predicate: Dictionary) -> bool:
+func evaluate_predicate(predicate: Dictionary) -> float:
+	## Returns a continuous confidence score in [0, 1] rather than a binary bool.
+	## 0.0 = condition clearly unmet; 1.0 = condition clearly met;
+	## 0.5 = right at the threshold boundary.
 	var predicate_type = str(predicate.get("type", ""))
 	match predicate_type:
 		"purity_at_least":
-			var target = float(predicate.get("value", 0.0))
-			return float(_last_observables.get("purity", 0.0)) >= target
+			var target := float(predicate.get("value", 0.0))
+			return QuestMath.soft_gate(float(_last_observables.get("purity", 0.0)), target)
 		"coherence_at_least":
-			var target = float(predicate.get("value", 0.0))
-			return float(_last_observables.get("coherence", 0.0)) >= target
+			var target := float(predicate.get("value", 0.0))
+			return QuestMath.soft_gate(float(_last_observables.get("coherence", 0.0)), target)
 		"entropy_at_most":
-			var target = float(predicate.get("value", 1.0))
-			return float(_last_observables.get("entropy", 1.0)) <= target
+			var target := float(predicate.get("value", 1.0))
+			return QuestMath.soft_gate_inv(float(_last_observables.get("entropy", 1.0)), target)
 		"gate_sequence_contains":
-			var pattern = str(predicate.get("gate", "")).strip_edges().to_lower()
-			var min_count = max(1, int(predicate.get("count", 1)))
+			var pattern := str(predicate.get("gate", "")).strip_edges().to_lower()
+			var min_count := maxf(1.0, float(predicate.get("count", 1)))
 			if pattern == "":
-				return false
-			var hits = 0
+				return 0.0
+			var hits := 0.0
 			for row in _action_history:
-				var action_name = str(row.get("action", "")).to_lower()
+				var action_name := str(row.get("action", "")).to_lower()
 				if action_name.find(pattern) >= 0:
-					hits += 1
-				if hits >= min_count:
-					return true
-			return false
+					hits += 1.0
+			# Smooth over ±1.5 hits so "just short" isn't a cliff
+			return QuestMath.soft_gate(hits, min_count, 1.5)
 		"attractor_emoji_gte":
-			# Check if a specific emoji dominates the cached attractor eigenstate.
 			var attractor: Dictionary = _last_observables.get("attractor", {})
-			return attractor.get(str(predicate.get("emoji", "")), 0.0) >= float(predicate.get("value", 0.5))
+			return QuestMath.soft_gate(attractor.get(str(predicate.get("emoji", "")), 0.0),
+					float(predicate.get("value", 0.5)))
 		"eigenvalue_gap_gte":
-			# Check if the attractor is strongly dominant (large spectral gap).
 			var attractor: Dictionary = _last_observables.get("attractor", {})
-			return attractor.get("eigenvalue_gap", 0.0) >= float(predicate.get("value", 0.10))
+			return QuestMath.soft_gate(attractor.get("eigenvalue_gap", 0.0),
+					float(predicate.get("value", 0.10)), 0.02)
 		"predict_population_gte":
-			# Check expected emoji population N steps ahead.
 			if _last_biome == null or not _last_biome.has_method("predict_population"):
-				return false
+				return 0.0
 			var steps := int(predicate.get("steps", 5))
 			var value := float(predicate.get("value", 0.5))
-			return _last_biome.predict_population(str(predicate.get("emoji", "")), steps) >= value
+			var pop := _last_biome.predict_population(str(predicate.get("emoji", "")), steps)
+			return QuestMath.soft_gate(pop, value)
 		"predict_purity_gte":
-			# Check expected purity N steps ahead.
 			var steps := int(predicate.get("steps", 5))
 			var key := "predict_purity_%d" % steps
+			var predicted: float
 			if _last_observables.has(key):
-				return float(_last_observables[key]) >= float(predicate.get("value", 0.5))
-			if _last_biome and _last_biome.has_method("predict_purity"):
-				return _last_biome.predict_purity(steps) >= float(predicate.get("value", 0.5))
-			return false
+				predicted = float(_last_observables[key])
+			elif _last_biome and _last_biome.has_method("predict_purity"):
+				predicted = _last_biome.predict_purity(steps)
+			else:
+				return 0.0
+			return QuestMath.soft_gate(predicted, float(predicate.get("value", 0.5)))
 		_:
-			return false
+			return 0.0
 
 
-func evaluate_all(predicates: Array) -> bool:
+func evaluate_all(predicates: Array) -> float:
+	## Returns the geometric mean of all predicate confidence scores.
+	## Empty list → 0.0 (never fires).  All predicates must score well for
+	## the result to be high.  Compare against COMPLETION_THRESHOLD (0.85).
 	if predicates.is_empty():
-		return false
+		return 0.0
+	var scores: Array = []
 	for raw in predicates:
 		if not (raw is Dictionary):
-			return false
-		if not evaluate_predicate(raw):
-			return false
-	return true
+			return 0.0
+		scores.append(evaluate_predicate(raw))
+	return QuestMath.smooth_and(scores)
