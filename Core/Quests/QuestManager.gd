@@ -122,6 +122,8 @@ func _physics_process(delta: float) -> void:
 				_update_prevent_decoherence_quest(quest, delta)
 			QuestTypes.Type.COLLAPSE_DELIBERATELY:
 				_update_collapse_deliberately_quest(quest, delta)
+			QuestTypes.Type.STEER_TO_ATTRACTOR:
+				_update_steer_to_attractor_quest(quest, delta)
 	var t1 = Time.get_ticks_usec()
 	if Engine.get_physics_frames() % 60 == 0:
 		if _verbose:
@@ -274,6 +276,33 @@ func _check_flag_predicate(pred: Dictionary, farm) -> bool:
 			if biome == null or biome.get("quantum_computer") == null:
 				return false
 			return biome.quantum_computer.register_map.coordinates.has(str(pred.get("atom", "")))
+		"biome_attractor_emoji_gte":
+			# Fire when the named emoji dominates the biome's attractor eigenstate.
+			if farm.grid == null:
+				return false
+			var biome = farm.grid.get_biome(str(pred.get("biome", "")))
+			if biome == null or not biome.has_method("get_attractor_state"):
+				return false
+			var attractor := biome.get_attractor_state()
+			return attractor.get(str(pred.get("emoji", "")), 0.0) >= float(pred.get("value", 0.5))
+		"biome_eigenvalue_gap_gte":
+			# Fire when the biome's dominant eigenstate is strongly separated (stable attractor).
+			if farm.grid == null:
+				return false
+			var biome = farm.grid.get_biome(str(pred.get("biome", "")))
+			if biome == null or not biome.has_method("get_attractor_state"):
+				return false
+			var attractor := biome.get_attractor_state()
+			return attractor.get("eigenvalue_gap", 0.0) >= float(pred.get("value", 0.15))
+		"biome_purity_trending":
+			# Fire when purity is projected to increase over the next N steps.
+			if farm.grid == null:
+				return false
+			var biome = farm.grid.get_biome(str(pred.get("biome", "")))
+			if biome == null or not biome.has_method("predict_purity"):
+				return false
+			var steps := int(pred.get("steps", 5))
+			return biome.predict_purity(steps) > biome.get_purity()
 		_:
 			return false
 
@@ -340,6 +369,22 @@ func inject_arc_quest(flag_id: String, quest_def: Dictionary) -> void:
 	# Add a non-expiring arc quest from a story flag definition.
 	if quest_def.is_empty():
 		return
+	# If the arc quest is a STEER_TO_ATTRACTOR, enrich it with live attractor data
+	# so the target emoji and body text reflect the biome's current physics.
+	if str(quest_def.get("type", "")) == "STEER_TO_ATTRACTOR":
+		var farm = _get_active_farm()
+		if farm and farm.grid:
+			var biome_name := str(quest_def.get("biome", ""))
+			var biome = farm.grid.get_biome(biome_name) if biome_name != "" else null
+			if biome and biome.has_method("get_attractor_state"):
+				var attractor := biome.get_attractor_state()
+				var top_emoji: String = attractor.get("emojis", [""])[0] if attractor.get("emojis", []).size() > 0 else ""
+				if top_emoji != "":
+					quest_def = quest_def.duplicate()
+					quest_def["target_emoji"] = top_emoji
+					quest_def["snapshot_attractor"] = attractor
+					if not quest_def.has("body") or quest_def["body"] == "":
+						quest_def["body"] = "The %s is finding its shape: %s. Help it settle." % [biome_name, top_emoji]
 	var quest_id := next_quest_id
 	next_quest_id += 1
 	var quest := {
@@ -534,6 +579,16 @@ func offer_quest_emergent(faction: Dictionary, biome) -> Dictionary:
 	var player_vocab = _get_signature_emojis()
 	var bias_emojis = _get_simulated_vocab_emojis(biome)
 
+	# Opportunistically offer a STEER_TO_ATTRACTOR quest if the biome has a stable attractor.
+	# This surfaces physics-guided quests alongside the standard faction-vocabulary quests.
+	var attractor_quest := _maybe_offer_attractor_quest(faction, biome)
+	if not attractor_quest.is_empty() and _is_valid_offer(attractor_quest):
+		attractor_quest["id"] = next_quest_id
+		next_quest_id += 1
+		attractor_quest["biome"] = biome.biome_name if biome and biome.get("biome_name") else "Unknown"
+		_stamp_offered_quest(attractor_quest)
+		# Fall through: still generate a regular quest too (both can coexist)
+
 	# Generate via abstract machinery + theming (with signature constraint!)
 	var quest = QuestTheming.generate_quest(faction, biome, player_vocab, bias_emojis, self.economy, null, null, _biome_config)
 
@@ -559,6 +614,42 @@ func offer_quest_emergent(faction: Dictionary, biome) -> Dictionary:
 		quest["full_text"] = "%s wants: %s" % [quest.faction, quest.body]
 
 	_stamp_offered_quest(quest)
+	return quest
+
+
+func _maybe_offer_attractor_quest(faction: Dictionary, biome) -> Dictionary:
+	# Offer a STEER_TO_ATTRACTOR quest when the biome has a stable, strong attractor.
+	# Called opportunistically from offer_quest_emergent; returns {} if conditions not met.
+	if not biome or not biome.has_method("get_attractor_state"):
+		return {}
+	var attractor := biome.get_attractor_state()
+	if attractor.is_empty():
+		return {}
+	var dominant_ev: float = attractor.get("dominant_eigenvalue", 0.0)
+	var gap: float = attractor.get("eigenvalue_gap", 0.0)
+	# Only offer when attractor is genuinely prominent and stable
+	if dominant_ev < 0.6 or gap < 0.08:
+		return {}
+	var emojis: Array = attractor.get("emojis", [])
+	if emojis.is_empty():
+		return {}
+	var top_emoji: String = emojis[0]
+	var biome_name: String = biome.biome_name if biome.get("biome_name") else "biome"
+	var quest := {
+		"type": QuestTypes.Type.STEER_TO_ATTRACTOR,
+		"faction": faction.get("name", "Unknown"),
+		"faction_emoji": "".join(faction.get("sig", []).slice(0, 3)),
+		"target_emoji": top_emoji,
+		"target_attractor_prob": 0.55,
+		"target_gap": 0.10,
+		"target_purity": 0.75,
+		"snapshot_attractor": attractor,
+		"body": "The %s is reaching for %s. Help it complete the loop." % [biome_name, top_emoji],
+		"hint": "Guide the biome's dominant state — high purity and a strong attractor both matter.",
+		"reward_multiplier": 1.5 + clampf(gap, 0.0, 0.5),
+		"time_limit": -1.0,
+		"expires": false,
+	}
 	return quest
 
 
@@ -1172,6 +1263,12 @@ func _update_achieve_eigenstate_quest(quest: Dictionary, delta: float) -> void:
 
 	# Check if eigenstate achieved (high purity = system in eigenstate)
 	if current_purity >= target_purity:
+		# Optional: if quest names a target emoji, also verify it dominates the attractor.
+		var target_emoji: String = quest.get("target_emoji", "")
+		if target_emoji != "" and current_biome and current_biome.has_method("get_attractor_state"):
+			var attractor := current_biome.get_attractor_state()
+			if attractor.get(target_emoji, 0.0) < 0.45:
+				return  # Purity met but biome is settling toward wrong eigenstate
 		var quest_id = quest.get("id", -1)
 		if quest_id >= 0:
 			mark_quest_ready(quest_id, "eigenstate_achieved")
@@ -1316,6 +1413,27 @@ func _update_collapse_deliberately_quest(quest: Dictionary, delta: float) -> voi
 		var quest_id = quest.get("id", -1)
 		if quest_id >= 0:
 			mark_quest_ready(quest_id, "state_collapsed")
+
+
+func _update_steer_to_attractor_quest(quest: Dictionary, _delta: float) -> void:
+	# Track STEER_TO_ATTRACTOR quest: guide biome toward its own dominant eigenstate.
+	#
+	# The attractor is the biome's physics-defined natural equilibrium.
+	# The player wins by steering the system so that:
+	#   - the target emoji dominates the attractor (attractor alignment)
+	#   - the eigenvalue gap is large (attractor is stable)
+	#   - purity is high (state is coherent)
+	if not current_biome or not current_biome.has_method("get_attractor_state"):
+		return
+	var attractor := current_biome.get_attractor_state()
+	if attractor.is_empty():
+		return
+	var emoji: String = quest.get("target_emoji", "")
+	var prob_ok  := attractor.get(emoji, 0.0) >= float(quest.get("target_attractor_prob", 0.55))
+	var gap_ok   := attractor.get("eigenvalue_gap", 0.0) >= float(quest.get("target_gap", 0.10))
+	var purity_ok := current_biome.get_purity() >= float(quest.get("target_purity", 0.75))
+	if prob_ok and gap_ok and purity_ok:
+		mark_quest_ready(quest.get("id", -1), "attractor_achieved")
 
 
 # =============================================================================

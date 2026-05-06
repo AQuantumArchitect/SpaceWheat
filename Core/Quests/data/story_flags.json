@@ -5,7 +5,10 @@
     "act": 0,
     "arc_beat": "You did something. A qubit you steered around its Bloch sphere came back to where it started, signed solid angle in tow, and you incorporated what it traced. The world does not move without you turning a wheel. This is the first wheel.",
     "predicates": [
-      { "type": "signature_size_gte", "value": 2 }
+      {
+        "type": "signature_size_gte",
+        "value": 2
+      }
     ],
     "standing_grants": {},
     "arc_quest": null
@@ -16,11 +19,20 @@
     "act": 1,
     "arc_beat": "Sunlight reached the canopy. The food chain is now running — trees absorbing light, rabbits at the edges, wolves in the clearing. Anderson transport is live, but the forest has only spoken to you once. Listen longer.",
     "predicates": [
-      { "type": "biome_evolving", "biome": "StarterForest" },
-      { "type": "berry_consumed_count_gte", "biome": "StarterForest", "value": 1 }
+      {
+        "type": "biome_evolving",
+        "biome": "StarterForest"
+      },
+      {
+        "type": "berry_consumed_count_gte",
+        "biome": "StarterForest",
+        "value": 1
+      }
     ],
     "standing_grants": {
-      "Hearth Keepers": { "trust": 0.05 }
+      "Hearth Keepers": {
+        "trust": 0.05
+      }
     },
     "arc_quest": null
   },
@@ -30,11 +42,20 @@
     "act": 1,
     "arc_beat": "Three signatures harvested from the same forest. The forest is no longer noise — patterns repeat, qubits return to where they started, and you can feel which loops are coherent and which are scribble. The Hearth Keepers have noticed someone is paying attention.",
     "predicates": [
-      { "type": "story_flag_set", "id": "forest_evolving" },
-      { "type": "berry_consumed_count_gte", "biome": "StarterForest", "value": 3 }
+      {
+        "type": "story_flag_set",
+        "id": "forest_evolving"
+      },
+      {
+        "type": "berry_consumed_count_gte",
+        "biome": "StarterForest",
+        "value": 3
+      }
     ],
     "standing_grants": {
-      "Hearth Keepers": { "trust": 0.08 }
+      "Hearth Keepers": {
+        "trust": 0.08
+      }
     },
     "arc_quest": null
   },
@@ -44,17 +65,31 @@
     "act": 1,
     "arc_beat": "Five signatures, and the total signed solid angle you've harvested from this forest exceeds two full hemispheres. The chaotic cancellations are gone — every trace is deliberate. You are not just incorporating, you are choosing what to incorporate. The forest answers in kind.",
     "predicates": [
-      { "type": "story_flag_set", "id": "forest_listener" },
-      { "type": "berry_consumed_count_gte", "biome": "StarterForest", "value": 5 },
-      { "type": "berry_total_phase_gte", "biome": "StarterForest", "value": 12.566 }
+      {
+        "type": "story_flag_set",
+        "id": "forest_listener"
+      },
+      {
+        "type": "berry_consumed_count_gte",
+        "biome": "StarterForest",
+        "value": 5
+      },
+      {
+        "type": "berry_total_phase_gte",
+        "biome": "StarterForest",
+        "value": 12.566
+      }
     ],
     "standing_grants": {
-      "Hearth Keepers": { "trust": 0.12, "legitimacy": 0.05 }
+      "Hearth Keepers": {
+        "trust": 0.12,
+        "legitimacy": 0.05
+      }
     },
     "arc_quest": {
-      "type": "MAINTAIN_COHERENCE",
-      "body": "Hold the forest's dominant loop — keep the Succession cycle (🌱 ↔ 🌲) coherence above 12% for 20 phrames.",
-      "hint": "You know which loops are coherent and which are scribble. Keep one coherent."
+      "type": "STEER_TO_ATTRACTOR",
+      "biome": "StarterForest",
+      "hint": "The forest has a natural equilibrium it's trying to reach. Help it get there."
     }
   },
   {
@@ -63,12 +98,24 @@
     "act": 1,
     "arc_beat": "Fire and water are in permanent contest at the hearth. The mill gears are idle. Labor turns flour into bread, but the second attractor hasn't formed — the Commerce bistability is dormant. Something upstream is missing, and the village knows it.",
     "predicates": [
-      { "type": "story_flag_set", "id": "forest_listener" },
-      { "type": "biome_evolving", "biome": "Village" },
-      { "type": "berry_consumed_count_gte", "biome": "Village", "value": 1 }
+      {
+        "type": "story_flag_set",
+        "id": "forest_listener"
+      },
+      {
+        "type": "biome_evolving",
+        "biome": "Village"
+      },
+      {
+        "type": "berry_consumed_count_gte",
+        "biome": "Village",
+        "value": 1
+      }
     ],
     "standing_grants": {
-      "Millwright's Union": { "trust": 0.04 }
+      "Millwright's Union": {
+        "trust": 0.04
+      }
     },
     "arc_quest": null
   },
@@ -78,13 +125,31 @@
     "act": 2,
     "arc_beat": "The managed woodlot is felling trees and sending lumber downstream. The Millwright's Union is watching what arrives. Timber is piling up at the village gate, and you've started learning the woodlot's vocabulary directly from its qubits.",
     "predicates": [
-      { "type": "biome_evolving", "biome": "Woodlot" },
-      { "type": "story_flag_set", "id": "forest_evolving" },
-      { "type": "berry_consumed_count_gte", "biome": "Woodlot", "value": 1 },
-      { "type": "standing_gte", "faction": "Millwright's Union", "channel": "access", "value": 0.2 }
+      {
+        "type": "biome_evolving",
+        "biome": "Woodlot"
+      },
+      {
+        "type": "story_flag_set",
+        "id": "forest_evolving"
+      },
+      {
+        "type": "berry_consumed_count_gte",
+        "biome": "Woodlot",
+        "value": 1
+      },
+      {
+        "type": "standing_gte",
+        "faction": "Millwright's Union",
+        "channel": "access",
+        "value": 0.2
+      }
     ],
     "standing_grants": {
-      "Millwright's Union": { "trust": 0.08, "attention": 0.1 }
+      "Millwright's Union": {
+        "trust": 0.08,
+        "attention": 0.1
+      }
     },
     "arc_quest": {
       "type": "DELIVER",
@@ -98,12 +163,26 @@
     "act": 2,
     "arc_beat": "Ice wells up from deep stone, melts, and flows downstream. The Hearth Keepers see you tending the watershed. The spring's outflow is now physically coupling into Village's Lindblad runtime — the mill pond could exist; it's waiting on you.",
     "predicates": [
-      { "type": "biome_evolving", "biome": "FreshwaterSpring" },
-      { "type": "berry_consumed_count_gte", "biome": "FreshwaterSpring", "value": 1 },
-      { "type": "standing_gte", "faction": "Hearth Keepers", "channel": "trust", "value": 0.25 }
+      {
+        "type": "biome_evolving",
+        "biome": "FreshwaterSpring"
+      },
+      {
+        "type": "berry_consumed_count_gte",
+        "biome": "FreshwaterSpring",
+        "value": 1
+      },
+      {
+        "type": "standing_gte",
+        "faction": "Hearth Keepers",
+        "channel": "trust",
+        "value": 0.25
+      }
     ],
     "standing_grants": {
-      "Hearth Keepers": { "trust": 0.1 }
+      "Hearth Keepers": {
+        "trust": 0.1
+      }
     },
     "arc_quest": {
       "type": "DELIVER",
@@ -117,14 +196,42 @@
     "act": 3,
     "arc_beat": "The Commerce bistability flipped. Baskets emptied; coin began circulating; wind picked up and the gear began turning. The village has two stable modes and you found the second one. You also know enough of the village's qubits to name what's happening.",
     "predicates": [
-      { "type": "biome_evolving", "biome": "Village" },
-      { "type": "biome_state_gte", "biome": "Village", "atom": "💨", "value": 0.12 },
-      { "type": "biome_state_gte", "biome": "Village", "atom": "⚙", "value": 0.05 },
-      { "type": "berry_consumed_count_gte", "biome": "Village", "value": 2 }
+      {
+        "type": "biome_evolving",
+        "biome": "Village"
+      },
+      {
+        "type": "biome_state_gte",
+        "biome": "Village",
+        "atom": "💨",
+        "value": 0.12
+      },
+      {
+        "type": "biome_state_gte",
+        "biome": "Village",
+        "atom": "⚙",
+        "value": 0.05
+      },
+      {
+        "type": "berry_consumed_count_gte",
+        "biome": "Village",
+        "value": 2
+      },
+      {
+        "type": "biome_attractor_emoji_gte",
+        "biome": "Village",
+        "emoji": "⚙",
+        "value": 0.35
+      }
     ],
     "standing_grants": {
-      "Millwright's Union": { "trust": 0.12, "legitimacy": 0.05 },
-      "Granary Guilds": { "trust": 0.08 }
+      "Millwright's Union": {
+        "trust": 0.12,
+        "legitimacy": 0.05
+      },
+      "Granary Guilds": {
+        "trust": 0.08
+      }
     },
     "arc_quest": {
       "type": "MAINTAIN_COHERENCE",
@@ -138,12 +245,26 @@
     "act": 3,
     "arc_beat": "Five signatures from the village, total signed solid angle past three hemispheres. You are no longer learning what the village is — you are pushing it where you want it to go. The Millwright's Union calls you by name now.",
     "predicates": [
-      { "type": "story_flag_set", "id": "mill_wakes" },
-      { "type": "berry_consumed_count_gte", "biome": "Village", "value": 5 },
-      { "type": "berry_total_phase_gte", "biome": "Village", "value": 18.85 }
+      {
+        "type": "story_flag_set",
+        "id": "mill_wakes"
+      },
+      {
+        "type": "berry_consumed_count_gte",
+        "biome": "Village",
+        "value": 5
+      },
+      {
+        "type": "berry_total_phase_gte",
+        "biome": "Village",
+        "value": 18.85
+      }
     ],
     "standing_grants": {
-      "Millwright's Union": { "legitimacy": 0.1, "attention": 0.05 }
+      "Millwright's Union": {
+        "legitimacy": 0.1,
+        "attention": 0.05
+      }
     },
     "arc_quest": null
   },
@@ -153,15 +274,34 @@
     "act": 4,
     "arc_beat": "StarterForest feeds Woodlot, Woodlot feeds the village hearth, FreshwaterSpring feeds the mill pond. Three upstream biomes are now physically driving the village's two key outputs. The island is not a set of isolated experiments — it is an ecosystem. You built this.",
     "predicates": [
-      { "type": "story_flag_set", "id": "lumber_flows" },
-      { "type": "story_flag_set", "id": "spring_connects" },
-      { "type": "story_flag_set", "id": "mill_wakes" },
-      { "type": "atom_in_biome", "biome": "Village", "atom": "🪵" }
+      {
+        "type": "story_flag_set",
+        "id": "lumber_flows"
+      },
+      {
+        "type": "story_flag_set",
+        "id": "spring_connects"
+      },
+      {
+        "type": "story_flag_set",
+        "id": "mill_wakes"
+      },
+      {
+        "type": "atom_in_biome",
+        "biome": "Village",
+        "atom": "🪵"
+      }
     ],
     "standing_grants": {
-      "Millwright's Union": { "legitimacy": 0.1 },
-      "Granary Guilds": { "legitimacy": 0.1 },
-      "Hearth Keepers": { "trust": 0.12 }
+      "Millwright's Union": {
+        "legitimacy": 0.1
+      },
+      "Granary Guilds": {
+        "legitimacy": 0.1
+      },
+      "Hearth Keepers": {
+        "trust": 0.12
+      }
     },
     "arc_quest": null
   },
@@ -171,16 +311,46 @@
     "act": 4,
     "arc_beat": "Your village has its sixth qubit. It will behave accordingly.",
     "conditional_beat": [
-      { "atom": "💧", "text": "The mill runs on spring water. Spring feeds hearth, hearth feeds bread. The Blessed Commons path." },
-      { "atom": "🏭", "text": "Factory and chains both. Automation displaced labor; bondage captured the displaced. The Industrial path — the darkest available." },
-      { "atom": "🔨", "text": "Craft and seedlings. Blacksmith works; Granary Guilds invest coin in growth. The Artisan Guild path." },
-      { "atom": "🦅", "text": "The eagle is perched on the mill. The empire is watching. Something upstream is aware." },
-      { "atom": "💀", "text": "The village has a cemetery. Death and labor share an axis now — the Void Serfs have a foothold." }
+      {
+        "atom": "💧",
+        "text": "The mill runs on spring water. Spring feeds hearth, hearth feeds bread. The Blessed Commons path."
+      },
+      {
+        "atom": "🏭",
+        "text": "Factory and chains both. Automation displaced labor; bondage captured the displaced. The Industrial path — the darkest available."
+      },
+      {
+        "atom": "🔨",
+        "text": "Craft and seedlings. Blacksmith works; Granary Guilds invest coin in growth. The Artisan Guild path."
+      },
+      {
+        "atom": "🦅",
+        "text": "The eagle is perched on the mill. The empire is watching. Something upstream is aware."
+      },
+      {
+        "atom": "💀",
+        "text": "The village has a cemetery. Death and labor share an axis now — the Void Serfs have a foothold."
+      }
     ],
     "predicates": [
-      { "type": "story_flag_set", "id": "island_lives" },
-      { "type": "atom_count_gte", "biome": "Village", "value": 12 },
-      { "type": "signature_size_gte", "value": 14 }
+      {
+        "type": "story_flag_set",
+        "id": "island_lives"
+      },
+      {
+        "type": "atom_count_gte",
+        "biome": "Village",
+        "value": 12
+      },
+      {
+        "type": "signature_size_gte",
+        "value": 14
+      },
+      {
+        "type": "biome_eigenvalue_gap_gte",
+        "biome": "Village",
+        "value": 0.12
+      }
     ],
     "standing_grants": {},
     "arc_quest": null
@@ -191,12 +361,24 @@
     "act": 5,
     "arc_beat": "The empire was always here. You were feeding it. BloodLedger is evolving and you have started reading its qubits directly. The cross-biome flow from Village to BloodLedger — coin and people — has been running since you first built commerce. The empire does not announce itself. It is already present in the physics.",
     "predicates": [
-      { "type": "story_flag_set", "id": "village_identity" },
-      { "type": "biome_evolving", "biome": "BloodLedger" },
-      { "type": "berry_consumed_count_gte", "biome": "BloodLedger", "value": 2 }
+      {
+        "type": "story_flag_set",
+        "id": "village_identity"
+      },
+      {
+        "type": "biome_evolving",
+        "biome": "BloodLedger"
+      },
+      {
+        "type": "berry_consumed_count_gte",
+        "biome": "BloodLedger",
+        "value": 2
+      }
     ],
     "standing_grants": {
-      "Carrion Throne": { "attention": 0.1 }
+      "Carrion Throne": {
+        "attention": 0.1
+      }
     },
     "arc_quest": {
       "type": "DELIVER",

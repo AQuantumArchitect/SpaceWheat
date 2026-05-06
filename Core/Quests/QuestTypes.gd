@@ -16,11 +16,12 @@ enum Type {
 	INDUCE_BELL_STATE,     # Create entanglement between specific pair
 	PREVENT_DECOHERENCE,   # Don't let purity drop below threshold
 	COLLAPSE_DELIBERATELY, # Measure to lock in specific state
+	STEER_TO_ATTRACTOR,    # Guide biome toward its own dominant eigenstate
 }
 
 
 static func get_type_icon(type: Type) -> String:
-	"""Get emoji icon for quest type"""
+	# Get emoji icon for quest type
 	match type:
 		Type.DELIVERY:
 			return "📦"
@@ -42,11 +43,13 @@ static func get_type_icon(type: Type) -> String:
 			return "🛡️"
 		Type.COLLAPSE_DELIBERATELY:
 			return "💥"
+		Type.STEER_TO_ATTRACTOR:
+			return "🧲"
 	return "❓"
 
 
 static func get_type_name(type: Type) -> String:
-	"""Get human-readable type name"""
+	# Get human-readable type name
 	match type:
 		Type.DELIVERY:
 			return "Delivery"
@@ -68,11 +71,13 @@ static func get_type_name(type: Type) -> String:
 			return "Decoherence Ward"
 		Type.COLLAPSE_DELIBERATELY:
 			return "Deliberate Collapse"
+		Type.STEER_TO_ATTRACTOR:
+			return "Attractor Guidance"
 	return "Unknown"
 
 
 static func get_type_description(type: Type) -> String:
-	"""Get description of what this quest type requires"""
+	# Get description of what this quest type requires
 	match type:
 		Type.DELIVERY:
 			return "Deliver resources to complete"
@@ -94,17 +99,19 @@ static func get_type_description(type: Type) -> String:
 			return "Prevent purity from falling below threshold"
 		Type.COLLAPSE_DELIBERATELY:
 			return "Measure to lock in a specific state"
+		Type.STEER_TO_ATTRACTOR:
+			return "Help the biome settle into its natural dominant state"
 	return ""
 
 
 static func requires_tracking(type: Type) -> bool:
-	"""Does this quest type need continuous state monitoring?"""
+	# Does this quest type need continuous state monitoring?
 	match type:
 		Type.DELIVERY:
 			return false  # Checked on resource events only
 		Type.SHAPE_ACHIEVE, Type.SHAPE_MAINTAIN, Type.EVOLUTION, Type.ENTANGLEMENT:
 			return true  # Need _physics_process monitoring
 		Type.ACHIEVE_EIGENSTATE, Type.MAINTAIN_COHERENCE, Type.INDUCE_BELL_STATE, \
-		Type.PREVENT_DECOHERENCE, Type.COLLAPSE_DELIBERATELY:
+		Type.PREVENT_DECOHERENCE, Type.COLLAPSE_DELIBERATELY, Type.STEER_TO_ATTRACTOR:
 			return true  # Quantum mechanics quests need continuous monitoring
 	return false
