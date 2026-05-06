@@ -1188,19 +1188,50 @@ func _get_predicate_display(pred: Dictionary) -> Dictionary:
 			var atom: String = str(pred.get("atom", ""))
 			var present: bool = _biome_has_atom(bname, atom)
 			return {"text": "%s in %s: %s" % [atom, bname, "✓ present" if present else "○ absent"], "passed": present}
+		"biome_attractor_emoji_gte":
+			var bname: String = str(pred.get("biome", ""))
+			var emoji: String = str(pred.get("emoji", ""))
+			var target: float = float(pred.get("value", 0.0))
+			var att: Dictionary = _get_attractor(bname)
+			if att.is_empty():
+				return {"text": "%s attractor %s: (unavail)" % [bname, emoji], "passed": false}
+			var prob: float = float(att.get(emoji, 0.0))
+			var passed: bool = prob >= target
+			var gap: float = float(att.get("eigenvalue_gap", 0.0))
+			return {"text": "%s attractor %s: %.0f%% / %.0f%%  gap %.2f  %s" % [bname, emoji, prob * 100.0, target * 100.0, gap, "✓" if passed else "◐"], "passed": passed}
+		"biome_eigenvalue_gap_gte":
+			var bname: String = str(pred.get("biome", ""))
+			var target: float = float(pred.get("value", 0.15))
+			var att: Dictionary = _get_attractor(bname)
+			if att.is_empty():
+				return {"text": "%s eigenvalue gap: (unavail)" % bname, "passed": false}
+			var gap: float = float(att.get("eigenvalue_gap", 0.0))
+			var passed: bool = gap >= target
+			return {"text": "%s attractor gap: %.3f / %.3f  %s" % [bname, gap, target, "✓" if passed else "◐"], "passed": passed}
+		"biome_purity_trending":
+			var bname: String = str(pred.get("biome", ""))
+			var steps: int = int(pred.get("steps", 5))
+			var biome = farm.grid.get_biome(bname) if (farm != null and farm.grid != null) else null
+			if biome == null or not biome.has_method("predict_purity"):
+				return {"text": "%s purity trend: (unavail)" % bname, "passed": false}
+			var cur: float = biome.get_purity() if biome.has_method("get_purity") else 0.0
+			var pred_p: float = biome.predict_purity(steps)
+			var passed: bool = pred_p > cur
+			var arrow: String = "↑" if passed else "↓"
+			return {"text": "%s purity: %.2f %s %.2f in %ds  %s" % [bname, cur, arrow, pred_p, steps, "✓" if passed else "◐"], "passed": passed}
 	return {"text": "(%s)" % kind, "passed": false}
+
+
+func _check_predicate(pred: Dictionary) -> bool:
+	return bool(_get_predicate_display(pred).get("passed", false))
 
 
 func _get_flag_status(flag_id: String, flag: Dictionary) -> String:
 	if farm != null and ("story_flags_fired" in farm) and farm.story_flags_fired.has(flag_id):
 		return "fired"
-	# Check if all story_flag_set prerequisites are satisfied
-	var predicates: Array = flag.get("predicates", [])
-	for pred in predicates:
-		if str(pred.get("type", "")) == "story_flag_set":
-			var req_id := str(pred.get("id", ""))
-			if farm == null or not ("story_flags_fired" in farm) or not farm.story_flags_fired.has(req_id):
-				return "locked"
+	for pred in flag.get("predicates", []):
+		if not _check_predicate(pred):
+			return "locked"
 	return "unlocked"
 
 
@@ -1273,6 +1304,15 @@ func _predict_atom_density(biome_name: String, atom: String, steps: int) -> floa
 	if biome == null or not biome.has_method("predict_population"):
 		return -1.0
 	return biome.predict_population(atom, steps)
+
+
+func _get_attractor(biome_name: String) -> Dictionary:
+	if farm == null or farm.grid == null:
+		return {}
+	var biome = farm.grid.get_biome(biome_name)
+	if biome == null or not biome.has_method("get_attractor_state"):
+		return {}
+	return biome.get_attractor_state()
 
 
 func _get_atom_count(biome_name: String) -> int:

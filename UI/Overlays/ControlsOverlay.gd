@@ -127,6 +127,8 @@ var _story_edge_idx: int = 0          # cursor into focused node's outgoing edge
 var _story_chatter_idx: int = 0       # GHJKL; cursor into visible chatter feed (the QERF target)
 var _story_icon_idx: int = 0          # 0/1/2; selected via 1/2/3 keys
 var _story_chatter_connected: bool = false
+var _story_attractor_cache: Dictionary = {}  # biome_name → {emojis, gap, phrame}
+const ATTRACTOR_CACHE_TTL: int = 60          # ~1 second at 60Hz physics
 
 # Self tab icon picker state.
 var _self_picker_slot: int = 0     # which active slot (0/1/2) is being rebound
@@ -680,7 +682,15 @@ func _build_story_body() -> void:
 			if farm and farm.grid and farm.grid.has_method("get_biome"):
 				var sel_biome = farm.grid.get_biome(sel_biome_name)
 				if sel_biome and sel_biome.has_method("get_attractor_state"):
-					var att: Dictionary = sel_biome.get_attractor_state()
+					var cached: Dictionary = _story_attractor_cache.get(sel_biome_name, {})
+					var att: Dictionary
+					if cached.is_empty() or Engine.get_physics_frames() - int(cached.get("phrame", 0)) > ATTRACTOR_CACHE_TTL:
+						att = sel_biome.get_attractor_state()
+						if not att.is_empty():
+							_story_attractor_cache[sel_biome_name] = att.duplicate()
+							_story_attractor_cache[sel_biome_name]["phrame"] = Engine.get_physics_frames()
+					else:
+						att = cached
 					var att_emojis: Array = att.get("emojis", [])
 					if not att_emojis.is_empty():
 						var gap: float = float(att.get("eigenvalue_gap", 0.0))
@@ -712,7 +722,7 @@ func _build_story_body() -> void:
 			_body_box.add_child(t)
 
 	_body_box.add_child(_make_spacer(8))
-	_body_box.add_child(_make_muted_label("GHJKL; pick chatter   ·   1/2/3 pick icon   ·   QERF express   ·   WASD crawl graph", 10))
+	_body_box.add_child(_make_muted_label("GHJKL; pick chatter   ·   1/2/3 pick icon   ·   QERF express   ·   W parent / S child node", 10))
 
 
 func _story_engine() -> Node:
@@ -892,6 +902,12 @@ func _build_balance_body() -> void:
 	if _balance_snapshot.is_empty():
 		_body_box.add_child(_make_muted_label("chatter snapshot unavailable (no active farm).", 12))
 		return
+
+	_body_box.add_child(_make_action_row("Q", "Prev action", "step backward through action list"))
+	_body_box.add_child(_make_action_row("E", "Refresh", "re-snapshot current biome state"))
+	_body_box.add_child(_make_action_row("R", "Next action", "step forward through action list"))
+	_body_box.add_child(_make_muted_label("W/S  cycle biome", 10))
+	_body_box.add_child(_make_spacer(6))
 
 	_body_box.add_child(_make_section_header("profile"))
 	var profile_id := str(_balance_snapshot.get("profile_id", "default"))

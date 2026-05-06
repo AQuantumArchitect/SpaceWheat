@@ -41,11 +41,9 @@ var shared_registry = null
 var farm = null  # set by StoryEngine each tick so socialites can pick live biomes
 
 
-# Legacy fields kept for compatibility with existing UI code paths; no longer
-# consumed in chatter generation (player bias now flows through real biome
-# physics, not an injected Hamiltonian term).
-var recent_player_emojis: Array = []
-var player_icons: Array = []
+# Phase 2 hook: when ConversationHamiltonian path is revived, StoryEngine will
+# sync _recent_player_emojis here before each tick so NPC word choice responds
+# to player icon actions. Not wired yet — chatter is pure biome measurement.
 
 
 func size() -> int:

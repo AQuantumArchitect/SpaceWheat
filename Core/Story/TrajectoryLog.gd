@@ -20,12 +20,15 @@ const KIND_SYSTEM := "system"
 const KIND_PLAYER := "player"
 const KIND_SOCIALITE := "socialite"
 
+const MAX_ENTRIES: int = 500
+
 var entries: Array = []
 
 
 func record(entry: Dictionary) -> void:
-	# Defensive copy so callers can't mutate the log post-hoc.
 	entries.append(entry.duplicate(true))
+	if entries.size() > MAX_ENTRIES:
+		entries = entries.slice(entries.size() - MAX_ENTRIES)
 
 
 func record_system_advance(from_node: String, to_node: String, edge_id: String) -> void:

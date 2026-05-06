@@ -283,7 +283,7 @@ func _check_flag_predicate(pred: Dictionary, farm) -> bool:
 			var biome = farm.grid.get_biome(str(pred.get("biome", "")))
 			if biome == null or not biome.has_method("get_attractor_state"):
 				return false
-			var attractor := biome.get_attractor_state()
+			var attractor: Dictionary = biome.get_attractor_state()
 			return attractor.get(str(pred.get("emoji", "")), 0.0) >= float(pred.get("value", 0.5))
 		"biome_eigenvalue_gap_gte":
 			# Fire when the biome's dominant eigenstate is strongly separated (stable attractor).
@@ -292,7 +292,7 @@ func _check_flag_predicate(pred: Dictionary, farm) -> bool:
 			var biome = farm.grid.get_biome(str(pred.get("biome", "")))
 			if biome == null or not biome.has_method("get_attractor_state"):
 				return false
-			var attractor := biome.get_attractor_state()
+			var attractor: Dictionary = biome.get_attractor_state()
 			return attractor.get("eigenvalue_gap", 0.0) >= float(pred.get("value", 0.15))
 		"biome_purity_trending":
 			# Fire when purity is projected to increase over the next N steps.
@@ -377,7 +377,7 @@ func inject_arc_quest(flag_id: String, quest_def: Dictionary) -> void:
 			var biome_name := str(quest_def.get("biome", ""))
 			var biome = farm.grid.get_biome(biome_name) if biome_name != "" else null
 			if biome and biome.has_method("get_attractor_state"):
-				var attractor := biome.get_attractor_state()
+				var attractor: Dictionary = biome.get_attractor_state()
 				var top_emoji: String = attractor.get("emojis", [""])[0] if attractor.get("emojis", []).size() > 0 else ""
 				if top_emoji != "":
 					quest_def = quest_def.duplicate()
@@ -622,7 +622,7 @@ func _maybe_offer_attractor_quest(faction: Dictionary, biome) -> Dictionary:
 	# Called opportunistically from offer_quest_emergent; returns {} if conditions not met.
 	if not biome or not biome.has_method("get_attractor_state"):
 		return {}
-	var attractor := biome.get_attractor_state()
+	var attractor: Dictionary = biome.get_attractor_state()
 	if attractor.is_empty():
 		return {}
 	var dominant_ev: float = attractor.get("dominant_eigenvalue", 0.0)
@@ -1266,7 +1266,7 @@ func _update_achieve_eigenstate_quest(quest: Dictionary, delta: float) -> void:
 		# Optional: if quest names a target emoji, also verify it dominates the attractor.
 		var target_emoji: String = quest.get("target_emoji", "")
 		if target_emoji != "" and current_biome and current_biome.has_method("get_attractor_state"):
-			var attractor := current_biome.get_attractor_state()
+			var attractor: Dictionary = current_biome.get_attractor_state()
 			if attractor.get(target_emoji, 0.0) < 0.45:
 				return  # Purity met but biome is settling toward wrong eigenstate
 		var quest_id = quest.get("id", -1)
@@ -1425,13 +1425,13 @@ func _update_steer_to_attractor_quest(quest: Dictionary, _delta: float) -> void:
 	#   - purity is high (state is coherent)
 	if not current_biome or not current_biome.has_method("get_attractor_state"):
 		return
-	var attractor := current_biome.get_attractor_state()
+	var attractor: Dictionary = current_biome.get_attractor_state()
 	if attractor.is_empty():
 		return
 	var emoji: String = quest.get("target_emoji", "")
-	var prob_ok  := attractor.get(emoji, 0.0) >= float(quest.get("target_attractor_prob", 0.55))
-	var gap_ok   := attractor.get("eigenvalue_gap", 0.0) >= float(quest.get("target_gap", 0.10))
-	var purity_ok := current_biome.get_purity() >= float(quest.get("target_purity", 0.75))
+	var prob_ok: bool = float(attractor.get(emoji, 0.0)) >= float(quest.get("target_attractor_prob", 0.55))
+	var gap_ok: bool = float(attractor.get("eigenvalue_gap", 0.0)) >= float(quest.get("target_gap", 0.10))
+	var purity_ok: bool = float(current_biome.get_purity()) >= float(quest.get("target_purity", 0.75))
 	if prob_ok and gap_ok and purity_ok:
 		mark_quest_ready(quest.get("id", -1), "attractor_achieved")
 
