@@ -49,11 +49,6 @@ var _cached_mi_values: PackedFloat64Array = PackedFloat64Array()
 var _mi_compute_enabled: bool = true          # Set false to disable MI computation
 var _mi_last_compute_frame: int = -1          # Frame when MI was last computed
 
-## Gated Lindblad configurations (set by biome via LindbladBuilder)
-## Format: [{target_emoji: String, source_emoji: String, rate: float, gate: String, power: float}]
-## Evaluated each timestep: effective_rate = rate × P(gate)^power
-var gated_lindblad_configs: Array = []
-
 ## Time-dependent driver configurations (set via set_driven_icons)
 ## Format: [{emoji, qubit, pole, icon_ref, driver_type, base_energy}, ...]
 ## Used to update Hamiltonian diagonal terms each frame for oscillating self-energies
@@ -61,6 +56,10 @@ var driven_icons: Array = []
 var _last_driver_update_time: float = -1.0  # Track when we last updated drivers
 
 @export var entanglement_graph: Dictionary = {}  # register_id → Array[register_id] (adjacency)
+
+## Cached native engine used solely for Bloch metric computation.
+## compute_bloch_metrics_from_packed is a pure const function — no H/L setup needed.
+var _bloch_engine: QuantumEvolutionEngine = null
 
 ## Phase 3: Register-level infrastructure (gates, lindblad, theta_frozen, entanglement blueprints)
 ## Persists per-biome, survives harvest/replant naturally.
@@ -114,7 +113,6 @@ func clear() -> void:
 	_lindblad_cache_valid = false
 	sparse_hamiltonian = null
 	sparse_lindblad_operators.clear()
-	gated_lindblad_configs.clear()
 	driven_icons.clear()
 	entanglement_graph.clear()
 	register_infrastructure.clear()
@@ -368,75 +366,83 @@ func get_marginal_coherence(_comp, reg_id: int) -> float:
 	return marginal.get_element(0, 1).abs()
 
 
-func export_bloch_packet() -> PackedFloat64Array:
-	# Export current state as visualization packet.
+func get_attractor_state() -> Dictionary:
+	# Return the biome's attractor — the dominant eigenstate of the current ρ.
+	#
+	# The dominant eigenvector is the pure state the biome is most "trying to
+	# become" given its current Hamiltonian and Lindblad dissipation. It answers
+	# "what would this biome look like if left to fully relax?"
+	#
+	# Returns:
+	#   {emoji: float}  — per-emoji probability in the dominant mode
+	#   "dominant_eigenvalue": float  — weight of this mode (max = 1.0 for pure state)
+	#   "eigenvalue_gap": float  — separation from next mode (large gap = strong attractor)
+	#   "emojis": Array[String]  — emojis sorted descending by attractor probability
+	if not _bloch_engine or not density_matrix or not register_map:
+		return {}
+	var packed := density_matrix._to_packed()
+	var result = _bloch_engine.compute_eigenstates(packed)
+	if result.is_empty() or result.has("error"):
+		return {}
 
-	# Standard format for the information railway:
-	# QC.export_bloch_packet() → batcher buffers → viz_cache → UI
+	var dominant_vec: PackedFloat64Array = result["dominant_eigenvector"]
+	var eigenvalues: PackedFloat64Array = result["eigenvalues"]
+	var dominant_ev: float = result.get("dominant_eigenvalue", 0.0)
+	var dim := register_map.dim()
+	var nq := register_map.num_qubits
 
-	# Returns packed array: [p0, p1, x, y, z, r, theta, phi] per qubit
-	var num_qubits = register_map.num_qubits
-	var packet = PackedFloat64Array()
-	packet.resize(num_qubits * 8)
+	# Per-qubit marginals: P(qubit q = pole p | dominant eigenvector)
+	# = Σ_{basis i where qubit q == p} |ψ_i|²
+	var qubit_marginals: Array = []  # qubit_marginals[q][p] = probability
+	qubit_marginals.resize(nq)
+	for q in range(nq):
+		qubit_marginals[q] = [0.0, 0.0]
 
-	for q in range(num_qubits):
-		var marginal = get_marginal_density_matrix(null, q)
-		var base = q * 8
+	for i in range(dim):
+		var re: float = dominant_vec[i * 2]
+		var im: float = dominant_vec[i * 2 + 1]
+		var prob: float = re * re + im * im
+		for q in range(nq):
+			var shift := nq - 1 - q
+			var pole := (i >> shift) & 1
+			qubit_marginals[q][pole] += prob
 
-		if not marginal:
-			# Fallback: uniform superposition
-			packet[base + 0] = 0.5  # p0
-			packet[base + 1] = 0.5  # p1
-			packet[base + 2] = 0.0  # x
-			packet[base + 3] = 0.0  # y
-			packet[base + 4] = 0.0  # z
-			packet[base + 5] = 0.0  # r
-			packet[base + 6] = PI / 2  # theta
-			packet[base + 7] = 0.0  # phi
+	# Build emoji-keyed output
+	var out: Dictionary = {}
+	for q in range(nq):
+		var axis := register_map.axis(q)
+		var north: String = axis.get("north", "")
+		var south: String = axis.get("south", "")
+		if north != "":
+			out[north] = qubit_marginals[q][0]
+		if south != "":
+			out[south] = qubit_marginals[q][1]
+
+	out["dominant_eigenvalue"] = dominant_ev
+	out["eigenvalue_gap"] = (dominant_ev - float(eigenvalues[1])) if eigenvalues.size() > 1 else dominant_ev
+
+	# Convenience: emojis sorted by attractor probability (descending)
+	var emoji_probs: Array = []
+	for emoji in out:
+		if emoji in ["dominant_eigenvalue", "eigenvalue_gap", "emojis"]:
 			continue
+		emoji_probs.append({"emoji": emoji, "p": out[emoji]})
+	emoji_probs.sort_custom(func(a, b): return a.p > b.p)
+	out["emojis"] = emoji_probs.map(func(e): return e.emoji)
 
-		# Probabilities from diagonal
-		var p0 = marginal.get_element(0, 0).re
-		var p1 = marginal.get_element(1, 1).re
+	return out
 
-		# Coherence from off-diagonal
-		var coh = marginal.get_element(0, 1)
 
-		# DEBUG: Log coherence values for first qubit every 100 frames
-		if q == 0 and Engine.get_process_frames() % 100 == 0:
-			_log("trace", "test", "⚛️", "Bloch q0: ρ₀₁=%.6f + %.6fi, |ρ₀₁|=%.6f" % [
-				coh.re if coh else 0.0,
-				coh.im if coh else 0.0,
-				coh.abs() if coh else 0.0
-			])
-
-		# Bloch coordinates
-		var theta = 0.0
-		var phi = 0.0
-		var r = 0.0
-
-		var p_total = p0 + p1
-		if p_total > 1e-10:
-			theta = 2.0 * acos(sqrt(clamp(p0 / p_total, 0.0, 1.0)))
-
-		if coh and coh.abs() > 1e-10:
-			phi = coh.arg()
-			r = 2.0 * coh.abs()
-
-		var x = sin(theta) * cos(phi) * r
-		var y = sin(theta) * sin(phi) * r
-		var z = cos(theta) * r
-
-		packet[base + 0] = p0
-		packet[base + 1] = p1
-		packet[base + 2] = x
-		packet[base + 3] = y
-		packet[base + 4] = z
-		packet[base + 5] = r
-		packet[base + 6] = theta
-		packet[base + 7] = phi
-
-	return packet
+func export_bloch_packet() -> PackedFloat64Array:
+	# Export current state as Bloch packet via native C++ engine.
+	# Format: [p0, p1, x, y, z, r, theta, phi, r_xy] per qubit (stride=9)
+	if not _bloch_engine:
+		_bloch_engine = QuantumEvolutionEngine.new()
+	if not _bloch_engine:
+		push_error("QuantumComputer: native QuantumEvolutionEngine unavailable — bloch packet empty")
+		return PackedFloat64Array()
+	return _bloch_engine.compute_bloch_metrics_from_packed(
+		density_matrix._to_packed(), register_map.num_qubits)
 
 
 ## ============================================================================
@@ -1697,54 +1703,6 @@ func _evolve_step(dt: float) -> void:
 			drho = drho.add(dissipator)
 
 	# -------------------------------------------------------------------------
-	# Term 3: Gated Lindblad (evaluated each timestep)
-	# effective_rate = base_rate × P(gate)^power
-	# Only applies if P(gate) > threshold (optimization)
-	# -------------------------------------------------------------------------
-	for config in gated_lindblad_configs:
-		var gate_emoji: String = config.get("gate", "")
-		var power: float = config.get("power", 1.0)
-
-		# Skip if gate emoji not registered
-		if not register_map.has(gate_emoji):
-			continue
-
-		# Evaluate gate probability
-		var gate_prob = get_population(gate_emoji)
-		var effective_rate = config.get("rate", 0.0) * pow(gate_prob, power)
-
-		# Skip if negligible (optimization)
-		if effective_rate < 0.0001:
-			continue
-
-		# Build and apply jump operator for this timestep
-		var source_emoji: String = config.get("source_emoji", "")
-		var target_emoji: String = config.get("target_emoji", "")
-
-		if not register_map.has(source_emoji) or not register_map.has(target_emoji):
-			continue
-
-		var source_q = register_map.qubit(source_emoji)
-		var source_p = register_map.pole(source_emoji)
-		var target_q = register_map.qubit(target_emoji)
-		var target_p = register_map.pole(target_emoji)
-
-		# Build jump operator L = √γ_eff |target⟩⟨source|
-		var L_gated = _build_gated_jump(source_q, source_p, target_q, target_p,
-		                                effective_rate, register_map.num_qubits)
-
-		if L_gated != null:
-			# Apply Lindblad dissipator for this operator
-			var L_dag = L_gated.dagger()
-			var L_rho = L_gated.mul(density_matrix)
-			var L_rho_Ldag = L_rho.mul(L_dag)
-			var Ldag_L = L_dag.mul(L_gated)
-			var anticomm = Ldag_L.anticommutator(density_matrix)
-			var half_anticomm = anticomm.scale_real(0.5)
-			var dissipator = L_rho_Ldag.sub(half_anticomm)
-			drho = drho.add(dissipator)
-
-	# -------------------------------------------------------------------------
 	# Euler integration: ρ_new = ρ + dt * dρ/dt
 	# -------------------------------------------------------------------------
 	var rho_new = density_matrix.add(drho.scale_real(dt))
@@ -1762,51 +1720,6 @@ func _evolve_step(dt: float) -> void:
 
 	# Renormalize to maintain Tr(ρ) = 1 (numerical stability)
 	_renormalize()
-
-
-func _build_gated_jump(source_q: int, source_p: int, target_q: int, target_p: int,
-                       rate: float, num_qubits: int) -> ComplexMatrix:
-	# Build jump operator L = √rate |target⟩⟨source| for gated Lindblad.
-
-	# Args:
-	# source_q: Source qubit index
-	# source_p: Source pole (0=north, 1=south)
-	# target_q: Target qubit index
-	# target_p: Target pole (0=north, 1=south)
-	# rate: Effective rate (already scaled by gate probability)
-	# num_qubits: Total number of qubits in system
-
-	# Returns:
-	# ComplexMatrix L operator, or null if invalid
-	var dim = 1 << num_qubits
-	var L = ComplexMatrix.zeros(dim)
-	var amplitude = Complex.new(sqrt(rate), 0.0)
-
-	if source_q == target_q:
-		# Same qubit: flip pole
-		var shift = num_qubits - 1 - source_q
-
-		for i in range(dim):
-			# Check if qubit is in 'source' pole
-			if ((i >> shift) & 1) == source_p:
-				var j = i ^ (1 << shift)  # Flip bit
-				L.set_element(j, i, amplitude)
-	else:
-		# Different qubits: correlated transfer
-		var shift_from = num_qubits - 1 - source_q
-		var shift_to = num_qubits - 1 - target_q
-
-		for i in range(dim):
-			var bit_from = (i >> shift_from) & 1
-			var bit_to = (i >> shift_to) & 1
-
-			# Source qubit must be in source_p
-			# Target qubit must NOT already be in target_p
-			if bit_from == source_p and bit_to != target_p:
-				var j = i ^ (1 << shift_from) ^ (1 << shift_to)
-				L.set_element(j, i, amplitude)
-
-	return L
 
 
 func get_purity() -> float:

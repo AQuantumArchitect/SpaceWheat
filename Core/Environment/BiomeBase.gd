@@ -3,6 +3,7 @@ extends Node
 
 const _PC = preload("res://Core/Config/PhysicsConfig.gd")
 const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")
+const VerboseHelper = preload("res://Core/Config/VerboseHelper.gd")
 
 # Access autoloads safely (avoids compile-time errors)
 @onready var _icon_registry = InstrumentLocator.resolve_icon_registry(self)
@@ -19,6 +20,7 @@ const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.
 ## the same public API for backward compatibility with subclasses.
 
 # Component imports
+const FactionBiomeMap = preload("res://Core/Biomes/FactionBiomeMap.gd")
 const BiomeResourceRegistry = preload("res://Core/Environment/Components/BiomeResourceRegistry.gd")
 const BiomeBellGateTracker = preload("res://Core/Environment/Components/BiomeBellGateTracker.gd")
 const BiomeQuantumObserver = preload("res://Core/Environment/Components/BiomeQuantumObserver.gd")
@@ -28,20 +30,15 @@ const BiomeDensityMatrixMutator = preload("res://Core/Environment/Components/Bio
 const QuantumVizCache = preload("res://Core/Visualization/QuantumVizCache.gd")
 
 # Core imports
-const DualEmojiQubit = preload("res://Core/QuantumSubstrate/DualEmojiQubit.gd")
 const QuantumComputer = preload("res://Core/QuantumSubstrate/QuantumComputer.gd")
-const LiquidNeuralNet = preload("res://Core/Visualization/LiquidNeuralNet.gd")
 # QuantumGateLibrary - moved to BiomeGateOperations component
 const BiomeUtilities = preload("res://Core/Environment/BiomeUtilities.gd")
 const BiomeTimeTracker = preload("res://Core/Environment/BiomeTimeTracker.gd")
 const BiomeDynamicsTracker = preload("res://Core/QuantumSubstrate/BiomeDynamicsTracker.gd")
-const StrangeAttractorAnalyzer = preload("res://Core/QuantumSubstrate/StrangeAttractorAnalyzer.gd")
 # Icon - accessed via _icon_registry autoload
 const Complex = preload("res://Core/QuantumSubstrate/Complex.gd")
 const ComplexMatrix = preload("res://Core/QuantumSubstrate/ComplexMatrix.gd")
 # DensityMatrix - accessed via quantum_computer
-# EconomyConstants - unused, economy handled by EconomyManager
-const SemanticDrift = preload("res://Core/QuantumSubstrate/SemanticDrift.gd")
 
 # ============================================================================
 # COMPONENT INSTANCES
@@ -64,14 +61,10 @@ var icon_overrides: Dictionary = {}  # Per-biome icon overrides (never global)
 # Common infrastructure
 var time_tracker: BiomeTimeTracker = BiomeTimeTracker.new()
 var dynamics_tracker: BiomeDynamicsTracker = null
-var attractor_analyzer: StrangeAttractorAnalyzer = null
 var grid = null  # Injected FarmGrid reference
 
 # Central quantum state manager for this biome (ONLY source of truth)
 var quantum_computer = null  # QuantumComputer type
-
-# Active projections (legacy - to be removed)
-var active_projections: Dictionary = {}
 
 # Visual Properties for QuantumForceGraph rendering
 var visual_color: Color = Color(0.5, 0.5, 0.5, 0.3)
@@ -83,9 +76,7 @@ var visual_oval_width: float = 300.0
 var visual_oval_height: float = 185.0
 
 # Signals - common interface for all biomes
-signal qubit_created(position: Vector2i, qubit: Resource)
 signal qubit_measured(position: Vector2i, outcome: String)
-signal qubit_evolved(position: Vector2i)
 signal coupling_updated(emoji_a: String, emoji_b: String, strength: float)
 signal bell_gate_created(positions: Array)
 signal resource_registered(emoji: String, is_producible: bool, is_consumable: bool)
@@ -100,22 +91,18 @@ var quantum_evolution_accumulator: float = 0.0
 var quantum_evolution_timestep: float = _PC.PHRAME_DT  # Physics update rate
 var quantum_evolution_enabled: bool = true
 
-# Liquid Neural Net: Learns to modulate phases in the phasic shadow
-# Creates emergent intelligence in quantum evolution
-const ENABLE_PHASE_LNN = false  # Master kill-switch for main game
-var phase_lnn: LiquidNeuralNet = null  # Will be initialized when quantum_computer is ready
-var phase_lnn_enabled: bool = false  # Enable/disable phase modulation
+# Sim-speed: sim-seconds advanced per wall-second.
+# Controls how fast the world evolves relative to real time.
+# Day/night wall-time = driver_period / quantum_time_scale.
+# Default sourced from BalanceConfig.physics.quantum_time_scale.
+# See PhysicsConfig for the full derivation.
+var quantum_time_scale: float = 0.5  # Overwritten in _ready from BalanceConfig
 
-# Quantum time scaling (affects simulation speed without changing render rate)
-# Lower = slower simulation, higher = faster simulation
-# 1.0 = real-time, 0.5 = half-speed, 2.0 = double-speed
-var quantum_time_scale: float = 0.5  # Default to half real-time so dynamics are visible (~50s day/night)
-
-# Matrix substep granularity (controls numerical accuracy of evolution)
-# Smaller = more substeps = better accuracy but slower computation
-# Larger = fewer substeps = faster but less accurate
-# Range: 0.005 (very fine) to 0.05 (coarse)
-var max_evolution_dt: float = 0.02  # Default substep size
+# Max sim-time per Euler substep (numerical accuracy vs cost).
+# At 0.05, a typical phrame is ONE substep (cheapest).
+# Reduce if evolution becomes unstable (oscillations, trace divergence).
+# See PhysicsConfig.MAX_SUBSTEP_DT for the global default.
+var max_evolution_dt: float = _PC.MAX_SUBSTEP_DT
 
 # Observation stride: phrames consumed per physics tick (playback speed)
 # 0 = locked (no advancement), 1 = normal, 2+ = fast forward
@@ -157,7 +144,7 @@ var planting_capabilities: Array:
 # ============================================================================
 
 func _verbose_log(level: String, category: String, emoji: String, message: String) -> void:
-	"""Safely log to VerboseConfig if available"""
+	# Safely log to VerboseConfig if available
 	var logger = InstrumentLocator.resolve_verbose_config(self)
 	if not logger:
 		return
@@ -169,7 +156,7 @@ func _verbose_log(level: String, category: String, emoji: String, message: Strin
 
 
 func _ready() -> void:
-	"""Initialize biome - called by Godot when node enters scene tree"""
+	# Initialize biome - called by Godot when node enters scene tree
 	if _is_initialized:
 		return
 	_is_initialized = true
@@ -188,26 +175,24 @@ func _ready() -> void:
 	_system_builder.coupling_updated.connect(_on_coupling_updated)
 
 	# Initialize biome-specific quantum computer via virtual method
-	# NOTE: Subclasses like BioticFluxBiome create their own quantum_computer here
 	_initialize_bath()
 	_seed_viz_metadata()
 
 	# Wire component dependencies AFTER _initialize_bath() creates the real quantum_computer
 	if quantum_computer:
 		_quantum_observer.set_quantum_computer(quantum_computer)
+		_quantum_observer.set_viz_cache(viz_cache)
 		_density_mutator.set_quantum_computer(quantum_computer)
 
-	# Initialize strange attractor tracking
-	_initialize_attractor_tracking()
+	# Attractor tracking disabled (semantic layer stripped)
 
 	# Processing will be enabled by BootManager
 	set_process(false)
 
 
 func _exit_tree() -> void:
-	"""Break RefCounted cycles when biome is removed from the farm."""
+	# Break RefCounted cycles when biome is removed from the farm.
 	set_process(false)
-	active_projections.clear()
 	icons.clear()
 	icon_overrides.clear()
 	grid = null
@@ -215,8 +200,6 @@ func _exit_tree() -> void:
 	if dynamics_tracker:
 		dynamics_tracker.clear_history()
 	dynamics_tracker = null
-	attractor_analyzer = null
-	phase_lnn = null
 
 	if _bell_gate_tracker:
 		_bell_gate_tracker.clear()
@@ -249,14 +232,14 @@ func _exit_tree() -> void:
 
 
 func _wire_component_dependencies() -> void:
-	"""Wire dependencies for components that need IconRegistry (call after _ready)"""
-	_system_builder.set_dependencies(quantum_computer, _resource_registry, _get_icon_registry(), icon_overrides)
+	# Wire dependencies for components that need EmojiPhysicsRegistry (call after _ready)
+	_system_builder.set_dependencies(quantum_computer, _resource_registry, _get_atom_registry(), icon_overrides)
 	_gate_operations.set_dependencies(quantum_computer, null, _bell_gate_tracker, time_tracker)
 	_gate_operations.set_verbose_log_callback(_verbose_log)
 
 
-func _get_icon_registry():
-	"""Refresh IconRegistry reference on demand."""
+func _get_atom_registry():
+	# Refresh EmojiPhysicsRegistry reference on demand.
 	if _icon_registry and is_instance_valid(_icon_registry):
 		return _icon_registry
 	_icon_registry = InstrumentLocator.resolve_icon_registry_main_loop()
@@ -264,28 +247,18 @@ func _get_icon_registry():
 
 
 func _get_base_icon(emoji: String):
-	"""Get Icon from global registry (no overrides)."""
-	var reg = _get_icon_registry()
-	return reg.get_icon(emoji) if reg else null
-
-
-func _create_local_icon(_emoji: String):
-	"""Override in subclasses to provide biome-local icons."""
-	return null
+	# Get Icon from global registry (no overrides).
+	var reg = _get_atom_registry()
+	return reg.get_atom(emoji) if reg else null
 
 
 func _ensure_icon_override(emoji: String):
-	"""Ensure a biome-local icon exists for an emoji (never touches global registry)."""
-	if icon_overrides.has(emoji):
-		return icon_overrides[emoji]
-	var created = _create_local_icon(emoji)
-	if created:
-		icon_overrides[emoji] = created
-	return created
+	# Return biome-local icon override for emoji if it exists.
+	return icon_overrides.get(emoji)
 
 
 func _get_or_clone_icon(emoji: String):
-	"""Return a biome-local icon, cloning from registry when available."""
+	# Return a biome-local icon, cloning from registry when available.
 	if icon_overrides.has(emoji):
 		return icon_overrides[emoji]
 	var base_icon = _get_base_icon(emoji)
@@ -297,7 +270,7 @@ func _get_or_clone_icon(emoji: String):
 
 
 func _resolve_icon_for_emoji(emoji: String, create_if_missing: bool = false):
-	"""Resolve effective icon (override > registry). Optionally create local fallback."""
+	# Resolve effective icon (override > registry). Optionally create local fallback.
 	if icon_overrides.has(emoji):
 		return icon_overrides[emoji]
 	var base_icon = _get_base_icon(emoji)
@@ -309,7 +282,7 @@ func _resolve_icon_for_emoji(emoji: String, create_if_missing: bool = false):
 
 
 func _refresh_effective_icons() -> Dictionary:
-	"""Rebuild effective icon set for this biome."""
+	# Rebuild effective icon set for this biome.
 	icons = {}
 	if not quantum_computer or not quantum_computer.register_map:
 		return icons
@@ -321,12 +294,12 @@ func _refresh_effective_icons() -> Dictionary:
 
 
 func get_effective_icons() -> Dictionary:
-	"""Public accessor for the biome's effective icon set."""
+	# Public accessor for the biome's effective icon set.
 	return _refresh_effective_icons()
 
 
 func _seed_viz_metadata() -> void:
-	"""Seed viz_cache metadata from register_map when lookahead is disabled."""
+	# Seed viz_cache metadata from register_map when lookahead is disabled.
 	if not viz_cache or not quantum_computer or not quantum_computer.register_map:
 		return
 	if viz_cache.has_metadata():
@@ -353,9 +326,9 @@ func _seed_viz_metadata() -> void:
 
 
 func _seed_viz_couplings() -> void:
-	"""Seed viz_cache coupling data from icon registry."""
+	# Seed viz_cache coupling data from icon registry.
 	if not viz_cache:
-		print("[BiomeBase] _seed_viz_couplings: No viz_cache")
+		VerboseHelper.debug("biome", "viz", "_seed_viz_couplings: No viz_cache")
 		return
 
 	# Check for icons as property (set by BiomeBuilder) or metadata
@@ -365,18 +338,31 @@ func _seed_viz_couplings() -> void:
 		self.icons = icons
 
 	if not icons or icons.is_empty():
-		print("[BiomeBase] _seed_viz_couplings: No icons found (property or metadata)")
+		VerboseHelper.debug("biome", "viz", "_seed_viz_couplings: No icons found (property or metadata)")
 		return
 
-	print("[BiomeBase] _seed_viz_couplings: Found %d icons" % icons.size())
+	VerboseHelper.debug("biome", "viz", "_seed_viz_couplings: Found %d icons" % icons.size())
+	var self_energies: Dictionary = {}
+	var self_energy_drivers: Dictionary = {}
 	var hamiltonian_couplings: Dictionary = {}
 	var lindblad_outgoing: Dictionary = {}
 
-	# Extract coupling data from each icon
+	# Extract Hamiltonian/Lindblad visual structure from each icon
 	for emoji in icons:
 		var icon = icons[emoji]
 		if not icon:
 			continue
+
+		# Hamiltonian diagonal: the emoji's intrinsic/base frequency.
+		if "self_energy" in icon:
+			self_energies[emoji] = icon.self_energy
+		if "self_energy_driver" in icon and icon.self_energy_driver != "":
+			self_energy_drivers[emoji] = {
+				"type": icon.self_energy_driver,
+				"frequency": icon.driver_frequency if "driver_frequency" in icon else 0.0,
+				"phase": icon.driver_phase if "driver_phase" in icon else 0.0,
+				"amplitude": icon.driver_amplitude if "driver_amplitude" in icon else 1.0,
+			}
 
 		# Hamiltonian couplings
 		if "hamiltonian_couplings" in icon:
@@ -388,6 +374,8 @@ func _seed_viz_couplings() -> void:
 
 	# Update viz_cache with coupling payload
 	var payload = {
+		"self_energies": self_energies,
+		"self_energy_drivers": self_energy_drivers,
 		"hamiltonian": hamiltonian_couplings,
 		"lindblad": lindblad_outgoing
 	}
@@ -396,7 +384,7 @@ func _seed_viz_couplings() -> void:
 	for emoji in hamiltonian_couplings:
 		total_h_couplings += hamiltonian_couplings[emoji].size()
 
-	print("[BiomeBase] _seed_viz_couplings: Populated %d H-couplings into viz_cache" % total_h_couplings)
+	VerboseHelper.debug("biome", "viz", "_seed_viz_couplings: Populated %d H-couplings into viz_cache" % total_h_couplings)
 
 	viz_cache.update_couplings_from_payload(payload)
 
@@ -451,7 +439,7 @@ func _process(delta: float) -> void:
 
 
 func _ensure_quantum_computer() -> bool:
-	"""Ensure quantum_computer exists"""
+	# Ensure quantum_computer exists
 	if quantum_computer:
 		_qc_recovery_attempted = false
 		_qc_missing_warned = false
@@ -470,111 +458,14 @@ func _ensure_quantum_computer() -> bool:
 
 
 func _update_quantum_substrate(dt: float) -> void:
-	"""Virtual method: Override for Model C evolution"""
-	_apply_semantic_drift(dt)
-
-
-func _apply_semantic_drift(dt: float) -> void:
-	"""Apply semantic drift based on 🌀 population"""
-	if not quantum_computer:
-		return
-	var icon_source = _get_icon_registry()
-	if icon_overrides.size() > 0:
-		icon_source = _refresh_effective_icons()
-	if not icon_source:
-		return
-	SemanticDrift.apply_drift(quantum_computer, icon_source, dt)
+	# Evolve quantum substrate. Override in subclasses for custom post-evolution logic.
+	if quantum_computer:
+		quantum_computer.evolve(dt, max_evolution_dt)
 
 
 func get_drift_status() -> Dictionary:
-	"""Get current semantic drift status for UI display"""
-	if not quantum_computer:
-		return {"active": false, "intensity": 0.0, "status_text": "No quantum state"}
-	return {
-		"active": SemanticDrift.is_drift_active(quantum_computer),
-		"intensity": SemanticDrift.get_drift_intensity(quantum_computer),
-		"status_text": SemanticDrift.get_drift_status(quantum_computer)
-	}
-
-
-# ============================================================================
-# PHASIC SHADOW - LIQUID NEURAL NET IN PHASE SPACE
-# ============================================================================
-
-func initialize_phase_lnn() -> void:
-	"""Initialize liquid neural net in the phasic shadow.
-
-	Creates a trainable recurrent network that learns to modulate
-	phases in the density matrix, creating emergent intelligence
-	in the quantum evolution without explicit programming.
-
-	Uses C++ native implementation for 5000x speedup over pure GDScript.
-	"""
-	if not ENABLE_PHASE_LNN:
-		phase_lnn_enabled = false
-		return
-	if not quantum_computer or not quantum_computer.register_map:
-		return
-
-	var num_qubits = quantum_computer.register_map.num_qubits
-	if num_qubits <= 0:
-		return
-
-	# Get Hilbert space dimension (2^num_qubits)
-	var dim = quantum_computer.register_map.dim()
-	if dim <= 0:
-		return
-
-	# Configuration
-	var hidden_size = max(4, dim / 4)  # Hidden layer: 1/4 of input dimension
-
-	# DISABLED: Native C++ implementation
-	# The native LNN is causing crashes during initialization.
-	# Using GDScript fallback while debugging.
-	# TODO: Fix native binding and re-enable for 5000x speedup
-
-	# Fallback to GDScript implementation
-	phase_lnn = LiquidNeuralNet.new(
-		dim,         # Input: one phase per basis state (diagonal element)
-		hidden_size, # Hidden: dim/4 neurons for capacity
-		dim          # Output: phase modulation per basis state
-	)
-
-	# Share LNN reference with QuantumComputer (will be used during evolve())
-	quantum_computer.phase_lnn = phase_lnn
-
-	if _verbose and _verbose.allows("biome", _verbose.LogLevel.DEBUG):
-		_verbose.info("biome", "🌀", "Phasic shadow: GDScript LNN initialized (native disabled)")
-
-	phase_lnn_enabled = true
-
-
-## Enable LNN for testing (bypasses ENABLE_PHASE_LNN constant)
-func enable_phase_lnn_for_testing() -> bool:
-	"""Force-enable phase LNN regardless of master switch (for performance tests)."""
-	if phase_lnn:
-		phase_lnn_enabled = true
-		return true
-
-	# Initialize if not already done
-	if not quantum_computer or not quantum_computer.register_map:
-		return false
-
-	var num_qubits = quantum_computer.register_map.num_qubits
-	var dim = quantum_computer.register_map.dim()
-	var hidden_size = max(4, dim / 4)
-
-	phase_lnn = LiquidNeuralNet.new(dim, hidden_size, dim)
-	quantum_computer.phase_lnn = phase_lnn
-	phase_lnn_enabled = true
-
-	return true
-
-
-## Disable LNN for testing
-func disable_phase_lnn_for_testing():
-	"""Disable phase LNN (for performance comparison)."""
-	phase_lnn_enabled = false
+	# Drift removed — returns inactive stub for any UI that still queries.
+	return {"active": false, "intensity": 0.0, "status_text": ""}
 
 
 # ============================================================================
@@ -586,9 +477,9 @@ func set_evolution_paused(paused: bool) -> void:
 		return
 	evolution_paused = paused
 	if paused:
-		print("⏸️ %s: Quantum evolution PAUSED (BUILD mode)" % get_biome_type())
+		VerboseHelper.info("biome", "pause", "%s: Quantum evolution PAUSED (BUILD mode)" % get_biome_type())
 	else:
-		print("▶️ %s: Quantum evolution RESUMED (PLAY mode)" % get_biome_type())
+		VerboseHelper.info("biome", "pause", "%s: Quantum evolution RESUMED (PLAY mode)" % get_biome_type())
 
 
 func is_evolution_paused() -> bool:
@@ -704,15 +595,16 @@ func get_observable_phase(emoji: String) -> float:
 
 func get_emoji_probability(emoji: String) -> float:
 	if not viz_cache:
-		return 0.0
+		return -1.0
 	var q = viz_cache.get_qubit(emoji)
 	var pole = viz_cache.get_pole(emoji)
 	if q < 0 or pole < 0:
-		return 0.0
+		return -1.0
 	var snap = viz_cache.get_snapshot(q)
 	if snap.is_empty():
-		return 0.0
-	return snap.get("p0", 0.5) if pole == 0 else snap.get("p1", 0.5)
+		return -1.0
+	var prob = snap.get("p0", -1.0) if pole == 0 else snap.get("p1", -1.0)
+	return clampf(prob, 0.0, 1.0) if prob >= 0.0 else -1.0
 
 func get_emoji_coherence(north_emoji: String, south_emoji: String):
 	var bloch = _get_bloch_for_pair(north_emoji, south_emoji)
@@ -732,6 +624,51 @@ func get_purity() -> float:
 	return 0.0
 
 
+func get_attractor_state() -> Dictionary:
+	# The dominant eigenstate of the current density matrix — the pure state
+	# this biome is "trying to become" given its Hamiltonian and Lindblad dynamics.
+	# Returns {emoji: probability, ..., dominant_eigenvalue, eigenvalue_gap, emojis}.
+	if quantum_computer and quantum_computer.has_method("get_attractor_state"):
+		return quantum_computer.get_attractor_state()
+	return {}
+
+
+func predict_population(emoji: String, steps_ahead: int) -> float:
+	# Return the expected population of an emoji N evolution steps from now.
+	# Reads from the lookahead buffer — no additional C++ computation needed.
+	# steps_ahead: 0 = current frame, 1–13 = up to LOOKAHEAD_STEPS ahead.
+	# Returns -1.0 if the emoji is unknown or the lookahead buffer is empty.
+	if not viz_cache:
+		return -1.0
+	var qubit := viz_cache.get_qubit(emoji)
+	var pole := viz_cache.get_pole(emoji)
+	if qubit < 0 or pole < 0:
+		return -1.0
+	var farm = InstrumentLocator.resolve_active_farm(self)
+	if not farm or not farm.biome_evolution_batcher:
+		# Fallback: return current population when batcher unavailable
+		return get_emoji_probability(emoji)
+	var snap := farm.biome_evolution_batcher.get_viz_snapshot(
+			get_biome_type(), qubit, steps_ahead)
+	if snap.is_empty():
+		return get_emoji_probability(emoji)
+	return snap.get("p0", 0.5) if pole == 0 else snap.get("p1", 0.5)
+
+
+func predict_purity(steps_ahead: int) -> float:
+	# Return the expected purity N evolution steps from now.
+	# Returns current purity if lookahead is unavailable.
+	var farm = InstrumentLocator.resolve_active_farm(self)
+	if not farm or not farm.biome_evolution_batcher:
+		return get_purity()
+	var snap := farm.biome_evolution_batcher.get_viz_snapshot(
+			get_biome_type(), 0, steps_ahead)
+	if snap.is_empty():
+		return get_purity()
+	var p: float = snap.get("purity", -1.0)
+	return p if p >= 0.0 else get_purity()
+
+
 func get_icon_map() -> Dictionary:
 	if not viz_cache:
 		return {}
@@ -742,6 +679,32 @@ func get_icon_probability(emoji: String, normalized: bool = true) -> float:
 	if not viz_cache:
 		return 0.0
 	return viz_cache.get_icon_map_probability(emoji, normalized)
+
+
+## Phase VI: market activity decoheres the biome via this single entry point.
+## Wraps qc.drain_qubit with the universal η cap. Returns drain diagnostics.
+##
+## The biome's intrinsic Hamiltonian + Lindbladian dynamics restore coherence
+## between events; biomes with net drain > pump die forever. That's the
+## emergent gameplay loop the design celebrates.
+func apply_atomic_drain(emoji: String, pole: int, eta: float) -> Dictionary:
+	const HamiltonianConfig = preload("res://Core/Config/HamiltonianConfig.gd")
+	if quantum_computer == null or not quantum_computer.has(emoji):
+		return {"drained": 0.0, "error": "no_qubit"}
+	var qubit_idx: int = quantum_computer.qubit(emoji)
+	var pre_marginal: float = quantum_computer.get_marginal(qubit_idx, pole)
+	var capped_eta: float = clampf(eta, 0.0, HamiltonianConfig.ETA_HARD_CAP)
+	if capped_eta <= 0.0:
+		return {"drained": 0.0, "qubit_idx": qubit_idx, "pre": pre_marginal, "post": pre_marginal}
+	quantum_computer.drain_qubit(qubit_idx, pole, capped_eta)
+	var post_marginal: float = quantum_computer.get_marginal(qubit_idx, pole)
+	return {
+		"drained": pre_marginal - post_marginal,
+		"qubit_idx": qubit_idx,
+		"pre": pre_marginal,
+		"post": post_marginal,
+		"eta": capped_eta,
+	}
 
 func get_register_emoji_pair(register_id: int) -> Dictionary:
 	if not viz_cache:
@@ -768,21 +731,18 @@ func get_coherence_with_other_registers(register_id: int) -> float:
 
 ## Get register probability for a specific register ID
 func get_register_probability(register_id: int) -> float:
-	if not viz_cache:
-		return 0.5
-	var snap = viz_cache.get_snapshot(register_id)
-	if snap.is_empty():
-		return 0.5
-	return snap.get("p0", 0.5)
+	if _quantum_observer and _quantum_observer.has_method("get_register_probability"):
+		return float(_quantum_observer.get_register_probability(register_id))
+	return -1.0
 
 ## Get all unbound register IDs (available for new terminal binding)
 func get_unbound_registers(terminal_pool = null) -> Array[int]:
-	"""Get all register IDs not currently bound to a terminal."""
+	# Get all register IDs not currently bound to a terminal.
 	if not viz_cache:
 		return []
 	var num_qubits = viz_cache.get_num_qubits()
 	var unbound: Array[int] = []
-	var biome_name = get_biome_type() if has_method("get_biome_type") else ""
+	var biome_name = get_biome_type()
 
 	for reg_id in range(num_qubits):
 		if not terminal_pool or not terminal_pool.is_register_bound(reg_id, biome_name):
@@ -792,12 +752,14 @@ func get_unbound_registers(terminal_pool = null) -> Array[int]:
 
 ## Get probability distribution over all unbound registers
 func get_register_probabilities(terminal_pool = null) -> Dictionary:
-	"""Get probability distribution for weighted register selection."""
+	# Get probability distribution for weighted register selection.
 	var probs: Dictionary = {}
 	var unbound = get_unbound_registers(terminal_pool)
 
 	for reg_id in unbound:
-		probs[reg_id] = get_register_probability(reg_id)
+		var prob = get_register_probability(reg_id)
+		if prob >= 0.0:
+			probs[reg_id] = prob
 
 	return probs
 
@@ -809,7 +771,7 @@ func get_total_register_count() -> int:
 
 ## Get registers not currently bound to any terminal (V2 Architecture)
 func get_available_registers(terminal_pool) -> Array[int]:
-	"""Get unbound registers for EXPLORE action."""
+	# Get unbound registers for EXPLORE action.
 	return get_unbound_registers(terminal_pool)
 
 
@@ -884,85 +846,37 @@ func expand_quantum_system(north_emoji: String, south_emoji: String) -> Dictiona
 		_refresh_effective_icons()
 	return result
 
+
+## Add an atom pair to this biome's canonical state, then grow the substrate.
+##
+## Per the emoji-graph-spaghetti vision (biomes.json is mutable canonical):
+## this writes the new atoms into the live Biome instance via BiomeRegistry,
+## then calls expand_quantum_system to allocate the qubit axis. The atoms-
+## native LindbladBuilder.build_from_atoms path picks up any primed terms
+## whose endpoints are now in basis on the next substrate rebuild — so an
+## emoji like 🗑 dropped into MarketDistrict automatically lights up every
+## term that was authored with 🗑 as source or target.
+##
+## Returns the same dict shape as expand_quantum_system; adds a `canonical`
+## key indicating whether the canonical mutation took effect.
+func add_atom_pair(north_emoji: String, south_emoji: String, icon_name: String = "") -> Dictionary:
+	var biome_name = get_biome_type()
+	var registry = load("res://Core/Biomes/BiomeRegistry.gd").new()
+	var canonical_ok: bool = registry.add_atom_pair_to_biome(biome_name, north_emoji, south_emoji, icon_name)
+	# expand_quantum_system handles the substrate allocation + operator rebuild;
+	# even if canonical mutation was a no-op (already in basis), the substrate
+	# call surfaces the canonical error to the caller via its own success flag.
+	var result = expand_quantum_system(north_emoji, south_emoji)
+	result["canonical"] = canonical_ok
+	return result
+
 func inject_coupling(emoji_a: String, emoji_b: String, strength: float) -> Dictionary:
 	_wire_component_dependencies()
 	return _system_builder.inject_coupling(emoji_a, emoji_b, strength)
 
-func build_operators_cached(biome_name: String, icons: Dictionary) -> void:
+func build_operators_cached(biome_name: String, icons: Dictionary, atom_components: Dictionary = {}) -> void:
 	_wire_component_dependencies()
-	_system_builder.build_operators_cached(biome_name, icons)
-
-
-# ============================================================================
-# SHARED BUILD HELPERS (Biome-local construction)
-# ============================================================================
-
-func _build_quantum_from_pairs(
-	biome_name: String,
-	emoji_pairs: Array,
-	faction_standings: Dictionary = {},
-	lindblad_spec = null,
-	icon_patch_fn: Callable = Callable(),
-	cache_name: String = ""
-) -> Dictionary:
-	"""Build a biome quantum system from emoji pairs (shared helper).
-
-	Uses faction-derived icons, applies biome-local Lindblad spec and optional patch,
-	then builds operators via the unified system builder.
-	"""
-	var result = {"success": false, "quantum_computer": null, "icons": {}, "error": ""}
-	var qc = QuantumComputer.new(biome_name)
-
-	for i in range(emoji_pairs.size()):
-		var pair = emoji_pairs[i]
-		var north = pair.get("north", "")
-		var south = pair.get("south", "")
-		if north == "" or south == "":
-			result.error = "Invalid emoji pair at index %d" % i
-			return result
-		qc.allocate_axis(i, north, south)
-
-	var BiomeBuilder = load("res://Core/Biomes/BiomeBuilder.gd")
-	var icons = BiomeBuilder.rebuild_icons_for_standings(qc.register_map, faction_standings)
-	BiomeBuilder.apply_lindblad_spec_to_icons(icons, lindblad_spec)
-	if icon_patch_fn and icon_patch_fn.is_valid():
-		icon_patch_fn.call(icons)
-
-	quantum_computer = qc
-	self.icons = icons
-	self.icon_overrides = icons.duplicate(true)
-	self.set_meta("icons", icons)
-
-	var cache_key_name = cache_name if cache_name != "" else biome_name
-	build_operators_cached(cache_key_name, icons)
-	qc.initialize_uniform_superposition()
-
-	result.success = true
-	result.quantum_computer = qc
-	result.icons = icons
-	return result
-
-
-func _rebuild_operators_from_register_map(
-	cache_name: String,
-	faction_standings: Dictionary = {},
-	lindblad_spec = null,
-	icon_patch_fn: Callable = Callable()
-) -> void:
-	"""Rebuild operators from current register_map using shared icon pipeline."""
-	if not quantum_computer or not quantum_computer.register_map:
-		return
-
-	var BiomeBuilder = load("res://Core/Biomes/BiomeBuilder.gd")
-	var icons = BiomeBuilder.rebuild_icons_for_standings(quantum_computer.register_map, faction_standings)
-	BiomeBuilder.apply_lindblad_spec_to_icons(icons, lindblad_spec)
-	if icon_patch_fn and icon_patch_fn.is_valid():
-		icon_patch_fn.call(icons)
-
-	self.icons = icons
-	self.icon_overrides = icons.duplicate(true)
-	self.set_meta("icons", icons)
-	build_operators_cached(cache_name, icons)
+	_system_builder.build_operators_cached(biome_name, icons, atom_components)
 
 
 # ============================================================================
@@ -986,58 +900,131 @@ func boost_coupling(emoji: String, target_emoji: String, factor: float = 1.5) ->
 
 
 # ============================================================================
-# PROJECTIONS (Legacy Support)
-# ============================================================================
-
-func create_projection(position: Vector2i, north: String, south: String) -> Resource:
-	var qubit = DualEmojiQubit.new(north, south, PI/2.0, null)
-	qubit.plot_position = position
-	active_projections[position] = {"qubit": qubit, "north": north, "south": south}
-	qubit_created.emit(position, qubit)
-	return qubit
-
-func update_projections(_dt: float = 0.016) -> void:
-	for position in active_projections:
-		qubit_evolved.emit(position)
-
-func measure_projection(position: Vector2i) -> String:
-	if not active_projections.has(position):
-		return ""
-	var data = active_projections[position]
-	var outcome = ""
-	if quantum_computer:
-		outcome = quantum_computer.measure_axis(data.north, data.south)
-	else:
-		outcome = data.north if randf() < 0.5 else data.south
-	update_projections()
-	qubit_measured.emit(position, outcome)
-	return outcome
-
-func remove_projection(position: Vector2i) -> void:
-	active_projections.erase(position)
-
-func get_projection_qubit(position: Vector2i) -> Resource:
-	if active_projections.has(position):
-		return active_projections[position].qubit
-	return null
-
-
-# ============================================================================
 # BATH INITIALIZATION (Virtual - Override in subclasses)
 # ============================================================================
 
 func _initialize_bath() -> void:
-	"""Override in subclasses to set up the quantum computer."""
+	# Override in subclasses to set up the quantum computer.
 	pass
 
 func rebuild_quantum_operators() -> void:
-	"""Rebuild Hamiltonian operators (call after IconRegistry is ready)"""
+	# Rebuild Hamiltonian operators (call after EmojiPhysicsRegistry is ready)
 	if quantum_computer:
 		_rebuild_quantum_operators_impl()
 
 func _rebuild_quantum_operators_impl() -> void:
-	"""Override in child classes"""
-	pass
+	# Generic rebuild: factions -> JSONL profile -> Lindblad -> Hamiltonian.
+
+	# Uses the same authority chain as boot (BiomeBuilder). Subclasses with
+	# custom domain logic (eruptions, colony tracking, etc.) can override.
+	if not quantum_computer or not quantum_computer.register_map:
+		return
+
+	var biome_name = get_biome_type()
+	var BiomeBuilder = load("res://Core/Biomes/BiomeBuilder.gd")
+
+	# 1. Rebuild icons from factions. Project the active farm's 6-channel
+	#    FactionStanding records to {name: scalar} so IconBuilder can weight
+	#    each faction's H contribution by the player's standing with them.
+	#    Empty (no farm / fresh game) silently degrades to {} — same as before.
+	var faction_standings: Dictionary = _project_faction_standings_to_scalars()
+	var new_icons = BiomeBuilder.rebuild_icons_for_standings(
+		quantum_computer.register_map,
+		faction_standings
+	)
+	if new_icons.is_empty():
+		push_warning("%s: Rebuild failed — no icons" % biome_name)
+		return
+
+	# 2. Re-apply Lindblad from biome data (atom_components in biomes.json)
+	var biome_def = load("res://Core/Biomes/BiomeRegistry.gd").get_shared().get_by_name(biome_name)
+	if biome_def:
+		BiomeBuilder.apply_atom_components_to_icons(new_icons, biome_def.atom_components)
+
+	icons = new_icons
+	icon_overrides = new_icons.duplicate(true)
+	_admitted_factions_cache = null  # invalidate — admitted factions may have changed
+	_faction_affinity_cache = null
+
+	# 4. Rebuild Hamiltonian
+	var HamBuilder = load("res://Core/QuantumSubstrate/HamiltonianBuilder.gd")
+	var verbose = InstrumentLocator.resolve_verbose_config(self)
+	quantum_computer.hamiltonian = HamBuilder.build(new_icons, quantum_computer.register_map, verbose)
+
+	# 5. Update time-dependent drivers
+	var driven_configs = HamBuilder.get_driven_atoms(new_icons, quantum_computer.register_map)
+	quantum_computer.set_driven_icons(driven_configs)
+
+
+func _project_faction_standings_to_scalars() -> Dictionary:
+	# Read the active farm's FactionStanding records and project the 6 channels
+	# to a single scalar per faction. Empty dict means 'no standings yet' —
+	# IconBuilder treats absent factions as neutral weight (1.0).
+	var farm = InstrumentLocator.resolve_active_farm(self)
+	if farm == null:
+		_verbose_log("debug", "biome", "🪶", "rebuild: no active farm yet — neutral standings")
+		return {}
+	if farm.faction_standings == null or farm.faction_standings.is_empty():
+		return {}
+	var out: Dictionary = {}
+	for fname in farm.faction_standings:
+		var standing = farm.faction_standings[fname]
+		if standing == null:
+			continue
+		assert(standing.has_method("scalar"),
+			"FactionStanding for '%s' missing scalar() — record schema corrupted" % fname)
+		out[str(fname)] = float(standing.scalar())
+	return out
+
+
+# ============================================================================
+# FACTION AFFINITY (Phase 2 prep)
+# ============================================================================
+
+var _admitted_factions_cache = null  # Array or null; invalidated on rebuild
+var _faction_affinity_cache = null   # AffinityGraph or null; invalidated on rebuild
+
+
+func get_admitted_factions() -> Array:
+	## Cached list of faction names admitted to this biome via the faction-signature
+	## gate. Equivalent to FactionBiomeMap.factions_for_biome_by_signature(self) but
+	## cached per biome and invalidated whenever the Hamiltonian is rebuilt.
+	if _admitted_factions_cache != null:
+		return _admitted_factions_cache
+	_admitted_factions_cache = FactionBiomeMap.factions_for_biome_by_signature(self)
+	return _admitted_factions_cache
+
+
+func get_faction_affinity():
+	## AffinityGraph built from the corner states of factions admitted to this
+	## biome via the faction-signature gate. Returns null when no factions are
+	## admitted or the registry is unavailable.
+	##
+	## Used by Phase 2 attunement: player_affinity.overlap(biome.get_faction_affinity())
+	## equals 1.0 when the player's 12-qubit substrate matches the biome's faction field.
+	if _faction_affinity_cache != null:
+		return _faction_affinity_cache
+	const AffinityGraph = preload("res://Core/Affinity/AffinityGraph.gd")
+	const FactionRegistry = preload("res://Core/Factions/FactionRegistry.gd")
+	var native: Array = get_admitted_factions()
+	if native.is_empty():
+		return null
+	var registry = null
+	var farm = InstrumentLocator.resolve_active_farm(self)
+	if farm != null and "faction_density" in farm and farm.faction_density != null and farm.faction_density.has_method("get_registry"):
+		registry = farm.faction_density.get_registry()
+	if registry == null:
+		registry = FactionRegistry.new()
+	var g = AffinityGraph.from_uniform_superposition()
+	var weight: float = 1.0 / float(native.size())
+	for fname in native:
+		var f = registry.get_by_name(str(fname))
+		if f == null or not ("bits" in f):
+			continue
+		var corner = AffinityGraph.from_corner(f.bits)
+		g.lindblad_jump_toward(corner, weight)  # modifies g in-place (void return)
+	_faction_affinity_cache = g
+	return g
 
 
 # ============================================================================
@@ -1109,16 +1096,18 @@ func get_plot_positions_in_oval(plot_count: int, center: Vector2, viewport_scale
 func _track_dynamics() -> void:
 	if not quantum_computer or not dynamics_tracker:
 		return
-	var purity = quantum_computer.get_purity() if quantum_computer.has_method("get_purity") else 0.5
+	var purity = quantum_computer.get_purity() if quantum_computer.has_method("get_purity") else -1.0
 	var entropy = _calculate_quantum_entropy()
 	var coherence = _calculate_quantum_coherence()
 	dynamics_tracker.add_snapshot({"purity": purity, "entropy": entropy, "coherence": coherence})
 
 func _calculate_quantum_entropy() -> float:
 	if not quantum_computer or not quantum_computer.density_matrix:
-		return 0.5
-	var purity = quantum_computer.get_purity() if quantum_computer.has_method("get_purity") else 0.5
+		return -1.0
+	var purity = quantum_computer.get_purity() if quantum_computer.has_method("get_purity") else -1.0
 	var dim = quantum_computer.density_matrix.dimension() if quantum_computer.density_matrix.has_method("dimension") else 1
+	if purity < 0.0:
+		return -1.0
 	if purity <= 0 or dim <= 1:
 		return 0.0
 	var max_entropy = log(dim)
@@ -1148,53 +1137,17 @@ func _calculate_quantum_coherence() -> float:
 
 
 # ============================================================================
-# STRANGE ATTRACTOR ANALYSIS
-# ============================================================================
-
-func _initialize_attractor_tracking() -> void:
-	attractor_analyzer = StrangeAttractorAnalyzer.new()
-	var key_emojis = _select_key_emojis_for_attractor()
-	if key_emojis.size() >= 3:
-		attractor_analyzer.initialize(key_emojis)
-		_verbose_log("info", "attractor", "📊", "%s: Attractor tracking %s" % [get_biome_type(), str(key_emojis)])
-	else:
-		push_warning("BiomeBase: Insufficient emojis for attractor tracking (%d < 3)" % key_emojis.size())
-
-func _select_key_emojis_for_attractor() -> Array[String]:
-	var emojis: Array[String] = []
-	if quantum_computer and quantum_computer.register_map:
-		var emoji_list = quantum_computer.register_map.coordinates.keys()
-		for i in range(min(3, emoji_list.size())):
-			emojis.append(emoji_list[i])
-	return emojis
-
-func _record_attractor_snapshot() -> void:
-	if not attractor_analyzer:
-		return
-	var observables: Dictionary = {}
-	if quantum_computer and quantum_computer.density_matrix:
-		observables = quantum_computer.get_all_populations()
-	if not observables.is_empty():
-		attractor_analyzer.record_snapshot(observables)
-
-
-# ============================================================================
 # RESET & LIFECYCLE
 # ============================================================================
 
 func reset() -> void:
 	if quantum_computer:
 		quantum_computer.clear()
-	active_projections.clear()
 	if _bell_gate_tracker:
 		_bell_gate_tracker.clear()
 	time_tracker.reset()
 	if dynamics_tracker:
 		dynamics_tracker.clear_history()
-	_reset_custom()
-
-func _reset_custom() -> void:
-	pass
 
 
 # ============================================================================
@@ -1202,27 +1155,7 @@ func _reset_custom() -> void:
 # ============================================================================
 
 func harvest_all_plots() -> Array:
-	if not grid:
-		push_warning("BiomeBase.harvest_all_plots(): No grid reference")
-		return []
-
-	var results: Array = []
-	for position in active_projections.keys():
-		var plot = grid.get_plot(position)
-		if plot and plot.is_active():
-			var result = plot.harvest()
-			results.append(result)
-			_verbose_log("debug", "farm", "📍", "Harvested plot at %s: yield=%d" % [position, result.get("yield", 0)])
-
-	var total_yield = 0
-	var successful_harvests = 0
-	for result in results:
-		if result.get("success", false):
-			successful_harvests += 1
-			total_yield += result.get("yield", 0)
-
-	_verbose_log("info", "farm", "✂️", "BiomeBase.harvest_all_plots(): %d popped, %d credits total" % [successful_harvests, total_yield])
-	return results
+	return []
 
 
 # NOTE: Energy tap system removed (2026-01) - was half-disabled and confusing
