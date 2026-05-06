@@ -672,6 +672,27 @@ func _build_story_body() -> void:
 			var sel := (i == _story_chatter_idx)
 			var key_str: String = ITEM_KEYS[i] if i < ITEM_KEYS.size() else " "
 			_body_box.add_child(_make_chatter_bubble(chatter[i], sel, key_str))
+		# Attractor state for the selected chatter's biome — what it's "trying to become".
+		var sel_ev: Dictionary = chatter[_story_chatter_idx] if _story_chatter_idx < chatter.size() else {}
+		var sel_biome_name: String = str(sel_ev.get("biome", ""))
+		if sel_biome_name != "":
+			var farm = InstrumentLocator.resolve_active_farm(self)
+			if farm and farm.grid and farm.grid.has_method("get_biome"):
+				var sel_biome = farm.grid.get_biome(sel_biome_name)
+				if sel_biome and sel_biome.has_method("get_attractor_state"):
+					var att: Dictionary = sel_biome.get_attractor_state()
+					var att_emojis: Array = att.get("emojis", [])
+					if not att_emojis.is_empty():
+						var gap: float = float(att.get("eigenvalue_gap", 0.0))
+						var att_lbl := Label.new()
+						att_lbl.text = "  → %s  (gap %.2f — %s)" % [
+							" ".join(PackedStringArray(att_emojis.slice(0, 4))),
+							gap,
+							"sharp" if gap > 0.1 else "diffuse",
+						]
+						att_lbl.add_theme_font_size_override("font_size", 11)
+						att_lbl.add_theme_color_override("font_color", COLOR_MUTED)
+						_body_box.add_child(att_lbl)
 	_body_box.add_child(_make_spacer(8))
 
 	# === TRAJECTORY ===
@@ -815,15 +836,44 @@ func _build_verbs_body() -> void:
 
 	var mode_name = ToolConfig.get_frame_mode_name(frame_name)
 	var mode_actions: Dictionary = frame_def.get("actions", {}).get(mode_name, {})
-	for key in ["Q", "E", "R"]:
+	for key in ["Q", "E", "R", "F"]:
 		var info: Dictionary = mode_actions.get(key, {})
 		var label := str(info.get("label", ""))
 		var hint := str(info.get("hint", ""))
+		if key == "F" and (label == "" or label == "-"):
+			label = "Cancel / drill out"
+			hint = "Closes any open picker; otherwise no-op"
 		if label == "" or label == "-":
 			continue
-		_body_box.add_child(_make_action_row(key, label, hint))
-	_body_box.add_child(_make_action_row("F", "Cancel / drill out",
-		"Closes any open picker; otherwise no-op"))
+		# Reference display — key badge shows what the verb does on the TOOL surface,
+		# not here. Use muted documentation style rather than interactive chip.
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 8)
+		var key_lbl := Label.new()
+		key_lbl.text = "[%s]" % key
+		key_lbl.add_theme_font_size_override("font_size", 12)
+		key_lbl.add_theme_color_override("font_color", COLOR_KEY_CHIP)
+		key_lbl.custom_minimum_size = Vector2(28, 0)
+		row.add_child(key_lbl)
+		var verb_lbl := Label.new()
+		verb_lbl.text = label
+		verb_lbl.add_theme_font_size_override("font_size", 12)
+		verb_lbl.add_theme_color_override("font_color", COLOR_ITEM_IDLE)
+		verb_lbl.custom_minimum_size = Vector2(100, 0)
+		row.add_child(verb_lbl)
+		if hint != "":
+			var hint_lbl := Label.new()
+			hint_lbl.text = hint
+			hint_lbl.add_theme_font_size_override("font_size", 11)
+			hint_lbl.add_theme_color_override("font_color", COLOR_MUTED)
+			hint_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			hint_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			row.add_child(hint_lbl)
+		_body_box.add_child(row)
+
+	_body_box.add_child(_make_spacer(4))
+	_body_box.add_child(_make_muted_label(
+		"Reference only — these verbs execute on the tool surface, not here.", 10))
 
 	var modes: Array = frame_def.get("modes", [])
 	if modes.size() > 1:

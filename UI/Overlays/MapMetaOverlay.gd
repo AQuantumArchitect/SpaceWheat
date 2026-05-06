@@ -1161,7 +1161,17 @@ func _get_predicate_display(pred: Dictionary) -> Dictionary:
 			var target: float = float(pred.get("value", 0.0))
 			var density: float = _get_atom_density(bname, atom)
 			var passed: bool = density >= target
-			return {"text": "%s %s: %.0f%% / %.0f%%  %s" % [bname, atom, density * 100.0, target * 100.0, "✓" if passed else "◐"], "passed": passed}
+			var trend: String = ""
+			if not passed:
+				var predicted: float = _predict_atom_density(bname, atom, 6)
+				if predicted >= 0.0:
+					if predicted >= target:
+						trend = " [↑ on track]"
+					elif predicted > density + 0.005:
+						trend = " [↑ %.0f%%]" % (predicted * 100.0)
+					elif predicted < density - 0.005:
+						trend = " [↓ %.0f%%]" % (predicted * 100.0)
+			return {"text": "%s %s: %.0f%% / %.0f%%  %s%s" % [bname, atom, density * 100.0, target * 100.0, "✓" if passed else "◐", trend], "passed": passed}
 		"signature_size_gte":
 			var target: int = int(pred.get("value", 0))
 			var count: int = farm.known_pairs.size() if (farm != null and "known_pairs" in farm) else 0
@@ -1254,6 +1264,15 @@ func _get_atom_density(biome_name: String, atom: String) -> float:
 	if qubit < 0:
 		return 0.0
 	return biome.quantum_computer.get_marginal(qubit, pole)
+
+
+func _predict_atom_density(biome_name: String, atom: String, steps: int) -> float:
+	if farm == null or farm.grid == null:
+		return -1.0
+	var biome = farm.grid.get_biome(biome_name)
+	if biome == null or not biome.has_method("predict_population"):
+		return -1.0
+	return biome.predict_population(atom, steps)
 
 
 func _get_atom_count(biome_name: String) -> int:

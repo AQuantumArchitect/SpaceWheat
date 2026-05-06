@@ -59,9 +59,9 @@ func get_observable_phi(north: String, _south: String) -> float:
 		if q >= 0:
 			return viz_cache.get_bloch(q).get("phi", 0.0)
 	if quantum_computer and quantum_computer.register_map and quantum_computer.register_map.has(north):
-		var q := quantum_computer.register_map.qubit(north)
-		var packet := quantum_computer.export_bloch_packet()
-		var base := q * 9
+		var q: int = quantum_computer.register_map.qubit(north)
+		var packet: PackedFloat64Array = quantum_computer.export_bloch_packet()
+		var base: int = q * 9
 		if packet.size() > base + 7:
 			return packet[base + 7]
 	return 0.0
@@ -151,9 +151,9 @@ func get_emoji_coherence(north_emoji: String, south_emoji: String):
 		return null
 	if not quantum_computer.register_map.has(north_emoji):
 		return null
-	var q := quantum_computer.register_map.qubit(north_emoji)
+	var q: int = quantum_computer.register_map.qubit(north_emoji)
 	if viz_cache:
-		var bloch := viz_cache.get_bloch(q)
+		var bloch: Dictionary = viz_cache.get_bloch(q)
 		if not bloch.is_empty():
 			var x: float = bloch.get("x", 0.0)
 			var y: float = bloch.get("y", 0.0)
@@ -163,7 +163,7 @@ func get_emoji_coherence(north_emoji: String, south_emoji: String):
 	# Only reached when viz_cache is unavailable (e.g. before first evolution step).
 	if not quantum_computer.density_matrix:
 		return null
-	var marginal := quantum_computer.get_marginal_density_matrix(q)
+	var marginal = quantum_computer.get_marginal_density_matrix(q)
 	if not marginal:
 		return null
 	var coherence = marginal.get_element(0, 1)
@@ -270,7 +270,7 @@ func get_coherence_with_other_registers(register_id: int) -> float:
 func _qubit_for(emoji: String) -> int:
 	# Resolve qubit index for emoji: viz_cache first, register_map fallback.
 	if viz_cache:
-		var q := viz_cache.get_qubit(emoji)
+		var q: int = viz_cache.get_qubit(emoji)
 		if q >= 0:
 			return q
 	if quantum_computer and quantum_computer.register_map and quantum_computer.register_map.has(emoji):

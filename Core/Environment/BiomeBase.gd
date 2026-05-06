@@ -648,7 +648,7 @@ func predict_population(emoji: String, steps_ahead: int) -> float:
 	if not farm or not farm.biome_evolution_batcher:
 		# Fallback: return current population when batcher unavailable
 		return get_emoji_probability(emoji)
-	var snap := farm.biome_evolution_batcher.get_viz_snapshot(
+	var snap: Dictionary = farm.biome_evolution_batcher.get_viz_snapshot(
 			get_biome_type(), qubit, steps_ahead)
 	if snap.is_empty():
 		return get_emoji_probability(emoji)
@@ -661,7 +661,7 @@ func predict_purity(steps_ahead: int) -> float:
 	var farm = InstrumentLocator.resolve_active_farm(self)
 	if not farm or not farm.biome_evolution_batcher:
 		return get_purity()
-	var snap := farm.biome_evolution_batcher.get_viz_snapshot(
+	var snap: Dictionary = farm.biome_evolution_batcher.get_viz_snapshot(
 			get_biome_type(), 0, steps_ahead)
 	if snap.is_empty():
 		return get_purity()
