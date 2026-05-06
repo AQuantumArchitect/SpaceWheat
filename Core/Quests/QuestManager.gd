@@ -251,7 +251,7 @@ func _check_flag_predicate(pred: Dictionary, farm) -> float:
 			var biome = farm.grid.get_biome(str(pred.get("biome", "")))
 			if biome == null or biome.get("quantum_computer") == null:
 				return 0.0
-			var phase := biome.quantum_computer.berry_register.get_consumed_phase()
+			var phase: float = biome.quantum_computer.berry_register.get_consumed_phase()
 			return QuestMath.soft_gate(phase, float(pred.get("value", 0.0)), 0.1)
 		"standing_gte":
 			var standing = farm.faction_standings.get(str(pred.get("faction", "")))
@@ -275,7 +275,7 @@ func _check_flag_predicate(pred: Dictionary, farm) -> float:
 			var pole := int(coord.get("pole", 0))
 			if qubit < 0:
 				return 0.0
-			var marginal := biome.quantum_computer.get_marginal(qubit, pole)
+			var marginal: float = biome.quantum_computer.get_marginal(qubit, pole)
 			return QuestMath.soft_gate(marginal, float(pred.get("value", 0.0)))
 		"signature_size_gte":
 			return QuestMath.soft_gate(float(farm.known_pairs.size()), float(pred.get("value", 0)), 2.0)
@@ -321,7 +321,7 @@ func _check_flag_predicate(pred: Dictionary, farm) -> float:
 			var steps := int(pred.get("steps", 5))
 			# Score proportional to how strongly purity is trending upward.
 			# Requires a ~1% positive trend to score 0.5; flat = ~0.4.
-			var trend := biome.predict_purity(steps) - biome.get_purity()
+			var trend: float = biome.predict_purity(steps) - biome.get_purity()
 			return QuestMath.soft_gate(trend, 0.01, 0.02)
 		_:
 			return 0.0
@@ -1190,7 +1190,7 @@ func _update_shape_maintain_quest(quest: Dictionary, delta: float) -> void:
 	# Being "at the threshold" (gate=0.5) nets positive but slowly.
 	quest["elapsed"] = QuestMath.smooth_accumulate(
 			quest.get("elapsed", 0.0), gate, delta, 1.0)
-	var progress := QuestMath.soft_gate(quest["elapsed"], required_duration * 0.9,
+	var progress: float = QuestMath.soft_gate(quest["elapsed"], required_duration * 0.9,
 			required_duration * 0.05)
 	quest["progress"] = progress
 	if progress >= 0.9:
@@ -1215,7 +1215,7 @@ func _update_evolution_quest(quest: Dictionary, delta: float) -> void:
 
 	var actual_change := current_value - float(quest["initial_value"])
 	var signed_change := actual_change if direction == "increase" else -actual_change
-	var progress := QuestMath.soft_gate(signed_change, required_delta)
+	var progress: float = QuestMath.soft_gate(signed_change, required_delta)
 	quest["progress"] = progress
 	if progress >= 0.9:
 		var quest_id = quest.get("id", -1)
@@ -1231,7 +1231,7 @@ func _update_entanglement_quest(quest: Dictionary, delta: float) -> void:
 	if not _is_known_observable_value(current_coherence):
 		return
 
-	var progress := QuestMath.soft_gate(current_coherence, target_coherence)
+	var progress: float = QuestMath.soft_gate(current_coherence, target_coherence)
 	quest["progress"] = progress
 	if progress >= 0.9:
 		var quest_id = quest.get("id", -1)
@@ -1253,7 +1253,7 @@ func _update_achieve_eigenstate_quest(quest: Dictionary, delta: float) -> void:
 	if target_emoji != "" and current_biome and current_biome.has_method("get_attractor_state"):
 		var attractor: Dictionary = current_biome.get_attractor_state()
 		attractor_score = QuestMath.soft_gate(attractor.get(target_emoji, 0.0), 0.45, 0.05)
-	var progress := QuestMath.smooth_and([purity_score, attractor_score])
+	var progress: float = QuestMath.smooth_and([purity_score, attractor_score])
 	quest["progress"] = progress
 	if progress >= 0.9:
 		var quest_id = quest.get("id", -1)
@@ -1273,7 +1273,7 @@ func _update_maintain_coherence_quest(quest: Dictionary, delta: float) -> void:
 	var gate := QuestMath.soft_gate(current_coherence, target_coherence)
 	quest["elapsed"] = QuestMath.smooth_accumulate(
 			quest.get("elapsed", 0.0), gate, delta, 1.0)
-	var progress := QuestMath.soft_gate(quest["elapsed"], required_duration * 0.9,
+	var progress: float = QuestMath.soft_gate(quest["elapsed"], required_duration * 0.9,
 			required_duration * 0.05)
 	quest["progress"] = progress
 	if progress >= 0.9:
@@ -1298,7 +1298,7 @@ func _update_induce_bell_state_quest(quest: Dictionary, delta: float) -> void:
 		var coh = qc.get_coherence(target_pair[0], target_pair[1])
 		coherence = coh.abs() if coh else 0.0
 
-	var progress := QuestMath.soft_gate(coherence, threshold)
+	var progress: float = QuestMath.soft_gate(coherence, threshold)
 	quest["progress"] = progress
 	if progress >= 0.9:
 		var quest_id = quest.get("id", -1)
@@ -1320,7 +1320,7 @@ func _update_prevent_decoherence_quest(quest: Dictionary, delta: float) -> void:
 	var gate := QuestMath.soft_gate(current_purity, min_purity)
 	quest["elapsed"] = QuestMath.smooth_accumulate(
 			quest.get("elapsed", 0.0), gate, delta, 2.0)
-	var progress := QuestMath.soft_gate(quest["elapsed"], required_duration * 0.9,
+	var progress: float = QuestMath.soft_gate(quest["elapsed"], required_duration * 0.9,
 			required_duration * 0.05)
 	quest["progress"] = progress
 	if progress >= 0.9:
@@ -1344,11 +1344,11 @@ func _update_collapse_deliberately_quest(quest: Dictionary, delta: float) -> voi
 	if qc.has_method("get_population"):
 		probability = qc.get_population(target_emoji)
 
-	var purity := qc.get_purity() if qc.has_method("get_purity") else 0.0
+	var purity: float = float(qc.get_purity()) if qc.has_method("get_purity") else 0.0
 
 	var prob_score := QuestMath.soft_gate(probability, target_probability)
 	var purity_score := QuestMath.soft_gate(purity, 0.8)
-	var progress := QuestMath.smooth_and([prob_score, purity_score])
+	var progress: float = QuestMath.smooth_and([prob_score, purity_score])
 	quest["progress"] = progress
 	if progress >= 0.9:
 		var quest_id = quest.get("id", -1)
@@ -1363,7 +1363,7 @@ func _update_steer_to_attractor_quest(quest: Dictionary, _delta: float) -> void:
 	if attractor.is_empty():
 		return
 	var emoji: String = quest.get("target_emoji", "")
-	var progress := QuestMath.smooth_and([
+	var progress: float = QuestMath.smooth_and([
 		QuestMath.soft_gate(attractor.get(emoji, 0.0),
 				float(quest.get("target_attractor_prob", 0.55))),
 		QuestMath.soft_gate(attractor.get("eigenvalue_gap", 0.0),
@@ -1383,7 +1383,7 @@ func _update_heal_attractor_quest(quest: Dictionary, _delta: float) -> void:
 	if attractor.is_empty():
 		return
 	var emoji: String = quest.get("target_emoji", "")
-	var progress := QuestMath.smooth_and([
+	var progress: float = QuestMath.smooth_and([
 		QuestMath.soft_gate(attractor.get(emoji, 0.0),
 				float(quest.get("target_attractor_prob", 0.50))),
 		QuestMath.soft_gate(attractor.get("eigenvalue_gap", 0.0),

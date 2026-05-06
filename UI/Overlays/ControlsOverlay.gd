@@ -903,10 +903,10 @@ func _build_balance_body() -> void:
 		_body_box.add_child(_make_muted_label("chatter snapshot unavailable (no active farm).", 12))
 		return
 
-	_body_box.add_child(_make_action_row("Q", "Prev action", "step backward through action list"))
+	_body_box.add_child(_make_action_row("Q", "Prev biome", "step to previous biome scope"))
 	_body_box.add_child(_make_action_row("E", "Refresh", "re-snapshot current biome state"))
-	_body_box.add_child(_make_action_row("R", "Next action", "step forward through action list"))
-	_body_box.add_child(_make_muted_label("W/S  cycle biome", 10))
+	_body_box.add_child(_make_action_row("R", "Next biome", "step to next biome scope"))
+	_body_box.add_child(_make_muted_label("W/S  cycle action  ·  GHJKL; pick slot", 10))
 	_body_box.add_child(_make_spacer(6))
 
 	_body_box.add_child(_make_section_header("profile"))
@@ -930,7 +930,7 @@ func _build_balance_body() -> void:
 			_body_box.add_child(_make_balance_action_row(i, i - start))
 		var pages := int(ceil(float(total) / float(page_size)))
 		_body_box.add_child(_make_muted_label(
-			"Q/R action (%d/%d, p%d/%d)  ·  W/S biome" % [_balance_action_idx + 1, total, page + 1, pages],
+			"W/S action (%d/%d, p%d/%d)  ·  Q/R biome" % [_balance_action_idx + 1, total, page + 1, pages],
 			11,
 		))
 
@@ -1035,9 +1035,9 @@ func _build_guide_body() -> void:
 func _guide_core_loop() -> void:
 	_body_box.add_child(_make_section_header("the core loop: Q · E · R"))
 	_body_box.add_child(_make_body("Press 8 to enter the Ace frame, then:"))
-	_body_box.add_child(_make_action_row("Q", "Explore (in)", "Bind a terminal to a quantum register."))
-	_body_box.add_child(_make_action_row("E", "Measure (select)", "Collapse the quantum state (Born rule)."))
-	_body_box.add_child(_make_action_row("R", "Pop (out)", "Harvest credits proportional to the measured outcome."))
+	_body_box.add_child(_make_action_row("Q", "Explore", "Surface a terminal to a quantum register (screw out)."))
+	_body_box.add_child(_make_action_row("E", "Measure", "Collapse the quantum state (Born rule)."))
+	_body_box.add_child(_make_action_row("R", "Pop", "Harvest credits proportional to the measured outcome (screw in)."))
 	_body_box.add_child(_make_body(
 		"Q reaches in, E observes, R pulls out. Same direction in every tool."))
 
@@ -1079,9 +1079,9 @@ func _guide_things_to_try() -> void:
 
 func _guide_quick_reference() -> void:
 	_body_box.add_child(_make_section_header("verbs"))
-	_body_box.add_child(_make_action_row("Q", "Prev / In",       "Back, drill in, confirm"))
-	_body_box.add_child(_make_action_row("E", "Select / Detail", "Interact / observe"))
-	_body_box.add_child(_make_action_row("R", "Next / Out",      "Forward, advance, extract"))
+	_body_box.add_child(_make_action_row("Q", "Screw out",        "Retreat / shallower / safe variant / quit"))
+	_body_box.add_child(_make_action_row("E", "Pause + inspect", "Snapshot state; sim pauses as side-effect"))
+	_body_box.add_child(_make_action_row("R", "Screw in",        "Commit / deeper / advance / resume"))
 	_body_box.add_child(_make_action_row("E ↓", "Drill in",     "Hadamard / Measure / open detail / open submenu"))
 	_body_box.add_child(_make_action_row("F ↑", "Flatten",      "Collapses whatever E opened. No-op if nothing is open."))
 	_body_box.add_child(_make_action_row("Tab", "Cycle mode",   "Advance the current frame's sub-mode (was F)"))
@@ -1317,7 +1317,7 @@ func _make_story_chip(text: String, color: Color) -> PanelContainer:
 
 func _on_action_q() -> void:
 	match _current_tab:
-		Tab.BALANCE: _cycle_balance_action(-1)
+		Tab.BALANCE: _cycle_balance_biome(-1)
 		Tab.STORY:   _story_apply_verb("Q")
 		_: pass
 
@@ -1345,7 +1345,7 @@ func _on_action_e() -> void:
 
 func _on_action_r() -> void:
 	match _current_tab:
-		Tab.BALANCE: _cycle_balance_action(1)
+		Tab.BALANCE: _cycle_balance_biome(1)
 		Tab.STORY:   _story_apply_verb("R")
 		_: pass
 
@@ -1554,7 +1554,7 @@ func _on_navigate(direction: Vector2i) -> void:
 			_verbs_item = wrapi(_verbs_item + step, 0, VERBS_ITEMS.size())
 			_refresh_body()
 		Tab.BALANCE:
-			_cycle_balance_biome(step)
+			_cycle_balance_action(step)
 		Tab.GUIDE:
 			_guide_item = wrapi(_guide_item + step, 0, GUIDE_ITEMS.size())
 			_refresh_body()
