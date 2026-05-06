@@ -604,8 +604,9 @@ func _build_story_body() -> void:
 	# Density / coherence summary
 	var density_w: float = float(engine.graph.density.get(focus_id, 0.0))
 	var coh: float = engine.graph.coherence()
+	var coh_word: String = "diffuse" if coh < 0.35 else ("moderate" if coh < 0.7 else "focused")
 	var summary := Label.new()
-	summary.text = "attention here: %.2f   ·   coherence: %.2f" % [density_w, coh]
+	summary.text = "attention here: %.2f   ·   narrative focus: %.2f (%s)" % [density_w, coh, coh_word]
 	summary.add_theme_font_size_override("font_size", 11)
 	summary.add_theme_color_override("font_color", COLOR_HEADER)
 	_body_box.add_child(summary)
@@ -624,15 +625,7 @@ func _build_story_body() -> void:
 			var is_selected := (i == _story_edge_idx)
 			var marker := "▶ " if is_selected else "  "
 			var fired_glyph := " ✓" if edge.fired else ""
-			var attn_glyph := ""
-			if edge.attention > 0.01:
-				attn_glyph = "  +%.2f" % edge.attention
-			elif edge.attention < -0.01:
-				attn_glyph = "  %.2f" % edge.attention
-			var phase_glyph := ""
-			if abs(edge.phase) > 0.01:
-				phase_glyph = "  φ=%.2f" % edge.phase
-			var line := "%s[%s] → %s%s%s%s" % [marker, key_str, target_name, fired_glyph, attn_glyph, phase_glyph]
+			var line := "%s[%s] → %s%s" % [marker, key_str, target_name, fired_glyph]
 			var lbl := Label.new()
 			lbl.text = line
 			lbl.add_theme_font_size_override("font_size", 12)
@@ -661,10 +654,10 @@ func _build_story_body() -> void:
 	_body_box.add_child(_make_spacer(4))
 
 	# === ACTION ROW ===
-	_body_box.add_child(_make_action_row("Q", "Withdraw", "weaken player↔chatter coupling; lossless"))
-	_body_box.add_child(_make_action_row("R", "Reinforce", "strengthen player↔chatter coupling; lossless"))
-	_body_box.add_child(_make_action_row("F", "Harmonize", "rotate phase of player faction's internal H"))
-	_body_box.add_child(_make_action_row("E", "Express", "commit a stronger shift; record into trajectory"))
+	_body_box.add_child(_make_action_row("Q", "Withdraw", "redirect narrative attention away from this topic"))
+	_body_box.add_child(_make_action_row("R", "Reinforce", "focus narrative attention on this chatter's topic"))
+	_body_box.add_child(_make_action_row("F", "Harmonize", "lossless — no attention shift; records intent"))
+	_body_box.add_child(_make_action_row("E", "Express", "strong focus shift + commit into trajectory"))
 	_body_box.add_child(_make_spacer(8))
 
 	# === CHATTER BUBBLES (cursor target for QERF) ===
@@ -1312,8 +1305,8 @@ func _story_apply_verb(verb: String) -> void:
 	var ev: Dictionary = chatter[idx]
 	var emojis: Array = ev.get("emojis", [])
 	var faction: String = str(ev.get("faction", ""))
-	# H back-propagation: mutate The Demos in the runtime registry.
-	engine.express_icon_on_chatter(_story_icon_idx, verb, emojis, faction)
+	var topic_node: String = str(ev.get("topic_node", ""))
+	engine.express_icon_on_chatter(_story_icon_idx, verb, emojis, faction, topic_node)
 	_refresh_body()
 
 

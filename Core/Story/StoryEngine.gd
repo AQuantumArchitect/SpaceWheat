@@ -6,11 +6,11 @@ extends Node
 ## Subscribes to: QuestManager story-flag firing (via on_flag_fired hook).
 ## Exposes: apply_player_action() for QERF×123×GHJKL; routing from Z surface.
 ##
-## Plan §LOCKED:
-##   - Hybrid attention model: density on substrate, ui_focus cursor in UI.
-##   - QERF semantics: Q withdraw (lossless), R reinforce (lossless),
-##     F harmonize (rotate phase, lossless), E measure (collapses).
-##   - Only E advances the trajectory; Q/R/F are lossless influence.
+## Attention model: density on substrate, ui_focus cursor in UI.
+##   Q  withdraw — shifts density away from chatter's topic node.
+##   R  reinforce — shifts density toward chatter's topic node.
+##   F  harmonize — lossless; no density change; records intent.
+##   E  express — strong reinforce + full trajectory record.
 
 const StoryGraph := preload("res://Core/Story/StoryGraph.gd")
 const StoryNode := preload("res://Core/Story/StoryNode.gd")
@@ -270,7 +270,7 @@ const BACK_PROP_EXPRESS_MULTIPLIER: float = 2.5  # E commits stronger shift than
 ## R (Reinforce): alignment_couplings[icon_emoji][chatter_emoji] += δ
 ## F (Harmonize): hamiltonian[icon_emoji_within_signature][icon_partner].y += phase_δ (in-signature only)
 ## E (Express):   stronger Q+R+F combo, plus persistent trajectory record + density nudge
-func express_icon_on_chatter(icon_idx: int, verb: String, chatter_emojis: Array, chatter_faction: String = "") -> Dictionary:
+func express_icon_on_chatter(icon_idx: int, verb: String, chatter_emojis: Array, chatter_faction: String = "", chatter_topic_node: String = "") -> Dictionary:
 	var registry = _resolve_shared_registry()
 	if registry == null:
 		return {"success": false, "error": "no_registry"}
@@ -301,11 +301,25 @@ func express_icon_on_chatter(icon_idx: int, verb: String, chatter_emojis: Array,
 		"F":
 			_rotate_phase_within_signature(faction, icon_emojis, BACK_PROP_PHASE_DELTA)
 		"E":
-			# Express: combo + commit + trajectory record.
 			_mutate_alignment(faction, icon_emojis, chatter_emojis, BACK_PROP_ALIGNMENT_DELTA * multiplier)
 			_rotate_phase_within_signature(faction, icon_emojis, BACK_PROP_PHASE_DELTA * 0.5)
 		_:
 			return {"success": false, "error": "unknown_verb"}
+
+	# Density shift: redirect narrative attention based on the chatter's topic node.
+	# This is the real feedback — density modulates socialite chattiness via topic_activity.
+	# Q = withdraw attention from this topic; R/E = focus attention here; F = lossless.
+	if chatter_topic_node != "" and graph != null and graph.density.has(chatter_topic_node):
+		var argmax: String = graph.argmax_node()
+		match verb:
+			"Q":
+				graph.shift_mass(chatter_topic_node, argmax, MASS_SHIFT_ON_REINFORCE)
+			"R":
+				graph.shift_mass(argmax, chatter_topic_node, MASS_SHIFT_ON_REINFORCE)
+			"E":
+				graph.shift_mass(argmax, chatter_topic_node, MASS_SHIFT_ON_REINFORCE * BACK_PROP_EXPRESS_MULTIPLIER)
+			"F":
+				pass  # lossless — no attention change
 
 	# Trajectory record (always).
 	if trajectory != null:
