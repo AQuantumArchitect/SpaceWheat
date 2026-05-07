@@ -717,9 +717,9 @@ func _track_biome_offer(biome_name: String) -> bool:
 func offer_all_faction_quests(biome) -> Array:
 	# Generate quests for the current biome.
 
-	# Quests come from the native ContractMarket: it reads the current mythos
-	# substrate (faction density, principal mode, biome native factions, player
-	# economy) and proposes bids that QuestManager wraps into the lifecycle.
+	# Quests come from the canonical MarketLattice: it reads the current mythos
+	# substrate (faction density, principal mode, biome admitted factions,
+	# player economy) and proposes bids that QuestManager wraps into the lifecycle.
 
 	# Locked offers are prepended (persist across cycles).
 	var quests: Array = []
@@ -727,7 +727,7 @@ func offer_all_faction_quests(biome) -> Array:
 		quests.append(quest)
 
 	var now_ms: int = Time.get_ticks_msec()
-	for quest in _offer_from_contract_market(biome):
+	for quest in _offer_from_market_lattice(biome):
 		quest["id"] = next_quest_id
 		next_quest_id += 1
 		quest["offered_at"] = now_ms
@@ -922,8 +922,8 @@ func complete_quest(quest_id: int) -> bool:
 	var faction_name = str(quest.get("faction", "Unknown"))
 
 	# Resource reward: route through MarketLattice.exercise for substrate-derived
-	# 1/p × QC_RATIO reward. Falls back to fixed QuestRewards path if no market
-	# connection (biome not live, headless rig, etc.).
+	# 1/p × QC_RATIO reward. Falls back to the icon-based QuestRewards path if
+	# there is no live market connection (biome not live, headless rig, etc.).
 	var granted_resources: Dictionary = {}
 	var lat = _get_farm_market_lattice()
 	if lat != null:
@@ -1011,11 +1011,35 @@ func _apply_standing_deltas(faction_name: String, deltas: Dictionary) -> void:
 		farm.apply_standing_deltas(faction_name, deltas)
 
 
-func _offer_from_contract_market(biome) -> Array:
-	# Delegate offer generation to the native ContractMarket substrate.
+func _offer_from_market_lattice(biome) -> Array:
+	# Delegate offer generation to the canonical MarketLattice substrate.
 	# Returns pre-stamped quest dicts (sans id/offered_at — caller fills those).
 	var farm = _get_gsm().get_active_farm()
-	return farm._ensure_contract_market().propose_offers(biome, 2)
+	if farm == null or not farm.has_method("get_market_lattice"):
+		return []
+	var lattice = farm.get_market_lattice()
+	if lattice == null:
+		return []
+	# propose_offers returns MarketContract RefCounted objects.
+	# Convert to quest Dictionaries so callers can set arbitrary keys on them.
+	var contracts = lattice.propose_offers(biome, 196)
+	var quests: Array = []
+	for c in contracts:
+		if not c:
+			continue
+		var qty: int = max(1, int(c.get("cost_amount", 1) if c.has_method("get") else 1))
+		quests.append({
+			"type": QuestTypes.Type.DELIVERY,
+			"resource": str(c.get("resource", "") if c.has_method("get") else ""),
+			"quantity": qty,
+			"faction": str(c.get("faction", "") if c.has_method("get") else ""),
+			"biome": str(c.get("biome_name", "") if c.has_method("get") else ""),
+			"time_limit": 120.0,
+			"reward_vocab_north": "",
+			"reward_vocab_south": "",
+			"reward_multiplier": 1.0,
+		})
+	return quests
 
 # =============================================================================
 # QUEST READY/CLAIM (Non-delivery quests)
@@ -1442,7 +1466,7 @@ func _maybe_offer_heal_quest(faction: Dictionary, biome) -> Dictionary:
 		"snapshot_attractor": attractor,
 		"perturbation_strength": 0.85,
 		"body": "The %s was scattered — %s dispersed. Help it remember itself." % [biome_name, top_emoji],
-		"hint": "The Hamiltonian remembers. Feed it, wait, or gate it back.",
+		"hint": "The icon physics remembers. Feed it, wait, or gate it back.",
 		"reward_multiplier": 2.0 + clampf(gap, 0.0, 0.5),
 		"time_limit": -1.0,
 		"expires": false,
