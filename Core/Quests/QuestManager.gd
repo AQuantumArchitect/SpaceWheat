@@ -35,6 +35,7 @@ signal active_quests_changed()
 signal offer_locked(quest_id: int)
 signal offer_unlocked(quest_id: int)
 signal icon_learned(north: String, south: String, faction: String)
+signal story_flag_fired(flag_id: String, flag_data: Dictionary)
 
 # =============================================================================
 # STATE
@@ -79,12 +80,13 @@ func _ready() -> void:
 
 func _physics_process(delta: float) -> void:
 	var t0 = Time.get_ticks_usec()
-	# Update quest progress for non-delivery quests
+	# Story flags don't require a biome — evaluate unconditionally.
+	_evaluate_story_flags()
+	# Non-delivery quest progress tracking requires a live biome reference.
 	if current_biome == null:
 		return
 	if _state_projection:
 		_state_projection.observe_biome(current_biome, delta)
-	_evaluate_story_flags()
 
 	for quest in active_quests.values():
 		# Skip quests already ready to claim
@@ -150,6 +152,9 @@ func connect_to_biome(biome: Node) -> void:
 
 func connect_to_farm(farm: Node) -> void:
 	_refresh_unfired_flags(farm)
+	var story_engine = get_node_or_null("/root/StoryEngine")
+	if story_engine != null and story_engine.has_method("connect_to_farm_and_quests"):
+		story_engine.connect_to_farm_and_quests(farm, self)
 
 
 # =============================================================================
@@ -178,22 +183,6 @@ func _refresh_unfired_flags(farm) -> void:
 	for flag in _story_flags:
 		if not farm.story_flags_fired.has(str(flag.get("id", ""))):
 			_unfired_flags.append(flag)
-	# Re-inject arc quests for flags that already fired (restores LEDGER after save/load).
-	for flag in _story_flags:
-		var flag_id := str(flag.get("id", ""))
-		if not farm.story_flags_fired.has(flag_id):
-			continue
-		var arc_quest = flag.get("arc_quest")
-		if not (arc_quest is Dictionary) or arc_quest.is_empty():
-			continue
-		# Only re-inject if not already present (check by source_flag).
-		var already: bool = false
-		for existing in locked_offers.values():
-			if str(existing.get("source_flag", "")) == flag_id:
-				already = true
-				break
-		if not already:
-			inject_arc_quest(flag_id, arc_quest)
 
 
 ## Story-flag firing threshold: _evaluate_flag_predicates() must reach this.
@@ -333,93 +322,48 @@ func _fire_story_flag(flag: Dictionary, farm) -> void:
 	if flag_id == "" or farm.story_flags_fired.has(flag_id):
 		return
 
-	# Resolve arc beat (flag 6 has conditional_beat based on which atoms are present)
-	var beat := _resolve_arc_beat(flag, farm)
-
-	# Write to farm
+	# Record the fired frame — all downstream (beat, grants, quest, density) handled by StoryEngine.
 	farm.story_flags_fired[flag_id] = Engine.get_physics_frames()
-	farm.story_log.append({
-		"id": flag_id,
-		"act": int(flag.get("act", 0)),
-		"display_name": str(flag.get("display_name", flag_id)),
-		"arc_beat": beat,
-		"fired_at": Engine.get_physics_frames(),
-	})
 
-	# Standing grants
-	var grants: Dictionary = flag.get("standing_grants", {})
-	for faction_name in grants:
-		farm.apply_standing_deltas(faction_name, grants[faction_name])
-
-	# Arc quest injection (stub: adds to locked_offers as a non-expiring quest)
-	var arc_quest = flag.get("arc_quest")
-	if arc_quest is Dictionary and not arc_quest.is_empty():
-		inject_arc_quest(flag_id, arc_quest)
-
-	# Remove from unfired list
+	# Remove from unfired list before emitting so predicate evaluation sees the flag as fired.
 	_unfired_flags.erase(flag)
 
-	# Notify StoryEngine substrate (records system advance into trajectory log,
-	# biases density toward the just-fired node).
-	var story_engine = get_node_or_null("/root/StoryEngine")
-	if story_engine != null and story_engine.has_method("on_flag_fired"):
-		story_engine.on_flag_fired(flag_id)
+	story_flag_fired.emit(flag_id, flag)
 
 	if _verbose:
 		_verbose.info("quest", "📖", "Story flag fired: %s (act %d)" % [flag_id, int(flag.get("act", 0))])
 
 
-func _resolve_arc_beat(flag: Dictionary, farm) -> String:
-	var conditional: Array = flag.get("conditional_beat", [])
-	if conditional.is_empty():
-		return str(flag.get("arc_beat", ""))
-	# Check Village atoms to find matching condition
-	if farm.grid != null:
-		var biome = farm.grid.get_biome("Village")
-		if biome != null and biome.get("quantum_computer"):
-			var reg = biome.quantum_computer.get("register_map")
-			if reg != null:
-				for entry in conditional:
-					var atom := str(entry.get("atom", ""))
-					if atom != "" and reg.coordinates.has(atom):
-						return str(entry.get("text", ""))
-	return str(flag.get("arc_beat", ""))
-
-
-func inject_arc_quest(flag_id: String, quest_def: Dictionary) -> void:
-	# Add a non-expiring arc quest from a story flag definition.
+## Non-expiring offer injected by StoryEngine when a story flag fires.
+## All fields from quest_def are merged in; caller owns enrichment (attractor snap, etc.).
+func offer_story_quest(quest_def: Dictionary, source_flag: String) -> int:
 	if quest_def.is_empty():
-		return
-	# If the arc quest is a STEER_TO_ATTRACTOR, enrich it with live attractor data
-	# so the target emoji and body text reflect the biome's current physics.
-	if str(quest_def.get("type", "")) == "STEER_TO_ATTRACTOR":
-		var farm = _get_active_farm()
-		if farm and farm.grid:
-			var biome_name := str(quest_def.get("biome", ""))
-			var biome = farm.grid.get_biome(biome_name) if biome_name != "" else null
-			if biome and biome.has_method("get_attractor_state"):
-				var attractor: Dictionary = biome.get_attractor_state()
-				var top_emoji: String = attractor.get("emojis", [""])[0] if attractor.get("emojis", []).size() > 0 else ""
-				if top_emoji != "":
-					quest_def = quest_def.duplicate()
-					quest_def["target_emoji"] = top_emoji
-					quest_def["snapshot_attractor"] = attractor
-					if not quest_def.has("body") or quest_def["body"] == "":
-						quest_def["body"] = "The %s is finding its shape: %s. Help it settle." % [biome_name, top_emoji]
+		return -1
 	var quest_id := next_quest_id
 	next_quest_id += 1
-	var quest := {
+	var q: Dictionary = {
 		"id": quest_id,
 		"category": "ARC",
-		"type": quest_def.get("type", "DELIVER"),
-		"body": str(quest_def.get("body", "")),
-		"hint": str(quest_def.get("hint", "")),
-		"source_flag": flag_id,
+		"source_flag": source_flag,
 		"status": "locked",
 		"expires": false,
+		"locked_at": Time.get_ticks_msec(),
 	}
-	locked_offers[quest_id] = quest
+	q.merge(quest_def)
+	locked_offers[quest_id] = q
 	offer_locked.emit(quest_id)
+	return quest_id
+
+
+## True if any locked or active quest has source_flag == flag_id (for save/load restore check).
+func has_quest_for_flag(flag_id: String) -> bool:
+	for q in locked_offers.values():
+		if q.get("source_flag") == flag_id:
+			return true
+	for q in active_quests.values():
+		if q.get("source_flag") == flag_id:
+			return true
+	return false
 
 
 func _get_gsm():
