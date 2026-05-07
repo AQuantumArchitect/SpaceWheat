@@ -429,19 +429,24 @@ func _build_network_view() -> void:
 
 	var live_count: int = 0
 	var faction_count: int = 0
+	var bridge_count: int = 0
 	for e in _network_edges:
+		if e.get("bridge_edge", false):
+			bridge_count += 1
 		if e.get("faction_edge", false):
 			faction_count += 1
 		else:
 			live_count += 1
 	var hdr := Label.new()
-	hdr.text = "Trade edges: %d live pairs · %d faction-biome connections (★)" % [live_count, faction_count]
+	hdr.text = "Tensor edges: %d live pairs · %d faction connections (★) · %d bridge mediators (🔗★)" % [
+		live_count, faction_count, bridge_count
+	]
 	hdr.add_theme_font_size_override("font_size", 14)
 	hdr.add_theme_color_override("font_color", Color(0.9, 0.85, 0.5))
 	_body_box.add_child(hdr)
 
 	var sub := Label.new()
-	sub.text = "GHJKL; pick edge  ·  E inline inspect  ·  R open contract board (C key works too)"
+	sub.text = "GHJKL; pick edge  ·  E inline inspect  ·  R open contract board  ·  🔗★ = bridge faction (signature touches 2+ live biomes)"
 	sub.add_theme_font_size_override("font_size", 11)
 	sub.add_theme_color_override("font_color", COLOR_MUTED)
 	sub.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -614,11 +619,25 @@ func _make_network_row(edge: Dictionary, key_label: String, is_selected: bool) -
 
 	var pair_lbl := Label.new()
 	var is_faction: bool = bool(edge.get("faction_edge", false))
-	pair_lbl.text = "%s ⊗ %s" % [edge.a, edge.b]
-	if is_faction:
-		pair_lbl.text = "%s ⊗ ★%s" % [edge.a, edge.b]
+	var is_bridge: bool = bool(edge.get("bridge_edge", false))
+	# 🔗 marks bridge edges (faction signature spans 2+ live biomes); ★ marks any
+	# live↔faction-biome edge (whether bridge or single-touch).
+	var b_prefix: String = ""
+	if is_bridge:
+		b_prefix = "🔗★"
+	elif is_faction:
+		b_prefix = "★"
+	pair_lbl.text = "%s ⊗ %s%s" % [edge.a, b_prefix, edge.b]
 	pair_lbl.add_theme_font_size_override("font_size", 13)
-	var pair_color: Color = COLOR_HIGHLIGHT if is_selected else (Color(0.85, 0.65, 1.0) if is_faction else COLOR_BRIDGE_FACTION)
+	var pair_color: Color
+	if is_selected:
+		pair_color = COLOR_HIGHLIGHT
+	elif is_bridge:
+		pair_color = Color(1.0, 0.78, 0.45)  # warm amber — bridge stands out
+	elif is_faction:
+		pair_color = Color(0.85, 0.65, 1.0)
+	else:
+		pair_color = COLOR_BRIDGE_FACTION
 	pair_lbl.add_theme_color_override("font_color", pair_color)
 	pair_lbl.custom_minimum_size = Vector2(260, 0)
 	hbox.add_child(pair_lbl)
@@ -676,11 +695,34 @@ func _make_network_detail_panel(edge: Dictionary) -> Control:
 	panel.add_child(vbox)
 
 	var is_faction: bool = bool(edge.get("faction_edge", false))
+	var is_bridge: bool = bool(edge.get("bridge_edge", false))
 	var header := Label.new()
-	header.text = "  %s ⊗ %s%s" % [edge.a, "★" if is_faction else "", edge.b]
+	var hdr_prefix := ""
+	if is_bridge:
+		hdr_prefix = "🔗★"
+	elif is_faction:
+		hdr_prefix = "★"
+	header.text = "  %s ⊗ %s%s" % [edge.a, hdr_prefix, edge.b]
 	header.add_theme_font_size_override("font_size", 14)
 	header.add_theme_color_override("font_color", COLOR_FACTION_EDGE if is_faction else COLOR_HIGHLIGHT)
 	vbox.add_child(header)
+
+	# Bridge mediator: list the other live biomes this faction's signature
+	# also touches. Stories on the tensor edge through this faction-biome
+	# can flow between any pair of partners listed here.
+	if is_bridge:
+		var partners_raw: Array = edge.get("bridge_partners", [])
+		var others: Array = []
+		for p in partners_raw:
+			var pn := str(p)
+			if pn != "" and pn != str(edge.a):
+				others.append(pn)
+		if not others.is_empty():
+			var bridge_lbl := Label.new()
+			bridge_lbl.text = "  bridge: also touches %s" % " · ".join(others)
+			bridge_lbl.add_theme_font_size_override("font_size", 12)
+			bridge_lbl.add_theme_color_override("font_color", Color(1.0, 0.78, 0.45))
+			vbox.add_child(bridge_lbl)
 
 	var tension_lbl := Label.new()
 	tension_lbl.text = "  tension: %.4f    shared axes: %d" % [edge.tension, edge.shared.size()]
@@ -815,26 +857,45 @@ func _compute_network_edges() -> Array:
 				"faction_edge": false,
 			})
 
-	# Faction-biome edges for the active biome only (keeps count bounded).
-	var active_name := _get_active_biome_name()
-	if active_name != "" and marg_cache.has(active_name):
-		var marg_active: Dictionary = marg_cache[active_name]
-		var br = BiomeRegistry.get_shared()
-		for fb in br.get_biomes_by_tag("faction_biome"):
-			var marg_fb: Dictionary = MarketLatticeCls._static_marginals_from_spec(fb)
-			var shared: Array = []
-			var tension: float = 0.0
-			for emoji in marg_active.keys():
+	# Faction-biome edges. Emit (live_biome ↔ faction_biome) for every live
+	# biome whose qubit register shares at least one atom with the faction
+	# signature. When a single faction's signature touches 2+ live biomes,
+	# both sides of that faction are "bridge" edges — the faction_biome is
+	# a tensor mediator between physical biomes that don't share atoms
+	# directly. This is where inter-biome stories anchor.
+	var br = BiomeRegistry.get_shared()
+	for fb in br.get_biomes_by_tag("faction_biome"):
+		var marg_fb: Dictionary = MarketLatticeCls._static_marginals_from_spec(fb)
+		# First pass per faction-biome: collect which live biomes it touches.
+		var touched: Array = []  # [{biome, shared, tension}]
+		for bname in bnames:
+			var marg_live: Dictionary = marg_cache.get(bname, {})
+			var shared_atoms: Array = []
+			var tens: float = 0.0
+			for emoji in marg_live.keys():
 				if marg_fb.has(emoji):
-					shared.append(emoji)
-					tension += abs(float(marg_active[emoji]) - float(marg_fb[emoji]))
-			if shared.is_empty():
-				continue
+					shared_atoms.append(emoji)
+					tens += abs(float(marg_live[emoji]) - float(marg_fb[emoji]))
+			if not shared_atoms.is_empty():
+				touched.append({"biome": bname, "shared": shared_atoms, "tension": tens})
+		if touched.is_empty():
+			continue
+		var is_bridge := touched.size() >= 2
+		var bridge_boost := 0.5 if is_bridge else 0.0
+		var bridge_partners: Array = []
+		if is_bridge:
+			for t in touched:
+				bridge_partners.append(str(t.biome))
+		# Emit one edge per touched live biome — bridge edges are scored
+		# higher so they surface above single-biome faction edges.
+		for t in touched:
 			edges.append({
-				"a": active_name, "b": fb.name,
-				"shared": shared, "tension": tension,
-				"score": tension + 0.05 * float(shared.size()),
+				"a": str(t.biome), "b": fb.name,
+				"shared": t.shared, "tension": t.tension,
+				"score": float(t.tension) + 0.05 * float(t.shared.size()) + bridge_boost,
 				"faction_edge": true,
+				"bridge_edge": is_bridge,
+				"bridge_partners": bridge_partners,
 			})
 
 	edges.sort_custom(func(x, y): return float(x.score) > float(y.score))
