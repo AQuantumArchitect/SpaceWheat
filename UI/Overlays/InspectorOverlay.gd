@@ -1,12 +1,27 @@
 class_name InspectorOverlay
 extends "res://UI/Core/Surface.gd"
 
-## InspectorOverlay — N surface (biome network / selector).
+## InspectorOverlay — N surface (biome-to-biome Lindbladian network / selector).
 ##
-## N is the inter-biome lens: Network is the active handoff path, Bridges
-## summarizes lateral structure, and Selector is the browseable biome atlas.
-## Selecting a network edge seeds C's pair scope; the selector page is a world
-## browser that shows the same active-biome neighborhood without changing it.
+## N is the inter-biome lens. The Network frame shows the tensor edges between
+## biomes: shared atoms across qubit registers are the coupling channels, and
+## any quest / story beat that lives between two biomes is anchored on one of
+## those edges. Selecting an edge seeds C's pair scope so the contract board
+## opens for that specific relation.
+##
+## Frames:
+##   Network  — biome×biome tensor edges (where stories live)
+##   Bridges  — factions admitted to multiple biomes (lateral structure)
+##   Selector — browseable biome atlas (no scope change)
+##   Live     — biomes ranked by recent chatter activity
+##
+## Keyboard grammar (matches KEYBOARD_GRAMMAR.md):
+##   T Y U I  = direct-jump to the four frames
+##   GHJKL;   = pick the focused row within the frame
+##   Q ←      = screw out / retreat (clear pending C scope on Network)
+##   E ↓      = pause + inspect inline detail (does NOT leave N)
+##   R →      = screw in / drill into a deeper surface (open B; advance to C)
+##   F ↑      = flatten any open E-snapshot
 ##
 ## B owns the in-biome math; M owns the biome×faction field.
 
@@ -61,7 +76,7 @@ func _init() -> void:
 	surface_id = "N"
 	frame_ids = [FRAME_NETWORK, FRAME_BRIDGES, FRAME_MAP, FRAME_LIVE]
 	frame_id = FRAME_NETWORK
-	action_labels = {"Q": "—", "E": "Inspect", "R": "—", "F": "—"}
+	action_labels = {"Q": "—", "E": "Inspect", "R": "Open contracts", "F": "—"}
 
 
 func _build_content(container: Control) -> void:
@@ -105,11 +120,14 @@ func _on_frame_changed(_new_frame_id: String, _prev_frame_id: String) -> void:
 func _update_action_labels() -> void:
 	var labels: Dictionary
 	if frame_id == FRAME_NETWORK:
+		# E shows "—" once detail is open (E only opens; F flattens).
+		var e_label := "—" if _network_detail_open else "Inspect"
 		var f_label := "Flatten" if _network_detail_open else "—"
-		labels = {"Q": "—", "E": "Inspect", "R": "—", "F": f_label}
+		var r_label := "Open contracts" if (_network_selected >= 0 and _network_selected < _network_edges.size()) else "—"
+		labels = {"Q": "—", "E": e_label, "R": r_label, "F": f_label}
 	elif frame_id == FRAME_LIVE:
-		var e_label := "Open biome" if _live_selected < _live_sorted_biomes.size() else "—"
-		labels = {"Q": "—", "E": e_label, "R": "—", "F": "—"}
+		var r_label := "Open biome" if _live_selected < _live_sorted_biomes.size() else "—"
+		labels = {"Q": "—", "E": "—", "R": r_label, "F": "—"}
 	else:
 		labels = {"Q": "—", "E": "—", "R": "—", "F": "—"}
 	action_labels = labels
@@ -423,7 +441,7 @@ func _build_network_view() -> void:
 	_body_box.add_child(hdr)
 
 	var sub := Label.new()
-	sub.text = "GHJKL; selects · E inspects · press C to open the contract board for the selected relation"
+	sub.text = "GHJKL; pick edge  ·  E inline inspect  ·  R open contract board (C key works too)"
 	sub.add_theme_font_size_override("font_size", 11)
 	sub.add_theme_color_override("font_color", COLOR_MUTED)
 	sub.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -883,16 +901,32 @@ func _on_unhandled_key(keycode: int, _event) -> bool:
 
 
 func _on_action_q() -> void:
-	pass  # honest empty — Q is screw-out but N.network has no lesser/retreat action
+	pass  # honest empty across all frames — Q is screw-out but N has no lesser action.
 
 
 func _on_action_e() -> void:
+	# E = pause + inspect inline. Only opens panels; never closes them (F flattens).
 	if frame_id == FRAME_NETWORK:
 		if _network_edges.is_empty():
 			return
-		_network_detail_open = not _network_detail_open
-		_update_action_labels()
-		_rebuild_body()
+		if not _network_detail_open:
+			_network_detail_open = true
+			_update_action_labels()
+			_rebuild_body()
+
+
+func _on_action_r() -> void:
+	# R = screw in. Drill into the deeper surface for the focused row.
+	if frame_id == FRAME_NETWORK:
+		# Advance to the contract board (C) with this edge already scoped.
+		if _network_selected < 0 or _network_selected >= _network_edges.size():
+			return
+		_update_pending_pair_scope()
+		var om = _resolve_overlay_manager()
+		if om != null and om.has_method("show_overlay"):
+			om.show_overlay("contracts")
+		elif om != null and om.has_method("toggle_overlay"):
+			om.toggle_overlay("contracts")
 	elif frame_id == FRAME_LIVE:
 		if _live_selected < _live_sorted_biomes.size():
 			_handoff_to_biome_inspector(str(_live_sorted_biomes[_live_selected]))
@@ -968,7 +1002,7 @@ func _build_live_view() -> void:
 	_body_box.add_child(hdr)
 
 	var sub := Label.new()
-	sub.text = "GHJKL; selects · E opens biome inspector for selected biome"
+	sub.text = "GHJKL; pick biome  ·  R drill into B (biome inspector)"
 	sub.add_theme_font_size_override("font_size", 11)
 	sub.add_theme_color_override("font_color", COLOR_MUTED)
 	sub.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
