@@ -1,186 +1,124 @@
-## FarmView - UI entry point
-## Farm is owned/created by GameStateManager; FarmView only attaches UI.
+## FarmView - passive view container for farm runtime.
+## GameRoot owns and drives FarmView via attach_runtime / prepare_runtime_visuals
+## / finalize_runtime_mount. FarmView does NOT boot, does NOT own a PlayerShell.
 
 extends Control
 
 const QuantumForceGraph = preload("res://Core/Visualization/QuantumForceGraph.gd")
 const BiomeBackgroundClass = preload("res://Core/Visualization/BiomeBackground.gd")
-const SaveStore = preload("res://Core/GameState/SaveStore.gd")
 const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")
-# BootManager is an autoload singleton - no need to preload
 
 const BACKGROUND_LAYER := -1
-const SHELL_Z_INDEX := 10
 const QUANTUM_VIZ_Z_INDEX := 40
 
-var shell = null  # PlayerShell (from scene)
+var shell = null  # PlayerShell — borrowed from AppRoot, never owned here
 var farm: Node = null
 var quantum_viz: QuantumForceGraph = null
-var biome_background: Control = null  # BiomeBackground for full-screen biome art
-var performance_hud: Control = null  # Performance profiling overlay
+var biome_background: Control = null
+var performance_hud: Control = null
 
-# Helpers to access autoloads safely (avoids compile-time errors in tests)
 @onready var _verbose = InstrumentLocator.resolve_verbose_config(self)
-@onready var _boot_mgr = InstrumentLocator.resolve_root_node(self, "/root/BootManager")
 
 
-func _ready():
-	"""Initialize: boot core systems, then attach UI"""
-	_verbose.info("ui", "🌾", "FarmView starting...")
+func _ready() -> void:
+	# Passive container — GameRoot calls attach_runtime() to wire everything.
+	add_to_group("farm_view")
 
-	# DEBUG: Check if FarmView is properly sized
-	_verbose.debug("ui", "📏", "FarmView size: %.0f × %.0f" % [size.x, size.y])
-	_verbose.debug("ui", "", "FarmView anchors: L%.1f T%.1f R%.1f B%.1f" % [anchor_left, anchor_top, anchor_right, anchor_bottom])
-	_verbose.debug("ui", "", "Viewport: %.0f × %.0f" % [get_viewport_rect().size.x, get_viewport_rect().size.y])
 
-	# Detect headless mode early
-	var is_headless = DisplayServer.get_name() == "headless"
+# =============================================================================
+# RUNTIME LIFECYCLE (called by GameRoot)
+# =============================================================================
 
-	# ═══════════════════════════════════════════════════════════════════════
-	# BOOT CORE (GameStateManager owns Farm)
-	# ═══════════════════════════════════════════════════════════════════════
-	# Consume pending restart state if a restart was requested (R key / ESC menu).
-	# -1 means fresh game; >=0 means load that slot through the normal boot path.
-	var gsm = InstrumentLocator.resolve_game_state_manager(self)
-	var load_slot := -1
-	var scenario_id := SaveStore.DEFAULT_SCENARIO_ID
-	if gsm and gsm.pending_restart_requested:
-		load_slot = gsm.pending_restart_slot
-		scenario_id = gsm.pending_restart_scenario_id if gsm.pending_restart_scenario_id != "" else SaveStore.DEFAULT_SCENARIO_ID
-		gsm.pending_restart_slot = -1
-		gsm.pending_restart_requested = false
-		gsm.pending_restart_scenario_id = scenario_id
-		if load_slot >= 0:
-			_verbose.info("ui", "🔄", "Restarting into save slot %d" % load_slot)
-		else:
-			_verbose.info("ui", "🔄", "Restarting into fresh scenario '%s'" % scenario_id)
-	farm = await _boot_mgr.boot_core(load_slot, scenario_id, is_headless)
-	if not farm:
-		_verbose.warn("ui", "❌", "Farm not available after core boot")
-		return
+func attach_runtime(p_farm: Node, p_shell: Node, p_quantum_viz, is_headless: bool) -> void:
+	# Store runtime references. Called once (or twice — second call with real values).
+	farm = p_farm
+	if p_shell != null:
+		shell = p_shell
+	if p_quantum_viz != null:
+		quantum_viz = p_quantum_viz
+	if _verbose:
+		_verbose.info("ui", "🌾", "FarmView.attach_runtime (headless=%s)" % is_headless)
 
-	# Reparent FarmView under Farm (UI lives under simulation)
-	if get_parent() != farm:
-		var parent = get_parent()
-		if parent:
-			parent.remove_child(self)
-		farm.add_child(self)
-		if get_tree().current_scene == self:
-			get_tree().current_scene = farm
 
-	# ═══════════════════════════════════════════════════════════════════════
-	# SKIP ALL UI SETUP IN HEADLESS MODE (prevents GPU initialization)
-	# ═══════════════════════════════════════════════════════════════════════
+func prepare_runtime_visuals(is_headless: bool) -> void:
+	# Create biome background and wire quantum visualization.
+	# Called by GameRoot after attach_runtime, before boot_ui.
 	if is_headless:
-		_verbose.info("ui", "🎯", "Headless mode detected - skipping UI/visualization")
+		if _verbose:
+			_verbose.info("ui", "🎯", "FarmView headless — skipping visuals")
 		return
 
 	_create_biome_background_layer()
-
-	# Load PlayerShell scene
-	_verbose.debug("ui", "🎪", "Loading player shell scene...")
-	var shell_scene = load("res://UI/PlayerShell.tscn")
-	if shell_scene:
-		shell = shell_scene.instantiate()
-		add_child(shell)
-		shell.z_index = SHELL_Z_INDEX
-		_verbose.info("ui", "✅", "Player shell loaded and added to tree")
-	else:
-		_verbose.warn("ui", "❌", "PlayerShell.tscn not found!")
-		return
-
-	_create_quantum_visualization()
-
-	# ═══════════════════════════════════════════════════════════════════════
-	# PRE-BOOT: Signal connections needed before game starts
-	# ═══════════════════════════════════════════════════════════════════════
-
-	# CRITICAL: Connect visualization signals BEFORE boot emits game_ready
-	# Direct connection - farm → QuantumForceGraph (no controller middleman)
 	_connect_quantum_viz_to_farm()
 
-	# ═══════════════════════════════════════════════════════════════════════
-	# BOOT UI - Visualization + UI setup after core is ready
-	# ═══════════════════════════════════════════════════════════════════════
-	_verbose.info("farm", "🚀", "Starting UI Boot Sequence...")
-	await _boot_mgr.boot_ui(farm, shell, quantum_viz)
-	_verbose.info("farm", "✅", "UI Boot Sequence complete")
 
-	# ═══════════════════════════════════════════════════════════════════════
-	# POST-BOOT: Additional signal connections and final setup
-	# ═══════════════════════════════════════════════════════════════════════
-
+func finalize_runtime_mount(is_headless: bool = false) -> void:
+	# Post boot_ui wiring: signal connections and HUD proxies.
+	if is_headless:
+		return
 	_connect_visualization_ui_signals()
 	_bind_overlay_hud_proxies()
+	if _verbose:
+		_verbose.info("ui", "✅", "FarmView ready")
 
-	# Input is handled by PlayerShell._input() → modal stack → QuantumInstrumentInput
-	# No need for InputController anymore!
-	_verbose.info("ui", "✅", "Input routing handled by PlayerShell modal stack")
 
-	_verbose.info("ui", "✅", "FarmView ready - game started!")
+func teardown_runtime() -> void:
+	# Called by GameRoot.teardown_visuals before queue_free.
+	if quantum_viz and is_instance_valid(quantum_viz) and quantum_viz.has_method("teardown"):
+		quantum_viz.teardown()
+	quantum_viz = null
+	biome_background = null
+	performance_hud = null
+	farm = null
+	shell = null
 
+
+# =============================================================================
+# VISUALIZATION SETUP
+# =============================================================================
 
 func _create_biome_background_layer() -> void:
-	"""Create full-screen biome background behind gameplay/UI."""
-	_verbose.debug("ui", "🖼️", "Creating biome background layer...")
 	var bg_layer := CanvasLayer.new()
-	bg_layer.layer = BACKGROUND_LAYER  # Behind layer 0 (all other UI)
+	bg_layer.layer = BACKGROUND_LAYER
 	bg_layer.name = "BiomeBackgroundLayer"
 	add_child(bg_layer)
 
 	biome_background = BiomeBackgroundClass.new()
 	biome_background.name = "BiomeBackground"
 	bg_layer.add_child(biome_background)
-	_verbose.info("ui", "✅", "Biome background created (CanvasLayer -1)")
-
-
-func _create_quantum_visualization() -> void:
-	"""Create the primary quantum visualization layer."""
-	_verbose.debug("ui", "🛁", "Creating quantum force graph visualization...")
-	quantum_viz = QuantumForceGraph.new()
-	add_child(quantum_viz)
-	# Keep visualization in viewport space and stable above gameplay plots.
-	quantum_viz.top_level = true
-	quantum_viz.position = Vector2.ZERO
-	quantum_viz.z_index = QUANTUM_VIZ_Z_INDEX
+	if _verbose:
+		_verbose.info("ui", "✅", "Biome background created (CanvasLayer -1)")
 
 
 func _connect_quantum_viz_to_farm() -> void:
-	"""Connect visualization to farm signals before UI boot completes."""
 	if quantum_viz:
 		quantum_viz.connect_to_farm(farm)
 		return
-	push_error("FarmView: quantum_viz is NULL - cannot connect to farm!")
+	push_error("FarmView: quantum_viz is NULL — cannot connect to farm!")
 
 
 func _connect_visualization_ui_signals() -> void:
-	"""Connect plot selection + gesture signals to visualization."""
-	# Connect PlotGridDisplay → visualization (PlotGridDisplay created during boot_ui)
 	if quantum_viz and shell:
 		var plot_grid_display = shell.get_node_or_null("QuantumInstrument/PlotGridDisplay")
 		if plot_grid_display and plot_grid_display.has_signal("plot_selection_changed"):
 			plot_grid_display.plot_selection_changed.connect(quantum_viz._on_plot_selection_changed)
-			_verbose.info("ui", "✅", "PlotGridDisplay connected to visualization")
-			# Sync initial selection state
+			if _verbose:
+				_verbose.info("ui", "✅", "PlotGridDisplay connected to visualization")
 			if plot_grid_display.has_method("get_selected_plots"):
 				var selected = plot_grid_display.get_selected_plots()
 				for pos in selected:
 					quantum_viz.selected_plot_positions[pos] = true
 
-	# Connect touch gesture signals from QuantumForceGraph (direct access - no .graph)
 	if quantum_viz:
-		var click_result = quantum_viz.node_clicked.connect(_on_quantum_node_clicked)
-		if click_result != OK:
-			_verbose.warn("ui", "⚠️", "Failed to connect node_clicked signal")
-		else:
-			_verbose.info("ui", "✅", "Touch: Tap-to-measure connected")
-
+		if quantum_viz.node_clicked.connect(_on_quantum_node_clicked) != OK:
+			if _verbose:
+				_verbose.warn("ui", "⚠️", "Failed to connect node_clicked signal")
 		quantum_viz.chain_swiped.connect(_on_chain_swiped)
-		_verbose.info("ui", "✅", "Touch: Chain-swipe-to-gate connected")
+		if _verbose:
+			_verbose.info("ui", "✅", "Quantum viz signals connected")
 
 
 func _bind_overlay_hud_proxies() -> void:
-	"""Expose overlay-driven HUD references for diagnostics surfaces."""
 	performance_hud = null
 	if not shell or not ("overlay_manager" in shell) or not shell.overlay_manager:
 		return
@@ -191,9 +129,13 @@ func _bind_overlay_hud_proxies() -> void:
 		performance_hud = overlay_manager.get_overlay("inspector")
 
 
+# =============================================================================
+# INPUT HANDLERS
+# =============================================================================
+
 func _on_quit_requested() -> void:
-	"""Handle quit request"""
-	_verbose.info("ui", "🛑", "Quit requested - exiting game")
+	if _verbose:
+		_verbose.info("ui", "🛑", "Quit requested")
 	if quantum_viz and quantum_viz.has_method("teardown"):
 		quantum_viz.teardown()
 	var gsm = InstrumentLocator.resolve_game_state_manager(self)
@@ -207,83 +149,70 @@ func _on_quit_requested() -> void:
 		get_tree().quit()
 
 
-func _on_overlay_state_changed(overlay_name: String, visible: bool) -> void:
-	"""Handle overlay state changes (if needed for future features)"""
-	# Input is now handled by PlayerShell modal stack - no sync needed
-	pass
-
-
 func _on_quantum_node_clicked(grid_pos: Vector2i, button_index: int) -> void:
-	"""Handle tap gesture on quantum bubble - TAP TO MEASURE/POP (v2 Terminal system)
-
-	Triggered when user taps a quantum bubble (short press <50px distance).
-	Uses Terminal-based architecture (EXPLORE → MEASURE → POP):
-	- Bound but not measured → MEASURE (collapse quantum state)
-	- Measured → POP (harvest and return terminal to pool)
-	"""
-	_verbose.debug("ui", "🎯", "BUBBLE TAP HANDLER CALLED! Grid pos: %s, button: %d" % [grid_pos, button_index])
+	if _verbose:
+		_verbose.debug("ui", "🎯", "Bubble tap: %s button=%d" % [grid_pos, button_index])
 
 	if not farm or not farm.terminal_pool:
-		_verbose.warn("ui", "⚠️", "No farm or terminal_pool available")
+		if _verbose:
+			_verbose.warn("ui", "⚠️", "No farm or terminal_pool")
 		return
 
-	# Look up terminal via plot (O(1) vs O(n) pool scan)
 	var plot = farm.grid.get_plot(grid_pos) if farm.grid else null
 	var terminal = plot.terminal if plot else null
 	if not terminal:
-		_verbose.warn("ui", "⚠️", "No terminal bound at %s" % grid_pos)
+		if _verbose:
+			_verbose.warn("ui", "⚠️", "No terminal at %s" % grid_pos)
 		return
 
 	if not ("instrument" in farm) or not farm.instrument:
-		_verbose.error("ui", "❌", "Bubble tap requires Farm.instrument but none is attached")
+		if _verbose:
+			_verbose.error("ui", "❌", "Bubble tap requires Farm.instrument")
 		return
 
-	# Bubble tap action: measure or pop (Ensemble Model)
 	if not terminal.is_measured:
-		# MEASURE: Sample from ensemble, drain ρ, record claim
-		_verbose.debug("ui", "→", "MEASURING terminal at %s" % grid_pos)
 		var result = farm.instrument.action_measure(grid_pos)
 		if result.success:
-			var prob = result.recorded_probability
-			var drained = result.was_drained
-			_verbose.info("ui", "📊", "Measured: %s (%.1f%% recorded, drained=%s)" % [
-				result.outcome, prob * 100, drained
-			])
+			if _verbose:
+				_verbose.info("ui", "📊", "Measured: %s (%.1f%% recorded, drained=%s)" % [
+					result.outcome, result.recorded_probability * 100, result.was_drained
+				])
 		else:
-			_verbose.warn("ui", "⚠️", "Measure failed: %s" % result.get("message", "unknown"))
+			if _verbose:
+				_verbose.warn("ui", "⚠️", "Measure failed: %s" % result.get("message", "unknown"))
 	else:
-		# POP: Convert recorded probability to credits with purity and neighbor bonuses
-		_verbose.debug("ui", "→", "POPPING terminal at %s" % grid_pos)
 		var result = farm.instrument.action_pop(grid_pos)
 		if result.success:
-			var credits = result.credits
-			var purity = result.get("purity", 1.0)
-			var neighbors = result.get("neighbor_count", 4)
-			_verbose.info("ui", "🎉", "Popped: %s → %.1f credits (purity: %.2f, neighbors: %d)" % [result.resource, credits, purity, neighbors])
+			if _verbose:
+				_verbose.info("ui", "🎉", "Popped: %s → %.1f credits (purity: %.2f, neighbors: %d)" % [
+					result.resource, result.credits,
+					result.get("purity", 1.0), result.get("neighbor_count", 4)
+				])
 		else:
-			_verbose.warn("ui", "⚠️", "Pop failed: %s" % result.get("message", "unknown"))
+			if _verbose:
+				_verbose.warn("ui", "⚠️", "Pop failed: %s" % result.get("message", "unknown"))
 
 
 func _on_chain_swiped(positions: Array) -> void:
-	"""Handle chain swipe across bubbles → gate building via QII."""
 	if positions.size() < 2 or not farm:
 		return
-
-	_verbose.debug("ui", "⛓️", "Chain swipe: %d bubbles %s" % [positions.size(), positions])
-
-	# Route through QuantumInstrumentInput for tool-aware gate building
+	if _verbose:
+		_verbose.debug("ui", "⛓️", "Chain swipe: %d bubbles" % positions.size())
 	var qi = shell.current_farm_ui.input_handler if shell and shell.current_farm_ui else null
 	if not qi:
-		_verbose.error("ui", "❌", "Chain swipe requires QuantumInstrumentInput but none is attached")
+		if _verbose:
+			_verbose.error("ui", "❌", "Chain swipe: no QuantumInstrumentInput attached")
 		return
 	qi.apply_chain_gate(positions)
 
 
+# =============================================================================
+# ACCESSORS
+# =============================================================================
+
 func get_farm() -> Node:
-	"""Get the current farm (for external access)"""
 	return farm
 
 
 func get_shell() -> Node:
-	"""Get the shell (for external access)"""
 	return shell

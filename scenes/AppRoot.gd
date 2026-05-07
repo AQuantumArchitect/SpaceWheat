@@ -142,17 +142,10 @@ func _consume_pending_boot_request() -> Dictionary:
 
 
 func _open_x_to_keep_tab() -> void:
-	# Title-screen entrypoint: open X with the Keep (Y) tab pre-selected so the
-	# player lands directly on save/load instead of flipping through Run.
-	# Tab.KEEP == 1 in EscapeMenu's enum.
+	# Title-screen entrypoint: open the X system surface so the player can
+	# start a new game or load a save. Currently EscapeMenu serves as X.
 	if not player_shell:
 		return
-	var om = player_shell.get("overlay_manager")
-	var x = om.get("escape_menu") if om else null
-	if x and is_instance_valid(x) and x.has_method("open_to_tab"):
-		x.open_to_tab(1)
-		return
-	# Fallback if the overlay isn't reachable: open X normally.
 	player_shell._open_escape_menu()
 
 

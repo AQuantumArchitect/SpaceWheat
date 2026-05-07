@@ -434,10 +434,10 @@ func _build_lexicon_section(farm) -> void:
 		var p0 := str(rec.get("pole_0", "?"))
 		var p1 := str(rec.get("pole_1", "?"))
 		var icon_name := str(rec.get("name", ""))
-		var owner := str(rec.get("owner_faction", ""))
+		var factions: Array = lex.get_factions_for_pair(p0, p1)
 		var label_text := "%s↔%s  %s" % [p0, p1, icon_name]
-		if owner != "":
-			label_text += "  · %s" % owner
+		if not factions.is_empty():
+			label_text += "  · %s" % ", ".join(factions)
 		var row := Label.new()
 		row.text = label_text
 		row.add_theme_font_size_override("font_size", 11)
