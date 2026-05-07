@@ -385,9 +385,11 @@ func get_attractor_state() -> Dictionary:
 		return {}
 	var packed := density_matrix._to_packed()
 	# Guard: packed must be exactly 2*dim² floats (re+im per element).
-	# Mixed-qubit-dim crashes in Eigen happen when this size is wrong.
 	if packed.size() != dim_expected * dim_expected * 2:
 		return {}
+	# Ensure engine dimension matches this biome before calling Eigen.
+	if _bloch_engine.get_dimension() != dim_expected:
+		_bloch_engine.set_dimension(dim_expected)
 	var result = _bloch_engine.compute_eigenstates(packed)
 	if result.is_empty() or result.has("error"):
 		return {}
@@ -455,6 +457,10 @@ func export_bloch_packet() -> PackedFloat64Array:
 	var packed := density_matrix._to_packed()
 	if packed.size() != dim * dim * 2:
 		return PackedFloat64Array()
+	# set_dimension ensures m_dim matches this biome before any Eigen operations.
+	# Without this, a freshly-created engine has m_dim=0 → 0×0 matrix → crash.
+	if _bloch_engine.get_dimension() != dim:
+		_bloch_engine.set_dimension(dim)
 	return _bloch_engine.compute_bloch_metrics_from_packed(packed, nq)
 
 
