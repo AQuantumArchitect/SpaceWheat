@@ -58,6 +58,11 @@ const COLOR_CARD_BORDER_IDLE := Color(0.35, 0.4, 0.5, 0.6)
 const COLOR_CARD_BORDER_ACTIVE := Color(0.9, 0.85, 0.4, 0.9)
 const COLOR_BRIDGE_FACTION := Color(0.95, 0.85, 0.5)
 const COLOR_BRIDGE_BIOMES := Color(0.7, 0.85, 1.0)
+# Faction-edge gradient endpoints. Single-touch faction edges render at
+# COLOR_EDGE_LAVENDER; bridge order k pulls toward COLOR_EDGE_AMBER along
+# _bridge_intensity(k). Used by row, header, and detail-panel renderers.
+const COLOR_EDGE_LAVENDER := Color(0.85, 0.65, 1.0)
+const COLOR_EDGE_AMBER := Color(1.0, 0.78, 0.45)
 
 var _frame_label: Label
 var _hint_label: Label
@@ -622,22 +627,16 @@ func _make_network_row(edge: Dictionary, key_label: String, is_selected: bool) -
 	var pair_lbl := Label.new()
 	var is_faction: bool = bool(edge.get("faction_edge", false))
 	var bridge_count: int = int(edge.get("bridge_count", 1))
-	var bridge_intensity := _bridge_intensity(bridge_count)
-	# Badge: ★ for any faction-biome edge. The bridge order shows as a
-	# continuous color shift, not a separate glyph — no categorical step.
+	# Badge: ★ for any faction-biome edge. Bridge order shows as a smooth
+	# color lerp, not a separate glyph — no categorical step.
 	var prefix: String = "★" if is_faction else ""
 	pair_lbl.text = "%s ⊗ %s%s" % [edge.a, prefix, edge.b]
 	pair_lbl.add_theme_font_size_override("font_size", 13)
-	# Color geometry: live-only edges sit on COLOR_BRIDGE_FACTION (cool blue);
-	# single-touch faction edges shift to lavender; bridges lerp toward amber
-	# along bridge_intensity = 1 - 1/sqrt(k). Smooth across all k >= 1.
 	var pair_color: Color
 	if is_selected:
 		pair_color = COLOR_HIGHLIGHT
 	elif is_faction:
-		var lavender := Color(0.85, 0.65, 1.0)
-		var amber := Color(1.0, 0.78, 0.45)
-		pair_color = lavender.lerp(amber, bridge_intensity)
+		pair_color = _faction_edge_color(bridge_count)
 	else:
 		pair_color = COLOR_BRIDGE_FACTION
 	pair_lbl.add_theme_color_override("font_color", pair_color)
@@ -676,7 +675,6 @@ func _make_network_row(edge: Dictionary, key_label: String, is_selected: bool) -
 
 const COLOR_KEY_CHIP := Color(0.55, 0.85, 1.0, 0.95)
 const COLOR_DETAIL_BG := Color(0.08, 0.10, 0.14, 0.92)
-const COLOR_FACTION_EDGE := Color(0.85, 0.65, 1.0)
 
 
 func _make_network_detail_panel(edge: Dictionary) -> Control:
@@ -698,19 +696,13 @@ func _make_network_detail_panel(edge: Dictionary) -> Control:
 
 	var is_faction: bool = bool(edge.get("faction_edge", false))
 	var bridge_count: int = int(edge.get("bridge_count", 1))
-	var bridge_intensity := _bridge_intensity(bridge_count)
 	var header := Label.new()
 	var hdr_prefix: String = "★" if is_faction else ""
 	header.text = "  %s ⊗ %s%s" % [edge.a, hdr_prefix, edge.b]
 	header.add_theme_font_size_override("font_size", 14)
-	# Header color follows the same lavender→amber gradient as the row badge,
-	# so detail-open visual continuity is preserved across bridge orders.
-	if is_faction:
-		var lavender := Color(0.85, 0.65, 1.0)
-		var amber := Color(1.0, 0.78, 0.45)
-		header.add_theme_color_override("font_color", lavender.lerp(amber, bridge_intensity))
-	else:
-		header.add_theme_color_override("font_color", COLOR_HIGHLIGHT)
+	# Header tracks the row-badge gradient so detail-open keeps visual continuity.
+	header.add_theme_color_override("font_color",
+		_faction_edge_color(bridge_count) if is_faction else COLOR_HIGHLIGHT)
 	vbox.add_child(header)
 
 	# Bridge mediator: list the other live biomes this faction's signature
@@ -729,9 +721,7 @@ func _make_network_detail_panel(edge: Dictionary) -> Control:
 			var bridge_lbl := Label.new()
 			bridge_lbl.text = "  bridge order k=%d  ·  also touches %s" % [bridge_count, " · ".join(others)]
 			bridge_lbl.add_theme_font_size_override("font_size", 12)
-			var lavender2 := Color(0.85, 0.65, 1.0)
-			var amber2 := Color(1.0, 0.78, 0.45)
-			bridge_lbl.add_theme_color_override("font_color", lavender2.lerp(amber2, bridge_intensity))
+			bridge_lbl.add_theme_color_override("font_color", _faction_edge_color(bridge_count))
 			vbox.add_child(bridge_lbl)
 
 	var tension_lbl := Label.new()
@@ -855,6 +845,12 @@ static func _edge_score(
 static func _bridge_intensity(bridge_count: int) -> float:
 	var k := float(maxi(1, bridge_count))
 	return 1.0 - 1.0 / sqrt(k)
+
+
+## Faction-edge color along the lavender→amber gradient. k=1 sits at lavender
+## (single-touch), higher k pulls toward amber along _bridge_intensity.
+static func _faction_edge_color(bridge_count: int) -> Color:
+	return COLOR_EDGE_LAVENDER.lerp(COLOR_EDGE_AMBER, _bridge_intensity(bridge_count))
 
 
 func _compute_network_edges() -> Array:
