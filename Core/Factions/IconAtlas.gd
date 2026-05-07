@@ -1,0 +1,633 @@
+extends Node
+
+## IconAtlas - canonical runtime atlas for icon pair truth and projected atom physics.
+##
+## This is the one live icon store. It ingests the authored JSON sources once at
+## boot and owns:
+##   - pair-icon identity / ownership / biome presence
+##   - discovered anonymous pairs
+##   - derived per-emoji atom physics cache
+##
+## Pair records are loaded from:
+##   - factions.json icons[]
+##   - biomes.json icons[]
+##   - icons.json physics entries
+##
+## The per-emoji atom cache is derived from pair records and can be rebuilt on
+## demand. Live phase rotation mutates the atom cache only; the authored pair
+## records remain the source data that can be rebuilt from.
+
+const FactionAxes = preload("res://Core/Factions/FactionAxes.gd")
+const IconScript = preload("res://Core/QuantumSubstrate/Icon.gd")
+
+const JSON_FACTIONS = "res://Core/Factions/data/factions.json"
+const JSON_BIOMES = "res://Core/Biomes/data/biomes.json"
+const JSON_ICONS = "res://Core/Factions/data/icons.json"
+
+var _by_pair: Dictionary = {}
+var _by_name: Dictionary = {}
+var _by_faction: Dictionary = {}
+var _pair_to_factions: Dictionary = {}
+var _by_biome: Dictionary = {}
+
+## Derived per-emoji physics cache: emoji -> Icon
+var atoms: Dictionary = {}
+
+var _world_built_count: int = 0
+var _anonymous_count: int = 0
+var _loaded: bool = false
+
+
+func _init() -> void:
+	_reload_all()
+
+
+func _ready() -> void:
+	if not _loaded:
+		_reload_all()
+
+
+static func _pair_key(p0: String, p1: String) -> String:
+	return "%s|%s" % [p0, p1]
+
+
+func _reload_all() -> void:
+	_by_pair.clear()
+	_by_name.clear()
+	_by_faction.clear()
+	_pair_to_factions.clear()
+	_by_biome.clear()
+	atoms.clear()
+	_anonymous_count = 0
+	_world_built_count = 0
+	_load_pair_records()
+	_load_axial_icons()
+	_world_built_count = _by_pair.size()
+	_load_icon_physics()
+	_rebuild_atom_cache()
+	_loaded = true
+
+
+func _load_pair_records() -> void:
+	# Pass 1: faction-authored icons.
+	var faction_data = _read_json(JSON_FACTIONS)
+	if faction_data is Array:
+		for f in faction_data:
+			var fname = str(f.get("name", ""))
+			if fname == "":
+				continue
+			for icon in f.get("icons", []):
+				if not (icon is Dictionary):
+					continue
+				var name = str(icon.get("name", ""))
+				var p0 = str(icon.get("pole_0", ""))
+				var p1 = str(icon.get("pole_1", ""))
+				if name == "" or p0 == "" or p1 == "":
+					continue
+				var key = _pair_key(p0, p1)
+				if not _by_pair.has(key):
+					_register({
+						"name": name,
+						"pole_0": p0,
+						"pole_1": p1,
+						"biomes_present_in": [],
+						"anonymous": false,
+					})
+				if not _by_faction.has(fname):
+					_by_faction[fname] = []
+				if not _by_faction[fname].has(key):
+					_by_faction[fname].append(key)
+				if not _pair_to_factions.has(key):
+					_pair_to_factions[key] = []
+				if not _pair_to_factions[key].has(fname):
+					_pair_to_factions[key].append(fname)
+
+	# Pass 2: biome placements.
+	var biome_data = _read_json(JSON_BIOMES)
+	if biome_data is Array:
+		for b in biome_data:
+			var bname = str(b.get("name", ""))
+			if bname == "":
+				continue
+			for icon in b.get("icons", []):
+				if not (icon is Dictionary):
+					continue
+				var name = str(icon.get("name", ""))
+				var p0 = str(icon.get("pole_0", ""))
+				var p1 = str(icon.get("pole_1", ""))
+				if name == "" or p0 == "" or p1 == "":
+					continue
+				var key = _pair_key(p0, p1)
+				if not _by_pair.has(key):
+					_register({
+						"name": name,
+						"pole_0": p0,
+						"pole_1": p1,
+						"biomes_present_in": [],
+						"anonymous": false,
+					})
+				if not _by_biome.has(bname):
+					_by_biome[bname] = []
+				if not _by_biome[bname].has(key):
+					_by_biome[bname].append(key)
+				if not _by_pair[key]["biomes_present_in"].has(bname):
+					_by_pair[key]["biomes_present_in"].append(bname)
+
+
+func _load_axial_icons() -> void:
+	for i in range(FactionAxes.AXIS_COUNT):
+		var axis: Dictionary = FactionAxes.get_axis(i)
+		if axis.is_empty():
+			continue
+		var p0 := str(axis.get("pole_0", ""))
+		var p1 := str(axis.get("pole_1", ""))
+		if p0 == "" or p1 == "":
+			continue
+		var key := _pair_key(p0, p1)
+		if _by_pair.has(key):
+			_by_pair[key]["axial"] = true
+			_by_pair[key]["axis_index"] = i
+			continue
+		_register({
+			"name": "Axis_%s" % str(axis.get("key", "axis_%d" % i)),
+			"pole_0": p0,
+			"pole_1": p1,
+			"biomes_present_in": [],
+			"anonymous": false,
+			"axial": true,
+			"axis_index": i,
+		})
+
+
+func _load_icon_physics() -> void:
+	# Merge authored pair physics from icons.json. Missing pair records are
+	# created here so physics-only entries can still exist in the atlas.
+	var physics_data = _read_json(JSON_ICONS)
+	if not physics_data is Array:
+		return
+	var physics_fields := [
+		"self_energy_0", "self_energy_1", "rabi_coupling",
+		"hamiltonian_couplings", "energy_couplings", "driver", "measurement_behavior",
+	]
+	for entry in physics_data:
+		if not (entry is Dictionary):
+			continue
+		var p0 := str(entry.get("pole_0", ""))
+		var p1 := str(entry.get("pole_1", ""))
+		if p0 == "" or p1 == "":
+			continue
+		var record = find_icon_by_pair(p0, p1)
+		if record.is_empty():
+			record = {
+				"name": str(entry.get("name", "%s/%s" % [p0, p1])),
+				"pole_0": p0,
+				"pole_1": p1,
+				"biomes_present_in": [],
+				"anonymous": false,
+			}
+			_register(record)
+		for field in physics_fields:
+			if field in entry and not record.has(field):
+				record[field] = entry[field]
+
+
+func _rebuild_atom_cache() -> void:
+	atoms.clear()
+	for key in _by_pair:
+		var record: Dictionary = _by_pair[key]
+		if record.get("anonymous", false):
+			continue
+		_accumulate_atom_from_record(record)
+
+
+func _accumulate_atom_from_record(record: Dictionary) -> void:
+	var pole_0 := str(record.get("pole_0", ""))
+	var pole_1 := str(record.get("pole_1", ""))
+	if pole_0 != "":
+		_accumulate_atom_for_pole(pole_0, record, true)
+	if pole_1 != "" and pole_1 != pole_0:
+		_accumulate_atom_for_pole(pole_1, record, false)
+
+
+func _accumulate_atom_for_pole(emoji: String, record: Dictionary, is_pole_0: bool) -> void:
+	var self_key := "self_energy_0" if is_pole_0 else "self_energy_1"
+	var self_energy := float(record.get(self_key, 0.0))
+	var h_couplings: Dictionary = record.get("hamiltonian_couplings", {})
+	var e_couplings: Dictionary = record.get("energy_couplings", {})
+	var driver: Dictionary = record.get("driver", {})
+
+	if atoms.has(emoji):
+		var existing = atoms[emoji]
+		existing.self_energy += self_energy
+		for target in h_couplings:
+			if target not in existing.hamiltonian_couplings:
+				existing.hamiltonian_couplings[target] = h_couplings[target]
+		for obs in e_couplings:
+			existing.energy_couplings[obs] = float(existing.energy_couplings.get(obs, 0.0)) + float(e_couplings[obs])
+		if is_pole_0 and existing.self_energy_driver == "" and driver.has("type"):
+			existing.self_energy_driver = str(driver.get("type", ""))
+			existing.driver_frequency = float(driver.get("freq", 0.0))
+			existing.driver_phase = float(driver.get("phase", 0.0))
+			existing.driver_amplitude = float(driver.get("amp", 1.0))
+		if record.has("lindblad_outgoing"):
+			var outgoing: Dictionary = record.get("lindblad_outgoing", {})
+			for target in outgoing:
+				existing.lindblad_outgoing[target] = float(existing.lindblad_outgoing.get(target, 0.0)) + float(outgoing[target])
+		if record.has("lindblad_incoming"):
+			var incoming: Dictionary = record.get("lindblad_incoming", {})
+			for source in incoming:
+				existing.lindblad_incoming[source] = float(existing.lindblad_incoming.get(source, 0.0)) + float(incoming[source])
+		if record.get("decay_rate", 0.0) and existing.decay_rate == 0.0:
+			existing.decay_rate = float(record.get("decay_rate", 0.0))
+			existing.decay_target = str(record.get("decay_target", ""))
+		return
+
+	var atom := IconScript.new()
+	atom.emoji = emoji
+	atom.display_name = emoji
+	atom.self_energy = self_energy
+	for target in h_couplings:
+		atom.hamiltonian_couplings[target] = h_couplings[target]
+	for obs in e_couplings:
+		atom.energy_couplings[obs] = float(e_couplings[obs])
+	if is_pole_0 and driver.has("type"):
+		atom.self_energy_driver = str(driver.get("type", ""))
+		atom.driver_frequency = float(driver.get("freq", 0.0))
+		atom.driver_phase = float(driver.get("phase", 0.0))
+		atom.driver_amplitude = float(driver.get("amp", 1.0))
+	if record.has("lindblad_outgoing"):
+		atom.lindblad_outgoing = record.get("lindblad_outgoing", {}).duplicate(true)
+	if record.has("lindblad_incoming"):
+		atom.lindblad_incoming = record.get("lindblad_incoming", {}).duplicate(true)
+	if record.get("decay_rate", 0.0):
+		atom.decay_rate = float(record.get("decay_rate", 0.0))
+		atom.decay_target = str(record.get("decay_target", ""))
+	if record.has("measurement_behavior"):
+		atom.description = str(record.get("measurement_behavior", ""))
+	atoms[emoji] = atom
+
+
+func _read_json(path: String) -> Variant:
+	var file = FileAccess.open(path, FileAccess.READ)
+	if not file:
+		push_error("IconAtlas: cannot open %s" % path)
+		return null
+	var json = JSON.new()
+	var err = json.parse(file.get_as_text())
+	file.close()
+	if err != OK:
+		push_error("IconAtlas: JSON parse error in %s: %s" % [path, json.get_error_message()])
+		return null
+	return json.data
+
+
+func _register(record: Dictionary) -> void:
+	var key = _pair_key(str(record.get("pole_0", "")), str(record.get("pole_1", "")))
+	_by_pair[key] = record
+	var name = str(record.get("name", ""))
+	if not _by_name.has(name):
+		_by_name[name] = []
+	if not _by_name[name].has(key):
+		_by_name[name].append(key)
+
+
+func get_all_icon_names() -> Array:
+	return _by_name.keys()
+
+
+func find_icon_by_name(icon_name: String) -> Dictionary:
+	var keys: Array = _by_name.get(icon_name, [])
+	return _by_pair.get(keys[0], {}) if not keys.is_empty() else {}
+
+
+func find_icon_by_pair(pole_0: String, pole_1: String) -> Dictionary:
+	var key = _pair_key(pole_0, pole_1)
+	if _by_pair.has(key):
+		return _by_pair[key]
+	var rev = _pair_key(pole_1, pole_0)
+	if _by_pair.has(rev):
+		return _by_pair[rev]
+	return {}
+
+
+func get_icons_by_name(name: String) -> Array:
+	var keys = _by_name.get(name, [])
+	var out: Array = []
+	for k in keys:
+		out.append(_by_pair[k])
+	return out
+
+
+func get_icon(name: String) -> Dictionary:
+	var icons = get_icons_by_name(name)
+	return icons[0] if not icons.is_empty() else {}
+
+
+func get_icon_physics(icon_name: String) -> Dictionary:
+	var keys: Array = _by_name.get(icon_name, [])
+	for k in keys:
+		var record = _by_pair.get(k, {})
+		if record.has("self_energy_0"):
+			return _physics_from_record(record)
+	return {}
+
+
+func get_icon_physics_by_pair(pole_0: String, pole_1: String) -> Dictionary:
+	var record = find_icon_by_pair(pole_0, pole_1)
+	if record.is_empty():
+		return {}
+	return _physics_from_record(record)
+
+
+func _physics_from_record(record: Dictionary) -> Dictionary:
+	return {
+		"self_energy_0": float(record.get("self_energy_0", 0.0)),
+		"self_energy_1": float(record.get("self_energy_1", 0.0)),
+		"rabi_coupling": float(record.get("rabi_coupling", 0.0)),
+		"hamiltonian_couplings": record.get("hamiltonian_couplings", {}),
+		"energy_couplings": record.get("energy_couplings", {}),
+		"driver": record.get("driver", {}),
+		"measurement_behavior": record.get("measurement_behavior", {}),
+	}
+
+
+func get_factions_for_pair(p0: String, p1: String) -> Array:
+	var key = _pair_key(p0, p1)
+	var facs = _pair_to_factions.get(key, [])
+	if not facs.is_empty():
+		return facs
+	return _pair_to_factions.get(_pair_key(p1, p0), [])
+
+
+func get_primary_faction_for_pair(p0: String, p1: String) -> String:
+	var facs = get_factions_for_pair(p0, p1)
+	return str(facs[0]) if not facs.is_empty() else ""
+
+
+func get_icons_for_faction(faction_name: String) -> Array:
+	var keys = _by_faction.get(faction_name, [])
+	var out: Array = []
+	for k in keys:
+		out.append(_by_pair[k])
+	return out
+
+
+func get_icons_in_biome(biome_name: String) -> Array:
+	var keys = _by_biome.get(biome_name, [])
+	var out: Array = []
+	for k in keys:
+		out.append(_by_pair[k])
+	return out
+
+
+func register_anonymous(pole_0: String, pole_1: String) -> Dictionary:
+	var existing = find_icon_by_pair(pole_0, pole_1)
+	if not existing.is_empty():
+		return existing
+	var record = {
+		"name": "Anon(%s/%s)" % [pole_0, pole_1],
+		"pole_0": pole_0,
+		"pole_1": pole_1,
+		"biomes_present_in": [],
+		"anonymous": true,
+	}
+	_register(record)
+	_anonymous_count += 1
+	return record
+
+
+func get_all_world_built() -> Array:
+	var out: Array = []
+	for key in _by_pair:
+		var r = _by_pair[key]
+		if not r.get("anonymous", false):
+			out.append(r)
+	return out
+
+
+func get_all_discovered() -> Array:
+	var out: Array = []
+	for key in _by_pair:
+		var r = _by_pair[key]
+		if r.get("anonymous", false):
+			out.append(r)
+	return out
+
+
+static func discovered_set_from_vocabulary(icon: Array) -> Dictionary:
+	var out: Dictionary = {}
+	for entry in icon:
+		if not (entry is Dictionary):
+			continue
+		var n = str(entry.get("north", ""))
+		var s = str(entry.get("south", ""))
+		if n == "" or s == "":
+			continue
+		out[_pair_key(n, s)] = true
+		out[_pair_key(s, n)] = true
+	return out
+
+
+func is_pair_discovered(pole_0: String, pole_1: String, discovered: Dictionary) -> bool:
+	if discovered.has(_pair_key(pole_0, pole_1)):
+		return true
+	return discovered.has(_pair_key(pole_1, pole_0))
+
+
+func filter_discovered_records(discovered: Dictionary) -> Array:
+	var out: Array = []
+	for key in _by_pair:
+		var r = _by_pair[key]
+		if r.get("anonymous", false):
+			continue
+		if is_pair_discovered(r["pole_0"], r["pole_1"], discovered):
+			out.append(r)
+	return out
+
+
+func filter_undiscovered_records(discovered: Dictionary) -> Array:
+	var out: Array = []
+	for key in _by_pair:
+		var r = _by_pair[key]
+		if r.get("anonymous", false):
+			continue
+		if not is_pair_discovered(r["pole_0"], r["pole_1"], discovered):
+			out.append(r)
+	return out
+
+
+func get_all() -> Array:
+	var out: Array = []
+	for key in _by_pair:
+		out.append(_by_pair[key])
+	return out
+
+
+func size() -> int:
+	return _by_pair.size()
+
+
+func summary() -> String:
+	var claimed = 0
+	var orphans = 0
+	var axial = 0
+	for key in _by_pair:
+		var r = _by_pair[key]
+		if r.get("anonymous", false):
+			continue
+		if r.get("axial", false):
+			axial += 1
+			continue
+		if _pair_to_factions.has(key):
+			claimed += 1
+		else:
+			orphans += 1
+	return "IconAtlas: %d total (%d faction-claimed + %d biome-orphan + %d axial + %d anonymous)" % [
+		_by_pair.size(), claimed, orphans, axial, _anonymous_count
+	]
+
+
+func get_all_emojis() -> Array:
+	return atoms.keys()
+
+
+func get_all_atoms() -> Array:
+	var result: Array = []
+	for atom in atoms.values():
+		result.append(atom)
+	return result
+
+
+func has_atom(emoji: String) -> bool:
+	return atoms.has(emoji)
+
+
+func get_atom(emoji: String):
+	return atoms.get(emoji, null)
+
+
+func get_atoms_by_tag(tag: String) -> Array:
+	var result: Array = []
+	for atom_variant in atoms.values():
+		var atom = atom_variant as IconScript
+		if atom and tag in atom.tags:
+			result.append(atom)
+	return result
+
+
+func get_atoms_by_trophic_level(level: int) -> Array:
+	var result: Array = []
+	for atom_variant in atoms.values():
+		var atom = atom_variant as IconScript
+		if atom and atom.trophic_level == level:
+			result.append(atom)
+	return result
+
+
+func rebuild_from_icons() -> void:
+	_reload_all()
+
+
+func get_signature_physics(signature: Array) -> Dictionary:
+	var out: Dictionary = {
+		"sig": [],
+		"self_energies": {},
+		"hamiltonian": {},
+		"lindblad_outgoing": {},
+		"lindblad_incoming": {},
+	}
+	if signature.is_empty():
+		return out
+	var seen: Dictionary = {}
+	for raw_emoji in signature:
+		var emoji := str(raw_emoji)
+		if emoji == "" or seen.has(emoji):
+			continue
+		seen[emoji] = true
+		out["sig"].append(emoji)
+		var atom = get_atom(emoji)
+		if atom == null:
+			continue
+		out["self_energies"][emoji] = float(out["self_energies"].get(emoji, 0.0)) + float(atom.self_energy)
+		_merge_nested_couplings(out["hamiltonian"], emoji, atom.hamiltonian_couplings)
+		_merge_row_couplings(out["lindblad_outgoing"], emoji, atom.lindblad_outgoing)
+		_merge_row_couplings(out["lindblad_incoming"], emoji, atom.lindblad_incoming)
+		if atom.decay_rate > 0.0 and atom.decay_target != "":
+			if not out["lindblad_outgoing"].has(emoji):
+				out["lindblad_outgoing"][emoji] = {}
+			var row: Dictionary = out["lindblad_outgoing"][emoji]
+			row[atom.decay_target] = float(row.get(atom.decay_target, 0.0)) + float(atom.decay_rate)
+	return out
+
+
+func rotate_phase_for_emojis(emojis: Array, phase_delta: float) -> int:
+	var changed: int = 0
+	for raw_emoji in emojis:
+		if rotate_phase_for_emoji(str(raw_emoji), phase_delta):
+			changed += 1
+	return changed
+
+
+func rotate_phase_for_emoji(emoji: String, phase_delta: float) -> bool:
+	var updated: bool = false
+	for key in _by_pair:
+		var record: Dictionary = _by_pair[key]
+		var p0 := str(record.get("pole_0", ""))
+		var p1 := str(record.get("pole_1", ""))
+		if emoji != p0 and emoji != p1:
+			continue
+		var couplings: Dictionary = record.get("hamiltonian_couplings", {})
+		for target in couplings.keys():
+			var value = couplings[target]
+			var rotated = _rotate_coupling_phase(value, phase_delta)
+			if rotated != value:
+				couplings[target] = rotated
+				updated = true
+		record["hamiltonian_couplings"] = couplings
+		_by_pair[key] = record
+	if updated:
+		_rebuild_atom_cache()
+	return updated
+
+
+static func _merge_nested_couplings(dest: Dictionary, source_emoji: String, couplings: Dictionary) -> void:
+	if couplings.is_empty():
+		return
+	if not dest.has(source_emoji) or not (dest[source_emoji] is Dictionary):
+		dest[source_emoji] = {}
+	var row: Dictionary = dest[source_emoji]
+	for target in couplings:
+		row[target] = _add_coupling(row.get(target, null), couplings[target])
+
+
+static func _merge_row_couplings(dest: Dictionary, source_emoji: String, couplings: Dictionary) -> void:
+	if couplings.is_empty():
+		return
+	if not dest.has(source_emoji) or not (dest[source_emoji] is Dictionary):
+		dest[source_emoji] = {}
+	var row: Dictionary = dest[source_emoji]
+	for target in couplings:
+		row[target] = float(row.get(target, 0.0)) + float(couplings[target])
+
+
+static func _add_coupling(current, incoming) -> Variant:
+	if current == null:
+		return incoming
+	if current is Vector2 or incoming is Vector2:
+		var c: Vector2 = current if current is Vector2 else Vector2(float(current), 0.0)
+		var i: Vector2 = incoming if incoming is Vector2 else Vector2(float(incoming), 0.0)
+		return c + i
+	if current is Array and incoming is Array and current.size() == 2 and incoming.size() == 2:
+		return [
+			float(current[0]) + float(incoming[0]),
+			float(current[1]) + float(incoming[1]),
+		]
+	return float(current) + float(incoming)
+
+
+static func _rotate_coupling_phase(value, phase_delta: float):
+	if value is Vector2:
+		return Vector2(value.x, clampf(value.y + phase_delta, -1.0, 1.0))
+	if value is Array and value.size() == 2:
+		return [float(value[0]), clampf(float(value[1]) + phase_delta, -1.0, 1.0)]
+	return value

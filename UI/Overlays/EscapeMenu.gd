@@ -4,7 +4,7 @@ extends "res://UI/Core/Surface.gd"
 ## X — System Surface (X key).
 ##
 ## Keyboard grammar matches the rest of the game:
-##   TYUI   = tabs (Run / Keep / Levels / Dev), same row as biome select
+##   TYUIO  = tabs (Run / Keep / New / Levels / Dev), same row as biome select
 ##   GHJKL; = items within the active tab, same row as plot slots
 ##   Q/E/R  = verbs on the current item (rendered as chips inside the panel
 ##            so the off-screen action bar is never load-bearing)
@@ -18,7 +18,7 @@ extends "res://UI/Core/Surface.gd"
 ##   , / . = cycle top-level menus
 ##   ESC   = close
 ##
-## frame_ids = [run, save_load, accessibility, dev] — one per tab.
+## frame_ids = [run, save_load, new_game, accessibility, dev] — one per tab.
 
 signal restart_pressed()
 signal dev_restart_pressed()
@@ -33,7 +33,7 @@ signal music_volume_changed(volume: float)
 const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")
 const BiomeRegistry = preload("res://Core/Biomes/BiomeRegistry.gd")
 
-enum Tab { RUN, KEEP, LEVELS, DEV }
+enum Tab { RUN, KEEP, NEW, LEVELS, DEV }
 
 enum PendingAction {
 	NONE,
@@ -43,19 +43,21 @@ enum PendingAction {
 	RESET_SETTINGS,
 }
 
-# Tab row — TYUIOP slots. We use T Y U I.
+# Tab row — TYUIOP slots. We use T Y U I O.
 const TAB_ROW := [
 	{"key": "T", "tab": Tab.RUN,    "name": "Run",    "frame": "run"},
 	{"key": "Y", "tab": Tab.KEEP,   "name": "Keep",   "frame": "save_load"},
-	{"key": "U", "tab": Tab.LEVELS, "name": "Levels", "frame": "accessibility"},
-	{"key": "I", "tab": Tab.DEV,    "name": "Dev",    "frame": "dev"},
+	{"key": "U", "tab": Tab.NEW,    "name": "New",    "frame": "new_game"},
+	{"key": "I", "tab": Tab.LEVELS, "name": "Levels", "frame": "accessibility"},
+	{"key": "O", "tab": Tab.DEV,    "name": "Dev",    "frame": "dev"},
 ]
 
 const TAB_BY_KEYCODE := {
 	KEY_T: Tab.RUN,
 	KEY_Y: Tab.KEEP,
-	KEY_U: Tab.LEVELS,
-	KEY_I: Tab.DEV,
+	KEY_U: Tab.NEW,
+	KEY_I: Tab.LEVELS,
+	KEY_O: Tab.DEV,
 }
 
 # Dev actions — navigate with GHJ/W/S, execute with R.
@@ -80,6 +82,12 @@ const ITEM_BY_KEYCODE := {
 }
 
 const NUM_KEEP_SLOTS := 3
+
+# Ordered list of playable scenarios shown in the New tab.
+const SCENARIO_LIST := [
+	{"id": "new_game_easy", "label": "Easy Farm",    "desc": "default start"},
+	{"id": "demos_normal",  "label": "The Demo Run", "desc": "demo preset"},
+]
 const VOLUME_STEP := 0.05
 const DEFAULT_VOLUME := 0.7
 
@@ -92,18 +100,21 @@ const SETTINGS_ROW := [
 
 const FRAME_RUN := "run"
 const FRAME_SAVE_LOAD := "save_load"
+const FRAME_NEW_GAME := "new_game"
 const FRAME_ACCESSIBILITY := "accessibility"
 const FRAME_DEV := "dev"
 
 const TAB_TO_FRAME := {
 	Tab.RUN: FRAME_RUN,
 	Tab.KEEP: FRAME_SAVE_LOAD,
+	Tab.NEW: FRAME_NEW_GAME,
 	Tab.LEVELS: FRAME_ACCESSIBILITY,
 	Tab.DEV: FRAME_DEV,
 }
 const FRAME_TO_TAB := {
 	FRAME_RUN: Tab.RUN,
 	FRAME_SAVE_LOAD: Tab.KEEP,
+	FRAME_NEW_GAME: Tab.NEW,
 	FRAME_ACCESSIBILITY: Tab.LEVELS,
 	FRAME_DEV: Tab.DEV,
 }
@@ -127,6 +138,8 @@ var _pending_action: int = PendingAction.NONE
 var _keep_slot: int = 0
 var _keep_peeking: bool = false  # E toggles expanded save-slot inspector
 var _run_peeking: bool = false   # E toggles expanded run-stats inspector
+var _new_item: int = 0           # selected scenario index in New tab
+var _new_peeking: bool = false   # E toggles scenario detail panel
 var _level_item: int = 0
 var _dev_action_idx: int = 0
 
@@ -156,7 +169,7 @@ func _init() -> void:
 	use_scroll_container = false
 	content_spacing = 8
 	surface_id = "X"
-	frame_ids = [FRAME_RUN, FRAME_SAVE_LOAD, FRAME_ACCESSIBILITY, FRAME_DEV]
+	frame_ids = [FRAME_RUN, FRAME_SAVE_LOAD, FRAME_NEW_GAME, FRAME_ACCESSIBILITY, FRAME_DEV]
 	frame_id = TAB_TO_FRAME.get(_current_tab, FRAME_RUN)
 
 
@@ -329,6 +342,7 @@ func _refresh_body() -> void:
 	match _current_tab:
 		Tab.RUN:    _build_run_body()
 		Tab.KEEP:   _build_keep_body()
+		Tab.NEW:    _build_new_body()
 		Tab.LEVELS: _build_levels_body()
 		Tab.DEV:    _build_dev_body()
 
@@ -367,6 +381,9 @@ func _current_verb_labels() -> Dictionary:
 		Tab.KEEP:
 			var peek_label := "inspect ▾" if not _keep_peeking else "inspect ▴"
 			return {"Q": "load slot", "E": peek_label, "R": "save slot", "F": "flatten" if _keep_peeking else ""}
+		Tab.NEW:
+			var new_peek_label := "inspect ▾" if not _new_peeking else "inspect ▴"
+			return {"Q": "start scenario", "E": new_peek_label, "R": "", "F": "flatten" if _new_peeking else ""}
 		Tab.LEVELS:
 			return {"Q": "− value", "E": "reset default", "R": "+ value", "F": ""}
 		Tab.DEV:
@@ -583,6 +600,97 @@ func _slot_detail_text(slot: int) -> String:
 	if last_saved == slot:
 		return "last saved ★"
 	return "—"
+
+
+func _build_new_body() -> void:
+	_body_box.add_child(_make_section_header("new game"))
+	for i in range(SCENARIO_LIST.size()):
+		_body_box.add_child(_make_scenario_row(i))
+	if _new_peeking:
+		_body_box.add_child(_make_spacer(6))
+		_body_box.add_child(_make_scenario_peek_panel(_new_item))
+	_body_box.add_child(_make_spacer(4))
+	var hint := _make_muted_label("GH pick  ·  Q start  ·  E inspect  ·  R locked", 11)
+	_body_box.add_child(hint)
+
+
+func _make_scenario_row(idx: int) -> Control:
+	var entry: Dictionary = SCENARIO_LIST[idx]
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 10)
+	var key_str: String = ITEM_KEYS[idx] if idx < ITEM_KEYS.size() else "?"
+	row.add_child(_make_key_chip(key_str))
+	var name_lbl := Label.new()
+	name_lbl.text = str(entry.get("label", entry.get("id", "—")))
+	name_lbl.add_theme_font_size_override("font_size", 13)
+	name_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(name_lbl)
+	var desc_lbl := Label.new()
+	desc_lbl.text = str(entry.get("desc", ""))
+	desc_lbl.add_theme_font_size_override("font_size", 11)
+	desc_lbl.add_theme_color_override("font_color", COLOR_MUTED)
+	row.add_child(desc_lbl)
+	var selected := idx == _new_item
+	var c := COLOR_ITEM_ACTIVE if selected else COLOR_ITEM_IDLE
+	name_lbl.add_theme_color_override("font_color", c)
+	if selected:
+		name_lbl.text = "▸ " + name_lbl.text
+	return row
+
+
+func _make_scenario_peek_panel(idx: int) -> Control:
+	var panel := VBoxContainer.new()
+	panel.add_theme_constant_override("separation", 4)
+	if idx < 0 or idx >= SCENARIO_LIST.size():
+		return panel
+	var entry: Dictionary = SCENARIO_LIST[idx]
+	var scenario_id: String = str(entry.get("id", ""))
+	panel.add_child(_make_section_header(str(entry.get("label", scenario_id))))
+	var SaveStore = load("res://Core/GameState/SaveStore.gd")
+	if not SaveStore:
+		panel.add_child(_make_muted_label("(could not load scenario)", 11))
+		return panel
+	var state = SaveStore.load_scenario(scenario_id)
+	if not state:
+		panel.add_child(_make_muted_label("scenario file missing", 11))
+		return panel
+	# Show starting economy summary
+	var credits_text := ""
+	if state.all_emoji_credits:
+		var top: Array = []
+		for emoji in state.all_emoji_credits:
+			var amt = int(state.all_emoji_credits[emoji])
+			if amt > 0:
+				top.append("%s×%d" % [emoji, amt])
+			if top.size() >= 6:
+				break
+		credits_text = "  ".join(top)
+	panel.add_child(_make_kv_row("credits", credits_text if credits_text != "" else "—"))
+	panel.add_child(_make_kv_row("grid", "%d×%d" % [state.grid_width, state.grid_height]))
+	panel.add_child(_make_kv_row("biomes", "%d unlocked  ·  %d in pool" % [
+		state.unlocked_biomes.size(), state.unexplored_biome_pool.size()
+	]))
+	return panel
+
+
+func _toggle_new_peek() -> void:
+	_new_peeking = not _new_peeking
+	_refresh_body()
+	_refresh_verb_chips()
+
+
+func _start_new_scenario() -> void:
+	if _new_item < 0 or _new_item >= SCENARIO_LIST.size():
+		return
+	var entry: Dictionary = SCENARIO_LIST[_new_item]
+	var scenario_id: String = str(entry.get("id", ""))
+	if scenario_id == "":
+		return
+	var gsm = InstrumentLocator.resolve_game_state_manager(self)
+	if not gsm or not ("session_lifecycle" in gsm):
+		return
+	deactivate()
+	gsm.session_lifecycle.request_fresh_restart(false, scenario_id)
 
 
 func _build_levels_body() -> void:
@@ -830,8 +938,9 @@ func _on_action_q() -> void:
 		_confirm_save_and_act()
 		return
 	match _current_tab:
-		Tab.RUN:     _request_confirm(PendingAction.QUIT)   # Q = screw out = quit
-		Tab.KEEP:    _load_from_selected_slot()
+		Tab.RUN:    _request_confirm(PendingAction.QUIT)    # Q = screw out = quit
+		Tab.KEEP:   _load_from_selected_slot()
+		Tab.NEW:    _start_new_scenario()
 		Tab.LEVELS: _nudge_selected_setting(-1)
 		Tab.DEV:    pass  # honest empty
 
@@ -846,6 +955,7 @@ func _on_action_e() -> void:
 	match _current_tab:
 		Tab.RUN:    _toggle_run_inspect()
 		Tab.KEEP:   _toggle_keep_peek()
+		Tab.NEW:    _toggle_new_peek()
 		Tab.LEVELS: _reset_selected_setting()
 		Tab.DEV:    _refresh_body()  # re-snapshot all live metrics
 
@@ -857,8 +967,9 @@ func _on_action_r() -> void:
 		_dismiss_confirm()
 		return
 	match _current_tab:
-		Tab.RUN:     _save_and_resume()                     # R = screw in = enter game
-		Tab.KEEP:    _save_to_selected_slot()
+		Tab.RUN:    _save_and_resume()                      # R = screw in = enter game
+		Tab.KEEP:   _save_to_selected_slot()
+		Tab.NEW:    pass                                     # R locked — no saving to a scenario
 		Tab.LEVELS: _nudge_selected_setting(+1)
 		Tab.DEV:    _execute_dev_action(_dev_action_idx)
 
@@ -874,6 +985,9 @@ func _on_action_f() -> void:
 		return
 	if _keep_peeking:
 		_toggle_keep_peek()
+		return
+	if _new_peeking:
+		_toggle_new_peek()
 		return
 	# Otherwise: no-op. The chip shows "—". Sim is already paused; nothing to page.
 
@@ -920,6 +1034,10 @@ func _select_item_in_tab(slot: int) -> void:
 			if slot < NUM_KEEP_SLOTS and _keep_slot != slot:
 				_keep_slot = slot
 				_refresh_body()
+		Tab.NEW:
+			if slot < SCENARIO_LIST.size() and _new_item != slot:
+				_new_item = slot
+				_refresh_body()
 		Tab.LEVELS:
 			if slot < SETTINGS_ROW.size() and _level_item != slot:
 				_level_item = slot
@@ -946,6 +1064,9 @@ func _on_navigate(direction: Vector2i) -> void:
 	match _current_tab:
 		Tab.KEEP:
 			_keep_slot = wrapi(_keep_slot + step, 0, NUM_KEEP_SLOTS)
+			_refresh_body()
+		Tab.NEW:
+			_new_item = wrapi(_new_item + step, 0, SCENARIO_LIST.size())
 			_refresh_body()
 		Tab.LEVELS:
 			if not SETTINGS_ROW.is_empty():

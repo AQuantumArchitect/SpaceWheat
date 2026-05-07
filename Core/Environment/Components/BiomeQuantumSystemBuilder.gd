@@ -3,14 +3,14 @@ extends RefCounted
 
 ## Quantum System Builder Component
 ##
-## Extracted from BiomeBase to handle:
-## - expand_quantum_system() - Add qubit axis, rebuild operators
-## - inject_coupling() - Add Hamiltonian coupling
-## - build_operators_cached() - Build H and L with caching
+## Handles:
+## - build_operators_from_icons() - Build H and L from Array[Icon] (icon-cloud path)
+## - expand_quantum_system() - Add qubit axis at runtime, rebuild operators
+## - inject_coupling() - Add Hamiltonian coupling at runtime
 
-const CacheKey = preload("res://Core/QuantumSubstrate/CacheKey.gd")
 const OperatorCache = preload("res://Core/QuantumSubstrate/OperatorCache.gd")
 const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")
+const VerboseHelper = preload("res://Core/Config/VerboseHelper.gd")
 
 # Signals
 signal coupling_updated(emoji_a: String, emoji_b: String, strength: float)
@@ -18,30 +18,11 @@ signal coupling_updated(emoji_a: String, emoji_b: String, strength: float)
 # Injected dependencies
 var quantum_computer = null
 var resource_registry = null  # BiomeResourceRegistry
-var _icon_registry = null  # IconRegistry autoload
-var _icon_overrides: Dictionary = {}
 
 
-func set_dependencies(qc, res_registry, icon_reg, icon_overrides: Dictionary = {}) -> void:
-	"""Set all required dependencies"""
+func set_dependencies(qc, res_registry) -> void:
 	quantum_computer = qc
 	resource_registry = res_registry
-	_icon_registry = icon_reg
-	_icon_overrides = icon_overrides if icon_overrides else {}
-
-
-func _ensure_icon_registry():
-	if _icon_registry and is_instance_valid(_icon_registry):
-		return _icon_registry
-	_icon_registry = InstrumentLocator.resolve_icon_registry_main_loop()
-	return _icon_registry
-
-
-func get_biome_type() -> String:
-	"""Get biome type name from quantum_computer"""
-	if quantum_computer:
-		return quantum_computer.biome_name
-	return "Unknown"
 
 
 # ============================================================================
@@ -49,25 +30,24 @@ func get_biome_type() -> String:
 # ============================================================================
 
 func expand_quantum_system(north_emoji: String, south_emoji: String) -> Dictionary:
-	"""Expand the biome's quantum computer to include a new emoji axis.
+	# Expand the biome's quantum computer to include a new emoji axis.
 
-	Adds a new qubit axis to the quantum system, rebuilds Hamiltonian and
-	Lindblad operators with coupling terms from the faction/icon system.
+	# Adds a new qubit axis to the quantum system, rebuilds Hamiltonian and
+	# Lindblad operators with coupling terms from the faction/icon system.
 
-	Rejects if EITHER emoji is already in the biome (prevents axis conflicts).
+	# Rejects if EITHER emoji is already in the biome (prevents axis conflicts).
 
-	Args:
-		north_emoji: North pole emoji (|0> basis state)
-		south_emoji: South pole emoji (|1> basis state)
+	# Args:
+	# north_emoji: North pole emoji (|0> basis state)
+	# south_emoji: South pole emoji (|1> basis state)
 
-	Returns:
-		Dictionary with:
-		- success: bool
-		- error: String (if failure)
-		- qubit_index: int (new qubit index if success)
-		- old_dim: int (dimension before expansion)
-		- new_dim: int (dimension after expansion)
-	"""
+	# Returns:
+	# Dictionary with:
+	# - success: bool
+	# - error: String (if failure)
+	# - qubit_index: int (new qubit index if success)
+	# - old_dim: int (dimension before expansion)
+	# - new_dim: int (dimension after expansion)
 	# 1. Check if quantum_computer exists
 	if not quantum_computer:
 		return {
@@ -90,11 +70,6 @@ func expand_quantum_system(north_emoji: String, south_emoji: String) -> Dictiona
 			"message": "Emoji %s already exists in this biome" % south_emoji
 		}
 
-	# 4. Get IconRegistry for coupling terms
-	_ensure_icon_registry()
-	if not _icon_registry and _icon_overrides.is_empty():
-		push_warning("expand_quantum_system: IconRegistry not available - using default couplings")
-
 	# 5. Record old dimension
 	var old_dim = quantum_computer.register_map.dim()
 	var old_num_qubits = quantum_computer.register_map.num_qubits
@@ -107,40 +82,45 @@ func expand_quantum_system(north_emoji: String, south_emoji: String) -> Dictiona
 	if resource_registry:
 		resource_registry.add_emoji_pair_to_producible(north_emoji, south_emoji)
 
-	# 8. Gather ALL icons for this biome (existing + new)
-	var all_icons = {}
-	# Get icons for all emojis in the quantum system (overrides > registry)
-	for emoji in quantum_computer.register_map.coordinates.keys():
-		if _icon_overrides.has(emoji):
-			all_icons[emoji] = _icon_overrides[emoji]
-			continue
-		if _icon_registry:
-			var icon = _icon_registry.get_icon(emoji)
-			if icon:
-				all_icons[emoji] = icon
-
-	# 9. Rebuild Hamiltonian and Lindblad operators with new coupling terms
+	# 8. Build Icon list from the expanded register_map axes (icon-cloud path).
 	var HamBuilder = load("res://Core/QuantumSubstrate/HamiltonianBuilder.gd")
 	var LindBuilder = load("res://Core/QuantumSubstrate/LindbladBuilder.gd")
+	var IconAtlasCls = load("res://Core/Factions/IconAtlas.gd")
+	var IconCls = load("res://Core/QuantumSubstrate/Icon.gd")
 	var verbose = InstrumentLocator.resolve_verbose_config_main_loop()
+	var lexicon = IconAtlasCls.new()
 
-	quantum_computer.hamiltonian = HamBuilder.build(all_icons, quantum_computer.register_map, verbose)
-	var lindblad_result = LindBuilder.build(all_icons, quantum_computer.register_map, verbose)
+	var biome_icons: Array = []
+	for q in range(quantum_computer.register_map.num_qubits):
+		var axis = quantum_computer.register_map.axes.get(q, {})
+		var north: String = str(axis.get("north", ""))
+		var south: String = str(axis.get("south", ""))
+		if north == "" or south == "":
+			continue
+		var physics = lexicon.get_icon_physics_by_pair(north, south)
+		var rec = lexicon.find_icon_by_pair(north, south)
+		var iname: String = str(rec.get("name", north)) if not rec.is_empty() else north
+		biome_icons.append(IconCls.from_pair_physics(iname, north, south, physics, {}, 1.0))
+
+	# 9. Rebuild H and L using the icon-cloud path.
+	# Proc-gen-added icons start with empty cloud (no Lindblad); existing icon
+	# clouds are baked into Icon objects at biome boot time, not tracked here.
+	quantum_computer.hamiltonian = HamBuilder.build_from_icons(biome_icons, quantum_computer.register_map, verbose)
+	var lindblad_result = LindBuilder.build_from_icon_clouds(biome_icons, quantum_computer.register_map, verbose)
 	quantum_computer.lindblad_operators = lindblad_result.get("operators", [])
-	quantum_computer.gated_lindblad_configs = lindblad_result.get("gated_configs", [])
 
-	# 9b. Extract and set time-dependent driver configurations
-	var driven_configs = HamBuilder.get_driven_icons(all_icons, quantum_computer.register_map)
+	# 9b. Extract and set time-dependent driver configurations.
+	var driven_configs = HamBuilder.get_driven_icons(biome_icons, quantum_computer.register_map)
 	quantum_computer.set_driven_icons(driven_configs)
 
-	# Reset to uniform superposition after expanding basis
-	quantum_computer.initialize_uniform_superposition()
+	# Reset to ground state after expanding basis (preserves ecological biases)
+	quantum_computer.initialize_ground_state()
 
 	var new_dim = quantum_computer.register_map.dim()
 
-	print("🔬 Expanded %s quantum system: %d -> %d qubits (%dD -> %dD)" % [
-		get_biome_type(), old_num_qubits, new_qubit_index + 1, old_dim, new_dim])
-	print("   New axis: %s <-> %s (qubit %d)" % [north_emoji, south_emoji, new_qubit_index])
+	VerboseHelper.info("quantum", "expand", "Expanded %s quantum system: %d -> %d qubits (%dD -> %dD)" % [
+		quantum_computer.biome_name if quantum_computer else "Unknown", old_num_qubits, new_qubit_index + 1, old_dim, new_dim])
+	VerboseHelper.info("quantum", "expand", "New axis: %s <-> %s (qubit %d)" % [north_emoji, south_emoji, new_qubit_index])
 
 	return {
 		"success": true,
@@ -153,19 +133,18 @@ func expand_quantum_system(north_emoji: String, south_emoji: String) -> Dictiona
 
 
 func inject_coupling(emoji_a: String, emoji_b: String, strength: float) -> Dictionary:
-	"""Inject a Hamiltonian coupling between two existing axes.
+	# Inject a Hamiltonian coupling between two existing axes.
 
-	Unlike expand_quantum_system(), this does NOT add new qubits.
-	It modifies the Hamiltonian to create ZZ dynamics between existing axes.
+	# Unlike expand_quantum_system(), this does NOT add new qubits.
+	# It modifies the Hamiltonian to create ZZ dynamics between existing axes.
 
-	Args:
-		emoji_a: First emoji (must exist in register_map)
-		emoji_b: Second emoji (must exist in register_map)
-		strength: Coupling strength J (ZZ interaction term)
+	# Args:
+	# emoji_a: First emoji (must exist in register_map)
+	# emoji_b: Second emoji (must exist in register_map)
+	# strength: Coupling strength J (ZZ interaction term)
 
-	Returns:
-		Dictionary with success/error keys
-	"""
+	# Returns:
+	# Dictionary with success/error keys
 	if not quantum_computer:
 		return {"success": false, "error": "no_quantum_computer"}
 
@@ -187,7 +166,7 @@ func inject_coupling(emoji_a: String, emoji_b: String, strength: float) -> Dicti
 
 	if result.success:
 		coupling_updated.emit(emoji_a, emoji_b, strength)
-		print("🔗 Injected coupling: %s <-> %s (J=%.3f)" % [emoji_a, emoji_b, strength])
+		VerboseHelper.info("quantum", "coupling", "Injected coupling: %s <-> %s (J=%.3f)" % [emoji_a, emoji_b, strength])
 
 	return result
 
@@ -196,77 +175,46 @@ func inject_coupling(emoji_a: String, emoji_b: String, strength: float) -> Dicti
 # Operator Building with Caching
 # ============================================================================
 
-func build_operators_cached(biome_name: String, icons: Dictionary) -> void:
-	"""Build quantum operators with caching.
-
-	Call this after quantum_computer and register_map are initialized.
-
-	Args:
-		biome_name: Name of the biome (e.g. "BioticFluxBiome")
-		icons: Dictionary of emoji -> Icon used by this biome
-
-	First boot: Builds operators and caches them (~8s per biome)
-	Subsequent boots: Loads from cache (~0.01s per biome)
-	"""
+## Icon-cloud path: build H and L from Array[Icon], with caching.
+## Called for biomes that use the new first-class icon format.
+func build_operators_from_icons(biome_name: String, biome_icons: Array) -> void:
 	if not quantum_computer:
-		push_error("build_operators_cached: quantum_computer not set")
+		push_error("build_operators_from_icons: quantum_computer not set")
 		return
-
-	# Generate cache key from Icon configs
-	var cache_key = CacheKey.for_biome(biome_name, icons)
-
-	# Safe VerboseConfig access
 	var verbose = InstrumentLocator.resolve_verbose_config_main_loop()
+	# Cache key: stable string from icon poles
+	var key_parts: PackedStringArray = []
+	for icon in biome_icons:
+		key_parts.append("%s|%s" % [icon.pole_0, icon.pole_1])
+	var cache_key := biome_name + "_icons_" + "|".join(key_parts)
 
-	if verbose:
-		verbose.info("cache", "🔑", "%s cache key: %s" % [biome_name, cache_key])
-
-	# Try to load from cache (user cache first, then bundled cache)
 	var cache = OperatorCache.get_instance()
-	var bundled_hit_before = cache.bundled_hit_count
 	var cached_ops = cache.try_load(biome_name, cache_key)
+	var HamBuilder = load("res://Core/QuantumSubstrate/HamiltonianBuilder.gd")
+	var LindBuilder = load("res://Core/QuantumSubstrate/LindbladBuilder.gd")
 
 	if not cached_ops.is_empty():
-		# Cache HIT - use cached operators
 		quantum_computer.hamiltonian = cached_ops.hamiltonian
 		quantum_computer.lindblad_operators = cached_ops.lindblad_operators
-
-		# Set up time-dependent drivers (not cached - must always be extracted from icons)
-		var HamBuilder = load("res://Core/QuantumSubstrate/HamiltonianBuilder.gd")
-		var driven_configs = HamBuilder.get_driven_icons(icons, quantum_computer.register_map)
-		quantum_computer.set_driven_icons(driven_configs)
-
-
+		var driven = HamBuilder.get_driven_icons(biome_icons, quantum_computer.register_map)
+		quantum_computer.set_driven_icons(driven)
 		if verbose:
-			var h_dim = quantum_computer.hamiltonian.n if quantum_computer.hamiltonian else 0
-			var l_count = quantum_computer.lindblad_operators.size()
-			var from_bundled = cache.bundled_hit_count > bundled_hit_before
-			var cache_source = "[BUNDLED]" if from_bundled else "[USER CACHE]"
-			verbose.info("cache", "✅", "Cache HIT: Loaded H (%dx%d) + %d Lindblad operators %s" % [h_dim, h_dim, l_count, cache_source])
-	else:
-		# Cache MISS - build operators
-		if verbose:
-			verbose.info("cache", "🔨", "Cache MISS: Building operators from scratch...")
-		var start_time = Time.get_ticks_msec()
+			verbose.info("cache", "✅", "Icon-cloud cache HIT: %s" % biome_name)
+		return
 
-		# Build using HamiltonianBuilder and LindbladBuilder
-		var HamBuilder = load("res://Core/QuantumSubstrate/HamiltonianBuilder.gd")
-		var LindBuilder = load("res://Core/QuantumSubstrate/LindbladBuilder.gd")
+	if verbose:
+		verbose.info("cache", "🔨", "Icon-cloud cache MISS: building %s" % biome_name)
+	var start_time = Time.get_ticks_msec()
 
-		# Pass verbose logger to builders for detailed logging
-		quantum_computer.hamiltonian = HamBuilder.build(icons, quantum_computer.register_map, verbose)
+	quantum_computer.hamiltonian = HamBuilder.build_from_icons(
+			biome_icons, quantum_computer.register_map, verbose)
+	var lindblad_result = LindBuilder.build_from_icon_clouds(
+			biome_icons, quantum_computer.register_map, verbose)
+	quantum_computer.lindblad_operators = lindblad_result.get("operators", [])
+	var driven = HamBuilder.get_driven_icons(biome_icons, quantum_computer.register_map)
+	quantum_computer.set_driven_icons(driven)
 
-		var lindblad_result = LindBuilder.build(icons, quantum_computer.register_map, verbose)
-		quantum_computer.lindblad_operators = lindblad_result.get("operators", [])
-		quantum_computer.gated_lindblad_configs = lindblad_result.get("gated_configs", [])
-
-		# Set up time-dependent drivers for oscillating self-energies
-		var driven_configs = HamBuilder.get_driven_icons(icons, quantum_computer.register_map)
-		quantum_computer.set_driven_icons(driven_configs)
-
-		var elapsed = Time.get_ticks_msec() - start_time
-		if verbose:
-			verbose.info("cache", "💾", "Built in %d ms - saving to cache for next boot" % elapsed)
-
-		# Save to cache for next time
-		cache.save(biome_name, cache_key, quantum_computer.hamiltonian, quantum_computer.lindblad_operators)
+	var elapsed = Time.get_ticks_msec() - start_time
+	if verbose:
+		verbose.info("cache", "💾", "Icon-cloud built in %d ms — caching" % elapsed)
+	cache.save(biome_name, cache_key, quantum_computer.hamiltonian, quantum_computer.lindblad_operators)

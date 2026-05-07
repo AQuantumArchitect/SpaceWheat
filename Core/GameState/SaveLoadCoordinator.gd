@@ -135,6 +135,17 @@ func load_and_apply(slot: int) -> bool:
 			_gsm.last_active_slot = slot
 		return farm != null
 
+	# Pre-session with AppRoot: route through the proper boot pipeline so
+	# GameRoot, BootManager, and PlayerShell all participate. restart_into()
+	# is safe at the title screen (shutdown_session is a no-op with no farm).
+	var tree = Engine.get_main_loop()
+	var app_roots = tree.get_nodes_in_group("app_root") if tree else []
+	if not app_roots.is_empty():
+		_gsm.last_active_slot = slot
+		await _gsm.session_lifecycle.restart_into(slot)
+		return true
+
+	# Headless / test path (no AppRoot, no active_farm): direct apply.
 	var state = load_game_state(slot)
 	if not state:
 		return false
