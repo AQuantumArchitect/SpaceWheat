@@ -543,6 +543,7 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 			var quest_id = int(cmd.get("quest_id", -1))
 			var complete_result = _instrument.quest_complete(quest_id)
 			result["completed"] = bool(complete_result.get("completed", false))
+			result["quest_id"] = int(complete_result.get("quest_id", quest_id))
 			result["rewards"] = complete_result.get("rewards", {})
 
 		"complete_or_claim":
@@ -603,7 +604,7 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 			result["pairs"] = pairs if pairs is Array else []
 
 		"story_flags":
-			var farm := _farm
+			var farm = _farm
 			if farm == null:
 				result["flags_fired"] = {}
 				result["story_log"] = []

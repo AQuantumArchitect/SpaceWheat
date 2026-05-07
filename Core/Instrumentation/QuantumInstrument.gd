@@ -739,7 +739,7 @@ func quest_complete(quest_id: int) -> Dictionary:
 	var result = {"ok": completed, "completed": completed, "quest_id": quest_id}
 	if completed and qm.completed_quests:
 		var last: Dictionary = qm.completed_quests.back()
-		result["rewards"] = last.get("reward", {})
+		result["rewards"] = last.get("reward_payload", {})
 	action_performed.emit("complete_quest", result)
 	if completed:
 		_notify_quest_projection("complete_quest", {"quest_id": quest_id})
@@ -1950,9 +1950,9 @@ func _rebuild_operators_after_shrink(biome) -> void:
 		biome_icons = BiomeBuilderCls._build_biome_icon_list(biome_def)
 	else:
 		# Fallback: reconstruct minimal icons from register_map axes (no cloud data).
-		var IconLexiconCls = load("res://Core/Factions/IconLexicon.gd")
-		var BiomeIconCls = load("res://Core/QuantumSubstrate/BiomeIcon.gd")
-		var lexicon = IconLexiconCls.new()
+		var IconAtlasCls = load("res://Core/Factions/IconAtlas.gd")
+		var IconCls = load("res://Core/QuantumSubstrate/Icon.gd")
+		var lexicon = IconAtlasCls.new()
 		for q in range(qc.register_map.num_qubits):
 			var axis = qc.register_map.axes.get(q, {})
 			var north: String = str(axis.get("north", ""))
@@ -1962,7 +1962,7 @@ func _rebuild_operators_after_shrink(biome) -> void:
 			var physics = lexicon.get_icon_physics_by_pair(north, south)
 			var rec = lexicon.find_icon_by_pair(north, south)
 			var iname: String = str(rec.get("name", north)) if not rec.is_empty() else north
-			biome_icons.append(BiomeIconCls.from_lexicon(iname, north, south, physics, {}, 1.0))
+			biome_icons.append(IconCls.from_pair_physics(iname, north, south, physics, {}, 1.0))
 
 	qc.hamiltonian = HamBuilder.build_from_icons(biome_icons, qc.register_map, verbose_ref)
 	var lindblad_result = LindBuilder.build_from_icon_clouds(biome_icons, qc.register_map, verbose_ref)

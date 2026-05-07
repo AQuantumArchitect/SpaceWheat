@@ -835,6 +835,7 @@ func _finalize_quest_completion(quest_id: int, quest: Dictionary, reward, grante
 	quest["status"] = "completed"
 	quest["completed_at"] = Time.get_ticks_msec()
 	quest["reward"] = reward
+	quest["reward_payload"] = _build_reward_payload(reward, granted_resources)
 	active_quests.erase(quest_id)
 	completed_quests.append(quest)
 	_stop_quest_timer(quest_id)
@@ -882,7 +883,7 @@ func complete_quest(quest_id: int) -> bool:
 	var granted_resources: Dictionary = {}
 	var lat = _get_farm_market_lattice()
 	if lat != null:
-		var exer := lat.synthesize_and_exercise(required_emoji, faction_name)
+		var exer: Dictionary = lat.synthesize_and_exercise(required_emoji, faction_name)
 		if exer.get("ok", false):
 			var out_emoji: String = str(exer.get("outcome", required_emoji))
 			granted_resources[out_emoji] = int(exer.get("classical_reward", 0))

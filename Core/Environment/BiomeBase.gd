@@ -111,9 +111,6 @@ var observation_stride: int = 1
 # BUILD mode pause
 var evolution_paused: bool = false
 
-# Idle optimization
-var is_idle: bool = false
-
 # ============================================================================
 # FACADE PROPERTY ACCESSORS (for backward compatibility)
 # ============================================================================
@@ -212,7 +209,7 @@ func _exit_tree() -> void:
 	if _gate_operations and _gate_operations.has_method("set_dependencies"):
 		_gate_operations.set_dependencies(null, null, null, null)
 	if _system_builder and _system_builder.has_method("set_dependencies"):
-		_system_builder.set_dependencies(null, null, null, {})
+		_system_builder.set_dependencies(null, null)
 	if viz_cache:
 		viz_cache.clear()
 		viz_cache.clear_metadata()
@@ -232,14 +229,14 @@ func _exit_tree() -> void:
 
 
 func _wire_component_dependencies() -> void:
-	# Wire dependencies for components that need EmojiPhysicsRegistry (call after _ready)
-	_system_builder.set_dependencies(quantum_computer, _resource_registry, _get_atom_registry(), icon_overrides)
+	# Wire dependencies for components that need IconAtlas (call after _ready)
+	_system_builder.set_dependencies(quantum_computer, _resource_registry)
 	_gate_operations.set_dependencies(quantum_computer, null, _bell_gate_tracker, time_tracker)
 	_gate_operations.set_verbose_log_callback(_verbose_log)
 
 
 func _get_atom_registry():
-	# Refresh EmojiPhysicsRegistry reference on demand.
+	# Refresh IconAtlas reference on demand.
 	if _icon_registry and is_instance_valid(_icon_registry):
 		return _icon_registry
 	_icon_registry = InstrumentLocator.resolve_icon_registry_main_loop()
@@ -874,10 +871,6 @@ func inject_coupling(emoji_a: String, emoji_b: String, strength: float) -> Dicti
 	_wire_component_dependencies()
 	return _system_builder.inject_coupling(emoji_a, emoji_b, strength)
 
-func build_operators_cached(biome_name: String, icons: Dictionary, atom_components: Dictionary = {}) -> void:
-	_wire_component_dependencies()
-	_system_builder.build_operators_cached(biome_name, icons, atom_components)
-
 
 # ============================================================================
 # FACADE: Density Matrix Mutator Methods
@@ -908,52 +901,15 @@ func _initialize_bath() -> void:
 	pass
 
 func rebuild_quantum_operators() -> void:
-	# Rebuild Hamiltonian operators (call after EmojiPhysicsRegistry is ready)
+	# Rebuild Hamiltonian operators (call after IconAtlas is ready)
 	if quantum_computer:
 		_rebuild_quantum_operators_impl()
 
 func _rebuild_quantum_operators_impl() -> void:
-	# Generic rebuild: factions -> JSONL profile -> Lindblad -> Hamiltonian.
-
-	# Uses the same authority chain as boot (BiomeBuilder). Subclasses with
-	# custom domain logic (eruptions, colony tracking, etc.) can override.
-	if not quantum_computer or not quantum_computer.register_map:
-		return
-
-	var biome_name = get_biome_type()
-	var BiomeBuilder = load("res://Core/Biomes/BiomeBuilder.gd")
-
-	# 1. Rebuild icons from factions. Project the active farm's 6-channel
-	#    FactionStanding records to {name: scalar} so IconBuilder can weight
-	#    each faction's H contribution by the player's standing with them.
-	#    Empty (no farm / fresh game) silently degrades to {} — same as before.
-	var faction_standings: Dictionary = _project_faction_standings_to_scalars()
-	var new_icons = BiomeBuilder.rebuild_icons_for_standings(
-		quantum_computer.register_map,
-		faction_standings
-	)
-	if new_icons.is_empty():
-		push_warning("%s: Rebuild failed — no icons" % biome_name)
-		return
-
-	# 2. Re-apply Lindblad from biome data (atom_components in biomes.json)
-	var biome_def = load("res://Core/Biomes/BiomeRegistry.gd").get_shared().get_by_name(biome_name)
-	if biome_def:
-		BiomeBuilder.apply_atom_components_to_icons(new_icons, biome_def.atom_components)
-
-	icons = new_icons
-	icon_overrides = new_icons.duplicate(true)
-	_admitted_factions_cache = null  # invalidate — admitted factions may have changed
-	_faction_affinity_cache = null
-
-	# 4. Rebuild Hamiltonian
-	var HamBuilder = load("res://Core/QuantumSubstrate/HamiltonianBuilder.gd")
-	var verbose = InstrumentLocator.resolve_verbose_config(self)
-	quantum_computer.hamiltonian = HamBuilder.build(new_icons, quantum_computer.register_map, verbose)
-
-	# 5. Update time-dependent drivers
-	var driven_configs = HamBuilder.get_driven_atoms(new_icons, quantum_computer.register_map)
-	quantum_computer.set_driven_icons(driven_configs)
+	# TODO: Faction standing → H rebuild not yet implemented for icon-cloud path.
+	# Stubbed pending redesign (faction affinity weighting of icon H terms).
+	# See BiomeBuilder.rebuild_icons_for_standings() for the hook point.
+	pass
 
 
 func _project_faction_standings_to_scalars() -> Dictionary:
