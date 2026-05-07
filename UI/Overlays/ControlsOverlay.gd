@@ -27,7 +27,7 @@ const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.
 const BalanceService  = preload("res://Core/GameMechanics/BalanceService.gd")
 const FactionAxes     = preload("res://Core/Factions/FactionAxes.gd")
 const FactionRegistry = preload("res://Core/Factions/FactionRegistry.gd")
-const IconLexicon     = preload("res://Core/Factions/IconLexicon.gd")
+const IconAtlas       = preload("res://Core/Factions/IconAtlas.gd")
 
 # =============================================================================
 # TABS / FRAMES
@@ -409,17 +409,17 @@ func _build_lexicon_section(farm) -> void:
 		return
 
 	var lex = null
-	if farm.has_method("_ensure_icon_lexicon"):
-		lex = farm._ensure_icon_lexicon()
-	elif "icon_lexicon" in farm and farm.icon_lexicon != null:
-		lex = farm.icon_lexicon
+	if farm.has_method("_ensure_icon_atlas"):
+		lex = farm._ensure_icon_atlas()
+	elif "icon_atlas" in farm and farm.icon_atlas != null:
+		lex = farm.icon_atlas
 
 	if lex == null:
 		_body_box.add_child(_make_muted_label("(lexicon not available)", 11))
 		return
 
 	var known_pairs: Array = farm.known_pairs if "known_pairs" in farm else []
-	var discovered: Dictionary = IconLexicon.discovered_set_from_vocabulary(known_pairs)
+	var discovered: Dictionary = IconAtlas.discovered_set_from_vocabulary(known_pairs)
 	var known_records: Array = lex.filter_discovered_records(discovered)
 
 	if known_records.is_empty():
@@ -509,7 +509,7 @@ func _build_icon_picker(farm) -> void:
 
 	# Page indicator + hints
 	var hint := Label.new()
-	hint.text = "page %d/%d   ·   1/2/3 slot   ·   GHJKL; cursor   ·   W/S page   ·   E assign" % [_self_picker_page + 1, max_page + 1]
+	hint.text = "page %d/%d   ·   1/2/3 slot   ·   GHJKL; cursor   ·   W/S page   ·   R assign" % [_self_picker_page + 1, max_page + 1]
 	hint.add_theme_font_size_override("font_size", 10)
 	hint.add_theme_color_override("font_color", COLOR_MUTED)
 	_body_box.add_child(hint)
@@ -580,6 +580,42 @@ func _build_story_body() -> void:
 		_story_edge_idx = clampi(_story_edge_idx, 0, outgoing.size() - 1)
 	else:
 		_story_edge_idx = 0
+
+	# === ACTIVITY FEED (PlayerEventLog ring buffer, newest first) ===
+	var recent_events: Array = PlayerEventLog.get_recent(6, 1)
+	_body_box.add_child(_make_section_header("activity"))
+	if recent_events.is_empty():
+		_body_box.add_child(_make_muted_label("No events yet.", 12))
+	else:
+		for ev in recent_events:
+			var ev_lbl := RichTextLabel.new()
+			ev_lbl.bbcode_enabled = true
+			ev_lbl.text = str(ev.get("message", ""))
+			ev_lbl.fit_content = true
+			ev_lbl.scroll_active = false
+			ev_lbl.add_theme_font_size_override("normal_font_size", 12)
+			_body_box.add_child(ev_lbl)
+	_body_box.add_child(_make_spacer(8))
+
+	# === STORY LOG (fired arc beats, newest first) ===
+	var story_farm = InstrumentLocator.resolve_active_farm(self)
+	var story_log: Array = story_farm.story_log if story_farm != null and "story_log" in story_farm else []
+	if not story_log.is_empty():
+		_body_box.add_child(_make_section_header("story"))
+		var shown := mini(story_log.size(), 4)
+		for i in range(shown):
+			var entry: Dictionary = story_log[story_log.size() - 1 - i]
+			var act_n: int = int(entry.get("act", 0))
+			var beat_text: String = str(entry.get("arc_beat", ""))
+			if beat_text == "":
+				continue
+			var beat_lbl := Label.new()
+			beat_lbl.text = "Act %d — %s" % [act_n, beat_text]
+			beat_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			beat_lbl.add_theme_font_size_override("font_size", 12)
+			beat_lbl.add_theme_color_override("font_color", COLOR_VALUE if i == 0 else COLOR_MUTED)
+			_body_box.add_child(beat_lbl)
+		_body_box.add_child(_make_spacer(8))
 
 	# === FOCUS NODE ===
 	_body_box.add_child(_make_section_header("focus · %s · act %d" % [focus_node.display_name, focus_node.act]))
@@ -758,7 +794,14 @@ func _ensure_story_chatter_wired() -> void:
 		engine.chatter_emitted.connect(_on_story_chatter)
 	if engine.has_signal("trajectory_advanced") and not engine.trajectory_advanced.is_connected(_on_story_trajectory):
 		engine.trajectory_advanced.connect(_on_story_trajectory)
+	if not PlayerEventLog.event_added.is_connected(_on_player_event_added):
+		PlayerEventLog.event_added.connect(_on_player_event_added)
 	_story_chatter_connected = true
+
+
+func _on_player_event_added(_entry: Dictionary) -> void:
+	if _current_tab == Tab.STORY and is_active:
+		_refresh_body()
 
 
 func _on_story_chatter(_speaker: String, _faction: String, _line: String, _topic: String) -> void:
@@ -903,10 +946,8 @@ func _build_balance_body() -> void:
 		_body_box.add_child(_make_muted_label("chatter snapshot unavailable (no active farm).", 12))
 		return
 
-	_body_box.add_child(_make_action_row("Q", "Prev biome", "step to previous biome scope"))
 	_body_box.add_child(_make_action_row("E", "Refresh", "re-snapshot current biome state"))
-	_body_box.add_child(_make_action_row("R", "Next biome", "step to next biome scope"))
-	_body_box.add_child(_make_muted_label("W/S  cycle action  ·  GHJKL; pick slot", 10))
+	_body_box.add_child(_make_muted_label("Q/R  shift biome scope  ·  W/S  cycle action  ·  GHJKL; pick slot", 10))
 	_body_box.add_child(_make_spacer(6))
 
 	_body_box.add_child(_make_section_header("profile"))
@@ -930,7 +971,7 @@ func _build_balance_body() -> void:
 			_body_box.add_child(_make_balance_action_row(i, i - start))
 		var pages := int(ceil(float(total) / float(page_size)))
 		_body_box.add_child(_make_muted_label(
-			"W/S action (%d/%d, p%d/%d)  ·  Q/R biome" % [_balance_action_idx + 1, total, page + 1, pages],
+			"W/S action (%d/%d, p%d/%d)  ·  Q/R scope biome" % [_balance_action_idx + 1, total, page + 1, pages],
 			11,
 		))
 
@@ -1329,16 +1370,6 @@ func _on_action_e() -> void:
 			_refresh_body()
 		Tab.STORY:
 			_story_apply_verb("E")
-		Tab.SELF:
-			# Assign cursor's known_pair to the selected slot (Icon picker).
-			var farm = InstrumentLocator.resolve_active_farm(self)
-			if farm == null or not farm.has_method("set_active_icon_slot"):
-				return
-			var pairs: Array = farm.get_known_pairs()
-			if pairs.is_empty() or _self_picker_pair < 0 or _self_picker_pair >= pairs.size():
-				return
-			farm.set_active_icon_slot(_self_picker_slot, _self_picker_pair)
-			_refresh_body()
 		_:
 			pass
 
@@ -1347,6 +1378,16 @@ func _on_action_r() -> void:
 	match _current_tab:
 		Tab.BALANCE: _cycle_balance_biome(1)
 		Tab.STORY:   _story_apply_verb("R")
+		Tab.SELF:
+			# R = screw in = commit: assign cursor's pair to the selected icon slot.
+			var farm = InstrumentLocator.resolve_active_farm(self)
+			if farm == null or not farm.has_method("set_active_icon_slot"):
+				return
+			var pairs: Array = farm.get_known_pairs()
+			if pairs.is_empty() or _self_picker_pair < 0 or _self_picker_pair >= pairs.size():
+				return
+			farm.set_active_icon_slot(_self_picker_slot, _self_picker_pair)
+			_refresh_body()
 		_: pass
 
 

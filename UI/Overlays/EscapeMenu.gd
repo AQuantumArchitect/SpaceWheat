@@ -20,14 +20,9 @@ extends "res://UI/Core/Surface.gd"
 ##
 ## frame_ids = [run, save_load, new_game, accessibility, dev] — one per tab.
 
-signal restart_pressed()
-signal dev_restart_pressed()
 signal resume_pressed()
-signal quit_pressed()
 signal save_pressed()
 signal load_pressed()
-signal reload_last_save_pressed()
-signal quantum_settings_pressed()
 signal music_volume_changed(volume: float)
 
 const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")
@@ -379,11 +374,11 @@ func _current_verb_labels() -> Dictionary:
 			# F shows "flatten" only when there is something to collapse.
 			return {"Q": "quit", "E": run_label, "R": "save & resume", "F": "flatten" if _run_peeking else ""}
 		Tab.KEEP:
-			var peek_label := "inspect ▾" if not _keep_peeking else "inspect ▴"
+			var peek_label := "inspect ▾" if not _keep_peeking else "—"
 			return {"Q": "load slot", "E": peek_label, "R": "save slot", "F": "flatten" if _keep_peeking else ""}
 		Tab.NEW:
-			var new_peek_label := "inspect ▾" if not _new_peeking else "inspect ▴"
-			return {"Q": "start scenario", "E": new_peek_label, "R": "", "F": "flatten" if _new_peeking else ""}
+			var new_peek_label := "inspect ▾" if not _new_peeking else "—"
+			return {"Q": "", "E": new_peek_label, "R": "start scenario", "F": "flatten" if _new_peeking else ""}
 		Tab.LEVELS:
 			return {"Q": "− value", "E": "reset default", "R": "+ value", "F": ""}
 		Tab.DEV:
@@ -610,7 +605,7 @@ func _build_new_body() -> void:
 		_body_box.add_child(_make_spacer(6))
 		_body_box.add_child(_make_scenario_peek_panel(_new_item))
 	_body_box.add_child(_make_spacer(4))
-	var hint := _make_muted_label("GH pick  ·  Q start  ·  E inspect  ·  R locked", 11)
+	var hint := _make_muted_label("GH pick  ·  E inspect  ·  R start", 11)
 	_body_box.add_child(hint)
 
 
@@ -940,7 +935,7 @@ func _on_action_q() -> void:
 	match _current_tab:
 		Tab.RUN:    _request_confirm(PendingAction.QUIT)    # Q = screw out = quit
 		Tab.KEEP:   _load_from_selected_slot()
-		Tab.NEW:    _start_new_scenario()
+		Tab.NEW:    pass                                     # Q empty — no screw-out from a template
 		Tab.LEVELS: _nudge_selected_setting(-1)
 		Tab.DEV:    pass  # honest empty
 
@@ -954,8 +949,12 @@ func _on_action_e() -> void:
 		return
 	match _current_tab:
 		Tab.RUN:    _toggle_run_inspect()
-		Tab.KEEP:   _toggle_keep_peek()
-		Tab.NEW:    _toggle_new_peek()
+		Tab.KEEP:
+			if not _keep_peeking:    # E only opens; F flattens (grammar §E)
+				_toggle_keep_peek()
+		Tab.NEW:
+			if not _new_peeking:
+				_toggle_new_peek()
 		Tab.LEVELS: _reset_selected_setting()
 		Tab.DEV:    _refresh_body()  # re-snapshot all live metrics
 
@@ -969,7 +968,7 @@ func _on_action_r() -> void:
 	match _current_tab:
 		Tab.RUN:    _save_and_resume()                      # R = screw in = enter game
 		Tab.KEEP:   _save_to_selected_slot()
-		Tab.NEW:    pass                                     # R locked — no saving to a scenario
+		Tab.NEW:    _start_new_scenario()                    # R = screw in = enter the new session
 		Tab.LEVELS: _nudge_selected_setting(+1)
 		Tab.DEV:    _execute_dev_action(_dev_action_idx)
 
