@@ -427,26 +427,28 @@ func _build_network_view() -> void:
 	if _network_selected >= _network_edges.size():
 		_network_selected = max(0, _network_edges.size() - 1)
 
+	# Header reports continuous geometry: edge count + mean bridge order
+	# (the scorer-facing quantity), not a categorical bridge tally.
 	var live_count: int = 0
 	var faction_count: int = 0
-	var bridge_count: int = 0
+	var bridge_order_sum: float = 0.0
 	for e in _network_edges:
-		if e.get("bridge_edge", false):
-			bridge_count += 1
 		if e.get("faction_edge", false):
 			faction_count += 1
+			bridge_order_sum += float(int(e.get("bridge_count", 1)))
 		else:
 			live_count += 1
+	var mean_bridge_order: float = (bridge_order_sum / float(faction_count)) if faction_count > 0 else 1.0
 	var hdr := Label.new()
-	hdr.text = "Tensor edges: %d live pairs · %d faction connections (★) · %d bridge mediators (🔗★)" % [
-		live_count, faction_count, bridge_count
+	hdr.text = "Tensor edges: %d live pairs · %d faction edges (★)  ·  mean bridge order ⟨k⟩ = %.2f" % [
+		live_count, faction_count, mean_bridge_order
 	]
 	hdr.add_theme_font_size_override("font_size", 14)
 	hdr.add_theme_color_override("font_color", Color(0.9, 0.85, 0.5))
 	_body_box.add_child(hdr)
 
 	var sub := Label.new()
-	sub.text = "GHJKL; pick edge  ·  E inline inspect  ·  R open contract board  ·  🔗★ = bridge faction (signature touches 2+ live biomes)"
+	sub.text = "GHJKL; pick edge  ·  E inline inspect  ·  R open contract board  ·  ★ color shifts toward amber as faction signature spans more live biomes"
 	sub.add_theme_font_size_override("font_size", 11)
 	sub.add_theme_color_override("font_color", COLOR_MUTED)
 	sub.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -619,23 +621,23 @@ func _make_network_row(edge: Dictionary, key_label: String, is_selected: bool) -
 
 	var pair_lbl := Label.new()
 	var is_faction: bool = bool(edge.get("faction_edge", false))
-	var is_bridge: bool = bool(edge.get("bridge_edge", false))
-	# 🔗 marks bridge edges (faction signature spans 2+ live biomes); ★ marks any
-	# live↔faction-biome edge (whether bridge or single-touch).
-	var b_prefix: String = ""
-	if is_bridge:
-		b_prefix = "🔗★"
-	elif is_faction:
-		b_prefix = "★"
-	pair_lbl.text = "%s ⊗ %s%s" % [edge.a, b_prefix, edge.b]
+	var bridge_count: int = int(edge.get("bridge_count", 1))
+	var bridge_intensity := _bridge_intensity(bridge_count)
+	# Badge: ★ for any faction-biome edge. The bridge order shows as a
+	# continuous color shift, not a separate glyph — no categorical step.
+	var prefix: String = "★" if is_faction else ""
+	pair_lbl.text = "%s ⊗ %s%s" % [edge.a, prefix, edge.b]
 	pair_lbl.add_theme_font_size_override("font_size", 13)
+	# Color geometry: live-only edges sit on COLOR_BRIDGE_FACTION (cool blue);
+	# single-touch faction edges shift to lavender; bridges lerp toward amber
+	# along bridge_intensity = 1 - 1/sqrt(k). Smooth across all k >= 1.
 	var pair_color: Color
 	if is_selected:
 		pair_color = COLOR_HIGHLIGHT
-	elif is_bridge:
-		pair_color = Color(1.0, 0.78, 0.45)  # warm amber — bridge stands out
 	elif is_faction:
-		pair_color = Color(0.85, 0.65, 1.0)
+		var lavender := Color(0.85, 0.65, 1.0)
+		var amber := Color(1.0, 0.78, 0.45)
+		pair_color = lavender.lerp(amber, bridge_intensity)
 	else:
 		pair_color = COLOR_BRIDGE_FACTION
 	pair_lbl.add_theme_color_override("font_color", pair_color)
@@ -695,22 +697,28 @@ func _make_network_detail_panel(edge: Dictionary) -> Control:
 	panel.add_child(vbox)
 
 	var is_faction: bool = bool(edge.get("faction_edge", false))
-	var is_bridge: bool = bool(edge.get("bridge_edge", false))
+	var bridge_count: int = int(edge.get("bridge_count", 1))
+	var bridge_intensity := _bridge_intensity(bridge_count)
 	var header := Label.new()
-	var hdr_prefix := ""
-	if is_bridge:
-		hdr_prefix = "🔗★"
-	elif is_faction:
-		hdr_prefix = "★"
+	var hdr_prefix: String = "★" if is_faction else ""
 	header.text = "  %s ⊗ %s%s" % [edge.a, hdr_prefix, edge.b]
 	header.add_theme_font_size_override("font_size", 14)
-	header.add_theme_color_override("font_color", COLOR_FACTION_EDGE if is_faction else COLOR_HIGHLIGHT)
+	# Header color follows the same lavender→amber gradient as the row badge,
+	# so detail-open visual continuity is preserved across bridge orders.
+	if is_faction:
+		var lavender := Color(0.85, 0.65, 1.0)
+		var amber := Color(1.0, 0.78, 0.45)
+		header.add_theme_color_override("font_color", lavender.lerp(amber, bridge_intensity))
+	else:
+		header.add_theme_color_override("font_color", COLOR_HIGHLIGHT)
 	vbox.add_child(header)
 
 	# Bridge mediator: list the other live biomes this faction's signature
 	# also touches. Stories on the tensor edge through this faction-biome
-	# can flow between any pair of partners listed here.
-	if is_bridge:
+	# can flow between any pair of partners listed here. Threshold k>1 is
+	# data-derived (a faction touching only one live biome has no partners
+	# to list), not a categorical step in the scoring.
+	if is_faction and bridge_count > 1:
 		var partners_raw: Array = edge.get("bridge_partners", [])
 		var others: Array = []
 		for p in partners_raw:
@@ -719,9 +727,11 @@ func _make_network_detail_panel(edge: Dictionary) -> Control:
 				others.append(pn)
 		if not others.is_empty():
 			var bridge_lbl := Label.new()
-			bridge_lbl.text = "  bridge: also touches %s" % " · ".join(others)
+			bridge_lbl.text = "  bridge order k=%d  ·  also touches %s" % [bridge_count, " · ".join(others)]
 			bridge_lbl.add_theme_font_size_override("font_size", 12)
-			bridge_lbl.add_theme_color_override("font_color", Color(1.0, 0.78, 0.45))
+			var lavender2 := Color(0.85, 0.65, 1.0)
+			var amber2 := Color(1.0, 0.78, 0.45)
+			bridge_lbl.add_theme_color_override("font_color", lavender2.lerp(amber2, bridge_intensity))
 			vbox.add_child(bridge_lbl)
 
 	var tension_lbl := Label.new()
@@ -806,6 +816,47 @@ func _make_network_detail_panel(edge: Dictionary) -> Control:
 	return panel
 
 
+## Edge salience as a multiplicative composition of five smooth, continuous
+## factors — no flat bonuses, no categorical steps. Each factor is bounded or
+## monotonic in its underlying geometric quantity:
+##
+##   tension_signal = tension / (1 + tension)        → [0, 1), saturates
+##   richness       = sqrt(shared_count)             → diminishing returns
+##   bridge_factor  = 1 + ln(bridge_count)           → 1 at k=1, ~1.69 at k=2,
+##                                                      ~2.10 at k=3, smooth log
+##   drift_factor   = 1 + 0.5 * tanh(drift)          → (0.5, 1.5), symmetric
+##   affinity_factor = 0.75 + 0.5 * affinity         → [0.75, 1.25] when known;
+##                                                      else 1.0 (no penalty)
+##
+## Pass through `bridge_count = 1` for single-touch edges (live↔live, single
+## faction-touch) and `affinity = -1` when not computed; the helper degrades
+## gracefully to the remaining factors. The 0.5 boost on bridge edges and the
+## 0.05*n bonus on shared atoms in earlier code were both replaced by
+## bridge_factor and richness respectively — same intent, smoother gradient.
+static func _edge_score(
+	tension: float, shared_count: int, bridge_count: int = 1,
+	drift: float = 0.0, affinity: float = -1.0
+) -> float:
+	var t := maxf(tension, 0.0)
+	var tension_signal := t / (1.0 + t)
+	var richness := sqrt(float(maxi(0, shared_count)))
+	var bridge_factor := 1.0 + log(float(maxi(1, bridge_count)))
+	var drift_factor := 1.0 + 0.5 * tanh(drift)
+	var affinity_factor: float = 1.0
+	if affinity >= 0.0:
+		affinity_factor = 0.75 + 0.5 * clampf(affinity, 0.0, 1.0)
+	return tension_signal * richness * bridge_factor * drift_factor * affinity_factor
+
+
+## Bridge intensity as a continuous saturation of bridge_count. Returns 0 at
+## k=1 (no bridge), ~0.29 at k=2, ~0.42 at k=3, asymptotic to 1. Smooth across
+## all integers; used for color-lerping the row badge so the 1→2 transition
+## is a gradient, not a step.
+static func _bridge_intensity(bridge_count: int) -> float:
+	var k := float(maxi(1, bridge_count))
+	return 1.0 - 1.0 / sqrt(k)
+
+
 func _compute_network_edges() -> Array:
 	var biomes := _get_all_biomes()
 	var bnames: Array = biomes.keys()
@@ -847,13 +898,15 @@ func _compute_network_edges() -> Array:
 						pred_valid = false
 						break
 					pred_tension += absf(pa - pb)
+			var drift_val: float = (pred_tension - tension) if pred_valid else 0.0
 			edges.append({
 				"a": a, "b": bb,
 				"shared": shared, "tension": tension,
-				"tension_drift": pred_tension - tension if pred_valid else 0.0,
+				"tension_drift": drift_val,
 				"tension_drift_valid": pred_valid,
 				"affinity": affinity,
-				"score": tension + 0.05 * float(shared.size()),
+				"bridge_count": 1,  # live↔live: no faction mediator
+				"score": _edge_score(tension, shared.size(), 1, drift_val, affinity),
 				"faction_edge": false,
 			})
 
@@ -880,21 +933,20 @@ func _compute_network_edges() -> Array:
 				touched.append({"biome": bname, "shared": shared_atoms, "tension": tens})
 		if touched.is_empty():
 			continue
-		var is_bridge := touched.size() >= 2
-		var bridge_boost := 0.5 if is_bridge else 0.0
+		# bridge_count is the continuous quantity: how many live biomes this
+		# faction's signature touches. The score's bridge_factor (1 + ln(k))
+		# rises smoothly with k — no step at the 1→2 boundary.
+		var bridge_count: int = touched.size()
 		var bridge_partners: Array = []
-		if is_bridge:
-			for t in touched:
-				bridge_partners.append(str(t.biome))
-		# Emit one edge per touched live biome — bridge edges are scored
-		# higher so they surface above single-biome faction edges.
+		for t in touched:
+			bridge_partners.append(str(t.biome))
 		for t in touched:
 			edges.append({
 				"a": str(t.biome), "b": fb.name,
 				"shared": t.shared, "tension": t.tension,
-				"score": float(t.tension) + 0.05 * float(t.shared.size()) + bridge_boost,
+				"score": _edge_score(t.tension, t.shared.size(), bridge_count),
 				"faction_edge": true,
-				"bridge_edge": is_bridge,
+				"bridge_count": bridge_count,
 				"bridge_partners": bridge_partners,
 			})
 
