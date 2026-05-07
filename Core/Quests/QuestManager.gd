@@ -485,6 +485,7 @@ func _stamp_offered_quest(quest: Dictionary) -> void:
 	quest_offered.emit(quest)
 
 
+## @deprecated — replaced by MarketLattice. Only used by test_quest_lifecycle().
 func offer_quest(faction: Dictionary, biome_name: String, resources: Array) -> Dictionary:
 	# Generate and offer a new quest
 
@@ -530,6 +531,7 @@ func offer_emoji_quest(faction: Dictionary, biome_name: String, resources: Array
 # EMERGENT QUEST OFFERING (Quantum x Faction)
 # =============================================================================
 
+## @deprecated — replaced by MarketLattice. No callers; safe to delete next cleanup.
 func offer_quest_emergent(faction: Dictionary, biome) -> Dictionary:
 	# Generate quest using emergent faction x biome multiplication
 
@@ -672,7 +674,15 @@ func offer_all_faction_quests(biome) -> Array:
 		quests.append(quest)
 
 	var now_ms: int = Time.get_ticks_msec()
+	var player_vocab := _get_signature_emojis()
+	var seen_pairs: Dictionary = {}
 	for quest in _offer_from_market_lattice(biome):
+		if not _is_valid_offer_with_vocab(quest, player_vocab):
+			continue
+		var pk: String = "%s|%s" % [quest.get("reward_north", ""), quest.get("reward_south", "")]
+		if pk != "|" and seen_pairs.has(pk):
+			continue
+		seen_pairs[pk] = true
 		quest["id"] = next_quest_id
 		next_quest_id += 1
 		quest["offered_at"] = now_ms
@@ -714,7 +724,7 @@ func _is_valid_offer_with_vocab(quest: Dictionary, player_vocab: Array) -> bool:
 	var has_no_vocab = (north == "" and south == "")
 	if not has_vocab_pair and not has_no_vocab:
 		return false
-	if has_vocab_pair and north in player_vocab:
+	if has_vocab_pair and (north in player_vocab or south in player_vocab):
 		return false
 	return true
 
@@ -872,8 +882,10 @@ func complete_quest(quest_id: int) -> bool:
 	var granted_resources: Dictionary = {}
 	var lat = _get_farm_market_lattice()
 	if lat != null:
-		lat.synthesize_and_exercise(required_emoji, faction_name)
-		# synthesize_and_exercise already deposited the reward into economy
+		var exer := lat.synthesize_and_exercise(required_emoji, faction_name)
+		if exer.get("ok", false):
+			var out_emoji: String = str(exer.get("outcome", required_emoji))
+			granted_resources[out_emoji] = int(exer.get("classical_reward", 0))
 	else:
 		var player_vocab = _get_signature_emojis()
 		var reward_fallback = QuestRewards.generate_reward(quest, null, player_vocab)

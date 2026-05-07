@@ -16,21 +16,14 @@ const GateActionHandler = preload("res://Core/Instrumentation/Handlers/GateActio
 const LindbladHandler = preload("res://Core/Instrumentation/Handlers/LindbladHandler.gd")
 const EconomyConstants = preload("res://Core/GameMechanics/EconomyConstants.gd")
 const ActionCostRuntime = preload("res://Core/GameMechanics/ActionCostRuntime.gd")
-const IconUtils = preload("res://Core/Gameplay/IconUtils.gd")
 const PhysicsConfig = preload("res://Core/Config/PhysicsConfig.gd")
-const GranularityController = preload("res://Core/Utils/GranularityController.gd")
+const GranularityController = preload("res://Core/Utilities/GranularityController.gd")
 const GameStateSerializerClass = preload("res://Core/GameState/GameStateSerializer.gd")
 const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")
 const BalanceService = preload("res://Core/GameMechanics/BalanceService.gd")
 const VerboseHelper = preload("res://Core/Config/VerboseHelper.gd")
 const GridSentinel = preload("res://Core/GameState/GridSentinel.gd")
 const ToolConfig = preload("res://Core/GameState/ToolConfig.gd")
-
-## Fallback biome pool used when ObservationFrame.get_loadable_biomes() is unavailable.
-const DEFAULT_BIOME_POOL: Array[String] = [
-	"StarterForest", "Village", "BioticFlux",
-	"StellarForges", "FungalNetworks", "VolcanicWorlds"
-]
 
 const DEFAULT_TIMESCALE_OBJECTIVE: Dictionary = {
 	"focus_emojis": [],
@@ -60,7 +53,7 @@ var terminal_pool = null
 
 ## Selection state (absorbed from QuantumInstrumentState)
 var current_biome: String = ""
-var current_plot_idx: int = -1
+var current_plot_idx: int = 0
 var last_selected_position: Vector2i = GridSentinel.INVALID_POSITION
 var checked_plots: Array[Vector2i] = []
 
@@ -69,9 +62,8 @@ var current_submenu_name: String = ""
 var current_submenu_data: Dictionary = {}
 var submenu_page: int = 0
 
-## Active archetype frame (hat row 4-0). Empty = Ace (no hat / default toolkit).
-## Defaults to Scientist to preserve the legacy boot-into-group-3 behaviour.
-var current_frame: String = ToolConfig.FRAME_SCIENTIST
+## Active archetype frame (hat row 4-0). Empty string (FRAME_NULL) = no hat.
+var current_frame: String = ToolConfig.FRAME_ACE
 var _timescale_objective: Dictionary = DEFAULT_TIMESCALE_OBJECTIVE.duplicate(true)
 
 ## Cached autoload references
@@ -242,7 +234,7 @@ func cycle_frame_mode() -> Dictionary:
 # ============================================================================
 
 func _action_guard(positions: Array[Vector2i]) -> Dictionary:
-	"""Return an error dict if preconditions fail, or {} if all clear."""
+	# Return an error dict if preconditions fail, or {} if all clear.
 	if not farm:
 		return {"success": false, "error": "no_farm", "message": "Farm not initialized"}
 	if positions.is_empty():
@@ -331,7 +323,7 @@ func action_spark_south(positions: Array[Vector2i]) -> Dictionary:
 
 
 # ============================================================================
-# GROUP 2: LINDBLADIAN ACTIONS (Socialite frame)
+# GROUP 2: LINDBLADIAN ACTIONS (Merchant frame)
 # ============================================================================
 
 func action_drain(positions: Array[Vector2i]) -> Dictionary:
@@ -529,7 +521,7 @@ func action_inject_vocabulary(biome_name: String) -> Dictionary:
 			"message": "Biome is at max capacity (%d qubits)" % max_qubits
 		}
 
-	var candidate_pairs = IconUtils.collect_injectable_pairs(farm, biome)
+	var candidate_pairs = _collect_injectable_pairs(farm, biome)
 	var pair = _pick_injectable_pair(candidate_pairs, biome)
 	if pair.is_empty():
 		return {"success": false, "error": "no_available_pair", "message": "No injectable icon for this biome"}
@@ -745,6 +737,9 @@ func quest_complete(quest_id: int) -> Dictionary:
 		return {"ok": false, "completed": false, "error": "complete_unavailable", "quest_id": quest_id}
 	var completed = qm.complete_quest(quest_id)
 	var result = {"ok": completed, "completed": completed, "quest_id": quest_id}
+	if completed and qm.completed_quests:
+		var last: Dictionary = qm.completed_quests.back()
+		result["rewards"] = last.get("reward", {})
 	action_performed.emit("complete_quest", result)
 	if completed:
 		_notify_quest_projection("complete_quest", {"quest_id": quest_id})
@@ -839,17 +834,17 @@ func quest_accept_locked(quest_id: int) -> Dictionary:
 
 
 func get_action_cost(action_name: String, context: Dictionary = {}) -> Dictionary:
-	"""Get effective action cost, honoring economy overrides."""
+	# Get effective action cost, honoring economy overrides.
 	return ActionCostRuntime.get_action_cost(farm, EconomyConstants.normalize_action_id(action_name), context)
 
 
 func preflight_action_cost(action_name: String, context: Dictionary = {}) -> Dictionary:
-	"""Check affordability for an action cost (no spend)."""
+	# Check affordability for an action cost (no spend).
 	return ActionCostRuntime.preflight_action(farm, action_name, context)
 
 
 func can_afford_cost(cost: Dictionary) -> Dictionary:
-	"""Check affordability for an arbitrary cost dictionary (no spend)."""
+	# Check affordability for an arbitrary cost dictionary (no spend).
 	var gate = ActionCostRuntime.preflight_cost(farm, cost)
 	if bool(gate.get("ok", false)):
 		return gate
@@ -902,7 +897,7 @@ func get_recent_resource_mutations(limit: int = 40) -> Array:
 
 
 func commit_action_cost(action_name: String, context: Dictionary = {}, reason: String = "") -> Dictionary:
-	"""Commit spend for an action via the unified economy action API."""
+	# Commit spend for an action via the unified economy action API.
 	var economy = _get_economy()
 	if not economy:
 		return {"ok": false, "error": "no_economy"}
@@ -1000,7 +995,7 @@ func load_farm_variable_graph_file(path: String) -> Dictionary:
 
 
 func get_policy_snapshot(include_offers: bool = true, include_grid: bool = true) -> Dictionary:
-	"""Aggregate policy-facing reads into one payload for rig/runner loops."""
+	# Aggregate policy-facing reads into one payload for rig/runner loops.
 	var resource_snapshot = get_resource_snapshot()
 	var resources = resource_snapshot.get("resources", {}) if resource_snapshot is Dictionary else {}
 	if not (resources is Dictionary):
@@ -1308,6 +1303,83 @@ func victory_lap() -> Dictionary:
 	return result
 
 
+func victory_lap_partial(selected_biomes: Array[String] = [], max_registers: int = 8, _milk_spend: int = 0, _phase_window: int = 1) -> Dictionary:
+	if not farm or not farm.grid or not farm.grid.has_biomes():
+		return {"success": false, "error": "no_farm_or_biomes"}
+	if not terminal_pool:
+		return {"success": false, "error": "no_terminal_pool"}
+	var economy = _get_economy()
+
+	var biomes: Array[String] = []
+	if selected_biomes.is_empty():
+		for biome_name in farm.grid.get_biome_names():
+			if biome_name is String and str(biome_name) != "":
+				biomes.append(str(biome_name))
+		biomes.sort()
+	else:
+		biomes = selected_biomes.duplicate()
+
+	# Explore one terminal per biome if there's capacity
+	for biome_name in biomes:
+		if terminal_pool.get_unbound_count() <= 0:
+			break
+		var biome = farm.grid.get_biome(biome_name)
+		if not biome:
+			continue
+		var explore = ProbeActions.action_explore(terminal_pool, biome, economy)
+		if explore.get("success", false):
+			var t = explore.get("terminal", null)
+			if t:
+				var reg = int(explore.get("register_id", -1))
+				if reg >= 0:
+					t.grid_position = _derive_grid_position_for_register(biome_name, reg)
+				_attach_terminal_to_plot(t)
+				_emit_farm_action("explore", explore)
+
+	var popped_total = 0
+	var pop_failures: Array = []
+	var active_terminals: Array = terminal_pool.get_active_terminals().duplicate()
+	for terminal in active_terminals:
+		if popped_total >= max_registers:
+			break
+		if not terminal or not terminal.is_bound:
+			continue
+		var t_biome = str(terminal.bound_biome_name)
+		if not biomes.is_empty() and t_biome not in biomes:
+			continue
+		var biome = farm.grid.get_biome(t_biome)
+		if not biome:
+			continue
+		if not bool(terminal.is_measured):
+			var measure = ProbeActions.action_measure(terminal, biome, economy, farm)
+			if not measure.get("success", false):
+				pop_failures.append({"biome": t_biome, "error": "measure_failed"})
+				continue
+			_emit_farm_action("measure", measure)
+		_detach_terminal_from_plot(terminal)
+		var pop = ProbeActions.action_pop(terminal, terminal_pool, economy, farm)
+		if pop.get("success", false):
+			popped_total += 1
+			_emit_farm_action("pop", pop)
+		else:
+			pop_failures.append({"biome": t_biome, "error": str(pop.get("error", "unknown"))})
+
+	var milk_amount = 0.0
+	if economy and economy.has_method("get_resource"):
+		milk_amount = float(economy.get_resource("\ud83c\udf7c"))
+
+	var result = {
+		"success": true,
+		"selected_biomes": biomes,
+		"max_registers": max_registers,
+		"popped_total": popped_total,
+		"pop_failures": pop_failures,
+		"milk_after": milk_amount,
+	}
+	_notify_quest_projection("victory_lap_partial", result)
+	return result
+
+
 func configure_seed_state(cmd: Dictionary) -> Dictionary:
 	var out: Dictionary = {"ok": true}
 	var gsm = _get_autoload("GameStateManager")
@@ -1325,7 +1397,7 @@ func configure_seed_state(cmd: Dictionary) -> Dictionary:
 	var known_pairs = _sanitize_known_pairs(cmd.get("known_pairs", []))
 	if not known_pairs.is_empty():
 		if farm and farm.has_method("set_known_pairs"):
-			farm.set_known_pairs(known_pairs, true, true)
+			farm.set_known_pairs(known_pairs)
 		gsm.current_state.known_pairs = known_pairs.duplicate(true)
 		out["known_pairs"] = known_pairs
 
@@ -1339,8 +1411,6 @@ func configure_seed_state(cmd: Dictionary) -> Dictionary:
 		var obs = _get_autoload("ObservationFrame")
 		if obs and obs.has_method("get_loadable_biomes"):
 			default_pool = obs.get_loadable_biomes()
-		else:
-			default_pool = DEFAULT_BIOME_POOL.duplicate()
 		var pool: Array[String] = []
 		for biome_name in default_pool:
 			if biome_name not in unlocked_biomes:
@@ -1389,9 +1459,9 @@ func _emit_farm_action(action: String, result: Dictionary, pos: Vector2i = GridS
 
 
 func _derive_grid_position_for_register(biome_name: String, register_id: int) -> Vector2i:
-	"""Under plot_idx ≡ register_id, a register's canonical grid position is
-	(register_id, biome_row). Returns INVALID_POSITION when the biome row
-	lookup fails."""
+	# Under plot_idx ≡ register_id, a register's canonical grid position is
+	# (register_id, biome_row). Returns INVALID_POSITION when the biome row
+	# lookup fails.
 	if not farm or register_id < 0:
 		return GridSentinel.INVALID_POSITION
 	if not farm.has_method("get_biome_row"):
@@ -1478,7 +1548,7 @@ func _resolve_current_biome_for_quests():
 # ============================================================================
 
 func set_observation_stride(biome_name: String, stride: int) -> Dictionary:
-	"""Set observation stride for a biome. 0=locked, 1=normal, 2+=fast forward."""
+	# Set observation stride for a biome. 0=locked, 1=normal, 2+=fast forward.
 	var biome = _resolve_biome(biome_name)
 	if not biome:
 		return {"ok": false, "error": "unknown_biome", "biome": biome_name}
@@ -1494,7 +1564,7 @@ func set_observation_stride(biome_name: String, stride: int) -> Dictionary:
 
 
 func set_resolution(biome_name: String, dt: float) -> Dictionary:
-	"""Set evolution resolution (max_evolution_dt) for a biome."""
+	# Set evolution resolution (max_evolution_dt) for a biome.
 	var biome = _resolve_biome(biome_name)
 	if not biome:
 		return {"ok": false, "error": "unknown_biome", "biome": biome_name}
@@ -1510,7 +1580,7 @@ func set_resolution(biome_name: String, dt: float) -> Dictionary:
 
 
 func get_timescale_snapshot(biome_name: String) -> Dictionary:
-	"""Get current timescale state for a biome: stride, dt, locked status."""
+	# Get current timescale state for a biome: stride, dt, locked status.
 	var biome = _resolve_biome(biome_name)
 	if not biome:
 		return {"ok": false, "error": "unknown_biome", "biome": biome_name}
@@ -1715,9 +1785,9 @@ func _pick_injectable_pair(pairs: Array, biome) -> Dictionary:
 		var south = pair.get("south", "")
 		if north == "" or south == "":
 			continue
-		if IconUtils.biome_has_emoji(biome, north):
+		if biome.viz_cache and biome.viz_cache.has_metadata() and biome.viz_cache.get_qubit(north) >= 0:
 			continue
-		if IconUtils.biome_has_emoji(biome, south):
+		if biome.viz_cache and biome.viz_cache.has_metadata() and biome.viz_cache.get_qubit(south) >= 0:
 			continue
 		return {"north": north, "south": south}
 	return {}
@@ -1864,27 +1934,40 @@ func _reindex_entanglement_graph(quantum_computer, removed_qubit: int) -> void:
 
 func _rebuild_operators_after_shrink(biome) -> void:
 	var qc = biome.quantum_computer
-	var _icon_reg = _get_autoload("EmojiPhysicsRegistry")
-	if not _icon_reg:
-		push_warning("_rebuild_operators_after_shrink: EmojiPhysicsRegistry not available")
-		return
-
-	var all_icons = {}
-	for emoji in qc.register_map.coordinates.keys():
-		var icon = _icon_reg.get_icon(emoji)
-		if icon:
-			all_icons[emoji] = icon
-
 	var HamBuilder = load("res://Core/QuantumSubstrate/HamiltonianBuilder.gd")
 	var LindBuilder = load("res://Core/QuantumSubstrate/LindbladBuilder.gd")
+	var BiomeBuilderCls = load("res://Core/Biomes/BiomeBuilder.gd")
+	var BiomeRegistryCls = load("res://Core/Biomes/BiomeRegistry.gd")
 	var verbose_ref = _get_verbose()
 
-	qc.hamiltonian = HamBuilder.build(all_icons, qc.register_map, verbose_ref)
-	var lindblad_result = LindBuilder.build(all_icons, qc.register_map, verbose_ref)
-	qc.lindblad_operators = lindblad_result.get("operators", [])
-	qc.gated_lindblad_configs = lindblad_result.get("gated_configs", [])
+	# Load biome def so we rebuild from icons[] with full cloud (Lindblad) data.
+	var biome_def = null
+	if qc and qc.biome_name != "":
+		biome_def = BiomeRegistryCls.new().get_by_name(qc.biome_name)
 
-	var driven_configs = HamBuilder.get_driven_icons(all_icons, qc.register_map)
+	var biome_icons: Array = []
+	if biome_def != null:
+		biome_icons = BiomeBuilderCls._build_biome_icon_list(biome_def)
+	else:
+		# Fallback: reconstruct minimal icons from register_map axes (no cloud data).
+		var IconLexiconCls = load("res://Core/Factions/IconLexicon.gd")
+		var BiomeIconCls = load("res://Core/QuantumSubstrate/BiomeIcon.gd")
+		var lexicon = IconLexiconCls.new()
+		for q in range(qc.register_map.num_qubits):
+			var axis = qc.register_map.axes.get(q, {})
+			var north: String = str(axis.get("north", ""))
+			var south: String = str(axis.get("south", ""))
+			if north == "" or south == "":
+				continue
+			var physics = lexicon.get_icon_physics_by_pair(north, south)
+			var rec = lexicon.find_icon_by_pair(north, south)
+			var iname: String = str(rec.get("name", north)) if not rec.is_empty() else north
+			biome_icons.append(BiomeIconCls.from_lexicon(iname, north, south, physics, {}, 1.0))
+
+	qc.hamiltonian = HamBuilder.build_from_icons(biome_icons, qc.register_map, verbose_ref)
+	var lindblad_result = LindBuilder.build_from_icon_clouds(biome_icons, qc.register_map, verbose_ref)
+	qc.lindblad_operators = lindblad_result.get("operators", [])
+	var driven_configs = HamBuilder.get_driven_icons(biome_icons, qc.register_map)
 	qc.set_driven_icons(driven_configs)
 
 
@@ -1933,6 +2016,36 @@ static func _sanitize_known_pairs(raw) -> Array:
 			out.append({"north": north, "south": south})
 	return out
 
+
+# ============================================================================
+# INJECTABLE PAIR HELPERS (inlined from removed IconUtils)
+# ============================================================================
+
+func _collect_known_pairs(farm_ref) -> Array:
+	if farm_ref and farm_ref.has_method("get_known_pairs"):
+		return farm_ref.get_known_pairs()
+	return []
+
+func _collect_injectable_pairs(farm_ref, biome = null) -> Array:
+	var known = _collect_known_pairs(farm_ref)
+	var filtered: Array = []
+	var seen: Dictionary = {}
+	for pair in known:
+		if not (pair is Dictionary):
+			continue
+		var north = str(pair.get("north", ""))
+		var south = str(pair.get("south", ""))
+		if north == "" or south == "" or north == south:
+			continue
+		if biome and biome.viz_cache and biome.viz_cache.has_metadata():
+			if biome.viz_cache.get_qubit(north) >= 0 or biome.viz_cache.get_qubit(south) >= 0:
+				continue
+		var key = "%s|%s" % [north, south]
+		if seen.has(key):
+			continue
+		seen[key] = true
+		filtered.append({"north": north, "south": south})
+	return filtered
 
 # ============================================================================
 # AUTOLOAD ACCESS (RefCounted pattern - same as QuantumComputer.gd)

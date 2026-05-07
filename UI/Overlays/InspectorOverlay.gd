@@ -13,6 +13,7 @@ extends "res://UI/Core/Surface.gd"
 const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")
 const BiomeRegistry = preload("res://Core/Biomes/BiomeRegistry.gd")
 const MarketLatticeCls = preload("res://Core/Markets/MarketLattice.gd")
+const FactionBiomeMap = preload("res://Core/Biomes/FactionBiomeMap.gd")
 
 const FRAME_MAP := "map"
 const FRAME_BRIDGES := "bridges"
@@ -327,13 +328,12 @@ func _make_bridge_row(faction_name: String, biomes_for_faction: Array) -> Contro
 
 	var biomes_lbl := Label.new()
 	# Augment each biome name with signature icon overlap count.
-	const FBM2 = preload("res://Core/Biomes/FactionBiomeMap.gd")
 	var all_biomes := _get_all_biomes()
 	var biome_parts: Array = []
 	for bname in biomes_for_faction:
 		var biome_obj = all_biomes.get(str(bname), null)
 		if biome_obj != null:
-			var cnt: int = FBM2.signature_overlap_count(faction_name, biome_obj)
+			var cnt: int = FactionBiomeMap.signature_overlap_count(faction_name, biome_obj)
 			biome_parts.append("%s×%d" % [str(bname), cnt])
 		else:
 			biome_parts.append(str(bname))
@@ -350,7 +350,6 @@ func _make_bridge_row(faction_name: String, biomes_for_faction: Array) -> Contro
 func _index_factions_by_biome(biomes: Dictionary) -> Dictionary:
 	# Faction signature gate: faction admitted to biome iff it owns an icon whose
 	# pair is in the biome's register map.
-	const FactionBiomeMap = preload("res://Core/Biomes/FactionBiomeMap.gd")
 	if biomes.is_empty():
 		return {}
 	return FactionBiomeMap.index_factions_to_biomes_by_signature(biomes)
@@ -362,7 +361,6 @@ func _admitted_faction_names(biome) -> Array:
 	# Prefer the cached BiomeBase accessor; fall back for data-path biomes.
 	if biome.has_method("get_admitted_factions"):
 		return biome.get_admitted_factions()
-	const FactionBiomeMap = preload("res://Core/Biomes/FactionBiomeMap.gd")
 	return FactionBiomeMap.factions_for_biome_by_signature(biome)
 
 

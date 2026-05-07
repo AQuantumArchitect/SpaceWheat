@@ -25,6 +25,8 @@ extends SceneTree
 ## - biome_positions: {biome: String}
 ## - active_quests
 ## - known_vocab_pairs
+## - story_flags — returns {flags_fired: {id→phrame}, story_log: [{id,act,arc_beat,...}]}
+## - consume_berry: {biome?: String, count?: int, phase_each?: float} — rig-only: advance berry harvest counter
 ## - inject_vocab: {biome: String, pair_index: int}
 ## - gate_inject: {gate: String, biome: String, positions: [[x,y],...]}
 ## - lindblad_pump: {biome: String, positions: [[x,y],...]}
@@ -348,6 +350,8 @@ func _requires_quantum_instrument(action: String) -> bool:
 		"add_resource",
 		"set_resource",
 		"resource_mutations",
+		"story_flags",
+		"consume_berry",
 		"inject_vocab",
 		"gate_inject",
 		"lindblad_pump",
@@ -539,6 +543,7 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 			var quest_id = int(cmd.get("quest_id", -1))
 			var complete_result = _instrument.quest_complete(quest_id)
 			result["completed"] = bool(complete_result.get("completed", false))
+			result["rewards"] = complete_result.get("rewards", {})
 
 		"complete_or_claim":
 			var quest_id = int(cmd.get("quest_id", -1))
@@ -597,12 +602,41 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 			var pairs = _instrument.get_known_vocab_pairs() if _instrument else []
 			result["pairs"] = pairs if pairs is Array else []
 
+		"story_flags":
+			var farm := _farm
+			if farm == null:
+				result["flags_fired"] = {}
+				result["story_log"] = []
+			else:
+				result["flags_fired"] = farm.story_flags_fired.duplicate() if "story_flags_fired" in farm else {}
+				result["story_log"] = farm.story_log.duplicate(true) if "story_log" in farm else []
+
 		"inject_vocab":
 			var biome_name = str(cmd.get("biome", ""))
 			if biome_name != "":
 				result["inject_result"] = _instrument.action_inject_vocabulary(biome_name)
 			else:
 				result = {"ok": false, "turn": turn_id, "action": action, "error": "missing_biome"}
+
+		"consume_berry":
+			var cb_biome_name: String = str(cmd.get("biome", "StarterForest"))
+			var cb_count: int = max(1, int(cmd.get("count", 1)))
+			var cb_phase: float = float(cmd.get("phase_each", PI))
+			var cb_biome = _farm.grid.get_biome(cb_biome_name) if _farm and _farm.grid else null
+			if cb_biome == null or not ("quantum_computer" in cb_biome) or cb_biome.quantum_computer == null:
+				result["ok"] = false
+				result["error"] = "no_biome_or_qc"
+			else:
+				var berry = cb_biome.quantum_computer.berry_register
+				var qc = cb_biome.quantum_computer
+				var qcount: int = qc.get_qubit_count() if qc.has_method("get_qubit_count") else 1
+				for i in range(cb_count):
+					var qid: int = i % max(1, qcount)
+					berry.start_tracking(qid)
+					berry._state[qid]["accumulated"] = cb_phase
+					berry.consume(qid)
+				result["consumed_count"] = berry.get_consumed_count()
+				result["consumed_phase"] = berry.get_consumed_phase()
 
 		"gate_inject":
 			var gate_name = str(cmd.get("gate", ""))

@@ -233,33 +233,31 @@ var _physics_frame_counter: int = 0
 
 
 func _notification(what: int) -> void:
-	"""Handle cleanup when object is freed."""
+	# Handle cleanup when object is freed.
 	if what == NOTIFICATION_PREDELETE:
 		if lookahead_engine and is_instance_valid(lookahead_engine):
 			lookahead_engine = null
 
 
 func _cleanup_lookahead_engine() -> void:
-	"""Clean up C++ lookahead engine to prevent memory leaks.
-
-	Call this explicitly before destroying the batcher, or let _notification handle it.
-	GDExtension objects are automatically freed when unreferenced.
-	"""
+	# Clean up C++ lookahead engine to prevent memory leaks.
+	#
+	# Call this explicitly before destroying the batcher, or let _notification handle it.
+	# GDExtension objects are automatically freed when unreferenced.
 	if lookahead_engine and is_instance_valid(lookahead_engine):
 		lookahead_engine = null
 
 
 func abort_for_quit() -> void:
-	"""Fast shutdown path for application exit: disable new work and free C++ engine.
-
-	The MultiBiomeLookaheadEngine destructor has no background workers to join,
-	so freeing immediately is safe and avoids ObjectDB leak warnings at exit.
-	"""
+	# Fast shutdown path for application exit: disable new work and free C++ engine.
+	#
+	# The MultiBiomeLookaheadEngine destructor has no background workers to join,
+	# so freeing immediately is safe and avoids ObjectDB leak warnings at exit.
 	_teardown_runtime_state()
 
 
 func cleanup() -> void:
-	"""Explicit teardown for farm/session shutdown."""
+	# Explicit teardown for farm/session shutdown.
 	_teardown_runtime_state()
 
 
@@ -314,13 +312,12 @@ func _teardown_runtime_state() -> void:
 
 
 func initialize(biome_array: Array, p_terminal_pool = null, p_farm = null):
-	"""Initialize batcher with all farm biomes.
-
-	Args:
-		biome_array: Array of BiomeBase instances
-		p_terminal_pool: Optional TerminalPool for bound terminal optimization
-		p_farm: Optional Farm reference for infrastructure-aware evolution checks
-	"""
+	# Initialize batcher with all farm biomes.
+	#
+	# Args:
+	# biome_array: Array of BiomeBase instances
+	# p_terminal_pool: Optional TerminalPool for bound terminal optimization
+	# p_farm: Optional Farm reference for infrastructure-aware evolution checks
 	_disconnect_runtime_activity_signals()
 	terminal_pool = p_terminal_pool
 	farm_ref = p_farm
@@ -382,21 +379,21 @@ func initialize(biome_array: Array, p_terminal_pool = null, p_farm = null):
 func _connect_runtime_activity_signals() -> void:
 	if terminal_pool:
 		if terminal_pool.has_signal("terminal_bound"):
-			InstrumentLocator.safe_connect(terminal_pool.terminal_bound, _on_terminal_pool_terminal_bound)
+			InstrumentLocator._safe_connect(terminal_pool.terminal_bound, _on_terminal_pool_terminal_bound)
 		if terminal_pool.has_signal("terminal_unbound"):
-			InstrumentLocator.safe_connect(terminal_pool.terminal_unbound, _on_terminal_pool_terminal_unbound)
+			InstrumentLocator._safe_connect(terminal_pool.terminal_unbound, _on_terminal_pool_terminal_unbound)
 		if terminal_pool.has_signal("terminal_measured"):
-			InstrumentLocator.safe_connect(terminal_pool.terminal_measured, _on_terminal_pool_terminal_measured)
+			InstrumentLocator._safe_connect(terminal_pool.terminal_measured, _on_terminal_pool_terminal_measured)
 
 
 func _disconnect_runtime_activity_signals() -> void:
 	if terminal_pool:
 		if terminal_pool.has_signal("terminal_bound"):
-			InstrumentLocator.safe_disconnect(terminal_pool.terminal_bound, _on_terminal_pool_terminal_bound)
+			InstrumentLocator._safe_disconnect(terminal_pool.terminal_bound, _on_terminal_pool_terminal_bound)
 		if terminal_pool.has_signal("terminal_unbound"):
-			InstrumentLocator.safe_disconnect(terminal_pool.terminal_unbound, _on_terminal_pool_terminal_unbound)
+			InstrumentLocator._safe_disconnect(terminal_pool.terminal_unbound, _on_terminal_pool_terminal_unbound)
 		if terminal_pool.has_signal("terminal_measured"):
-			InstrumentLocator.safe_disconnect(terminal_pool.terminal_measured, _on_terminal_pool_terminal_measured)
+			InstrumentLocator._safe_disconnect(terminal_pool.terminal_measured, _on_terminal_pool_terminal_measured)
 
 
 func _on_terminal_pool_terminal_bound(terminal: RefCounted, _register_id: int) -> void:
@@ -447,19 +444,18 @@ func _refresh_runtime_activity(force: bool = false) -> void:
 
 
 func register_biome(biome) -> void:
-	"""Register a biome with the batcher for evolution tracking.
-
-	TERMINOLOGY: register_biome() adds biome to evolution tracking.
-	The batcher then "enrolls" it in the native engine (internal detail).
-	Registering also transfers _process ownership from the biome to this
-	batcher, so callers do not need to remember a second process-state ritual.
-
-	IDEMPOTENT: Safe to call multiple times. If biome is already registered,
-	this method reasserts batch ownership and returns.
-
-	If native engine isn't ready yet, queues the biome for later registration.
-	Biome is only 'ready' after its 10-step lookahead buffers are primed.
-	"""
+	# Register a biome with the batcher for evolution tracking.
+	#
+	# TERMINOLOGY: register_biome() adds biome to evolution tracking.
+	# The batcher then "enrolls" it in the native engine (internal detail).
+	# Registering also transfers _process ownership from the biome to this
+	# batcher, so callers do not need to remember a second process-state ritual.
+	#
+	# IDEMPOTENT: Safe to call multiple times. If biome is already registered,
+	# this method reasserts batch ownership and returns.
+	#
+	# If native engine isn't ready yet, queues the biome for later registration.
+	# Biome is only 'ready' after its 10-step lookahead buffers are primed.
 	if not _is_valid_biome(biome):
 		return
 
@@ -492,15 +488,14 @@ func register_biome(biome) -> void:
 
 
 func unregister_biome(biome) -> void:
-	"""Unregister a biome from the batcher (lightweight cleanup).
-
-	NOTE: The native engine doesn't support unregistration, so engine biome IDs
-	accumulate. This method only removes the biome from batcher tracking.
-	The engine will receive empty rhos for unregistered biomes and skip them.
-
-	Args:
-		biome: The biome to unregister
-	"""
+	# Unregister a biome from the batcher (lightweight cleanup).
+	#
+	# NOTE: The native engine doesn't support unregistration, so engine biome IDs
+	# accumulate. This method only removes the biome from batcher tracking.
+	# The engine will receive empty rhos for unregistered biomes and skip them.
+	#
+	# Args:
+	# biome: The biome to unregister
 	if not biome:
 		return
 
@@ -582,7 +577,7 @@ func _erase_biome_runtime_state(biome_name: String) -> void:
 
 
 func _register_native_biome(biome) -> int:
-	"""Register one biome with the native engine and sync its structural payload."""
+	# Register one biome with the native engine and sync its structural payload.
 	if not lookahead_engine or not _is_valid_biome(biome):
 		return -1
 
@@ -614,11 +609,10 @@ func _register_native_biome(biome) -> int:
 
 
 func _register_and_prime_biome(biome) -> void:
-	"""Register a single biome with native engine and prime its buffers.
-
-	If the biome is already registered with the engine (e.g., by TestBootManager),
-	skips engine registration and just primes the buffers.
-	"""
+	# Register a single biome with native engine and prime its buffers.
+	#
+	# If the biome is already registered with the engine (e.g., by TestBootManager),
+	# skips engine registration and just primes the buffers.
 	if not lookahead_engine or not _is_valid_biome(biome):
 		return
 
@@ -666,7 +660,7 @@ func _register_and_prime_biome(biome) -> void:
 
 
 func _setup_lookahead_engine():
-	"""Set up the native MultiBiomeLookaheadEngine if available."""
+	# Set up the native MultiBiomeLookaheadEngine if available.
 	if ClassDB.class_exists("MultiBiomeLookaheadEngine"):
 		call_deferred("_create_lookahead_engine_deferred")
 		return
@@ -776,11 +770,10 @@ func _create_lookahead_engine_deferred() -> void:
 
 
 func _prime_all_biomes_native(biomes_to_prime: Array) -> void:
-	"""Prime all biomes at once using batched native evolution.
-
-	This fills the N-phrame lookahead buffers for all biomes in one batched call,
-	then emits biome_ready for each biome.
-	"""
+	# Prime all biomes at once using batched native evolution.
+	#
+	# This fills the N-phrame lookahead buffers for all biomes in one batched call,
+	# then emits biome_ready for each biome.
 	if not lookahead_engine or biomes_to_prime.is_empty():
 		return
 
@@ -845,7 +838,7 @@ func _prime_all_biomes_native(biomes_to_prime: Array) -> void:
 
 
 func _matrix_to_triplets(mat) -> PackedFloat64Array:
-	"""Convert ComplexMatrix to triplet format for native engine."""
+	# Convert ComplexMatrix to triplet format for native engine.
 	var triplets = PackedFloat64Array()
 	var n = mat.n
 	var threshold = 1e-15
@@ -889,7 +882,7 @@ func _get_packet_dt_for_active_flags(active_flags_arr: Array) -> float:
 
 
 func _build_metadata_payload(biome) -> Dictionary:
-	"""Build structural metadata payload from the biome's register map."""
+	# Build structural metadata payload from the biome's register map.
 	if not biome or not biome.quantum_computer or not biome.quantum_computer.register_map:
 		return {}
 	var qc = biome.quantum_computer  # Cache reference
@@ -912,15 +905,14 @@ func _build_metadata_payload(biome) -> Dictionary:
 
 
 func _get_coupling_payload_from_viz_cache(biome) -> Dictionary:
-	"""Get coupling payload from biome's viz_cache (already populated from icons).
-
-	Returns: {
-		"self_energies": {emoji: base_self_energy, ...},
-		"self_energy_drivers": {emoji: {type, frequency, phase, amplitude}, ...},
-		"hamiltonian": {emoji_a: {emoji_b: coupling_strength, ...}, ...},
-		"lindblad": {emoji_a: {emoji_b: rate, ...}, ...}
-	}
-	"""
+	# Get coupling payload from biome's viz_cache (already populated from icons).
+	#
+	# Returns: {
+	# "self_energies": {emoji: base_self_energy, ...},
+	# "self_energy_drivers": {emoji: {type, frequency, phase, amplitude}, ...},
+	# "hamiltonian": {emoji_a: {emoji_b: coupling_strength, ...}, ...},
+	# "lindblad": {emoji_a: {emoji_b: rate, ...}, ...}
+	# }
 	# Combined validation: check all requirements at once
 	if not biome or not biome.viz_cache or not biome.quantum_computer or not biome.quantum_computer.register_map:
 		return {}
@@ -958,7 +950,7 @@ func _get_coupling_payload_from_viz_cache(biome) -> Dictionary:
 
 
 func _build_biome_structure_payload(biome) -> Dictionary:
-	"""Build the immutable structural payload owned by the biome/viz surface."""
+	# Build the immutable structural payload owned by the biome/viz surface.
 	return {
 		"metadata": _build_metadata_payload(biome),
 		"couplings": _get_coupling_payload_from_viz_cache(biome),
@@ -966,7 +958,7 @@ func _build_biome_structure_payload(biome) -> Dictionary:
 
 
 func _sync_biome_structure_payload(biome, biome_id: int = -1) -> Dictionary:
-	"""Project biome-owned structure into the local buffer and native engine."""
+	# Project biome-owned structure into the local buffer and native engine.
 	if not _is_valid_biome(biome):
 		return {}
 
@@ -991,7 +983,7 @@ func _sync_biome_structure_payload(biome, biome_id: int = -1) -> Dictionary:
 var _first_tick_logged: bool = false
 
 func physics_process(delta: float):
-	"""Called at PhysicsConfig.PHYSICS_TICKS_HZ by physics loop (from Farm._physics_process())."""
+	# Called at PhysicsConfig.PHYSICS_TICKS_HZ by physics loop (from Farm._physics_process()).
 	# GUARD: Prevent duplicate calls in same physics frame
 	var current_physics_frame = Engine.get_physics_frames()
 	if current_physics_frame == _last_physics_frame:
@@ -1015,20 +1007,19 @@ func physics_process(delta: float):
 	if lookahead_enabled:
 		_physics_process_lookahead(delta)
 	else:
-		push_warning("[BiomeEvolutionBatcher] C++ lookahead not active — evolution stalled. All computation must run in C++.")
+		_log_debug("[BiomeEvolutionBatcher] C++ lookahead not active — using GDScript fallback")
 		return
 
 
 func _physics_process_lookahead(delta: float):
-	"""Lookahead mode: consume buffered phrames and run synchronous native packets.
-
-	Terminology:
-	- tick = visual frame (60 FPS from _process)
-	- phrame = physics/evolution frame (PhysicsConfig.PHRAME_HZ)
-	- packet = C++ batch result containing N phrames
-
-	Key: Refill check runs at phrame rate (consumption).
-	"""
+	# Lookahead mode: consume buffered phrames and run synchronous native packets.
+	#
+	# Terminology:
+	# - tick = visual frame (60 FPS from _process)
+	# - phrame = physics/evolution frame (PhysicsConfig.PHRAME_HZ)
+	# - packet = C++ batch result containing N phrames
+	#
+	# Key: Refill check runs at phrame rate (consumption).
 	# Track frame timing (for diagnostics only, not control logic)
 	var now_ms = Time.get_ticks_msec()
 	var tick_now_ms = now_ms
@@ -1093,7 +1084,7 @@ func _physics_process_lookahead(delta: float):
 # =============================================================================
 
 class BiomeBufferState:
-	"""Encapsulates buffer state for a single biome."""
+	# Encapsulates buffer state for a single biome.
 	var biome_name: String
 	var buffer: Array
 	var cursor: int
@@ -1126,12 +1117,12 @@ func _erase_lookahead_buffer(biome_name: String) -> void:
 
 
 func _is_valid_biome(biome) -> bool:
-	"""Check if biome has quantum computer (standard null check)."""
+	# Check if biome has quantum computer (standard null check).
 	return biome != null and is_instance_valid(biome) and biome.quantum_computer != null
 
 
 func _get_biome_name(biome) -> String:
-	"""Get biome name with fallback to biome.name."""
+	# Get biome name with fallback to biome.name.
 	if biome == null:
 		return ""
 	# If biome is a String, return it directly
@@ -1145,10 +1136,9 @@ func _get_biome_name(biome) -> String:
 
 
 func _get_biome_buffer_state(biome) -> BiomeBufferState:
-	"""Get buffer state for a single biome (centralized buffer access).
-
-	Eliminates redundant pattern: lookahead buffer frames + cursor lookups.
-	"""
+	# Get buffer state for a single biome (centralized buffer access).
+	#
+	# Eliminates redundant pattern: lookahead buffer frames + cursor lookups.
 	var biome_name = _get_biome_name(biome)
 	var lookahead_buffer = _get_lookahead_buffer(biome_name)
 	var buffer = lookahead_buffer.frames if lookahead_buffer else []
@@ -1157,11 +1147,10 @@ func _get_biome_buffer_state(biome) -> BiomeBufferState:
 
 
 func _get_minimum_buffer_depth() -> int:
-	"""Get minimum buffer depth across all active biomes.
-
-	Returns the smallest depth to ensure no biome starves.
-	Fixes Issue #2: Previously only checked first biome.
-	"""
+	# Get minimum buffer depth across all active biomes.
+	#
+	# Returns the smallest depth to ensure no biome starves.
+	# Fixes Issue #2: Previously only checked first biome.
 	if biomes.is_empty():
 		return 0
 	if _active_biome_names.is_empty():
@@ -1183,10 +1172,9 @@ func _get_minimum_buffer_depth() -> int:
 
 
 func _create_frozen_buffer(rho_packed: PackedFloat64Array, steps: int) -> Array:
-	"""Create buffer filled with frozen state (repeated current density matrix).
-
-	Eliminates redundant loop in 3 locations.
-	"""
+	# Create buffer filled with frozen state (repeated current density matrix).
+	#
+	# Eliminates redundant loop in 3 locations.
 	var frozen_steps: Array = []
 	frozen_steps.resize(steps)
 	for i in range(steps):
@@ -1195,20 +1183,18 @@ func _create_frozen_buffer(rho_packed: PackedFloat64Array, steps: int) -> Array:
 
 
 func _smooth_metric(current: float, new_value: float, alpha: float = BATCH_TIME_SMOOTHING) -> float:
-	"""Exponential moving average smoothing.
-
-	Eliminates redundant lerpf(x, y, BATCH_TIME_SMOOTHING) pattern in 2 locations.
-	"""
+	# Exponential moving average smoothing.
+	#
+	# Eliminates redundant lerpf(x, y, BATCH_TIME_SMOOTHING) pattern in 2 locations.
 	return lerpf(current, new_value, alpha)
 
 
 # === PER-BIOME HELPERS (Option A) ===
 
 func _get_biome_depth(biome_name: String) -> int:
-	"""Get buffer depth for a SINGLE biome (not minimum across all).
-
-	Used by per-biome refill logic to check each biome independently.
-	"""
+	# Get buffer depth for a SINGLE biome (not minimum across all).
+	#
+	# Used by per-biome refill logic to check each biome independently.
 	var lookahead_buffer = _get_lookahead_buffer(biome_name)
 	var buffer = lookahead_buffer.frames if lookahead_buffer else []
 	var cursor = lookahead_buffer.cursor if lookahead_buffer else 0
@@ -1321,7 +1307,7 @@ func _reregister_biome_by_name(biome_name: String) -> void:
 
 
 func _get_biome_by_name(biome_name: String):
-	"""Find biome object by name. Returns null if not found."""
+	# Find biome object by name. Returns null if not found.
 	for biome in biomes:
 		if _get_biome_name(biome) == biome_name:
 			return biome
@@ -1329,7 +1315,7 @@ func _get_biome_by_name(biome_name: String):
 
 
 func _get_engine_id_for_biome(biome_name: String) -> int:
-	"""Get C++ engine ID for a biome by name. Returns -1 if not found."""
+	# Get C++ engine ID for a biome by name. Returns -1 if not found.
 	for engine_id in _engine_id_to_biome:
 		if _engine_id_to_biome[engine_id] == biome_name:
 			return engine_id
@@ -1337,12 +1323,12 @@ func _get_engine_id_for_biome(biome_name: String) -> int:
 
 
 func _update_biome_pause_states():
-	"""Refresh the cached activity ledger on demand."""
+	# Refresh the cached activity ledger on demand.
 	_refresh_runtime_activity()
 
 
 func _poll_runtime_activity(delta: float) -> void:
-	"""Event-driven activity ledger with a slow integrity poll for infra changes."""
+	# Event-driven activity ledger with a slow integrity poll for infra changes.
 	if _activity_refresh_needed:
 		_refresh_runtime_activity()
 		return
@@ -1352,10 +1338,9 @@ func _poll_runtime_activity(delta: float) -> void:
 
 
 func _biome_has_peeked_terminals(biome) -> bool:
-	"""Check if biome has any peeked terminals (bubbles to render).
-
-	Returns false if no terminals are peeked (biome should be paused).
-	"""
+	# Check if biome has any peeked terminals (bubbles to render).
+	#
+	# Returns false if no terminals are peeked (biome should be paused).
 	if not _is_valid_biome(biome):
 		return false
 
@@ -1380,10 +1365,9 @@ func _biome_has_peeked_terminals(biome) -> bool:
 
 
 func _should_trigger_biome_refill(biome_name: String, depth: int, rho_valid: bool = true) -> bool:
-	"""Check if a SINGLE biome needs refill (time-based thresholds).
-
-	Decouples refill thresholds from batch size to avoid starvation lock-in.
-	"""
+	# Check if a SINGLE biome needs refill (time-based thresholds).
+	#
+	# Decouples refill thresholds from batch size to avoid starvation lock-in.
 	# Check if biome is paused (no bubbles)
 	if biome_paused.get(biome_name, false):
 		return false  # Don't refill paused biomes
@@ -1402,14 +1386,13 @@ func _should_trigger_biome_refill(biome_name: String, depth: int, rho_valid: boo
 
 
 func _update_biome_buffer_state(biome_name: String) -> void:
-	"""Update RECOVERY/COAST state for a SINGLE biome based on its buffer depth.
-
-	Each biome independently tracks its own state and Fibonacci index.
-	Uses time-based thresholds (decoupled from batch size):
-	- STARVATION: buffer_time < MIN_BUFFER_MS → fib up (escalate)
-	- COAST: buffer_time > MAX_BUFFER_MS → fib down (de-escalate)
-	- STABLE: MIN ≤ buffer_time ≤ MAX → maintain
-	"""
+	# Update RECOVERY/COAST state for a SINGLE biome based on its buffer depth.
+	#
+	# Each biome independently tracks its own state and Fibonacci index.
+	# Uses time-based thresholds (decoupled from batch size):
+	# - STARVATION: buffer_time < MIN_BUFFER_MS → fib up (escalate)
+	# - COAST: buffer_time > MAX_BUFFER_MS → fib down (de-escalate)
+	# - STABLE: MIN ≤ buffer_time ≤ MAX → maintain
 	if biome_paused.get(biome_name, true):
 		return
 
@@ -1461,23 +1444,22 @@ func _update_biome_buffer_state(biome_name: String) -> void:
 # === HYBRID GLOBAL PACKET WITH PER-BIOME BUFFER TRACKING ===
 
 func _check_starving_by_time() -> Array:
-	"""TIER 1: Detect biomes that will starve before next packet completes (time-based).
-
-	Starvation = buffer_time < batch_compute_time × safety_margin
-
-	Where:
-	- buffer_time = depth × EVOLUTION_INTERVAL (ms of game time buffered)
-	- batch_compute_time = max(last_batch_time_ms, _avg_batch_time_ms)
-	- safety_margin = 1.5 (need 1.5x buffer to be safe)
-
-	Example:
-	- depth = 2 frames → buffer_time = 200ms
-	- last_batch = 150ms → need 150ms × 1.5 = 225ms
-	- 200ms < 225ms → STARVING!
-
-	This is adaptive to actual C++ performance - if C++ slows down,
-	we detect starvation earlier.
-	"""
+	# TIER 1: Detect biomes that will starve before next packet completes (time-based).
+	#
+	# Starvation = buffer_time < batch_compute_time × safety_margin
+	#
+	# Where:
+	# - buffer_time = depth × EVOLUTION_INTERVAL (ms of game time buffered)
+	# - batch_compute_time = max(last_batch_time_ms, _avg_batch_time_ms)
+	# - safety_margin = 1.5 (need 1.5x buffer to be safe)
+	#
+	# Example:
+	# - depth = 2 frames → buffer_time = 200ms
+	# - last_batch = 150ms → need 150ms × 1.5 = 225ms
+	# - 200ms < 225ms → STARVING!
+	#
+	# This is adaptive to actual C++ performance - if C++ slows down,
+	# we detect starvation earlier.
 	var starving: Array = []
 
 	# Use max of last and average for conservative estimate
@@ -1541,17 +1523,16 @@ func _check_starving_by_time() -> Array:
 
 
 func _queue_emergency_packet(starving_biomes: Array) -> void:
-	"""Queue small PRIORITY packet for starving biomes only (Tier 1 rescue).
-
-	This packet:
-	- Is small (5 frames = 500ms buffer)
-	- Processes only starving biomes (via active_flags)
-	- Queued with push_front() for priority
-	- Takes ~30-50ms C++ time (fast!)
-
-	This is tactical rescue - Fibonacci escalation (Tier 2) handles
-	strategic capacity adjustment.
-	"""
+	# Queue small PRIORITY packet for starving biomes only (Tier 1 rescue).
+	#
+	# This packet:
+	# - Is small (5 frames = 500ms buffer)
+	# - Processes only starving biomes (via active_flags)
+	# - Queued with push_front() for priority
+	# - Takes ~30-50ms C++ time (fast!)
+	#
+	# This is tactical rescue - Fibonacci escalation (Tier 2) handles
+	# strategic capacity adjustment.
 	if not lookahead_engine:
 		return
 	var now_ms = Time.get_ticks_msec()
@@ -1608,21 +1589,20 @@ func _queue_emergency_packet(starving_biomes: Array) -> void:
 
 
 func _trigger_hybrid_refill():
-	"""Hybrid approach: ONE global packet with per-biome active_flags.
-
-	Each biome tracks its own buffer depth independently.
-	When ANY biome needs refill, queue ONE packet that evolves only
-	the biomes that need it (via active_flags).
-
-	Benefits:
-	- Single C++ call (no worker coordination)
-	- Per-biome buffer invalidation (independent depths)
-	- Efficient (frozen biomes don't evolve)
-
-	EMERGENCY RESCUE (Tier 1 - Tactical):
-	Before queuing normal packet, check if any biomes are starving based on
-	time (buffer_time < batch_time). If so, prepend small emergency packet.
-	"""
+	# Hybrid approach: ONE global packet with per-biome active_flags.
+	#
+	# Each biome tracks its own buffer depth independently.
+	# When ANY biome needs refill, queue ONE packet that evolves only
+	# the biomes that need it (via active_flags).
+	#
+	# Benefits:
+	# - Single C++ call (no worker coordination)
+	# - Per-biome buffer invalidation (independent depths)
+	# - Efficient (frozen biomes don't evolve)
+	#
+	# EMERGENCY RESCUE (Tier 1 - Tactical):
+	# Before queuing normal packet, check if any biomes are starving based on
+	# time (buffer_time < batch_time). If so, prepend small emergency packet.
 	# Update pause states (check for peeked terminals)
 	_update_biome_pause_states()
 	if _active_biome_names.is_empty():
@@ -1658,19 +1638,18 @@ func _trigger_hybrid_refill():
 
 
 func _queue_hybrid_packet():
-	"""Queue ONE global packet with per-biome active_flags and batch sizes.
-
-	Each biome independently determines:
-	- Whether it needs refill (active_flag)
-	- Its own Fibonacci batch size (self-balancing)
-
-	C++ evolves all active biomes for MAX(batch_sizes).
-	Merge saves only needed steps per biome.
-
-	IMPORTANT: Arrays are built in ENGINE_ID ORDER (not biomes array order)
-	to ensure correct mapping during merge. Uses _engine_id_to_biome for
-	consistent ordering across packet queue/complete cycle.
-	"""
+	# Queue ONE global packet with per-biome active_flags and batch sizes.
+	#
+	# Each biome independently determines:
+	# - Whether it needs refill (active_flag)
+	# - Its own Fibonacci batch size (self-balancing)
+	#
+	# C++ evolves all active biomes for MAX(batch_sizes).
+	# Merge saves only needed steps per biome.
+	#
+	# IMPORTANT: Arrays are built in ENGINE_ID ORDER (not biomes array order)
+	# to ensure correct mapping during merge. Uses _engine_id_to_biome for
+	# consistent ordering across packet queue/complete cycle.
 	# Get engine biome count for proper array sizing
 	var engine_biome_count = lookahead_engine.get_biome_count() if lookahead_engine else 0
 	if engine_biome_count == 0:
@@ -1745,15 +1724,14 @@ func _queue_hybrid_packet():
 
 
 func invalidate_biome_buffer(biome_name: String):
-	"""Invalidate buffer for a SINGLE biome (player action).
-
-	Clears:
-	- Pending packets in queue (purge)
-	- Current buffer contents
-	- Force positions
-
-	Does NOT affect other biomes (per-biome independence).
-	"""
+	# Invalidate buffer for a SINGLE biome (player action).
+	#
+	# Clears:
+	# - Pending packets in queue (purge)
+	# - Current buffer contents
+	# - Force positions
+	#
+	# Does NOT affect other biomes (per-biome independence).
 	# Hybrid system: ONE global packet, per-biome buffers
 	# Just clear this biome's buffers - next packet will refill it
 
@@ -1780,18 +1758,17 @@ func invalidate_biome_buffer(biome_name: String):
 
 
 func decimate_biome_buffer(biome_name: String, decimation_factor: int) -> int:
-	"""Decimate buffer when coarsening granularity (keep every Nth frame).
-
-	When dt doubles (2x coarser), existing frames are still valid but oversampled.
-	Instead of full invalidation, keep every 2nd frame to preserve computed work.
-
-	Args:
-		biome_name: Biome to decimate
-		decimation_factor: Keep every Nth frame (2 for 2x coarsening)
-
-	Returns:
-		New buffer depth after decimation
-	"""
+	# Decimate buffer when coarsening granularity (keep every Nth frame).
+	#
+	# When dt doubles (2x coarser), existing frames are still valid but oversampled.
+	# Instead of full invalidation, keep every 2nd frame to preserve computed work.
+	#
+	# Args:
+	# biome_name: Biome to decimate
+	# decimation_factor: Keep every Nth frame (2 for 2x coarsening)
+	#
+	# Returns:
+	# New buffer depth after decimation
 	var lookahead_buffer = _get_lookahead_buffer(biome_name)
 	if lookahead_buffer == null:
 		return 0
@@ -1829,7 +1806,7 @@ func decimate_biome_buffer(biome_name: String, decimation_factor: int) -> int:
 
 
 func _decimate_array(arr: Array, factor: int) -> Array:
-	"""Keep every factor-th element: [0, factor, 2*factor, ...]"""
+	# Keep every factor-th element: [0, factor, 2*factor, ...]
 	if arr.is_empty() or factor < 2:
 		return arr
 	var decimated: Array = []
@@ -1839,7 +1816,7 @@ func _decimate_array(arr: Array, factor: int) -> Array:
 
 
 func _prime_single_biome_frozen(biome):
-	"""Prime a single biome with frozen buffers (for invalidation recovery)."""
+	# Prime a single biome with frozen buffers (for invalidation recovery).
 	if not _is_valid_biome(biome):
 		return
 
@@ -1880,10 +1857,9 @@ func _prime_single_biome_frozen(biome):
 
 
 func _advance_all_buffers():
-	"""Advance buffer cursors and update quantum computers with current state.
-
-	Skips paused biomes (no peeked terminals) to save computation.
-	"""
+	# Advance buffer cursors and update quantum computers with current state.
+	#
+	# Skips paused biomes (no peeked terminals) to save computation.
 	var advanced: int = 0
 	for biome in biomes:
 		if not _is_valid_biome(biome):
@@ -1920,7 +1896,7 @@ func _advance_all_buffers():
 
 
 func _apply_buffered_step(biome, apply_post: bool = true) -> void:
-	"""Apply current buffered state to a single biome and update viz_cache."""
+	# Apply current buffered state to a single biome and update viz_cache.
 	if not _is_valid_biome(biome):
 		return
 
@@ -1999,7 +1975,7 @@ func _apply_buffered_step(biome, apply_post: bool = true) -> void:
 
 
 func prime_lookahead_buffers() -> void:
-	"""Prime lookahead buffers immediately so viz_cache has payload before UI."""
+	# Prime lookahead buffers immediately so viz_cache has payload before UI.
 	if not lookahead_enabled:
 		return
 	_refresh_runtime_activity(true)
@@ -2010,7 +1986,7 @@ func prime_lookahead_buffers() -> void:
 
 
 func _prime_single_biome(biome, biome_id: int) -> void:
-	"""Prime buffers for a single biome using native engine (fast)."""
+	# Prime buffers for a single biome using native engine (fast).
 	if not lookahead_enabled or not lookahead_engine:
 		return
 	if not _is_valid_biome(biome):
@@ -2053,7 +2029,7 @@ func _prime_single_biome(biome, biome_id: int) -> void:
 
 
 func get_global_icon_map() -> Dictionary:
-	"""Aggregate IconMap payloads across all biomes (resource vocabulary)."""
+	# Aggregate IconMap payloads across all biomes (resource vocabulary).
 	var by_emoji: Dictionary = {}
 	var sink_flux_by_emoji: Dictionary = {}
 	var total = 0.0
@@ -2109,7 +2085,7 @@ func get_global_icon_map() -> Dictionary:
 
 
 func _decorate_icon_map_payload_with_flow(biome_name: String, biome, payload: Dictionary) -> Dictionary:
-	"""Attach sink-flux rates + live sink flux snapshot to IconMap payload."""
+	# Attach sink-flux rates + live sink flux snapshot to IconMap payload.
 	var out = payload.duplicate(true) if payload is Dictionary else {}
 
 	var rates = get_biome_sink_flux_rates(biome_name)
@@ -2139,7 +2115,7 @@ func _decorate_icon_map_payload_with_flow(biome_name: String, biome, payload: Di
 
 
 func _build_probability_map_from_icon_payload(payload: Dictionary) -> Dictionary:
-	"""Normalize IconMap exposure weights into a probability map (sum = 1 when non-empty)."""
+	# Normalize IconMap exposure weights into a probability map (sum = 1 when non-empty).
 	if payload.is_empty():
 		return {
 			"emojis": [],
@@ -2203,7 +2179,7 @@ func _build_probability_map_from_icon_payload(payload: Dictionary) -> Dictionary
 
 
 func _build_probability_map_from_populations(by_emoji_raw: Dictionary) -> Dictionary:
-	"""Build probability map from live quantum populations when IconMap payload is missing."""
+	# Build probability map from live quantum populations when IconMap payload is missing.
 	if by_emoji_raw.is_empty():
 		return {
 			"emojis": [],
@@ -2256,7 +2232,7 @@ func _build_probability_map_from_populations(by_emoji_raw: Dictionary) -> Dictio
 
 
 func get_global_probability_map() -> Dictionary:
-	"""Return normalized global probability map derived from IconMap exposure data."""
+	# Return normalized global probability map derived from IconMap exposure data.
 	var icon_map = get_global_icon_map()
 	var out = _build_probability_map_from_icon_payload(icon_map)
 	if float(out.get("total", 0.0)) <= 0.0:
@@ -2274,7 +2250,7 @@ func get_global_probability_map() -> Dictionary:
 
 
 func get_biome_icon_map(biome_name: String) -> Dictionary:
-	"""Return IconMap payload for a single biome (or empty dict if unavailable)."""
+	# Return IconMap payload for a single biome (or empty dict if unavailable).
 	if biome_name == "":
 		return {}
 	var lookahead_buffer = _get_lookahead_buffer(biome_name)
@@ -2285,7 +2261,7 @@ func get_biome_icon_map(biome_name: String) -> Dictionary:
 
 
 func get_biome_sink_flux_rates(biome_name: String) -> Dictionary:
-	"""Return per-emoji sink flux rates for a biome from coupling payloads."""
+	# Return per-emoji sink flux rates for a biome from coupling payloads.
 	if biome_name == "":
 		return {}
 	var lookahead_buffer = _get_lookahead_buffer(biome_name)
@@ -2299,7 +2275,7 @@ func get_biome_sink_flux_rates(biome_name: String) -> Dictionary:
 
 
 func get_biome_probability_map(biome_name: String) -> Dictionary:
-	"""Return normalized probability map for a single biome."""
+	# Return normalized probability map for a single biome.
 	if biome_name == "":
 		return {}
 	var payload = get_biome_icon_map(biome_name)
@@ -2353,7 +2329,7 @@ func _quantum_shapes_valid(qc) -> bool:
 
 
 func _ensure_biome_quantum_shapes(biome) -> bool:
-	"""Prevent native matrix-dimension asserts by validating/repairing QC shapes."""
+	# Prevent native matrix-dimension asserts by validating/repairing QC shapes.
 	if not _is_valid_biome(biome):
 		return false
 	var qc = biome.quantum_computer
@@ -2383,7 +2359,7 @@ func _ensure_biome_quantum_shapes(biome) -> bool:
 
 
 func _biome_has_bound_terminals(biome, include_persistent_infra: bool = false) -> bool:
-	"""Check if a biome has any bound terminals (planted plots)."""
+	# Check if a biome has any bound terminals (planted plots).
 	if not terminal_pool:
 		return true
 
@@ -2401,10 +2377,9 @@ func _biome_has_bound_terminals(biome, include_persistent_infra: bool = false) -
 
 
 func _biome_has_persistent_lindblad_channels(biome) -> bool:
-	"""Treat persistent Lindblad channels as active biome infrastructure.
-
-	This keeps drain/pump infrastructure meaningful even when no terminals are bound.
-	"""
+	# Treat persistent Lindblad channels as active biome infrastructure.
+	#
+	# This keeps drain/pump infrastructure meaningful even when no terminals are bound.
 	if not farm_ref or not ("grid" in farm_ref) or not farm_ref.grid:
 		return false
 	if not ("plot_biome_assignments" in farm_ref.grid):
@@ -2425,10 +2400,9 @@ func _biome_has_persistent_lindblad_channels(biome) -> bool:
 # === PUBLIC API: Per-Biome Control ===
 
 func pause_biome(biome_name: String):
-	"""Manually pause a biome (stop evolution, no refills).
-
-	Useful for debugging or performance optimization.
-	"""
+	# Manually pause a biome (stop evolution, no refills).
+	#
+	# Useful for debugging or performance optimization.
 	biome_manual_paused[biome_name] = true
 	biome_paused[biome_name] = true
 	_active_biome_names.erase(biome_name)
@@ -2436,35 +2410,33 @@ func pause_biome(biome_name: String):
 
 
 func resume_biome(biome_name: String):
-	"""Manually resume a paused biome (allow evolution and refills)."""
+	# Manually resume a paused biome (allow evolution and refills).
 	biome_manual_paused[biome_name] = false
 	_mark_biome_activity_dirty(biome_name)
 	_log("info", "CONTROL", "▶️", "%s: manually resumed" % biome_name)
 
 
 func is_biome_paused(biome_name: String) -> bool:
-	"""Check if a biome is currently paused."""
+	# Check if a biome is currently paused.
 	return biome_paused.get(biome_name, false) or biome_manual_paused.get(biome_name, false)
 
 
 func get_biome_evolution_count(biome_name: String) -> int:
-	"""Get cumulative evolution step count for a biome.
-
-	Used by MusicManager for ghost timer sync - music position advances
-	with evolution steps, not wall-clock time.
-	"""
+	# Get cumulative evolution step count for a biome.
+	#
+	# Used by MusicManager for ghost timer sync - music position advances
+	# with evolution steps, not wall-clock time.
 	return biome_evolution_counts.get(biome_name, 0)
 
 
 func get_biome_diagnostics(biome_name: String) -> Dictionary:
-	"""Get detailed diagnostics for a SINGLE biome.
-
-	Returns:
-	- depth: Current buffer depth (unconsumed phrames)
-	- paused: Whether biome is paused (no evolution)
-	- queue_size: Number of pending global packets
-	- active_packet: Whether the currently executing packet targets this biome
-	"""
+	# Get detailed diagnostics for a SINGLE biome.
+	#
+	# Returns:
+	# - depth: Current buffer depth (unconsumed phrames)
+	# - paused: Whether biome is paused (no evolution)
+	# - queue_size: Number of pending global packets
+	# - active_packet: Whether the currently executing packet targets this biome
 	return {
 		"biome_name": biome_name,
 		"depth": _get_biome_depth(biome_name),
@@ -2475,10 +2447,9 @@ func get_biome_diagnostics(biome_name: String) -> Dictionary:
 
 
 func get_all_biome_diagnostics() -> Dictionary:
-	"""Get diagnostics for ALL biomes (per-biome status).
-
-	Returns dictionary: biome_name -> diagnostics
-	"""
+	# Get diagnostics for ALL biomes (per-biome status).
+	#
+	# Returns dictionary: biome_name -> diagnostics
 	var diagnostics: Dictionary = {}
 	for biome in biomes:
 		if _is_valid_biome(biome):
@@ -2510,11 +2481,10 @@ func is_runtime_dormant() -> bool:
 
 
 func _prime_frozen_buffers_only(biome_rhos: Array = []) -> void:
-	"""Fill lookahead buffers with frozen current states (no native compute).
-
-	Uses QC.export_bloch_packet() to populate buffers with current state.
-	Data flows through the standard railway: buffers → _apply_buffered_step → viz_cache → UI
-	"""
+	# Fill lookahead buffers with frozen current states (no native compute).
+	#
+	# Uses QC.export_bloch_packet() to populate buffers with current state.
+	# Data flows through the standard railway: buffers → _apply_buffered_step → viz_cache → UI
 	for i in range(biomes.size()):
 		var biome = biomes[i]
 		if not _is_valid_biome(biome):
@@ -2552,7 +2522,7 @@ func _prime_frozen_buffers_only(biome_rhos: Array = []) -> void:
 
 
 func _post_evolution_update(biome):
-	"""Apply biome-specific post-evolution updates."""
+	# Apply biome-specific post-evolution updates.
 	# Semantic drift + attractor tracking removed (semantic layer stripped)
 
 	if biome.dynamics_tracker and biome.has_method("_track_dynamics"):
@@ -2568,7 +2538,7 @@ func _post_evolution_update(biome):
 
 
 func _accumulate_sink_flux_from_couplings(biome, dt: float) -> void:
-	"""Accumulate Lindblad sink flux using native coupling rates and live state."""
+	# Accumulate Lindblad sink flux using native coupling rates and live state.
 	if dt <= 0.0 or not _is_valid_biome(biome):
 		return
 	var qc = biome.quantum_computer
@@ -2585,10 +2555,9 @@ func _accumulate_sink_flux_from_couplings(biome, dt: float) -> void:
 
 
 func signal_user_action():
-	"""Called when user takes an action that may invalidate lookahead.
-
-	Triggers immediate refill of affected biome's buffer.
-	"""
+	# Called when user takes an action that may invalidate lookahead.
+	#
+	# Triggers immediate refill of affected biome's buffer.
 	if lookahead_enabled:
 		# Force immediate refill on next physics tick
 		lookahead_accumulator = LOOKAHEAD_DT * LOOKAHEAD_STEPS
@@ -2597,10 +2566,9 @@ func signal_user_action():
 
 
 func get_buffered_state(biome_name: String) -> PackedFloat64Array:
-	"""Get current buffered quantum state for a biome.
-
-	Used by visualization to read buffered native output instead of live state.
-	"""
+	# Get current buffered quantum state for a biome.
+	#
+	# Used by visualization to read buffered native output instead of live state.
 	var lookahead_buffer = _get_lookahead_buffer(biome_name)
 	var buffer = lookahead_buffer.frames if lookahead_buffer else []
 	var cursor = lookahead_buffer.cursor if lookahead_buffer else 0
@@ -2612,12 +2580,11 @@ func get_buffered_state(biome_name: String) -> PackedFloat64Array:
 
 
 func get_buffered_state_offset(biome_name: String, offset: int) -> PackedFloat64Array:
-	"""Get buffered quantum state at an offset from the current cursor.
-
-	Args:
-		biome_name: Biome identifier
-		offset: 0 = current, 1 = next frame, etc.
-	"""
+	# Get buffered quantum state at an offset from the current cursor.
+	#
+	# Args:
+	# biome_name: Biome identifier
+	# offset: 0 = current, 1 = next frame, etc.
 	var lookahead_buffer = _get_lookahead_buffer(biome_name)
 	var buffer = lookahead_buffer.frames if lookahead_buffer else []
 	if buffer.is_empty():
@@ -2629,17 +2596,16 @@ func get_buffered_state_offset(biome_name: String, offset: int) -> PackedFloat64
 
 
 func get_buffered_mi(biome_name: String) -> PackedFloat64Array:
-	"""Get cached mutual information for force graph."""
+	# Get cached mutual information for force graph.
 	var lookahead_buffer = _get_lookahead_buffer(biome_name)
 	return lookahead_buffer.latest_mi if lookahead_buffer else PackedFloat64Array()
 
 
 func get_viz_snapshot(biome_name: String, register_id: int, offset: int = 0) -> Dictionary:
-	"""Get visualization snapshot for a register at a lookahead offset.
-
-	Returns a dictionary compatible with QuantumVizCache.get_snapshot():
-	{p0, p1, r_xy, phi, theta, purity}
-	"""
+	# Get visualization snapshot for a register at a lookahead offset.
+	#
+	# Returns a dictionary compatible with QuantumVizCache.get_snapshot():
+	# {p0, p1, r_xy, phi, theta, purity}
 	if register_id < 0:
 		return {}
 	var lookahead_buffer = _get_lookahead_buffer(biome_name)
@@ -2677,7 +2643,7 @@ func get_viz_snapshot(biome_name: String, register_id: int, offset: int = 0) -> 
 
 
 func get_stats() -> Dictionary:
-	"""Get performance statistics for monitoring."""
+	# Get performance statistics for monitoring.
 	return {
 		"biomes": biomes.size(),
 		"evolution_interval": EVOLUTION_INTERVAL,
@@ -2696,27 +2662,25 @@ func get_stats() -> Dictionary:
 # These methods provide smooth interpolation between phrames.
 
 func get_interpolation_factor() -> float:
-	"""Get interpolation factor t in [0, 1] for smooth visual rendering.
-
-	t=0.0: At the current phrame (evolution frame)
-	t=1.0: About to advance to next phrame
-
-	Visual layer should call this each tick (60 FPS) and use it to interpolate
-	between get_viz_snapshot(biome, reg, 0) and get_viz_snapshot(biome, reg, 1).
-	"""
+	# Get interpolation factor t in [0, 1] for smooth visual rendering.
+	#
+	# t=0.0: At the current phrame (evolution frame)
+	# t=1.0: About to advance to next phrame
+	#
+	# Visual layer should call this each tick (60 FPS) and use it to interpolate
+	# between get_viz_snapshot(biome, reg, 0) and get_viz_snapshot(biome, reg, 1).
 	if not lookahead_enabled:
 		return 0.0
 	return clampf(evolution_accumulator / EVOLUTION_INTERVAL, 0.0, 1.0)
 
 
 func get_interpolated_snapshot(biome_name: String, register_id: int) -> Dictionary:
-	"""Get interpolated visualization snapshot for smooth 60fps tick rendering.
-
-	Interpolates between current phrame and next phrame based on
-	time elapsed since last phrame consumption.
-
-	Returns: {p0, p1, r_xy, phi, purity, t} where t is the interpolation factor
-	"""
+	# Get interpolated visualization snapshot for smooth 60fps tick rendering.
+	#
+	# Interpolates between current phrame and next phrame based on
+	# time elapsed since last phrame consumption.
+	#
+	# Returns: {p0, p1, r_xy, phi, purity, t} where t is the interpolation factor
 	var t = get_interpolation_factor()
 
 	# Get current and next frame snapshots
@@ -2742,13 +2706,12 @@ func get_interpolated_snapshot(biome_name: String, register_id: int) -> Dictiona
 
 
 func update_biome_center(biome_name: String, center: Vector2) -> void:
-	"""Push the biome's visual oval center to the C++ ForceGraphEngine.
-
-	Call this after layout changes (viewport resize, active biome switch) so that purity-radial
-	and phase-angular forces are anchored to the correct screen position.
-
-	Always caches the center so it can be re-applied once deferred engine initialization finishes.
-	"""
+	# Push the biome's visual oval center to the C++ ForceGraphEngine.
+	#
+	# Call this after layout changes (viewport resize, active biome switch) so that purity-radial
+	# and phase-angular forces are anchored to the correct screen position.
+	#
+	# Always caches the center so it can be re-applied once deferred engine initialization finishes.
 	_biome_centers_cache[biome_name] = center
 	if not lookahead_engine:
 		return
@@ -2760,12 +2723,11 @@ func update_biome_center(biome_name: String, center: Vector2) -> void:
 
 
 func _flush_cached_biome_centers() -> void:
-	"""Apply every cached biome center to the native engine.
-
-	Called after deferred engine initialization, and after any biome registration that
-	assigns a new engine biome_id, so the force graph anchors to the correct oval centers
-	from the first evolved frame (not the default (960,540)).
-	"""
+	# Apply every cached biome center to the native engine.
+	#
+	# Called after deferred engine initialization, and after any biome registration that
+	# assigns a new engine biome_id, so the force graph anchors to the correct oval centers
+	# from the first evolved frame (not the default (960,540)).
 	if not lookahead_engine or not lookahead_engine.has_method("set_biome_center"):
 		return
 	for biome_name in _biome_centers_cache:
@@ -2775,10 +2737,9 @@ func _flush_cached_biome_centers() -> void:
 
 
 func get_interpolated_force_positions(biome_name: String) -> PackedVector2Array:
-	"""Get interpolated force positions for smooth 60fps rendering.
-
-	Returns interpolated positions between current phrame (t=0) and next phrame (t=1).
-	"""
+	# Get interpolated force positions for smooth 60fps rendering.
+	#
+	# Returns interpolated positions between current phrame (t=0) and next phrame (t=1).
 	var t = get_interpolation_factor()
 	var lookahead_buffer = _get_lookahead_buffer(biome_name)
 	var cursor = lookahead_buffer.cursor if lookahead_buffer else 0
@@ -2803,14 +2764,13 @@ func get_interpolated_force_positions(biome_name: String) -> PackedVector2Array:
 
 
 func get_force_positions(biome_name: String, lookahead: int = 0) -> PackedVector2Array:
-	"""Get force positions for a biome at cursor + lookahead offset.
-
-	Args:
-		biome_name: Name of the biome
-		lookahead: Offset from cursor (0 = current, 1 = next, etc.)
-
-	Returns: PackedVector2Array of node positions
-	"""
+	# Get force positions for a biome at cursor + lookahead offset.
+	#
+	# Args:
+	# biome_name: Name of the biome
+	# lookahead: Offset from cursor (0 = current, 1 = next, etc.)
+	#
+	# Returns: PackedVector2Array of node positions
 	var lookahead_buffer = _get_lookahead_buffer(biome_name)
 	var cursor = lookahead_buffer.cursor if lookahead_buffer else 0
 	var positions = lookahead_buffer.positions if lookahead_buffer else []
@@ -2831,13 +2791,13 @@ func get_buffer_depth(biome_name: String) -> int:
 
 
 func _lerp_angle(a: float, b: float, t: float) -> float:
-	"""Interpolate angles handling wraparound at 2*PI."""
+	# Interpolate angles handling wraparound at 2*PI.
 	var diff = fmod(b - a + 3.0 * PI, TAU) - PI
 	return a + diff * t
 
 
 func _track_physics_fps() -> void:
-	"""Track phrame rate (evolution consumption, separate from visual 60 FPS ticks)."""
+	# Track phrame rate (evolution consumption, separate from visual 60 FPS ticks).
 	_physics_frame_count += 1
 	_evolution_tick_count += 1
 
@@ -2858,7 +2818,7 @@ func _track_physics_fps() -> void:
 
 
 func _can_consume_phrame(now_ms: int) -> bool:
-	"""Optional wall-clock pacing guard to cap runaway phrame consumption."""
+	# Optional wall-clock pacing guard to cap runaway phrame consumption.
 	if _min_phrame_interval_ms <= 0.0:
 		return true
 	if _last_phrame_wall_ms <= 0:
@@ -2867,7 +2827,7 @@ func _can_consume_phrame(now_ms: int) -> bool:
 
 
 func _run_batcher_watchdog(now_ms: int) -> void:
-	"""Emit low-rate health metrics and detect starvation in the packet pipeline."""
+	# Emit low-rate health metrics and detect starvation in the packet pipeline.
 	if _active_biome_names.is_empty() and _packet_queue.is_empty() and _active_packet_request.is_empty():
 		_watchdog_stall_warnings = 0
 		_watchdog_last_log_ms = now_ms
@@ -2941,7 +2901,7 @@ func _has_emergency_refill() -> bool:
 
 
 func get_batching_diagnostics() -> Dictionary:
-	"""Get detailed diagnostics for batching verification."""
+	# Get detailed diagnostics for batching verification.
 	var first_biome_name = ""
 	var cursor = -1
 	var buffer_size = 0
@@ -2976,7 +2936,7 @@ func get_batching_diagnostics() -> Dictionary:
 
 
 func reset_performance_metrics() -> void:
-	"""Reset rolling timing counters so a new profiling phase starts cleanly."""
+	# Reset rolling timing counters so a new profiling phase starts cleanly.
 	last_batch_time_ms = 0.0
 	_avg_batch_time_ms = 10.0
 	_avg_frame_time_ms = 16.67
@@ -2989,7 +2949,7 @@ func reset_performance_metrics() -> void:
 
 
 func get_performance_metrics() -> Dictionary:
-	"""Get C++ task timing metrics for profiling."""
+	# Get C++ task timing metrics for profiling.
 	# Calculate buffer depth
 	var buffer_depth = _get_minimum_buffer_depth()
 	var buffer_coverage_ms = buffer_depth * LOOKAHEAD_DT * 1000.0  # ms of coverage
@@ -3046,15 +3006,14 @@ func get_performance_metrics() -> Dictionary:
 # ============================================================================
 
 func _queue_adaptive_packet(biome_rhos: Array, active_flags_arr: Array, packet_size: int) -> void:
-	"""Queue a SINGLE C++ packet with adaptive size (Fibonacci-based).
-
-	Terminology:
-	- phrame = physics/evolution frame (PhysicsConfig.PHRAME_HZ)
-	- packet = C++ batch result containing N phrames
-
-	IMPORTANT: active_flags_arr is stored in the packet request so merge uses
-		the same engine-id ordering that was queued.
-	"""
+	# Queue a SINGLE C++ packet with adaptive size (Fibonacci-based).
+	#
+	# Terminology:
+	# - phrame = physics/evolution frame (PhysicsConfig.PHRAME_HZ)
+	# - packet = C++ batch result containing N phrames
+	#
+	# IMPORTANT: active_flags_arr is stored in the packet request so merge uses
+	# the same engine-id ordering that was queued.
 	if biome_rhos.is_empty():
 		return
 
@@ -3091,7 +3050,7 @@ func _queue_adaptive_packet(biome_rhos: Array, active_flags_arr: Array, packet_s
 
 
 func _process_next_packet() -> void:
-	"""Run the next queued native packet synchronously on the main thread."""
+	# Run the next queued native packet synchronously on the main thread.
 	if _packet_queue.is_empty():
 		return
 
@@ -3105,7 +3064,7 @@ func _process_next_packet() -> void:
 
 
 func _compute_packet(packet_req: Dictionary) -> Dictionary:
-	"""Compute one native lookahead packet."""
+	# Compute one native lookahead packet.
 	var biome_rhos = packet_req["biome_rhos"]
 	var num_phrames = packet_req["num_steps"]  # Number of phrames (evolution frames) to compute
 
@@ -3137,7 +3096,7 @@ func _compute_packet(packet_req: Dictionary) -> Dictionary:
 
 
 func _merge_packet_result(packet_request: Dictionary, result: Dictionary) -> void:
-	"""Merge one native packet result into the per-biome lookahead buffers."""
+	# Merge one native packet result into the per-biome lookahead buffers.
 	var packet_time_ms = result.get("batch_time_us", 0) / 1000.0
 	var has_error = result.get("error", false)
 

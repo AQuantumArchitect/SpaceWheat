@@ -7,6 +7,8 @@ extends RefCounted
 const FactionDatabase = preload("res://Core/Quests/FactionDatabase.gd")
 const IconPairing = preload("res://Core/Quests/IconPairing.gd")
 const FactionRegistry = preload("res://Core/Factions/FactionRegistry.gd")
+const EmojiPhysicsRegistry = preload("res://Core/QuantumSubstrate/EmojiPhysicsRegistry.gd")
+const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")
 
 static var _faction_registry_cache = null
 static var _faction_dynamic_cache: Dictionary = {}
@@ -31,7 +33,7 @@ static var _quest_reward_tuning_overrides: Dictionary = {}
 ## Icon Modification: How quest rewards can modify icon physics
 class IconModification:
 	enum Type {
-		ADD_COUPLING,       # Add new hamiltonian coupling
+		ADD_COUPLING,       # Add new coupling
 		MODIFY_COUPLING,    # Change existing coupling strength
 		REDUCE_DECAY,       # Lower decay rate
 		ADD_LINDBLAD,       # Add transfer channel
@@ -97,7 +99,10 @@ static func generate_reward(quest: Dictionary, bath, player_vocab: Array) -> Que
 		if pre_rolled_resources is Dictionary and not pre_rolled_resources.is_empty():
 			reward.resource_rewards = _sanitize_resource_rewards(pre_rolled_resources)
 		else:
-			reward.resource_rewards = _build_resource_reward_plan(quest, faction_dict, false)
+			var reward_icon_map := _build_uniform_icon_map(player_vocab)
+			if reward_icon_map.is_empty():
+				reward_icon_map = _build_uniform_icon_map(_quest_reward_emojis(quest, faction_dict))
+			reward.resource_rewards = _build_resource_reward_plan(quest, faction_dict, false, reward_icon_map)
 
 	if north != "":
 		reward.learned_emojis.append(north)
@@ -146,6 +151,10 @@ static func _standing_deltas_for_quest(quest: Dictionary, success: bool) -> Dict
 				return {"trust": 0.04, "entanglement": 0.08, "legitimacy": 0.03}
 			8, 9:  # PREVENT_DECOHERENCE, COLLAPSE_DELIBERATELY — careful work
 				return {"trust": 0.05, "legitimacy": 0.04}
+			10:  # STEER_TO_ATTRACTOR — guide biome to eigenstate
+				return {"trust": 0.06, "legitimacy": 0.05, "entanglement": 0.04}
+			11:  # HEAL_ATTRACTOR — restore biome after perturbation
+				return {"trust": 0.05, "legitimacy": 0.04, "access": 0.03}
 			_:
 				return {"trust": 0.03, "attention": 0.01}
 	else:
@@ -155,6 +164,8 @@ static func _standing_deltas_for_quest(quest: Dictionary, success: bool) -> Dict
 				return {"debt": 0.06, "attention": 0.03, "trust": -0.02}
 			4, 7:  # entanglement-flavored failures leave residue
 				return {"debt": 0.05, "attention": 0.04, "entanglement": 0.03}
+			10, 11:  # attractor quests — failure is costly
+				return {"debt": 0.05, "attention": 0.04, "trust": -0.02}
 			_:
 				return {"debt": 0.04, "attention": 0.04, "trust": -0.01}
 
@@ -190,10 +201,13 @@ static func compute_market_projection(quest: Dictionary, icon_map: Dictionary = 
 	var faction_name = quest.get("faction", "")
 	var signature = quest.get("faction_signature", [])
 	var faction_dynamic = _get_faction_dynamic_data(faction_name, signature)
-	var profile = _compute_interference_reward_profile(faction_dynamic, icon_map if icon_map is Dictionary else {})
+	var resolved_icon_map := _resolve_reward_icon_map(quest, faction_dynamic, icon_map if icon_map is Dictionary else {})
+	if resolved_icon_map.is_empty():
+		return {}
+	var profile = _compute_interference_reward_profile(faction_dynamic, resolved_icon_map)
 	var weights = profile.get("weights", {})
-	var by_emoji: Dictionary = icon_map.get("by_emoji", {}) if icon_map is Dictionary else {}
-	var total = max(0.0, float(icon_map.get("total", 0.0))) if icon_map is Dictionary else 0.0
+	var by_emoji: Dictionary = resolved_icon_map.get("by_emoji", {})
+	var total = max(0.0, float(resolved_icon_map.get("total", 0.0)))
 	var availability = max(0.0, float(by_emoji.get(resource, 0.0))) if by_emoji is Dictionary else 0.0
 	var normalized_availability = availability / max(1.0, total)
 	var scarcity = 1.0 / max(0.05, normalized_availability)
@@ -217,17 +231,11 @@ static func _build_resource_reward_plan(quest: Dictionary, faction: Dictionary, 
 	var signature = quest.get("faction_signature", faction.get("sig", faction.get("signature", [])))
 	var faction_dynamic = _get_faction_dynamic_data(faction_name, signature)
 
-	var profile: Dictionary
-	var total_budget: int
-
-	# Interference-projected rewards (faction Hamiltonian x player IconMap)
-	if not icon_map.is_empty() and icon_map.has("by_emoji"):
-		profile = _compute_interference_reward_profile(faction_dynamic, icon_map)
-		total_budget = _compute_fibonacci_reward_budget(quest, profile, deterministic)
-	else:
-		# Fallback: Hamiltonian eigenvalue rewards (old behavior)
-		profile = _compute_hamiltonian_reward_profile(faction_dynamic)
-		total_budget = _compute_total_resource_budget(quest, profile.get("dominant_eigenvalue", 0.0))
+	var resolved_icon_map := _resolve_reward_icon_map(quest, faction_dynamic, icon_map)
+	if resolved_icon_map.is_empty():
+		return {}
+	var profile := _compute_interference_reward_profile(faction_dynamic, resolved_icon_map)
+	var total_budget := _compute_fibonacci_reward_budget(quest, profile, deterministic)
 
 	if profile.get("weights", {}).is_empty():
 		return {}
@@ -295,39 +303,35 @@ static func _apply_reward_tuning(rewards: Dictionary, quest: Dictionary) -> Dict
 
 
 static func _get_faction_dynamic_data(faction_name: String, fallback_signature: Array) -> Dictionary:
-	if faction_name == "":
+	var signature: Array = fallback_signature.duplicate()
+	if faction_name != "":
+		var registry = _get_faction_registry()
+		if registry:
+			var faction_obj = registry.get_by_name(faction_name)
+			if faction_obj and faction_obj.signature is Array and not faction_obj.signature.is_empty():
+				signature = faction_obj.signature.duplicate()
+
+	if signature.is_empty():
 		return {
-			"sig": fallback_signature.duplicate(),
+			"sig": [],
 			"hamiltonian": {},
 			"self_energies": {},
 			"lindblad_outgoing": {}
 		}
 
-	if _faction_dynamic_cache.has(faction_name):
-		return _faction_dynamic_cache[faction_name].duplicate(true)
+	var icon_registry = _get_icon_registry()
+	if icon_registry != null and icon_registry.has_method("get_signature_physics"):
+		var live_physics: Dictionary = icon_registry.get_signature_physics(signature)
+		if not live_physics.is_empty():
+			live_physics["sig"] = signature.duplicate()
+			return live_physics
 
-	var registry = _get_faction_registry()
-	if registry:
-		var faction_obj = registry.get_by_name(faction_name)
-		if faction_obj:
-			var data = {
-				"sig": faction_obj.signature.duplicate(),
-				"hamiltonian": faction_obj.hamiltonian.duplicate(true),
-				"self_energies": faction_obj.self_energies.duplicate(true),
-				"lindblad_outgoing": faction_obj.lindblad_outgoing.duplicate(true)
-			}
-			_faction_dynamic_cache[faction_name] = data.duplicate(true)
-			return data
-
-	var fallback = _get_faction_by_name(faction_name)
-	var fallback_data = {
-		"sig": fallback.get("sig", fallback_signature).duplicate(),
-		"hamiltonian": fallback.get("hamiltonian", {}).duplicate(true),
-		"self_energies": fallback.get("self_energies", {}).duplicate(true),
-		"lindblad_outgoing": fallback.get("lindblad_outgoing", {}).duplicate(true)
+	return {
+		"sig": signature.duplicate(),
+		"hamiltonian": {},
+		"self_energies": {},
+		"lindblad_outgoing": {}
 	}
-	_faction_dynamic_cache[faction_name] = fallback_data.duplicate(true)
-	return fallback_data
 
 
 static func _get_faction_registry():
@@ -336,127 +340,18 @@ static func _get_faction_registry():
 	return _faction_registry_cache
 
 
-static func _compute_hamiltonian_reward_profile(faction_data: Dictionary) -> Dictionary:
-	var signature = faction_data.get("sig", [])
-	if signature.is_empty():
-		return {"weights": {}, "dominant_eigenvalue": 0.0}
-
-	var index_by_emoji: Dictionary = {}
-	for i in range(signature.size()):
-		index_by_emoji[signature[i]] = i
-
-	var n = signature.size()
-	var matrix: Array = []
-	for i in range(n):
-		var row: Array = []
-		row.resize(n)
-		for j in range(n):
-			row[j] = 0.0
-		matrix.append(row)
-
-	var hamiltonian = faction_data.get("hamiltonian", {})
-	for source in hamiltonian.keys():
-		if not index_by_emoji.has(source):
-			continue
-		var src_i = int(index_by_emoji[source])
-		var edges = hamiltonian[source]
-		if not (edges is Dictionary):
-			continue
-		for target in edges.keys():
-			if not index_by_emoji.has(target):
-				continue
-			var tgt_i = int(index_by_emoji[target])
-			if src_i == tgt_i:
-				continue
-			matrix[src_i][tgt_i] += _hamiltonian_magnitude(edges[target])
-
-	var self_energies = faction_data.get("self_energies", {})
-
-	var vector: Array = []
-	for _i in range(n):
-		vector.append(1.0 / float(n))
-
-	for _iter in range(12):
-		var next_vec: Array = []
-		var total = 0.0
-		for i in range(n):
-			var accum = 0.0
-			for j in range(n):
-				accum += float(matrix[i][j]) * float(vector[j])
-			var emoji = signature[i]
-			var self_energy = max(0.0, float(self_energies.get(emoji, 0.0)))
-			accum += self_energy * 0.3 * float(vector[i])
-			next_vec.append(accum)
-			total += accum
-		if total <= 0.00001:
-			next_vec.clear()
-			for _k in range(n):
-				next_vec.append(1.0 / float(n))
-		else:
-			for i in range(n):
-				next_vec[i] = float(next_vec[i]) / total
-		vector = next_vec
-
-	var eigen_num = 0.0
-	var eigen_den = 0.0
-	for i in range(n):
-		var row_dot = 0.0
-		for j in range(n):
-			row_dot += float(matrix[i][j]) * float(vector[j])
-		eigen_num += float(vector[i]) * row_dot
-		eigen_den += float(vector[i]) * float(vector[i])
-	var dominant_eigenvalue = eigen_num / max(eigen_den, 0.00001)
-
-	var weights: Dictionary = {}
-	var weight_total = 0.0
-	for i in range(n):
-		var emoji = signature[i]
-		var base = max(0.0001, float(vector[i]))
-		var self_term = max(0.0, float(self_energies.get(emoji, 0.0))) * 0.15
-		var weight = base + self_term
-		weights[emoji] = max(0.0001, weight)
-		weight_total += float(weights[emoji])
-
-	if weight_total > 0.0:
-		for emoji in weights.keys():
-			weights[emoji] = float(weights[emoji]) / weight_total
-
-	return {
-		"weights": weights,
-		"dominant_eigenvalue": dominant_eigenvalue
-	}
-
-
-static func _compute_iconmap_reward_profile(faction_data: Dictionary, icon_map: Dictionary) -> Dictionary:
-	# Project IconMap weights onto faction signature for reward distribution.
-	var signature = faction_data.get("sig", [])
-	if signature.is_empty():
-		return {"weights": {}}
-
-	var by_emoji: Dictionary = icon_map.get("by_emoji", {})
-	if by_emoji.is_empty():
-		return {"weights": {}}
-
-	var weights: Dictionary = {}
-	var total = 0.0
-
-	for emoji in signature:
-		if by_emoji.has(emoji):
-			var w = max(0.0, float(by_emoji[emoji]))
-			if w > 0.0:
-				weights[emoji] = w
-				total += w
-
-	# Normalize weights
-	if total > 0.0:
-		for emoji in weights.keys():
-			weights[emoji] = float(weights[emoji]) / total
-
-	return {"weights": weights}
+static func _get_icon_registry():
+	var icon_registry = InstrumentLocator.resolve_icon_registry_main_loop()
+	if icon_registry != null and icon_registry.has_method("get_signature_physics"):
+		return icon_registry
+	var local_registry = EmojiPhysicsRegistry.new()
+	if local_registry.has_method("rebuild_from_icons"):
+		local_registry.rebuild_from_icons()
+	return local_registry
 
 
 static func _compute_interference_reward_profile(faction_data: Dictionary, icon_map: Dictionary) -> Dictionary:
-	# Tensor-like interference map between faction Hamiltonian and player IconMap.
+	# Tensor-like interference map between faction icon physics and player IconMap.
 
 	# We collapse an interference tensor T[e,i,j] where:
 	# - e: reward emoji candidate (faction signature)
@@ -549,6 +444,50 @@ static func _compute_interference_reward_profile(faction_data: Dictionary, icon_
 	return {
 		"weights": weights,
 		"interference_strength": interference_sum
+	}
+
+
+static func _resolve_reward_icon_map(quest: Dictionary, faction_data: Dictionary, icon_map: Dictionary) -> Dictionary:
+	if icon_map is Dictionary and icon_map.has("by_emoji"):
+		var by_emoji = icon_map.get("by_emoji", {})
+		if by_emoji is Dictionary and not by_emoji.is_empty():
+			var signature = faction_data.get("sig", [])
+			for emoji in signature:
+				if by_emoji.has(str(emoji)):
+					return icon_map
+	var source: Array = _quest_reward_emojis(quest, faction_data)
+	if source.is_empty():
+		return {}
+	return _build_uniform_icon_map(source)
+
+
+static func _quest_reward_emojis(quest: Dictionary, faction_data: Dictionary) -> Array:
+	var out: Array = []
+	var available = quest.get("available_emojis", [])
+	if available is Array and not available.is_empty():
+		return available.duplicate()
+	var signature = quest.get("faction_signature", faction_data.get("sig", faction_data.get("signature", [])))
+	if signature is Array and not signature.is_empty():
+		return signature.duplicate()
+	return out
+
+
+static func _build_uniform_icon_map(emojis: Array) -> Dictionary:
+	var by_emoji: Dictionary = {}
+	var total: float = 0.0
+	for raw in emojis:
+		var emoji := str(raw)
+		if emoji == "" or by_emoji.has(emoji):
+			continue
+		by_emoji[emoji] = 1.0
+		total += 1.0
+	if by_emoji.is_empty():
+		return {}
+	return {
+		"by_emoji": by_emoji,
+		"total": total,
+		"steps": 1,
+		"source": "uniform"
 	}
 
 
