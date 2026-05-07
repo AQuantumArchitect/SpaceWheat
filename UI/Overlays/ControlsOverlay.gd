@@ -10,13 +10,18 @@ extends "res://UI/Core/Surface.gd"
 ##   GHJKL; = items within the active tab, same row as plot slots
 ##   [ / ]  = cycle tabs (surface frame cycle)
 ##   , / .  = cycle top-level menus
-##   Q ←   = prev item / retreat (Chatter: prev action)
-##   R →   = next item / advance (Chatter: next action)
-##   E ↓   = inspect / refresh
+##   Q ←   = screw-out / retreat / withdraw (depth axis, never list nav)
+##   R →   = screw-in / commit / advance / assign  (depth axis, never list nav)
+##   E ↓   = pause + inspect / refresh / observe (snapshot)
 ##   F ↑   = flatten: collapses whatever E opened. No open panel → no-op.
 ##            F is never "back" and never navigation — those belong to ESC / [ ].
-##   W/S    = navigate items within the active tab (Chatter: cycle biome)
+##   W/S    = navigate items within the active tab (page / cycle action)
+##   1/2/3  = sub-mode within the active tab (icon slot, picker target)
 ##   Z/ESC  = close
+##
+## Note: Balance tab uses Q/R to shift biome scope (rather than W/S which
+## is taken by action cycling, and A/D which the shell consumes for tab
+## cycling). Treated as scope-axis depth, not item navigation.
 ##
 ## frame_ids = [self, story, verbs, balance, guide] — one per tab; the
 ## balance frame currently presents the experimental chatter workbench.
@@ -590,7 +595,9 @@ func _build_story_body() -> void:
 		for ev in recent_events:
 			var ev_lbl := RichTextLabel.new()
 			ev_lbl.bbcode_enabled = true
-			ev_lbl.text = str(ev.get("message", ""))
+			var path_str: String = str(ev.get("path", ""))
+			var path_chip: String = "  [color=#7faab8][%s][/color]" % path_str if path_str != "" else ""
+			ev_lbl.text = str(ev.get("message", "")) + path_chip
 			ev_lbl.fit_content = true
 			ev_lbl.scroll_active = false
 			ev_lbl.add_theme_font_size_override("normal_font_size", 12)
@@ -691,11 +698,11 @@ func _build_story_body() -> void:
 	_body_box.add_child(icon_row)
 	_body_box.add_child(_make_spacer(4))
 
-	# === ACTION ROW ===
-	_body_box.add_child(_make_action_row("Q", "Withdraw", "redirect narrative attention away from this topic"))
-	_body_box.add_child(_make_action_row("R", "Reinforce", "focus narrative attention on this chatter's topic"))
-	_body_box.add_child(_make_action_row("F", "Harmonize", "lossless — no attention shift; records intent"))
-	_body_box.add_child(_make_action_row("E", "Express", "strong focus shift + commit into trajectory"))
+	# === ACTION ROW (canonical Q E R F left-to-right) ===
+	_body_box.add_child(_make_action_row("Q", "Withdraw", "screw out — pull attention away from this topic"))
+	_body_box.add_child(_make_action_row("E", "Express", "observe + commit — strong focus shift + advance trajectory"))
+	_body_box.add_child(_make_action_row("R", "Reinforce", "screw in — focus narrative attention on this topic"))
+	_body_box.add_child(_make_action_row("F", "Harmonize", "lossless — no attention shift; records intent only"))
 	_body_box.add_child(_make_spacer(8))
 
 	# === CHATTER BUBBLES (cursor target for QERF) ===
@@ -1080,14 +1087,15 @@ func _guide_core_loop() -> void:
 	_body_box.add_child(_make_action_row("E", "Measure", "Collapse the quantum state (Born rule)."))
 	_body_box.add_child(_make_action_row("R", "Pop", "Harvest credits proportional to the measured outcome (screw in)."))
 	_body_box.add_child(_make_body(
-		"Q reaches in, E observes, R pulls out. Same direction in every tool."))
+		"Q screws out (surface a terminal), E observes (measure), R screws in (commit / pop). "
+		+ "Same direction in every tool."))
 
 
 func _guide_four_tools() -> void:
 	_body_box.add_child(_make_section_header("the seven archetype frames (4-0)"))
 	_body_box.add_child(_make_action_row("4", "Spark",     "Lindbladian: drain / transfer / pump. 1/2/3 = thermal / dephase / damp."))
 	_body_box.add_child(_make_action_row("5", "Icon",      "Inject a dual-emoji qubit from your faction signature."))
-	_body_box.add_child(_make_action_row("6", "Merchant", "Faction contracts: Q=import, E=broker, R=export, F=tip."))
+	_body_box.add_child(_make_action_row("6", "Merchant", "Faction contracts: Q=Treaty, E=Broker, R=Tribute, F=Tip."))
 	_body_box.add_child(_make_action_row("7", "Captain",   "Biome lifecycle: Q=discover, R=cull."))
 	_body_box.add_child(_make_action_row("8", "Ace", "Probe: Q=explore, E=measure, R=pop."))
 	_body_box.add_child(_make_action_row("9", "Operator",  "Gate building: Q=build, E=inspect, R=break."))
