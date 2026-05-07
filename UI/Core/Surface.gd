@@ -1,5 +1,5 @@
 class_name Surface
-extends OverlayBase
+extends "res://UI/Core/OverlayBase.gd"
 
 ## Surface - Base class for refactored surface overlays.
 ##

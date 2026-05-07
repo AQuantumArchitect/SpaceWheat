@@ -2,45 +2,47 @@ class_name BiomeBuilder
 extends RefCounted
 
 const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")
+const VerboseHelper = preload("res://Core/Config/VerboseHelper.gd")
 
-## BiomeBuilder: Unified machinery for building biome quantum systems
+## BiomeBuilder: Builds biome quantum systems from the icon-cloud format.
 ##
-## DESIGN INVARIANT: Boot and live-rebuild use the SAME code path.
-## This ensures consistent behavior whether building at startup or
-## when faction standings change or new biomes are discovered.
+## Architecture (icon-cloud):
+##   biome.icons[]  →  _build_biome_icon_list()
+##                         ↓
+##              IconLexicon.get_icon_physics_by_pair()  ← icons.json
+##                         ↓
+##              BiomeIcon.from_lexicon(name, p0, p1, physics, cloud)
+##                         ↓
+##              build_operators_from_icons()  →  H + L
 ##
-## Architecture:
-##   1. Factions → Icons (Hamiltonian base)
-##   2. Icons → H matrix (universal coherent dynamics)
-##   3. Biome Lindblad spec → icon overrides (environmental dissipation)
-##   4. Icons → H + L via BiomeQuantumSystemBuilder (cached)
+## H comes from icons.json (self_energy, rabi, hamiltonian_couplings).
+## L comes from the biome's icon cloud dicts (per-pole Lindblad terms).
+## Factions are identified via icons; admission is read-only (market/UI).
 ##
-## Usage:
-##   var builder = BiomeBuilder.new()
-##   var result = builder.build_biome_quantum_system(
-##       biome_name, 
-##       emoji_pairs,
-##       faction_standings,
-##       lindblad_spec
-##   )
-##   quantum_computer = result.quantum_computer
+## Biomes with no icons[] (e.g. _orphan_lindblads) boot as data-store
+## nodes with no quantum system — valid, silent, no evolution.
+##
+## Faction standing → H tuning is stubbed; see rebuild_icons_for_standings().
 
-const IconBuilder = preload("res://Core/Factions/IconBuilder.gd")
+const IconLexicon = preload("res://Core/Factions/IconLexicon.gd")
+const BiomeIcon = preload("res://Core/QuantumSubstrate/BiomeIcon.gd")
 const FactionRegistry = preload("res://Core/Factions/FactionRegistry.gd")
 const BiomeRegistry = preload("res://Core/Biomes/BiomeRegistry.gd")
 const BiomeCharacteristics = preload("res://Core/Biomes/BiomeCharacteristics.gd")
 const QuantumComputer = preload("res://Core/QuantumSubstrate/QuantumComputer.gd")
 const LindbladBuilder = preload("res://Core/QuantumSubstrate/LindbladBuilder.gd")
-const BiomeLindblad = preload("res://Core/Biomes/BiomeLindblad.gd")
 const BiomeQuantumSystemBuilder = preload("res://Core/Environment/Components/BiomeQuantumSystemBuilder.gd")
 const DynamicBiome = preload("res://Core/Environment/DynamicBiome.gd")
+
+## ── Faction Hamiltonian normalization + standings ─────────────────────────────
+## Canonical source: HamiltonianConfig.gd (single source of truth)
+const HamiltonianConfig = preload("res://Core/Config/HamiltonianConfig.gd")
+const FACTION_DIRECTION_NORMALIZATION: bool = HamiltonianConfig.FACTION_DIRECTION_NORMALIZATION
 
 ## Singleton instances (lazy-loaded)
 static var _faction_registry: FactionRegistry = null
 static var _biome_registry: BiomeRegistry = null
 static var _icon_registry = null  # Autoload reference
-
-
 ## Get or create FactionRegistry
 static func _get_faction_registry() -> FactionRegistry:
 	if _faction_registry == null:
@@ -51,12 +53,12 @@ static func _get_faction_registry() -> FactionRegistry:
 ## Get or create BiomeRegistry
 static func _get_biome_registry() -> BiomeRegistry:
 	if _biome_registry == null:
-		_biome_registry = BiomeRegistry.new()
+		_biome_registry = BiomeRegistry.get_shared()
 	return _biome_registry
 
 
-## Get IconRegistry autoload
-static func _get_icon_registry():
+## Get EmojiPhysicsRegistry autoload
+static func _get_atom_registry():
 	if _icon_registry == null:
 		_icon_registry = InstrumentLocator.resolve_icon_registry_main_loop()
 	return _icon_registry
@@ -76,33 +78,32 @@ static func build_from_registry(
 	parent_node: Node,
 	options: Dictionary = {}
 ) -> Dictionary:
-	"""Build a complete DynamicBiome from BiomeRegistry.
+	# Build a complete DynamicBiome from BiomeRegistry.
 
-	This method:
-	1. Loads biome definition from BiomeRegistry
-	2. Extracts emoji pairs from biome.emojis
-	3. Builds Lindblad spec from biome.atom_components
-	4. Calls build_biome_quantum_system() to create QuantumComputer
-	5. Creates DynamicBiome node with viz_cache
-	6. Adds biome to parent_node
+	# This method:
+	# 1. Loads biome definition from BiomeRegistry
+	# 2. Extracts emoji pairs from biome.emojis
+	# 3. Builds Lindblad spec from biome.atom_components
+	# 4. Calls build_biome_quantum_system() to create QuantumComputer
+	# 5. Creates DynamicBiome node with viz_cache
+	# 6. Adds biome to parent_node
 
-	Args:
-		biome_name: Name of biome in BiomeRegistry (e.g., "StarterForest")
-		parent_node: Node to add biome as child
-		options: Optional parameters {
-			faction_standings: Dictionary (faction_name -> weight),
-			skip_tree_add: bool (don't add to parent_node),
-		}
+	# Args:
+	# biome_name: Name of biome in BiomeRegistry (e.g., "StarterForest")
+	# parent_node: Node to add biome as child
+	# options: Optional parameters {
+	# faction_standings: Dictionary (faction_name -> weight),
+	# skip_tree_add: bool (don't add to parent_node),
+	# }
 
-	Returns:
-		{
-			success: bool,
-			biome_node: DynamicBiome (if success),
-			quantum_computer: QuantumComputer (if success),
-			icons: Dictionary (emoji -> Icon),
-			error: String (if failure)
-		}
-	"""
+	# Returns:
+	# {
+	# success: bool,
+	# biome_node: DynamicBiome (if success),
+	# quantum_computer: QuantumComputer (if success),
+	# icons: Dictionary (emoji -> Icon),
+	# error: String (if failure)
+	# }
 	var result = {
 		"success": false,
 		"biome_node": null,
@@ -129,7 +130,7 @@ static func build_from_spec(
 	parent_node: Node,
 	options: Dictionary = {}
 ) -> Dictionary:
-	"""Build a complete DynamicBiome from a Biome specification."""
+	# Build a complete DynamicBiome from a Biome specification.
 	var result = {
 		"success": false,
 		"biome_node": null,
@@ -147,37 +148,54 @@ static func build_from_spec(
 		result.error = "Biome spec missing name"
 		return result
 
-	# Extract emoji pairs from biome.emojis
-	var emoji_pairs = _group_emojis_into_pairs(_spec_get(biome_def, "emojis", []))
-	if emoji_pairs.is_empty():
-		result.error = "No emoji pairs for biome '%s'" % biome_name
+	# Detect icon-cloud biome (new format) vs. emojis-based biome (legacy format)
+	var build_options = options.duplicate()
+	var emoji_pairs: Array = []
+	if _is_icon_cloud_biome(biome_def):
+		var biome_icons = _build_biome_icon_list(biome_def)
+		if biome_icons.is_empty():
+			result.error = "Icon-cloud biome '%s' has no icons" % biome_name
+			return result
+		build_options["biome_icons"] = biome_icons
+		# Derive emoji_pairs from icon poles for viz_metadata
+		for bi in biome_icons:
+			emoji_pairs.append({"north": bi.pole_0, "south": bi.pole_1})
+	else:
+		# No icons[] (e.g. _orphan_lindblads data store). Valid node, no quantum system.
+		var data_biome = DynamicBiome.new()
+		data_biome.set_biome_type(biome_name)
+		data_biome.name = biome_name
+		data_biome.quantum_computer = null
+		data_biome.icons = {}
+		data_biome.icon_overrides = {}
+		data_biome.set_meta("icons", {})
+		data_biome.set_meta("biome_def", biome_def)
+		var _pl = _spec_get(biome_def, "plot_layout", [])
+		if _pl is Array and not _pl.is_empty():
+			data_biome.set_meta("plot_layout", _pl)
+		var _vc = _spec_get(biome_def, "visual_config", {})
+		if not _vc.is_empty():
+			var _ca = _vc.get("color", [])
+			if _ca is Array and _ca.size() >= 4:
+				data_biome.visual_color = Color(_ca[0], _ca[1], _ca[2], _ca[3])
+			var _lbl = _vc.get("label", "")
+			if _lbl != "":
+				data_biome.visual_label = _lbl
+		_initialize_biome_components(data_biome, null)
+		if not options.get("skip_tree_add", false) and parent_node:
+			parent_node.add_child(data_biome)
+		result.success = true
+		result.biome_node = data_biome
 		return result
 
-	# Build Lindblad spec from biome atom_components
-	var lindblad_spec = _build_lindblad_spec_from_biome(biome_def)
-
-	# Auto-load biome Hamiltonian profile (biome-crafter surface).
-	# Looks for Core/Config/Hamiltonians/<biome_lower>.jsonl and injects it as
-	# an icon_patch_fn so the energy landscape applies on top of faction physics.
-	var build_options = options.duplicate()
-	var h_profile = _load_hamiltonian_profile(biome_name)
-	if not h_profile.is_empty():
-		var existing_patch = build_options.get("icon_patch_fn", null)
-		if existing_patch is Callable and existing_patch.is_valid():
-			# Compose: profile runs first (base landscape), then caller's patch
-			build_options["icon_patch_fn"] = func(icons: Dictionary) -> void:
-				h_profile.apply_to_icons(icons)
-				existing_patch.call(icons)
-		else:
-			build_options["icon_patch_fn"] = h_profile.get_patch_callable()
-
 	# Build quantum system (H + L)
+	var atom_components: Dictionary = _spec_get(biome_def, "atom_components", {})
 	var faction_standings = build_options.get("faction_standings", {})
 	var quantum_result = build_biome_quantum_system(
 		biome_name,
 		emoji_pairs,
 		faction_standings,
-		lindblad_spec,
+		atom_components,
 		build_options
 	)
 
@@ -205,10 +223,29 @@ static func build_from_spec(
 	if plot_layout and plot_layout is Array and plot_layout.size() > 0:
 		biome.set_meta("plot_layout", plot_layout)
 
+	# Apply visual config from biome definition
+	var visual_config = _spec_get(biome_def, "visual_config", {})
+	if not visual_config.is_empty():
+		var color_arr = visual_config.get("color", [])
+		if color_arr is Array and color_arr.size() >= 4:
+			biome.visual_color = Color(color_arr[0], color_arr[1], color_arr[2], color_arr[3])
+		var label = visual_config.get("label", "")
+		if label != "":
+			biome.visual_label = label
+		var offset_arr = visual_config.get("center_offset", [])
+		if offset_arr is Array and offset_arr.size() >= 2:
+			biome.visual_center_offset = Vector2(offset_arr[0], offset_arr[1])
+		var oval_w = visual_config.get("oval_width", 0.0)
+		if oval_w > 0.0:
+			biome.visual_oval_width = oval_w
+		var oval_h = visual_config.get("oval_height", 0.0)
+		if oval_h > 0.0:
+			biome.visual_oval_height = oval_h
+
 	# Initialize components manually (before tree add)
 	_initialize_biome_components(biome, qc)
 
-	# Create viz_cache with metadata
+	# Create viz_cache with metadata (emoji_pairs derived above covers both paths)
 	var viz_metadata = _build_viz_metadata(emoji_pairs, biome_def)
 	var QuantumVizCache = load("res://Core/Visualization/QuantumVizCache.gd")
 	biome.viz_cache = QuantumVizCache.new()
@@ -232,25 +269,6 @@ static func build_from_spec(
 	return result
 
 
-## INTERNAL: Group emojis into north/south pairs
-static func _group_emojis_into_pairs(emojis: Array) -> Array:
-	"""Convert flat emoji list into axis pairs.
-
-	Pairs emojis sequentially: [0,1], [2,3], [4,5], ...
-	If odd count, last emoji pairs with itself.
-
-	Returns: [{north: emoji, south: emoji}]
-	"""
-	var pairs: Array = []
-
-	for i in range(0, emojis.size(), 2):
-		var north = emojis[i]
-		var south = emojis[i + 1] if i + 1 < emojis.size() else emojis[i]
-		pairs.append({"north": north, "south": south})
-
-	return pairs
-
-
 ## INTERNAL: Safe spec getter (Biome object or Dictionary)
 static func _spec_get(spec, key: String, default_value = null):
 	if spec == null:
@@ -263,124 +281,11 @@ static func _spec_get(spec, key: String, default_value = null):
 	return default_value
 
 
-## INTERNAL: Build BiomeLindblad spec from Biome definition
-static func _build_lindblad_spec_from_biome(biome_def) -> BiomeLindblad:
-	"""Extract Lindblad dissipation spec from biome atom_components.
-
-	Converts biome.atom_components into BiomeLindblad format.
-	"""
-	var spec = BiomeLindblad.new()
-
-	var components = _spec_get(biome_def, "atom_components", {})
-	# Extract Lindblad terms from each emoji's icon_component
-	for emoji in components:
-		var component = components[emoji]
-
-		# Outgoing transitions (drains: emoji → target)
-		var lindblad_out = component.get("lindblad_outgoing", {})
-		if not lindblad_out.is_empty():
-			for target in lindblad_out:
-				var rate = lindblad_out[target]
-				spec.add_drain(emoji, target, rate)
-
-		# Incoming transitions (pumps: source → emoji)
-		var lindblad_in = component.get("lindblad_incoming", {})
-		if not lindblad_in.is_empty():
-			for source in lindblad_in:
-				var rate = lindblad_in[source]
-				spec.add_pump(emoji, source, rate)
-
-		# Decay processes
-		var decay = component.get("decay", {})
-		if not decay.is_empty():
-			var decay_rate = decay.get("rate", 0.0)
-			var decay_target = decay.get("target", "")
-			if decay_rate > 0.0 and decay_target != "":
-				spec.add_decay(emoji, decay_target, decay_rate)
-
-		# Gated Lindblad (per-emoji source)
-		var gated_list = component.get("gated_lindblad_source", [])
-		if gated_list is Array:
-			for gated in gated_list:
-				if not gated is Dictionary:
-					continue
-				var target = gated.get("target", "")
-				var gate = gated.get("gate", "")
-				var rate = float(gated.get("rate", 0.0))
-				var power = float(gated.get("power", 1.0))
-				var inverse = bool(gated.get("inverse", false))
-				if target != "" and gate != "" and rate > 0.0:
-					spec.add_gated(emoji, target, gate, rate, power, inverse)
-
-	return spec
-
-
-## Apply BiomeLindblad spec directly to icon dictionaries (biome-local overrides)
-static func apply_lindblad_spec_to_icons(icons: Dictionary, lindblad_spec: BiomeLindblad) -> void:
-	"""Mutate icons with biome-specific Lindblad terms.
-
-	This keeps H (faction-derived) global, while L is per-biome on local icons.
-	"""
-	if not lindblad_spec or icons.is_empty():
-		return
-
-	# Apply incoming/outgoing flows
-	for emoji in lindblad_spec.get_all_emojis():
-		var icon = icons.get(emoji, null)
-		if not icon:
-			continue
-		var component = lindblad_spec.get_component(emoji)
-		var outgoing = component.get("outgoing", {})
-		var incoming = component.get("incoming", {})
-		if outgoing and outgoing is Dictionary:
-			icon.lindblad_outgoing = outgoing.duplicate(true)
-		if incoming and incoming is Dictionary:
-			icon.lindblad_incoming = incoming.duplicate(true)
-
-	# Apply decay processes
-	for decay in lindblad_spec.decay_processes:
-		var e = decay.get("emoji", "")
-		var icon = icons.get(e, null)
-		if not icon:
-			continue
-		icon.decay_rate = decay.get("rate", 0.0)
-		icon.decay_target = decay.get("target", "")
-
-	# Apply gated configs (attach to target icon meta)
-	var gated_by_target: Dictionary = {}
-	for g in lindblad_spec.gated_configs:
-		var target = g.get("target", "")
-		if target == "":
-			continue
-		if not gated_by_target.has(target):
-			gated_by_target[target] = []
-		gated_by_target[target].append({
-			"source": g.get("source", ""),
-			"gate": g.get("gate", ""),
-			"rate": g.get("rate", 0.0),
-			"power": g.get("power", 1.0),
-			"inverse": g.get("inverse", false)
-		})
-
-	for target in gated_by_target.keys():
-		var icon = icons.get(target, null)
-		if not icon:
-			continue
-		var existing = []
-		if icon.has_meta("gated_lindblad"):
-			existing = icon.get_meta("gated_lindblad")
-		var combined: Array = []
-		combined.append_array(existing if existing is Array else [])
-		combined.append_array(gated_by_target[target])
-		icon.set_meta("gated_lindblad", combined)
-
-
 ## INTERNAL: Build viz_cache metadata from emoji pairs
 static func _build_viz_metadata(emoji_pairs: Array, biome_def) -> Dictionary:
-	"""Create visualization metadata for QuantumVizCache.
+	# Create visualization metadata for QuantumVizCache.
 
-	Returns metadata dict with axes, emoji mappings, and emoji list.
-	"""
+	# Returns metadata dict with axes, emoji mappings, and emoji list.
 	var metadata = {
 		"num_qubits": emoji_pairs.size(),
 		"axes": {},
@@ -404,19 +309,18 @@ static func _build_viz_metadata(emoji_pairs: Array, biome_def) -> Dictionary:
 
 ## INTERNAL: Initialize BiomeBase components manually (before tree add)
 static func _initialize_biome_components(biome, quantum_computer) -> void:
-	"""Initialize BiomeBase component instances.
+	# Initialize BiomeBase component instances.
 
-	This is normally done in BiomeBase._ready(), but when building biomes
-	that might not immediately enter the tree, we need to initialize
-	components manually to avoid null reference errors.
+	# This is normally done in BiomeBase._ready(), but when building biomes
+	# that might not immediately enter the tree, we need to initialize
+	# components manually to avoid null reference errors.
 
-	IDEMPOTENCY: Sets _is_initialized flag to prevent double-initialization
-	when the node later enters the tree and _ready() is called.
+	# IDEMPOTENCY: Sets _is_initialized flag to prevent double-initialization
+	# when the node later enters the tree and _ready() is called.
 
-	Args:
-		biome: DynamicBiome or BiomeBase instance
-		quantum_computer: QuantumComputer to wire to components
-	"""
+	# Args:
+	# biome: DynamicBiome or BiomeBase instance
+	# quantum_computer: QuantumComputer to wire to components
 	# Skip if already initialized
 	if biome.get("_is_initialized"):
 		return
@@ -452,30 +356,29 @@ static func build_biome_quantum_system(
 	biome_name: String,
 	emoji_pairs: Array,  # [{north: String, south: String}]
 	faction_standings: Dictionary = {},  # {faction_name: weight (0.0-1.0)}
-	lindblad_spec: BiomeLindblad = null,
+	atom_components: Dictionary = {},
 	options: Dictionary = {}
 ) -> Dictionary:
-	"""Build a complete quantum system for a biome.
-	
-	This is the UNIFIED entry point for both boot-time and live rebuilds.
-	
-	Args:
-		biome_name: Name of the biome (e.g. "StarterForest")
-		emoji_pairs: Qubit axes [(north, south)] defining the quantum registers
-		faction_standings: Faction weights (for reputation-based icon building)
-		lindblad_spec: Biome-specific dissipation rules (pumps, drains, gated)
-		options: {icon_patch_fn: Callable} optional biome-local icon tweaks
-	
-	Returns:
-		{
-			success: bool,
-			quantum_computer: QuantumComputer,
-			icons: Dictionary,  # emoji -> Icon
-			hamiltonian: ComplexMatrix,
-			lindblad_operators: Array,
-			error: String (if failure)
-		}
-	"""
+	# Build a complete quantum system for a biome.
+
+	# This is the UNIFIED entry point for both boot-time and live rebuilds.
+
+	# Args:
+	# biome_name: Name of the biome (e.g. "StarterForest")
+	# emoji_pairs: Qubit axes [(north, south)] defining the quantum registers
+	# faction_standings: Faction weights (for reputation-based icon building)
+	# lindblad_spec: Biome-specific dissipation rules (pumps, drains, gated)
+	# options: {icon_patch_fn: Callable} optional biome-local icon tweaks
+
+	# Returns:
+	# {
+	# success: bool,
+	# quantum_computer: QuantumComputer,
+	# icons: Dictionary,  # emoji -> Icon
+	# hamiltonian: ComplexMatrix,
+	# lindblad_operators: Array,
+	# error: String (if failure)
+	# }
 	var result = {
 		"success": false,
 		"quantum_computer": null,
@@ -487,228 +390,81 @@ static func build_biome_quantum_system(
 	
 	# 1. Create QuantumComputer with register map
 	var qc = QuantumComputer.new(biome_name)
-	
-	# 2. Allocate axes from emoji pairs
-	for i in range(emoji_pairs.size()):
-		var pair = emoji_pairs[i]
-		var north = pair.get("north", "")
-		var south = pair.get("south", "")
-		if north == "" or south == "":
-			result.error = "Invalid emoji pair at index %d" % i
-			return result
-		qc.allocate_axis(i, north, south)
-	
-	print("🔧 BiomeBuilder: Allocated %d axes for %s" % [emoji_pairs.size(), biome_name])
-	
-	# 3. Build base Icons from factions with standings
-	var icons = _build_icons_from_factions(qc.register_map, faction_standings)
-	if icons.is_empty():
-		result.error = "No icons could be built for biome"
-		return result
-	
-	# 3b. Apply biome-specific Lindblad terms to icons (local overrides)
-	apply_lindblad_spec_to_icons(icons, lindblad_spec)
-
-	# 3c. Optional caller patch (biome-specific icon tweaks)
-	var icon_patch_fn = options.get("icon_patch_fn", null)
-	if icon_patch_fn and icon_patch_fn is Callable:
-		icon_patch_fn.call(icons)
-
-	result.icons = icons
-	print("🔧 BiomeBuilder: Built %d icons" % icons.size())
-
-	# 4. Build operators via unified system builder (cached path)
 	var sys_builder = BiomeQuantumSystemBuilder.new()
 	sys_builder.quantum_computer = qc
-	sys_builder.build_operators_cached(biome_name, icons)
+
+	var biome_icons: Array = options.get("biome_icons", [])
+
+	# ── Icon-cloud path ───────────────────────────────────────────────────────
+	for i in range(biome_icons.size()):
+		var bi = biome_icons[i]
+		qc.allocate_axis(i, bi.pole_0, bi.pole_1)
+	VerboseHelper.info("biome", "build", "Icon-cloud: %d icons for %s" % [biome_icons.size(), biome_name])
+	sys_builder.build_operators_from_icons(biome_name, biome_icons)
+	result.icons = {}
 
 	result.hamiltonian = qc.hamiltonian
 	result.lindblad_operators = qc.lindblad_operators
-
-	print("🔧 BiomeBuilder: Built Hamiltonian (%dx%d)" % [
+	VerboseHelper.info("biome", "build", "Built Hamiltonian (%dx%d)" % [
 		qc.hamiltonian.n if qc.hamiltonian else 0,
 		qc.hamiltonian.n if qc.hamiltonian else 0
 	])
-	print("🔧 BiomeBuilder: Built %d Lindblad operators + %d gated" % [
-		qc.lindblad_operators.size(),
-		qc.gated_lindblad_configs.size()
+	VerboseHelper.info("biome", "build", "Built %d Lindblad operators" % [
+		qc.lindblad_operators.size()
 	])
-	
-	# 5. Initialize to uniform superposition (fallback default)
-	qc.initialize_uniform_superposition()
-	
+
+	# Initialize to ground state (gives correct ecological populations at t=0)
+	qc.initialize_ground_state()
+
 	result.success = true
 	result.quantum_computer = qc
 	return result
 
 
-## Rebuild just the Icons when faction standings change
-## (Hamiltonian needs rebuild, Lindblad stays the same)
+## Rebuild H when faction standings change.
+## TODO: Redesign for icon-cloud — H weighting by player-faction affinity not yet implemented.
+## Stubbed until the new mechanism is settled (see design discussion).
 static func rebuild_icons_for_standings(
-	register_map,
-	faction_standings: Dictionary
+	_register_map,
+	_faction_standings: Dictionary
 ) -> Dictionary:
-	"""Rebuild icons when faction reputation changes.
-	
-	Returns: {emoji -> Icon} with updated Hamiltonian weights
-	"""
-	return _build_icons_from_factions(register_map, faction_standings)
-
-
-## INTERNAL: Build Icons from factions (Hamiltonian-only)
-static func _build_icons_from_factions(register_map, faction_standings: Dictionary) -> Dictionary:
-	"""Build Hamiltonian-only Icons from faction contributions.
-	
-	Each Icon represents the UNIVERSAL (faction-based) coherent dynamics,
-	weighted by current faction standings.
-	"""
-	var faction_registry = _get_faction_registry()
-	var all_factions = faction_registry.get_all()
-	
-	# Build faction index for fast emoji lookup
-	IconBuilder.build_faction_index(all_factions)
-	
-	# Get all emojis from register map
-	var emojis = register_map.coordinates.keys() if register_map else []
-	
-	# Build each icon (H-only, no Lindblad terms)
-	var icons: Dictionary = {}
-	for emoji in emojis:
-		var icon = _build_hamiltonian_icon(emoji, all_factions, faction_standings)
-		if icon:
-			icons[emoji] = icon
-	
-	return icons
-
-
-## INTERNAL: Build a single Hamiltonian-only Icon
-static func _build_hamiltonian_icon(emoji: String, factions: Array, standings: Dictionary):
-	"""Build an Icon with ONLY Hamiltonian terms (no Lindblad).
-	
-	Faction contributions are weighted by standing values.
-	"""
-	var IconScript = load("res://Core/QuantumSubstrate/Icon.gd")
-	var icon = IconScript.new()
-	icon.emoji = emoji
-	icon.display_name = emoji
-	
-	var contributing_factions: Array[String] = []
-	
-	# Merge faction contributions (Hamiltonian only)
-	for faction in factions:
-		if not faction.speaks(emoji):
-			continue
-		
-		var standing = standings.get(faction.name, 1.0)
-		if standing <= 0.0:
-			continue  # Skip muted factions
-		
-		contributing_factions.append(faction.name)
-		var contribution = faction.get_icon_contribution(emoji)
-		
-		# Merge self_energy (weighted by standing)
-		icon.self_energy += contribution.get("self_energy", 0.0) * standing
-		
-		# Merge hamiltonian_couplings (weighted)
-		var h_couplings = contribution.get("hamiltonian_couplings", {})
-		for target in h_couplings:
-			var current = icon.hamiltonian_couplings.get(target, null)
-			var incoming = h_couplings[target]
-			
-			# Apply standing weight
-			if incoming is Vector2:
-				incoming = Vector2(incoming.x * standing, incoming.y * standing)
-			else:
-				incoming = incoming * standing
-			
-			# Merge (handle float + Vector2 mixing)
-			icon.hamiltonian_couplings[target] = IconBuilder._add_hamiltonian_values(current, incoming)
-		
-		# Merge alignment couplings (weighted)
-		var align = contribution.get("alignment_couplings", {})
-		for observable in align:
-			var current = icon.energy_couplings.get(observable, 0.0)
-			icon.energy_couplings[observable] = current + (align[observable] * standing)
-		
-		# Merge driver (take first driver found with non-zero standing)
-		var driver = contribution.get("driver", {})
-		if driver.has("type") and icon.self_energy_driver == "":
-			icon.self_energy_driver = driver.get("type", "")
-			icon.driver_frequency = driver.get("freq", 0.0)
-			icon.driver_phase = driver.get("phase", 0.0)
-			icon.driver_amplitude = driver.get("amp", 1.0) * standing
-	
-	# Set description
-	if contributing_factions.is_empty():
-		icon.description = "Unaffiliated"
-	elif contributing_factions.size() == 1:
-		icon.description = "Speaks for %s" % contributing_factions[0]
-	else:
-		icon.description = "Contested by: %s" % ", ".join(contributing_factions)
-	
-	# Set tags
-	var tags: Array[String] = []
-	for name in contributing_factions:
-		tags.append(name.to_lower().replace(" ", "_"))
-	icon.tags = tags
-	
-	# Set flags
-	icon.is_driver = icon.self_energy_driver != ""
-	icon.is_eternal = icon.is_driver  # Drivers don't decay
-	
-	return icon
-
-
-## INTERNAL: Load biome Hamiltonian profile if one exists for this biome
-static func _load_hamiltonian_profile(biome_name: String):
-	var ProfileClass = load("res://Core/QuantumSubstrate/BiomeHamiltonianProfile.gd")
-	return ProfileClass.load_for_biome(biome_name)
-
-
-## INTERNAL: Build Lindblad operators from BiomeLindblad spec (DEPRECATED)
-static func _build_lindblad_from_biome_spec(
-	lindblad_spec: BiomeLindblad,
-	register_map,
-	verbose
-) -> Dictionary:
-	"""Build Lindblad superoperators from biome-specific dissipation rules.
-	
-	Returns: {operators: Array, gated_configs: Array}
-	"""
-	if not lindblad_spec:
-		return {"operators": [], "gated_configs": []}
-	
-	# Convert BiomeLindblad to Icon-like format for LindbladBuilder
-	# This is a temporary adapter until we refactor LindbladBuilder
-	var pseudo_icons: Dictionary = {}
-	
-	for emoji in lindblad_spec.get_all_emojis():
-		var IconScript = load("res://Core/QuantumSubstrate/Icon.gd")
-		var pseudo_icon = IconScript.new()
-		pseudo_icon.emoji = emoji
-		
-		var component = lindblad_spec.get_component(emoji)
-		pseudo_icon.lindblad_outgoing = component.get("outgoing", {})
-		pseudo_icon.lindblad_incoming = component.get("incoming", {})
-		
-		# Handle decay processes
-		for decay in lindblad_spec.decay_processes:
-			if decay.get("emoji", "") == emoji:
-				pseudo_icon.decay_rate = decay.get("rate", 0.0)
-				pseudo_icon.decay_target = decay.get("target", "")
-		
-		pseudo_icons[emoji] = pseudo_icon
-	
-	# Build using existing LindbladBuilder
-	var result = LindbladBuilder.build(pseudo_icons, register_map, verbose)
-	
-	# Add gated configs from spec
-	if lindblad_spec.gated_configs.size() > 0:
-		result["gated_configs"] = lindblad_spec.gated_configs
-	
-	return result
+	push_warning("BiomeBuilder.rebuild_icons_for_standings: stubbed — faction H tuning not yet implemented for icon-cloud path")
+	return {}
 
 
 ## Get VerboseConfig singleton (safe access)
 static func _get_verbose_config():
 	return InstrumentLocator.resolve_verbose_config_main_loop()
+
+
+## INTERNAL: True if this biome uses the icon-cloud format.
+## An icon-cloud biome defines its register via icons[] alone — no emojis[] list.
+## Stripping emojis[] from a biome IS the migration signal; no extra flag needed.
+static func _is_icon_cloud_biome(biome_def) -> bool:
+	var icons = _spec_get(biome_def, "icons", [])
+	if icons.is_empty():
+		return false
+	# emojis[] non-empty = still on legacy path (not yet migrated)
+	var emojis = _spec_get(biome_def, "emojis", null)
+	if emojis != null and not (emojis is Array and (emojis as Array).is_empty()):
+		return false
+	return true
+
+
+## INTERNAL: Build Array[BiomeIcon] from a biome's icons[] with cloud fields.
+## Physics is looked up from icons.json via IconLexicon by (pole_0, pole_1) pair.
+static func _build_biome_icon_list(biome_def) -> Array:
+	var lexicon := IconLexicon.new()
+	var out: Array = []
+	for entry in _spec_get(biome_def, "icons", []):
+		if not (entry is Dictionary):
+			continue
+		var p0 := str(entry.get("pole_0", ""))
+		var p1 := str(entry.get("pole_1", ""))
+		if p0 == "" or p1 == "":
+			continue
+		var physics := lexicon.get_icon_physics_by_pair(p0, p1)
+		var cloud: Dictionary = entry.get("cloud", {})
+		var iname := str(entry.get("name", p0))
+		out.append(BiomeIcon.from_lexicon(iname, p0, p1, physics, cloud, 1.0))
+	return out

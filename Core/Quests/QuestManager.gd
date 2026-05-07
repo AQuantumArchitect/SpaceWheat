@@ -16,6 +16,7 @@ const FactionStateMatcher = preload("res://Core/QuantumSubstrate/FactionStateMat
 const QuestStateProjectionService = preload("res://Core/Quests/QuestStateProjectionService.gd")
 const PolicyGraph = preload("res://Core/AI/PolicyGraph.gd")
 const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")
+const BiomeRegistry = preload("res://Core/Biomes/BiomeRegistry.gd")
 
 # Logging
 @onready var _verbose = InstrumentLocator.resolve_verbose_config(self)
@@ -1014,31 +1015,54 @@ func _apply_standing_deltas(faction_name: String, deltas: Dictionary) -> void:
 func _offer_from_market_lattice(biome) -> Array:
 	# Delegate offer generation to the canonical MarketLattice substrate.
 	# Returns pre-stamped quest dicts (sans id/offered_at — caller fills those).
-	var farm = _get_gsm().get_active_farm()
+	var gsm = _get_gsm()
+	var farm = gsm.get_active_farm() if gsm and gsm.has_method("get_active_farm") else null
 	if farm == null or not farm.has_method("get_market_lattice"):
 		return []
 	var lattice = farm.get_market_lattice()
 	if lattice == null:
 		return []
 	# propose_offers returns MarketContract RefCounted objects.
-	# Convert to quest Dictionaries so callers can set arbitrary keys on them.
 	var contracts = lattice.propose_offers(biome, 196)
 	var quests: Array = []
 	for c in contracts:
-		if not c:
+		if c == null:
 			continue
-		var qty: int = max(1, int(c.get("cost_amount", 1) if c.has_method("get") else 1))
-		quests.append({
-			"type": QuestTypes.Type.DELIVERY,
-			"resource": str(c.get("resource", "") if c.has_method("get") else ""),
-			"quantity": qty,
-			"faction": str(c.get("faction", "") if c.has_method("get") else ""),
-			"biome": str(c.get("biome_name", "") if c.has_method("get") else ""),
-			"time_limit": 120.0,
-			"reward_vocab_north": "",
-			"reward_vocab_south": "",
-			"reward_multiplier": 1.0,
-		})
+		var quest: Dictionary = {}
+		if c.has_method("to_quest_offer_dict"):
+			quest = c.to_quest_offer_dict()
+		elif c is Dictionary:
+			quest = c.duplicate(true)
+		if quest.is_empty():
+			continue
+		quest["type"] = QuestTypes.Type.DELIVERY
+		quest["time_limit"] = 120.0
+		# Derive vocab reward from the icon pair that contains this resource emoji.
+		# The contract's resource is one pole of an icon; find the other pole so
+		# completing the delivery teaches the player that axis.
+		var reward_n := ""
+		var reward_s := ""
+		var res_emoji: String = str(quest.get("resource", ""))
+		if res_emoji != "" and biome != null:
+			var bname: String = ""
+			if biome.has_method("get_biome_type"): bname = str(biome.get_biome_type())
+			if bname == "": bname = str(biome.name) if "name" in biome else ""
+			var breg = BiomeRegistry.get_shared()
+			var bdef = breg.get_by_name(bname) if bname != "" else null
+			if bdef and "icons" in bdef:
+				for icon in bdef.icons:
+					var p0: String = str(icon.get("pole_0", ""))
+					var p1: String = str(icon.get("pole_1", ""))
+					if p0 == res_emoji or p1 == res_emoji:
+						reward_n = p0
+						reward_s = p1
+						break
+		quest["reward_north"] = reward_n
+		quest["reward_south"] = reward_s
+		quest["reward_vocab_north"] = reward_n
+		quest["reward_vocab_south"] = reward_s
+		quest["reward_multiplier"] = 1.0
+		quests.append(quest)
 	return quests
 
 # =============================================================================

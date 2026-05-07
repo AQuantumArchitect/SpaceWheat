@@ -91,6 +91,7 @@ const ToolConfig = preload("res://Core/GameState/ToolConfig.gd")
 const SaveStore = preload("res://Core/GameState/SaveStore.gd")
 # PlayerInputMacroRunner removed — macro input not available in headless mode
 const InputBindingRegistry = preload("res://UI/Core/InputBindingRegistry.gd")
+const BiomeDiscoveryForecastService = preload("res://Core/Gameplay/BiomeDiscoveryForecastService.gd")
 
 signal action_executed(turn_id: int, action: String, result: Dictionary)
 signal bridge_idle()
