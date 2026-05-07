@@ -380,7 +380,14 @@ func get_attractor_state() -> Dictionary:
 	#   "emojis": Array[String]  — emojis sorted descending by attractor probability
 	if not _bloch_engine or not density_matrix or not register_map:
 		return {}
+	var dim_expected := register_map.dim()
+	if dim_expected <= 0:
+		return {}
 	var packed := density_matrix._to_packed()
+	# Guard: packed must be exactly 2*dim² floats (re+im per element).
+	# Mixed-qubit-dim crashes in Eigen happen when this size is wrong.
+	if packed.size() != dim_expected * dim_expected * 2:
+		return {}
 	var result = _bloch_engine.compute_eigenstates(packed)
 	if result.is_empty() or result.has("error"):
 		return {}
@@ -441,8 +448,14 @@ func export_bloch_packet() -> PackedFloat64Array:
 	if not _bloch_engine:
 		push_error("QuantumComputer: native QuantumEvolutionEngine unavailable — bloch packet empty")
 		return PackedFloat64Array()
-	return _bloch_engine.compute_bloch_metrics_from_packed(
-		density_matrix._to_packed(), register_map.num_qubits)
+	if not density_matrix or not register_map:
+		return PackedFloat64Array()
+	var nq := register_map.num_qubits
+	var dim := register_map.dim()
+	var packed := density_matrix._to_packed()
+	if packed.size() != dim * dim * 2:
+		return PackedFloat64Array()
+	return _bloch_engine.compute_bloch_metrics_from_packed(packed, nq)
 
 
 ## ============================================================================
@@ -2495,7 +2508,10 @@ func update_driven_self_energies(time: float) -> void:
 
 		# Get time-dependent energy from icon
 		var old_energy = cfg.get("cached_energy", cfg.base_energy)
-		var new_energy = icon.get_self_energy(time)
+		if icon == null:
+			push_warning("update_driven_self_energies: missing icon_ref for driven icon %s" % str(cfg.get("emoji", "")))
+			continue
+		var new_energy = icon.get_self_energy(time) if icon.has_method("get_self_energy") else cfg.base_energy
 
 		# Skip if energy hasn't changed significantly
 		if abs(new_energy - old_energy) < 1e-6:

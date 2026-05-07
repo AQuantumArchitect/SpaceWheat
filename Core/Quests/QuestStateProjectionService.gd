@@ -2,6 +2,7 @@ class_name QuestStateProjectionService
 extends RefCounted
 
 const FactionStateMatcher = preload("res://Core/QuantumSubstrate/FactionStateMatcher.gd")
+const QuestMath = preload("res://Core/Quests/QuestMath.gd")
 
 const MAX_ACTION_HISTORY: int = 64
 
@@ -99,7 +100,7 @@ func evaluate_predicate(predicate: Dictionary) -> float:
 				return 0.0
 			var steps := int(predicate.get("steps", 5))
 			var value := float(predicate.get("value", 0.5))
-			var pop := _last_biome.predict_population(str(predicate.get("emoji", "")), steps)
+			var pop: float = float(_last_biome.predict_population(str(predicate.get("emoji", "")), steps))
 			return QuestMath.soft_gate(pop, value)
 		"predict_purity_gte":
 			var steps := int(predicate.get("steps", 5))
