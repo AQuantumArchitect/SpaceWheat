@@ -41,7 +41,7 @@ enum PendingAction {
 # Tab row — TYUIOP slots. We use T Y U I O.
 const TAB_ROW := [
 	{"key": "T", "tab": Tab.RUN,    "name": "Run",    "frame": "run"},
-	{"key": "Y", "tab": Tab.KEEP,   "name": "Keep",   "frame": "save_load"},
+	{"key": "Y", "tab": Tab.KEEP,   "name": "Save / Load",   "frame": "save_load"},
 	{"key": "U", "tab": Tab.NEW,    "name": "New",    "frame": "new_game"},
 	{"key": "I", "tab": Tab.LEVELS, "name": "Levels", "frame": "accessibility"},
 	{"key": "O", "tab": Tab.DEV,    "name": "Dev",    "frame": "dev"},
@@ -79,9 +79,11 @@ const ITEM_BY_KEYCODE := {
 const NUM_KEEP_SLOTS := 3
 
 # Ordered list of playable scenarios shown in the New tab.
+const DEFAULT_RUN_SCENARIO_ID := "demos_normal"
+
 const SCENARIO_LIST := [
-	{"id": "new_game_easy", "label": "Easy Farm",    "desc": "default start"},
-	{"id": "demos_normal",  "label": "The Demo Run", "desc": "demo preset"},
+	{"id": "demos_normal",  "label": "The Demos",      "desc": "default start"},
+	{"id": "new_game_easy", "label": "Easy Farm (dev)", "desc": "legacy artifact"},
 ]
 const VOLUME_STEP := 0.05
 const DEFAULT_VOLUME := 0.7
@@ -370,9 +372,11 @@ func _current_verb_labels() -> Dictionary:
 		return _confirm_verb_labels()
 	match _current_tab:
 		Tab.RUN:
-			var run_label := "inspect ▾" if not _run_peeking else "inspect ▴"
-			# F shows "flatten" only when there is something to collapse.
-			return {"Q": "quit", "E": run_label, "R": "save & resume", "F": "flatten" if _run_peeking else ""}
+			var run_label := "inspect ▾" if not _run_peeking else "—"
+			# F: when peek is open, F flattens it. Otherwise F = continue
+			# without saving (force-equivalent of R's "save & resume").
+			var run_f := "flatten" if _run_peeking else "continue"
+			return {"Q": "quit", "E": run_label, "R": "save & resume", "F": run_f}
 		Tab.KEEP:
 			var peek_label := "inspect ▾" if not _keep_peeking else "—"
 			return {"Q": "load slot", "E": peek_label, "R": "save slot", "F": "flatten" if _keep_peeking else ""}
@@ -392,15 +396,8 @@ func _current_verb_labels() -> Dictionary:
 
 func _build_run_body() -> void:
 	var gsm = InstrumentLocator.resolve_game_state_manager(self)
-	var checkpoint := "—"
-	var last_save := "—"
-	if gsm:
-		var c = gsm.get("session_load_slot") if gsm.get("session_load_slot") != null else -1
-		if int(c) >= 0:
-			checkpoint = "slot %d" % int(c)
-		var l = gsm.get("last_saved_slot") if gsm.get("last_saved_slot") != null else -1
-		if int(l) >= 0:
-			last_save = "slot %d" % int(l)
+	var last_touched_slot := _get_last_touched_slot(gsm)
+	var last_touched_info := _get_last_touched_info(gsm, last_touched_slot)
 
 	var farm = InstrumentLocator.resolve_active_farm(self)
 	var biome_count := "—"
@@ -417,8 +414,15 @@ func _build_run_body() -> void:
 			done_q = "%d" % qm.completed_quests.size()
 
 	_body_box.add_child(_make_section_header("run state"))
-	_body_box.add_child(_make_kv_row("checkpoint", checkpoint))
-	_body_box.add_child(_make_kv_row("last save", last_save))
+	if last_touched_info.is_empty():
+		_body_box.add_child(_make_kv_row("default run", "The Demos"))
+		_body_box.add_child(_make_kv_row("scenario", DEFAULT_RUN_SCENARIO_ID))
+	else:
+		var slot_label := "slot %d" % (int(last_touched_slot) + 1)
+		_body_box.add_child(_make_kv_row("last touched", slot_label))
+		_body_box.add_child(_make_kv_row("save", str(last_touched_info.get("summary", last_touched_info.get("display_name", "saved")))))
+		_body_box.add_child(_make_kv_row("save file", str(last_touched_info.get("save_file", "—")).get_file()))
+		_body_box.add_child(_make_kv_row("scenario", str(last_touched_info.get("scenario", "—"))))
 	_body_box.add_child(_make_spacer(4))
 	_body_box.add_child(_make_section_header("this run"))
 	_body_box.add_child(_make_kv_row("biomes discovered", biome_count))
@@ -582,18 +586,15 @@ func _make_keep_slot_row(idx: int) -> Control:
 
 func _slot_detail_text(slot: int) -> String:
 	var gsm = InstrumentLocator.resolve_game_state_manager(self)
-	var last_saved := -1
-	if gsm:
-		var l = gsm.get("last_saved_slot") if gsm.get("last_saved_slot") != null else -1
-		last_saved = int(l)
-	var marker := " ★" if last_saved == slot else ""
+	var last_touched := _get_last_touched_slot(gsm)
+	var marker := " ★" if last_touched == slot else ""
 	if gsm and "save_load" in gsm:
 		var info = gsm.save_load.peek_save_slot(slot)
 		if info and typeof(info) == TYPE_DICTIONARY and info.get("exists", false):
 			return "%s%s" % [str(info.get("summary", "saved")), marker]
 		return "empty"
-	if last_saved == slot:
-		return "last saved ★"
+	if last_touched == slot:
+		return "last touched ★"
 	return "—"
 
 
@@ -988,6 +989,11 @@ func _on_action_f() -> void:
 	if _new_peeking:
 		_toggle_new_peek()
 		return
+	# Run tab: F = continue without saving (R is save & resume; F is the
+	# force-equivalent — same play-the-game gesture, skipping the autosave).
+	if _current_tab == Tab.RUN:
+		_on_resume_pressed()
+		return
 	# Otherwise: no-op. The chip shows "—". Sim is already paused; nothing to page.
 
 
@@ -1182,13 +1188,12 @@ func _autosave_before_action(action: int) -> void:
 
 func _pick_auto_save_slot(gsm, action: int) -> int:
 	if action == PendingAction.RESTART:
+		var touched := _get_last_touched_slot(gsm)
+		if touched >= 0:
+			return touched
 		var checkpoint = gsm.get("session_load_slot") if gsm.get("session_load_slot") != null else -1
-		var preferred = gsm.get("last_saved_slot") if gsm.get("last_saved_slot") != null else -1
-		if int(preferred) >= 0 and int(preferred) != int(checkpoint):
-			return int(preferred)
-		for s in range(NUM_KEEP_SLOTS):
-			if int(s) != int(checkpoint):
-				return s
+		if int(checkpoint) >= 0:
+			return int(checkpoint)
 		return 0
 	var last = gsm.get("last_saved_slot") if gsm.get("last_saved_slot") != null else -1
 	return int(last) if int(last) >= 0 else 0
@@ -1206,8 +1211,9 @@ func _on_resume_pressed() -> void:
 func _save_and_resume() -> void:
 	var gsm = InstrumentLocator.resolve_game_state_manager(self)
 	if gsm and "save_load" in gsm:
-		var last = gsm.get("last_saved_slot") if gsm.get("last_saved_slot") != null else -1
-		var slot := int(last) if int(last) >= 0 else 0
+		var slot := _get_last_touched_slot(gsm)
+		if slot < 0:
+			slot = 0
 		gsm.save_load.save_game(slot)
 		save_pressed.emit()
 	_on_resume_pressed()
@@ -1275,6 +1281,27 @@ func _current_music_volume() -> float:
 	if music and music.has_method("get_volume"):
 		return float(music.get_volume())
 	return DEFAULT_VOLUME
+
+
+func _get_last_touched_slot(gsm) -> int:
+	if not gsm:
+		return -1
+	if gsm.has_method("find_best_save_slot"):
+		return int(gsm.find_best_save_slot())
+	var last_active: int = int(gsm.get("last_active_slot")) if gsm.get("last_active_slot") != null else -1
+	if int(last_active) >= 0:
+		return int(last_active)
+	var last_saved: int = int(gsm.get("last_saved_slot")) if gsm.get("last_saved_slot") != null else -1
+	return int(last_saved) if int(last_saved) >= 0 else -1
+
+
+func _get_last_touched_info(gsm, slot: int) -> Dictionary:
+	if slot < 0 or not gsm or not ("save_load" in gsm):
+		return {}
+	var info = gsm.save_load.peek_save_slot(slot)
+	if info and typeof(info) == TYPE_DICTIONARY and info.get("exists", false):
+		return info
+	return {}
 
 
 
