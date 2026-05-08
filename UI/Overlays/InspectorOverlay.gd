@@ -49,6 +49,12 @@ const NETWORK_KEYCODES := {
 }
 const NETWORK_MAX_VISIBLE: int = 6
 
+# TYUIOP slot keycodes — Map frame consumes these for slot selection
+# (frame-local override; see KEYBOARD_GRAMMAR.md "Action × Selection algebra").
+const SLOT_KEYCODES := {
+	KEY_T: 0, KEY_Y: 1, KEY_U: 2, KEY_I: 3, KEY_O: 4, KEY_P: 5,
+}
+
 const COLOR_HEADER := Color(0.85, 0.92, 1.0)
 const COLOR_BODY := Color(0.7, 0.78, 0.88)
 const COLOR_MUTED := Color(0.55, 0.6, 0.7)
@@ -160,7 +166,7 @@ func _refresh_label() -> void:
 				edge_b,
 			]
 		elif frame_id == FRAME_MAP:
-			subtitle = "Bind biomes to TYUIOP · 1-6 slot · GHJKL; biome · R bind · Q clear"
+			subtitle = "Bind biomes to TYUIOP · TYUIOP slot · GHJKL; biome · R bind · Q clear · [/] leave"
 		_frame_label.text = "[ %s ]  page %s  ·  %s" % [
 			FRAME_LABELS_LOCAL.get(frame_id, frame_id),
 			page_text,
@@ -173,7 +179,7 @@ func _refresh_label() -> void:
 			FRAME_BRIDGES:
 				_hint_label.text = "Bridges show which factions are admitted across multiple biomes."
 			FRAME_MAP:
-				_hint_label.text = "Map binds biomes to TYUIOP keys — 1-6 picks slot, GHJKL; picks biome, R binds, Q clears."
+				_hint_label.text = "Map binds biomes to TYUIOP keys — press the slot key (T..P), pick a biome (G..;), R binds, Q clears. [/] leaves Map."
 			FRAME_LIVE:
 				_hint_label.text = "Ranked by recent chatter activity. E opens the biome inspector."
 			_:
@@ -204,13 +210,15 @@ func _rebuild_body() -> void:
 ## which biome lives on each TYUIOP key (a vertex binding). Together they edit
 ## the inter-biome topology: nodes here, edges there.
 ##
-## Keys (Map frame only):
-##   1 2 3 4 5 6  pick the target slot (1=T, 2=Y, 3=U, 4=I, 5=O, 6=P)
-##   GHJKL;       cursor over the unlocked biome list
-##   W / S        page biomes (when more than 6 unlocked)
-##   R            bind cursor biome → target slot
-##   Q            clear target slot
-##   E            inspect cursor biome inline (reuses biome card)
+## Keys (Map frame only — TYUIOP is consumed for slot picking instead of
+## frame-jumping; see KEYBOARD_GRAMMAR.md "Frame-local TYUIOP override"):
+##   TYUIOP   pick the target slot (T = slot 0 .. P = slot 5)
+##   GHJKL;   cursor over the unlocked biome list
+##   W / S    page biomes (when more than 6 unlocked)
+##   R        bind cursor biome → target slot (commit)
+##   Q        clear target slot
+##   [ / ]    leave Map (cycle to a sibling frame)
+##   ESC      close N entirely
 func _build_map_view() -> void:
 	_ensure_slot_signal_wired()
 	var biomes := _get_all_biomes()
@@ -237,7 +245,7 @@ func _build_map_view() -> void:
 	_body_box.add_child(hdr)
 
 	var sub := Label.new()
-	sub.text = "1-6 pick slot  ·  GHJKL; pick biome  ·  R bind  ·  Q clear  ·  E inspect"
+	sub.text = "TYUIOP pick slot  ·  GHJKL; pick biome  ·  R bind  ·  Q clear  ·  [/] leave Map"
 	sub.add_theme_font_size_override("font_size", 11)
 	sub.add_theme_color_override("font_color", COLOR_MUTED)
 	sub.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -274,10 +282,10 @@ func _make_map_slot_row(slot_idx: int, abm) -> Control:
 	var slot_key: String = abm.get_slot_key(slot_idx) if abm != null and abm.has_method("get_slot_key") else "?"
 	var bound: String = abm.get_biome_for_slot(slot_idx) if abm != null and abm.has_method("get_biome_for_slot") else ""
 	var key_lbl := Label.new()
-	key_lbl.text = "[%d·%s]" % [slot_idx + 1, slot_key]
+	key_lbl.text = "[%s]" % slot_key
 	key_lbl.add_theme_font_size_override("font_size", 12)
 	key_lbl.add_theme_color_override("font_color", COLOR_KEY_CHIP if is_target else COLOR_MUTED)
-	key_lbl.custom_minimum_size = Vector2(72, 0)
+	key_lbl.custom_minimum_size = Vector2(40, 0)
 	hbox.add_child(key_lbl)
 	var name_lbl := Label.new()
 	name_lbl.text = ("▸ " if is_target else "  ") + (bound if bound != "" else "—")
@@ -1101,22 +1109,17 @@ func _on_unhandled_key(keycode: int, _event) -> bool:
 				_update_action_labels()
 				_rebuild_body()
 			return true
-	# Map frame: number row 1..6 picks the target TYUIOP slot.
-	if frame_id == FRAME_MAP:
-		var slot_num: int = -1
-		match keycode:
-			KEY_1: slot_num = 0
-			KEY_2: slot_num = 1
-			KEY_3: slot_num = 2
-			KEY_4: slot_num = 3
-			KEY_5: slot_num = 4
-			KEY_6: slot_num = 5
-		if slot_num >= 0:
-			_map_target_slot = slot_num
-			_update_action_labels()
-			_rebuild_body()
-			return true
-	return false
+	# Map frame: TYUIOP is consumed for slot picking — frame-local override
+	# of the surface's normal frame-jump dispatch. Returning true keeps the
+	# press from reaching super._on_unhandled_key (which would jump frames).
+	# Players leave Map via [/] or ESC.
+	if frame_id == FRAME_MAP and SLOT_KEYCODES.has(keycode):
+		_map_target_slot = int(SLOT_KEYCODES[keycode])
+		_update_action_labels()
+		_rebuild_body()
+		return true
+	# Defer to base Surface for TYUIOP frame-jumping on every other frame.
+	return super._on_unhandled_key(keycode, _event)
 
 
 func _on_action_q() -> void:
