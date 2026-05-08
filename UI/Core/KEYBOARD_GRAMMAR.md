@@ -8,68 +8,86 @@ update this doc on the next pass.
 
 ---
 
-## Six keys span 4D
+## Eight keys, four axes
 
-The grammar resolves into **four orthogonal 1D axes**, with six keys
-covering them. Every menu, every tool, every surface uses the same six
-keys with the same axial meaning. What differs per surface is *what
-content lives along which axis*, never which key navigates.
+The grammar resolves into **four orthogonal 1D axes**, with eight keys
+(QERF + WASD) covering them. Every menu, every tool, every surface uses
+the same eight keys with the same axial meaning. What differs per
+surface is *what content lives along which axis*, never which key
+navigates.
 
 ```
                        F   (t axis: time forward / play / flatten)
                        ↑
-   Q ← ← ←   ●   → → → R     (z axis: screw out / less depth | screw in / more depth)
+   Q ← ← ←   ●   → → → R     (depth axis: screw out / screw in)
                        ↓
                        E   (t axis: time stop / inspect / snapshot)
 
-   A ← ← ●  → → D            (x axis: left / right within the surface plane)
-   W (up) ↕ S (down)         (y axis: up / down within the surface plane)
+                       W   (selection axis: move OUTWARDS one layer)
+                       ↑
+   A ← ← ●  → → D            (selection axis: step prev / next ACROSS the focused layer)
+                       ↓
+                       S   (selection axis: move INWARDS one layer)
 ```
 
-- **A ↔ D** — first spatial axis (left/right; horizontal in the surface plane).
-- **W ↔ S** — second spatial axis (up/down; vertical in the surface plane).
-- **Q ↔ R** — third spatial axis. **Depth, screwed via the right-hand rule.**
-  Q = screw out / one level shallower. R = screw in / one level deeper. **Not item navigation** — items are picked along x and y.
-- **E ↔ F** — temporal axis. E stops time and snapshots; F lets time flow and flattens the snapshot.
+- **A ↔ D** — step prev / next across the focused selection layer
+  (the layer the cursor is currently parked on).
+- **W ↔ S** — move the cursor outward / inward across the nested
+  selection hierarchy (4-0 hat → TYUIOP biome → GHJKL; plot).
+- **Q ↔ R** — depth, screwed via the right-hand rule. Q = screw out
+  / one level shallower. R = screw in / one level deeper. **Not list
+  navigation** — picking items lives on WASD.
+- **E ↔ F** — temporal axis. E stops time and snapshots; F lets
+  time flow and flattens the snapshot.
 
-Three spatial axes (xyz) + one time axis (t) = **4D**. Six keys, four 1D
-flows. WASD picks position in the surface plane; Q/R drills depth; E/F
-toggles snapshot/flow.
+Three orthogonal 1D flows (selection-layer-cursor + step-across,
+information-depth, time) cover the geometry. The "4D" framing is
+metaphorical — Q/R is not a physical z-axis, it's information depth.
+What matters is that no two keys do the same job.
 
 ---
 
 ## The four spatial rows
 
 ```
-  4 5 6 7 8 9 0   ← archetype hat row: pick the active frame
-  1 2 3           ← sub-mode within the current frame
-  T Y U I O P     ← biome row: 6 biome slots (direct jump)
-  G H J K L ;     ← plot row: 6 plot slots (direct jump)
-  W A S D         ← crawl pad: ±1 step in the biome × plot grid
+  1 2 3           ← sub-mode (axis selector for Q/R; action layer)
+  4 5 6 7 8 9 0   ← outer selection: hat / archetype scope
+  T Y U I O P     ← middle selection: biome row (6 slots, direct jump)
+  G H J K L ;     ← inner selection: plot row (6 slots, direct jump)
+  W A S D         ← crawl the 3-tier selection (W out / S in / A,D across)
 ```
 
-- **`4`–`9, 0`** select the **archetype frame** (the outermost level of the
-  keyboard hierarchy — see `docs/ARCHETYPE_FRAMES.md`):
-  `4`=Spark (pole shift: spend pole emoji → shove qubit),
-  `5`=Icon (icon-injection from your faction signature),
-  `6`=Merchant (faction contracts: drain=treaty/transfer=broker/pump=tribute),
-  `7`=Captain (biome lifecycle: discover/cull),
-  `8`=Ace (probe: explore/measure/pop),
-  `9`=Operator (gate building: build/inspect/break),
-  `0`=Druid (Unitary: X/Y/Z rotations, Hadamard).
-  Re-pressing the active hat toggles back to **Ace** (no hat = default toolkit).
+- **`4`–`9, 0`** select the **archetype hat** (see
+  `docs/ARCHETYPE_FRAMES.md`). The hat carries **two roles** that the
+  player presses one row of keys for:
+    *Action role* — picks the active toolkit verbs (Q/E/R/F mapping):
+    `4`=Spark, `5`=Icon, `6`=Merchant, `7`=Captain, `8`=Ace,
+    `9`=Operator, `0`=Druid.
+    *Selection role* — the OUTERMOST tier of the 3-tier selection
+    hierarchy (4-0 / TYUIOP / GHJKL;). Future: also gates which biomes
+    appear in the TYUIOP pool, so the hat is a "world view."
+  Sticky in both senses. Re-pressing the active hat toggles back to
+  **Ace** (no hat = default toolkit).
 - **`1`–`3`** select the **sub-mode within the current frame** — i.e.,
   which axis the depth verbs `Q/R` operate along (see *Action × Selection
   algebra* below). `E/F` stays on the time axis regardless of sub-mode.
-  Frames with fewer sub-modes ignore unused slots; frames with more
-  expose the rest via Tab.
-- **`T-Y-U-I-O-P`** = direct-jump to biome slot 1–6.
-- **`G-H-J-K-L-;`** = direct-jump to plot slot 1–6 within the active biome.
-  (Left-to-right; diverges from the legacy right-to-left HOMEROW_KEYS index.)
-- **`W A S D`** crawls the biome × plot grid by ±1, mirroring menu nav:
-  - `A` / `D` = previous / next plot in the active biome
-  - `W` / `S` = previous / next biome
-- **`'`** = select / clear all (gameplay + future menu bulk-select).
+- **`T-Y-U-I-O-P`** = MIDDLE selection. At gameplay, biome slot 1–6.
+  At an open surface, frame slots 1–6 within that surface.
+- **`G-H-J-K-L-;`** = INNER selection. At gameplay, plot slot 1–6
+  within the active biome. At a surface, item slots within the active
+  frame. (Left-to-right; diverges from the legacy right-to-left
+  HOMEROW_KEYS index.)
+- **`W A S D`** crawls the 3-tier selection block:
+  - `W` / `S` = move the cursor OUTWARDS / INWARDS across the
+    layer hierarchy (plot ↔ biome ↔ hat).
+  - `A` / `D` = step prev / next ACROSS the focused layer.
+  - WASD covers the whole 4-0 / TYUIOP / GHJKL; block, so
+    `[ / ]` is not needed for selection cycling and is unbound.
+- **`'`** = bulk select / clear all in the inner layer (all plots in
+  the active biome; future menu bulk-select).
+- **`-`** / **`=`** = simulation granularity / speed
+  (slow-down / speed-up). See *Modifiers* below for shift-modifier
+  variants.
 
 ---
 
@@ -78,8 +96,8 @@ toggles snapshot/flow.
 Every player input is a composition of two orthogonal layers:
 
 ```
-  ACTION:    (frame: 4-0)  (axis: 1-3)  (verb: Q E R F)
-  SELECTION: (outer: T Y U I O P)       (inner: G H J K L ;)
+  ACTION:    (axis: 1-3)  (verb: Q E R F)
+  SELECTION: (outer: 4-0)  (middle: T Y U I O P)  (inner: G H J K L ;)
 ```
 
 The action layer answers *what verb am I firing*. The selection layer
@@ -90,47 +108,55 @@ needs a fresh keypress per action.
 ### Action layer
 
 ```
-  4 5 6 7 8 9 0   active frame (Spark / Icon / Merchant / Captain /
-                  Ace / Operator / Druid). Sticky — re-pressing the
-                  active hat toggles back to Ace (the default toolkit).
+  1 2 3       sub-mode within the active hat. Selects WHICH AXIS the
+              depth verbs Q/R operate on. Sticky. Frames with fewer
+              sub-modes ignore unused slots.
 
-  1 2 3           sub-mode within the active frame. Selects WHICH AXIS
-                  the depth verbs Q/R operate on. Sticky.
-
-  Q E R F         the verb quartet:
-                    Q ↔ R  depth (screw out / screw in)
-                            REMAPPED by the 1/2/3 sub-mode.
-                    E ↕ F  time (pause+inspect / play+flatten)
-                            INVARIANT — sub-mode does NOT remap E/F.
+  Q E R F     the verb quartet:
+                Q ↔ R   depth (screw out / screw in)
+                         REMAPPED by the 1/2/3 sub-mode.
+                E ↕ F   time (pause+inspect / play+flatten)
+                         INVARIANT — sub-mode does NOT remap E/F.
 ```
-
-The 4-0 hat row is normally a frame selector. Surfaces with a content
-axis larger than three sub-modes may also use 4-0 as in-frame action
-variants — same row, same physical region, no new keys to learn.
 
 Action-space size in the live game:
 
 ```
-  3 sub-modes × 2 (Q vs R) per frame  =  6 depth verbs per frame
-  7 frames × 6                         = 42 archetypal verbs
+  3 sub-modes × 2 (Q vs R) per hat   =  6 depth verbs per hat
+  7 hats × 6                          = 42 archetypal verbs
   + the always-on E/F pair on top of every one of them
 ```
 
-### Selection layer
+### Selection layer (3 nested tiers)
 
 ```
-  T Y U I O P   outer axis. At gameplay, biome row.
-                At surfaces, frame slots.
-  G H J K L ;   inner axis. At gameplay, plot row inside the active
-                biome. At surfaces, item slots inside the active frame.
-  W A S D       crawl the selection matrix by ±1:
-                  A / D  prev / next inner slot
-                  W / S  prev / next outer slot
+  4 5 6 7 8 9 0   OUTER  — hat / archetype scope. Sticky.
+                  Currently selects the active toolkit (the action
+                  layer's "frame"). Future: also gates which biomes
+                  appear in the TYUIOP pool, so the hat is the player's
+                  "world view" — both what verbs are available AND what
+                  subject matter is in scope. The hat row carries
+                  this dual role on a single keystroke.
+
+  T Y U I O P     MIDDLE — biome row at gameplay; frame slots inside an
+                  open surface. Sticky.
+
+  G H J K L ;     INNER  — plot row inside the active biome at gameplay;
+                  item slots inside the active frame in a surface.
+                  Sticky.
+
+  W A S D         crawl pad — navigates the layer cursor and steps
+                  within the focused layer:
+                    W   move cursor OUTWARDS    (plot → biome → hat)
+                    S   move cursor INWARDS     (hat → biome → plot)
+                    A   step PREV across the focused layer
+                    D   step NEXT across the focused layer
 ```
 
-The selection matrix is a 6×6 lattice. Direct-jump along either axis
-with the row keys; crawl with WASD. Both axes are sticky so the player
-can park the cursor and fire verbs without re-selecting.
+WASD covers the entire 3-tier selection block — there is no separate
+cycle pair for it. Direct-jump on a row key teleports the cursor to
+that layer and slot in one keystroke; WASD is the gradual / explicit
+alternative.
 
 ### Frame-local TYUIOP override
 
@@ -141,12 +167,9 @@ slots in N's Map frame — consumes TYUIOP for content selection instead.
 The recursion is intentional: the frame for editing TYUIOP is *addressed
 by* TYUIOP.
 
-Players exit such a frame via:
-
-```
-  [ / ]   cycle to a sibling frame within the same surface
-  ESC     close the surface entirely
-```
+To exit such a frame, use WASD: `W` moves the cursor OUTWARDS to the
+surface-frame layer, then `A`/`D` steps to a sibling frame.
+Alternatively `ESC` closes the surface entirely.
 
 This is the rare exception. Most surfaces leave TYUIOP on its default
 frame-jump duty.
@@ -202,10 +225,18 @@ and "resume" lives on R: quit = unscrew yourself from the session; resume
 
 **Q/R is not list navigation.** Stepping between items in a card grid,
 between rows in a table, or between slots in a row uses **WASD** — A/D
-on x, W/S on y. Q/R operates orthogonally on the *depth* axis: open the
-focused thing's interior with R, back out with Q. A surface that wires
-Q/R to "previous / next item" is conflating the x and z axes — fix the
-binding, not the doc.
+to step across the focused layer, W/S to move outwards/inwards across
+the selection hierarchy. Q/R operates orthogonally on the *depth* axis:
+open the focused thing's interior with R, back out with Q. A surface
+that wires Q/R to "previous / next item" is conflating the depth axis
+with the selection layer — fix the binding, not the doc.
+
+**Allowed exception — 2D viewport view-control.** When a surface frame
+is itself a 2D viewport (M's Atlas page renders a biome × faction
+cluster), Q/R may adjust orbit / pan / zoom locally. The verbs are
+acting on a continuous view, not on a list — the depth/screw metaphor
+still applies (R = zoom in / pull closer; Q = zoom out / push away).
+List-stepping on Q/R remains forbidden everywhere.
 
 **Physical note:** R and F are adjacent on the keyboard — both sit on the
 right side of the QERF cluster. They are the "go" keys. Q and E are on the
@@ -474,90 +505,118 @@ There is no QERF "back" key. Two paths instead:
   biome × faction cluster view only when `M` is on its Atlas page. That does
   not change the global QERF grammar; it is surface-local view control.
 
-`,` / `.` cycle through the menu ring without leaving it; `[` / `]`
-cycle frames within an open surface.
+`,` / `.` cycle through the menu ring (Z X C V B N M sibling surfaces)
+without leaving the open one. WASD covers within-surface navigation
+(crawl the 3-tier selection block); the row keys (4-0 / TYUIOP /
+GHJKL;) direct-jump to a slot.
 
 ### Surface roles
 
-- **Z** (and ESC) is the **system surface**: save/load, scenarios,
-  settings, dev, plus the verbs reference. "Which save file? Which
-  truth?" — the most-personal layer (which player, which life).
-  Tabs: Now (T) · Save (Y) · New (U) · Verbs (I) · Dev (O).
-- **X** is the **playthrough surface**: this run's identity, story,
-  economy, and how-to-play. Tabs: Self (T, full faction standings) ·
-  Story (Y, activity feed + arc beats + berry phase) · — (U, empty;
-  live quests live on C) · Balance (I) · Guide (O).
-- **C** is the **quest pipeline** — manifold (T, physics tracer),
-  market (Y, offer pool with sort modes 1/2/3), commitments
-  (U, with 1=Active / 2=History sub-mode), arc (I, story flag timeline
-  with predicate progress).
+- **Z** (and ESC) is the **system surface** (EscapeMenu) — Run / Keep /
+  New / Levels / Dev. Save/load, scenarios, settings, dev tools.
+- **X** is the **playthrough/self surface** — Self / Story / Verbs /
+  Chatter / Guide. Player faction posture, story trajectory, vocabulary,
+  and how-to-play. Built on ControlsOverlay.
+- **C** is the **quest pipeline** — manifold / market / commitments /
+  arc. Receives pair-scope handoffs from N's Network frame.
 - **V** is the context-free vocabulary atlas: atoms, icons, signatures,
   affinities, and relations, stripped of biome-local execution.
 - **B** is the biome microscope: `supports` for the active plot, `whole`
   for the whole-biome summary, and `matrix` / `probabilities` /
-  `subspace` / `eigen` for the math lens. `gates` / `links` are local
-  structure pages.
-- **N** is the biome network and dissipation surface. It owns the live
-  network view and the dissipation handoff path.
-- **M** is the global biome × faction map. It stays on cross-biome /
-  cluster-scale views, not local plot analysis.
+  `subspace` / `eigen` for the math lens.
+- **N** is the biome-to-biome **Lindbladian network** — Network (live
+  tensor edges), Bridges (lateral structure), Map (TYUIOP slot binding),
+  Live (chatter activity).
+- **M** is the global biome × faction map. Cross-biome / cluster-scale
+  views, not local plot analysis.
+
+The Z↔X swap (Z = system, X = self) landed in the recent refactor;
+older comments and memory entries that put the system menu on X are
+stale.
 
 ---
 
 ## Pagination and surface cycling
 
-- **`[` / `]`** cycle the active surface's `frame_ids` (and biomes
-  when no surface is open). PlayerShell routes these.
 - **`T` / `Y` / `U` / `I` / `O` / `P`** direct-jump to page slots in
   the current surface when that surface exposes enough pages. Surfaces
-  with fewer pages ignore the unused slots; surfaces with more pages use
-  `[` / `]` for the remainder. **Exception**: a frame whose explicit
-  purpose is to manipulate the TYUIOP axis itself may consume TYUIOP for
-  content selection instead of frame-jumping — see *Frame-local TYUIOP
-  override* under *Action × Selection algebra*. In that case, leave the
-  frame via `[` / `]` or `ESC`.
-- **`M` Atlas page**: `Q` / `R` adjust orbit and zoom locally for the
-  cluster view. Other `M` pages leave `Q` / `R` empty.
-- **`,` / `.`** cycle through top-level menu overlays.
-- **`Tab`** cycles the **sub-mode within the current frame** in the
-  live game. Direct sub-mode pick is on `1`-`3`.
+  with fewer pages ignore the unused slots. **Exception**: a frame
+  whose explicit purpose is to manipulate the TYUIOP axis itself may
+  consume TYUIOP for content selection — see *Frame-local TYUIOP
+  override*. To exit such a frame use WASD (W out, A/D step) or ESC.
+- **`,` / `.`** cycle through top-level menu overlays (the Z X C V B N M
+  ring) without leaving the open one. Pure meta-nav between sibling
+  surfaces — not a selection-layer step.
+- **`Tab`** cycles the **sub-mode** (1-3) within the current hat. The
+  axis-cycling counterpart that WASD doesn't reach (WASD only crawls
+  the selection block, not the action layer's sub-mode).
+- **`M` Atlas page** uses `Q` / `R` for orbit / zoom locally — surface-
+  local view control on a 2D viewport, not list nav.
+- **`[` / `]`**, **`` ` ``**, **`\\`**, **`/`** are unbound. WASD already
+  covers the whole 4-0 / TYUIOP / GHJKL; selection block, so a separate
+  cycle pair would be redundant; `[/]` would gain no functionality
+  sitting next to TYUIOP for direct-jump anyway.
 - **`F`** does not appear in this list. F is a verb (play / flatten);
-  navigation belongs to brackets, commas, and Tab.
+  navigation belongs to commas, Tab, and WASD.
+
+PlayerShell.gd (`UI/PlayerShell.gd:188-237`) owns the routing for
+`,/.`, TAB, and WASD. Direct-jump dispatch for the row keys
+(4-0 / TYUIOP / GHJKL;) lives in the active surface or in the
+gameplay input handler.
 
 ---
 
 ## Modifiers
 
 - **`Shift + Q/E/R`** applies the verb to **every checked plot at once**
-  (bulk).
-- **`Shift + ±/=`** changes resolution (finer / coarser substeps).
-- **`Shift + R`** = "Mass Pop" (alias for shift+R bulk).
+  (bulk). `Shift + R` is the canonical "Mass Pop."
+- **`-` / `=`** = simulation granularity / speed. `-` slows the sim
+  (coarser substeps); `=` speeds it up (finer substeps). Bare keys, no
+  modifier required — they sit at the right end of the number row,
+  away from the action region, so accidental presses are uncommon.
+- **`Shift + -` / `Shift + =`** = larger granularity step (multiplicative
+  jump rather than additive).
+- **`'`** (apostrophe) = bulk select / clear all in the inner layer
+  (toggle). Not a modifier strictly, but it lives on the same row of
+  meaning ("apply to many at once").
 
 ---
 
 ## Reserved / out-of-grammar
 
-- **`ESC`**: close the topmost overlay (back one level). Repeat to
-  unwind the whole stack. In the main game, ESC opens **Z** (the system
-  menu — same as pressing Z). This is the only "back" key — F does not unwind.
-- **`Enter` / `Space`**: confirm / activate the selected item in menus.
-- **`Backspace`**: unbound (reserved for future).
+| Key | Role |
+|---|---|
+| `ESC` | Close topmost overlay (back one level). At gameplay, opens Z (system menu). The only "back" key — F does not unwind. |
+| `Enter` / `Space` | Confirm / activate the selected item in menus. |
+| `Backspace` | Reserved (no binding). |
+| `[` / `]` | Reserved (no binding). WASD already crawls the whole selection block; `[/]` next to TYUIOP would gain no functionality. |
+| `` ` `` (backtick) | Reserved (no binding). |
+| `\` (backslash) | Reserved (no binding). |
+| `/` (slash) | Reserved (no binding). |
+
+The `[/]` `` ` `` `\` `/` keys are deliberately left as no-ops. WASD's
+crawl + the row keys' direct-jump cover the entire selection space; an
+extra cycle pair would either duplicate WASD or scatter functionality
+into a less-discoverable place. Future features that need a binding
+should claim from this reserved set rather than overloading an
+existing key.
 
 ---
 
 ## Why this grammar
 
-**Six keys, four axes, one mental model on every surface.** The whole
-grammar collapses to: WASD picks position in the surface plane (xy),
-Q/R drills depth (z, screwed by the right-hand rule), E/F flips the
-time axis (t — snapshot vs flow). Three spatial axes plus one time
-axis, six keys.
+**Eight keys, four axes, one mental model on every surface.** The
+grammar collapses to: WASD crawls the 3-tier selection block (W out,
+S in, A/D step across), Q/R drills depth (screwed by the right-hand
+rule), E/F flips the time axis (snapshot vs flow). Selection layer +
+information depth + time = three orthogonal flows; WASD + QERF = eight
+keys.
 
-The four spatial rows give the player a consistent geometry: the top
-hat row (`4`-`0`) picks an archetype frame, `1`-`3` picks a sub-mode
-within that frame, biome row picks a world, plot row picks a target,
-WASD crawls between them. The QERF quartet gives the remaining two axes:
-Q/R on depth, E/F on time.
+The four spatial rows give the player a consistent geometry: 4-0 picks
+the outer scope (hat / archetype), 1-3 picks the action axis within
+the active hat, TYUIOP picks the middle slot (biome or surface frame),
+GHJKL; picks the inner slot (plot or item), WASD crawls between them.
+The QERF quartet gives depth and time: Q/R on depth, E/F on time.
 
 **Q and R encode direction in the world, not just on a list.** Pressing
 Q unthreads you from the simulation — you are leaving, retreating,
@@ -603,8 +662,9 @@ has to share keys with the action grammar.
 
 Sub-mode cycling lives on Tab + direct numbers (`1`-`3`) because F has
 a real semantic (play / flatten) and cannot be a navigation key.
-Pagination already has `[` / `]` and `,` / `.` — adding F to that list
-would be one key doing three unrelated jobs.
+Selection cycling lives on WASD + the row keys; `,` / `.` cycles the
+top-level menu ring. Adding F to any of those lists would be one key
+doing three unrelated jobs.
 
 ---
 
@@ -621,10 +681,7 @@ would be one key doing three unrelated jobs.
    running sim, does F page the text AND clear the pause flag, or only
    page the text? Lean toward "page-only" — text takes priority, sim
    pause is implicit while dialogue is up.
-4. **Z reframe.** Balance frame moves from X to Z; Z grows character
-   sheet / tutorial / social. Mechanical refactor in a separate pass;
-   see `project_z_personal_space.md` memory.
-5. **QF chord discoverability.** The force-quit path (QF) is not
+4. **QF chord discoverability.** The force-quit path (QF) is not
    surfaced anywhere during normal play — only appears as a verb chip
    in the quit-confirm screen. This is correct (it should be hard to
    find accidentally), but may need a one-time tutorial note.
