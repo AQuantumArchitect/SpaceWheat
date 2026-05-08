@@ -11,11 +11,12 @@ const InputBindingRegistry = preload("res://UI/Core/InputBindingRegistry.gd")
 ## Now integrates with ObservationFrame for spindle-based navigation.
 ## The ObservationFrame is the source of truth for which biome is "neutral".
 ##
-## Keyboard (new layout):
-##   7890 = UP row (parent biome)
-##   TYUIOP = slot row (assigned spindle biomes)
-##   plot row = current biome plots (see shared input binding registry)
-##   - = Previous biome, = = Next biome
+## Keyboard (per UI/Core/KEYBOARD_GRAMMAR.md):
+##   TYUIOP = middle selection row (assigned biome slots)
+##   GHJKL; = inner selection row (current biome plots)
+##   WASD   = crawl pad (W out / S in / A,D step across)
+## Direct biome selection happens via TYUIOP; - / = are reserved for
+## sim-speed (no longer biome-cycle).
 ##
 ## Signals emitted for UI updates (background, tabs, plot display, quantum graph)
 
@@ -145,19 +146,6 @@ func select_biome_by_key(keycode: int) -> bool:
 		set_active_biome(biome_name, direction)
 		return true
 
-	return false
-
-
-func handle_cycle_input(keycode: int) -> bool:
-	# Handle biome cycling keys (- and =)
-	#
-	# Returns: true if key was handled, false otherwise
-	if keycode == KEY_MINUS:
-		cycle_prev()
-		return true
-	elif keycode == KEY_EQUAL:
-		cycle_next()
-		return true
 	return false
 
 

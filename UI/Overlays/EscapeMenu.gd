@@ -1,10 +1,10 @@
 class_name EscapeMenu
 extends "res://UI/Core/Surface.gd"
 
-## X — System Surface (X key).
+## Z — System Surface (Z key + ESC).
 ##
 ## Keyboard grammar matches the rest of the game:
-##   TYUIO  = tabs (Run / Keep / New / Levels / Dev), same row as biome select
+##   TYUIO  = tabs (Now / Save / New / Settings / Dev), same row as biome select
 ##   GHJKL; = items within the active tab, same row as plot slots
 ##   Q/E/R  = verbs on the current item (rendered as chips inside the panel
 ##            so the off-screen action bar is never load-bearing)
@@ -27,8 +27,9 @@ signal music_volume_changed(volume: float)
 
 const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")
 const BiomeRegistry = preload("res://Core/Biomes/BiomeRegistry.gd")
+const ToolConfig = preload("res://Core/GameState/ToolConfig.gd")
 
-enum Tab { RUN, KEEP, NEW, LEVELS, DEV }
+enum Tab { RUN, KEEP, NEW, LEVELS, DEV, VERBS }
 
 enum PendingAction {
 	NONE,
@@ -40,18 +41,18 @@ enum PendingAction {
 
 # Tab row — TYUIOP slots. We use T Y U I O.
 const TAB_ROW := [
-	{"key": "T", "tab": Tab.RUN,    "name": "Run",    "frame": "run"},
-	{"key": "Y", "tab": Tab.KEEP,   "name": "Save / Load",   "frame": "save_load"},
-	{"key": "U", "tab": Tab.NEW,    "name": "New",    "frame": "new_game"},
-	{"key": "I", "tab": Tab.LEVELS, "name": "Levels", "frame": "accessibility"},
-	{"key": "O", "tab": Tab.DEV,    "name": "Dev",    "frame": "dev"},
+	{"key": "T", "tab": Tab.RUN,   "name": "Now",   "frame": "run"},
+	{"key": "Y", "tab": Tab.KEEP,  "name": "Save",  "frame": "save_load"},
+	{"key": "U", "tab": Tab.NEW,   "name": "New",   "frame": "new_game"},
+	{"key": "I", "tab": Tab.VERBS, "name": "Verbs", "frame": "verbs"},
+	{"key": "O", "tab": Tab.DEV,   "name": "Dev",   "frame": "dev"},
 ]
 
 const TAB_BY_KEYCODE := {
 	KEY_T: Tab.RUN,
 	KEY_Y: Tab.KEEP,
 	KEY_U: Tab.NEW,
-	KEY_I: Tab.LEVELS,
+	KEY_I: Tab.VERBS,
 	KEY_O: Tab.DEV,
 }
 
@@ -98,23 +99,33 @@ const SETTINGS_ROW := [
 const FRAME_RUN := "run"
 const FRAME_SAVE_LOAD := "save_load"
 const FRAME_NEW_GAME := "new_game"
-const FRAME_ACCESSIBILITY := "accessibility"
+const FRAME_ACCESSIBILITY := "accessibility"  # orphan: kept for music_volume signal continuity
+const FRAME_VERBS := "verbs"
 const FRAME_DEV := "dev"
 
 const TAB_TO_FRAME := {
 	Tab.RUN: FRAME_RUN,
 	Tab.KEEP: FRAME_SAVE_LOAD,
 	Tab.NEW: FRAME_NEW_GAME,
-	Tab.LEVELS: FRAME_ACCESSIBILITY,
+	Tab.LEVELS: FRAME_ACCESSIBILITY,  # orphan
+	Tab.VERBS: FRAME_VERBS,
 	Tab.DEV: FRAME_DEV,
 }
 const FRAME_TO_TAB := {
 	FRAME_RUN: Tab.RUN,
 	FRAME_SAVE_LOAD: Tab.KEEP,
 	FRAME_NEW_GAME: Tab.NEW,
-	FRAME_ACCESSIBILITY: Tab.LEVELS,
+	FRAME_ACCESSIBILITY: Tab.LEVELS,  # orphan
+	FRAME_VERBS: Tab.VERBS,
 	FRAME_DEV: Tab.DEV,
 }
+
+# Verbs tab — 7 archetype frames; GHJKL; selects which (matches hat row 4-0).
+const VERBS_ITEMS := ["Spark", "Icon", "Merchant", "Captain", "Ace", "Operator", "Druid"]
+const VERBS_FRAME_ORDER: Array = [
+	"spark", "icon", "merchant", "captain", "ace", "operator", "druid",
+]
+const VERBS_HAT_KEYS: Array = ["4", "5", "6", "7", "8", "9", "0"]
 
 # Palette
 const COLOR_TAB_ACTIVE := Color(1.0, 0.9, 0.3, 1.0)
@@ -137,7 +148,8 @@ var _keep_peeking: bool = false  # E toggles expanded save-slot inspector
 var _run_peeking: bool = false   # E toggles expanded run-stats inspector
 var _new_item: int = 0           # selected scenario index in New tab
 var _new_peeking: bool = false   # E toggles scenario detail panel
-var _level_item: int = 0
+var _level_item: int = 0  # orphan: LEVELS tab no longer reachable
+var _verbs_item: int = 0  # 0..6 → archetype frame index (Spark..Druid)
 var _dev_action_idx: int = 0
 
 # UI refs.
@@ -165,8 +177,8 @@ func _init() -> void:
 	navigation_mode = NavigationMode.CALLBACK
 	use_scroll_container = false
 	content_spacing = 8
-	surface_id = "X"
-	frame_ids = [FRAME_RUN, FRAME_SAVE_LOAD, FRAME_NEW_GAME, FRAME_ACCESSIBILITY, FRAME_DEV]
+	surface_id = "Z"
+	frame_ids = [FRAME_RUN, FRAME_SAVE_LOAD, FRAME_NEW_GAME, FRAME_VERBS, FRAME_DEV]
 	frame_id = TAB_TO_FRAME.get(_current_tab, FRAME_RUN)
 
 
@@ -340,7 +352,8 @@ func _refresh_body() -> void:
 		Tab.RUN:    _build_run_body()
 		Tab.KEEP:   _build_keep_body()
 		Tab.NEW:    _build_new_body()
-		Tab.LEVELS: _build_levels_body()
+		Tab.LEVELS: _build_levels_body()  # orphan: no longer reachable via tab keys
+		Tab.VERBS:  _build_verbs_body()
 		Tab.DEV:    _build_dev_body()
 
 
@@ -373,10 +386,11 @@ func _current_verb_labels() -> Dictionary:
 	match _current_tab:
 		Tab.RUN:
 			var run_label := "inspect ▾" if not _run_peeking else "—"
+			var loaded_game := _has_loaded_game()
 			# F: when peek is open, F flattens it. Otherwise F = continue
 			# without saving (force-equivalent of R's "save & resume").
-			var run_f := "flatten" if _run_peeking else "continue"
-			return {"Q": "quit", "E": run_label, "R": "save & resume", "F": run_f}
+			var run_f := "flatten" if _run_peeking else ("continue" if loaded_game else "play")
+			return {"Q": "quit", "E": run_label, "R": "save & resume" if loaded_game else "", "F": run_f}
 		Tab.KEEP:
 			var peek_label := "inspect ▾" if not _keep_peeking else "—"
 			return {"Q": "load slot", "E": peek_label, "R": "save slot", "F": "flatten" if _keep_peeking else ""}
@@ -385,6 +399,8 @@ func _current_verb_labels() -> Dictionary:
 			return {"Q": "", "E": new_peek_label, "R": "start scenario", "F": "flatten" if _new_peeking else ""}
 		Tab.LEVELS:
 			return {"Q": "− value", "E": "reset default", "R": "+ value", "F": ""}
+		Tab.VERBS:
+			return {"Q": "", "E": "", "R": "", "F": ""}
 		Tab.DEV:
 			return {"Q": "", "E": "refresh", "R": "run action", "F": ""}
 	return {}
@@ -428,6 +444,23 @@ func _build_run_body() -> void:
 	_body_box.add_child(_make_kv_row("biomes discovered", biome_count))
 	_body_box.add_child(_make_kv_row("quests active", active_q))
 	_body_box.add_child(_make_kv_row("quests completed", done_q))
+
+	# Session metadata — scenario, load-from-slot, session length.
+	_body_box.add_child(_make_spacer(4))
+	_body_box.add_child(_make_section_header("session"))
+	var scenario_id := str(gsm.current_scenario_id) if gsm and "current_scenario_id" in gsm else "—"
+	_body_box.add_child(_make_kv_row("scenario", scenario_id))
+	if gsm and "session_load_slot" in gsm:
+		var sls := int(gsm.session_load_slot)
+		_body_box.add_child(_make_kv_row("loaded from", "slot %d" % (sls + 1) if sls >= 0 else "fresh start"))
+	# Session length — millis since process start, formatted as h:mm:ss.
+	var ms: int = Time.get_ticks_msec()
+	var total_s: int = ms / 1000
+	var hh: int = total_s / 3600
+	var mm: int = (total_s / 60) % 60
+	var ss: int = total_s % 60
+	_body_box.add_child(_make_kv_row("session length", "%d:%02d:%02d" % [hh, mm, ss]))
+
 	if _run_peeking:
 		_body_box.add_child(_make_spacer(6))
 		_body_box.add_child(_make_run_inspect_panel())
@@ -785,6 +818,81 @@ func _build_dev_body() -> void:
 	_body_box.add_child(_make_muted_label("GHJ pick  ·  W/S nav  ·  E refresh metrics  ·  R run", 11))
 
 
+# Verbs tab — reference documentation for the 7 archetype frames.
+# Pure read-only: shows each frame's QERF action labels and hints.
+func _build_verbs_body() -> void:
+	_body_box.add_child(_make_section_header("pick a frame"))
+	var picker := HBoxContainer.new()
+	picker.add_theme_constant_override("separation", 14)
+	picker.alignment = BoxContainer.ALIGNMENT_CENTER
+	_body_box.add_child(picker)
+	for i in range(VERBS_ITEMS.size()):
+		var key_str := str(ITEM_KEYS[i]) if i < ITEM_KEYS.size() else ""
+		var hat := str(VERBS_HAT_KEYS[i]) if i < VERBS_HAT_KEYS.size() else ""
+		var item := Label.new()
+		item.add_theme_font_size_override("font_size", 13)
+		item.text = "[%s/%s] %s" % [key_str, hat, VERBS_ITEMS[i]]
+		if i == _verbs_item:
+			item.add_theme_color_override("font_color", COLOR_ITEM_ACTIVE)
+		else:
+			item.add_theme_color_override("font_color", COLOR_ITEM_IDLE)
+		picker.add_child(item)
+
+	_body_box.add_child(_make_spacer(6))
+
+	var frame_name: String = VERBS_FRAME_ORDER[_verbs_item] if _verbs_item < VERBS_FRAME_ORDER.size() else ""
+	var frame_def: Dictionary = ToolConfig.get_frame(frame_name)
+	var label_name := str(frame_def.get("name", frame_name))
+	var hat_key := str(VERBS_HAT_KEYS[_verbs_item]) if _verbs_item < VERBS_HAT_KEYS.size() else ""
+	_body_box.add_child(_make_section_header("[%s] %s" % [hat_key, label_name]))
+
+	var mode_name = ToolConfig.get_frame_mode_name(frame_name)
+	var mode_actions: Dictionary = frame_def.get("actions", {}).get(mode_name, {})
+	for key in ["Q", "E", "R", "F"]:
+		var info: Dictionary = mode_actions.get(key, {})
+		var label := str(info.get("label", ""))
+		var hint := str(info.get("hint", ""))
+		if key == "F" and (label == "" or label == "-"):
+			label = "Cancel / drill out"
+			hint = "Closes any open picker; otherwise no-op"
+		if label == "" or label == "-":
+			continue
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 8)
+		var key_lbl := Label.new()
+		key_lbl.text = "[%s]" % key
+		key_lbl.add_theme_font_size_override("font_size", 12)
+		key_lbl.add_theme_color_override("font_color", COLOR_KEY_CHIP)
+		key_lbl.custom_minimum_size = Vector2(28, 0)
+		row.add_child(key_lbl)
+		var verb_lbl := Label.new()
+		verb_lbl.text = label
+		verb_lbl.add_theme_font_size_override("font_size", 12)
+		verb_lbl.add_theme_color_override("font_color", COLOR_ITEM_IDLE)
+		verb_lbl.custom_minimum_size = Vector2(100, 0)
+		row.add_child(verb_lbl)
+		if hint != "":
+			var hint_lbl := Label.new()
+			hint_lbl.text = hint
+			hint_lbl.add_theme_font_size_override("font_size", 11)
+			hint_lbl.add_theme_color_override("font_color", COLOR_MUTED)
+			hint_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			hint_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			row.add_child(hint_lbl)
+		_body_box.add_child(row)
+
+	_body_box.add_child(_make_spacer(4))
+	_body_box.add_child(_make_muted_label(
+		"Reference only — these verbs execute on the tool surface, not here.", 10))
+
+	var modes: Array = frame_def.get("modes", [])
+	if modes.size() > 1:
+		_body_box.add_child(_make_spacer(4))
+		_body_box.add_child(_make_muted_label(
+			"Sub-modes: %s   ·   Tab cycles, 1-%d direct-pick" % [
+				" / ".join(modes), modes.size()], 11))
+
+
 func _make_dev_action_row(idx: int) -> Control:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 10)
@@ -989,10 +1097,10 @@ func _on_action_f() -> void:
 	if _new_peeking:
 		_toggle_new_peek()
 		return
-	# Run tab: F = continue without saving (R is save & resume; F is the
-	# force-equivalent — same play-the-game gesture, skipping the autosave).
+	# Run tab: F = universal continue. Resume if a game is live; otherwise
+	# load the last-touched slot, or start the default scenario.
 	if _current_tab == Tab.RUN:
-		_on_resume_pressed()
+		_continue_or_play()
 		return
 	# Otherwise: no-op. The chip shows "—". Sim is already paused; nothing to page.
 
@@ -1047,6 +1155,10 @@ func _select_item_in_tab(slot: int) -> void:
 			if slot < SETTINGS_ROW.size() and _level_item != slot:
 				_level_item = slot
 				_refresh_body()
+		Tab.VERBS:
+			if slot < VERBS_ITEMS.size() and _verbs_item != slot:
+				_verbs_item = slot
+				_refresh_body()
 		Tab.DEV:
 			if slot < DEV_ACTIONS.size() and _dev_action_idx != slot:
 				_dev_action_idx = slot
@@ -1056,16 +1168,19 @@ func _select_item_in_tab(slot: int) -> void:
 
 
 func _on_navigate(direction: Vector2i) -> void:
+	# Per KEYBOARD_GRAMMAR.md "Selection layer":
+	#   W/S = step OUTER (tabs)
+	#   A/D = step INNER (items within active tab)
 	if _pending_action != PendingAction.NONE:
 		return
-	if direction.x != 0:
-		# A/D cycles tabs.
+	if direction.y != 0:
+		# W/S cycles tabs.
 		var n := TAB_ROW.size()
-		_show_tab(wrapi(_current_tab + signi(direction.x), 0, n))
+		_show_tab(wrapi(_current_tab + signi(direction.y), 0, n))
 		return
-	if direction.y == 0:
+	if direction.x == 0:
 		return
-	var step: int = signi(direction.y)
+	var step: int = signi(direction.x)
 	match _current_tab:
 		Tab.KEEP:
 			_keep_slot = wrapi(_keep_slot + step, 0, NUM_KEEP_SLOTS)
@@ -1077,6 +1192,9 @@ func _on_navigate(direction: Vector2i) -> void:
 			if not SETTINGS_ROW.is_empty():
 				_level_item = wrapi(_level_item + step, 0, SETTINGS_ROW.size())
 				_refresh_body()
+		Tab.VERBS:
+			_verbs_item = wrapi(_verbs_item + step, 0, VERBS_ITEMS.size())
+			_refresh_body()
 		Tab.DEV:
 			_dev_action_idx = wrapi(_dev_action_idx + step, 0, DEV_ACTIONS.size())
 			_refresh_body()
@@ -1208,15 +1326,40 @@ func _on_resume_pressed() -> void:
 	resume_pressed.emit()
 
 
+func _continue_or_play() -> void:
+	# ZTF = continue. With a live game: close menu and resume.
+	# Without one: load the T tab's "last touched" save, or start the default scenario.
+	if _has_loaded_game():
+		_on_resume_pressed()
+		return
+	var gsm = InstrumentLocator.resolve_game_state_manager(self)
+	if gsm == null:
+		return
+	var slot := _get_last_touched_slot(gsm)
+	if slot >= 0 and not _get_last_touched_info(gsm, slot).is_empty() and "save_load" in gsm:
+		deactivate()
+		load_pressed.emit()
+		await gsm.save_load.load_and_apply(slot)
+		return
+	if "session_lifecycle" in gsm:
+		deactivate()
+		gsm.session_lifecycle.request_fresh_restart(false, DEFAULT_RUN_SCENARIO_ID)
+
+
 func _save_and_resume() -> void:
 	var gsm = InstrumentLocator.resolve_game_state_manager(self)
-	if gsm and "save_load" in gsm:
+	if gsm and _has_loaded_game() and "save_load" in gsm:
 		var slot := _get_last_touched_slot(gsm)
 		if slot < 0:
 			slot = 0
 		gsm.save_load.save_game(slot)
 		save_pressed.emit()
 	_on_resume_pressed()
+
+
+func _has_loaded_game() -> bool:
+	var gsm = InstrumentLocator.resolve_game_state_manager(self)
+	return bool(gsm and gsm.active_farm and gsm.current_state)
 
 
 func _save_to_selected_slot() -> void:

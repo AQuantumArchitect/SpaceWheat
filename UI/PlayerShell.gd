@@ -113,15 +113,27 @@ func _mark_input_handled() -> void:
 		vp.set_input_as_handled()
 
 
-## Spawn an ephemeral corner-toast with bbcode text. Used by the Merchant
-## "Tip" verb (and any future quick-feedback action) to whisper a hint to
-## the player without blocking input or stealing focus.
-func show_hint(bbcode_text: String) -> void:
+## Spawn an ephemeral corner-toast. importance: 1=blue, 2=teal, 3=gold.
+## Importance < 2 is logged only; no toast is shown.
+func show_hint(bbcode_text: String, importance: int = 1, path: String = "") -> void:
+	if importance < 2:
+		return
 	if not _hint_toast_stack or not is_inside_tree():
 		return
 	var toast := HintToast.new()
 	_hint_toast_stack.add_child(toast)
-	toast.show_text(bbcode_text)
+	toast.show_text(bbcode_text, importance, path)
+
+
+## Returns the most-recently-spawned live toast, or null.
+func _topmost_toast() -> HintToast:
+	if not _hint_toast_stack:
+		return null
+	var n: int = _hint_toast_stack.get_child_count()
+	if n == 0:
+		return null
+	var node = _hint_toast_stack.get_child(n - 1)
+	return node if node is HintToast else null
 
 
 func _set_global_paused(value: bool) -> void:
@@ -142,6 +154,17 @@ func _handle_shell_action(event: InputEvent) -> bool:
 	# Game overlays (C, V, B, N, M): game content overlays
 	# TAB: current-tool mode-cycle alias (only when no menu active)
 	var keycode = event.keycode
+
+	# Toast grammar: F flattens topmost toast, E pauses its decay.
+	# Only intercepts when a toast is live; falls through to normal F/E otherwise.
+	var top_toast := _topmost_toast()
+	if top_toast != null:
+		if keycode == KEY_F:
+			top_toast.flatten()
+			return true
+		if keycode == KEY_E:
+			top_toast.pause_decay()
+			return true
 
 	# ESC - closes any menu, or opens escape menu if nothing open
 	if keycode == KEY_ESCAPE:
@@ -170,29 +193,31 @@ func _handle_shell_action(event: InputEvent) -> bool:
 		_cycle_menu_overlay(1)
 		return true
 
-	# [ / ] — universal tab cycle. When a Surface is open, cycle its frame_ids;
-	# otherwise cycle the active biome in the main game.
-	if keycode == KEY_BRACKETLEFT:
-		if _any_menu_open():
-			if _cycle_active_surface_frame(-1):
-				return true
-			return false
-		_cycle_active_biome(-1)
+	# - / = — simulation granularity / speed. Stubbed: claims the keys
+	# (so they don't fall through to unrelated handlers) and logs the
+	# intent. Wiring to a real time-scale modifier is a separate ticket;
+	# the per-biome quantum_time_scale pipeline doesn't have a global
+	# multiplier hook yet.
+	if keycode == KEY_MINUS:
+		if _verbose:
+			_verbose.info("input", "🐢", "sim slow (stub — wiring pending)")
 		return true
-	if keycode == KEY_BRACKETRIGHT:
-		if _any_menu_open():
-			if _cycle_active_surface_frame(1):
-				return true
-			return false
-		_cycle_active_biome(1)
+	if keycode == KEY_EQUAL:
+		if _verbose:
+			_verbose.info("input", "🐇", "sim fast (stub — wiring pending)")
 		return true
+
+	# [ / ] are reserved per KEYBOARD_GRAMMAR.md — WASD already crawls the
+	# whole 4-0 / TYUIOP / GHJKL; selection block, so a separate cycle
+	# pair next to TYUIOP would gain no functionality. Intentionally
+	# unhandled here.
 
 	# TAB only works when no menu is active
 	if _any_menu_open():
 		return false
 
 	if keycode == KEY_TAB:
-		_cycle_frame_hat(1)
+		_cycle_sub_mode(1)
 		return true
 
 	# WASD — crawl the 3-layer grid (frame / biome / plot rows).
@@ -227,38 +252,15 @@ func _change_cursor_layer(delta: int) -> void:
 
 
 func _cycle_frame_hat(delta: int) -> void:
+	# Used by step_active_layer when WASD cursor is on the frame layer.
 	if input_handler and input_handler.has_method("cycle_frame_hat"):
 		input_handler.cycle_frame_hat(delta)
 
 
-func _cycle_active_surface_frame(step: int) -> bool:
-	# Cycle the frame_ids of the topmost Surface overlay. Returns true if a
-	# cycle was performed, false if no Surface with frame_ids is on top.
-	if not overlay_stack or overlay_stack.is_empty():
-		return false
-	var top = overlay_stack.get_top()
-	if top == null:
-		return false
-	if not top.has_method("cycle_frame"):
-		return false
-	if not ("frame_ids" in top):
-		return false
-	var ids = top.frame_ids
-	if not (ids is Array) or ids.is_empty():
-		return false
-	top.cycle_frame(step)
-	return true
-
-
-func _cycle_active_biome(delta: int) -> void:
-	# Cycle to the previous/next biome via ActiveBiomeManager.
-	var abm = InstrumentLocator.resolve_active_biome_manager(self)
-	if not abm:
-		return
-	if delta > 0 and abm.has_method("cycle_next"):
-		abm.cycle_next()
-	elif delta < 0 and abm.has_method("cycle_prev"):
-		abm.cycle_prev()
+func _cycle_sub_mode(delta: int) -> void:
+	# TAB binding — cycles the 1-3 axis within the active hat.
+	if input_handler and input_handler.has_method("cycle_sub_mode"):
+		input_handler.cycle_sub_mode(delta)
 
 
 # =============================================================================
@@ -290,7 +292,7 @@ func _open_escape_menu() -> void:
 
 
 func _toggle_shell_menu(menu_name: String) -> void:
-	# Toggle a shell menu (Z=controls, X=system, M=map meta).
+	# Toggle a shell menu (Z=escape_menu/system, X=controls/playthrough).
 
 	# Shell menus close all other menus when opening.
 	if not overlay_manager:
@@ -415,6 +417,10 @@ func _ready() -> void:
 	add_child(quest_manager)
 	_verbose.info("ui", "✅", "Quest manager created")
 
+	# Subscribe to PlayerEventLog so importance-2+ entries spawn toasts.
+	if not PlayerEventLog.event_added.is_connected(_on_player_event_added):
+		PlayerEventLog.event_added.connect(_on_player_event_added)
+
 	# ═══════════════════════════════════════════════════════════════
 	# CREATE ACTION BARS DIRECTLY IN ActionBarLayer
 	# ═══════════════════════════════════════════════════════════════
@@ -485,7 +491,7 @@ func _ready() -> void:
 	overlay_layer.add_child(_hint_toast_stack)
 	_apply_top_strip_layout()
 	if layout_manager and layout_manager.has_signal("layout_changed"):
-		InstrumentLocator.safe_connect(layout_manager.layout_changed, _on_layout_changed)
+		InstrumentLocator._safe_connect(layout_manager.layout_changed, _on_layout_changed)
 
 	# Connect overlay signals
 	_connect_overlay_signals()
@@ -689,7 +695,7 @@ func _connect_quest_manager_to_biomes(farm_ui: Control) -> void:
 
 	if abm and abm.has_signal("active_biome_changed"):
 		var biome_callable = Callable(self, "_handle_active_biome_change").bind(farm_ref)
-		InstrumentLocator.safe_connect(abm.active_biome_changed, biome_callable)
+		InstrumentLocator._safe_connect(abm.active_biome_changed, biome_callable)
 		var active_biome = abm.get_active_biome() if abm.has_method("get_active_biome") else ""
 		if active_biome != "":
 			biome_callable.call(active_biome, "")
@@ -704,3 +710,15 @@ func _handle_active_biome_change(biome_name: String, _old_biome: String, farm_re
 	var biome = farm_ref.grid.get_biome(biome_name)
 	if biome:
 		quest_manager.connect_to_biome(biome)
+
+
+# =============================================================================
+# PLAYER EVENT TOAST — PlayerEventLog → HintToast for importance ≥ 2
+# (Signal translation lives in PlayerEventBridge autoload.)
+# =============================================================================
+
+func _on_player_event_added(entry: Dictionary) -> void:
+	var imp: int = int(entry.get("importance", 1))
+	if imp < 2:
+		return
+	show_hint(str(entry.get("message", "")), imp, str(entry.get("path", "")))

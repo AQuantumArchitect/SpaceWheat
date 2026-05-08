@@ -1,12 +1,14 @@
 class_name ControlsOverlay
 extends "res://UI/Core/Surface.gd"
 
-## Z — self / story / sociolite mirror.
-## The most personal overlay: the player looking inward, with experimental
-## chatter and faction-term sculpting on the chatter page.
+## X — playthrough surface (X key).
+## This run's identity, narrative, economy, and how-to-play. Where Z holds
+## save/system/identity ("which truth"), X holds the *current* truth: who you
+## are in this playthrough, what's happened, what to do.
 ##
-## Keyboard grammar matches the rest of the game (and X):
-##   TYUIO  = tabs (Self / Story / Verbs / Chatter / Guide), top row
+## Keyboard grammar matches the rest of the game (and Z):
+##   TYUIO  = tabs (Self / Story / · / Balance / Guide), top row
+##           (U slot intentionally empty — live quest pipeline lives on C)
 ##   GHJKL; = items within the active tab, same row as plot slots
 ##   [ / ]  = cycle tabs (surface frame cycle)
 ##   , / .  = cycle top-level menus
@@ -23,35 +25,34 @@ extends "res://UI/Core/Surface.gd"
 ## is taken by action cycling, and A/D which the shell consumes for tab
 ## cycling). Treated as scope-axis depth, not item navigation.
 ##
-## frame_ids = [self, story, verbs, balance, guide] — one per tab; the
-## balance frame currently presents the experimental chatter workbench.
+## frame_ids = [self, story, balance, guide] — one per tab.
 
 const MenuRegistry    = preload("res://UI/Core/MenuRegistry.gd")
-const ToolConfig      = preload("res://Core/GameState/ToolConfig.gd")
 const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")
 const BalanceService  = preload("res://Core/GameMechanics/BalanceService.gd")
 const FactionAxes     = preload("res://Core/Factions/FactionAxes.gd")
 const FactionRegistry = preload("res://Core/Factions/FactionRegistry.gd")
+const FactionCard     = preload("res://UI/Overlays/FactionCard.gd")
 const IconAtlas       = preload("res://Core/Factions/IconAtlas.gd")
 
 # =============================================================================
 # TABS / FRAMES
 # =============================================================================
 
-enum Tab { SELF, STORY, VERBS, BALANCE, GUIDE }
+enum Tab { SELF, STORY, BALANCE, GUIDE }
 
 const TAB_ROW := [
 	{"key": "T", "tab": Tab.SELF,    "name": "Self",    "frame": "self"},
 	{"key": "Y", "tab": Tab.STORY,   "name": "Story",   "frame": "story"},
-	{"key": "U", "tab": Tab.VERBS,   "name": "Verbs",   "frame": "verbs"},
-	{"key": "I", "tab": Tab.BALANCE, "name": "Chatter", "frame": "balance"},
+	# U slot intentionally empty — live quest pipeline lives on C (QuestBoard).
+	{"key": "I", "tab": Tab.BALANCE, "name": "Balance", "frame": "balance"},
 	{"key": "O", "tab": Tab.GUIDE,   "name": "Guide",   "frame": "guide"},
 ]
 
 const TAB_BY_KEYCODE := {
 	KEY_T: Tab.SELF,
 	KEY_Y: Tab.STORY,
-	KEY_U: Tab.VERBS,
+	# KEY_U intentionally empty (quest pipeline → C)
 	KEY_I: Tab.BALANCE,
 	KEY_O: Tab.GUIDE,
 }
@@ -69,31 +70,21 @@ const ITEM_BY_KEYCODE := {
 
 const FRAME_SELF    := "self"
 const FRAME_STORY   := "story"
-const FRAME_VERBS   := "verbs"
 const FRAME_BALANCE := "balance"
 const FRAME_GUIDE   := "guide"
 
 const TAB_TO_FRAME := {
 	Tab.SELF:    FRAME_SELF,
 	Tab.STORY:   FRAME_STORY,
-	Tab.VERBS:   FRAME_VERBS,
 	Tab.BALANCE: FRAME_BALANCE,
 	Tab.GUIDE:   FRAME_GUIDE,
 }
 const FRAME_TO_TAB := {
 	FRAME_SELF:    Tab.SELF,
 	FRAME_STORY:   Tab.STORY,
-	FRAME_VERBS:   Tab.VERBS,
 	FRAME_BALANCE: Tab.BALANCE,
 	FRAME_GUIDE:   Tab.GUIDE,
 }
-
-# Verbs tab: 7 archetype frames, GHJKL; selects which one (matches hat order).
-const VERBS_ITEMS := ["Spark", "Icon", "Merchant", "Captain", "Ace", "Operator", "Druid"]
-const VERBS_FRAME_ORDER: Array = [
-	"spark", "icon", "merchant", "captain", "ace", "operator", "druid",
-]
-const VERBS_HAT_KEYS: Array = ["4", "5", "6", "7", "8", "9", "0"]
 
 # Guide tab: 5 sections, GHJKL selects which.
 const GUIDE_ITEMS := [
@@ -123,7 +114,6 @@ const COLOR_VERB        := Color(0.95, 0.75, 0.35, 1.0)
 # =============================================================================
 
 var _current_tab: int = Tab.SELF
-var _verbs_item: int = 0    # 0..6 → archetype frame index (Spark..Druid)
 var _guide_item: int = 0    # index into GUIDE_ITEMS
 
 # Story graph state (the new Story page — quantum narrative substrate)
@@ -161,15 +151,15 @@ func _init() -> void:
 	overlay_name = "controls"
 	overlay_icon = ""
 	overlay_tier = 11
-	panel_title = "Mirror"
+	panel_title = "Playthrough"
 	panel_title_size = 22
 	panel_size_mode = PanelSizeMode.LARGE
 	panel_border_color = Color(0.5, 0.5, 0.3, 0.8)
 	navigation_mode = NavigationMode.CALLBACK
 	use_scroll_container = true
 	content_spacing = 8
-	surface_id = "Z"
-	frame_ids = [FRAME_SELF, FRAME_STORY, FRAME_VERBS, FRAME_BALANCE, FRAME_GUIDE]
+	surface_id = "X"
+	frame_ids = [FRAME_SELF, FRAME_STORY, FRAME_BALANCE, FRAME_GUIDE]
 	frame_id = TAB_TO_FRAME.get(_current_tab, FRAME_SELF)
 
 
@@ -260,7 +250,6 @@ func _refresh_body() -> void:
 	match _current_tab:
 		Tab.SELF:    _build_self_body()
 		Tab.STORY:   _build_story_body()
-		Tab.VERBS:   _build_verbs_body()
 		Tab.BALANCE: _build_balance_body()
 		Tab.GUIDE:   _build_guide_body()
 
@@ -376,35 +365,133 @@ func _build_self_body() -> void:
 			"no faction standing yet — posture is pure mixed state (50/50 on every axis).", 11,
 		))
 
-	# Top faction ties.
+	# Faction standings — full 6-channel breakdown + signature progress.
 	if not standings.is_empty():
 		_body_box.add_child(_make_spacer(8))
-		_body_box.add_child(_make_section_header("strongest ties"))
-		var top_rows: Array = []
-		for fname in standings.keys():
-			var s = standings[fname]
-			if s == null:
-				continue
-			var sc: float = s.scalar() if s.has_method("scalar") else 0.0
-			if absf(sc) > 0.0001:
-				top_rows.append({"faction": str(fname), "scalar": sc})
-		top_rows.sort_custom(func(a, b): return absf(float(a.scalar)) > absf(float(b.scalar)))
-		var shown := 0
-		for row in top_rows:
-			if shown >= 3:
-				break
-			var sc: float = row.scalar
-			var sign_char := "+" if sc >= 0.0 else "−"
-			_body_box.add_child(_make_kv_row(str(row.faction), "%s%.2f" % [sign_char, absf(sc)]))
-			shown += 1
-		if top_rows.size() > 3:
-			_body_box.add_child(_make_muted_label(
-				"… %d more on V `affinity`" % (top_rows.size() - 3), 11,
-			))
+		_body_box.add_child(_make_section_header("faction standings"))
+		_render_faction_standings_grid(farm, standings)
+
+		# Spotlight the top-magnitude other faction (not "The Demos")
+		# with a FactionCard so the player sees its nature, not just its number.
+		var spot: String = _top_other_faction_by_magnitude(standings)
+		if spot != "":
+			_body_box.add_child(_make_spacer(6))
+			_body_box.add_child(_make_section_header("spotlight · %s" % spot))
+			_render_faction_card(farm, spot)
 
 	# Vocabulary lexicon
 	_body_box.add_child(_make_spacer(8))
 	_build_lexicon_section(farm)
+
+
+## Returns the faction with the highest |scalar| standing, excluding "The Demos".
+## Empty string when no eligible faction exists.
+func _top_other_faction_by_magnitude(standings: Dictionary) -> String:
+	var best_name: String = ""
+	var best_mag: float = 0.0
+	for fname in standings.keys():
+		if str(fname) == "The Demos":
+			continue
+		var s = standings[fname]
+		if s == null or not s.has_method("scalar"):
+			continue
+		var mag: float = absf(float(s.scalar()))
+		if mag > best_mag:
+			best_mag = mag
+			best_name = str(fname)
+	return best_name
+
+
+## Render top factions with full 6-channel standing + signature progress.
+## Sorted by aggregate scalar magnitude. Up to 6 rows.
+func _render_faction_standings_grid(farm, standings: Dictionary) -> void:
+	var known: Array = farm.get_known_emojis() if farm and farm.has_method("get_known_emojis") else []
+	var known_set: Dictionary = {}
+	for e in known:
+		known_set[str(e)] = true
+
+	var faction_reg := FactionRegistry.new()
+
+	var rows: Array = []
+	for fname in standings.keys():
+		var s = standings[fname]
+		if s == null:
+			continue
+		var sc: float = s.scalar() if s.has_method("scalar") else 0.0
+		if absf(sc) < 0.0001 \
+				and absf(s.trust) < 0.0001 and absf(s.debt) < 0.0001 \
+				and absf(s.attention) < 0.0001 and absf(s.access) < 0.0001 \
+				and absf(s.legitimacy) < 0.0001 and absf(s.entanglement) < 0.0001:
+			continue
+		var f = faction_reg.get_by_name(str(fname))
+		var sig: Array = f.signature.duplicate() if f != null else []
+		var sig_total: int = sig.size()
+		var sig_known: int = 0
+		for atom in sig:
+			if known_set.has(str(atom)):
+				sig_known += 1
+		rows.append({
+			"faction": str(fname),
+			"scalar": sc,
+			"trust": float(s.trust),
+			"debt": float(s.debt),
+			"attention": float(s.attention),
+			"access": float(s.access),
+			"legitimacy": float(s.legitimacy),
+			"entanglement": float(s.entanglement),
+			"sig_known": sig_known,
+			"sig_total": sig_total,
+		})
+
+	rows.sort_custom(func(a, b): return absf(float(a.scalar)) > absf(float(b.scalar)))
+
+	if rows.is_empty():
+		_body_box.add_child(_make_muted_label("(no significant standings yet)", 11))
+		return
+
+	# Header row — channel labels.
+	_body_box.add_child(_make_standing_row(["faction", "trst", "dbt", "attn", "acc", "leg", "ent", "sig"], COLOR_HEADER, true))
+
+	var shown := 0
+	for row in rows:
+		if shown >= 6:
+			break
+		var color: Color = COLOR_VALUE if shown == 0 else COLOR_ITEM_IDLE
+		var cells := [
+			str(row.faction),
+			"%+.2f" % float(row.trust),
+			"%+.2f" % float(row.debt),
+			"%+.2f" % float(row.attention),
+			"%+.2f" % float(row.access),
+			"%+.2f" % float(row.legitimacy),
+			"%+.2f" % float(row.entanglement),
+			"%d/%d" % [int(row.sig_known), int(row.sig_total)],
+		]
+		_body_box.add_child(_make_standing_row(cells, color, false))
+		shown += 1
+
+	if rows.size() > 6:
+		_body_box.add_child(_make_muted_label(
+			"… %d more standings on V `affinity`" % (rows.size() - 6), 11))
+
+
+## Build a single fixed-width row for the standing grid. cells[0] is faction
+## name (wide); cells[1..6] are channel values; cells[7] is sig progress.
+func _make_standing_row(cells: Array, color: Color, is_header: bool) -> HBoxContainer:
+	const WIDTHS: Array = [148, 48, 48, 48, 48, 48, 48, 56]
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 4)
+	for i in range(cells.size()):
+		var lbl := Label.new()
+		lbl.text = str(cells[i])
+		lbl.add_theme_font_size_override("font_size", 10 if is_header else 11)
+		lbl.add_theme_color_override("font_color", color)
+		if i < WIDTHS.size():
+			lbl.custom_minimum_size = Vector2(WIDTHS[i], 0)
+		if i == 0:
+			lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		row.add_child(lbl)
+	return row
 
 
 func _build_lexicon_section(farm) -> void:
@@ -562,10 +649,110 @@ func _build_our_faction_view(farm) -> void:
 		row.add_child(pole_lbl)
 		_body_box.add_child(row)
 
+	_render_faction_card(farm, "The Demos")
+
+
+## Render a faction's nature card: signature, affinity, biomes-of-presence,
+## alignment couplings, standing. Reusable for player or NPC inspection.
+func _render_faction_card(farm, faction_name: String) -> void:
+	var card: Dictionary = FactionCard.gather(faction_name, farm)
+	if not bool(card.get("present", false)):
+		return
+
+	var signature: Array = card.get("signature", [])
+	if not signature.is_empty():
+		_body_box.add_child(_make_spacer(4))
+		var sig_lbl := Label.new()
+		sig_lbl.text = "signature  " + " ".join(signature)
+		sig_lbl.add_theme_font_size_override("font_size", 11)
+		sig_lbl.add_theme_color_override("font_color", COLOR_MUTED)
+		_body_box.add_child(sig_lbl)
+
+	var affinity: Array = card.get("affinity", [])
+	if not affinity.is_empty():
+		var parts: Array = []
+		for entry in affinity:
+			parts.append("%s %.2f" % [str(entry.get("emoji", "")), float(entry.get("value", 0.0))])
+		var aff_lbl := Label.new()
+		aff_lbl.text = "affinity  " + " · ".join(parts)
+		aff_lbl.add_theme_font_size_override("font_size", 11)
+		aff_lbl.add_theme_color_override("font_color", COLOR_VALUE)
+		_body_box.add_child(aff_lbl)
+
+	var biomes: Array = card.get("biomes_of_presence", [])
+	if not biomes.is_empty():
+		var bio_lbl := Label.new()
+		bio_lbl.text = "expressed in  " + ", ".join(biomes)
+		bio_lbl.add_theme_font_size_override("font_size", 11)
+		bio_lbl.add_theme_color_override("font_color", COLOR_MUTED)
+		_body_box.add_child(bio_lbl)
+
+	var alignment: Array = card.get("alignment_top", [])
+	if not alignment.is_empty():
+		for entry in alignment:
+			var w: float = float(entry.get("weight", 0.0))
+			var sign := "+" if w >= 0.0 else "−"
+			var ali_lbl := Label.new()
+			ali_lbl.text = "  %s → %s   %s%.2f" % [
+				str(entry.get("from", "")), str(entry.get("to", "")),
+				sign, absf(w),
+			]
+			ali_lbl.add_theme_font_size_override("font_size", 11)
+			ali_lbl.add_theme_color_override("font_color", COLOR_MUTED)
+			_body_box.add_child(ali_lbl)
+
+	var standing: float = float(card.get("standing", 0.0))
+	if absf(standing) > 0.0001:
+		var st_lbl := Label.new()
+		st_lbl.text = "standing  %+.2f" % standing
+		st_lbl.add_theme_font_size_override("font_size", 11)
+		st_lbl.add_theme_color_override("font_color", COLOR_VALUE)
+		_body_box.add_child(st_lbl)
+
 
 # =============================================================================
 # BODY: STORY — narrative log skeleton (placeholder until story_log exists).
 # =============================================================================
+
+## Render per-active-biome berry consumption (count + accumulated phase).
+## Berry phase gates forest_evolving → forest_communion story flags.
+func _render_berry_phase_section(farm) -> void:
+	if farm == null or not "grid" in farm or farm.grid == null:
+		return
+	if not farm.grid.has_method("get_all_biomes"):
+		return
+	var biomes: Dictionary = farm.grid.get_all_biomes()
+	var rows: Array = []
+	for biome_name in biomes.keys():
+		var biome = biomes[biome_name]
+		if biome == null:
+			continue
+		var qc = biome.quantum_computer if "quantum_computer" in biome else null
+		if qc == null:
+			continue
+		var berry = qc.berry_register if "berry_register" in qc else null
+		if berry == null:
+			continue
+		var c: int = berry.get_consumed_count() if berry.has_method("get_consumed_count") else 0
+		var p: float = berry.get_consumed_phase() if berry.has_method("get_consumed_phase") else 0.0
+		if c == 0 and absf(p) < 0.01:
+			continue
+		rows.append({"biome": str(biome_name), "count": c, "phase": p})
+	if rows.is_empty():
+		return
+	_body_box.add_child(_make_section_header("berry phase"))
+	for row in rows:
+		var lbl := Label.new()
+		# Phase target reference: 4π ≈ 12.566 (full sphere). Show progress against that.
+		var ratio: float = float(row.phase) / TAU / 2.0  # phase / (4π)
+		lbl.text = "%s · %d consumed · phase %.2f rad (%.0f%% of 4π)" % [
+			str(row.biome), int(row.count), float(row.phase), ratio * 100.0
+		]
+		lbl.add_theme_font_size_override("font_size", 11)
+		lbl.add_theme_color_override("font_color", COLOR_VALUE)
+		_body_box.add_child(lbl)
+	_body_box.add_child(_make_spacer(8))
+
 
 func _build_story_body() -> void:
 	_ensure_story_chatter_wired()
@@ -587,8 +774,13 @@ func _build_story_body() -> void:
 		_story_edge_idx = 0
 
 	# === ACTIVITY FEED (PlayerEventLog ring buffer, newest first) ===
-	var recent_events: Array = PlayerEventLog.get_recent(6, 1)
-	_body_box.add_child(_make_section_header("activity"))
+	const ACTIVITY_VISIBLE := 12
+	var recent_events: Array = PlayerEventLog.get_recent(ACTIVITY_VISIBLE, 1)
+	var total_events: int = PlayerEventLog.get_recent(PlayerEventLog.MAX_EVENTS, 1).size()
+	var header_text: String = "activity"
+	if total_events > recent_events.size():
+		header_text = "activity (%d of %d)" % [recent_events.size(), total_events]
+	_body_box.add_child(_make_section_header(header_text))
 	if recent_events.is_empty():
 		_body_box.add_child(_make_muted_label("No events yet.", 12))
 	else:
@@ -604,13 +796,18 @@ func _build_story_body() -> void:
 			_body_box.add_child(ev_lbl)
 	_body_box.add_child(_make_spacer(8))
 
+	# === BERRY PHASE (gates story flags forest_evolving → forest_communion) ===
+	var berry_farm = InstrumentLocator.resolve_active_farm(self)
+	if berry_farm != null:
+		_render_berry_phase_section(berry_farm)
+
 	# === STORY LOG (fired arc beats, newest first) ===
 	var story_farm = InstrumentLocator.resolve_active_farm(self)
 	var story_log: Array = story_farm.story_log if story_farm != null and "story_log" in story_farm else []
 	if not story_log.is_empty():
-		_body_box.add_child(_make_section_header("story"))
-		var shown := mini(story_log.size(), 4)
-		for i in range(shown):
+		var log_visible: int = story_log.size()
+		_body_box.add_child(_make_section_header("story (%d)" % log_visible))
+		for i in range(log_visible):
 			var entry: Dictionary = story_log[story_log.size() - 1 - i]
 			var act_n: int = int(entry.get("act", 0))
 			var beat_text: String = str(entry.get("arc_beat", ""))
@@ -865,86 +1062,7 @@ func _on_story_trajectory(_from: String, to_node: String, _edge: String) -> void
 
 
 # =============================================================================
-# BODY: VERBS — pick a tool with GHJK, see its QERF labels.
-# =============================================================================
-
-func _build_verbs_body() -> void:
-	_body_box.add_child(_make_section_header("pick a frame"))
-	var picker := HBoxContainer.new()
-	picker.add_theme_constant_override("separation", 14)
-	picker.alignment = BoxContainer.ALIGNMENT_CENTER
-	_body_box.add_child(picker)
-	for i in range(VERBS_ITEMS.size()):
-		var key_str := str(ITEM_KEYS[i]) if i < ITEM_KEYS.size() else ""
-		var hat := str(VERBS_HAT_KEYS[i]) if i < VERBS_HAT_KEYS.size() else ""
-		var item := Label.new()
-		item.add_theme_font_size_override("font_size", 13)
-		item.text = "[%s/%s] %s" % [key_str, hat, VERBS_ITEMS[i]]
-		if i == _verbs_item:
-			item.add_theme_color_override("font_color", COLOR_ITEM_ACTIVE)
-		else:
-			item.add_theme_color_override("font_color", COLOR_ITEM_IDLE)
-		picker.add_child(item)
-
-	_body_box.add_child(_make_spacer(6))
-
-	var frame_name: String = VERBS_FRAME_ORDER[_verbs_item] if _verbs_item < VERBS_FRAME_ORDER.size() else ""
-	var frame_def: Dictionary = ToolConfig.get_frame(frame_name)
-	var label_name := str(frame_def.get("name", frame_name))
-	var hat_key := str(VERBS_HAT_KEYS[_verbs_item]) if _verbs_item < VERBS_HAT_KEYS.size() else ""
-	_body_box.add_child(_make_section_header("[%s] %s" % [hat_key, label_name]))
-
-	var mode_name = ToolConfig.get_frame_mode_name(frame_name)
-	var mode_actions: Dictionary = frame_def.get("actions", {}).get(mode_name, {})
-	for key in ["Q", "E", "R", "F"]:
-		var info: Dictionary = mode_actions.get(key, {})
-		var label := str(info.get("label", ""))
-		var hint := str(info.get("hint", ""))
-		if key == "F" and (label == "" or label == "-"):
-			label = "Cancel / drill out"
-			hint = "Closes any open picker; otherwise no-op"
-		if label == "" or label == "-":
-			continue
-		# Reference display — key badge shows what the verb does on the TOOL surface,
-		# not here. Use muted documentation style rather than interactive chip.
-		var row := HBoxContainer.new()
-		row.add_theme_constant_override("separation", 8)
-		var key_lbl := Label.new()
-		key_lbl.text = "[%s]" % key
-		key_lbl.add_theme_font_size_override("font_size", 12)
-		key_lbl.add_theme_color_override("font_color", COLOR_KEY_CHIP)
-		key_lbl.custom_minimum_size = Vector2(28, 0)
-		row.add_child(key_lbl)
-		var verb_lbl := Label.new()
-		verb_lbl.text = label
-		verb_lbl.add_theme_font_size_override("font_size", 12)
-		verb_lbl.add_theme_color_override("font_color", COLOR_ITEM_IDLE)
-		verb_lbl.custom_minimum_size = Vector2(100, 0)
-		row.add_child(verb_lbl)
-		if hint != "":
-			var hint_lbl := Label.new()
-			hint_lbl.text = hint
-			hint_lbl.add_theme_font_size_override("font_size", 11)
-			hint_lbl.add_theme_color_override("font_color", COLOR_MUTED)
-			hint_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-			hint_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-			row.add_child(hint_lbl)
-		_body_box.add_child(row)
-
-	_body_box.add_child(_make_spacer(4))
-	_body_box.add_child(_make_muted_label(
-		"Reference only — these verbs execute on the tool surface, not here.", 10))
-
-	var modes: Array = frame_def.get("modes", [])
-	if modes.size() > 1:
-		_body_box.add_child(_make_spacer(4))
-		_body_box.add_child(_make_muted_label(
-			"Sub-modes: %s   ·   Tab cycles, 1-%d direct-pick" % [
-				" / ".join(modes), modes.size()], 11))
-
-
-# =============================================================================
-# BODY: CHATTER — experimental action cost / timescale inspector for Z.
+# BODY: BALANCE — experimental action cost / timescale inspector.
 # =============================================================================
 
 func _build_balance_body() -> void:
@@ -1364,6 +1482,58 @@ func _make_story_chip(text: String, color: Color) -> PanelContainer:
 # QERF DISPATCH
 # =============================================================================
 
+# =============================================================================
+# INSPECT TEXT — what E pops up as a toast (OverlayBase calls get_inspect_text).
+# =============================================================================
+
+func get_inspect_text() -> String:
+	match _current_tab:
+		Tab.STORY:
+			return _story_inspect_text()
+		Tab.SELF:
+			return _self_inspect_text()
+		_:
+			return ""
+
+
+func _story_inspect_text() -> String:
+	# Show the most recent event from PlayerEventLog at full message detail.
+	var recent: Array = PlayerEventLog.get_recent(1, 1)
+	if recent.is_empty():
+		return ""
+	var ev: Dictionary = recent[0]
+	var msg: String = str(ev.get("message", ""))
+	var path: String = str(ev.get("path", ""))
+	if path != "":
+		msg += "\n→ open via %s" % path
+	return msg
+
+
+func _self_inspect_text() -> String:
+	# When Self tab is showing, E pops up the spotlight faction's nature card
+	# in toast form (useful when the spotlight panel is below-fold on the
+	# scroll container).
+	var farm = InstrumentLocator.resolve_active_farm(self)
+	if farm == null or not "faction_standings" in farm:
+		return ""
+	var standings: Dictionary = farm.faction_standings
+	var spot: String = _top_other_faction_by_magnitude(standings)
+	if spot == "":
+		return ""
+	var card: Dictionary = FactionCard.gather(spot, farm)
+	if not bool(card.get("present", false)):
+		return ""
+	var lines: Array[String] = []
+	lines.append("%s · standing %+.2f" % [spot, float(card.get("standing", 0.0))])
+	var sig: Array = card.get("signature", [])
+	if not sig.is_empty():
+		lines.append("speaks: " + " ".join(sig))
+	var bio: Array = card.get("biomes_of_presence", [])
+	if not bio.is_empty():
+		lines.append("biomes: " + ", ".join(bio))
+	return "\n".join(lines)
+
+
 func _on_action_q() -> void:
 	match _current_tab:
 		Tab.BALANCE: _cycle_balance_biome(-1)
@@ -1531,10 +1701,6 @@ func _on_unhandled_key(keycode: int, _event: InputEvent) -> bool:
 
 func _select_item_in_tab(slot: int) -> void:
 	match _current_tab:
-		Tab.VERBS:
-			if slot < VERBS_ITEMS.size() and _verbs_item != slot:
-				_verbs_item = slot
-				_refresh_body()
 		Tab.BALANCE:
 			var page_size := ITEM_KEYS.size()
 			var page := _balance_action_idx / page_size
@@ -1573,21 +1739,22 @@ func _select_item_in_tab(slot: int) -> void:
 
 
 func _on_navigate(direction: Vector2i) -> void:
-	if direction.x != 0:
+	# Per KEYBOARD_GRAMMAR.md "Selection layer":
+	#   W/S = step OUTER (tabs)
+	#   A/D = step INNER (items / pages within active tab)
+	if direction.y != 0:
 		var n := TAB_ROW.size()
-		_show_tab(wrapi(_current_tab + signi(direction.x), 0, n))
+		_show_tab(wrapi(_current_tab + signi(direction.y), 0, n))
 		return
-	if direction.y == 0:
+	if direction.x == 0:
 		return
-	var step: int = signi(direction.y)
+	var step: int = signi(direction.x)
 	match _current_tab:
 		Tab.STORY:
-			# WASD on Story: y = parent/child along graph topology, x handled above for tabs;
-			# but x-axis on STORY is also used to step through edges (sibling crawl).
-			# direction.y was the only branch reached here.
+			# Story crawl walks parent/child along graph topology.
 			_story_crawl(step)
 		Tab.SELF:
-			# W/S pages through known_pairs (6 per page).
+			# Page through known_pairs (6 per page).
 			var farm = InstrumentLocator.resolve_active_farm(self)
 			if farm == null:
 				return
@@ -1598,9 +1765,6 @@ func _on_navigate(direction: Vector2i) -> void:
 			var max_page: int = max(0, (pairs.size() - 1) / page_size)
 			_self_picker_page = clampi(_self_picker_page + step, 0, max_page)
 			_self_picker_pair = clampi(_self_picker_pair, _self_picker_page * page_size, mini((_self_picker_page + 1) * page_size, pairs.size()) - 1)
-			_refresh_body()
-		Tab.VERBS:
-			_verbs_item = wrapi(_verbs_item + step, 0, VERBS_ITEMS.size())
 			_refresh_body()
 		Tab.BALANCE:
 			_cycle_balance_action(step)
@@ -1691,7 +1855,6 @@ func get_visible_data() -> Dictionary:
 	var payload: Dictionary = {
 		"tab": _current_tab,
 		"frame_label": str(TAB_ROW[_current_tab].get("name", "")) if _current_tab < TAB_ROW.size() else "",
-		"verbs_tool": _verbs_item + 1 if _current_tab == Tab.VERBS else 0,
 		"guide_section": str(GUIDE_ITEMS[_guide_item].get("id", "")) if _current_tab == Tab.GUIDE else "",
 	}
 	if _current_tab == Tab.BALANCE and not _balance_snapshot.is_empty():
