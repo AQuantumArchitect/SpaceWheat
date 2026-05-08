@@ -185,13 +185,10 @@ func _handle_shell_action(event: InputEvent) -> bool:
 			_toggle_shell_menu(overlay_name)
 		return true
 
-	# , / . — cycle previous/next top-level menu (mirror of [ / ] for biomes).
-	if keycode == KEY_COMMA:
-		_cycle_menu_overlay(-1)
-		return true
-	if keycode == KEY_PERIOD:
-		_cycle_menu_overlay(1)
-		return true
+	# , / . are reserved per KEYBOARD_GRAMMAR.md "Selection layer (4 rings)" —
+	# the cylinder's bottom ring (ZXCVBNM) is reachable via WASD spin to
+	# cursor_layer=3 + A/D, so ,/. would only duplicate that gesture.
+	# Intentionally unhandled.
 
 	# - / = — simulation granularity / speed. Stubbed: claims the keys
 	# (so they don't fall through to unrelated handlers) and logs the
@@ -658,6 +655,13 @@ func connect_to_quantum_input() -> void:
 
 	var input_handler = farm_ui.input_handler
 	self.input_handler = input_handler
+
+	# Cylinder bottom-ring step: when WASD A/D fires on cursor_layer=3
+	# (the ZXCVBNM surface ring), QII emits surface_ring_step_requested
+	# and we route it to the existing menu-overlay cycle.
+	if input_handler.has_signal("surface_ring_step_requested"):
+		if not input_handler.surface_ring_step_requested.is_connected(_cycle_menu_overlay):
+			input_handler.surface_ring_step_requested.connect(_cycle_menu_overlay)
 
 	# Connect quest_manager to economy (CRITICAL for quest completion!)
 	if quest_manager and farm_ui.farm and farm_ui.farm.economy:

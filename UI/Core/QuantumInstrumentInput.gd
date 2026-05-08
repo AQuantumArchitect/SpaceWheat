@@ -65,7 +65,12 @@ var _current_submenu: Dictionary = {}  # Local UI cache for signal emission
 var _in_submenu: bool = false  # Local UI cache for signal emission
 var _submenu_page: int = 0  # Local UI cache for signal emission
 
-## WASD cursor layer: 0=frame hat row, 1=biome row, 2=plot row. Default plot.
+## WASD cursor layer on the selection cylinder:
+##   0 = frame hat ring (4-0)
+##   1 = biome ring   (TYUIOP)
+##   2 = plot ring    (GHJKL;)
+##   3 = surface ring (ZXCVBNM)
+## W/S rotates between rings (wraps); A/D steps around the active ring.
 var cursor_layer: int = 2
 
 # Signals
@@ -77,6 +82,10 @@ signal frame_changed(frame: String)
 signal frame_mode_changed(frame: String, mode_index: int, mode_label: String)
 signal submenu_changed(submenu_name: String, submenu_actions: Dictionary)
 signal plot_checked(grid_pos: Vector2i, is_checked: bool)  # Multi-select checkbox toggled
+## Cylinder bottom-ring step. Emitted when A/D fires on cursor_layer=3
+## (the ZXCVBNM surface ring). PlayerShell listens and dispatches to
+## _cycle_menu_overlay (existing surface-cycle logic).
+signal surface_ring_step_requested(delta: int)
 
 # Actions that modify density matrix at phrame 0 (require buffer invalidation)
 const BUFFER_INVALIDATING_ACTIONS: Array[String] = [
@@ -826,10 +835,15 @@ func step_active_plot(delta: int) -> void:
 
 
 func change_cursor_layer(delta: int) -> void:
-	# Move the WASD cursor between layers: W=-1 (toward frame row), S=+1 (toward plot row).
-	cursor_layer = clampi(cursor_layer + delta, 0, 2)
-	var layer_name: String = (["frame", "biome", "plot"] as Array)[cursor_layer]
-	_verbose.debug("input", "~", "WASD layer → %s" % layer_name)
+	# Spin the cylinder: rotate the WASD cursor between the 4 rings.
+	# W = -1 (outwards); S = +1 (inwards). Wraps via posmod — the
+	# cylinder is closed so S past the bottom ring (ZXCVBNM) returns
+	# to the outer ring (4-0), and vice versa.
+	# TODO: wire visual feedback so the player can see which ring the
+	# cursor is on (currently only a verbose log).
+	cursor_layer = posmod(cursor_layer + delta, 4)
+	var layer_name: String = (["frame", "biome", "plot", "surface"] as Array)[cursor_layer]
+	_verbose.debug("input", "~", "WASD ring → %s" % layer_name)
 
 
 func cycle_frame_hat(delta: int) -> void:
@@ -841,10 +855,12 @@ func cycle_frame_hat(delta: int) -> void:
 
 
 func step_active_layer(delta: int) -> void:
-	# A/D crawl dispatched by cursor_layer. All three cases emit their row signal.
-	# 0 (frame) → cycle_frame_hat → frame_changed
-	# 1 (biome) → cycle biome     → biome_switched
-	# 2 (plot)  → step_active_plot → selection_changed
+	# A/D crawl dispatched by cursor_layer.
+	# 0 (frame)   → cycle_frame_hat              → frame_changed
+	# 1 (biome)   → cycle biome                  → biome_switched
+	# 2 (plot)    → step_active_plot             → selection_changed
+	# 3 (surface) → surface_ring_step_requested  → PlayerShell cycles the
+	#                                              top-level menu overlay
 	match cursor_layer:
 		0:
 			cycle_frame_hat(delta)
@@ -860,6 +876,8 @@ func step_active_layer(delta: int) -> void:
 			biome_switched.emit(old_biome, new_biome)
 		2:
 			step_active_plot(delta)
+		3:
+			surface_ring_step_requested.emit(delta)
 
 
 ## ============================================================================

@@ -45,16 +45,26 @@ information-depth, time) cover the geometry. The "4D" framing is
 metaphorical — Q/R is not a physical z-axis, it's information depth.
 What matters is that no two keys do the same job.
 
+**The selection rows form a cylinder.** Four stacked rings —
+hat / biome / plot / surface — that wrap top-to-bottom. WASD spins
+the cylinder: W/S rotates between rings (wraps at top and bottom),
+A/D steps width-wise around the active ring. Every direct row key
+(4-0, TYUIOP, GHJKL;, ZXCVBNM) is also a teleport: jump straight to
+that ring + slot in one keystroke. WASD-crawl is the gradual
+alternative to direct teleport.
+
 ---
 
-## The four spatial rows
+## The spatial rows (4-ring cylinder)
 
 ```
   1 2 3           ← sub-mode (axis selector for Q/R; action layer)
-  4 5 6 7 8 9 0   ← outer selection: hat / archetype scope
-  T Y U I O P     ← middle selection: biome row (6 slots, direct jump)
-  G H J K L ;     ← inner selection: plot row (6 slots, direct jump)
-  W A S D         ← crawl the 3-tier selection (W out / S in / A,D across)
+  4 5 6 7 8 9 0   ← OUTER  ring: hat / archetype scope
+  T Y U I O P     ← UPPER  ring: biome row / surface frame slots
+  G H J K L ;     ← LOWER  ring: plot row / surface item slots
+  Z X C V B N M   ← BOTTOM ring: surface ring (top-level surfaces)
+  W A S D         ← spin pad: W/S rotate between rings (wraps),
+                                A,D step around the active ring
 ```
 
 - **`4`–`9, 0`** select the **archetype hat** (see
@@ -71,18 +81,23 @@ What matters is that no two keys do the same job.
 - **`1`–`3`** select the **sub-mode within the current frame** — i.e.,
   which axis the depth verbs `Q/R` operate along (see *Action × Selection
   algebra* below). `E/F` stays on the time axis regardless of sub-mode.
-- **`T-Y-U-I-O-P`** = MIDDLE selection. At gameplay, biome slot 1–6.
+- **`T-Y-U-I-O-P`** = UPPER ring. At gameplay, biome slot 1–6.
   At an open surface, frame slots 1–6 within that surface.
-- **`G-H-J-K-L-;`** = INNER selection. At gameplay, plot slot 1–6
+- **`G-H-J-K-L-;`** = LOWER ring. At gameplay, plot slot 1–6
   within the active biome. At a surface, item slots within the active
   frame. (Left-to-right; diverges from the legacy right-to-left
   HOMEROW_KEYS index.)
-- **`W A S D`** crawls the 3-tier selection block:
-  - `W` / `S` = move the cursor OUTWARDS / INWARDS across the
-    layer hierarchy (plot ↔ biome ↔ hat).
-  - `A` / `D` = step prev / next ACROSS the focused layer.
-  - WASD covers the whole 4-0 / TYUIOP / GHJKL; block, so
-    `[ / ]` is not needed for selection cycling and is unbound.
+- **`Z-X-C-V-B-N-M`** = BOTTOM ring. The top-level surface ring:
+  Z = system, X = self, C = quests, V = vocab atlas, B = biome
+  inspector, N = network, M = global map. Each key is a direct
+  teleport that opens its surface; WASD-with-cursor-on-bottom-ring
+  cycles between open surfaces.
+- **`W A S D`** spins the cylinder of 4 selection rings:
+  - `W` / `S` = rotate the cursor between rings. Wraps top-to-bottom
+    (S past ZXCVBNM → 4-0; W past 4-0 → ZXCVBNM).
+  - `A` / `D` = step prev / next around the active ring.
+  - WASD covers the whole 4-0 / TYUIOP / GHJKL; / ZXCVBNM block, so
+    `[ / ]` and `,` / `.` are not needed and are unbound.
 - **`'`** = bulk select / clear all in the inner layer (all plots in
   the active biome; future menu bulk-select).
 - **`-`** / **`=`** = simulation granularity / speed
@@ -127,36 +142,40 @@ Action-space size in the live game:
   + the always-on E/F pair on top of every one of them
 ```
 
-### Selection layer (3 nested tiers)
+### Selection layer (4 rings of the cylinder)
 
 ```
-  4 5 6 7 8 9 0   OUTER  — hat / archetype scope. Sticky.
-                  Currently selects the active toolkit (the action
-                  layer's "frame"). Future: also gates which biomes
-                  appear in the TYUIOP pool, so the hat is the player's
-                  "world view" — both what verbs are available AND what
-                  subject matter is in scope. The hat row carries
-                  this dual role on a single keystroke.
+  4 5 6 7 8 9 0   OUTER   — hat / archetype scope. Sticky.
+                  Action role: active toolkit (Spark, Icon, Merchant,
+                  Captain, Ace, Operator, Druid).
+                  Selection role: outer scope; future will gate which
+                  biomes appear in the TYUIOP pool, so the hat is the
+                  player's "world view."
 
-  T Y U I O P     MIDDLE — biome row at gameplay; frame slots inside an
-                  open surface. Sticky.
+  T Y U I O P     UPPER   — biome row at gameplay; frame slots inside
+                  an open surface. Sticky.
 
-  G H J K L ;     INNER  — plot row inside the active biome at gameplay;
-                  item slots inside the active frame in a surface.
+  G H J K L ;     LOWER   — plot row inside the active biome at
+                  gameplay; item slots inside the active frame.
                   Sticky.
 
-  W A S D         crawl pad — navigates the layer cursor and steps
-                  within the focused layer:
-                    W   move cursor OUTWARDS    (plot → biome → hat)
-                    S   move cursor INWARDS     (hat → biome → plot)
-                    A   step PREV across the focused layer
-                    D   step NEXT across the focused layer
+  Z X C V B N M   BOTTOM  — surface ring. Top-level menu surfaces
+                  (Z = system, X = self, C = quests, V = vocab atlas,
+                  B = biome inspector, N = network, M = global map).
+                  Direct keypress = teleport into the surface.
+
+  W A S D         spin pad — rotate the cylinder:
+                    W   spin OUTWARDS one ring (wraps: 4-0 → ZXCVBNM)
+                    S   spin INWARDS  one ring (wraps: ZXCVBNM → 4-0)
+                    A   step PREV around the active ring
+                    D   step NEXT around the active ring
 ```
 
-WASD covers the entire 3-tier selection block — there is no separate
-cycle pair for it. Direct-jump on a row key teleports the cursor to
-that layer and slot in one keystroke; WASD is the gradual / explicit
-alternative.
+The cylinder is **closed** — W/S wraps, so there is no top or bottom
+in the strict sense. The naming (outer/upper/lower/bottom) is just
+descriptive convenience. WASD covers the entire 4-ring cylinder;
+direct-jump on a row key teleports the cursor to that ring and slot
+in one keystroke. WASD is the gradual / explicit alternative.
 
 ### Frame-local TYUIOP override
 
@@ -490,11 +509,13 @@ There is no QERF "back" key. Two paths instead:
 
 - **ESC** closes the topmost overlay. Hit ESC enough times and you're
   back in the main game. In the main game, ESC opens the system menu.
-- **ZXCVBNM (the top-level menu ring)**: the ring now reads
+- **ZXCVBNM (bottom ring of the selection cylinder)**: the ring reads
   `Z → X → C → V → B → N → M`. Each key abandons the current overlay
   and swaps to its surface directly. There is no risk of being trapped
   in a deep stack because every top-level key is an unconditional
-  teleport. `ESC` unwinds; the ring swaps.
+  teleport. `ESC` unwinds; the ring swaps. The ring is also reachable
+  via WASD spin: from the GHJKL; layer, press S to rotate the cursor
+  to the bottom ring, then A/D to step between surfaces.
 - **`N → C` is a deliberate two-step loop.** `N`'s Network page selects a
   relation and seeds scope; the selector page is a browseable atlas. `C`
   consumes the pending scope on open and shows the contract board for that
@@ -505,10 +526,10 @@ There is no QERF "back" key. Two paths instead:
   biome × faction cluster view only when `M` is on its Atlas page. That does
   not change the global QERF grammar; it is surface-local view control.
 
-`,` / `.` cycle through the menu ring (Z X C V B N M sibling surfaces)
-without leaving the open one. WASD covers within-surface navigation
-(crawl the 3-tier selection block); the row keys (4-0 / TYUIOP /
-GHJKL;) direct-jump to a slot.
+WASD covers within-surface navigation across the full 4-ring cylinder
+(4-0 / TYUIOP / GHJKL; / ZXCVBNM). The row keys direct-jump to any
+slot on any ring; the `,/.` keys are unbound (their old menu-ring-cycle
+role is subsumed by A/D on the bottom ring of the cylinder).
 
 ### Surface roles
 
@@ -544,9 +565,9 @@ stale.
   whose explicit purpose is to manipulate the TYUIOP axis itself may
   consume TYUIOP for content selection — see *Frame-local TYUIOP
   override*. To exit such a frame use WASD (W out, A/D step) or ESC.
-- **`,` / `.`** cycle through top-level menu overlays (the Z X C V B N M
-  ring) without leaving the open one. Pure meta-nav between sibling
-  surfaces — not a selection-layer step.
+- **`,` / `.`** are reserved (no-op). With ZXCVBNM joining the cylinder
+  as its bottom ring, A/D on the bottom ring covers the same gesture;
+  `,/.` would only duplicate WASD.
 - **`Tab`** cycles the **hat** (4-0) — the same step WASD does when
   the cursor is on the frame layer, but as a one-key shortcut. The
   1-3 sub-mode row sits directly under the left hand and is fast
@@ -560,10 +581,12 @@ stale.
 - **`F`** does not appear in this list. F is a verb (play / flatten);
   navigation belongs to commas, Tab, and WASD.
 
-PlayerShell.gd (`UI/PlayerShell.gd:188-237`) owns the routing for
-`,/.`, TAB, and WASD. Direct-jump dispatch for the row keys
-(4-0 / TYUIOP / GHJKL;) lives in the active surface or in the
-gameplay input handler.
+PlayerShell.gd owns the routing for TAB and WASD. WASD on the bottom
+ring (cursor_layer = 3) routes to `_cycle_menu_overlay` via the
+`surface_ring_step_requested` signal emitted from
+QuantumInstrumentInput. Direct-jump dispatch for the row keys
+(4-0 / TYUIOP / GHJKL; / ZXCVBNM) lives in the active surface or in
+the gameplay input handler.
 
 ---
 
@@ -591,33 +614,36 @@ gameplay input handler.
 | `Enter` / `Space` | Confirm / activate the selected item in menus. |
 | `Backspace` | Reserved (no binding). |
 | `[` / `]` | Reserved (no binding). WASD already crawls the whole selection block; `[/]` next to TYUIOP would gain no functionality. |
+| `,` / `.` | Reserved (no binding). With ZXCVBNM joining the cylinder, WASD on the bottom ring covers the same gesture. |
 | `` ` `` (backtick) | Reserved (no binding). |
 | `\` (backslash) | Reserved (no binding). |
 | `/` (slash) | Reserved (no binding). |
 
-The `[/]` `` ` `` `\` `/` keys are deliberately left as no-ops. WASD's
-crawl + the row keys' direct-jump cover the entire selection space; an
-extra cycle pair would either duplicate WASD or scatter functionality
-into a less-discoverable place. Future features that need a binding
-should claim from this reserved set rather than overloading an
-existing key.
+The `[/]` `,/.` `` ` `` `\` `/` keys are deliberately left as no-ops.
+WASD's spin + the row keys' direct-jump cover the entire 4-ring
+cylinder; an extra cycle pair would either duplicate WASD or scatter
+functionality into a less-discoverable place. Future features that
+need a binding should claim from this reserved set rather than
+overloading an existing key.
 
 ---
 
 ## Why this grammar
 
 **Eight keys, four axes, one mental model on every surface.** The
-grammar collapses to: WASD crawls the 3-tier selection block (W out,
-S in, A/D step across), Q/R drills depth (screwed by the right-hand
-rule), E/F flips the time axis (snapshot vs flow). Selection layer +
-information depth + time = three orthogonal flows; WASD + QERF = eight
-keys.
+grammar collapses to: WASD spins the 4-ring selection cylinder (W/S
+rotate between rings — wraps — A/D step around the active ring), Q/R
+drills depth (screwed by the right-hand rule), E/F flips the time
+axis (snapshot vs flow). Selection cylinder + information depth +
+time = three orthogonal flows; WASD + QERF = eight keys.
 
-The four spatial rows give the player a consistent geometry: 4-0 picks
-the outer scope (hat / archetype), 1-3 picks the action axis within
-the active hat, TYUIOP picks the middle slot (biome or surface frame),
-GHJKL; picks the inner slot (plot or item), WASD crawls between them.
-The QERF quartet gives depth and time: Q/R on depth, E/F on time.
+The selection rings give the player a consistent geometry: 4-0 picks
+the outer scope (hat / archetype), TYUIOP picks the upper slot (biome
+or surface frame), GHJKL; picks the lower slot (plot or item),
+ZXCVBNM picks the bottom slot (top-level surface). 1-3 picks the
+action axis within the active hat. WASD spins between any of the four
+rings; the row keys teleport directly. The QERF quartet gives depth
+and time: Q/R on depth, E/F on time.
 
 **Q and R encode direction in the world, not just on a list.** Pressing
 Q unthreads you from the simulation — you are leaving, retreating,
