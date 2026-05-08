@@ -833,23 +833,11 @@ func change_cursor_layer(delta: int) -> void:
 
 
 func cycle_frame_hat(delta: int) -> void:
-	# Step through FRAME_IDS by ±1, wrapping. Used by WASD frame layer.
+	# Step through FRAME_IDS by ±1, wrapping. Bound to TAB and to the
+	# WASD frame-layer step.
 	ToolConfig.cycle_frame(delta)
 	frame_changed.emit(ToolConfig.get_current_frame())
 	_verbose.debug("input", "~", "Frame → %s" % ToolConfig.get_current_frame())
-
-
-func cycle_sub_mode(_delta: int) -> void:
-	# Cycle the 1-3 axis (sub-mode) within the active hat. Bound to TAB
-	# per KEYBOARD_GRAMMAR.md "Action layer" — sub-mode is the action-axis
-	# selector that WASD doesn't reach.
-	# ToolConfig.cycle_frame_mode wraps internally; ignores delta sign for
-	# now (single-step cycle). If reverse-cycle becomes useful, route delta.
-	var frame_name: String = ToolConfig.get_current_frame()
-	var new_index: int = ToolConfig.cycle_frame_mode(frame_name)
-	var mode_label: String = ToolConfig.get_frame_mode_label(frame_name)
-	frame_mode_changed.emit(frame_name, new_index, mode_label)
-	_verbose.debug("input", "~", "Sub-mode → %s.%s" % [frame_name, mode_label])
 
 
 func step_active_layer(delta: int) -> void:

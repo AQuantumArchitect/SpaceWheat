@@ -22,7 +22,7 @@ const LoggerConfigPanel = preload("res://UI/Overlays/LoggerConfigPanel.gd")
 const InstrumentLocator = preload("res://Core/Instrumentation/InstrumentLocator.gd")
 # QuantumHUDPanel REMOVED - content merged into InspectorOverlay (N key)
 const QuantumModeStatusIndicator = preload("res://UI/Widgets/QuantumModeStatusIndicator.gd")
-const BiomeSelectionRowClass = preload("res://UI/Widgets/BiomeSelectionRow.gd")
+const MenuSelectionRowClass = preload("res://UI/Widgets/MenuSelectionRow.gd")
 const FpsDisplay = preload("res://UI/HUD/FpsDisplay.gd")
 const HintToast = preload("res://UI/Widgets/HintToast.gd")
 
@@ -41,7 +41,7 @@ var input_handler = null  # Projection of current_farm_ui.input_handler for diag
 var advanced_mode_enabled: bool = false
 # quantum_hud_panel REMOVED - content merged into InspectorOverlay (N key)
 var quantum_mode_indicator: QuantumModeStatusIndicator = null  # Current quantum mode display
-var biome_tab_bar: BiomeSelectionRowClass = null  # Top bar for biome selection
+var menu_row: MenuSelectionRowClass = null  # Top bar — ZXCVBNM menu launcher
 var fps_display: Control = null  # Top-left FPS projection display
 var _hint_toast_stack: VBoxContainer = null  # Bottom-right stack of ephemeral hint toasts
 var _quest_biome_connected: bool = false
@@ -217,7 +217,7 @@ func _handle_shell_action(event: InputEvent) -> bool:
 		return false
 
 	if keycode == KEY_TAB:
-		_cycle_sub_mode(1)
+		_cycle_frame_hat(1)
 		return true
 
 	# WASD — crawl the 3-layer grid (frame / biome / plot rows).
@@ -252,15 +252,9 @@ func _change_cursor_layer(delta: int) -> void:
 
 
 func _cycle_frame_hat(delta: int) -> void:
-	# Used by step_active_layer when WASD cursor is on the frame layer.
+	# Used by TAB and by step_active_layer when WASD cursor is on the frame layer.
 	if input_handler and input_handler.has_method("cycle_frame_hat"):
 		input_handler.cycle_frame_hat(delta)
-
-
-func _cycle_sub_mode(delta: int) -> void:
-	# TAB binding — cycles the 1-3 axis within the active hat.
-	if input_handler and input_handler.has_method("cycle_sub_mode"):
-		input_handler.cycle_sub_mode(delta)
 
 
 # =============================================================================
@@ -465,11 +459,14 @@ func _ready() -> void:
 	overlay_layer.add_child(quantum_mode_indicator)
 	_verbose.info("ui", "✅", "Quantum mode indicator created")
 
-	# Create biome selection row (top-center for biome selection)
-	biome_tab_bar = BiomeSelectionRowClass.new()
-	biome_tab_bar.name = "BiomeSelectionRow"
-	overlay_layer.add_child(biome_tab_bar)
-	_verbose.info("ui", "✅", "Biome tab bar created")
+	# Create top menu row (ZXCVBNM overlay launcher — same chrome as bottom rows)
+	menu_row = MenuSelectionRowClass.new()
+	menu_row.name = "MenuSelectionRow"
+	if layout_manager and menu_row.has_method("set_layout_manager"):
+		menu_row.set_layout_manager(layout_manager)
+	menu_row.set_overlay_manager(overlay_manager)
+	overlay_layer.add_child(menu_row)
+	_verbose.info("ui", "✅", "Menu row created (ZXCVBNM launcher)")
 
 	# Create FPS display (top-left projection display)
 	fps_display = FpsDisplay.new()
@@ -525,14 +522,12 @@ func set_farm_attached(attached: bool) -> void:
 	var action_bar_layer = get_node_or_null("ActionBarLayer")
 	if action_bar_layer:
 		action_bar_layer.visible = attached
-	if biome_tab_bar:
-		biome_tab_bar.visible = attached
+	if menu_row:
+		menu_row.visible = attached
 	if fps_display:
 		fps_display.visible = attached
 	if quantum_mode_indicator:
 		quantum_mode_indicator.visible = attached
-	if overlay_manager and overlay_manager.touch_button_bar:
-		overlay_manager.touch_button_bar.visible = attached
 
 
 func is_farm_attached() -> bool:
@@ -557,34 +552,34 @@ func _on_layout_changed(_layout: Dictionary) -> void:
 
 
 func _apply_top_strip_layout() -> void:
-	if not quantum_mode_indicator or not biome_tab_bar:
-		return
-
 	var top_offset = 54.0
-	var tab_height = 40.0
 	var side_inset = 200.0
 	var indicator_size = Vector2(200, 40)
+	var menu_row_height = 55.0
 
 	if layout_manager:
 		if layout_manager.has_method("get_resource_bar_height") and layout_manager.has_method("get_top_strip_gap"):
 			top_offset = layout_manager.get_resource_bar_height() + layout_manager.get_top_strip_gap()
-		if layout_manager.has_method("get_biome_tab_height"):
-			tab_height = layout_manager.get_biome_tab_height()
 		if layout_manager.has_method("get_top_strip_side_inset"):
 			side_inset = layout_manager.get_top_strip_side_inset()
 		if layout_manager.has_method("get_quantum_indicator_size"):
 			indicator_size = layout_manager.get_quantum_indicator_size()
+		if layout_manager.has_method("get_action_row_height"):
+			menu_row_height = layout_manager.get_action_row_height()
 
-	quantum_mode_indicator.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-	quantum_mode_indicator.offset_left = -side_inset
-	quantum_mode_indicator.offset_top = top_offset
-	quantum_mode_indicator.custom_minimum_size = indicator_size
+	if quantum_mode_indicator:
+		quantum_mode_indicator.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+		quantum_mode_indicator.offset_left = -side_inset
+		quantum_mode_indicator.offset_top = top_offset
+		quantum_mode_indicator.custom_minimum_size = indicator_size
 
-	biome_tab_bar.set_anchors_preset(Control.PRESET_TOP_WIDE)
-	biome_tab_bar.offset_top = top_offset
-	biome_tab_bar.offset_bottom = top_offset + tab_height
-	biome_tab_bar.offset_left = side_inset
-	biome_tab_bar.offset_right = -side_inset
+	if menu_row:
+		menu_row.set_anchors_preset(Control.PRESET_TOP_WIDE)
+		menu_row.offset_top = top_offset
+		menu_row.offset_bottom = top_offset + menu_row_height
+		menu_row.offset_left = 10
+		menu_row.offset_right = -10
+		menu_row.custom_minimum_size = Vector2(0, menu_row_height)
 
 	if fps_display:
 		fps_display.set_anchors_preset(Control.PRESET_TOP_RIGHT)

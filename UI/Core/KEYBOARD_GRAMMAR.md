@@ -547,9 +547,10 @@ stale.
 - **`,` / `.`** cycle through top-level menu overlays (the Z X C V B N M
   ring) without leaving the open one. Pure meta-nav between sibling
   surfaces — not a selection-layer step.
-- **`Tab`** cycles the **sub-mode** (1-3) within the current hat. The
-  axis-cycling counterpart that WASD doesn't reach (WASD only crawls
-  the selection block, not the action layer's sub-mode).
+- **`Tab`** cycles the **hat** (4-0) — the same step WASD does when
+  the cursor is on the frame layer, but as a one-key shortcut. The
+  1-3 sub-mode row sits directly under the left hand and is fast
+  enough as a direct-press; it doesn't need a cycle key.
 - **`M` Atlas page** uses `Q` / `R` for orbit / zoom locally — surface-
   local view control on a 2D viewport, not list nav.
 - **`[` / `]`**, **`` ` ``**, **`\\`**, **`/`** are unbound. WASD already
@@ -660,11 +661,12 @@ ESC and the ZXCVBNM ring eliminate the need for a "back" verb on QERF.
 ESC unwinds; the ring teleports. Two distinct gestures, neither of which
 has to share keys with the action grammar.
 
-Sub-mode cycling lives on Tab + direct numbers (`1`-`3`) because F has
-a real semantic (play / flatten) and cannot be a navigation key.
-Selection cycling lives on WASD + the row keys; `,` / `.` cycles the
-top-level menu ring. Adding F to any of those lists would be one key
-doing three unrelated jobs.
+Sub-mode picking lives on `1`-`3` direct-press (under the left hand,
+fast enough to need no cycle key). Hat cycling lives on Tab as the
+one-key shortcut; the same gesture is also reachable through WASD on
+the frame layer. F stays a verb (play / flatten) and never carries
+navigation; selection cycling lives on WASD + the row keys; `,` /
+`.` cycles the top-level menu ring.
 
 ---
 
