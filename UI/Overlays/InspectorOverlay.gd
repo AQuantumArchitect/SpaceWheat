@@ -133,6 +133,11 @@ func _update_action_labels() -> void:
 	elif frame_id == FRAME_LIVE:
 		var r_label := "Open biome" if _live_selected < _live_sorted_biomes.size() else "—"
 		labels = {"Q": "—", "E": "—", "R": r_label, "F": "—"}
+	elif frame_id == FRAME_MAP:
+		var has_cursor := _map_biome_idx >= 0 and _map_biome_idx < _map_unlocked_biomes.size()
+		var q_label := "Clear slot"
+		var r_label := "Bind to slot" if has_cursor else "—"
+		labels = {"Q": q_label, "E": "—", "R": r_label, "F": "—"}
 	else:
 		labels = {"Q": "—", "E": "—", "R": "—", "F": "—"}
 	action_labels = labels
@@ -155,7 +160,7 @@ func _refresh_label() -> void:
 				edge_b,
 			]
 		elif frame_id == FRAME_MAP:
-			subtitle = "Browse biomes · Network seeds C"
+			subtitle = "Bind biomes to TYUIOP · 1-6 slot · GHJKL; biome · R bind · Q clear"
 		_frame_label.text = "[ %s ]  page %s  ·  %s" % [
 			FRAME_LABELS_LOCAL.get(frame_id, frame_id),
 			page_text,
@@ -168,7 +173,7 @@ func _refresh_label() -> void:
 			FRAME_BRIDGES:
 				_hint_label.text = "Bridges show which factions are admitted across multiple biomes."
 			FRAME_MAP:
-				_hint_label.text = "Browse biomes here; use Network to seed C with a relation."
+				_hint_label.text = "Map binds biomes to TYUIOP keys — 1-6 picks slot, GHJKL; picks biome, R binds, Q clears."
 			FRAME_LIVE:
 				_hint_label.text = "Ranked by recent chatter activity. E opens the biome inspector."
 			_:
@@ -193,91 +198,167 @@ func _rebuild_body() -> void:
 # SELECTOR — biome cards / pair-scope handoff page
 # =============================================================================
 
+## Map frame: slot-binding editor for the TYUIOP biome row.
+##
+## Mirrors how Network selects an inter-biome relation (an edge) — Map selects
+## which biome lives on each TYUIOP key (a vertex binding). Together they edit
+## the inter-biome topology: nodes here, edges there.
+##
+## Keys (Map frame only):
+##   1 2 3 4 5 6  pick the target slot (1=T, 2=Y, 3=U, 4=I, 5=O, 6=P)
+##   GHJKL;       cursor over the unlocked biome list
+##   W / S        page biomes (when more than 6 unlocked)
+##   R            bind cursor biome → target slot
+##   Q            clear target slot
+##   E            inspect cursor biome inline (reuses biome card)
 func _build_map_view() -> void:
+	_ensure_slot_signal_wired()
 	var biomes := _get_all_biomes()
-	var active_name := _get_active_biome_name()
+	var abm = _resolve_abm()
+
+	# Cache unlocked biome list (biome rebinding only operates on unlocked).
+	_map_unlocked_biomes = []
+	if abm != null and abm.has_method("get_biome_order"):
+		_map_unlocked_biomes = abm.get_biome_order()
+	if _map_unlocked_biomes.is_empty():
+		# Fall back to anything BiomeRegistry knows about (covers headless).
+		var names: Array = biomes.keys()
+		names.sort()
+		for n in names:
+			_map_unlocked_biomes.append(str(n))
+	_map_biome_idx = clampi(_map_biome_idx, 0, maxi(0, _map_unlocked_biomes.size() - 1))
+	var slot_count: int = abm.get_slot_count() if abm != null and abm.has_method("get_slot_count") else 6
+	_map_target_slot = clampi(_map_target_slot, 0, maxi(0, slot_count - 1))
 
 	var hdr := Label.new()
-	hdr.text = "Known biomes: %d    Active: %s" % [biomes.size(), active_name if active_name != "" else "—"]
+	hdr.text = "TYUIOP bindings  ·  %d slots  ·  %d unlocked biomes" % [slot_count, _map_unlocked_biomes.size()]
 	hdr.add_theme_font_size_override("font_size", 14)
 	hdr.add_theme_color_override("font_color", Color(0.9, 0.85, 0.5))
 	_body_box.add_child(hdr)
 
 	var sub := Label.new()
-	sub.text = "Browse biomes here; use Network to seed C with a relation."
+	sub.text = "1-6 pick slot  ·  GHJKL; pick biome  ·  R bind  ·  Q clear  ·  E inspect"
 	sub.add_theme_font_size_override("font_size", 11)
 	sub.add_theme_color_override("font_color", COLOR_MUTED)
 	sub.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_body_box.add_child(sub)
 
-	if biomes.is_empty():
+	# Slot strip — one row per TYUIOP slot, target highlighted.
+	_body_box.add_child(_map_make_spacer(4))
+	for s in range(slot_count):
+		_body_box.add_child(_make_map_slot_row(s, abm))
+
+	# Biome list — GHJKL; cursor.
+	_body_box.add_child(_map_make_spacer(8))
+	if _map_unlocked_biomes.is_empty():
 		var empty := Label.new()
-		empty.text = "No biomes loaded."
+		empty.text = "No unlocked biomes yet."
+		empty.add_theme_font_size_override("font_size", 12)
 		empty.add_theme_color_override("font_color", COLOR_MUTED)
 		_body_box.add_child(empty)
 		return
 
-	var grid := GridContainer.new()
-	grid.columns = 2
-	grid.add_theme_constant_override("h_separation", 12)
-	grid.add_theme_constant_override("v_separation", 6)
-	grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_body_box.add_child(grid)
-
-	var names: Array = biomes.keys()
-	names.sort()
-	for bname in names:
-		grid.add_child(_make_biome_card(bname, biomes[bname], bname == active_name))
+	var visible_count: int = mini(_map_unlocked_biomes.size(), NETWORK_HOMEROW.size())
+	var page_start: int = (_map_biome_idx / NETWORK_HOMEROW.size()) * NETWORK_HOMEROW.size()
+	var page_end: int = mini(page_start + NETWORK_HOMEROW.size(), _map_unlocked_biomes.size())
+	visible_count = page_end - page_start
+	for i in range(visible_count):
+		var idx: int = page_start + i
+		_body_box.add_child(_make_map_biome_row(idx, NETWORK_HOMEROW[i], biomes, abm))
 
 
-func _make_biome_card(bname: String, biome, is_active: bool) -> Control:
-	var card := PanelContainer.new()
-	card.custom_minimum_size = Vector2(220, 56)
-	card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-
-	var style := StyleBoxFlat.new()
-	style.bg_color = COLOR_CARD_BG
-	if is_active:
-		style.border_color = COLOR_CARD_BORDER_ACTIVE
-		style.set_border_width_all(2)
+func _make_map_slot_row(slot_idx: int, abm) -> Control:
+	var hbox := HBoxContainer.new()
+	hbox.add_theme_constant_override("separation", 10)
+	var is_target := (slot_idx == _map_target_slot)
+	var slot_key: String = abm.get_slot_key(slot_idx) if abm != null and abm.has_method("get_slot_key") else "?"
+	var bound: String = abm.get_biome_for_slot(slot_idx) if abm != null and abm.has_method("get_biome_for_slot") else ""
+	var key_lbl := Label.new()
+	key_lbl.text = "[%d·%s]" % [slot_idx + 1, slot_key]
+	key_lbl.add_theme_font_size_override("font_size", 12)
+	key_lbl.add_theme_color_override("font_color", COLOR_KEY_CHIP if is_target else COLOR_MUTED)
+	key_lbl.custom_minimum_size = Vector2(72, 0)
+	hbox.add_child(key_lbl)
+	var name_lbl := Label.new()
+	name_lbl.text = ("▸ " if is_target else "  ") + (bound if bound != "" else "—")
+	name_lbl.add_theme_font_size_override("font_size", 13)
+	if is_target:
+		name_lbl.add_theme_color_override("font_color", COLOR_HIGHLIGHT)
+	elif bound == "":
+		name_lbl.add_theme_color_override("font_color", COLOR_MUTED)
 	else:
-		style.border_color = COLOR_CARD_BORDER_IDLE
-		style.set_border_width_all(1)
-	style.set_corner_radius_all(4)
-	style.content_margin_left = 8
-	style.content_margin_right = 8
-	style.content_margin_top = 4
-	style.content_margin_bottom = 4
-	card.add_theme_stylebox_override("panel", style)
+		name_lbl.add_theme_color_override("font_color", COLOR_HEADER)
+	hbox.add_child(name_lbl)
+	return hbox
 
-	var vbox := VBoxContainer.new()
-	vbox.add_theme_constant_override("separation", 2)
-	card.add_child(vbox)
 
-	var title := Label.new()
-	var prefix := "● " if is_active else "  "
-	title.text = "%s%s" % [prefix, bname]
-	title.add_theme_font_size_override("font_size", 14)
-	title.add_theme_color_override("font_color", COLOR_HIGHLIGHT if is_active else COLOR_HEADER)
-	vbox.add_child(title)
+func _make_map_biome_row(idx: int, slot_key: String, biomes: Dictionary, abm) -> Control:
+	var hbox := HBoxContainer.new()
+	hbox.add_theme_constant_override("separation", 10)
+	var is_selected := (idx == _map_biome_idx)
+	var biome_name: String = str(_map_unlocked_biomes[idx])
+	var bound_to: int = -1
+	if abm != null and abm.has_method("get_slot_for_biome"):
+		bound_to = abm.get_slot_for_biome(biome_name)
+	var key_lbl := Label.new()
+	key_lbl.text = "[%s]" % slot_key
+	key_lbl.add_theme_font_size_override("font_size", 12)
+	key_lbl.add_theme_color_override("font_color", COLOR_KEY_CHIP if is_selected else COLOR_MUTED)
+	key_lbl.custom_minimum_size = Vector2(28, 0)
+	hbox.add_child(key_lbl)
+	var name_lbl := Label.new()
+	var marker := "▸ " if is_selected else "  "
+	name_lbl.text = "%s%s" % [marker, biome_name]
+	name_lbl.add_theme_font_size_override("font_size", 13)
+	name_lbl.add_theme_color_override("font_color", COLOR_HIGHLIGHT if is_selected else COLOR_HEADER)
+	name_lbl.custom_minimum_size = Vector2(220, 0)
+	hbox.add_child(name_lbl)
+	if bound_to >= 0:
+		var bound_lbl := Label.new()
+		var bound_key: String = abm.get_slot_key(bound_to) if abm != null and abm.has_method("get_slot_key") else "?"
+		bound_lbl.text = "(on %s)" % bound_key
+		bound_lbl.add_theme_font_size_override("font_size", 11)
+		bound_lbl.add_theme_color_override("font_color", COLOR_MUTED)
+		hbox.add_child(bound_lbl)
+	return hbox
 
-	var stats := Label.new()
-	var nq := 0
-	var purity := -1.0
-	var vc = null
-	if biome and "viz_cache" in biome:
-		vc = biome.viz_cache
-	if vc:
-		if vc.has_method("get_num_qubits"):
-			nq = vc.get_num_qubits()
-		if vc.has_method("get_purity"):
-			purity = vc.get_purity()
-	stats.text = "%d qubits    purity %s" % [nq, "%.0f%%" % (purity * 100.0) if purity >= 0.0 else "—"]
-	stats.add_theme_font_size_override("font_size", 11)
-	stats.add_theme_color_override("font_color", Color(0.6, 0.65, 0.75))
-	vbox.add_child(stats)
 
-	return card
+func _map_make_spacer(h: int) -> Control:
+	var c := Control.new()
+	c.custom_minimum_size = Vector2(0, h)
+	return c
+
+
+func _resolve_abm():
+	# Resolve the ActiveBiomeManager autoload — used by the Map frame.
+	var n: Node = self
+	while n != null:
+		if n.has_node("/root/ActiveBiomeManager"):
+			return n.get_node("/root/ActiveBiomeManager")
+		n = n.get_parent()
+	if Engine.get_main_loop() and Engine.get_main_loop().root:
+		return Engine.get_main_loop().root.get_node_or_null("ActiveBiomeManager")
+	return null
+
+
+func _ensure_slot_signal_wired() -> void:
+	if _map_slot_signal_connected:
+		return
+	var abm = _resolve_abm()
+	if abm == null:
+		return
+	if not abm.has_signal("slot_assignment_changed"):
+		return
+	if not abm.slot_assignment_changed.is_connected(_on_slot_assignment_changed):
+		abm.slot_assignment_changed.connect(_on_slot_assignment_changed)
+	_map_slot_signal_connected = true
+
+
+func _on_slot_assignment_changed(_slot_idx: int, _biome_name: String) -> void:
+	if frame_id == FRAME_MAP and is_active:
+		_rebuild_body()
+
+
 
 
 # =============================================================================
@@ -425,6 +506,14 @@ var _network_detail_open: bool = false
 
 var _live_selected: int = 0
 var _live_sorted_biomes: Array = []
+
+# Map (Selector) frame: slot-binding editor for the TYUIOP biome row.
+# _map_biome_idx is the cursor position over the unlocked biome list;
+# _map_target_slot is which TYUIOP slot (0..5 = T..P) the next R/Q acts on.
+var _map_biome_idx: int = 0
+var _map_target_slot: int = 0
+var _map_unlocked_biomes: Array = []  # cached during _build_map_view
+var _map_slot_signal_connected: bool = false
 
 
 func _build_network_view() -> void:
@@ -1006,11 +1095,37 @@ func _on_unhandled_key(keycode: int, _event) -> bool:
 				_update_action_labels()
 				_rebuild_body()
 			return true
+		elif frame_id == FRAME_MAP:
+			if idx < _map_unlocked_biomes.size():
+				_map_biome_idx = idx
+				_update_action_labels()
+				_rebuild_body()
+			return true
+	# Map frame: number row 1..6 picks the target TYUIOP slot.
+	if frame_id == FRAME_MAP:
+		var slot_num: int = -1
+		match keycode:
+			KEY_1: slot_num = 0
+			KEY_2: slot_num = 1
+			KEY_3: slot_num = 2
+			KEY_4: slot_num = 3
+			KEY_5: slot_num = 4
+			KEY_6: slot_num = 5
+		if slot_num >= 0:
+			_map_target_slot = slot_num
+			_update_action_labels()
+			_rebuild_body()
+			return true
 	return false
 
 
 func _on_action_q() -> void:
-	pass  # honest empty across all frames — Q is screw-out but N has no lesser action.
+	# Map frame: Q = screw-out / clear the target TYUIOP slot.
+	if frame_id == FRAME_MAP:
+		var abm = _resolve_abm()
+		if abm != null and abm.has_method("clear_slot"):
+			abm.clear_slot(_map_target_slot)
+		# Body rebuilds on slot_assignment_changed signal.
 
 
 func _on_action_e() -> void:
@@ -1025,7 +1140,8 @@ func _on_action_e() -> void:
 
 
 func _on_action_r() -> void:
-	# R = screw in. Drill into the deeper surface for the focused row.
+	# R = screw in. On Network: open contracts. On Live: drill into B. On Map:
+	# bind the cursor biome to the target TYUIOP slot (commit the binding).
 	if frame_id == FRAME_NETWORK:
 		# Advance to the contract board (C) with this edge already scoped.
 		if _network_selected < 0 or _network_selected >= _network_edges.size():
@@ -1039,6 +1155,14 @@ func _on_action_r() -> void:
 	elif frame_id == FRAME_LIVE:
 		if _live_selected < _live_sorted_biomes.size():
 			_handoff_to_biome_inspector(str(_live_sorted_biomes[_live_selected]))
+	elif frame_id == FRAME_MAP:
+		if _map_biome_idx < 0 or _map_biome_idx >= _map_unlocked_biomes.size():
+			return
+		var biome_name := str(_map_unlocked_biomes[_map_biome_idx])
+		var abm = _resolve_abm()
+		if abm != null and abm.has_method("set_slot_assignment"):
+			abm.set_slot_assignment(_map_target_slot, biome_name)
+		# Body rebuilds on slot_assignment_changed signal.
 
 
 func _on_action_f() -> void:
