@@ -281,13 +281,14 @@ func action_spark_north(positions: Array[Vector2i]) -> Dictionary:
 	if not positions.is_empty():
 		var north_emoji = LindbladHandler._resolve_north_emoji(farm, positions[0])
 		context["north_emoji"] = north_emoji
-		# Invest-cost symmetry: charge the surprisal of the target pole. Forcing an
-		# improbable north costs more (cost-side twin of the harvest reward).
+		# Drive-cost: charge the surprisal of the pole being driven. Forcing an
+		# improbable north costs more (any Lindblad drive is work; cost-side
+		# counterpart of the harvest reward).
 		var biome = farm.grid.get_biome_for_plot(positions[0]) if farm and farm.grid else null
 		if biome and biome.quantum_computer and north_emoji != "":
 			var kT = EnergyPricing.biome_temperature(biome, farm)
 			var p_target = clampf(float(biome.quantum_computer.get_population(north_emoji)), 0.0, 1.0)
-			context["invest_units"] = EnergyPricing.invest_units(p_target, kT)
+			context["drive_units"] = EnergyPricing.drive_units(p_target, kT)
 	var gate = preflight_action_cost("spark_north", context)
 	if not gate.get("ok", true):
 		return {"success": false, "error": "insufficient_resources",
@@ -308,7 +309,15 @@ func action_spark_south(positions: Array[Vector2i]) -> Dictionary:
 		var north = LindbladHandler._resolve_north_emoji(farm, positions[0])
 		# south emoji is derived from the plot's south binding (complement of north)
 		context["north_emoji"] = north
-		context["south_emoji"] = LindbladHandler._resolve_south_emoji(farm, positions[0])
+		var south_emoji = LindbladHandler._resolve_south_emoji(farm, positions[0])
+		context["south_emoji"] = south_emoji
+		# Drive-cost symmetry: discharging toward south is also a Lindblad drive —
+		# charge the surprisal of the south pole being forced (mirror of spark_north).
+		var biome = farm.grid.get_biome_for_plot(positions[0]) if farm and farm.grid else null
+		if biome and biome.quantum_computer and south_emoji != "":
+			var kT = EnergyPricing.biome_temperature(biome, farm)
+			var p_target = clampf(float(biome.quantum_computer.get_population(south_emoji)), 0.0, 1.0)
+			context["drive_units"] = EnergyPricing.drive_units(p_target, kT)
 	var gate = preflight_action_cost("spark_south", context)
 	if not gate.get("ok", true):
 		return {"success": false, "error": "insufficient_resources",

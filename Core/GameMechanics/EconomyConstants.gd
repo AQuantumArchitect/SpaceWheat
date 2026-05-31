@@ -203,10 +203,12 @@ static func get_lindblad_injection_cost(action: String = ActionIds.LINDBLAD_PUMP
 	var normalized_action = normalize_action_id(action)
 	var cost: Dictionary = {}
 	if normalized_action == ActionIds.LINDBLAD_DRAIN:
+		# Drain (discharge south): flat 🧺 social fee + surprisal drive cost in the
+		# south pole (EnergyPricing.drive_units via context); flat fallback otherwise.
 		cost["🧺"] = LINDBLAD_DRAIN_BASKET_COST
 		var south_emoji = str(context.get("south_emoji", ""))
 		if south_emoji != "":
-			cost[south_emoji] = LINDBLAD_DRAIN_SOUTH_COST
+			cost[south_emoji] = int(context.get("drive_units", LINDBLAD_DRAIN_SOUTH_COST))
 		return cost
 
 	# Transfer: 2 🤝 + 13× source (north) + 8× destination (south)
@@ -220,13 +222,12 @@ static func get_lindblad_injection_cost(action: String = ActionIds.LINDBLAD_PUMP
 			cost[south] = LINDBLAD_TRANSFER_DRAIN_COST
 		return cost
 
-	# Pump: 4 📜 (flat social fee) + invest cost in north-pole emoji.
-	# Invest cost = surprisal energy of the target pole (EnergyPricing.invest_units),
-	# passed in via context; falls back to the flat legacy count if not supplied.
+	# Pump (charge north): flat 📜 social fee + surprisal drive cost in the north
+	# pole (EnergyPricing.drive_units via context); flat fallback otherwise.
 	cost["📜"] = LINDBLAD_PUMP_SCROLL_COST
 	var north_emoji = str(context.get("north_emoji", ""))
 	if north_emoji != "":
-		cost[north_emoji] = int(context.get("invest_units", LINDBLAD_PUMP_NORTH_COST))
+		cost[north_emoji] = int(context.get("drive_units", LINDBLAD_PUMP_NORTH_COST))
 	return cost
 
 
@@ -235,18 +236,19 @@ static func get_spark_cost(action: String, context: Dictionary = {}) -> Dictiona
 
 	# spark_north → 1× north_emoji
 	# spark_south → 1× south_emoji
+	# Either pole: cost = surprisal of the target being driven (EnergyPricing
+	# .drive_units via context.drive_units). Forcing an improbable pole costs more;
+	# falls back to the flat SPARK_POLE_COST if no drive_units supplied.
 	var normalized_action = normalize_action_id(action)
 	if normalized_action == ActionIds.SPARK_NORTH:
 		var north = str(context.get("north_emoji", ""))
 		if north != "":
-			# Invest (charge north pole): cost = surprisal of the target (EnergyPricing
-			# .invest_units via context). Forcing an improbable pole costs more.
-			return {north: int(context.get("invest_units", SPARK_POLE_COST))}
+			return {north: int(context.get("drive_units", SPARK_POLE_COST))}
 		return {}
 	if normalized_action == ActionIds.SPARK_SOUTH:
 		var south = str(context.get("south_emoji", ""))
 		if south != "":
-			return {south: SPARK_POLE_COST}
+			return {south: int(context.get("drive_units", SPARK_POLE_COST))}
 		return {}
 	return {}
 

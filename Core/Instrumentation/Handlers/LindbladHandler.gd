@@ -21,15 +21,15 @@ static func get_preview_cost(action_name: String, axis_pair: Dictionary = {}) ->
 	})
 
 
-static func _get_lindblad_cost(action_name: String, north_emoji: String, south_emoji: String, invest_units: int = 0) -> Dictionary:
+static func _get_lindblad_cost(action_name: String, north_emoji: String, south_emoji: String, drive_units: int = 0) -> Dictionary:
 	var normalized = EconomyConstants.normalize_action_id(action_name)
 	var ctx := {
 		"north_emoji": north_emoji,
 		"south_emoji": south_emoji
 	}
-	# Invest-cost symmetry (pump): surprisal cost in the north pole, if supplied.
-	if invest_units > 0:
-		ctx["invest_units"] = invest_units
+	# Drive-cost symmetry (pump/drain): surprisal cost in the driven pole, if supplied.
+	if drive_units > 0:
+		ctx["drive_units"] = drive_units
 	return EconomyConstants.get_lindblad_injection_cost(normalized, ctx)
 
 
@@ -39,12 +39,12 @@ static func _preflight_lindblad_cost(
 	north_emoji: String,
 	south_emoji: String,
 	insufficient: Dictionary,
-	invest_units: int = 0
+	drive_units: int = 0
 ) -> Dictionary:
 	if not farm or not farm.economy:
 		return {}
 
-	var cost = _get_lindblad_cost(action_name, north_emoji, south_emoji, invest_units)
+	var cost = _get_lindblad_cost(action_name, north_emoji, south_emoji, drive_units)
 	var gate = ActionCostRuntime.preflight_cost(farm.economy, cost)
 	if not gate.get("ok", true):
 		for emoji in cost.keys():
@@ -375,9 +375,9 @@ static func enable_persistent_drive(farm, positions: Array[Vector2i],
 			already_active += 1
 			continue
 
-		# Invest-cost symmetry: pump (R/import) charges the surprisal of the target
-		# north pole — forcing an improbable pole costs more (twin of harvest reward).
-		var pump_units := EnergyPricing.invest_units(
+		# Drive-cost: pump (charge north) costs the surprisal of the target north
+		# pole — forcing an improbable pole is more work (any Lindblad drive costs).
+		var pump_units := EnergyPricing.drive_units(
 			clampf(float(biome.quantum_computer.get_marginal(qubit_idx, 0)), 0.0, 1.0),
 			EnergyPricing.biome_temperature(biome, farm))
 		var cost = _preflight_lindblad_cost(
@@ -495,12 +495,18 @@ static func enable_persistent_decay(farm, positions: Array[Vector2i],
 			already_active += 1
 			continue
 
+		# Drive-cost: drain (discharge south) costs the surprisal of the target south
+		# pole — mirror of pump; forcing the field (either direction) is work.
+		var drain_units := EnergyPricing.drive_units(
+			clampf(float(biome.quantum_computer.get_marginal(qubit_idx, 1)), 0.0, 1.0),
+			EnergyPricing.biome_temperature(biome, farm))
 		var cost = _preflight_lindblad_cost(
 			farm,
 			EconomyConstants.normalize_action_id("lindblad_drain"),
 			north_emoji,
 			south_emoji,
-			insufficient
+			insufficient,
+			drain_units
 		)
 		if cost.is_empty():
 			continue

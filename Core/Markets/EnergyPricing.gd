@@ -34,11 +34,13 @@ static func temperature(s_norm: float, t_base: float, t_gain: float) -> float:
 	return t_base * (1.0 + t_gain * clampf(s_norm, 0.0, 1.0))
 
 
-## Cost (in pole-emoji units) to INVEST toward a pole whose current marginal is
-## p_pole. The cost-side twin of the harvest reward: forcing an improbable target
-## (low p_pole) costs more energy = −kT·log p. Floored at 1 (an investment is
-## never free). Pure math.
-static func invest_units(p_pole: float, kT: float) -> int:
+## Cost (in pole-emoji units) to DRIVE the field toward/away from a pole whose
+## current marginal is p_pole — any Lindblad drive, either direction: invest
+## (spark_north/pump) or discharge (spark_south/drain). Forcing the field is work;
+## an improbable target (low p_pole) costs more energy = −kT·log p. Floored at 1
+## (a drive is never free). The cost-side counterpart of the harvest reward (only
+## measurement-extraction rewards; driving the field costs). Pure math.
+static func drive_units(p_pole: float, kT: float) -> int:
 	return maxi(1, int(round(surprisal_energy(p_pole, kT))))
 
 
