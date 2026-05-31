@@ -150,13 +150,23 @@ func get_purity() -> float:
 	var rho_squared = _matrix.mul(_matrix)
 	return rho_squared.trace().re
 
-## Von Neumann entropy: S = -Tr(ρ log ρ) = -Σᵢ λᵢ log λᵢ
+## Entropy S = −Σ pᵢ log pᵢ over the diagonal populations. (Not the von Neumann
+## eigen-entropy: ComplexMatrix.eigensystem() is unreliable for large packed ρ and
+## returned no usable eigenvalues, silently collapsing this to 0 — a footgun for
+## any future caller. The diagonal Shannon entropy is robust, matches
+## QuantumComputer.get_entropy(), and equals von Neumann for a diagonal ρ.)
 func get_entropy() -> float:
-	var eig = _matrix.eigensystem()
-	var entropy = 0.0
-	for eigenvalue in eig.eigenvalues:
-		if eigenvalue > 1e-14:
-			entropy -= eigenvalue * log(eigenvalue)
+	var d = _matrix.n
+	var trace := 0.0
+	for i in range(d):
+		trace += _matrix.get_diagonal_real(i)
+	if trace < 1e-12:
+		return 0.0
+	var entropy := 0.0
+	for i in range(d):
+		var p = _matrix.get_diagonal_real(i) / trace
+		if p > 1e-14:
+			entropy -= p * log(p)
 	return entropy
 
 ## Expected value of observable: ⟨O⟩ = Tr(ρO)

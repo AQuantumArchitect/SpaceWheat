@@ -42,7 +42,10 @@ if ! grep -q "Rig ready" "$B" 2>/dev/null; then
   echo "❌ rig did not reach 'Rig ready' — boot log tail:"; tail -8 "$B"; exit 1
 fi
 
-# Sweep: snapshot, skip, snapshot, skip, snapshot.
+# Sweep the scenario's active biomes: snapshot, skip, snapshot, skip, snapshot.
+# (Coverage is the scenario's loaded biomes — broader coverage would need a
+# richer RIG_SCENARIO or resource injection to afford discoveries; the starter
+# set is the most balance-relevant early-game readout anyway.)
 cat >> "$Q" <<'EOF'
 {"turn":1,"action":"entropy_snapshot"}
 {"turn":2,"action":"time_skip","phrames":300}
